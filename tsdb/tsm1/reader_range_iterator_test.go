@@ -669,7 +669,7 @@ func (s *tsmState) RemoveAll() {
 }
 
 func (s *tsmState) MustDeletePrefix(key []byte, min, max int64) {
-	err := s.r.DeletePrefix(key, min, max, nil)
+	err := s.r.DeletePrefix(key, min, max, nil, nil)
 	if err != nil {
 		panic(fmt.Sprintf("DeletePrefix: %v", err))
 	}

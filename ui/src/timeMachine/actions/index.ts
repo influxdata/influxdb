@@ -43,8 +43,7 @@ export type Action =
   | SetStaticLegend
   | SetColors
   | SetYAxisLabel
-  | SetYAxisMinBound
-  | SetYAxisMaxBound
+  | SetYAxisBounds
   | SetYAxisPrefix
   | SetYAxisSuffix
   | SetYAxisBase
@@ -196,24 +195,16 @@ export const setYAxisLabel = (label: string): SetYAxisLabel => ({
   payload: {label},
 })
 
-interface SetYAxisMinBound {
-  type: 'SET_Y_AXIS_MIN_BOUND'
-  payload: {min: string}
+interface SetYAxisBounds {
+  type: 'SET_Y_AXIS_BOUNDS'
+  payload: {bounds: Axes['y']['bounds']}
 }
 
-export const setYAxisMinBound = (min: string): SetYAxisMinBound => ({
-  type: 'SET_Y_AXIS_MIN_BOUND',
-  payload: {min},
-})
-
-interface SetYAxisMaxBound {
-  type: 'SET_Y_AXIS_MAX_BOUND'
-  payload: {max: string}
-}
-
-export const setYAxisMaxBound = (max: string): SetYAxisMaxBound => ({
-  type: 'SET_Y_AXIS_MAX_BOUND',
-  payload: {max},
+export const setYAxisBounds = (
+  bounds: Axes['y']['bounds']
+): SetYAxisBounds => ({
+  type: 'SET_Y_AXIS_BOUNDS',
+  payload: {bounds},
 })
 
 interface SetYAxisPrefix {

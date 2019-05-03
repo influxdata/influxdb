@@ -6,25 +6,25 @@ import {connect} from 'react-redux'
 import {Grid} from '@influxdata/clockface'
 import Geom from 'src/timeMachine/components/view_options/Geom'
 import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
-import YAxisBounds from 'src/timeMachine/components/view_options/YAxisBounds'
 import YAxisAffixes from 'src/timeMachine/components/view_options/YAxisAffixes'
-import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
-import YAxisScale from 'src/timeMachine/components/view_options/YAxisScale'
 import ColorSelector from 'src/timeMachine/components/view_options/ColorSelector'
+import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 
 // Actions
 import {
   setStaticLegend,
   setColors,
   setYAxisLabel,
-  setYAxisMinBound,
-  setYAxisMaxBound,
   setYAxisPrefix,
   setYAxisSuffix,
   setYAxisBase,
   setYAxisScale,
+  setYAxisBounds,
   setGeom,
 } from 'src/timeMachine/actions'
+
+// Utils
+import {parseBounds} from 'src/shared/utils/vis'
 
 // Types
 import {ViewType} from 'src/types'
@@ -40,12 +40,11 @@ interface OwnProps {
 
 interface DispatchProps {
   onUpdateYAxisLabel: (label: string) => void
-  onUpdateYAxisMinBound: (min: string) => void
-  onUpdateYAxisMaxBound: (max: string) => void
   onUpdateYAxisPrefix: (prefix: string) => void
   onUpdateYAxisSuffix: (suffix: string) => void
   onUpdateYAxisBase: (base: string) => void
   onUpdateYAxisScale: (scale: string) => void
+  onUpdateYAxisBounds: (bounds: Axes['y']['bounds']) => void
   onToggleStaticLegend: (isStaticLegend: boolean) => void
   onUpdateColors: (colors: Color[]) => void
   onSetGeom: (geom: XYViewGeom) => void
@@ -57,22 +56,16 @@ class LineOptions extends PureComponent<Props> {
   public render() {
     const {
       axes: {
-        y: {label, bounds, scale, prefix, suffix, base},
+        y: {label, prefix, suffix},
       },
       colors,
       geom,
       onUpdateColors,
       onUpdateYAxisLabel,
-      onUpdateYAxisMinBound,
-      onUpdateYAxisMaxBound,
       onUpdateYAxisPrefix,
       onUpdateYAxisSuffix,
-      onUpdateYAxisBase,
-      onUpdateYAxisScale,
       onSetGeom,
     } = this.props
-
-    const [min, max] = bounds
 
     return (
       <>
@@ -88,12 +81,10 @@ class LineOptions extends PureComponent<Props> {
           <h4 className="view-options--header">Left Y Axis</h4>
         </Grid.Column>
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
-        <YAxisBounds
-          min={min}
-          max={max}
-          scale={scale}
-          onUpdateYAxisMaxBound={onUpdateYAxisMaxBound}
-          onUpdateYAxisMinBound={onUpdateYAxisMinBound}
+        <AutoDomainInput
+          domain={this.yDomain}
+          onSetDomain={this.handleSetYDomain}
+          label="Set Y Axis Domain"
         />
         <YAxisAffixes
           prefix={prefix}
@@ -101,21 +92,34 @@ class LineOptions extends PureComponent<Props> {
           onUpdateYAxisPrefix={onUpdateYAxisPrefix}
           onUpdateYAxisSuffix={onUpdateYAxisSuffix}
         />
-        <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
-        <YAxisScale scale={scale} onUpdateYAxisScale={onUpdateYAxisScale} />
       </>
     )
+  }
+
+  private get yDomain(): [number, number] {
+    return parseBounds(this.props.axes.y.bounds)
+  }
+
+  private handleSetYDomain = (yDomain: [number, number]): void => {
+    let bounds: [string, string] | [null, null]
+
+    if (yDomain) {
+      bounds = [String(yDomain[0]), String(yDomain[1])]
+    } else {
+      bounds = [null, null]
+    }
+
+    this.props.onUpdateYAxisBounds(bounds)
   }
 }
 
 const mdtp: DispatchProps = {
   onUpdateYAxisLabel: setYAxisLabel,
-  onUpdateYAxisMinBound: setYAxisMinBound,
-  onUpdateYAxisMaxBound: setYAxisMaxBound,
   onUpdateYAxisPrefix: setYAxisPrefix,
   onUpdateYAxisSuffix: setYAxisSuffix,
   onUpdateYAxisBase: setYAxisBase,
   onUpdateYAxisScale: setYAxisScale,
+  onUpdateYAxisBounds: setYAxisBounds,
   onToggleStaticLegend: setStaticLegend,
   onUpdateColors: setColors,
   onSetGeom: setGeom,

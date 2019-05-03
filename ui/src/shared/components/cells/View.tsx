@@ -16,7 +16,6 @@ interface OwnProps {
   view: View
   timeRange: TimeRange
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   onEditCell: () => void
 }
 
@@ -29,7 +28,7 @@ class ViewComponent extends Component<Props> {
   }
 
   public render() {
-    const {view, onZoom, timeRange, manualRefresh} = this.props
+    const {view, timeRange, manualRefresh} = this.props
     const {dashboardID} = this.props.params
 
     switch (view.properties.type) {
@@ -40,8 +39,6 @@ class ViewComponent extends Component<Props> {
       default:
         return (
           <RefreshingView
-            viewID={view.id}
-            onZoom={onZoom}
             timeRange={timeRange}
             properties={view.properties}
             manualRefresh={manualRefresh}

@@ -13,19 +13,11 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 service Storage {
-  // TODO(jlapacik): Remove this unsupported call
-  rpc Read (ReadRequest) returns (stream ReadResponse);
-
   // ReadFilter performs a filter operation at storage
   rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
 
   // ReadGroup performs a group operation at storage
   rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
-
-  // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
-  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
-
-  rpc Hints (google.protobuf.Empty) returns (HintsResponse);
 
   // TagKeys performs a read operation for tag keys
   rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
@@ -33,8 +25,8 @@ service Storage {
   // TagValues performs a read operation for tag values
   rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
 
-  // Explain describes the costs associated with executing a given Read request
-  // rpc Explain(google.protobuf.Empty) returns (ExplainResponse){}
+  // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
+  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
 }
 
 message ReadFilterRequest {
@@ -55,15 +47,8 @@ message ReadGroupRequest {
     // The single GroupFrame.TagKeys will be the union of all tag keys.
     GROUP_NONE = 0 [(gogoproto.enumvalue_customname) = "GroupNone"];
 
-    // GroupAll returns a unique group for each series.
-    // As an optimization, no GroupFrames will be generated.
-    GROUP_ALL = 1 [(gogoproto.enumvalue_customname) = "GroupAll"];
-
     // GroupBy returns a group for each unique value of the specified GroupKeys.
     GROUP_BY = 2 [(gogoproto.enumvalue_customname) = "GroupBy"];
-
-    // GroupExcept in not implemented.
-    GROUP_EXCEPT = 3 [(gogoproto.enumvalue_customname) = "GroupExcept"];
   }
 
   // GroupKeys specifies a list of tag keys used to order the data.
@@ -88,9 +73,6 @@ message ReadGroupRequest {
   }
   fixed32 hints = 7 [(gogoproto.customname) = "Hints", (gogoproto.casttype) = "HintFlags"];
 }
-
-// TODO(jlapacik): Remove this message
-message ReadRequest {}
 
 message Aggregate {
   enum AggregateType {
@@ -184,9 +166,6 @@ message ReadResponse {
 
 message CapabilitiesResponse {
   map<string, string> caps = 1;
-}
-
-message HintsResponse {
 }
 
 // Specifies a continuous range of nanosecond timestamps.

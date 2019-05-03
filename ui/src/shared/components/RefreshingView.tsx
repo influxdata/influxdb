@@ -24,10 +24,8 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   timeRange: TimeRange
-  viewID: string
   inView: boolean
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   properties: QueryViewProperties
   dashboardID: string
 }
@@ -64,15 +62,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      inView,
-      onZoom,
-      viewID,
-      timeRange,
-      properties,
-      manualRefresh,
-      variablesStatus,
-    } = this.props
+    const {inView, properties, manualRefresh, variablesStatus} = this.props
     const {submitToken} = this.state
 
     return (
@@ -87,7 +77,7 @@ class RefreshingView extends PureComponent<Props, State> {
           key={manualRefresh}
           variables={this.variableAssignments}
         >
-          {({tables, loading, errorMessage, isInitialFetch}) => {
+          {({tables, files, loading, errorMessage, isInitialFetch}) => {
             return (
               <EmptyQueryView
                 errorMessage={errorMessage}
@@ -99,10 +89,8 @@ class RefreshingView extends PureComponent<Props, State> {
               >
                 <RefreshingViewSwitcher
                   tables={tables}
-                  viewID={viewID}
-                  onZoom={onZoom}
+                  files={files}
                   loading={loading}
-                  timeRange={timeRange}
                   properties={properties}
                 />
               </EmptyQueryView>

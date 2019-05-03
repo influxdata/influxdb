@@ -80,8 +80,5 @@ type Store interface {
 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
 
-	// Deprecated method; should use ReadFilter and ReadGroup instead.
-	Read(ctx context.Context, req *datatypes.ReadRequest) (ResultSet, error)
-
 	GetSource(orgID, bucketID uint64) proto.Message
 }

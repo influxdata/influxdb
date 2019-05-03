@@ -25,7 +25,7 @@ type TSMIndex interface {
 	// DeletePrefix removes keys that begin with the given prefix with data between minTime and
 	// maxTime from the index. Returns true if there were any changes. It calls dead with any
 	// keys that became dead as a result of this call.
-	DeletePrefix(prefix []byte, minTime, maxTime int64, dead func([]byte)) bool
+	DeletePrefix(prefix []byte, minTime, maxTime int64, pred Predicate, dead func([]byte)) bool
 
 	// MaybeContainsKey returns true if the given key may exist in the index. This is faster than
 	// Contains but, may return false positives.
@@ -299,10 +299,10 @@ func (d *indirectIndex) coversEntries(offset uint32, key []byte, buf []TimeRange
 	// create the merger with the other tombstone entries: the ones for the specific
 	// key and the one we have proposed to add.
 	merger := timeRangeMerger{
-		sorted:   d.tombstones[offset],
-		unsorted: buf,
-		single:   TimeRange{Min: minTime, Max: maxTime},
-		used:     false,
+		fromMap:    d.tombstones[offset],
+		fromPrefix: buf,
+		single:     TimeRange{Min: minTime, Max: maxTime},
+		used:       false,
 	}
 
 	return buf, timeRangesCoverEntries(merger, entries)
@@ -381,7 +381,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) bool 
 			Index:       iter.Index(),
 			Offset:      offset,
 			EntryOffset: entryOffset,
-			Tombstones:  len(d.tombstones[offset]),
+			Tombstones:  len(d.tombstones[offset]) + d.prefixTombstones.Count(key),
 		})
 	}
 
@@ -395,10 +395,12 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) bool 
 	defer d.mu.Unlock()
 
 	for _, p := range pending {
-		// Check the existing tombstones. If the length did not/ change, then we know
+		key := keys[p.Key]
+
+		// Check the existing tombstones. If the length did not change, then we know
 		// that we don't need to double check coverage, since we only ever increase the
 		// number of tombstones for a key.
-		if trs := d.tombstones[p.Offset]; p.Tombstones == len(trs) {
+		if trs := d.tombstones[p.Offset]; p.Tombstones == len(trs)+d.prefixTombstones.Count(key) {
 			d.tombstones[p.Offset] = insertTimeRange(trs, minTime, maxTime)
 			continue
 		}
@@ -421,7 +423,7 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) bool 
 			continue
 		}
 
-		trbuf, ok = d.coversEntries(p.Offset, keys[p.Key], trbuf, entries, minTime, maxTime)
+		trbuf, ok = d.coversEntries(p.Offset, key, trbuf, entries, minTime, maxTime)
 		if ok {
 			delete(d.tombstones, p.Offset)
 			iter.SetIndex(p.Index)
@@ -443,7 +445,9 @@ func (d *indirectIndex) DeleteRange(keys [][]byte, minTime, maxTime int64) bool 
 // DeletePrefix removes keys that begin with the given prefix with data between minTime and
 // maxTime from the index. Returns true if there were any changes. It calls dead with any
 // keys that became dead as a result of this call.
-func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64, dead func([]byte)) bool {
+func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64,
+	pred Predicate, dead func([]byte)) bool {
+
 	if dead == nil {
 		dead = func([]byte) {}
 	}
@@ -461,6 +465,8 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64, dead
 		ok        bool
 		trbuf     []TimeRange
 		entries   []IndexEntry
+		pending   []pendingTombstone
+		keys      [][]byte
 		err       error
 		mustTrack bool
 	)
@@ -482,6 +488,11 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64, dead
 		key := iter.Key(&d.b)
 		if !bytes.HasPrefix(key, prefix) {
 			break
+		}
+
+		// If we have a predicate, skip the key if it doesn't match.
+		if pred != nil && !pred.Matches(key) {
+			continue
 		}
 
 		// if we're not doing a partial delete, we don't need to read the entries and
@@ -517,7 +528,8 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64, dead
 		}
 
 		// Does adding the minTime and maxTime cover the entries?
-		trbuf, ok = d.coversEntries(iter.Offset(), iter.Key(&d.b), trbuf, entries, minTime, maxTime)
+		offset := iter.Offset()
+		trbuf, ok = d.coversEntries(offset, iter.Key(&d.b), trbuf, entries, minTime, maxTime)
 		if ok {
 			dead(key)
 			iter.Delete()
@@ -526,25 +538,94 @@ func (d *indirectIndex) DeletePrefix(prefix []byte, minTime, maxTime int64, dead
 
 		// Otherwise, we have to track it in the prefix tombstones list.
 		mustTrack = true
+
+		// If we have a predicate, we must keep track of a pending tombstone entry for the key.
+		if pred != nil {
+			pending = append(pending, pendingTombstone{
+				Key:         len(keys),
+				Index:       iter.Index(),
+				Offset:      offset,
+				EntryOffset: entryOffset,
+				Tombstones:  len(d.tombstones[offset]) + d.prefixTombstones.Count(key),
+			})
+			keys = append(keys, key)
+		}
 	}
 	d.mu.RUnlock()
 
 	// Check and abort if nothing needs to be done.
-	if !mustTrack && !iter.HasDeletes() {
+	if !mustTrack && len(pending) == 0 && !iter.HasDeletes() {
 		return false
 	}
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if mustTrack {
-		d.prefixTombstones.Append(prefix, TimeRange{Min: minTime, Max: maxTime})
+	if pred == nil {
+		// If we don't have a predicate, we can add a single prefix tombstone entry.
+		if mustTrack {
+			d.prefixTombstones.Append(prefix, TimeRange{Min: minTime, Max: maxTime})
+		}
+
+		// Clean up any fully deleted keys.
+		if iter.HasDeletes() {
+			iter.Done()
+		}
+		return true
 	}
 
+	// Otherwise, we must walk the pending deletes individually.
+	for _, p := range pending {
+		key := keys[p.Key]
+
+		// Check the existing tombstones. If the length did not change, then we know
+		// that we don't need to double check coverage, since we only ever increase the
+		// number of tombstones for a key.
+		if trs := d.tombstones[p.Offset]; p.Tombstones == len(trs)+d.prefixTombstones.Count(key) {
+			d.tombstones[p.Offset] = insertTimeRange(trs, minTime, maxTime)
+			continue
+		}
+
+		// Since the length changed, we have to do the expensive overlap check again.
+		// We re-read the entries again under the write lock because this should be
+		// rare and only during concurrent deletes to the same key. We could make
+		// a copy of the entries before getting here, but that penalizes the common
+		// no-concurrent case.
+		entries, err = readEntriesTimes(d.b.access(p.EntryOffset, 0), entries)
+		if err != nil {
+			// If we have an error reading the entries for a key, we should just pretend
+			// the whole key is deleted. Maybe a better idea is to report this up somehow
+			// but that's for another time.
+			delete(d.tombstones, p.Offset)
+			iter.SetIndex(p.Index)
+			if iter.Offset() == p.Offset {
+				dead(key)
+				iter.Delete()
+			}
+			continue
+		}
+
+		// If it does cover, remove the key entirely.
+		trbuf, ok = d.coversEntries(p.Offset, key, trbuf, entries, minTime, maxTime)
+		if ok {
+			delete(d.tombstones, p.Offset)
+			iter.SetIndex(p.Index)
+			if iter.Offset() == p.Offset {
+				dead(key)
+				iter.Delete()
+			}
+			continue
+		}
+
+		// Append the TimeRange into the tombstones.
+		trs := d.tombstones[p.Offset]
+		d.tombstones[p.Offset] = insertTimeRange(trs, minTime, maxTime)
+	}
+
+	// Clean up any fully deleted keys.
 	if iter.HasDeletes() {
 		iter.Done()
 	}
-
 	return true
 }
 

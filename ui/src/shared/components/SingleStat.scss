@@ -10,6 +10,11 @@
   padding: 10px;
   color: $c-laser;
   @include no-user-select();
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .single-stat--resizer {

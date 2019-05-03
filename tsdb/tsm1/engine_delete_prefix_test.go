@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-func TestEngine_DeleteBucket(t *testing.T) {
+func TestEngine_DeletePrefix(t *testing.T) {
 	// Create a few points.
 	p1 := MustParsePointString("cpu,host=0 value=1.1 6", "mm0")
 	p2 := MustParsePointString("cpu,host=A value=1.2 2", "mm0")
@@ -42,7 +42,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
 
-	if err := e.DeleteBucketRange([]byte("mm0"), 0, 3); err != nil {
+	if err := e.DeletePrefixRange([]byte("mm0"), 0, 3, nil); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	iter.Close()
 
 	// Deleting remaining series should remove them from the series.
-	if err := e.DeleteBucketRange([]byte("mm0"), 0, 9); err != nil {
+	if err := e.DeletePrefixRange([]byte("mm0"), 0, 9, nil); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 

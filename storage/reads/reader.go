@@ -31,10 +31,6 @@ func NewReader(s Store) influxdb.Reader {
 	return &storeReader{s: s}
 }
 
-func (r *storeReader) Read(ctx context.Context, rs influxdb.ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (influxdb.TableIterator, error) {
-	return nil, nil
-}
-
 func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
 	return &filterIterator{
 		ctx:   ctx,
@@ -378,14 +374,8 @@ func convertGroupMode(m influxdb.GroupMode) datatypes.ReadGroupRequest_Group {
 		return datatypes.GroupNone
 	case influxdb.GroupModeBy:
 		return datatypes.GroupBy
-	case influxdb.GroupModeExcept:
-		return datatypes.GroupExcept
-
-	case influxdb.GroupModeDefault, influxdb.GroupModeAll:
-		fallthrough
-	default:
-		return datatypes.GroupAll
 	}
+	panic(fmt.Sprint("invalid group mode: ", m))
 }
 
 const (

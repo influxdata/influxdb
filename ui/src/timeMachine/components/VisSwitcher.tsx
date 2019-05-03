@@ -2,6 +2,7 @@
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
+import {Plot} from '@influxdata/vis'
 
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
@@ -9,16 +10,15 @@ import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
 import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
-import DygraphContainer from 'src/shared/components/DygraphContainer'
-import Histogram from 'src/shared/components/Histogram'
+import HistogramContainer from 'src/shared/components/HistogramContainer'
 import HistogramTransform from 'src/timeMachine/components/HistogramTransform'
+import XYContainer from 'src/shared/components/XYContainer'
 
 // Utils
 import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
 
 // Types
 import {
-  TimeRange,
   ViewType,
   QueryViewProperties,
   FluxTable,
@@ -33,7 +33,6 @@ interface StateProps {
   files: string[]
   tables: FluxTable[]
   loading: RemoteDataState
-  timeRange: TimeRange
   properties: QueryViewProperties
   isViewingRawData: boolean
 }
@@ -42,7 +41,6 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
   files,
   tables,
   loading,
-  timeRange,
   properties,
   isViewingRawData,
 }) => {
@@ -72,13 +70,13 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
       return <GaugeChart tables={tables} properties={properties} />
     case ViewType.XY:
       return (
-        <DygraphContainer
-          viewID="time-machine"
-          tables={tables}
+        <XYContainer
+          files={files}
+          viewProperties={properties}
           loading={loading}
-          timeRange={timeRange}
-          properties={properties}
-        />
+        >
+          {config => <Plot config={config} />}
+        </XYContainer>
       )
     case ViewType.LinePlusSingleStat:
       const xyProperties: XYView = {
@@ -95,28 +93,34 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
       }
 
       return (
-        <DygraphContainer
-          viewID="time-machine"
-          tables={tables}
+        <XYContainer
+          files={files}
+          viewProperties={xyProperties}
           loading={loading}
-          timeRange={timeRange}
-          properties={xyProperties}
         >
-          <SingleStatTransform tables={tables}>
-            {stat => (
-              <SingleStat stat={stat} properties={singleStatProperties} />
-            )}
-          </SingleStatTransform>
-        </DygraphContainer>
+          {config => (
+            <Plot config={config}>
+              <SingleStatTransform tables={tables}>
+                {stat => (
+                  <SingleStat stat={stat} properties={singleStatProperties} />
+                )}
+              </SingleStatTransform>
+            </Plot>
+          )}
+        </XYContainer>
       )
+
     case ViewType.Histogram:
       return (
         <HistogramTransform>
           {({table, xColumn, fillColumns}) => (
-            <Histogram
+            <HistogramContainer
               table={table}
-              properties={{...properties, xColumn, fillColumns}}
-            />
+              loading={loading}
+              viewProperties={{...properties, xColumn, fillColumns}}
+            >
+              {config => <Plot config={config} />}
+            </HistogramContainer>
           )}
         </HistogramTransform>
       )
@@ -128,7 +132,6 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
 const mstp = (state: AppState) => {
   const {
     view: {properties},
-    timeRange,
     isViewingRawData,
     queryResults: {status: loading, files},
   } = getActiveTimeMachine(state)
@@ -139,7 +142,6 @@ const mstp = (state: AppState) => {
     files,
     tables,
     loading,
-    timeRange,
     properties,
     isViewingRawData,
   }

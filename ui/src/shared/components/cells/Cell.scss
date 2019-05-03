@@ -25,11 +25,6 @@ $cell--header-size: 36px;
   z-index: $z--cell-view;
 
   > .single-stat {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
     border-radius: $radius;
   }
 
@@ -178,6 +173,10 @@ $cell--header-size: 36px;
   .cell--header:hover .cell--header-bar {
     opacity: 1;
   }
+}
+
+.vis-tooltip-container {
+  z-index: $z--dygraph-legend;
 }
 
 /* Drag & Resize State */

@@ -69,6 +69,27 @@ func (p *prefixTree) Search(key []byte, buf []TimeRange) []TimeRange {
 	return buf
 }
 
+func (p *prefixTree) Count(key []byte) int {
+	count := len(p.values)
+
+	if len(key) > 0 {
+		if ch, ok := p.short[key[0]]; ok {
+			count += ch.Count(key[1:])
+		}
+	}
+
+	if len(key) >= prefixTreeKeySize {
+		var lookup prefixTreeKey
+		copy(lookup[:], key)
+
+		if ch, ok := p.long[lookup]; ok {
+			count += ch.Count(key[prefixTreeKeySize:])
+		}
+	}
+
+	return count
+}
+
 func (p *prefixTree) checkOverlap(key []byte, ts int64) bool {
 	for _, t := range p.values {
 		if t.Min <= ts && ts <= t.Max {

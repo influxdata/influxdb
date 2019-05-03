@@ -21,7 +21,6 @@
 @import 'src/shared/components/threesizer/Threesizer';
 @import 'src/shared/components/graph_tips/GraphTips';
 @import 'src/shared/components/cells/Dashboards';
-@import 'src/shared/components/dygraph/Dygraph';
 @import 'src/shared/components/splash_page/SplashPage';
 @import 'src/shared/components/code_mirror/CodeMirror';
 @import 'src/shared/components/code_mirror/CodeMirrorTheme';
@@ -32,7 +31,6 @@
 @import 'src/shared/components/columns_options/ColumnsOptions';
 @import 'src/shared/components/InputClickToEdit.scss';
 @import 'src/shared/components/ImportOverlay.scss';
-@import 'src/shared/components/Legend.scss';
 @import 'src/shared/components/VersionInfo.scss';
 @import 'src/shared/components/WaitingText.scss';
 @import 'src/shared/components/cells/react-grid-layout.scss';
@@ -46,12 +44,10 @@
 @import 'src/shared/components/inlineLabels/InlineLabels.scss';
 @import 'src/shared/components/inlineLabels/InlineLabelsEditor.scss';
 @import 'src/shared/components/TagInput.scss';
-@import 'src/shared/components/HistogramTooltip.scss';
 @import 'src/shared/components/ColorSchemeDropdown.scss';
 @import 'src/shared/components/ExportOverlay.scss';
 @import 'src/shared/components/EditableName.scss';
 @import 'src/shared/components/SingleStat.scss';
-@import 'src/shared/components/HoverTimeMarker.scss';
 @import 'src/shared/components/DragAndDrop.scss';
 @import 'src/shared/components/SearchableDropdown.scss';
 @import 'src/shared/components/BoxTooltip.scss';
@@ -105,6 +101,8 @@
 @import 'src/dataLoaders/components/side_bar/SideBar.scss';
 @import 'src/dataLoaders/components/DataLoadersOverlay.scss';
 @import 'src/shared/components/EmptyGraphError.scss';
+@import 'src/shared/components/XYContainer.scss';
+@import 'src/shared/components/HistogramContainer.scss';
 @import 'src/shared/components/dapperScrollbars/DapperScrollbars.scss';
 @import 'src/dashboards/components/createFromTemplateOverlay/DashboardCreateFromTemplateOverlay.scss';
 @import 'src/onboarding/components/SigninForm.scss';
