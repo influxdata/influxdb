@@ -14,9 +14,35 @@ import (
 
 const (
 	ReadRangePhysKind     = "ReadRangePhysKind"
+	ReadGroupPhysKind     = "ReadGroupPhysKind"
 	ReadTagKeysPhysKind   = "ReadTagKeysPhysKind"
 	ReadTagValuesPhysKind = "ReadTagValuesPhysKind"
 )
+
+type ReadGroupPhysSpec struct {
+	plan.DefaultCost
+	ReadRangePhysSpec
+
+	GroupMode flux.GroupMode
+	GroupKeys []string
+
+	AggregateMethod string
+}
+
+func (s *ReadGroupPhysSpec) Kind() plan.ProcedureKind {
+	return ReadGroupPhysKind
+}
+
+func (s *ReadGroupPhysSpec) Copy() plan.ProcedureSpec {
+	ns := new(ReadGroupPhysSpec)
+	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
+
+	ns.GroupMode = s.GroupMode
+	ns.GroupKeys = s.GroupKeys
+
+	ns.AggregateMethod = s.AggregateMethod
+	return ns
+}
 
 type ReadRangePhysSpec struct {
 	plan.DefaultCost

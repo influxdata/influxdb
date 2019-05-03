@@ -57,13 +57,13 @@ class BucketsSelector extends PureComponent<Props> {
               <Button
                 text="Select All"
                 size={ComponentSize.ExtraSmall}
-                customClass="bucket-selectors--button"
+                className="bucket-selectors--button"
                 onClick={onSelectAll}
               />
               <Button
                 text="Deselect All"
                 size={ComponentSize.ExtraSmall}
-                customClass="bucket-selectors--button"
+                className="bucket-selectors--button"
                 onClick={onDeselectAll}
               />
             </ComponentSpacer>

@@ -49,7 +49,11 @@ CMDS := \
 #
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
-all: GO_ARGS=-tags 'assets $(GO_TAGS)'
+ifeq ($(GOARCH), arm64)
+    all: GO_ARGS=-tags ' assets noasm $(GO_TAGS)'
+else
+    all: GO_ARGS=-tags 'assets $(GO_TAGS)'
+endif
 all: subdirs generate $(CMDS)
 
 # Target to build subdirs.

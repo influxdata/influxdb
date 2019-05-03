@@ -304,17 +304,13 @@ describe('resourceToTemplate', () => {
                   queries: [
                     {
                       text: 'v.bucket',
-                      editMode: 'builder',
+                      editMode: 'advanced',
                       name: 'View Query',
                       builderConfig: {
-                        buckets: ['bb8'],
+                        buckets: [],
                         tags: [
                           {
                             key: '_measurement',
-                            values: ['cpu'],
-                          },
-                          {
-                            key: '_field',
                             values: [],
                           },
                         ],

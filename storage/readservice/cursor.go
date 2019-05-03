@@ -129,16 +129,8 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 	//TODO(edd): check this.
 	c.row.SeriesTags = copyTags(c.row.SeriesTags, sr.Tags)
 	c.row.Tags = copyTags(c.row.Tags, sr.Tags)
-
-	// Normalise the special tag keys to the emitted format.
-	mv := c.row.Tags.Get(models.MeasurementTagKeyBytes)
-	c.row.Tags.Delete(models.MeasurementTagKeyBytes)
-	c.row.Tags.Set(measurementKeyBytes, mv)
-
 	fv := c.row.Tags.Get(models.FieldKeyTagKeyBytes)
 	c.row.Field = string(fv)
-	c.row.Tags.Delete(models.FieldKeyTagKeyBytes)
-	c.row.Tags.Set(fieldKeyBytes, fv)
 
 	if c.cond != nil && c.hasValueExpr {
 		// TODO(sgc): lazily evaluate valueCond
@@ -148,6 +140,13 @@ func (c *indexSeriesCursor) Next() *reads.SeriesRow {
 			c.row.ValueCond = nil
 		}
 	}
+
+	// Normalise the special tag keys to the emitted format.
+	mv := c.row.Tags.Get(models.MeasurementTagKeyBytes)
+	c.row.Tags.Delete(models.MeasurementTagKeyBytes)
+	c.row.Tags.Set(measurementKeyBytes, mv)
+	c.row.Tags.Delete(models.FieldKeyTagKeyBytes)
+	c.row.Tags.Set(fieldKeyBytes, fv)
 
 	return &c.row
 }

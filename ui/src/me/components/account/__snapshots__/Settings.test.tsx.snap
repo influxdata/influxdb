@@ -36,12 +36,18 @@ exports[`Account rendering renders! 1`] = `
               data-testid="grid--column"
             >
               <t
+                backgroundColor="#292933"
                 size="sm"
                 testID="panel"
               >
                 <div
-                  className="panel panel--sm"
+                  className="panel panel--sm panel__light-text"
                   data-testid="panel"
+                  style={
+                    Object {
+                      "backgroundColor": "#292933",
+                    }
+                  }
                 >
                   <t
                     testID="panel--header"
@@ -73,6 +79,7 @@ exports[`Account rendering renders! 1`] = `
                             <t
                               active={false}
                               color="default"
+                              placeIconAfterText={false}
                               shape="none"
                               size="sm"
                               status="default"
@@ -80,16 +87,32 @@ exports[`Account rendering renders! 1`] = `
                               text="Edit About Me"
                               type="button"
                             >
-                              <button
-                                className="button button-sm button-default"
-                                data-testid="button"
-                                disabled={false}
+                              <t
+                                active={false}
+                                color="default"
+                                shape="none"
+                                size="sm"
+                                status="default"
                                 tabIndex={0}
-                                title="Edit About Me"
+                                testID="button"
+                                titleText="Edit About Me"
                                 type="button"
                               >
-                                Edit About Me
-                              </button>
+                                <button
+                                  className="button button-sm button-default"
+                                  data-testid="button"
+                                  disabled={false}
+                                  tabIndex={0}
+                                  title="Edit About Me"
+                                  type="button"
+                                >
+                                  <span
+                                    className="button--label"
+                                  >
+                                    Edit About Me
+                                  </span>
+                                </button>
+                              </t>
                             </t>
                           </div>
                         </t>

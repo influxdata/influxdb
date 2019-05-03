@@ -79,7 +79,7 @@ class StreamingSelector extends PureComponent<Props, State> {
           <Grid.Column widthSM={Columns.Five} offsetSM={Columns.Two}>
             <FormElement label="">
               <Input
-                customClass="wizard-step--filter"
+                className="wizard-step--filter"
                 size={ComponentSize.Small}
                 icon={IconFont.Search}
                 value={searchTerm}

@@ -11,9 +11,9 @@ import TimeRangeDropdown, {
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
+  SquareButton,
   Button,
   IconFont,
-  ButtonShape,
   ComponentColor,
 } from '@influxdata/clockface'
 
@@ -119,10 +119,9 @@ export default class DashboardHeader extends Component<Props> {
                 : ComponentColor.Default
             }
           />
-          <Button
+          <SquareButton
             icon={IconFont.ExpandA}
             titleText="Enter Presentation Mode"
-            shape={ButtonShape.Square}
             onClick={this.handleClickPresentationButton}
           />
         </Page.Header.Right>

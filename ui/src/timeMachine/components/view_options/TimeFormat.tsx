@@ -106,7 +106,7 @@ class TimeFormat extends PureComponent<Props, State> {
           placeholder="Enter custom format..."
           value={format}
           data-testid="custom-time-format"
-          customClass="custom-time-format"
+          className="custom-time-format"
           onChange={this.handleChangeFormat}
         />
       )

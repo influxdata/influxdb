@@ -386,7 +386,7 @@ func (c *Cache) Values(key []byte) Values {
 // DeleteBucketRange removes values for all keys containing points
 // with timestamps between min and max contained in the bucket identified
 // by name from the cache.
-func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
+func (c *Cache) DeleteBucketRange(name []byte, min, max int64, pred Predicate) {
 	// TODO(edd/jeff): find a way to optimize lock usage
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -399,6 +399,10 @@ func (c *Cache) DeleteBucketRange(name []byte, min, max int64) {
 		if !bytes.HasPrefix(k, name) {
 			return nil
 		}
+		if pred != nil && !pred.Matches(k) {
+			return nil
+		}
+
 		total += uint64(e.size())
 
 		// if everything is being deleted, just stage it to be deleted and move on.
@@ -480,12 +484,21 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			return cache.WriteMulti(en.Values)
 
 		case *wal.DeleteBucketRangeWALEntry:
+			var pred Predicate
+			if len(en.Predicate) > 0 {
+				var err error
+				pred, err = UnmarshalPredicate(en.Predicate)
+				if err != nil {
+					return err
+				}
+			}
+
 			// TODO(edd): we need to clean up how we're encoding the prefix so that we
 			// don't have to remember to get it right everywhere we need to touch TSM data.
 			encoded := tsdb.EncodeName(en.OrgID, en.BucketID)
 			name := models.EscapeMeasurement(encoded[:])
 
-			cache.DeleteBucketRange(name, en.Min, en.Max)
+			cache.DeleteBucketRange(name, en.Min, en.Max, pred)
 			return nil
 		}
 

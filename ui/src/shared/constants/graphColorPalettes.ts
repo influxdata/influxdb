@@ -1,6 +1,4 @@
-import chroma from 'chroma-js'
 import uuid from 'uuid'
-import {Color} from 'src/types/colors'
 
 const COLOR_TYPE_SCALE = 'scale'
 
@@ -173,23 +171,6 @@ export const LINE_COLORS_G = [
   },
 ]
 
-export const LINE_COLORS_RULE_GRAPH = [
-  {
-    type: COLOR_TYPE_SCALE,
-    hex: '#7CE490',
-    id: uuid.v4(),
-    name: 'Honeydew',
-    value: 0,
-  },
-  {
-    type: COLOR_TYPE_SCALE,
-    hex: '#22ADF6',
-    id: uuid.v4(),
-    name: 'Pool',
-    value: 0,
-  },
-]
-
 export const DEFAULT_LINE_COLORS = LINE_COLORS_A
 
 export const LINE_COLOR_SCALES = [
@@ -207,35 +188,3 @@ export const LINE_COLOR_SCALES = [
 
   return {name, colors, id}
 })
-
-export const validateLineColors = (colors: Color[], numSeries = 0): Color[] => {
-  const multipleSeriesButOneColor = numSeries > 1 && colors.length < 2
-  if (!colors || colors.length === 0 || multipleSeriesButOneColor) {
-    return DEFAULT_LINE_COLORS
-  }
-
-  const testColorsTypes =
-    colors.filter(color => color.type === COLOR_TYPE_SCALE).length ===
-    colors.length
-
-  return testColorsTypes ? colors : DEFAULT_LINE_COLORS
-}
-
-export const getLineColorsHexes = (
-  colors: Color[],
-  numSeries: number
-): string[] => {
-  const validatedColors = validateLineColors(colors, numSeries) // ensures safe defaults
-  const colorsHexArray = validatedColors.map(color => color.hex)
-
-  if (numSeries === 1 || numSeries === 0) {
-    return [colorsHexArray[0]]
-  }
-  if (numSeries === 2) {
-    return [colorsHexArray[0], colorsHexArray[1]]
-  }
-  return chroma
-    .scale(colorsHexArray)
-    .mode('lch')
-    .colors(numSeries)
-}

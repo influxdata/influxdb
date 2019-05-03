@@ -55,7 +55,7 @@ class ContextMenu extends Component<Props, State> {
       <ClickOutside onClickOutside={this.handleCollapseMenu}>
         <div className="context-menu--container">
           <Button
-            customClass={this.toggleClassName}
+            className={this.toggleClassName}
             onClick={this.handleExpandMenu}
             text={text}
             shape={shape}

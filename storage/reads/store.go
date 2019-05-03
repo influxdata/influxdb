@@ -74,10 +74,11 @@ type GroupCursor interface {
 }
 
 type Store interface {
-	Read(ctx context.Context, req *datatypes.ReadRequest) (ResultSet, error)
 	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (ResultSet, error)
-	GroupRead(ctx context.Context, req *datatypes.ReadRequest) (GroupResultSet, error)
-	GetSource(orgID, bucketID uint64) proto.Message
+	ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (GroupResultSet, error)
+
 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
+
+	GetSource(orgID, bucketID uint64) proto.Message
 }

@@ -115,9 +115,11 @@ type Tombstone struct {
 	// keys with a prefix matching Key should be removed for the [Min, Max] range.
 	Prefix bool
 
-	// Min and Max are the min and max unix nanosecond time ranges of Key that are deleted.  If
-	// the full range is deleted, both values are -1.
+	// Min and Max are the min and max unix nanosecond time ranges of Key that are deleted.
 	Min, Max int64
+
+	// Predicate stores the marshaled form of some predicate for matching keys.
+	Predicate []byte
 }
 
 func (t Tombstone) String() string {
@@ -125,7 +127,7 @@ func (t Tombstone) String() string {
 	if t.Prefix {
 		prefix = "Prefix"
 	}
-	return fmt.Sprintf("%s: %q, [%d, %d]", prefix, t.Key, t.Min, t.Max)
+	return fmt.Sprintf("%s: %q, [%d, %d] pred:%v", prefix, t.Key, t.Min, t.Max, len(t.Predicate) > 0)
 }
 
 // WithObserver sets a FileStoreObserver for when the tombstone file is written.
@@ -136,13 +138,8 @@ func (t *Tombstoner) WithObserver(obs FileStoreObserver) {
 	t.obs = obs
 }
 
-// AddPrefix adds a prefix-based tombstone key.
-func (t *Tombstoner) AddPrefix(key []byte) error {
-	return t.AddPrefixRange(key, math.MinInt64, math.MaxInt64)
-}
-
 // AddPrefixRange adds a prefix-based tombstone key with an explicit range.
-func (t *Tombstoner) AddPrefixRange(key []byte, min, max int64) error {
+func (t *Tombstoner) AddPrefixRange(key []byte, min, max int64, predicate []byte) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -159,10 +156,11 @@ func (t *Tombstoner) AddPrefixRange(key []byte, min, max int64) error {
 	}
 
 	return t.writeTombstoneV4(t.gz, Tombstone{
-		Key:    key,
-		Min:    min,
-		Max:    max,
-		Prefix: true,
+		Key:       key,
+		Min:       min,
+		Max:       max,
+		Prefix:    true,
+		Predicate: predicate,
 	})
 }
 
@@ -458,12 +456,7 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 		}
 	}
 
-	var (
-		prefix   bool
-		min, max int64
-		key      []byte
-		kmask    = 0xff000000 // Mask for non key-length bits
-	)
+	const kmask = 0xff000000 // Mask for non key-length bits
 
 	br := bufio.NewReaderSize(f, 64*1024)
 	gr, err := gzip.NewReader(br)
@@ -474,51 +467,74 @@ func (t *Tombstoner) readTombstoneV4(f *os.File, fn func(t Tombstone) error) err
 	}
 	defer gr.Close()
 
-	b := make([]byte, 4096)
+	var ( // save these buffers across loop iterations to avoid allocations
+		keyBuf  []byte
+		predBuf []byte
+	)
+
 	for {
 		gr.Multistream(false)
 		if err := func() error {
 			for {
-				if _, err = io.ReadFull(gr, b[:4]); err == io.EOF || err == io.ErrUnexpectedEOF {
+				var buf [8]byte
+
+				if _, err = io.ReadFull(gr, buf[:4]); err == io.EOF || err == io.ErrUnexpectedEOF {
 					return nil
 				} else if err != nil {
 					return err
 				}
 
-				keyLen := int(binary.BigEndian.Uint32(b[:4]))
-				prefix = keyLen>>31 == 1 // Prefix is set according to whether the highest bit is set.
+				keyLen := int(binary.BigEndian.Uint32(buf[:4]))
+				prefix := keyLen>>31&1 == 1 // Prefix is set according to whether the highest bit is set.
+				hasPred := keyLen>>30&1 == 1
 
 				// Remove 8 MSB to get correct length.
 				keyLen &^= kmask
 
-				if keyLen+16 > len(b) {
-					b = make([]byte, keyLen+16)
+				if len(keyBuf) < keyLen {
+					keyBuf = make([]byte, keyLen)
 				}
+				// cap slice protects against invalid usages of append in callback
+				key := keyBuf[:keyLen:keyLen]
 
-				if _, err := io.ReadFull(gr, b[:keyLen]); err != nil {
+				if _, err := io.ReadFull(gr, key); err != nil {
 					return err
 				}
 
-				// Copy the key since b is re-used
-				key = b[:keyLen]
-
-				minBuf := b[keyLen : keyLen+8]
-				maxBuf := b[keyLen+8 : keyLen+16]
-				if _, err := io.ReadFull(gr, minBuf); err != nil {
+				if _, err := io.ReadFull(gr, buf[:8]); err != nil {
 					return err
 				}
+				min := int64(binary.BigEndian.Uint64(buf[:8]))
 
-				min = int64(binary.BigEndian.Uint64(minBuf))
-				if _, err := io.ReadFull(gr, maxBuf); err != nil {
+				if _, err := io.ReadFull(gr, buf[:8]); err != nil {
 					return err
 				}
+				max := int64(binary.BigEndian.Uint64(buf[:8]))
 
-				max = int64(binary.BigEndian.Uint64(maxBuf))
+				var predicate []byte
+				if hasPred {
+					if _, err := io.ReadFull(gr, buf[:8]); err != nil {
+						return err
+					}
+					predLen := binary.BigEndian.Uint64(buf[:8])
+
+					if uint64(len(predBuf)) < predLen {
+						predBuf = make([]byte, predLen)
+					}
+					// cap slice protects against invalid usages of append in callback
+					predicate = predBuf[:predLen:predLen]
+
+					if _, err := io.ReadFull(gr, predicate); err != nil {
+						return err
+					}
+				}
+
 				if err := fn(Tombstone{
-					Key:    key,
-					Min:    min,
-					Max:    max,
-					Prefix: prefix,
+					Key:       key,
+					Min:       min,
+					Max:       max,
+					Prefix:    prefix,
+					Predicate: predicate,
 				}); err != nil {
 					return err
 				}
@@ -578,7 +594,11 @@ func (t *Tombstoner) writeTombstoneV4(dst io.Writer, ts Tombstone) error {
 	l := uint32(len(ts.Key))
 	if ts.Prefix {
 		// A mask to set the prefix bit on a tombstone.
-		l |= (1 << 31)
+		l |= 1 << 31
+	}
+	if len(ts.Predicate) > 0 {
+		// A mask to set the predicate bit on a tombstone
+		l |= 1 << 30
 	}
 
 	binary.BigEndian.PutUint32(t.tmp[:4], l)
@@ -595,6 +615,20 @@ func (t *Tombstoner) writeTombstoneV4(dst io.Writer, ts Tombstone) error {
 	}
 
 	binary.BigEndian.PutUint64(t.tmp[:], uint64(ts.Max))
-	_, err := dst.Write(t.tmp[:])
-	return err
+	if _, err := dst.Write(t.tmp[:]); err != nil {
+		return err
+	}
+
+	if len(ts.Predicate) > 0 {
+		binary.BigEndian.PutUint64(t.tmp[:], uint64(len(ts.Predicate)))
+		if _, err := dst.Write(t.tmp[:]); err != nil {
+			return err
+		}
+
+		if _, err := dst.Write(ts.Predicate); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

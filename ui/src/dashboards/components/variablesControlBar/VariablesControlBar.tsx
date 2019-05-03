@@ -94,7 +94,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
     return (
       <EmptyState
         size={ComponentSize.ExtraSmall}
-        customClass="variables-control-bar--empty"
+        className="variables-control-bar--empty"
       >
         <EmptyState.Text text="To see variable controls here, use a variable in a cell query" />
       </EmptyState>

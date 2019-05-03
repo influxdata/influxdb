@@ -338,18 +338,6 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("got task ID %v, exp %v", ts[1].Task.ID, newID)
 		}
 
-		// Should return only one task
-		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: id})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(ts) != 1 {
-			t.Fatalf("expected 1 result, got %d", len(ts))
-		}
-		if ts[0].Task.ID != newID {
-			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, newID)
-		}
-
 		// Test ListTasks with OrgID, should return same result
 		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{Org: orgID, After: id})
 		if err != nil {
@@ -368,6 +356,39 @@ from(bucket:"test") |> range(start:-1h)`
 		}
 		if !ts[0].Meta.Equal(*meta) {
 			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
+		}
+
+		// should return the last 2 tasks
+		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 3)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 4)})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// get all the tasks
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ts) != 4 {
+			t.Fatalf("expected 4 result, got %d", len(ts))
+		}
+
+		tsSubset, err := s.ListTasks(context.Background(), backend.TaskSearchParams{After: ts[1].Task.ID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(tsSubset) != 2 {
+			t.Fatalf("expected 2 result, got %d", len(ts))
+		}
+		if ts[2].Task.ID != tsSubset[0].Task.ID {
+			t.Fatalf("got task ID %v, exp %v", ts[2].Task.ID, tsSubset[0].Task.ID)
+		}
+		if ts[3].Task.ID != tsSubset[1].Task.ID {
+			t.Fatalf("got task ID %v, exp %v", ts[3].Task.ID, tsSubset[1].Task.ID)
 		}
 	})
 

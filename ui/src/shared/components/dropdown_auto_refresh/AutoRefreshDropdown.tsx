@@ -4,8 +4,7 @@ import classnames from 'classnames'
 
 // Components
 import {
-  Button,
-  ButtonShape,
+  SquareButton,
   IconFont,
   ComponentStatus,
   Dropdown,
@@ -145,11 +144,10 @@ export default class AutoRefreshDropdown extends Component<Props> {
 
     if (this.isPaused) {
       return (
-        <Button
-          shape={ButtonShape.Square}
+        <SquareButton
           icon={IconFont.Refresh}
           onClick={onManualRefresh}
-          customClass="autorefresh-dropdown--pause"
+          className="autorefresh-dropdown--pause"
         />
       )
     }
