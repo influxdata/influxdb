@@ -5,8 +5,18 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Input, Button, EmptyState} from '@influxdata/clockface'
-import {Overlay, Tabs, ComponentStatus} from 'src/clockface'
+import {
+  IconFont,
+  ComponentSize,
+  ComponentColor,
+  Sort,
+  Input,
+  Button,
+  EmptyState,
+  ComponentStatus,
+  Overlay,
+} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/buckets/components/BucketList'
 import {PrettyBucket} from 'src/buckets/components/BucketRow'
@@ -25,12 +35,6 @@ import {prettyBuckets} from 'src/shared/utils/prettyBucket'
 import {extractBucketLimits} from 'src/cloud/utils/limits'
 
 // Types
-import {
-  IconFont,
-  ComponentSize,
-  ComponentColor,
-  Sort,
-} from '@influxdata/clockface'
 import {OverlayState, AppState, Bucket, Organization} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 
