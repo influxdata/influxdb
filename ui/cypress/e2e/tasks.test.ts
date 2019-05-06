@@ -22,7 +22,7 @@ describe('Tasks', () => {
       cy.contains('Create').click()
     })
 
-    cy.getByTestID('dropdown--item New Task').click()
+    cy.getByTestID('dropdown--item new').click()
 
     cy.getByInputName('name').type(taskName)
     cy.getByInputName('interval').type('24h')
@@ -110,7 +110,7 @@ describe('Tasks', () => {
       cy.contains('Create').click()
     })
 
-    cy.getByTestID('dropdown--item New Task').click()
+    cy.getByTestID('dropdown--item new').click()
 
     cy.getByInputName('name').type('🦄ask')
     cy.getByInputName('interval').type('24h')
