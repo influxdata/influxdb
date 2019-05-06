@@ -49,9 +49,7 @@ describe('buildQuery', () => {
     const expected = `from(bucket: "b0")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn: (r) => r._measurement == "m0")
-  |> window(period: v.windowPeriod)
-  |> mean()
-  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean)
   |> yield(name: "mean")
 
 from(bucket: "b0")
