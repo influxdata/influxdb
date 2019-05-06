@@ -70,7 +70,9 @@ class VariableRow extends PureComponent<Props & WithRouterProps> {
             {this.labels}
           </ComponentSpacer>
         </IndexList.Cell>
-        <IndexList.Cell alignment={Alignment.Left}>Query</IndexList.Cell>
+        <IndexList.Cell alignment={Alignment.Left}>
+          {variable.arguments.type}
+        </IndexList.Cell>
         <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
           <Button
             text="Rename"
