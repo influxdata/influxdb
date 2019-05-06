@@ -47,9 +47,10 @@ class VariableDropdown extends PureComponent<Props> {
           selectedID={selectedKey}
           onChange={this.handleSelect}
           widthPixels={140}
-          titleText="No Values"
+          titleText={selectedKey || 'No Values'}
           customClass="variable-dropdown--dropdown"
           menuColor={DropdownMenuColors.Amethyst}
+          buttonTestID="variable-dropdown"
         >
           {dropdownValues.map(({name}) => (
             /*
