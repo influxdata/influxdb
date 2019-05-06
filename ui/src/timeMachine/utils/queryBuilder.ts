@@ -4,7 +4,6 @@ import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
   TIME_RANGE_START,
   TIME_RANGE_STOP,
-  WINDOW_PERIOD,
   OPTION_NAME,
 } from 'src/variables/constants'
 
@@ -47,23 +46,13 @@ function buildQueryHelper(
 }
 
 export function formatFunctionCall(fn: BuilderConfig['functions'][0]) {
-  const fnSpec = FUNCTIONS.find(f => f.name === fn.name)
+  const fnSpec = FUNCTIONS.find(spec => spec.name === fn.name)
 
-  let fnCall: string = ''
-
-  if (fnSpec && fnSpec.aggregate) {
-    fnCall = `
-  |> window(period: ${OPTION_NAME}.${WINDOW_PERIOD})
-  ${fnSpec.flux}
-  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")
-  |> yield(name: "${fn.name}")`
-  } else {
-    fnCall = `
-  ${fnSpec.flux}
-  |> yield(name: "${fn.name}")`
+  if (!fnSpec) {
+    return ''
   }
 
-  return fnCall
+  return `\n  ${fnSpec.flux}\n  |> yield(name: "${fn.name}")`
 }
 
 function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
