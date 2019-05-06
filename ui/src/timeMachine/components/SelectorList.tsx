@@ -24,6 +24,7 @@ const SelectorList: SFC<Props> = props => {
         return (
           <div
             className={`selector-list--item ${selectedClass}`}
+            data-testid={`selector-list ${item}`}
             key={item}
             onClick={() => onSelectItem(item)}
             title={title}

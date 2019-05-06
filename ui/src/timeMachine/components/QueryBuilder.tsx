@@ -48,7 +48,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
         <div className="query-builder--cards">
           <FancyScrollbar>
             <div className="builder-card--list">
-              <BuilderCard>
+              <BuilderCard testID="bucket-selector">
                 <BuilderCard.Header title="From" />
                 <BucketsSelector />
               </BuilderCard>
