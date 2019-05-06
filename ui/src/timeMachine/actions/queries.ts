@@ -101,7 +101,6 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     await dispatch(refreshTimeMachineVariableValues())
 
     const orgID = getState().orgs.org.id
-    const queryURL = getState().links.query.self
     const activeTimeMachineID = getState().timeMachines.activeTimeMachineID
     const variableAssignments = [
       ...getVariableAssignments(getState(), activeTimeMachineID),
@@ -113,7 +112,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     pendingResults.forEach(({cancel}) => cancel())
 
     pendingResults = queries.map(({text}) =>
-      executeQueryWithVars(queryURL, orgID, text, variableAssignments)
+      executeQueryWithVars(orgID, text, variableAssignments)
     )
 
     const results = await Promise.all(pendingResults.map(r => r.promise))
@@ -129,7 +128,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
       return
     }
 
-    if (get(e, 'xhr.status') === RATE_LIMIT_ERROR_STATUS) {
+    if (get(e, 'status') === RATE_LIMIT_ERROR_STATUS) {
       dispatch(notify(readLimitReached()))
     }
 

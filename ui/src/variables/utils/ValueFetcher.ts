@@ -85,7 +85,7 @@ export class DefaultValueFetcher implements ValueFetcher {
       return {promise: Promise.resolve(cachedValues), cancel: () => {}}
     }
 
-    const request = executeQueryWithVars(url, orgID, query, variables)
+    const request = executeQueryWithVars(orgID, query, variables)
 
     const promise = request.promise.then(({csv}) => {
       const values = extractValues(csv, prevSelection, defaultSelection)
