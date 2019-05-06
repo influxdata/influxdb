@@ -85,6 +85,7 @@ func (sm *schedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 }
 
 // StartRun adjusts the metrics to indicate a run is in progress for the given task ID.
+// We are also storing the delta time between when a run is due to start and actually starting.
 func (sm *schedulerMetrics) StartRun(tid string, queueDelta float64) {
 	sm.totalRunsActive.Inc()
 	sm.queueDelta.Observe(queueDelta)
