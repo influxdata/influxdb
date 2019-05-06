@@ -131,10 +131,6 @@ var skipTests = map[string]string{
 	"string_trim":                 "imported libraries are not visible in user-defined functions (https://github.com/influxdata/flux/issues/1000)",
 
 	"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
-
-	// Flaky test cases, see (https://github.com/influxdata/influxdb/issues/12891)
-	"range":                 "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
-	"window_generate_empty": "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
 }
 
 func TestFluxEndToEnd(t *testing.T) {
@@ -180,7 +176,13 @@ func benchEndToEnd(b *testing.B, pkgs []*ast.Package) {
 	}
 }
 
-var optionsSource = `
+var (
+	optionsAST      *ast.File
+	getInputDataAST *ast.File
+)
+
+const (
+	optionsSource = `
 import "testing"
 import c "csv"
 
@@ -191,7 +193,14 @@ option testing.loadStorage = (csv) => {
 	return from(bucket: bucket)
 }
 `
-var optionsAST *ast.File
+	// TODO(affo): due to flaky tests, we ensure that writes were successful before proceeding.
+	//  So, before checking test errors, we validate that input data written to its bucket
+	//  was successfully read back, in order to ensure that the test result is reliable.
+	//  These and all related lines can be removed once https://github.com/influxdata/influxdb/issues/12891 gets fixed.
+	inputDataResultName = "input-data"
+	getInputDataSource  = `from(bucket: bucket) |> range(start: 1970-01-01T00:00:00Z) |> yield(name: "` + inputDataResultName + `")`
+	flakyReason         = "flaky test (https://github.com/influxdata/influxdb/issues/12891)"
+)
 
 func init() {
 	pkg := parser.ParseSource(optionsSource)
@@ -199,6 +208,11 @@ func init() {
 		panic(ast.GetError(pkg))
 	}
 	optionsAST = pkg.Files[0]
+	pkg = parser.ParseSource(getInputDataSource)
+	if ast.Check(pkg) > 0 {
+		panic(ast.GetError(pkg))
+	}
+	getInputDataAST = pkg.Files[0]
 }
 
 func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
@@ -246,6 +260,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
 		t.Fatal(err)
 	} else {
+		defer r.Release()
 		for r.More() {
 			v := r.Next()
 			if err := v.Tables().Do(func(tbl flux.Table) error {
@@ -253,6 +268,9 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 			}); err != nil {
 				t.Error(err)
 			}
+		}
+		if r.Err() != nil {
+			t.Fatal(r.Err())
 		}
 	}
 
@@ -262,19 +280,32 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	// this time we use a call to `run` so that the assertion error is triggered
 	runCalls := stdlib.TestingRunCalls(pkg)
 	pkg.Files[len(pkg.Files)-1] = runCalls
+	pkg.Files = append(pkg.Files, getInputDataAST)
 	r, err := l.FluxQueryService().Query(ctx, req)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer r.Release()
 
 	for r.More() {
 		v := r.Next()
-		if err := v.Tables().Do(func(tbl flux.Table) error {
+		if v.Name() == inputDataResultName {
+			if countTables(v) == 0 {
+				t.Logf("test %s result is not reliable: no table returned from its bucket after writing to it", t.Name())
+				t.Skip(flakyReason)
+			}
+		} else if doErr := v.Tables().Do(func(tbl flux.Table) error {
 			return nil
-		}); err != nil {
-			t.Error(err)
+		}); err == nil {
+			// Keep only the first error encountered, do not fail.
+			// We must iterate over every result in order to understand if the test is reliable or not.
+			err = doErr
 		}
 	}
+	if err != nil {
+		t.Error(err)
+	}
+
 	if err := r.Err(); err != nil {
 		t.Error(err)
 		// Replace the testing.run calls with testing.inspect calls.
@@ -303,4 +334,13 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 			t.Error(err)
 		}
 	}
+}
+
+func countTables(result flux.Result) int {
+	var count int
+	_ = result.Tables().Do(func(tbl flux.Table) error {
+		count++
+		return nil
+	})
+	return count
 }
