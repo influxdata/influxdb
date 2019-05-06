@@ -25,16 +25,7 @@ export default class CloudNav extends PureComponent {
             <Icon glyph={IconFont.Cloud} />
           </a>
         )}
-      >
-        <NavMenu.SubItem
-          active={false}
-          titleLink={className => (
-            <a className={className} href={this.usageURL}>
-              Usage
-            </a>
-          )}
-        />
-      </NavMenu.Item>
+      />
     )
   }
 
