@@ -67,7 +67,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 />
               </Form.Element>
               <Form.Element
-                label="How often to clear data?"
+                label="Delete data older than"
                 errorMessage={this.ruleErrorMessage}
               >
                 <Retention
