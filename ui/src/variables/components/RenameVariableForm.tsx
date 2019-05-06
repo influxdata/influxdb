@@ -6,7 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Form, Input, Button, Grid, Columns} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
 
 // Utils
 import {validateVariableName} from 'src/variables/utils/validation'
@@ -55,59 +54,54 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
     const {workingVariable, isNameValid} = this.state
 
     return (
-      <Overlay.Container maxWidth={1000}>
-        <Overlay.Heading title="Rename Variable" onDismiss={onClose} />
-        <Overlay.Body>
-          <Form onSubmit={this.handleSubmit}>
-            <Grid>
-              <Grid.Row>
-                <Grid.Column widthXS={Columns.Six}>
-                  <div className="overlay-flux-editor--spacing">
-                    <Form.ValidationElement
-                      label="Name"
+      <Form onSubmit={this.handleSubmit}>
+        <Grid>
+          <Grid.Row>
+            <Grid.Column widthXS={Columns.Six}>
+              <div className="overlay-flux-editor--spacing">
+                <Form.ValidationElement
+                  label="Name"
+                  value={workingVariable.name}
+                  required={true}
+                  validationFunc={this.handleNameValidation}
+                >
+                  {status => (
+                    <Input
+                      placeholder="Rename your variable"
+                      name="name"
+                      autoFocus={true}
                       value={workingVariable.name}
-                      required={true}
-                      validationFunc={this.handleNameValidation}
-                    >
-                      {status => (
-                        <Input
-                          placeholder="Rename your variable"
-                          name="name"
-                          autoFocus={true}
-                          value={workingVariable.name}
-                          onChange={this.handleChangeInput}
-                          status={status}
-                        />
-                      )}
-                    </Form.ValidationElement>
-                  </div>
-                </Grid.Column>
-              </Grid.Row>
-              <Grid.Row>
-                <Grid.Column>
-                  <Form.Footer>
-                    <Button
-                      text="Cancel"
-                      color={ComponentColor.Danger}
-                      onClick={onClose}
+                      onChange={this.handleChangeInput}
+                      status={status}
                     />
-                    <Button
-                      text="Submit"
-                      type={ButtonType.Submit}
-                      color={ComponentColor.Primary}
-                      status={
-                        isNameValid
-                          ? ComponentStatus.Default
-                          : ComponentStatus.Disabled
-                      }
-                    />
-                  </Form.Footer>
-                </Grid.Column>
-              </Grid.Row>
-            </Grid>
-          </Form>
-        </Overlay.Body>
-      </Overlay.Container>
+                  )}
+                </Form.ValidationElement>
+              </div>
+            </Grid.Column>
+          </Grid.Row>
+          <Grid.Row>
+            <Grid.Column>
+              <Form.Footer>
+                <Button
+                  text="Cancel"
+                  color={ComponentColor.Danger}
+                  onClick={onClose}
+                />
+                <Button
+                  text="Submit"
+                  type={ButtonType.Submit}
+                  color={ComponentColor.Primary}
+                  status={
+                    isNameValid
+                      ? ComponentStatus.Default
+                      : ComponentStatus.Disabled
+                  }
+                />
+              </Form.Footer>
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
+      </Form>
     )
   }
 
