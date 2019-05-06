@@ -51,6 +51,9 @@ type QueuedRun struct {
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set when a run a manually requested
 	RequestedAt int64
 
+	// The Unix timestamp representing when this run was due to run.
+	DueAt int64
+
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
 	// as the "now" option when executing the task.
 	Now int64
@@ -785,7 +788,8 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
 	switch s {
 	case RunStarted:
-		r.ts.metrics.StartRun(r.task.ID.String())
+		dueAt := time.Unix(qr.DueAt, 0)
+		r.ts.metrics.StartRun(r.task.ID.String(), time.Since(dueAt).Seconds())
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Flux))
 	case RunSuccess:
 		r.ts.metrics.FinishRun(r.task.ID.String(), true)
