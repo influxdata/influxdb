@@ -27,7 +27,14 @@ export default class UserPageHeader extends PureComponent<Props> {
 
     const {text, language} = generateRandomGreeting()
 
-    const title = `${text}, ${userName}! Welcome to ${orgName}!`
+    let title = ''
+
+    if (process.env.CLOUD === 'true') {
+      title = `${text}, ${userName}! Welcome to InfluxCloud!`
+    } else {
+      title = `${text}, ${userName}! Welcome to ${orgName}!`
+    }
+
     const altText = `That's how you say hello in ${language}`
 
     return <Page.Title title={title} altText={altText} />
