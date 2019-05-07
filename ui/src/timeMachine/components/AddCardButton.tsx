@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FunctionComponent} from 'react'
 
 // Components
 import {SquareButton, IconFont} from '@influxdata/clockface'
@@ -9,15 +9,14 @@ interface Props {
   onClick: () => void
 }
 
-export default class AddCardButton extends PureComponent<Props> {
-  public render() {
-    const {onClick} = this.props
-    return (
-      <SquareButton
-        className="query-builder--add-card-button"
-        onClick={onClick}
-        icon={IconFont.Plus}
-      />
-    )
-  }
+const AddCardButton: FunctionComponent<Props> = ({onClick}) => {
+  return (
+    <SquareButton
+      className="query-builder--add-card-button"
+      onClick={onClick}
+      icon={IconFont.Plus}
+    />
+  )
 }
+
+export default AddCardButton
