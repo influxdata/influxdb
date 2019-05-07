@@ -5,6 +5,7 @@ import {
   DropTarget,
   ConnectDropTarget,
   ConnectDragSource,
+  ConnectDragPreview,
   DropTargetConnector,
   DragSourceConnector,
   DragSourceMonitor,
@@ -37,6 +38,7 @@ interface Props {
 interface DropdownSourceCollectedProps {
   isDragging: boolean
   connectDragSource: ConnectDragSource
+  connectDragPreview: ConnectDragPreview
 }
 
 interface DropdownTargetCollectedProps {
@@ -74,28 +76,31 @@ class Dropdown extends React.Component<
       isDragging,
       connectDragSource,
       connectDropTarget,
+      connectDragPreview,
     } = this.props
 
     const className = classnames('variable-dropdown', {
       'variable-dropdown__dragging': isDragging,
     })
 
-    return connectDragSource(
-      connectDropTarget(
-        <div className="variable-dropdown--container">
+    return connectDropTarget(
+      <div className="variable-dropdown--container">
+        {connectDragPreview(
           <div className={className}>
             {/* TODO: Add variable description to title attribute when it is ready */}
             <div className="variable-dropdown--label">
-              <div className="customizable-field--drag">
-                <span className="hamburger" />
-              </div>
+              {connectDragSource(
+                <div className="variable-dropdown--drag">
+                  <span className="hamburger" />
+                </div>
+              )}
               <span>{name}</span>
             </div>
-            <div className="variable-dropdown--placeholder" />
             <VariableDropdown variableID={id} dashboardID={dashboardID} />
           </div>
-        </div>
-      )
+        )}
+        <div className="variable-dropdown--placeholder" />
+      </div>
     )
   }
 }
@@ -112,6 +117,7 @@ export default DropTarget<Props & DropdownTargetCollectedProps>(
     dropdownSource,
     (connect: DragSourceConnector, monitor: DragSourceMonitor) => ({
       connectDragSource: connect.dragSource(),
+      connectDragPreview: connect.dragPreview(),
       isDragging: monitor.isDragging(),
     })
   )(Dropdown)
