@@ -406,21 +406,28 @@ export const getBucketsFailed = (): Notification => ({
 export const writeLimitReached = (): Notification => ({
   ...defaultErrorNotification,
   message: `Exceeded write limits.`,
-  duration: TEN_SECONDS,
+  duration: FIVE_SECONDS,
   type: 'writeLimitReached',
 })
 
 export const readLimitReached = (): Notification => ({
   ...defaultErrorNotification,
-  message: `Exceeded quota for concurrent queries.`,
-  duration: TEN_SECONDS,
+  message: `Exceeded query limits.`,
+  duration: FIVE_SECONDS,
   type: 'readLimitReached',
+})
+
+export const rateLimitReached = (secs: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Exceeded rate limits. Please try again in ${secs} seconds`,
+  duration: FIVE_SECONDS,
+  type: 'rateLimitReached',
 })
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
-  duration: TEN_SECONDS,
+  duration: FIVE_SECONDS,
   type: 'resourceLimitReached',
 })
 
