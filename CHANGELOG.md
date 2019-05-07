@@ -6,6 +6,7 @@
 1. [13783](https://github.com/influxdata/influxdb/pull/13783): Ensure map type variables allow for selecting values
 1. [13800](https://github.com/influxdata/influxdb/pull/13800): Generate more idiomatic Flux in query builder
 1. [13797](https://github.com/influxdata/influxdb/pull/13797): Expand tab key presses to 2 spaces in the Flux editor
+1. [13823](https://github.com/influxdata/influxdb/pull/13823): Prevent dragging of Variable Dropdowns when dragging a scrollbar inside the dropdown
 
 ### UI Improvements
 

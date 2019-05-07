@@ -19,12 +19,9 @@ $variables-control-bar--gutter: $ix-marg-a;
       100% - #{$variables-control-bar--height + $page-header-size}
     ) !important;
   }
-
-  .variable-dropdown {
-    margin-right: $variables-control-bar--gutter / 2;
-  }
-
+  
   .variable-dropdown--container {
+    margin-right: $variables-control-bar--gutter;
     padding-bottom: 5px;
   }
 
@@ -47,4 +44,8 @@ $variables-control-bar--gutter: $ix-marg-a;
 .variables-control-bar.presentation-mode {
   padding: 8px 0px 0px 8px;
   min-height: 0px;
+}
+
+.variable-dropdown--container {
+  position: relative;
 }
