@@ -1,6 +1,10 @@
 package backend
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // schedulerMetrics is a collection of metrics relating to task scheduling.
 // All of its methods which accept task IDs, take them as strings,
@@ -86,9 +90,9 @@ func (sm *schedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // StartRun adjusts the metrics to indicate a run is in progress for the given task ID.
 // We are also storing the delta time between when a run is due to start and actually starting.
-func (sm *schedulerMetrics) StartRun(tid string, queueDelta float64) {
+func (sm *schedulerMetrics) StartRun(tid string, queueDelta time.Duration) {
 	sm.totalRunsActive.Inc()
-	sm.queueDelta.Observe(queueDelta)
+	sm.queueDelta.Observe(queueDelta.Seconds())
 	sm.runsActive.WithLabelValues(tid).Inc()
 }
 

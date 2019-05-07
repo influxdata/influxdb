@@ -789,7 +789,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 	switch s {
 	case RunStarted:
 		dueAt := time.Unix(qr.DueAt, 0)
-		r.ts.metrics.StartRun(r.task.ID.String(), time.Since(dueAt).Seconds())
+		r.ts.metrics.StartRun(r.task.ID.String(), time.Since(dueAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Flux))
 	case RunSuccess:
 		r.ts.metrics.FinishRun(r.task.ID.String(), true)
