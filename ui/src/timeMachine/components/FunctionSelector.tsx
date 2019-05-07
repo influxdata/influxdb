@@ -57,6 +57,7 @@ class FunctionSelector extends PureComponent<Props, State> {
           items={this.functions}
           selectedItems={this.selectedFunctions}
           onSelectItem={onSelectFunction}
+          multiSelect={true}
         />
       </BuilderCard>
     )
