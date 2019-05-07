@@ -8,6 +8,7 @@
 1. [13797](https://github.com/influxdata/influxdb/pull/13797): Expand tab key presses to 2 spaces in the Flux editor
 
 ### UI Improvements
+1. [#13835](https://github.com/influxdata/influxdb/pull/13835): Render checkboxes in query builder tag selection lists
 
 ## v2.0.0-alpha.9 [2019-05-01]
 
