@@ -21,11 +21,57 @@
   justify-content: space-between;
 }
 
-.button.query-builder--add-card-button {
-  height: 100%;
-  background-color: $g4-onyx;
-  border-color: $g4-onyx;
-  flex-grow: 0;
-  flex-shrink: 0;
+.query-builder--add-card-button {
+  position: relative;
+
+  > .button {
+    height: 100%;
+    background-color: $g4-onyx;
+    border-color: $g4-onyx;
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+}
+
+.query-builder--add-card-menu {
+  user-select: none;
+  position: absolute;
+  display: none;
+  top: 50%;
+  left: calc(100% + #{$ix-marg-a});
+  transform: translate(0, -50%);
+  border-radius: $ix-radius;
+  padding: $ix-marg-a;
+  background-color: $c-pool;
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translate(-100%, -50%);
+    border: 8px solid transparent;
+    border-right-color: $c-pool;
+  }
+
+  &.visible {
+    display: block;
+  }
+}
+
+.query-builder--add-card-item {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: $ix-marg-b;
+  color: $c-neutrino;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  border-radius: $ix-radius - 1px;
+
+  &:hover {
+    cursor: pointer;
+    background-color: $c-laser;
+    color: $g20-white;
+  }
 }
 

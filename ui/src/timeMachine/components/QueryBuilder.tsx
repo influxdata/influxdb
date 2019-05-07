@@ -7,7 +7,9 @@ import {range} from 'lodash'
 import TagSelector from 'src/timeMachine/components/TagSelector'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
-import AddCardButton from 'src/timeMachine/components/AddCardButton'
+import AddCardButton, {
+  QBCardType,
+} from 'src/timeMachine/components/AddCardButton'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import BucketsSelector from 'src/timeMachine/components/queryBuilder/BucketsSelector'
 
@@ -65,13 +67,24 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   }
 
   private get addButton(): JSX.Element {
-    const {moreTags, onAddTagSelector} = this.props
+    const {moreTags} = this.props
 
     if (!moreTags) {
       return null
     }
 
-    return <AddCardButton onClick={onAddTagSelector} collapsible={false} />
+    return <AddCardButton onSelectCard={this.handleSelectCard} />
+  }
+
+  private handleSelectCard = (cardType: QBCardType) => {
+    const {onAddTagSelector} = this.props
+    if (cardType === QBCardType.Filter) {
+      onAddTagSelector()
+    }
+
+    if (cardType === QBCardType.Func) {
+      console.log('write the func selector plz')
+    }
   }
 }
 
