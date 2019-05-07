@@ -134,7 +134,7 @@ type SetupService struct {
 
 // IsOnboarding determine if onboarding request is allowed.
 func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
-	u, err := newURL(s.Addr, setupPath)
+	u, err := NewURL(s.Addr, setupPath)
 	if err != nil {
 		return false, err
 	}
@@ -142,7 +142,7 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return false, err
@@ -161,7 +161,7 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 
 // Generate OnboardingResults.
 func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	u, err := newURL(s.Addr, setupPath)
+	u, err := NewURL(s.Addr, setupPath)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +175,7 @@ func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequ
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {

@@ -303,7 +303,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 		}
 	}
 
-	u, err := newURL(s.Addr, writePath)
+	u, err := NewURL(s.Addr, writePath)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 	params.Set("precision", string(precision))
 	req.URL.RawQuery = params.Encode()
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
