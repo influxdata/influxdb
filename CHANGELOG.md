@@ -9,6 +9,7 @@
 1. [13823](https://github.com/influxdata/influxdb/pull/13823): Prevent dragging of Variable Dropdowns when dragging a scrollbar inside the dropdown
 
 ### UI Improvements
+1. [#13835](https://github.com/influxdata/influxdb/pull/13835): Render checkboxes in query builder tag selection lists
 
 ## v2.0.0-alpha.9 [2019-05-01]
 

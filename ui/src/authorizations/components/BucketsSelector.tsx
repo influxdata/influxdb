@@ -89,6 +89,7 @@ class BucketsSelector extends PureComponent<Props> {
                   items={sortedBuckets.map(b => b.name)}
                   selectedItems={selectedBuckets}
                   onSelectItem={onSelect}
+                  multiSelect={false}
                 />
               )}
             </SortingHat>

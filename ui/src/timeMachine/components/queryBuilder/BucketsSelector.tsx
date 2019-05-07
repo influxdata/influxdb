@@ -96,6 +96,7 @@ const Selector: FunctionComponent<SelectorProps> = ({
       items={list}
       selectedItems={[selected]}
       onSelectItem={onSelect}
+      multiSelect={false}
     />
   )
 }
