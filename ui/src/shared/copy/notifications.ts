@@ -663,9 +663,19 @@ export const authorizationCreateFailed = (): Notification => ({
   message: 'Failed to create tokens',
 })
 
+export const authorizationUpdateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token was updated successfully',
+})
+
 export const authorizationUpdateFailed = (desc: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update token: "${desc}"`,
+})
+
+export const authorizationDeleteSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token was deleted successfully',
 })
 
 export const authorizationDeleteFailed = (desc: string): Notification => ({
