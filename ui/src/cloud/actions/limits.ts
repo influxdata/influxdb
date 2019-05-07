@@ -11,10 +11,7 @@ import {AppState} from 'src/types'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
-import {
-  readLimitReached,
-  resourceLimitReached,
-} from 'src/shared/copy/notifications'
+import {readLimitReached} from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
@@ -182,7 +179,6 @@ export const checkDashboardLimits = () => (
 
     if (dashboardsCount >= dashboardsMax) {
       dispatch(setDashboardLimitStatus(LimitStatus.EXCEEDED))
-      dispatch(notify(resourceLimitReached('dashboards')))
     } else {
       dispatch(setDashboardLimitStatus(LimitStatus.OK))
     }
@@ -206,7 +202,6 @@ export const checkBucketLimits = () => async (
 
     if (bucketsCount > bucketsMax) {
       dispatch(setBucketLimitStatus(LimitStatus.EXCEEDED))
-      dispatch(notify(resourceLimitReached('buckets')))
     } else {
       dispatch(setBucketLimitStatus(LimitStatus.OK))
     }
@@ -230,7 +225,6 @@ export const checkTaskLimits = () => async (
 
     if (tasksCount >= tasksMax) {
       dispatch(setTaskLimitStatus(LimitStatus.EXCEEDED))
-      dispatch(notify(resourceLimitReached('tasks')))
     } else {
       dispatch(setTaskLimitStatus(LimitStatus.OK))
     }
