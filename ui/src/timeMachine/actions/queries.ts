@@ -11,7 +11,7 @@ import {refreshVariableValues, selectValue} from 'src/variables/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
-import {readLimitReached} from 'src/shared/copy/notifications'
+import {rateLimitReached} from 'src/shared/copy/notifications'
 import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 // Utils
@@ -129,7 +129,8 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     }
 
     if (get(e, 'status') === RATE_LIMIT_ERROR_STATUS) {
-      dispatch(notify(readLimitReached()))
+      const retryAfter = get(e, 'headers.Retry-After')
+      dispatch(notify(rateLimitReached(retryAfter)))
     }
 
     console.error(e)
