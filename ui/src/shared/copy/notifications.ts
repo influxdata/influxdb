@@ -417,12 +417,15 @@ export const readLimitReached = (): Notification => ({
   type: 'readLimitReached',
 })
 
-export const rateLimitReached = (secs: string): Notification => ({
-  ...defaultErrorNotification,
-  message: `Exceeded rate limits. Please try again in ${secs} seconds`,
-  duration: FIVE_SECONDS,
-  type: 'rateLimitReached',
-})
+export const rateLimitReached = (secs?: string): Notification => {
+  const retryText = ` Please try again in ${secs} seconds`
+  return {
+    ...defaultErrorNotification,
+    message: `Exceeded rate limits.${secs ? retryText : ''} `,
+    duration: FIVE_SECONDS,
+    type: 'rateLimitReached',
+  }
+}
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
