@@ -5,10 +5,11 @@ import {range} from 'lodash'
 
 // Components
 import TagSelector from 'src/timeMachine/components/TagSelector'
-import QueryBuilderDataCard from 'src/timeMachine/components/QueryBuilderDataCard'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
 import AddCardButton from 'src/timeMachine/components/AddCardButton'
+import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
+import BucketsSelector from 'src/timeMachine/components/queryBuilder/BucketsSelector'
 
 // Actions
 import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
@@ -47,7 +48,10 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
         <div className="query-builder--cards">
           <FancyScrollbar>
             <div className="builder-card--list">
-              <QueryBuilderDataCard />
+              <BuilderCard testID="bucket-selector">
+                <BuilderCard.Header title="From" />
+                <BucketsSelector />
+              </BuilderCard>
               {range(tagFiltersLength).map(i => (
                 <TagSelector key={i} index={i} />
               ))}
