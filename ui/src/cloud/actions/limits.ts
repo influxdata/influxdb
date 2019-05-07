@@ -204,9 +204,8 @@ export const checkBucketLimits = () => async (
     const bucketsMax = extractBucketMax(limits)
     const bucketsCount = list.length
 
-    if (bucketsCount > bucketsMax) {
+    if (bucketsCount >= bucketsMax) {
       dispatch(setBucketLimitStatus(LimitStatus.EXCEEDED))
-      dispatch(notify(resourceLimitReached('buckets')))
     } else {
       dispatch(setBucketLimitStatus(LimitStatus.OK))
     }

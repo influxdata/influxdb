@@ -528,9 +528,9 @@ export const bucketCreateSuccess = (): Notification => ({
   message: 'Bucket was successfully created',
 })
 
-export const bucketCreateFailed = (): Notification => ({
+export const bucketCreateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
-  message: 'Failed to create bucket',
+  message: `Failed to create bucket: ${error}`,
 })
 
 export const bucketUpdateSuccess = (bucketName: string): Notification => ({
@@ -538,9 +538,9 @@ export const bucketUpdateSuccess = (bucketName: string): Notification => ({
   message: `Bucket "${bucketName}" was successfully updated`,
 })
 
-export const bucketUpdateFailed = (bucketName: string): Notification => ({
+export const bucketUpdateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Failed to update bucket: "${bucketName}"`,
+  message: `Failed to update bucket: "${error}"`,
 })
 
 export const bucketRenameSuccess = (bucketName: string): Notification => ({
