@@ -509,11 +509,11 @@ func (ts *taskScheduler) WorkCurrentlyRunning(runs []*platform.Run) error {
 	for _, cr := range runs {
 		foundWorker := false
 		for _, r := range ts.runners {
-			time, err := time.Parse(time.RFC3339, cr.ScheduledFor)
+			t, err := time.Parse(time.RFC3339, cr.ScheduledFor)
 			if err != nil {
 				return err
 			}
-			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.ID), Now: time.Unix()}
+			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.ID), DueAt: time.Now().UTC().Unix(), Now: t.Unix()}
 			if r.RestartRun(qr) {
 				foundWorker = true
 				break
