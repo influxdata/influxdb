@@ -111,11 +111,12 @@ export default class DashboardHeader extends Component<Props> {
             }}
           />
           <Button
+            icon={IconFont.Cube}
             text="Variables"
             onClick={toggleVariablesControlBar}
             color={
               isShowingVariablesControlBar
-                ? ComponentColor.Primary
+                ? ComponentColor.Secondary
                 : ComponentColor.Default
             }
           />
