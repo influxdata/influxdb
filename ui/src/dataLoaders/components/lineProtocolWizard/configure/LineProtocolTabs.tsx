@@ -21,9 +21,6 @@ import {
   setPrecision,
 } from 'src/dataLoaders/actions/dataLoaders'
 
-// Styles
-import 'src/clockface/components/auto_input/AutoInput.scss'
-
 interface OwnProps {
   tabs: LineProtocolTab[]
   bucket: string

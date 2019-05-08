@@ -12,9 +12,6 @@ import {ComponentSize} from '@influxdata/clockface'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/clockface/components/resource_list/ResourceDescription.scss'
-
 interface Props {
   onUpdate: (name: string) => void
   description: string

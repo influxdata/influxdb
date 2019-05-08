@@ -18,9 +18,6 @@ import {
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
 
-// Styles
-import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
-
 // Actions
 import {moveVariable} from 'src/variables/actions'
 

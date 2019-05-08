@@ -3,8 +3,6 @@
   ------------------------------------------------------
 */
 
-@import 'src/style/modules';
-
 $gradient-border--start: $c-pool;
 $gradient-border--stop: $c-comet;
 $gradient-border--mid: mix($gradient-border--start, $gradient-border--stop);
