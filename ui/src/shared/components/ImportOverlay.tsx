@@ -3,10 +3,9 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Form, Radio, Button} from '@influxdata/clockface'
+import {Form, Radio, Button, TextArea} from '@influxdata/clockface'
 import {Overlay} from 'src/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import TextArea from 'src/clockface/components/inputs/TextArea'
 
 // Types
 import {

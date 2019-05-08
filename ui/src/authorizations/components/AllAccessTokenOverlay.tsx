@@ -2,7 +2,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Overlay, Input, Form} from 'src/clockface'
+import {Overlay, Form} from 'src/clockface'
 import {
   Alert,
   IconFont,
@@ -13,6 +13,7 @@ import {
   ComponentSize,
   Button,
   ButtonType,
+  Input,
 } from '@influxdata/clockface'
 import {withRouter, WithRouterProps} from 'react-router'
 

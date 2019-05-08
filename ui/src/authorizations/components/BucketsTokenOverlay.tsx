@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Overlay, Input, Form} from 'src/clockface'
+import {Overlay, Form} from 'src/clockface'
 import {
   IconFont,
   ComponentColor,
@@ -15,6 +15,7 @@ import {
   ButtonType,
   Grid,
   Columns,
+  Input,
 } from '@influxdata/clockface'
 import BucketsSelector from 'src/authorizations/components/BucketsSelector'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'

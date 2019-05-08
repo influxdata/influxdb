@@ -4,7 +4,6 @@ import ConfirmationButton from './components/confirmation_button/ConfirmationBut
 import Dropdown, {DropdownMode} from './components/dropdowns/Dropdown'
 import MultiSelectDropdown from './components/dropdowns/MultiSelectDropdown'
 import Form from './components/form_layout/Form'
-import Input, {InputType, AutoComplete} from './components/inputs/Input'
 import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
@@ -46,7 +45,6 @@ import {
 // Fire de lazer
 export {
   Alignment,
-  AutoComplete,
   AutoInput,
   ButtonType,
   ButtonShape,
@@ -67,8 +65,6 @@ export {
   GridSizer,
   IconFont,
   IndexList,
-  Input,
-  InputType,
   Label,
   MultiSelectDropdown,
   MultiInputType,

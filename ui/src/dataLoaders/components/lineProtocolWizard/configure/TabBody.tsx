@@ -2,12 +2,19 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input, Grid} from '@influxdata/clockface'
+import {
+  Form,
+  Input,
+  Grid,
+  TextArea,
+  Columns,
+  InputType,
+  ComponentSize,
+} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import TextArea from 'src/clockface/components/inputs/TextArea'
 import {LineProtocolTab} from 'src/types'
 import {WritePrecision} from '@influxdata/influx'
-import {Columns, InputType, ComponentSize} from '@influxdata/clockface'
+
 import {setLineProtocolBody} from 'src/dataLoaders/actions/dataLoaders'
 
 interface Props {
