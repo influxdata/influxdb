@@ -3,9 +3,6 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
-// Styles
-import 'src/variables/components/CreateVariableOverlay.scss'
-
 // Utils
 import {extractVariablesList} from 'src/variables/selectors'
 

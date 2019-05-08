@@ -10,9 +10,6 @@ import {Stack} from 'src/clockface/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import './DraggableResizer.scss'
-
 interface Props {
   children: JSX.Element[]
   stackPanels: Stack

@@ -6,9 +6,6 @@ import classnames from 'classnames'
 // Types
 import {ComponentSize, Greys} from 'src/clockface/types'
 
-// Styles
-import './Label.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

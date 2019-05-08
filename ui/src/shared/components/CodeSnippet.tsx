@@ -9,9 +9,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import CopyButton from 'src/shared/components/CopyButton'
 
-// Styles
-import 'src/shared/components/CodeSnippet.scss'
-
 export interface Props {
   copyText: string
   label: string

@@ -7,8 +7,6 @@ import React, {
 } from 'react'
 import classnames from 'classnames'
 
-import 'src/clockface/components/inputs/TextArea.scss'
-
 // Types
 import {ComponentStatus, ComponentSize} from 'src/clockface/types'
 
