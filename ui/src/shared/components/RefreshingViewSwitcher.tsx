@@ -5,11 +5,11 @@ import {Plot} from '@influxdata/vis'
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
-import SingleStatTransform from 'src/shared/components/SingleStatTransform'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import HistogramContainer from 'src/shared/components/HistogramContainer'
 import VisTableTransform from 'src/shared/components/VisTableTransform'
 import XYContainer from 'src/shared/components/XYContainer'
+import LatestValueTransform from 'src/shared/components/LatestValueTransform'
 
 // Types
 import {
@@ -37,14 +37,30 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
   switch (properties.type) {
     case ViewType.SingleStat:
       return (
-        <SingleStatTransform tables={tables}>
-          {stat => <SingleStat stat={stat} properties={properties} />}
-        </SingleStatTransform>
+        <VisTableTransform files={files}>
+          {table => (
+            <LatestValueTransform table={table}>
+              {latestValue => (
+                <SingleStat stat={latestValue} properties={properties} />
+              )}
+            </LatestValueTransform>
+          )}
+        </VisTableTransform>
       )
     case ViewType.Table:
       return <TableGraphs tables={tables} properties={properties} />
     case ViewType.Gauge:
-      return <GaugeChart tables={tables} properties={properties} />
+      return (
+        <VisTableTransform files={files}>
+          {table => (
+            <LatestValueTransform table={table}>
+              {latestValue => (
+                <GaugeChart value={latestValue} properties={properties} />
+              )}
+            </LatestValueTransform>
+          )}
+        </VisTableTransform>
+      )
     case ViewType.XY:
       return (
         <XYContainer
@@ -77,11 +93,14 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
         >
           {config => (
             <Plot config={config}>
-              <SingleStatTransform tables={tables}>
-                {stat => (
-                  <SingleStat stat={stat} properties={singleStatProperties} />
+              <LatestValueTransform table={config.table} quiet={true}>
+                {latestValue => (
+                  <SingleStat
+                    stat={latestValue}
+                    properties={singleStatProperties}
+                  />
                 )}
-              </SingleStatTransform>
+              </LatestValueTransform>
             </Plot>
           )}
         </XYContainer>
