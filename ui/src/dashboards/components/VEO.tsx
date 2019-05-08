@@ -5,8 +5,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Overlay} from 'src/clockface'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {SpinnerContainer, TechnoSpinner, Overlay} from '@influxdata/clockface'
 import VEOContents from 'src/dashboards/components/VEOContents'
 
 // Utils

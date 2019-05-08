@@ -4,7 +4,8 @@ import {connect} from 'react-redux'
 import moment from 'moment'
 
 // Components
-import {IndexList, Overlay} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
+import {IndexList} from 'src/clockface'
 import RunLogsOverlay from 'src/tasks/components/RunLogsList'
 
 // Actions

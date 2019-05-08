@@ -10,7 +10,7 @@ import {extractVariablesList} from 'src/variables/selectors'
 import {createVariable} from 'src/variables/actions'
 
 // Components
-import {Overlay} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
 import VariableForm from 'src/variables/components/VariableForm'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
@@ -36,7 +36,7 @@ class CreateVariableOverlay extends PureComponent<Props> {
       <GetResources resource={ResourceTypes.Variables}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={1000}>
-            <Overlay.Heading
+            <Overlay.Header
               title="Create Variable"
               onDismiss={this.handleHideOverlay}
             />

@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 // Components
 import LabelOverlayForm from 'src/labels/components/LabelOverlayForm'
-import {Overlay, ComponentStatus} from 'src/clockface'
+import {Overlay, ComponentStatus} from '@influxdata/clockface'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -57,7 +57,7 @@ class CreateLabelOverlay extends Component<Props, State> {
     return (
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={400}>
-          <Overlay.Heading title="Create Label" onDismiss={onDismiss} />
+          <Overlay.Header title="Create Label" onDismiss={onDismiss} />
           <Overlay.Body>
             <LabelOverlayForm
               id={label.id}

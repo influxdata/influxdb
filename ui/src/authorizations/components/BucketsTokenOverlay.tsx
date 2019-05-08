@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Overlay, Form} from 'src/clockface'
+import {Form} from 'src/clockface'
 import {
   IconFont,
   ComponentColor,
@@ -16,6 +16,7 @@ import {
   Grid,
   Columns,
   Input,
+  Overlay,
 } from '@influxdata/clockface'
 import BucketsSelector from 'src/authorizations/components/BucketsSelector'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
@@ -63,7 +64,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container>
-          <Overlay.Heading
+          <Overlay.Header
             title="Generate Read/Write Token"
             onDismiss={this.handleDismiss}
           />

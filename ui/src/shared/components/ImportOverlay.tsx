@@ -3,8 +3,7 @@ import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Form, Radio, Button, TextArea} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {Form, Radio, Button, TextArea, Overlay} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 
 // Types
@@ -51,7 +50,7 @@ class ImportOverlay extends PureComponent<Props, State> {
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={800}>
           <Form onSubmit={this.submit}>
-            <Overlay.Heading
+            <Overlay.Header
               title={`Import ${resourceName}`}
               onDismiss={this.onDismiss}
             />

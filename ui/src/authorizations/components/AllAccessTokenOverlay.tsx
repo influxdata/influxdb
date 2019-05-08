@@ -2,7 +2,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Overlay, Form} from 'src/clockface'
+import {Form} from 'src/clockface'
 import {
   Alert,
   IconFont,
@@ -14,6 +14,7 @@ import {
   Button,
   ButtonType,
   Input,
+  Overlay,
 } from '@influxdata/clockface'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -47,7 +48,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container>
-          <Overlay.Heading
+          <Overlay.Header
             title="Generate All Access Token"
             onDismiss={this.handleDismiss}
           />

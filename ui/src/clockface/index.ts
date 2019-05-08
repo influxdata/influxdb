@@ -7,7 +7,6 @@ import Form from './components/form_layout/Form'
 import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
-import Overlay from './components/overlays/Overlay'
 import WizardFullScreen from './components/wizard/WizardFullScreen'
 import WizardOverlay from './components/wizard/WizardOverlay'
 import WizardProgressHeader from './components/wizard/WizardProgressHeader'
@@ -66,7 +65,6 @@ export {
   MultiInputType,
   MultipleInput,
   NavMenuType,
-  Overlay,
   ProgressBar,
   QuestionMarkTooltip,
   ResourceList,

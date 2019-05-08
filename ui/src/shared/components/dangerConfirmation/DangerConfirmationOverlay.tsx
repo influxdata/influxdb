@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Overlay} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
 import DangerConfirmationForm from 'src/shared/components/dangerConfirmation/DangerConfirmationForm'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -30,7 +30,7 @@ class DangerConfirmationOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={400}>
-          <Overlay.Heading
+          <Overlay.Header
             title={this.overlayTitle}
             onDismiss={this.handleCloseOverlay}
           />

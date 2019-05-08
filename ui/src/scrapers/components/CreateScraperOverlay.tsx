@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Overlay} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
 import CreateScraperForm from 'src/scrapers/components/CreateScraperForm'
 
 // Actions
@@ -62,7 +62,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
-          <Overlay.Heading title="Create Scraper" onDismiss={this.onDismiss} />
+          <Overlay.Header title="Create Scraper" onDismiss={this.onDismiss} />
           <Overlay.Body>
             <h5 className="wizard-step--sub-title">
               Scrapers collect data from multiple targets at regular intervals
