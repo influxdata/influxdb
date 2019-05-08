@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import classnames from 'classnames'
 
 // Components
-import {DraggableResizer, Stack} from 'src/clockface'
+import {DraggableResizer, Orientation} from '@influxdata/clockface'
 import TimeMachineQueries from 'src/timeMachine/components/Queries'
 import TimeMachineVis from 'src/timeMachine/components/Vis'
 import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
@@ -32,7 +32,7 @@ const TimeMachine: FunctionComponent<StateProps> = ({activeTab}) => {
     <>
       <div className={containerClassName}>
         <DraggableResizer
-          stackPanels={Stack.Rows}
+          handleOrientation={Orientation.Horizontal}
           handlePositions={dragPosition}
           onChangePositions={setDragPosition}
         >

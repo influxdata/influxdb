@@ -16,7 +16,6 @@ import IndexList from './components/index_views/IndexList'
 import ResourceList from './components/resource_list/ResourceList'
 import Context from './components/context_menu/Context'
 import FormElement from 'src/clockface/components/form_layout/FormElement'
-import DraggableResizer from 'src/clockface/components/draggable_resizer/DraggableResizer'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveGridSizer'
 import Select from 'src/clockface/components/Select'
@@ -53,7 +52,6 @@ export {
   ComponentStatus,
   ConfirmationButton,
   Context,
-  DraggableResizer,
   Dropdown,
   DropdownChild,
   DropdownMenuColors,
