@@ -1114,28 +1114,21 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
-	}
+	sort.Sort(reverseStringSlice(keys))
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(floatPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -1144,9 +1137,15 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(floatPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -1403,17 +1402,13 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(integerPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -1422,9 +1417,15 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(integerPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -1681,17 +1682,13 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]UnsignedPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(unsignedPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -1700,9 +1697,15 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -1959,17 +1962,13 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(stringPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -1978,9 +1977,15 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(stringPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -2237,17 +2242,13 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(booleanPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -2256,9 +2257,15 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -3739,17 +3746,13 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(floatPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -3758,9 +3761,15 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(floatPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -4017,17 +4026,13 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(integerPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -4036,9 +4041,15 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(integerPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -4295,17 +4306,13 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]UnsignedPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(unsignedPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -4314,9 +4321,15 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -4573,17 +4586,13 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(stringPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -4592,9 +4601,15 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(stringPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -4851,17 +4866,13 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(booleanPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -4870,9 +4881,15 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -6353,17 +6370,13 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(floatPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -6372,9 +6385,15 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(floatPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -6631,17 +6650,13 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(integerPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -6650,9 +6665,15 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(integerPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -6909,17 +6930,13 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]UnsignedPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(unsignedPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -6928,9 +6945,15 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -7187,17 +7210,13 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(stringPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -7206,9 +7225,15 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(stringPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -7465,17 +7490,13 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(booleanPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -7484,9 +7505,15 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -8953,17 +8980,13 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(floatPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -8972,9 +8995,15 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(floatPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -9231,17 +9260,13 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(integerPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -9250,9 +9275,15 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(integerPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -9509,17 +9540,13 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]UnsignedPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(unsignedPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -9528,9 +9555,15 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -9787,17 +9820,13 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(stringPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -9806,9 +9835,15 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(stringPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -10065,17 +10100,13 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(booleanPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -10084,9 +10115,15 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -11553,17 +11590,13 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]FloatPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(floatPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -11572,9 +11605,15 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(floatPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -11831,17 +11870,13 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]IntegerPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(integerPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -11850,9 +11885,15 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(integerPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -12109,17 +12150,13 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]UnsignedPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(unsignedPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -12128,9 +12165,15 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -12387,17 +12430,13 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]StringPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(stringPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -12406,9 +12445,15 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(stringPointsByTime(a)))
 	}
 	return a, nil
 }
@@ -12665,17 +12710,13 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]BooleanPoint, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable(booleanPointsByTime(points))
-		}
 		for i := len(points) - 1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -12684,9 +12725,15 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
 	}
 	return a, nil
 }
