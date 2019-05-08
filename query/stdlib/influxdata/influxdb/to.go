@@ -251,11 +251,12 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 
 // ToTransformation is the transformation for the `to` flux function.
 type ToTransformation struct {
-	d     execute.Dataset
-	fn    *execute.RowMapFn
-	cache execute.TableBuilderCache
-	spec  *ToProcedureSpec
-	deps  ToDependencies
+	d                  execute.Dataset
+	fn                 *execute.RowMapFn
+	cache              execute.TableBuilderCache
+	spec               *ToProcedureSpec
+	implicitTagColumns bool
+	deps               ToDependencies
 }
 
 // RetractTable retracts the table for the transformation for the `to` flux function.
@@ -275,17 +276,18 @@ func NewToTransformation(d execute.Dataset, cache execute.TableBuilderCache, spe
 	}
 
 	return &ToTransformation{
-		d:     d,
-		fn:    fn,
-		cache: cache,
-		spec:  spec,
-		deps:  deps,
+		d:                  d,
+		fn:                 fn,
+		cache:              cache,
+		spec:               spec,
+		implicitTagColumns: spec.Spec.TagColumns == nil,
+		deps:               deps,
 	}, nil
 }
 
 // Process does the actual work for the ToTransformation.
 func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
-	if t.spec.Spec.TagColumns == nil {
+	if t.implicitTagColumns {
 
 		// If no tag columns are specified, by default we exclude
 		// _field and _value from being tag columns.
@@ -358,7 +360,11 @@ func (v *fieldFunctionVisitor) Visit(node semantic.Node) semantic.Visitor {
 func (v *fieldFunctionVisitor) Done(node semantic.Node) {}
 
 func addTagsFromTable(spec *ToOpSpec, table flux.Table, exclude map[string]bool) {
-	spec.TagColumns = make([]string, 0, len(table.Cols()))
+	if cap(spec.TagColumns) < len(table.Cols()) {
+		spec.TagColumns = make([]string, 0, len(table.Cols()))
+	} else {
+		spec.TagColumns = spec.TagColumns[:0]
+	}
 	for _, column := range table.Cols() {
 		if column.Type == flux.TString && !exclude[column.Label] {
 			spec.TagColumns = append(spec.TagColumns, column.Label)
