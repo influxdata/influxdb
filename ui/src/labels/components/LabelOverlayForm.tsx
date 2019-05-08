@@ -2,8 +2,8 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Input, Button, ColorPicker, Grid} from '@influxdata/clockface'
-import {Form, Label} from 'src/clockface'
+import {Input, Button, ColorPicker, Grid, Label} from '@influxdata/clockface'
+import {Form} from 'src/clockface'
 
 // Types
 import {
@@ -66,7 +66,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                     size={ComponentSize.Small}
                     name={this.placeholderLabelName}
                     description={description}
-                    colorHex={this.colorGuard}
+                    color={this.validatedColor}
                     id={id}
                   />
                 </Form.Box>
@@ -149,7 +149,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
     return name
   }
 
-  private get colorGuard(): string {
+  private get validatedColor(): string {
     const {color} = this.props
 
     if (validateHexCode(color)) {
