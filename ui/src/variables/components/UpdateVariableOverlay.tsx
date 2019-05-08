@@ -12,8 +12,8 @@ import {
   Grid,
   Dropdown,
   Columns,
+  Overlay,
 } from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
 import VariableArgumentsEditor from 'src/variables/components/VariableArgumentsEditor'
 
 // Actions
@@ -64,7 +64,7 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={1000}>
-          <Overlay.Heading title="Edit Variable" onDismiss={this.handleClose} />
+          <Overlay.Header title="Edit Variable" onDismiss={this.handleClose} />
           <Overlay.Body>
             <Form onSubmit={this.handleSubmit}>
               <Grid>

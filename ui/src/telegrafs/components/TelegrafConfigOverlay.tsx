@@ -13,8 +13,9 @@ import {
   RemoteDataState,
   SpinnerContainer,
   TechnoSpinner,
+  Overlay,
+  ComponentStatus,
 } from '@influxdata/clockface'
-import {Overlay, ComponentStatus} from 'src/clockface'
 
 // Utils
 import {downloadTextFile} from 'src/shared/utils/download'
@@ -44,7 +45,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={1200}>
-          <Overlay.Heading
+          <Overlay.Header
             title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
             onDismiss={this.handleDismiss}
           />

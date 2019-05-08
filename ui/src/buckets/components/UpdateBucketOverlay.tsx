@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
-import {Overlay, ComponentStatus} from 'src/clockface'
+import {Overlay, ComponentStatus} from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Actions
@@ -54,7 +54,7 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={500}>
-          <Overlay.Heading title="Edit Bucket" onDismiss={this.handleClose} />
+          <Overlay.Header title="Edit Bucket" onDismiss={this.handleClose} />
           <Overlay.Body>
             <BucketOverlayForm
               name={bucket.name}

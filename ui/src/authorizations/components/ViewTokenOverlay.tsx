@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {get} from 'lodash'
 
 // Components
-import {Overlay} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
 import PermissionsWidget, {
   PermissionsWidgetMode,
   PermissionsWidgetSelection,
@@ -26,7 +26,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
 
     return (
       <Overlay.Container>
-        <Overlay.Heading title={description} onDismiss={this.handleDismiss} />
+        <Overlay.Header title={description} onDismiss={this.handleDismiss} />
         <Overlay.Body>
           <CodeSnippet copyText={this.props.auth.token} />
           <PermissionsWidget

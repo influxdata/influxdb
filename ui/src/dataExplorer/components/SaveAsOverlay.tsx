@@ -5,8 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import SaveAsVariable from 'src/dataExplorer/components/SaveAsVariable'
-import {Radio} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {Radio, Overlay} from '@influxdata/clockface'
 
 enum SaveAsOption {
   Dashboard = 'dashboard',
@@ -29,7 +28,7 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
-          <Overlay.Heading title="Save As" onDismiss={this.handleHideOverlay} />
+          <Overlay.Header title="Save As" onDismiss={this.handleHideOverlay} />
           <Overlay.Body>
             <div className="save-as--options">
               <Radio>

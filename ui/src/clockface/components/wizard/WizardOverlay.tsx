@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Overlay} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -25,7 +25,7 @@ class WizardOverlay extends PureComponent<Props> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={maxWidth}>
-          <Overlay.Heading title={title} onDismiss={onDismiss} />
+          <Overlay.Header title={title} onDismiss={onDismiss} />
           <Overlay.Body>
             <div className="data-loading--overlay">{children}</div>
           </Overlay.Body>
