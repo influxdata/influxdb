@@ -159,8 +159,12 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handleGetSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handleGetSecrets() = ***%s***", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetSecrets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetSecrets() = ***%s***", tt.name, diff)
+				}
 			}
 
 		})
@@ -236,8 +240,12 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handlePatchSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handlePatchSecrets() = ***%s***", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePatchSecrets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePatchSecrets() = ***%s***", tt.name, diff)
+				}
 			}
 
 		})
@@ -315,8 +323,12 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handleDeleteSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handleDeleteSecrets() = ***%s***", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteSecrets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteSecrets() = ***%s***", tt.name, diff)
+				}
 			}
 
 		})
