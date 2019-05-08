@@ -9,9 +9,6 @@ import OverlayBody from 'src/clockface/components/overlays/OverlayBody'
 import OverlayFooter from 'src/clockface/components/overlays/OverlayFooter'
 import DapperScrollbars from 'src/shared/components/dapperScrollbars/DapperScrollbars'
 
-// Styles
-import 'src/clockface/components/overlays/Overlay.scss'
-
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

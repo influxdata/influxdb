@@ -3,12 +3,9 @@
   ------------------------------------------------------------------------------
 */
 
-@import 'src/style/modules';
-
 $resource-name-font-size: 17px;
 $resource-name-font-wight: 600;
 $rename-dash-title-padding: 6px;
-
 
 .editable-name > a,
 .input.editable-name--input > input {
