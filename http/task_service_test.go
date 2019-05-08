@@ -87,6 +87,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 							{
 								ID:              1,
 								Name:            "task1",
+								Description:     "A little Task",
 								OrganizationID:  1,
 								Organization:    "test",
 								AuthorizationID: 0x100,
@@ -137,7 +138,8 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
       },
       "id": "0000000000000001",
       "name": "task1",
-			"labels": [
+	  "description": "A little Task",
+	  "labels": [
         {
           "id": "fc3dc670a4be9b9a",
           "name": "label",
@@ -449,6 +451,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 						return &platform.Task{
 							ID:              1,
 							Name:            "task1",
+							Description:     "Brand New Task",
 							OrganizationID:  1,
 							Organization:    "test",
 							AuthorizationID: 0x100,
@@ -472,6 +475,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
   },
   "id": "0000000000000001",
   "name": "task1",
+  "description": "Brand New Task",
   "labels": [],
   "orgID": "0000000000000001",
   "org": "test",

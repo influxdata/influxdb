@@ -565,6 +565,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		Organization:    org.Name,
 		AuthorizationID: auth.Identifier(),
 		Name:            opt.Name,
+		Description:     tc.Description,
 		Status:          tc.Status,
 		Flux:            tc.Flux,
 		Every:           opt.Every.String(),
@@ -675,6 +676,10 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 			return nil, err
 		}
 		task.AuthorizationID = auth.ID
+	}
+
+	if upd.Description != nil {
+		task.Description = *upd.Description
 	}
 
 	if upd.Status != nil {
