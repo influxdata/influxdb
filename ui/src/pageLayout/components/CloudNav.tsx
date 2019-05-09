@@ -25,24 +25,7 @@ export default class CloudNav extends PureComponent {
             <Icon glyph={IconFont.Cloud} />
           </a>
         )}
-      >
-        <NavMenu.SubItem
-          active={false}
-          titleLink={className => (
-            <a className={className} href={this.usageURL}>
-              Usage
-            </a>
-          )}
-        />
-        <NavMenu.SubItem
-          active={false}
-          titleLink={className => (
-            <a className={className} href={this.billingURL}>
-              Billing
-            </a>
-          )}
-        />
-      </NavMenu.Item>
+      />
     )
   }
 
@@ -52,9 +35,5 @@ export default class CloudNav extends PureComponent {
 
   private get usageURL(): string {
     return `${process.env.CLOUD_URL}${process.env.CLOUD_USAGE_PATH}`
-  }
-
-  private get billingURL(): string {
-    return `${process.env.CLOUD_URL}${process.env.CLOUD_BILLING_PATH}`
   }
 }

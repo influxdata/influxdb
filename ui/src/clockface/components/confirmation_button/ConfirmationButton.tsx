@@ -16,9 +16,6 @@ import {
   ButtonType,
 } from '@influxdata/clockface'
 
-// Styles
-import 'src/clockface/components/confirmation_button/ConfirmationButton.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

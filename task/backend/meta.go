@@ -171,6 +171,7 @@ func (stm *StoreTaskMeta) CreateNextRun(now int64, makeID func() (platform.ID, e
 	return RunCreation{
 		Created: QueuedRun{
 			RunID: id,
+			DueAt: dueAt.Unix(),
 			Now:   nextScheduledUnix,
 		},
 		NextDue:  nextDue.Unix(),
@@ -229,6 +230,7 @@ func (stm *StoreTaskMeta) createNextRunFromQueue(now, nextDue int64, sch cron.Sc
 		Created: QueuedRun{
 			RunID:       id,
 			Now:         runNow,
+			DueAt:       time.Now().UTC().Unix(),
 			RequestedAt: q.RequestedAt,
 		},
 		NextDue:  nextDue,

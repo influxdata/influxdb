@@ -4,10 +4,9 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Overlay} from 'src/clockface'
 import AddMembersForm from 'src/members/components/AddMembersForm'
 import FilterList from 'src/shared/components/Filter'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {SpinnerContainer, TechnoSpinner, Overlay} from '@influxdata/clockface'
 
 // Actions
 import {getUsers, addNewMember} from 'src/members/actions'
@@ -55,10 +54,7 @@ class AddMembersOverlay extends PureComponent<Props, State> {
       <GetResources resource={ResourceTypes.Users}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={500}>
-            <Overlay.Heading
-              title="Add Member"
-              onDismiss={this.handleDismiss}
-            />
+            <Overlay.Header title="Add Member" onDismiss={this.handleDismiss} />
             <Overlay.Body>
               <SpinnerContainer
                 loading={status}

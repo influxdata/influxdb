@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
+	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
@@ -93,6 +94,7 @@ func NewFluxHandler(b *FluxBackend) *FluxHandler {
 }
 
 func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
+	const op = "http/handlePostQuery"
 	span, r := tracing.ExtractFromHTTPRequest(r, "FluxHandler")
 	defer span.Finish()
 
@@ -116,12 +118,24 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
+		err := &influxdb.Error{
+			Code: influxdb.EUnauthorized,
+			Msg:  "authorization is invalid or missing in the query request",
+			Op:   op,
+			Err:  err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 
 	req, n, err := decodeProxyQueryRequest(ctx, r, a, h.OrganizationService)
 	if err != nil && err != platform.ErrAuthorizerNotSupported {
+		err := &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "failed to decode request body",
+			Op:   op,
+			Err:  err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
@@ -133,7 +147,12 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	hd, ok := req.Dialect.(HTTPDialect)
 	if !ok {
-		EncodeError(ctx, fmt.Errorf("unsupported dialect over HTTP %T", req.Dialect), w)
+		err := &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unsupported dialect over HTTP: %T", req.Dialect),
+			Op:   op,
+		}
+		EncodeError(ctx, err, w)
 		return
 	}
 	hd.SetHeaders(w)
@@ -142,6 +161,12 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.ProxyQueryService.Query(ctx, &cw, req); err != nil {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
+			err := &influxdb.Error{
+				Code: influxdb.EInternal,
+				Msg:  "failed to execute query against proxy service",
+				Op:   op,
+				Err:  err,
+			}
 			EncodeError(ctx, err, w)
 			return
 		}

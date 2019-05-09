@@ -8,8 +8,8 @@ import {
   Button,
   SpinnerContainer,
   TechnoSpinner,
+  Overlay,
 } from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import CopyButton from 'src/shared/components/CopyButton'
 
@@ -50,7 +50,7 @@ class ExportOverlay extends PureComponent<Props> {
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={800}>
           <Form onSubmit={this.handleExport}>
-            <Overlay.Heading
+            <Overlay.Header
               title={`Export ${resourceName}`}
               onDismiss={onDismissOverlay}
             />

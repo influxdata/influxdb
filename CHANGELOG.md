@@ -1,10 +1,20 @@
 ## v2.0.0-alpha.10 [unreleased]
+
 ### Features
 
+1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks.
+
 ### Bug Fixes
+
 1. [13753](https://github.com/influxdata/influxdb/pull/13753): Removed hardcoded bucket for Getting Started with Flux dashboard
+1. [13783](https://github.com/influxdata/influxdb/pull/13783): Ensure map type variables allow for selecting values
+1. [13800](https://github.com/influxdata/influxdb/pull/13800): Generate more idiomatic Flux in query builder
+1. [13797](https://github.com/influxdata/influxdb/pull/13797): Expand tab key presses to 2 spaces in the Flux editor
+1. [13823](https://github.com/influxdata/influxdb/pull/13823): Prevent dragging of Variable Dropdowns when dragging a scrollbar inside the dropdown
 
 ### UI Improvements
+1. [#13835](https://github.com/influxdata/influxdb/pull/13835): Render checkboxes in query builder tag selection lists
+1. [#13856](https://github.com/influxdata/influxdb/pull/13856): Fix jumbled card text in Telegraf configuration wizard
 
 ## v2.0.0-alpha.9 [2019-05-01]
 

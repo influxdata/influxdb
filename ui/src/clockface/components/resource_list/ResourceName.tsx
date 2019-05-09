@@ -13,9 +13,6 @@ import {RemoteDataState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/clockface/components/resource_list/ResourceName.scss'
-
 interface Props {
   onUpdate: (name: string) => void
   name: string

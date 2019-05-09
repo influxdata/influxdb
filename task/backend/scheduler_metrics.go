@@ -1,6 +1,10 @@
 package backend
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // schedulerMetrics is a collection of metrics relating to task scheduling.
 // All of its methods which accept task IDs, take them as strings,
@@ -14,6 +18,8 @@ type schedulerMetrics struct {
 
 	claimsComplete *prometheus.CounterVec
 	claimsActive   prometheus.Gauge
+
+	queueDelta prometheus.Summary
 }
 
 func newSchedulerMetrics() *schedulerMetrics {
@@ -59,6 +65,13 @@ func newSchedulerMetrics() *schedulerMetrics {
 			Name:      "claims_active",
 			Help:      "Total number of claims currently held.",
 		}),
+		queueDelta: prometheus.NewSummary(prometheus.SummaryOpts{
+			Namespace:  namespace,
+			Subsystem:  subsystem,
+			Name:       "run_queue_delta",
+			Help:       "The duration in seconds between a run being due to start and actually starting.",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		}),
 	}
 }
 
@@ -71,12 +84,15 @@ func (sm *schedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 		sm.runsActive,
 		sm.claimsComplete,
 		sm.claimsActive,
+		sm.queueDelta,
 	}
 }
 
 // StartRun adjusts the metrics to indicate a run is in progress for the given task ID.
-func (sm *schedulerMetrics) StartRun(tid string) {
+// We are also storing the delta time between when a run is due to start and actually starting.
+func (sm *schedulerMetrics) StartRun(tid string, queueDelta time.Duration) {
 	sm.totalRunsActive.Inc()
+	sm.queueDelta.Observe(queueDelta.Seconds())
 	sm.runsActive.WithLabelValues(tid).Inc()
 }
 

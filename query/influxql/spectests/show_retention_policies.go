@@ -6,7 +6,9 @@ func init() {
 			`SHOW RETENTION POLICIES ON telegraf`,
 			`package main
 
-databases()
+import v1 "influxdata/influxdb/v1"
+
+v1.databases()
 	|> filter(fn: (r) => r.databaseName == "telegraf")
 	|> rename(columns: {retentionPolicy: "name", retentionPeriod: "duration"})
 	|> set(key: "shardGroupDuration", value: "0")

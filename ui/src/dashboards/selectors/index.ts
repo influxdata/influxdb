@@ -58,7 +58,7 @@ export const getVariableValuesForDropdown = (
       const selection = list.find(({value}) => value === selectedValue)
 
       return {
-        selectedKey: selection[0],
+        selectedKey: get(selection, 'name', ''),
         list,
       }
     }

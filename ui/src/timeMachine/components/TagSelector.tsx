@@ -184,6 +184,7 @@ class TagSelector extends PureComponent<Props> {
         items={values}
         selectedItems={selectedValues}
         onSelectItem={this.handleSelectValue}
+        multiSelect={true}
       />
     )
   }

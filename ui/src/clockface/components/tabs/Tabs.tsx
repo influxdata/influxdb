@@ -1,9 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
 
-// Styles
-import 'src/clockface/components/tabs/Tabs.scss'
-
 // Components
 import TabContents from 'src/clockface/components/tabs/TabContents'
 import TabsNav from 'src/clockface/components/tabs/TabsNav'

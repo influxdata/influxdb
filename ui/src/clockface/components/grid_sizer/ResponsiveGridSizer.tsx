@@ -5,9 +5,6 @@ import _ from 'lodash'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/clockface/components/grid_sizer/ResponsiveGridSizer.scss'
-
 interface Props {
   children: JSX.Element[]
   columns: number

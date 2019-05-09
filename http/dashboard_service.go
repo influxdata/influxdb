@@ -431,11 +431,7 @@ func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := h.DashboardService.CreateDashboard(ctx, req.Dashboard); err != nil {
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EInternal,
-			Msg:  "Error loading dashboards",
-			Err:  err,
-		}, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 

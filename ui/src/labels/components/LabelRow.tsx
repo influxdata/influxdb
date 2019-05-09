@@ -2,8 +2,8 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {ComponentSize} from '@influxdata/clockface'
-import {IndexList, Label, Alignment, ConfirmationButton} from 'src/clockface'
+import {ComponentSize, Label} from '@influxdata/clockface'
+import {IndexList, Alignment, ConfirmationButton} from 'src/clockface'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -28,7 +28,7 @@ export default class LabelRow extends PureComponent<Props> {
           <Label
             id={label.id}
             name={label.name}
-            colorHex={label.properties.color}
+            color={label.properties.color}
             description={label.properties.description}
             size={ComponentSize.Small}
             onClick={this.handleClick}
