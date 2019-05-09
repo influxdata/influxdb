@@ -21,22 +21,9 @@ func (s *Service) initializeSessions(ctx context.Context, tx Tx) error {
 	return nil
 }
 
-// RenewSession extends the expire time to newExpiration.
+// RenewSession will defer session renewal to cloud identity providers in a cloud environment.
 func (s *Service) RenewSession(ctx context.Context, session *influxdb.Session, newExpiration time.Time) error {
-	if session == nil {
-		return &influxdb.Error{
-			Msg: "session is nil",
-		}
-	}
-	return s.kv.Update(ctx, func(tx Tx) error {
-		session.ExpiresAt = newExpiration
-		if err := s.putSession(ctx, tx, session); err != nil {
-			return &influxdb.Error{
-				Err: err,
-			}
-		}
-		return nil
-	})
+	return nil
 }
 
 // FindSession retrieves the session found at the provided key.
@@ -216,7 +203,7 @@ func (s *Service) createSession(ctx context.Context, tx Tx, user string) (*influ
 	sn.UserID = u.ID
 	sn.CreatedAt = time.Now()
 	// TODO(desa): make this configurable
-	sn.ExpiresAt = sn.CreatedAt.Add(time.Hour)
+	sn.ExpiresAt = sn.CreatedAt.Add(time.Hour * 4)
 	// TODO(desa): not totally sure what to do here. Possibly we should have a maximal privilege permission.
 	sn.Permissions = []influxdb.Permission{}
 
