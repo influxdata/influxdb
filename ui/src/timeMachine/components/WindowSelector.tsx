@@ -2,15 +2,17 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Dropdown} from '@influxdata/clockface'
+import {Dropdown, ComponentStatus} from '@influxdata/clockface'
+
+// Constants
+import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
 
 interface Window {
   period: string
 }
 
 const windows: Window[] = [
-  {period: 'auto'},
-  {period: 'none'},
+  {period: AGG_WINDOW_AUTO},
   {period: '5m'},
   {period: '15m'},
   {period: '1h'},
@@ -25,18 +27,20 @@ const windows: Window[] = [
 interface Props {
   onSelect: (period: string) => void
   period: string
-}
-
-const showPrefix = (id: string): boolean => {
-  return id !== 'auto' && id !== 'none'
+  disabled: boolean
 }
 
 const WindowSelector: FunctionComponent<Props> = ({
   onSelect,
-  period = windows[0].period,
+  period,
+  disabled,
 }) => {
   return (
-    <Dropdown selectedID={period} onChange={onSelect}>
+    <Dropdown
+      selectedID={period}
+      onChange={onSelect}
+      status={getStatus(disabled)}
+    >
       {windows.map(({period}) => (
         <Dropdown.Item id={period} key={period} value={period}>
           {showPrefix(period) && (
@@ -47,6 +51,18 @@ const WindowSelector: FunctionComponent<Props> = ({
       ))}
     </Dropdown>
   )
+}
+
+const showPrefix = (id: string): boolean => {
+  return id !== AGG_WINDOW_AUTO && id !== AGG_WINDOW_NONE
+}
+
+const getStatus = (disabled: boolean): ComponentStatus => {
+  if (disabled) {
+    return ComponentStatus.Disabled
+  }
+
+  return ComponentStatus.Default
 }
 
 export default WindowSelector

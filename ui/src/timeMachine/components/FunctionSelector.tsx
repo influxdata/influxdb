@@ -18,7 +18,10 @@ import {
 import {getActiveQuery} from 'src/timeMachine/selectors'
 
 // Constants
-import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
+import {
+  FUNCTIONS,
+  AGG_WINDOW_AUTO,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {AppState, BuilderConfig} from 'src/types'
@@ -48,7 +51,6 @@ class FunctionSelector extends PureComponent<Props, State> {
     const {
       onSelectFunction,
       selectedFunctions,
-      aggregateWindow,
       onSelectAggregateWindow,
     } = this.props
 
@@ -58,12 +60,11 @@ class FunctionSelector extends PureComponent<Props, State> {
       <BuilderCard className="function-selector">
         <BuilderCard.Header title="Aggregate Functions" />
         <BuilderCard.Menu>
-          {!!selectedFunctions.length && (
-            <WindowSelector
-              onSelect={onSelectAggregateWindow}
-              period={aggregateWindow.period}
-            />
-          )}
+          <WindowSelector
+            onSelect={onSelectAggregateWindow}
+            period={this.period}
+            disabled={!selectedFunctions.length}
+          />
           <Input
             className="tag-selector--search"
             value={searchTerm}
@@ -79,6 +80,11 @@ class FunctionSelector extends PureComponent<Props, State> {
         />
       </BuilderCard>
     )
+  }
+
+  private get period(): string {
+    const {aggregateWindow} = this.props
+    return aggregateWindow.period || AGG_WINDOW_AUTO
   }
 
   private get functions(): string[] {

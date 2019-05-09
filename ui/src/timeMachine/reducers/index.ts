@@ -673,6 +673,7 @@ export const timeMachineReducer = (
         const {period} = action.payload
 
         draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {period}
+        buildActiveQuery(draftState)
       })
     }
 

@@ -5,7 +5,9 @@ import {
   TIME_RANGE_START,
   TIME_RANGE_STOP,
   OPTION_NAME,
+  WINDOW_PERIOD,
 } from 'src/variables/constants'
+import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
@@ -37,7 +39,8 @@ function buildQueryHelper(
 ): string {
   const [bucket] = builderConfig.buckets
   const tagFilterCall = formatTagFilterCall(builderConfig.tags)
-  const fnCall = fn ? formatFunctionCall(fn) : ''
+  const {aggregateWindow} = builderConfig
+  const fnCall = fn ? formatFunctionCall(fn, aggregateWindow.period) : ''
 
   const query = `from(bucket: "${bucket}")
   |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagFilterCall}${fnCall}`
@@ -45,14 +48,27 @@ function buildQueryHelper(
   return query
 }
 
-export function formatFunctionCall(fn: BuilderConfig['functions'][0]) {
+export function formatFunctionCall(
+  fn: BuilderConfig['functions'][0],
+  period: string
+) {
   const fnSpec = FUNCTIONS.find(spec => spec.name === fn.name)
 
   if (!fnSpec) {
-    return ''
+    return
   }
 
-  return `\n  ${fnSpec.flux}\n  |> yield(name: "${fn.name}")`
+  const formattedPeriod = formatPeriod(period)
+
+  return `\n  ${fnSpec.flux(formattedPeriod)}\n  |> yield(name: "${fn.name}")`
+}
+
+const formatPeriod = (period: string): string => {
+  if (period === AGG_WINDOW_AUTO || !period) {
+    return `${OPTION_NAME}.${WINDOW_PERIOD}`
+  }
+
+  return period
 }
 
 function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
