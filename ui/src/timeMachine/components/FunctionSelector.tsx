@@ -6,9 +6,13 @@ import {connect} from 'react-redux'
 import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
+import WindowSelector from 'src/timeMachine/components/WindowSelector'
 
 // Actions
-import {selectFunction} from 'src/timeMachine/actions/queryBuilder'
+import {
+  selectFunction,
+  selectAggregateWindow,
+} from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
@@ -22,11 +26,13 @@ import {AppState, BuilderConfig} from 'src/types'
 const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 
 interface StateProps {
+  aggregateWindow: BuilderConfig['aggregateWindow']
   selectedFunctions: BuilderConfig['functions']
 }
 
 interface DispatchProps {
-  onSelectFunction: (fnName: string) => void
+  onSelectFunction: typeof selectFunction
+  onSelectAggregateWindow: typeof selectAggregateWindow
 }
 
 type Props = StateProps & DispatchProps
@@ -39,15 +45,27 @@ class FunctionSelector extends PureComponent<Props, State> {
   public state: State = {searchTerm: ''}
 
   public render() {
-    const {onSelectFunction} = this.props
+    const {
+      onSelectFunction,
+      selectedFunctions,
+      aggregateWindow,
+      onSelectAggregateWindow,
+    } = this.props
+
     const {searchTerm} = this.state
 
     return (
       <BuilderCard className="function-selector">
         <BuilderCard.Header title="Aggregate Functions" />
         <BuilderCard.Menu>
+          {!!selectedFunctions.length && (
+            <WindowSelector
+              onSelect={onSelectAggregateWindow}
+              period={aggregateWindow.period}
+            />
+          )}
           <Input
-            className="function-selector--search"
+            className="tag-selector--search"
             value={searchTerm}
             onChange={this.handleSetSearchTerm}
             placeholder="Search functions..."
@@ -77,13 +95,16 @@ class FunctionSelector extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const selectedFunctions = getActiveQuery(state).builderConfig.functions
+  const {functions: selectedFunctions, aggregateWindow} = getActiveQuery(
+    state
+  ).builderConfig
 
-  return {selectedFunctions}
+  return {selectedFunctions, aggregateWindow}
 }
 
 const mdtp = {
   onSelectFunction: selectFunction,
+  onSelectAggregateWindow: selectAggregateWindow,
 }
 
 export default connect<StateProps, DispatchProps>(
