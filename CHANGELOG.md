@@ -6,6 +6,8 @@ v1.7.7 [unreleased]
 -	[#13441](https://github.com/influxdata/influxdb/pull/13441): Fix the sort order for aggregates so that they are sorted by tag and then time.
 -	[#13463](https://github.com/influxdata/influxdb/pull/13463): Use the timezone when evaluating time literals in subqueries.
 -	[#13566](https://github.com/influxdata/influxdb/pull/13566): Fix csv decoder bug where empty tag values cause an array index panic.
+-   [#13837](https://github.com/influxdata/influxdb/pull/13837): Fix open/close race in SeriesFile.
+-   [#13860](https://github.com/influxdata/influxdb/pull/13860): Sync series segment after truncate.
 
 v1.7.6 [2019-04-16]
 -------------------
