@@ -441,7 +441,7 @@ type UserService struct {
 
 // FindMe returns user information about the owner of the token
 func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-	url, err := newURL(s.Addr, mePath)
+	url, err := NewURL(s.Addr, mePath)
 	if err != nil {
 		return nil, err
 	}
@@ -452,7 +452,7 @@ func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.Use
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -472,7 +472,7 @@ func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.Use
 
 // FindUserByID returns a single user by ID.
 func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-	url, err := newURL(s.Addr, userIDPath(id))
+	url, err := NewURL(s.Addr, userIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -483,7 +483,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influx
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -532,7 +532,7 @@ func (s *UserService) FindUser(ctx context.Context, filter influxdb.UserFilter) 
 // FindUsers returns a list of users that match filter and the total count of matching users.
 // Additional options provide pagination & sorting.
 func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
-	url, err := newURL(s.Addr, usersPath)
+	url, err := NewURL(s.Addr, usersPath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -553,7 +553,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter,
 	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, 0, err
@@ -575,7 +575,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter,
 
 // CreateUser creates a new user and sets u.ID with the new identifier.
 func (s *UserService) CreateUser(ctx context.Context, u *influxdb.User) error {
-	url, err := newURL(s.Addr, usersPath)
+	url, err := NewURL(s.Addr, usersPath)
 	if err != nil {
 		return err
 	}
@@ -593,7 +593,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *influxdb.User) error {
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -616,7 +616,7 @@ func (s *UserService) CreateUser(ctx context.Context, u *influxdb.User) error {
 // UpdateUser updates a single user with changeset.
 // Returns the new user state after update.
 func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
-	url, err := newURL(s.Addr, userIDPath(id))
+	url, err := NewURL(s.Addr, userIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -634,7 +634,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -656,7 +656,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 
 // DeleteUser removes a user by ID.
 func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
-	url, err := newURL(s.Addr, userIDPath(id))
+	url, err := NewURL(s.Addr, userIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -667,7 +667,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err

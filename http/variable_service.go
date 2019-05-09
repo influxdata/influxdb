@@ -452,7 +452,7 @@ type VariableService struct {
 // FindVariableByID finds a single variable from the store by its ID
 func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) (*platform.Variable, error) {
 	path := variableIDPath(id)
-	url, err := newURL(s.Addr, path)
+	url, err := NewURL(s.Addr, path)
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +463,7 @@ func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) 
 	}
 
 	SetToken(s.Token, req)
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -488,7 +488,7 @@ func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) 
 //
 // Additional options provide pagination & sorting.
 func (s *VariableService) FindVariables(ctx context.Context, filter platform.VariableFilter, opts ...platform.FindOptions) ([]*platform.Variable, error) {
-	url, err := newURL(s.Addr, variablePath)
+	url, err := NewURL(s.Addr, variablePath)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +511,7 @@ func (s *VariableService) FindVariables(ctx context.Context, filter platform.Var
 	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -541,7 +541,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 		}
 	}
 
-	url, err := newURL(s.Addr, variablePath)
+	url, err := NewURL(s.Addr, variablePath)
 	if err != nil {
 		return err
 	}
@@ -559,7 +559,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -576,7 +576,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 
 // UpdateVariable updates a single variable with a changeset
 func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, update *platform.VariableUpdate) (*platform.Variable, error) {
-	u, err := newURL(s.Addr, variableIDPath(id))
+	u, err := NewURL(s.Addr, variableIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -594,7 +594,7 @@ func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, up
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -616,7 +616,7 @@ func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, up
 
 // ReplaceVariable replaces a single variable
 func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platform.Variable) error {
-	u, err := newURL(s.Addr, variableIDPath(variable.ID))
+	u, err := NewURL(s.Addr, variableIDPath(variable.ID))
 	if err != nil {
 		return err
 	}
@@ -634,7 +634,7 @@ func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platfor
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -655,7 +655,7 @@ func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platfor
 
 // DeleteVariable removes a variable from the store
 func (s *VariableService) DeleteVariable(ctx context.Context, id platform.ID) error {
-	u, err := newURL(s.Addr, variableIDPath(id))
+	u, err := NewURL(s.Addr, variableIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -666,7 +666,7 @@ func (s *VariableService) DeleteVariable(ctx context.Context, id platform.ID) er
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err
