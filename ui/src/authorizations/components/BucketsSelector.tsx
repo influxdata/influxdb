@@ -1,22 +1,22 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 
-// Libraries
+// Components
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
-import SelectorList from 'src/timeMachine/components/SelectorList'
+import BucketsTabBody from 'src/authorizations/components/BucketsTabBody'
+import {BucketTab} from 'src/authorizations/utils/permissions'
+import BucketsTabSelector from 'src/authorizations/components/BucketsTabSelector'
 
 // Types
 import {Bucket} from '@influxdata/influx'
 import {
-  Input,
-  Button,
-  ComponentSize,
   ComponentSpacer,
   AlignItems,
   FlexDirection,
+  Button,
+  EmptyState,
+  ComponentSize,
 } from '@influxdata/clockface'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
-import FilterList from 'src/shared/components/Filter'
 
 interface Props {
   buckets: Bucket[]
@@ -25,82 +25,90 @@ interface Props {
   onDeselectAll: () => void
   selectedBuckets: string[]
   title: string
-}
-
-interface State {
-  searchTerm: string
+  activeTab: BucketTab
+  onTabClick: (tab: BucketTab) => void
 }
 
 class BucketsSelector extends PureComponent<Props> {
-  public state: State = {searchTerm: ''}
-
   render() {
+    const {title, activeTab, onTabClick} = this.props
+
+    return (
+      <ComponentSpacer
+        alignItems={AlignItems.Stretch}
+        direction={FlexDirection.Column}
+        margin={ComponentSize.Medium}
+      >
+        <div className="title">{title}</div>
+        <BucketsTabSelector
+          tabs={this.bucketTabs}
+          activeTab={activeTab}
+          onClick={onTabClick}
+        />
+        {this.builderCard}
+      </ComponentSpacer>
+    )
+  }
+
+  private get bucketTabs(): BucketTab[] {
+    return [BucketTab.AllBuckets, BucketTab.Scoped]
+  }
+
+  private get builderCard(): JSX.Element {
     const {
       selectedBuckets,
       onSelect,
       onSelectAll,
       onDeselectAll,
-      title,
       buckets,
+      activeTab,
     } = this.props
-    const {searchTerm} = this.state
 
-    return (
-      <BuilderCard className="bucket-selectors">
-        <BuilderCard.Header title={title}>
-          <div className="bucket-selectors--buttons">
-            <ComponentSpacer
-              alignItems={AlignItems.Center}
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-            >
-              <Button
-                text="Select All"
-                size={ComponentSize.ExtraSmall}
-                className="bucket-selectors--button"
-                onClick={onSelectAll}
+    switch (activeTab) {
+      case BucketTab.AllBuckets:
+        return (
+          <>
+            <EmptyState size={ComponentSize.Small}>
+              <EmptyState.Text
+                text="This token will be able to write to all existing buckets as well
+                as to any bucket created in the future"
               />
-              <Button
-                text="Deselect All"
-                size={ComponentSize.ExtraSmall}
-                className="bucket-selectors--button"
-                onClick={onDeselectAll}
-              />
-            </ComponentSpacer>
-          </div>
-        </BuilderCard.Header>
-        <BuilderCard.Menu>
-          <Input
-            value={searchTerm}
-            onChange={this.handleSetSearchTerm}
-            placeholder="Search buckets..."
-          />
-        </BuilderCard.Menu>
-
-        <FilterList
-          list={buckets}
-          searchTerm={searchTerm}
-          searchKeys={['name']}
-        >
-          {filteredBuckets => (
-            <SortingHat list={filteredBuckets} sortKey="name">
-              {sortedBuckets => (
-                <SelectorList
-                  items={sortedBuckets.map(b => b.name)}
-                  selectedItems={selectedBuckets}
-                  onSelectItem={onSelect}
-                  multiSelect={false}
-                />
-              )}
-            </SortingHat>
-          )}
-        </FilterList>
-      </BuilderCard>
-    )
-  }
-
-  private handleSetSearchTerm = (e: ChangeEvent<HTMLInputElement>) => {
-    this.setState({searchTerm: e.target.value})
+            </EmptyState>
+          </>
+        )
+      case BucketTab.Scoped:
+        return (
+          <BuilderCard className="bucket-selectors">
+            <BuilderCard.Header title="Buckets">
+              <div className="bucket-selectors--buttons">
+                <ComponentSpacer
+                  alignItems={AlignItems.Center}
+                  direction={FlexDirection.Row}
+                  margin={ComponentSize.Small}
+                >
+                  <Button
+                    text="Select All"
+                    size={ComponentSize.ExtraSmall}
+                    className="bucket-selectors--button"
+                    onClick={onSelectAll}
+                  />
+                  <Button
+                    text="Deselect All"
+                    size={ComponentSize.ExtraSmall}
+                    className="bucket-selectors--button"
+                    onClick={onDeselectAll}
+                  />
+                </ComponentSpacer>
+              </div>
+            </BuilderCard.Header>
+            <BucketsTabBody
+              buckets={buckets}
+              onSelect={onSelect}
+              selectedBuckets={selectedBuckets}
+            />
+          </BuilderCard>
+        )
+    }
   }
 }
 

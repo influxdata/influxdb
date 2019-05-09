@@ -165,3 +165,8 @@ export const selectBucket = (
 
   return [...selectedBuckets, bucketName]
 }
+
+export enum BucketTab {
+  AllBuckets = 'All Buckets',
+  Scoped = 'Scoped',
+}
