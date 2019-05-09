@@ -21,9 +21,9 @@ const InfiniteRetention = 0
 // Bucket is a bucket. 🎉
 type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
-	OrganizationID      ID            `json:"orgID,omitempty"`
-	Organization        string        `json:"organization,omitempty"`
+	OrgID               ID            `json:"orgID,omitempty"`
 	Name                string        `json:"name"`
+	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 }
@@ -65,6 +65,7 @@ type BucketService interface {
 // Only fields which are set are updated.
 type BucketUpdate struct {
 	Name            *string        `json:"name,omitempty"`
+	Description     *string        `json:"description,omitempty"`
 	RetentionPeriod *time.Duration `json:"retentionPeriod,omitempty"`
 }
 
@@ -73,7 +74,7 @@ type BucketFilter struct {
 	ID             *ID
 	Name           *string
 	OrganizationID *ID
-	Organization   *string
+	Org            *string
 }
 
 // QueryParams Converts BucketFilter fields to url query params.
@@ -91,8 +92,8 @@ func (f BucketFilter) QueryParams() map[string][]string {
 		qp["orgID"] = []string{f.OrganizationID.String()}
 	}
 
-	if f.Organization != nil {
-		qp["org"] = []string{*f.Organization}
+	if f.Org != nil {
+		qp["org"] = []string{*f.Org}
 	}
 
 	return qp
@@ -112,8 +113,8 @@ func (f BucketFilter) String() string {
 	if f.OrganizationID != nil {
 		parts = append(parts, "Org ID: "+f.OrganizationID.String())
 	}
-	if f.Organization != nil {
-		parts = append(parts, "Org Name: "+*f.Organization)
+	if f.Org != nil {
+		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }

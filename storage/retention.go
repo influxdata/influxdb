@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -86,15 +87,18 @@ func (s *retentionEnforcer) run() {
 		return // Not initialized
 	}
 
-	log, logEnd := logger.NewOperation(s.logger, "Data retention check", "data_retention_check")
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
+
+	log, logEnd := logger.NewOperation(ctx, s.logger, "Data retention check", "data_retention_check")
 	defer logEnd()
 
 	now := time.Now().UTC()
-	buckets, err := s.getBucketInformation()
+	buckets, err := s.getBucketInformation(ctx)
 	if err != nil {
 		log.Error("Unable to determine bucket information", zap.Error(err))
 	} else {
-		s.expireData(buckets, now)
+		s.expireData(ctx, buckets, now)
 	}
 	s.tracker.CheckDuration(time.Since(now), err == nil)
 }
@@ -103,8 +107,8 @@ func (s *retentionEnforcer) run() {
 //
 // Any series data that (1) belongs to a bucket in the provided list and
 // (2) falls outside the bucket's indicated retention period will be deleted.
-func (s *retentionEnforcer) expireData(buckets []*influxdb.Bucket, now time.Time) {
-	logger, logEnd := logger.NewOperation(s.logger, "Data deletion", "data_deletion")
+func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.Bucket, now time.Time) {
+	logger, logEnd := logger.NewOperation(ctx, s.logger, "Data deletion", "data_deletion")
 	defer logEnd()
 
 	for _, b := range buckets {
@@ -112,21 +116,31 @@ func (s *retentionEnforcer) expireData(buckets []*influxdb.Bucket, now time.Time
 			continue
 		}
 
+		span, _ := tracing.StartSpanFromContext(ctx)
+		span.LogKV(
+			"bucket", b.Name,
+			"org_id", b.OrgID,
+			"retention_period", b.RetentionPeriod,
+			"retention_policy", b.RetentionPolicyName)
+
 		max := now.Add(-b.RetentionPeriod).UnixNano()
-		err := s.Engine.DeleteBucketRange(b.OrganizationID, b.ID, math.MinInt64, max)
+		err := s.Engine.DeleteBucketRange(b.OrgID, b.ID, math.MinInt64, max)
 		if err != nil {
 			logger.Info("unable to delete bucket range",
 				zap.String("bucket id", b.ID.String()),
-				zap.String("org id", b.OrganizationID.String()),
+				zap.String("org id", b.OrgID.String()),
 				zap.Error(err))
+			tracing.LogError(span, err)
 		}
-		s.tracker.IncChecks(b.OrganizationID, b.ID, err == nil)
+		s.tracker.IncChecks(b.OrgID, b.ID, err == nil)
+
+		span.Finish()
 	}
 }
 
 // getBucketInformation returns a slice of buckets to run retention on.
-func (s *retentionEnforcer) getBucketInformation() ([]*influxdb.Bucket, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), bucketAPITimeout)
+func (s *retentionEnforcer) getBucketInformation(ctx context.Context) ([]*influxdb.Bucket, error) {
+	ctx, cancel := context.WithTimeout(ctx, bucketAPITimeout)
 	defer cancel()
 
 	buckets, _, err := s.BucketService.FindBuckets(ctx, influxdb.BucketFilter{})

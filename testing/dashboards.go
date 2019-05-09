@@ -264,7 +264,7 @@ func AddDashboardCell(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view2",
+							ID: MustIDBase16(dashTwoID),
 						},
 					},
 				},
@@ -312,7 +312,7 @@ func AddDashboardCell(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view2",
+							ID: MustIDBase16(dashTwoID),
 						},
 					},
 				},
@@ -358,7 +358,7 @@ func AddDashboardCell(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view2",
+							ID: MustIDBase16(dashTwoID),
 						},
 					},
 				},
@@ -1258,7 +1258,7 @@ func RemoveDashboardCell(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view2",
+							ID: MustIDBase16(dashTwoID),
 						},
 					},
 				},
@@ -1546,12 +1546,12 @@ func ReplaceDashboardCells(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view2",
+							ID: MustIDBase16(dashTwoID),
 						},
 					},
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view1",
+							ID: MustIDBase16(dashOneID),
 						},
 					},
 				},
@@ -1619,7 +1619,7 @@ func ReplaceDashboardCells(
 				Views: []*platform.View{
 					{
 						ViewContents: platform.ViewContents{
-							Name: "view2",
+							ID: MustIDBase16(dashTwoID),
 						},
 					},
 				},
@@ -1734,8 +1734,10 @@ func GetDashboardCellView(
 			},
 			wants: wants{
 				view: &platform.View{
-					ViewContents: platform.ViewContents{},
-					Properties:   platform.EmptyViewProperties{},
+					ViewContents: platform.ViewContents{
+						ID: 100,
+					},
+					Properties: platform.EmptyViewProperties{},
 				},
 			},
 		},
@@ -1831,6 +1833,7 @@ func UpdateDashboardCellView(
 			wants: wants{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
+						ID:   100,
 						Name: "hello",
 					},
 					Properties: platform.EmptyViewProperties{},
@@ -1856,7 +1859,6 @@ func UpdateDashboardCellView(
 			args: args{
 				dashboardID: 1,
 				cellID:      100,
-				name:        "view100",
 				properties: platform.TableViewProperties{
 					Type:       "table",
 					TimeFormat: "rfc3339",
@@ -1865,7 +1867,7 @@ func UpdateDashboardCellView(
 			wants: wants{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
-						Name: "view100",
+						ID: 100,
 					},
 					Properties: platform.TableViewProperties{
 						Type:       "table",
@@ -1902,6 +1904,7 @@ func UpdateDashboardCellView(
 			wants: wants{
 				view: &platform.View{
 					ViewContents: platform.ViewContents{
+						ID:   100,
 						Name: "hello",
 					},
 					Properties: platform.TableViewProperties{

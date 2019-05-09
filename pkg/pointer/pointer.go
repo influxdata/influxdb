@@ -1,4 +1,4 @@
-// Package pointer provides utilities for pointer handling that aren't avaliable in go.
+// Package pointer provides utilities for pointer handling that aren't available in go.
 // Feel free to add more pointerification functions for more types as you need them.
 package pointer
 

@@ -6,12 +6,12 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Input, Button, EmptyState, Grid} from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
+import {Tabs, Sort} from 'src/clockface'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
-import GetLabels from 'src/labels/components/GetLabels'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -38,6 +38,7 @@ import {
   clearDataLoaders,
 } from 'src/dataLoaders/actions/dataLoaders'
 import {DataLoaderType} from 'src/types/dataLoaders'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   collectors: Telegraf[]
@@ -62,7 +63,12 @@ interface State {
   searchTerm: string
   instructionsOverlay: OverlayState
   collectorID?: string
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof Telegraf
 
 @ErrorHandling
 class Collectors extends PureComponent<Props, State> {
@@ -74,12 +80,15 @@ class Collectors extends PureComponent<Props, State> {
       searchTerm: '',
       instructionsOverlay: OverlayState.Closed,
       collectorID: null,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render() {
     const {collectors} = this.props
-    const {searchTerm} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>
@@ -102,7 +111,7 @@ class Collectors extends PureComponent<Props, State> {
                 visible={this.hasNoBuckets}
                 resourceName="Telegraf Configurations"
               />
-              <GetLabels>
+              <GetResources resource={ResourceTypes.Labels}>
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}
                   searchKeys={['plugins.0.config.bucket', 'labels[].name']}
@@ -114,12 +123,15 @@ class Collectors extends PureComponent<Props, State> {
                       emptyState={this.emptyState}
                       onDelete={this.handleDeleteTelegraf}
                       onUpdate={this.handleUpdateTelegraf}
-                      onOpenInstructions={this.handleOpenInstructions}
                       onFilterChange={this.handleFilterUpdate}
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      sortType={sortType}
+                      onClickColumn={this.handleClickColumn}
                     />
                   )}
                 </FilterList>
-              </GetLabels>
+              </GetResources>
             </Grid.Column>
             <Grid.Column
               widthSM={Columns.Six}
@@ -135,6 +147,11 @@ class Collectors extends PureComponent<Props, State> {
     )
   }
 
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
+  }
+
   private get hasNoBuckets(): boolean {
     const {buckets} = this.props
 
@@ -143,18 +160,6 @@ class Collectors extends PureComponent<Props, State> {
     }
 
     return false
-  }
-
-  private handleOpenInstructions = (collectorID: string): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-    this.setState({
-      collectorID,
-    })
-
-    router.push(`/orgs/${orgID}/telegrafs/${collectorID}/instructions`)
   }
 
   private get createButton(): JSX.Element {
@@ -189,8 +194,8 @@ class Collectors extends PureComponent<Props, State> {
     } = this.props
 
     if (buckets && buckets.length) {
-      const {organization, organizationID, name, id} = buckets[0]
-      onSetBucketInfo(organization, organizationID, name, id)
+      const {orgID, name, id} = buckets[0]
+      onSetBucketInfo(orgID, name, id)
     }
 
     onSetDataLoadersType(DataLoaderType.Scraping)

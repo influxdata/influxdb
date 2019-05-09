@@ -1,3 +1,5 @@
+import {get} from 'lodash'
+
 // API
 import {
   executeQueryWithVars,
@@ -6,6 +8,11 @@ import {
 
 // Actions
 import {refreshVariableValues, selectValue} from 'src/variables/actions'
+import {notify} from 'src/shared/actions/notifications'
+
+// Constants
+import {rateLimitReached} from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -94,7 +101,6 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     await dispatch(refreshTimeMachineVariableValues())
 
     const orgID = getState().orgs.org.id
-    const queryURL = getState().links.query.self
     const activeTimeMachineID = getState().timeMachines.activeTimeMachineID
     const variableAssignments = [
       ...getVariableAssignments(getState(), activeTimeMachineID),
@@ -106,7 +112,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     pendingResults.forEach(({cancel}) => cancel())
 
     pendingResults = queries.map(({text}) =>
-      executeQueryWithVars(queryURL, orgID, text, variableAssignments)
+      executeQueryWithVars(orgID, text, variableAssignments)
     )
 
     const results = await Promise.all(pendingResults.map(r => r.promise))
@@ -120,6 +126,11 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   } catch (e) {
     if (e instanceof CancellationError) {
       return
+    }
+
+    if (get(e, 'status') === RATE_LIMIT_ERROR_STATUS) {
+      const retryAfter = get(e, 'headers.Retry-After')
+      dispatch(notify(rateLimitReached(retryAfter)))
     }
 
     console.error(e)

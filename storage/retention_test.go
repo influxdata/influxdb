@@ -20,8 +20,8 @@ func TestRetentionService(t *testing.T) {
 	now := time.Date(2018, 4, 10, 23, 12, 33, 0, time.UTC)
 
 	t.Run("no buckets", func(t *testing.T) {
-		service.expireData(nil, now)
-		service.expireData([]*influxdb.Bucket{}, now)
+		service.expireData(context.Background(), nil, now)
+		service.expireData(context.Background(), []*influxdb.Bucket{}, now)
 	})
 
 	// Generate some buckets to expire
@@ -39,7 +39,7 @@ func TestRetentionService(t *testing.T) {
 		// to not delete because no rp, and 1/3rd into the set to not delete because 0 rp.
 		if i%3 == 0 {
 			buckets = append(buckets, &influxdb.Bucket{
-				OrganizationID:  orgID,
+				OrgID:           orgID,
 				ID:              bucketID,
 				RetentionPeriod: 3 * time.Hour,
 			})
@@ -48,7 +48,7 @@ func TestRetentionService(t *testing.T) {
 			expRejected[string(name)] = struct{}{}
 		} else if i%3 == 2 {
 			buckets = append(buckets, &influxdb.Bucket{
-				OrganizationID:  orgID,
+				OrgID:           orgID,
 				ID:              bucketID,
 				RetentionPeriod: 0,
 			})
@@ -75,7 +75,7 @@ func TestRetentionService(t *testing.T) {
 	}
 
 	t.Run("multiple buckets", func(t *testing.T) {
-		service.expireData(buckets, now)
+		service.expireData(context.Background(), buckets, now)
 		if !reflect.DeepEqual(gotMatched, expMatched) {
 			t.Fatalf("got\n%#v\nexpected\n%#v", gotMatched, expMatched)
 		}

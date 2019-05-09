@@ -3,7 +3,7 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Label} from 'src/clockface'
+import {Label} from '@influxdata/clockface'
 import InlineLabelsEditor from 'src/shared/components/inlineLabels/InlineLabelsEditor'
 
 // Types
@@ -65,7 +65,7 @@ export default class InlineLabels extends Component<Props> {
           id={label.id}
           key={label.id}
           name={label.name}
-          colorHex={label.properties.color}
+          color={label.properties.color}
           description={label.properties.description}
           onDelete={onDelete}
           onClick={this.handleLabelClick}

@@ -1,4 +1,6 @@
 import _ from 'lodash'
+import {Config} from '@influxdata/vis'
+import {AutoRefreshStatus} from 'src/types'
 
 export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
 
@@ -393,7 +395,12 @@ export const HTTP_UNAUTHORIZED = 401
 export const HTTP_FORBIDDEN = 403
 export const HTTP_NOT_FOUND = 404
 
-export const AUTOREFRESH_DEFAULT = 0 // in milliseconds
+export const AUTOREFRESH_DEFAULT_INTERVAL = 0 // in milliseconds
+export const AUTOREFRESH_DEFAULT_STATUS = AutoRefreshStatus.Paused
+export const AUTOREFRESH_DEFAULT = {
+  status: AUTOREFRESH_DEFAULT_STATUS,
+  interval: AUTOREFRESH_DEFAULT_INTERVAL,
+}
 
 export const GRAPH = 'graph'
 export const TABLE = 'table'
@@ -438,3 +445,17 @@ export const GIT_SHA = process.env.GIT_SHA
 export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
 export const CLOUD_SIGNOUT_URL = process.env.CLOUD_LOGOUT_URL
+
+export const VIS_THEME: Partial<Config> = {
+  axisColor: '#31313d',
+  gridColor: '#31313d',
+  gridOpacity: 1,
+  tickFont: 'bold 10px Roboto',
+  tickFontColor: '#c6cad3',
+  legendFont: '12px Roboto',
+  legendFontColor: '#8e91a1',
+  legendFontBrightColor: '#c6cad3',
+  legendBackgroundColor: '#1c1c21',
+  legendBorder: '1px solid #202028',
+  legendCrosshairColor: '#434453',
+}

@@ -1,9 +1,9 @@
-import app from './app'
-import links from './links'
-import {notifications} from './notifications'
+import app from 'src/shared/reducers/app'
+import links from 'src/shared/reducers/links'
+import {notificationsReducer} from 'src/shared/reducers/notifications'
 
 export default {
   app,
   links,
-  notifications,
+  notifications: notificationsReducer,
 }

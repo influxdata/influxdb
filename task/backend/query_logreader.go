@@ -105,7 +105,7 @@ func (qlr *QueryLogReader) ListRuns(ctx context.Context, orgID platform.ID, runF
 
 	// Because flux doesnt support piviting on a rowkey that might not exist we need first check if we can pivot with "requestedAt"
 	// and if that fails we can fall back to pivot without "requestedAt"
-	// TODO(lh): After we transition to a seperation of transactional and analytical stores this can be simplified.
+	// TODO(lh): After we transition to a separation of transactional and analytical stores this can be simplified.
 	pivotWithRequestedAt := `|> pivot(rowKey:["runID", "scheduledFor", "requestedAt"], columnKey: ["status"], valueColumn: "_time")`
 	pivotWithOutRequestedAt := `|> pivot(rowKey:["runID", "scheduledFor"], columnKey: ["status"], valueColumn: "_time")`
 
@@ -310,10 +310,12 @@ func (re *runExtractor) extractRecord(cr flux.ColReader) error {
 					r.Status = col.Label
 				}
 			case RunSuccess.String(), RunFail.String(), RunCanceled.String():
-				r.FinishedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
-				// Finished can be set unconditionally;
-				// it's fine to overwrite if the status was already set to started.
-				r.Status = col.Label
+				if cr.Times(j).Value(i) != 0 {
+					r.FinishedAt = values.Time(cr.Times(j).Value(i)).Time().Format(time.RFC3339Nano)
+					// Finished can be set unconditionally;
+					// it's fine to overwrite if the status was already set to started.
+					r.Status = col.Label
+				}
 			}
 		}
 

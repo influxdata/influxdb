@@ -75,7 +75,7 @@ class EditableDescription extends Component<Props, State> {
         onFocus={this.handleInputFocus}
         onChange={this.handleInputChange}
         onKeyDown={this.handleKeyDown}
-        customClass="editable-description--input"
+        className="editable-description--input"
         value={workingDescription}
       />
     )

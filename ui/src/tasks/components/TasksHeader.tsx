@@ -10,9 +10,12 @@ import {
   FlexDirection,
   JustifyContent,
 } from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
+import {Tabs, ComponentStatus} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
+
+// Types
+import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface Props {
   onCreateTask: () => void
@@ -22,6 +25,7 @@ interface Props {
   showOrgDropdown?: boolean
   isFullPage?: boolean
   filterComponent: () => JSX.Element
+  limitStatus: LimitStatus
 }
 
 export default class TasksHeader extends PureComponent<Props> {
@@ -60,6 +64,7 @@ export default class TasksHeader extends PureComponent<Props> {
               onSelectNew={onCreateTask}
               onSelectImport={onImportTask}
               resourceName="Task"
+              status={this.addResourceStatus}
             />
           </Page.Header.Right>
         </Page.Header>
@@ -98,5 +103,13 @@ export default class TasksHeader extends PureComponent<Props> {
       return 'Tasks'
     }
     return ''
+  }
+
+  private get addResourceStatus(): ComponentStatus {
+    const {limitStatus} = this.props
+    if (limitStatus === LimitStatus.EXCEEDED) {
+      return ComponentStatus.Disabled
+    }
+    return ComponentStatus.Default
   }
 }

@@ -29,9 +29,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   cells: Cell[]
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   onCloneCell?: (cell: Cell) => void
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
@@ -56,11 +54,9 @@ class Cells extends Component<Props & WithRouterProps, State> {
   public render() {
     const {
       cells,
-      onZoom,
       onDeleteCell,
       onCloneCell,
       timeRange,
-      autoRefresh,
       manualRefresh,
       onEditNote,
     } = this.props
@@ -83,8 +79,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
           <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
-              onZoom={onZoom}
-              autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               timeRange={timeRange}
               onCloneCell={onCloneCell}

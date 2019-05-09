@@ -16,6 +16,10 @@ export const getErrorMessage = (e: any) => {
   }
 
   if (message === '') {
+    message = get(e, 'response.data.message', '')
+  }
+
+  if (message === '') {
     message = 'unknown error'
   }
 

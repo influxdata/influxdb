@@ -26,11 +26,11 @@ func TestLauncher_Task(t *testing.T) {
 	now := time.Now().Unix() // Need to track now at the start of the test, for a query later.
 	org := be.Org
 
-	bIn := &influxdb.Bucket{OrganizationID: org.ID, Organization: org.Name, Name: "my_bucket_in"}
+	bIn := &influxdb.Bucket{OrgID: org.ID, Name: "my_bucket_in"}
 	if err := be.BucketService().CreateBucket(context.Background(), bIn); err != nil {
 		t.Fatal(err)
 	}
-	bOut := &influxdb.Bucket{OrganizationID: org.ID, Organization: org.Name, Name: "my_bucket_out"}
+	bOut := &influxdb.Bucket{OrgID: org.ID, Name: "my_bucket_out"}
 	if err := be.BucketService().CreateBucket(context.Background(), bOut); err != nil {
 		t.Fatal(err)
 	}
@@ -96,21 +96,17 @@ stuff f=-123.456,b=true,s="hello"
 }
 from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, bOut.Name, be.Org.Name),
 	}
+
 	created, err := be.TaskService().CreateTask(ctx, create)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Find the next due run of the task we just created, so that we can accurately tick the scheduler to it.
-	m, err := be.TaskStore().FindTaskMetaByID(ctx, created.ID)
+	ndr, err := be.TaskControlService().NextDueRun(ctx, created.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ndr, err := m.NextDueRun()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	be.TaskScheduler().(*backend.TickScheduler).Tick(ndr + 1)
 
 	// Poll for the task to have started and finished.
@@ -169,14 +165,14 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 
 	want := make(map[string][]*executetest.Table) // Want the original.
 	i = 0
-	for k, v := range res.Results {
+	for _, r := range res.Results {
 		i++
-		if err := v.Tables().Do(func(tbl flux.Table) error {
+		if err := r.Tables().Do(func(tbl flux.Table) error {
 			ct, err := executetest.ConvertTable(tbl)
 			if err != nil {
 				return err
 			}
-			want[k] = append(want[k], ct)
+			want[r.Name()] = append(want[r.Name()], ct)
 			return nil
 		}); err != nil {
 			t.Fatal(err)
@@ -189,13 +185,13 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	res = be.MustExecuteQuery(nowOpt + `from(bucket:"my_bucket_out") |> range(start:-5m)`)
 	defer res.Done()
 	got := make(map[string][]*executetest.Table)
-	for k, v := range res.Results {
-		if err := v.Tables().Do(func(tbl flux.Table) error {
+	for _, r := range res.Results {
+		if err := r.Tables().Do(func(tbl flux.Table) error {
 			ct, err := executetest.ConvertTable(tbl)
 			if err != nil {
 				return err
 			}
-			got[k] = append(got[k], ct)
+			got[r.Name()] = append(got[r.Name()], ct)
 			return nil
 		}); err != nil {
 			t.Fatal(err)
@@ -210,7 +206,6 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 	}
 
 	t.Run("showrun", func(t *testing.T) {
-		t.Skip("FindRunByID isn't returning the log")
 		// do a show run!
 		showRun, err := be.TaskService().FindRunByID(ctx, created.ID, targetRun.ID)
 		if err != nil {

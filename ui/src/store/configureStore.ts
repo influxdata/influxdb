@@ -10,7 +10,7 @@ import sharedReducers from 'src/shared/reducers'
 import persistStateEnhancer from './persistStateEnhancer'
 
 // v2 reducers
-import meReducer from 'src/shared/reducers/v2/me'
+import meReducer from 'src/shared/reducers/me'
 import tasksReducer from 'src/tasks/reducers'
 import rangesReducer from 'src/dashboards/reducers/ranges'
 import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
@@ -29,6 +29,8 @@ import templatesReducer from 'src/templates/reducers'
 import {scrapersReducer} from 'src/scrapers/reducers'
 import {userSettingsReducer} from 'src/userSettings/reducers'
 import {membersReducer} from 'src/members/reducers'
+import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
+import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -39,6 +41,7 @@ type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
   ranges: rangesReducer,
+  autoRefresh: autoRefreshReducer,
   dashboards: dashboardsReducer,
   timeMachines: timeMachinesReducer,
   routing: routerReducer,
@@ -58,6 +61,7 @@ export const rootReducer = combineReducers<ReducerState>({
   templates: templatesReducer,
   userSettings: userSettingsReducer,
   members: membersReducer,
+  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
   VERSION: () => '',
 })
 

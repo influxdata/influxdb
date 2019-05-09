@@ -9,9 +9,6 @@ import ContextMenuItem from 'src/clockface/components/context_menu/ContextMenuIt
 // Types
 import {Alignment} from 'src/clockface/types'
 
-// Styles
-import './ContextMenu.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {

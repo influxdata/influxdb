@@ -17,6 +17,7 @@ import {
   GetState,
   DashboardTemplate,
   VariableTemplate,
+  Template,
 } from 'src/types'
 
 // Actions
@@ -109,7 +110,7 @@ const removeTemplateSummary = (templateID: string): RemoveTemplateSummary => ({
 })
 
 export const getTemplateByID = async (id: string) => {
-  const template = await client.templates.get(id)
+  const template = (await client.templates.get(id)) as Template
   return template
 }
 

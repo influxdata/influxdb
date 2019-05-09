@@ -67,6 +67,10 @@ func inmemTaskService() platform.TaskService {
 			if upd.Status != nil {
 				t.Status = *upd.Status
 			}
+			if upd.LatestCompleted != nil {
+				t.LatestCompleted = *upd.LatestCompleted
+			}
+
 			return t, nil
 		},
 		FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
@@ -76,7 +80,8 @@ func inmemTaskService() platform.TaskService {
 			if !ok {
 				return nil, backend.ErrTaskNotFound
 			}
-			return t, nil
+			newt := *t
+			return &newt, nil
 		},
 		FindTasksFn: func(ctx context.Context, tf platform.TaskFilter) ([]*platform.Task, int, error) {
 			mu.Lock()
@@ -207,6 +212,53 @@ func TestCoordinator(t *testing.T) {
 	}
 }
 
+func TestCoordinator_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
+	t.Parallel()
+	ts := inmemTaskService()
+	sched := mock.NewScheduler()
+
+	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
+
+	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rchan := sched.TaskReleaseChan()
+	activeStr := string(backend.TaskActive)
+	inactiveStr := string(backend.TaskInactive)
+
+	task, err = coord.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &inactiveStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-rchan:
+	case <-time.After(time.Second):
+		t.Fatal("failed to release claimed task")
+	}
+
+	newNow := time.Now().Add(time.Second)
+	sched.Tick(newNow.Unix())
+	cchan := sched.TaskCreateChan()
+
+	_, err = coord.UpdateTask(context.Background(), task.ID, platform.TaskUpdate{Status: &activeStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case claimedTask := <-cchan:
+		if claimedTask.LatestCompleted != newNow.UTC().Format(time.RFC3339) {
+			t.Fatal("failed up update latest completed in claimed task")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("failed to release claimed task")
+	}
+
+}
+
 func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 	ts := inmemTaskService()
 	sched := mock.NewScheduler()
@@ -254,6 +306,14 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 		}
 		createdIDs[i] = task.ID
 	}
+	origActive, err := ts.FindTaskByID(context.Background(), createdIDs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	origInactive, err := ts.FindTaskByID(context.Background(), createdIDs[inactiveTaskIndex])
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	coordinator.New(zaptest.NewLogger(t), sched, ts)
 
@@ -275,6 +335,24 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 			t.Fatalf("did not find created task with ID %s", id)
 		}
 	}
+
+	active, err := ts.FindTaskByID(context.Background(), createdIDs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	inactive, err := ts.FindTaskByID(context.Background(), createdIDs[inactiveTaskIndex])
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if origActive.LatestCompleted == active.LatestCompleted {
+		t.Fatalf("active tasks not update with latest completed time")
+	}
+
+	if origInactive.LatestCompleted == inactive.LatestCompleted {
+		t.Fatalf("inactive tasks not update with latest completed time")
+	}
+
 }
 
 func TestCoordinator_ForceRun(t *testing.T) {

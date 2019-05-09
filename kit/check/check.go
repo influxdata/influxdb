@@ -83,7 +83,7 @@ func (c *Check) CheckHealth(ctx context.Context) Response {
 		}
 		overrideResponse := Response{
 			Name:    "manual-override",
-			Message: "health manually overriden",
+			Message: "health manually overridden",
 		}
 		response.Checks = append(response.Checks, overrideResponse)
 	}
@@ -117,7 +117,7 @@ func (c *Check) CheckReady(ctx context.Context) Response {
 }
 
 // SetPassthrough allows you to set a handler to use if the request is not a ready or health check.
-// This can be usefull if you intend to use this as a middleware.
+// This can be useful if you intend to use this as a middleware.
 func (c *Check) SetPassthrough(h http.Handler) {
 	c.passthroughHandler = h
 }

@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb/tsdb"
-
 	"github.com/influxdata/influxdb/nats"
 	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -26,6 +25,7 @@ func (s PointWriter) Record(collected MetricsCollection) error {
 	if err != nil {
 		return err
 	}
+
 	return s.Writer.WritePoints(context.TODO(), ps)
 }
 

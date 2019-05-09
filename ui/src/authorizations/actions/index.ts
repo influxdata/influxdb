@@ -1,21 +1,27 @@
+// Libraries
+import {Dispatch} from 'react'
+
 // API
 import {client} from 'src/utils/api'
 import * as authAPI from 'src/authorizations/apis'
 
-// Types
-import {RemoteDataState} from 'src/types'
-import {Authorization} from '@influxdata/influx'
-import {Dispatch} from 'redux-thunk'
-
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
+// Constants
 import {
   authorizationsGetFailed,
   authorizationCreateFailed,
   authorizationUpdateFailed,
   authorizationDeleteFailed,
-} from 'src/shared/copy/v2/notifications'
+  authorizationCreateSuccess,
+  authorizationDeleteSuccess,
+  authorizationUpdateSuccess,
+} from 'src/shared/copy/notifications'
+
+// Types
+import {RemoteDataState, GetState, NotificationAction} from 'src/types'
+import {Authorization} from '@influxdata/influx'
 
 export type Action =
   | SetAuthorizations
@@ -77,11 +83,21 @@ export const removeAuthorization = (id: string): RemoveAuthorization => ({
   payload: {id},
 })
 
-export const getAuthorizations = () => async (dispatch: Dispatch<Action>) => {
+type GetAuthorizations = (
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
+) => Promise<void>
+export const getAuthorizations = () => async (
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
+) => {
   try {
     dispatch(setAuthorizations(RemoteDataState.Loading))
+    const {
+      orgs: {org},
+    } = getState()
 
-    const authorizations = await client.authorizations.getAll()
+    const authorizations = await client.authorizations.getAll(org.id)
 
     dispatch(setAuthorizations(RemoteDataState.Done, authorizations))
   } catch (e) {
@@ -92,11 +108,12 @@ export const getAuthorizations = () => async (dispatch: Dispatch<Action>) => {
 }
 
 export const createAuthorization = (auth: Authorization) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     const createdAuthorization = await authAPI.createAuthorization(auth)
     dispatch(addAuthorization(createdAuthorization))
+    dispatch(notify(authorizationCreateSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationCreateFailed()))
@@ -105,12 +122,13 @@ export const createAuthorization = (auth: Authorization) => async (
 }
 
 export const updateAuthorization = (authorization: Authorization) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | NotificationAction | GetAuthorizations>
 ) => {
   try {
     await client.authorizations.update(authorization.id, authorization)
 
     dispatch(getAuthorizations())
+    dispatch(notify(authorizationUpdateSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationUpdateFailed(authorization.id)))
@@ -118,12 +136,13 @@ export const updateAuthorization = (authorization: Authorization) => async (
 }
 
 export const deleteAuthorization = (id: string, name: string = '') => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
     await client.authorizations.delete(id)
 
     dispatch(removeAuthorization(id))
+    dispatch(notify(authorizationDeleteSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationDeleteFailed(name)))

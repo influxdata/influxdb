@@ -6,7 +6,8 @@ import {shallow} from 'enzyme'
 import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Fixtures
-import {authorization as auth} from 'src/authorizations/apis/__mocks__/data'
+import {auth} from 'mocks/dummyData'
+import {permissions} from 'src/utils/permissions'
 
 const setup = (override?) => {
   const props = {
@@ -14,18 +15,41 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow(<ViewTokenOverlay {...props} />)
-
-  return {wrapper}
+  return shallow(<ViewTokenOverlay {...props} />)
 }
 
 describe('Account', () => {
   describe('rendering', () => {
     it('renders!', () => {
-      const {wrapper} = setup()
+      const wrapper = setup()
 
       expect(wrapper.exists()).toBe(true)
       expect(wrapper).toMatchSnapshot()
+    })
+  })
+
+  describe('if there is all access tokens', () => {
+    it('renders permissions correctly', () => {
+      const actual = permissions(auth.permissions)
+
+      const expected = {
+        'orgs-a': ['read'],
+        authorizations: ['read', 'write'],
+        buckets: ['read', 'write'],
+        dashboards: ['read', 'write'],
+        sources: ['read', 'write'],
+        tasks: ['read', 'write'],
+        telegrafs: ['read', 'write'],
+        users: ['read', 'write'],
+        variables: ['read', 'write'],
+        scrapers: ['read', 'write'],
+        secrets: ['read', 'write'],
+        labels: ['read', 'write'],
+        views: ['read', 'write'],
+        documents: ['read', 'write'],
+      }
+
+      expect(actual).toEqual(expected)
     })
   })
 })

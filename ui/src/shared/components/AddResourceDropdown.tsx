@@ -3,21 +3,26 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Dropdown, DropdownMode} from 'src/clockface'
-
-// Types
-import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
+import {
+  IconFont,
+  ComponentColor,
+  ComponentSize,
+  Dropdown,
+  DropdownMode,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 interface OwnProps {
   onSelectNew: () => void
   onSelectImport: () => void
   onSelectTemplate?: () => void
   resourceName: string
-  canImportFromTemplate?: boolean
 }
 
 interface DefaultProps {
   canImportFromTemplate: boolean
+  status: ComponentStatus
+  titleText: string
 }
 
 type Props = OwnProps & DefaultProps
@@ -25,18 +30,22 @@ type Props = OwnProps & DefaultProps
 export default class AddResourceDropdown extends PureComponent<Props> {
   public static defaultProps: DefaultProps = {
     canImportFromTemplate: false,
+    status: ComponentStatus.Default,
+    titleText: null,
   }
 
   public render() {
+    const {titleText, status} = this.props
     return (
       <Dropdown
         mode={DropdownMode.ActionList}
-        titleText={`Create ${this.props.resourceName}`}
+        titleText={titleText || `Create ${this.props.resourceName}`}
         icon={IconFont.Plus}
         buttonColor={ComponentColor.Primary}
         buttonSize={ComponentSize.Small}
         widthPixels={160}
         onChange={this.handleSelect}
+        status={status}
       >
         {this.optionItems}
       </Dropdown>
@@ -49,10 +58,20 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     const templateOption = this.templateOption
 
     const items = [
-      <Dropdown.Item id={newOption} key={newOption} value={newOption}>
+      <Dropdown.Item
+        id={newOption}
+        key={newOption}
+        value={newOption}
+        testID="dropdown--item new"
+      >
         {newOption}
       </Dropdown.Item>,
-      <Dropdown.Item id={importOption} key={importOption} value={importOption}>
+      <Dropdown.Item
+        id={importOption}
+        key={importOption}
+        value={importOption}
+        testID="dropdown--item import"
+      >
         {importOption}
       </Dropdown.Item>,
     ]
@@ -63,6 +82,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
           id={templateOption}
           key={templateOption}
           value={templateOption}
+          testID="dropdown--item template"
         >
           {templateOption}
         </Dropdown.Item>

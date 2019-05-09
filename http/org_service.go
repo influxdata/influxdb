@@ -357,7 +357,11 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 
 	var i influxdb.ID
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "bad org id",
+			Err:  err,
+		}
 	}
 	req := &deleteOrganizationRequest{
 		OrganizationID: i,
@@ -681,12 +685,6 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 
 // CreateOrganization creates an organization.
 func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxdb.Organization) error {
-	if o.Name == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "organization name is required",
-		}
-	}
 
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()

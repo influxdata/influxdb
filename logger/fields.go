@@ -1,9 +1,12 @@
 package logger
 
 import (
+	"context"
 	"time"
 
 	"github.com/influxdata/influxdb/pkg/snowflake"
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -84,13 +87,24 @@ func Shard(id uint64) zapcore.Field {
 	return zap.Uint64(DBShardIDKey, id)
 }
 
+// TraceID returns a field "trace_id", value pulled from the (Jaeger) trace ID found in the given context.
+// Returns zap.Skip() if the context doesn't have a trace ID.
+func TraceID(ctx context.Context) zap.Field {
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
+			return zap.String("trace_id", spanContext.TraceID().String())
+		}
+	}
+	return zap.Skip()
+}
+
 // NewOperation uses the exiting log to create a new logger with context
 // containing a trace id and the operation. Prior to returning, a standardized message
 // is logged indicating the operation has started. The returned function should be
 // called when the operation concludes in order to log a corresponding message which
 // includes an elapsed time and that the operation has ended.
-func NewOperation(log *zap.Logger, msg, name string, fields ...zapcore.Field) (*zap.Logger, func()) {
-	f := []zapcore.Field{OperationName(name)}
+func NewOperation(ctx context.Context, log *zap.Logger, msg, name string, fields ...zapcore.Field) (*zap.Logger, func()) {
+	f := []zapcore.Field{OperationName(name), TraceID(ctx)}
 	if len(fields) > 0 {
 		f = append(f, fields...)
 	}

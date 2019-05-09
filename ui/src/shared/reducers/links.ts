@@ -11,7 +11,6 @@ const initialState: Links = {
   query: {
     self: '',
     ast: '',
-    spec: '',
     suggestions: '',
   },
   orgs: '',

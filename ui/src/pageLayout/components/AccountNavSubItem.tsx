@@ -5,8 +5,8 @@ import {Link} from 'react-router'
 // Components
 import {NavMenu} from '@influxdata/clockface'
 import {Organization} from '@influxdata/influx'
-import CloudFeatureFlag from 'src/shared/components/CloudFeatureFlag'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface Props {
   orgs: Organization[]
@@ -29,7 +29,7 @@ class AccountNavSubItem extends PureComponent<Props> {
 
     return (
       <>
-        <CloudFeatureFlag key="feature-flag">
+        <CloudExclude key="feature-flag">
           {orgs.length > 1 && (
             <NavMenu.SubItem
               titleLink={className => (
@@ -50,7 +50,7 @@ class AccountNavSubItem extends PureComponent<Props> {
             )}
             active={false}
           />
-        </CloudFeatureFlag>
+        </CloudExclude>
 
         <NavMenu.SubItem
           titleLink={className => (

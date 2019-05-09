@@ -37,7 +37,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
             titleText={buttonText}
             text={buttonText}
             onClick={onClick}
-            customClass="empty-graph-error--copy"
+            className="empty-graph-error--copy"
           />
         </CopyToClipboard>
         <FancyScrollbar
@@ -52,7 +52,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
                 IconFont.AlertTriangle
               } empty-graph-error--icon`}
             />
-            <code>{message}</code>
+            <code className="cell--error-message">{message}</code>
           </pre>
         </FancyScrollbar>
       </div>

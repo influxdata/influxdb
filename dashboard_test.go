@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestView_MarshalJSON(t *testing.T) {
@@ -24,6 +25,7 @@ func TestView_MarshalJSON(t *testing.T) {
 			args: args{
 				view: platform.View{
 					ViewContents: platform.ViewContents{
+						ID:   platformtesting.MustIDBase16("f01dab1ef005ba11"),
 						Name: "hello",
 					},
 					Properties: platform.XYViewProperties{
@@ -34,6 +36,7 @@ func TestView_MarshalJSON(t *testing.T) {
 			wants: wants{
 				json: `
 {
+  "id": "f01dab1ef005ba11",
   "name": "hello",
   "properties": {
     "shape": "chronograf-v2",

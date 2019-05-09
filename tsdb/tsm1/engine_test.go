@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -59,9 +60,8 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 	}
 
 	// Drop all the series for the gpu measurement and they should no longer
-	// be in the series ID set. This relies on the fact that DeleteBucketRange is really
-	// operating on prefixes.
-	if err := engine.DeleteBucketRange([]byte("gpu"), math.MinInt64, math.MaxInt64); err != nil {
+	// be in the series ID set.
+	if err := engine.DeletePrefixRange([]byte("gpu"), math.MinInt64, math.MaxInt64, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,7 +149,7 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
 	}
 
-	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
+	if err := e.WritePointsString("mm", "m,k=v f=3i"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -244,7 +244,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 		e := MustOpenEngine()
 		pp := make([]models.Point, 0, sz)
 		for i := 0; i < sz; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i), "mm")
 			pp = append(pp, p)
 		}
 
@@ -269,7 +269,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 		cpus := runtime.GOMAXPROCS(0)
 		pp := make([]models.Point, 0, sz*cpus)
 		for i := 0; i < sz*cpus; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i), "mm")
 			pp = append(pp, p)
 		}
 
@@ -434,8 +434,8 @@ func (e *Engine) AddSeries(name string, tags map[string]string) error {
 
 // WritePointsString calls WritePointsString on the underlying engine, but also
 // adds the associated series to the index.
-func (e *Engine) WritePointsString(ptstr ...string) error {
-	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"))
+func (e *Engine) WritePointsString(mm string, ptstr ...string) error {
+	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"), mm)
 	if err != nil {
 		return err
 	}
@@ -464,6 +464,29 @@ func (e *Engine) MustAddSeries(name string, tags map[string]string) {
 // MustWriteSnapshot forces a snapshot of the engine. Panic on error.
 func (e *Engine) MustWriteSnapshot() {
 	if err := e.WriteSnapshot(context.Background()); err != nil {
+		panic(err)
+	}
+}
+
+// MustWritePointsString parses and writes the specified points to the
+// provided org and bucket. Panic on error.
+func (e *Engine) MustWritePointsString(org, bucket influxdb.ID, buf string) {
+	err := e.writePoints(MustParseExplodePoints(org, bucket, buf)...)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// MustDeleteBucketRange calls DeletePrefixRange using the org and bucket for
+// the prefix. Panic on error.
+func (e *Engine) MustDeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) {
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	encoded := tsdb.EncodeName(orgID, bucketID)
+	name := models.EscapeMeasurement(encoded[:])
+
+	err := e.DeletePrefixRange(name, min, max, nil)
+	if err != nil {
 		panic(err)
 	}
 }
@@ -508,16 +531,24 @@ func (f *SeriesFile) Close() {
 }
 
 // MustParsePointsString parses points from a string. Panic on error.
-func MustParsePointsString(buf string) []models.Point {
-	a, err := models.ParsePointsString(buf)
+func MustParsePointsString(buf, mm string) []models.Point {
+	a, err := models.ParsePointsString(buf, mm)
 	if err != nil {
 		panic(err)
 	}
 	return a
 }
 
+// MustParseExplodePoints parses points from a string and transforms using
+// ExplodePoints using the provided org and bucket. Panic on error.
+func MustParseExplodePoints(org, bucket influxdb.ID, buf string) []models.Point {
+	encoded := tsdb.EncodeName(org, bucket)
+	name := models.EscapeMeasurement(encoded[:])
+	return MustParsePointsString(buf, string(name))
+}
+
 // MustParsePointString parses the first point from a string. Panic on error.
-func MustParsePointString(buf string) models.Point { return MustParsePointsString(buf)[0] }
+func MustParsePointString(buf, mm string) models.Point { return MustParsePointsString(buf, mm)[0] }
 
 type mockPlanner struct{}
 

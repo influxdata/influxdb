@@ -3,8 +3,6 @@
    -----------------------------------------------------------------------------
 */
 
-@import 'src/style/modules';
-
 .task-form {
   height: calc(100% - #{$ix-marg-d});
   display: flex;

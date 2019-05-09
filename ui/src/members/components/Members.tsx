@@ -2,35 +2,27 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Input, Button, EmptyState} from '@influxdata/clockface'
-import {Tabs, Overlay} from 'src/clockface'
+import {Input, Button, EmptyState, Sort} from '@influxdata/clockface'
+import {Tabs} from 'src/clockface'
 import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
-import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 
 // Actions
-import {addMember, deleteMember} from 'src/members/actions'
+import {deleteMember} from 'src/members/actions'
 
 // Types
-import {User} from '@influxdata/influx'
 import {IconFont, ComponentSize, ComponentColor} from '@influxdata/clockface'
-import {OverlayState, AppState, Member} from 'src/types'
-
-// API
-import {client} from 'src/utils/api'
-
-export interface UsersMap {
-  [userID: string]: User
-}
+import {AppState, Member} from 'src/types'
+import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
   members: Member[]
 }
 
 interface DispatchProps {
-  onAddMember: typeof addMember
   onRemoveMember: typeof deleteMember
 }
 
@@ -38,21 +30,25 @@ type Props = StateProps & DispatchProps
 
 interface State {
   searchTerm: string
-  overlayState: OverlayState
-  users: UsersMap
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
 
-class Members extends PureComponent<Props, State> {
+type SortKey = keyof Member
+
+class Members extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
     super(props)
     this.state = {
       searchTerm: '',
-      overlayState: OverlayState.Closed,
-      users: {},
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
   public render() {
-    const {searchTerm, overlayState} = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>
@@ -69,7 +65,7 @@ class Members extends PureComponent<Props, State> {
             text="Add Member"
             icon={IconFont.Plus}
             color={ComponentColor.Primary}
-            onClick={this.handleOpenModal}
+            onClick={this.handleOpenOverlay}
           />
         </Tabs.TabContentsHeader>
         <FilterList<Member>
@@ -82,18 +78,20 @@ class Members extends PureComponent<Props, State> {
               members={ms}
               emptyState={this.emptyState}
               onDelete={this.removeMember}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
             />
           )}
         </FilterList>
-        <Overlay visible={overlayState === OverlayState.Open}>
-          <AddMembersOverlay
-            onCloseModal={this.handleCloseModal}
-            users={this.state.users}
-            addMember={this.addMember}
-          />
-        </Overlay>
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private removeMember = (member: Member) => {
@@ -101,31 +99,17 @@ class Members extends PureComponent<Props, State> {
     onRemoveMember(member)
   }
 
-  private addMember = (member: Member) => {
-    const {onAddMember} = this.props
-    onAddMember(member)
+  private handleOpenOverlay = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/members/new`)
   }
 
   private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
     this.setState({searchTerm: e.target.value})
-  }
-
-  private handleOpenModal = async () => {
-    await this.getUsers()
-    this.setState({overlayState: OverlayState.Open})
-  }
-
-  private handleCloseModal = (): void => {
-    this.setState({overlayState: OverlayState.Closed})
-  }
-
-  private async getUsers() {
-    const {members} = this.props
-    const apiUsers = await client.users.getAll()
-    const allUsers = apiUsers.reduce((acc, u) => _.set(acc, u.id, u), {})
-    const users = _.omit(allUsers, members.map(m => m.id))
-
-    this.setState({users})
   }
 
   private get emptyState(): JSX.Element {
@@ -155,11 +139,10 @@ const mstp = ({members: {list}}: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onAddMember: addMember,
   onRemoveMember: deleteMember,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(Members)
+)(withRouter<Props>(Members))

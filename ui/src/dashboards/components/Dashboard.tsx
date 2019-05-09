@@ -13,13 +13,11 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   dashboard: Dashboard
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
   inPresentationMode: boolean
   inView: (cell: Cell) => boolean
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
-  onZoom: (range: TimeRange) => void
   onPositionChange: (cells: Cell[]) => void
   setScrollTop: (e: MouseEvent<HTMLElement>) => void
   onEditView: (cellID: string) => void
@@ -31,10 +29,8 @@ interface Props {
 class DashboardComponent extends PureComponent<Props> {
   public render() {
     const {
-      onZoom,
       dashboard,
       timeRange,
-      autoRefresh,
       manualRefresh,
       onDeleteCell,
       onCloneCell,
@@ -56,9 +52,7 @@ class DashboardComponent extends PureComponent<Props> {
         <div className="dashboard container-fluid full-width">
           {dashboard.cells.length ? (
             <Cells
-              onZoom={onZoom}
               timeRange={timeRange}
-              autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               cells={dashboard.cells}
               onCloneCell={onCloneCell}

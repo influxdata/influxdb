@@ -24,7 +24,7 @@ describe('Dashboards', () => {
       .contains('Create')
       .click()
 
-    cy.getByTestID('dropdown--item New Dashboard').click()
+    cy.getByTestID('dropdown--item new').click()
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get<Organization>('@org').then(({id}) => {
@@ -40,7 +40,7 @@ describe('Dashboards', () => {
       .contains('Create')
       .click()
 
-    cy.getByTestID('dropdown--item New Dashboard').click()
+    cy.getByTestID('dropdown--item new').click()
 
     cy.fixture('routes').then(({orgs}) => {
       cy.get<Organization>('@org').then(({id}) => {
@@ -61,9 +61,11 @@ describe('Dashboards', () => {
       .contains('Create')
       .click()
 
-    cy.getByTestID('dropdown--item From a Template').click()
+    cy.getByTestID('dropdown--item template').click()
 
-    cy.getByTestID('card-select-Bashboard-Template').click()
+    cy.getByTestID('template--Bashboard-Template').click()
+
+    cy.getByTestID('template-panel').should('exist')
 
     cy.getByTestID('create-dashboard-button').click()
 

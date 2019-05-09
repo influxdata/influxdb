@@ -6,7 +6,7 @@ import _ from 'lodash'
 // Components
 import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView from 'src/shared/components/EmptyQueryView'
-import QueryViewSwitcher from 'src/shared/components/QueryViewSwitcher'
+import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -24,10 +24,8 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   timeRange: TimeRange
-  viewID: string
   inView: boolean
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   properties: QueryViewProperties
   dashboardID: string
 }
@@ -64,15 +62,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {
-      inView,
-      onZoom,
-      viewID,
-      timeRange,
-      properties,
-      manualRefresh,
-      variablesStatus,
-    } = this.props
+    const {inView, properties, manualRefresh, variablesStatus} = this.props
     const {submitToken} = this.state
 
     return (
@@ -87,22 +77,20 @@ class RefreshingView extends PureComponent<Props, State> {
           key={manualRefresh}
           variables={this.variableAssignments}
         >
-          {({tables, loading, error, isInitialFetch}) => {
+          {({tables, files, loading, errorMessage, isInitialFetch}) => {
             return (
               <EmptyQueryView
-                errorMessage={error ? error.message : null}
+                errorMessage={errorMessage}
                 tables={tables}
                 loading={loading}
                 isInitialFetch={isInitialFetch}
                 queries={this.queries}
                 fallbackNote={this.fallbackNote}
               >
-                <QueryViewSwitcher
+                <RefreshingViewSwitcher
                   tables={tables}
-                  viewID={viewID}
-                  onZoom={onZoom}
+                  files={files}
                   loading={loading}
-                  timeRange={timeRange}
                   properties={properties}
                 />
               </EmptyQueryView>

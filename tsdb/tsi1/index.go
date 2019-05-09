@@ -318,12 +318,14 @@ func (i *Index) Compact() {
 	}
 }
 
+// EnableCompactions allows compactions to proceed again.
 func (i *Index) EnableCompactions() {
 	for _, p := range i.partitions {
 		p.EnableCompactions()
 	}
 }
 
+// DisableCompactions stops any ongoing compactions and waits for them to finish.
 func (i *Index) DisableCompactions() {
 	for _, p := range i.partitions {
 		p.DisableCompactions()
@@ -1201,6 +1203,22 @@ func (i *Index) MeasurementCardinalityStats() MeasurementCardinalityStats {
 		stats.Add(p.MeasurementCardinalityStats())
 	}
 	return stats
+}
+
+// ComputeMeasurementCardinalityStats computes the cardinality stats from raw index data.
+func (i *Index) ComputeMeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	stats := NewMeasurementCardinalityStats()
+	for _, p := range i.partitions {
+		pstats, err := p.ComputeMeasurementCardinalityStats()
+		if err != nil {
+			return nil, err
+		}
+		stats.Add(pstats)
+	}
+	return stats, nil
 }
 
 func (i *Index) seriesByExprIterator(name []byte, expr influxql.Expr) (tsdb.SeriesIDIterator, error) {

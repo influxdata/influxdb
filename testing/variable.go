@@ -275,7 +275,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 			},
 		},
 		{
-			name: "finding a non-existant variable",
+			name: "finding a non-existent variable",
 			fields: VariableFields{
 				Variables: []*platform.Variable{},
 			},
@@ -538,7 +538,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 			},
 		},
 		{
-			name: "updating a non-existant variable fails",
+			name: "updating a non-existent variable fails",
 			fields: VariableFields{
 				Variables: []*platform.Variable{},
 			},

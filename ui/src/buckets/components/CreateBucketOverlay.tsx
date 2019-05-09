@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 
 // Components
-import {Overlay, ComponentStatus} from 'src/clockface'
+import {Overlay, ComponentStatus} from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Types
@@ -43,7 +43,7 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
 
     return (
       <Overlay.Container maxWidth={500}>
-        <Overlay.Heading
+        <Overlay.Header
           title="Create Bucket"
           onDismiss={this.props.onCloseModal}
         />

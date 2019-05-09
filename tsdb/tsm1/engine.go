@@ -779,7 +779,7 @@ func (e *Engine) WriteSnapshot(ctx context.Context) error {
 
 	started := time.Now()
 
-	log, logEnd := logger.NewOperation(e.logger, "Cache snapshot", "tsm1_cache_snapshot")
+	log, logEnd := logger.NewOperation(ctx, e.logger, "Cache snapshot", "tsm1_cache_snapshot")
 	defer func() {
 		elapsed := time.Since(started)
 		log.Info("Snapshot for path written",
@@ -1115,12 +1115,12 @@ func (s *compactionStrategy) Apply(ctx context.Context) {
 
 // compactGroup executes the compaction strategy against a single CompactionGroup.
 func (s *compactionStrategy) compactGroup(ctx context.Context) {
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	now := time.Now()
 	group := s.group
-	log, logEnd := logger.NewOperation(s.logger, "TSM compaction", "tsm1_compact_group")
+	log, logEnd := logger.NewOperation(ctx, s.logger, "TSM compaction", "tsm1_compact_group")
 	defer logEnd()
 
 	log.Info("Beginning compaction", zap.Int("tsm1_files_n", len(group)))
@@ -1335,6 +1335,15 @@ func SeriesFieldKeyBytes(seriesKey, field string) []byte {
 	i += copy(b[i:], KeyFieldSeparatorBytes)
 	copy(b[i:], field)
 	return b
+}
+
+// AppendSeriesFieldKeyBytes combines seriesKey and field such
+// that can be used to search a TSM index. The value is appended to dst and
+// the extended buffer returned.
+func AppendSeriesFieldKeyBytes(dst, seriesKey, field []byte) []byte {
+	dst = append(dst, seriesKey...)
+	dst = append(dst, KeyFieldSeparatorBytes...)
+	return append(dst, field...)
 }
 
 var (

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/http/metric"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 
@@ -23,7 +24,8 @@ import (
 // WriteBackend is all services and associated parameters required to construct
 // the WriteHandler.
 type WriteBackend struct {
-	Logger *zap.Logger
+	Logger             *zap.Logger
+	WriteEventRecorder metric.EventRecorder
 
 	PointsWriter        storage.PointsWriter
 	BucketService       platform.BucketService
@@ -33,7 +35,8 @@ type WriteBackend struct {
 // NewWriteBackend returns a new instance of WriteBackend.
 func NewWriteBackend(b *APIBackend) *WriteBackend {
 	return &WriteBackend{
-		Logger: b.Logger.With(zap.String("handler", "write")),
+		Logger:             b.Logger.With(zap.String("handler", "write")),
+		WriteEventRecorder: b.WriteEventRecorder,
 
 		PointsWriter:        b.PointsWriter,
 		BucketService:       b.BucketService,
@@ -51,6 +54,8 @@ type WriteHandler struct {
 	OrganizationService platform.OrganizationService
 
 	PointsWriter storage.PointsWriter
+
+	EventRecorder metric.EventRecorder
 }
 
 const (
@@ -68,6 +73,7 @@ func NewWriteHandler(b *WriteBackend) *WriteHandler {
 		PointsWriter:        b.PointsWriter,
 		BucketService:       b.BucketService,
 		OrganizationService: b.OrganizationService,
+		EventRecorder:       b.WriteEventRecorder,
 	}
 
 	h.HandlerFunc("POST", writePath, h.handleWrite)
@@ -80,6 +86,22 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	defer r.Body.Close()
+
+	// TODO(desa): I really don't like how we're recording the usage metrics here
+	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
+	var orgID platform.ID
+	var requestBytes int
+	sw := newStatusResponseWriter(w)
+	w = sw
+	defer func() {
+		h.EventRecorder.Record(ctx, metric.Event{
+			OrgID:         orgID,
+			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
+			RequestBytes:  requestBytes,
+			ResponseBytes: sw.responseBytes,
+			Status:        sw.code(),
+		})
+	}()
 
 	in := r.Body
 	if r.Header.Get("Content-Encoding") == "gzip" {
@@ -132,6 +154,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 		org = o
 	}
+	orgID = org.ID
 
 	var bucket *platform.Bucket
 	if id, err := platform.IDFromString(req.Bucket); err == nil {
@@ -198,8 +221,11 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
+	requestBytes = len(data)
 
-	points, err := models.ParsePointsWithPrecision(data, time.Now(), req.Precision)
+	encoded := tsdb.EncodeName(org.ID, bucket.ID)
+	mm := models.EscapeMeasurement(encoded[:])
+	points, err := models.ParsePointsWithPrecision(data, mm, time.Now(), req.Precision)
 	if err != nil {
 		logger.Error("Error parsing points", zap.Error(err))
 		EncodeError(ctx, &platform.Error{
@@ -211,19 +237,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
-	if err != nil {
-		logger.Error("Error exploding points", zap.Error(err))
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EInternal,
-			Op:   "http/handleWrite",
-			Msg:  fmt.Sprintf("unable to convert points to internal structures: %v", err),
-			Err:  err,
-		}, w)
-		return
-	}
-
-	if err := h.PointsWriter.WritePoints(ctx, exploded); err != nil {
+	if err := h.PointsWriter.WritePoints(ctx, points); err != nil {
 		logger.Error("Error writing points", zap.Error(err))
 		EncodeError(ctx, &platform.Error{
 			Code: platform.EInternal,

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/pkg/rhh"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -93,10 +94,10 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 		return errors.New("series file already opened")
 	}
 
-	span, _ := tracing.StartSpanFromContext(ctx)
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	_, logEnd := logger.NewOperation(f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))
+	_, logEnd := logger.NewOperation(ctx, f.Logger, "Opening Series File", "series_file_open", zap.String("path", f.path))
 	defer logEnd()
 
 	// Create path if it doesn't exist.
@@ -146,7 +147,11 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 		p.tracker.enabled = f.metricsEnabled
 
 		if err := p.Open(); err != nil {
-			f.Close()
+			f.Logger.Error("Unable to open series file",
+				zap.String("path", f.path),
+				zap.Int("partition", p.ID()),
+				zap.Error(err))
+			f.closeNoLock()
 			return err
 		}
 		f.partitions = append(f.partitions, p)
@@ -158,21 +163,22 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 	return nil
 }
 
-// Close unmaps the data file.
-func (f *SeriesFile) Close() (err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
+func (f *SeriesFile) closeNoLock() (err error) {
 	// Close the resource and wait for any outstanding references.
 	f.res.Close()
 
+	var errs []error
 	for _, p := range f.partitions {
-		if e := p.Close(); e != nil && err == nil {
-			err = e
-		}
+		errs = append(errs, p.Close())
 	}
+	return multierr.Combine(errs...)
+}
 
-	return err
+// Close unmaps the data file.
+func (f *SeriesFile) Close() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closeNoLock()
 }
 
 // Path returns the path to the file.
@@ -209,7 +215,7 @@ func (f *SeriesFile) DisableCompactions() {
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist. It overwrites
 // the collection's Keys and SeriesIDs fields. The collection's SeriesIDs slice will have IDs for
 // every name+tags, creating new series IDs as needed. If any SeriesID is zero, then a type
-// conflict has occured for that series.
+// conflict has occurred for that series.
 func (f *SeriesFile) CreateSeriesListIfNotExists(collection *SeriesCollection) error {
 	collection.SeriesKeys = GenerateSeriesKeys(collection.Names, collection.Tags)
 	collection.SeriesIDs = make([]SeriesID, len(collection.SeriesKeys))

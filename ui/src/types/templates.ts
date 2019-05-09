@@ -163,7 +163,7 @@ export interface VariableTemplate extends TemplateBase {
   }
 }
 
-export type Template = TaskTemplate | DashboardTemplate
+export type Template = TaskTemplate | DashboardTemplate | VariableTemplate
 
 export interface TemplateSummary extends DocumentListEntry {
   labels: ILabel[]

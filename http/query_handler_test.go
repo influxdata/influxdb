@@ -3,21 +3,31 @@ package http
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/http/metric"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/mock"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestFluxService_Query(t *testing.T) {
@@ -231,67 +241,6 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 	}
 }
 
-func TestFluxHandler_postFluxSpec(t *testing.T) {
-	tests := []struct {
-		name   string
-		w      *httptest.ResponseRecorder
-		r      *http.Request
-		now    func() time.Time
-		want   string
-		status int
-	}{
-		{
-			name: "get spec from()",
-			w:    httptest.NewRecorder(),
-			r:    httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from(bucket: \"telegraf\")"}`)),
-			now:  func() time.Time { return time.Unix(0, 0).UTC() },
-			want: `{"spec":{"operations":[{"kind":"influxDBFrom","id":"influxDBFrom0","spec":{"bucket":"telegraf"}}],"edges":null,"resources":{"priority":"high","concurrency_quota":0,"memory_bytes_quota":0},"now":"1970-01-01T00:00:00Z"}}
-`,
-			status: http.StatusOK,
-		},
-		{
-			name:   "error from bad json",
-			w:      httptest.NewRecorder(),
-			r:      httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`error!`)),
-			want:   `{"code":"invalid","message":"invalid json","error":"invalid character 'e' looking for beginning of value"}`,
-			status: http.StatusBadRequest,
-		},
-		{
-			name:   "error from incomplete spec",
-			w:      httptest.NewRecorder(),
-			r:      httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from()"}`)),
-			now:    func() time.Time { return time.Unix(0, 0).UTC() },
-			want:   `{"code":"unprocessable entity","message":"invalid spec","error":"error calling function \"from\": must specify one of bucket or bucketID"}`,
-			status: http.StatusUnprocessableEntity,
-		},
-		{
-			name: "get spec with range and last",
-			w:    httptest.NewRecorder(),
-			r:    httptest.NewRequest("POST", "/api/v2/query/spec", bytes.NewBufferString(`{"query": "from(bucket:\"demo-bucket-in-1\") |> range(start:-2s) |> last()"}`)),
-			now:  func() time.Time { return time.Unix(0, 0).UTC() },
-			want: `{"spec":{"operations":[{"kind":"influxDBFrom","id":"influxDBFrom0","spec":{"bucket":"demo-bucket-in-1"}},{"kind":"range","id":"range1","spec":{"start":"-2s","stop":"now","timeColumn":"_time","startColumn":"_start","stopColumn":"_stop"}},{"kind":"last","id":"last2","spec":{"column":"_value"}}],"edges":[{"parent":"influxDBFrom0","child":"range1"},{"parent":"range1","child":"last2"}],"resources":{"priority":"high","concurrency_quota":0,"memory_bytes_quota":0},"now":"1970-01-01T00:00:00Z"}}
-`,
-			status: http.StatusOK,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := &FluxHandler{
-				Now: tt.now,
-			}
-			h.postFluxSpec(tt.w, tt.r)
-			if got := tt.w.Body.String(); got != tt.want {
-				t.Errorf("http.postFluxSpec = got %s\nwant %s", got, tt.want)
-			}
-
-			if got := tt.w.Code; got != tt.status {
-				t.Errorf("http.postFluxSpec = got %d\nwant %d", got, tt.status)
-				t.Log(tt.w.Header())
-			}
-		})
-	}
-}
-
 func TestFluxService_Check(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(HealthHandler))
 	defer ts.Close()
@@ -332,4 +281,121 @@ var crlfPattern = regexp.MustCompile(`\r?\n`)
 
 func toCRLF(data string) string {
 	return crlfPattern.ReplaceAllString(data, "\r\n")
+}
+
+type noopEventRecorder struct{}
+
+func (noopEventRecorder) Record(context.Context, metric.Event) {}
+
+var _ metric.EventRecorder = noopEventRecorder{}
+
+// Certain error cases must be encoded as influxdb.Error so they can be properly decoded clientside.
+func TestFluxHandler_PostQuery_Errors(t *testing.T) {
+	i := inmem.NewService()
+	b := &FluxBackend{
+		Logger:              zaptest.NewLogger(t),
+		QueryEventRecorder:  noopEventRecorder{},
+		OrganizationService: i,
+		ProxyQueryService: &mock.ProxyQueryService{
+			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+				return flux.Statistics{}, errors.New("some query error")
+			},
+		},
+	}
+	h := NewFluxHandler(b)
+
+	t.Run("missing authorizer", func(t *testing.T) {
+		ts := httptest.NewServer(h)
+		defer ts.Close()
+
+		resp, err := http.Post(ts.URL+"/api/v2/query", "application/json", strings.NewReader("{}"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Errorf("expected unauthorized status, got %d", resp.StatusCode)
+		}
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var ierr influxdb.Error
+		if err := json.Unmarshal(body, &ierr); err != nil {
+			t.Logf("failed to json unmarshal into influxdb.error: %q", body)
+			t.Fatal(err)
+		}
+
+		if !strings.Contains(ierr.Msg, "authorization is") {
+			t.Fatalf("expected error to mention authorization, got %s", ierr.Msg)
+		}
+	})
+
+	t.Run("authorizer but syntactically invalid JSON request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		req, err := http.NewRequest("POST", "/api/v2/query", strings.NewReader("oops"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		authz := &influxdb.Authorization{}
+		req = req.WithContext(icontext.SetAuthorizer(req.Context(), authz))
+
+		h.handleQuery(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected bad request status, got %d", w.Code)
+		}
+
+		body := w.Body.Bytes()
+		var ierr influxdb.Error
+		if err := json.Unmarshal(body, &ierr); err != nil {
+			t.Logf("failed to json unmarshal into influxdb.error: %q", body)
+			t.Fatal(err)
+		}
+
+		if !strings.Contains(ierr.Msg, "decode request body") {
+			t.Fatalf("expected error to mention decoding, got %s", ierr.Msg)
+		}
+	})
+
+	t.Run("valid request but executing query results in error", func(t *testing.T) {
+		org := influxdb.Organization{Name: t.Name()}
+		if err := i.CreateOrganization(context.Background(), &org); err != nil {
+			t.Fatal(err)
+		}
+
+		req, err := http.NewRequest("POST", "/api/v2/query?orgID="+org.ID.String(), bytes.NewReader([]byte("buckets()")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		authz := &influxdb.Authorization{}
+		req = req.WithContext(icontext.SetAuthorizer(req.Context(), authz))
+		req.Header.Set("Content-Type", "application/vnd.flux")
+
+		w := httptest.NewRecorder()
+		h.handleQuery(w, req)
+
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected internal error status, got %d", w.Code)
+		}
+
+		body := w.Body.Bytes()
+		t.Logf("%s", body)
+		var ierr influxdb.Error
+		if err := json.Unmarshal(body, &ierr); err != nil {
+			t.Logf("failed to json unmarshal into influxdb.error: %q", body)
+			t.Fatal(err)
+		}
+
+		if !strings.Contains(ierr.Msg, "failed to execute query") {
+			t.Fatalf("expected error to mention failure to execute query, got %s", ierr.Msg)
+		}
+		if ierr.Err.Error() != "some query error" {
+			t.Fatalf("expected wrapped error to be the query service error, got %s", ierr.Err.Error())
+		}
+	})
 }

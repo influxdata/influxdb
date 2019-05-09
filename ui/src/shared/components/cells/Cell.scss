@@ -3,8 +3,6 @@
   ------------------------------------------------------------------------------
 */
 
-@import 'src/style/modules';
-
 $cell--header-size: 36px;
 
 .cell {
@@ -25,11 +23,6 @@ $cell--header-size: 36px;
   z-index: $z--cell-view;
 
   > .single-stat {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
     border-radius: $radius;
   }
 
@@ -66,6 +59,10 @@ $cell--header-size: 36px;
   .empty-graph-error--copy {
     z-index: 1;
   }
+}
+
+.cell--error-message {
+  white-space: normal;
 }
 
 .dashboard .cell--view-empty .empty-graph-error {
@@ -174,6 +171,10 @@ $cell--header-size: 36px;
   .cell--header:hover .cell--header-bar {
     opacity: 1;
   }
+}
+
+.vis-tooltip-container {
+  z-index: $z--dygraph-legend;
 }
 
 /* Drag & Resize State */

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -246,7 +247,7 @@ func (s *Service) addOrgOwner(ctx context.Context, tx Tx, orgID influxdb.ID) err
 }
 
 func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) error {
-	if err := s.uniqueOrganizationName(ctx, tx, o); err != nil {
+	if err := s.validOrganizationName(ctx, tx, o); err != nil {
 		return err
 	}
 
@@ -344,7 +345,10 @@ func forEachOrganization(ctx context.Context, tx Tx, fn func(*influxdb.Organizat
 	return nil
 }
 
-func (s *Service) uniqueOrganizationName(ctx context.Context, tx Tx, o *influxdb.Organization) error {
+func (s *Service) validOrganizationName(ctx context.Context, tx Tx, o *influxdb.Organization) error {
+	if o.Name = strings.TrimSpace(o.Name); o.Name == "" {
+		return influxdb.ErrOrgNameisEmpty
+	}
 	key := organizationIndexKey(o.Name)
 
 	// if the name is not unique across all organizations, then, do not
@@ -392,6 +396,9 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 			}
 		}
 		o.Name = *upd.Name
+		if err := s.validOrganizationName(ctx, tx, o); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
@@ -417,7 +424,7 @@ func (s *Service) deleteOrganizationsBuckets(ctx context.Context, tx Tx, id infl
 	}
 	for _, b := range bs {
 		if err := s.deleteBucket(ctx, tx, b.ID); err != nil {
-			s.Logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrganizationID))
+			s.Logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrgID))
 		}
 	}
 	return nil
@@ -583,7 +590,7 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 		if err != nil {
 			return influxdb.InvalidID(), err
 		}
-		return r.OrganizationID, nil
+		return r.OrgID, nil
 	case influxdb.OrgsResourceType:
 		r, err := s.FindOrganizationByID(ctx, id)
 		if err != nil {

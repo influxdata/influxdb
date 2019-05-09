@@ -7,11 +7,15 @@ exports[`ScraperList rendering renders 1`] = `
       <IndexListHeaderCell
         alignment="left"
         columnName="Name"
+        sort="none"
+        sortKey="name"
         width="50%"
       />
       <IndexListHeaderCell
         alignment="left"
         columnName="Target URL"
+        sort="none"
+        sortKey="url"
         width="20%"
       />
       <IndexListHeaderCell

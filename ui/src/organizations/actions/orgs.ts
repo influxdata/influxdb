@@ -3,7 +3,7 @@ import {Dispatch} from 'redux'
 import {push, RouterAction} from 'react-router-redux'
 
 // APIs
-import {client} from 'src/utils/api'
+import {client, getErrorMessage} from 'src/utils/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -15,12 +15,15 @@ import {
   orgCreateFailed,
   bucketCreateSuccess,
   bucketCreateFailed,
-} from 'src/shared/copy/v2/notifications'
+  orgEditSuccess,
+  orgEditFailed,
+  orgRenameSuccess,
+  orgRenameFailed,
+} from 'src/shared/copy/notifications'
 
 // Types
 import {Bucket} from '@influxdata/influx'
-import {Organization, RemoteDataState} from 'src/types'
-import {PublishNotificationAction} from 'src/types/actions/notifications'
+import {Organization, RemoteDataState, NotificationAction} from 'src/types'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
@@ -142,7 +145,7 @@ export const createOrgWithBucket = (
   org: Organization,
   bucket: Bucket
 ) => async (
-  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
+  dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ) => {
   let createdOrg: Organization
 
@@ -156,6 +159,10 @@ export const createOrgWithBucket = (
       ...defaultTemplates.gettingStartedWithFluxTemplate(),
       orgID: createdOrg.id,
     })
+    await client.templates.create({
+      ...defaultTemplates.localMetricsTemplate(),
+      orgID: createdOrg.id,
+    })
     dispatch(notify(orgCreateSuccess()))
 
     dispatch(addOrg(createdOrg))
@@ -163,7 +170,7 @@ export const createOrgWithBucket = (
 
     await client.buckets.create({
       ...bucket,
-      organizationID: createdOrg.id,
+      orgID: createdOrg.id,
     })
 
     dispatch(notify(bucketCreateSuccess()))
@@ -173,12 +180,13 @@ export const createOrgWithBucket = (
     if (!createdOrg) {
       dispatch(notify(orgCreateFailed()))
     }
-    dispatch(notify(bucketCreateFailed()))
+    const message = getErrorMessage(e)
+    dispatch(notify(bucketCreateFailed(message)))
   }
 }
 
 export const createOrg = (org: Organization) => async (
-  dispatch: Dispatch<Actions | RouterAction | PublishNotificationAction>
+  dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ): Promise<void> => {
   try {
     const createdOrg = await client.organizations.create(org)
@@ -209,12 +217,27 @@ export const deleteOrg = (org: Organization) => async (
 }
 
 export const updateOrg = (org: Organization) => async (
-  dispatch: Dispatch<EditOrg>
+  dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {
     const updatedOrg = await client.organizations.update(org.id, org)
     dispatch(editOrg(updatedOrg))
+    dispatch(notify(orgEditSuccess()))
   } catch (e) {
+    dispatch(notify(orgEditFailed()))
+    console.error(e)
+  }
+}
+
+export const renameOrg = (originalName: string, org: Organization) => async (
+  dispatch: Dispatch<EditOrg | NotificationAction>
+) => {
+  try {
+    const updatedOrg = await client.organizations.update(org.id, org)
+    dispatch(editOrg(updatedOrg))
+    dispatch(notify(orgRenameSuccess(updatedOrg.name)))
+  } catch (e) {
+    dispatch(notify(orgRenameFailed(originalName)))
     console.error(e)
   }
 }

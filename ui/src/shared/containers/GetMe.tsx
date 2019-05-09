@@ -9,7 +9,7 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
 // Actions
-import {getMe} from 'src/shared/actions/v2/me'
+import {getMe} from 'src/shared/actions/me'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

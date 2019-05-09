@@ -329,18 +329,18 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 		return
 	}
 
-	auths := make([]*authResponse, len(as))
-	for i, a := range as {
+	auths := make([]*authResponse, 0, len(as))
+	for _, a := range as {
 		o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 		if err != nil {
-			EncodeError(ctx, err, w)
-			return
+			h.Logger.Info("failed to get organization", zap.String("handler", "getAuthorizations"), zap.String("orgID", a.OrgID.String()), zap.Error(err))
+			continue
 		}
 
 		u, err := h.UserService.FindUserByID(ctx, a.UserID)
 		if err != nil {
-			EncodeError(ctx, err, w)
-			return
+			h.Logger.Info("failed to get user", zap.String("handler", "getAuthorizations"), zap.String("userID", a.UserID.String()), zap.Error(err))
+			continue
 		}
 
 		ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
@@ -349,7 +349,7 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 			return
 		}
 
-		auths[i] = newAuthResponse(a, o, u, ps)
+		auths = append(auths, newAuthResponse(a, o, u, ps))
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths)); err != nil {

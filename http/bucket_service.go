@@ -127,8 +127,8 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 // bucket is used for serialization/deserialization with duration string syntax.
 type bucket struct {
 	ID                  influxdb.ID     `json:"id,omitempty"`
-	OrganizationID      influxdb.ID     `json:"organizationID,omitempty"`
-	Organization        string          `json:"organization,omitempty"`
+	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	Description         string          `json:"description,omitempty"`
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
@@ -160,8 +160,8 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 
 	return &influxdb.Bucket{
 		ID:                  b.ID,
-		OrganizationID:      b.OrganizationID,
-		Organization:        b.Organization,
+		OrgID:               b.OrgID,
+		Description:         b.Description,
 		Name:                b.Name,
 		RetentionPolicyName: b.RetentionPolicyName,
 		RetentionPeriod:     d,
@@ -184,9 +184,9 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 
 	return &bucket{
 		ID:                  pb.ID,
-		OrganizationID:      pb.OrganizationID,
-		Organization:        pb.Organization,
+		OrgID:               pb.OrgID,
 		Name:                pb.Name,
+		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
 		RetentionRules:      rules,
 	}
@@ -195,6 +195,7 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 // bucketUpdate is used for serialization/deserialization with retention rules.
 type bucketUpdate struct {
 	Name           *string         `json:"name,omitempty"`
+	Description    *string         `json:"description,omitempty"`
 	RetentionRules []retentionRule `json:"retentionRules,omitempty"`
 }
 
@@ -217,6 +218,7 @@ func (b *bucketUpdate) toInfluxDB() (*influxdb.BucketUpdate, error) {
 
 	return &influxdb.BucketUpdate{
 		Name:            b.Name,
+		Description:     b.Description,
 		RetentionPeriod: &d,
 	}, nil
 }
@@ -228,6 +230,7 @@ func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 
 	up := &bucketUpdate{
 		Name:           pb.Name,
+		Description:    pb.Description,
 		RetentionRules: []retentionRule{},
 	}
 
@@ -253,10 +256,10 @@ func newBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResp
 			"labels":  fmt.Sprintf("/api/v2/buckets/%s/labels", b.ID),
 			"logs":    fmt.Sprintf("/api/v2/buckets/%s/logs", b.ID),
 			"members": fmt.Sprintf("/api/v2/buckets/%s/members", b.ID),
-			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrganizationID),
+			"org":     fmt.Sprintf("/api/v2/orgs/%s", b.OrgID),
 			"owners":  fmt.Sprintf("/api/v2/buckets/%s/owners", b.ID),
 			"self":    fmt.Sprintf("/api/v2/buckets/%s", b.ID),
-			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrganizationID, b.ID),
+			"write":   fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", b.OrgID, b.ID),
 		},
 		bucket: *newBucket(b),
 		Labels: []influxdb.Label{},
@@ -296,16 +299,6 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !req.Bucket.OrganizationID.Valid() {
-		// Resolve organization name to ID before create
-		o, err := h.OrganizationService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &req.Bucket.Organization})
-		if err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-		req.Bucket.OrganizationID = o.ID
-	}
-
 	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {
 		EncodeError(ctx, err, w)
 		return
@@ -322,7 +315,7 @@ type postBucketRequest struct {
 }
 
 func (b postBucketRequest) Validate() error {
-	if b.Bucket.Organization == "" && !b.Bucket.OrganizationID.Valid() {
+	if !b.Bucket.OrgID.Valid() {
 		return fmt.Errorf("bucket requires an organization")
 	}
 	return nil
@@ -492,7 +485,7 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 	}
 
 	if org := qp.Get("org"); org != "" {
-		req.filter.Organization = &org
+		req.filter.Org = &org
 	}
 
 	if name := qp.Get("name"); name != "" {
@@ -671,8 +664,8 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	if filter.OrganizationID != nil {
 		query.Add("orgID", filter.OrganizationID.String())
 	}
-	if filter.Organization != nil {
-		query.Add("org", *filter.Organization)
+	if filter.Org != nil {
+		query.Add("org", *filter.Org)
 	}
 	if filter.ID != nil {
 		query.Add("id", filter.ID.String())

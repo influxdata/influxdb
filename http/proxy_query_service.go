@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/iocounter"
+	"github.com/influxdata/influxdb"
 	influxdbcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -63,17 +63,29 @@ type HTTPDialect interface {
 
 // handlePostQuery handles query requests.
 func (h *ProxyQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Request) {
+	const op = "http/handlePostQueryproxysvc"
 	ctx := r.Context()
 
 	var req query.ProxyRequest
 	req.WithCompilerMappings(h.CompilerMappings)
 	req.WithDialectMappings(h.DialectMappings)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		err := &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "failed to decode request body",
+			Op:   op,
+			Err:  err,
+		}
 		EncodeError(ctx, err, w)
 		return
 	}
 	if req.Request.Authorization == nil {
-		EncodeError(ctx, errors.New("authorization is missing in the query request"), w)
+		err := &influxdb.Error{
+			Code: influxdb.EUnauthorized,
+			Msg:  "authorization is missing in the query request",
+			Op:   op,
+		}
+		EncodeError(ctx, err, w)
 		return
 	}
 	ctx = influxdbcontext.SetAuthorizer(ctx, req.Request.Authorization)
@@ -82,7 +94,12 @@ func (h *ProxyQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Reque
 
 	hd, ok := req.Dialect.(HTTPDialect)
 	if !ok {
-		EncodeError(ctx, fmt.Errorf("unsupported dialect over HTTP %T", req.Dialect), w)
+		err := &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("unsupported dialect over HTTP: %T", req.Dialect),
+			Op:   op,
+		}
+		EncodeError(ctx, err, w)
 		return
 	}
 	hd.SetHeaders(w)
@@ -92,6 +109,12 @@ func (h *ProxyQueryHandler) handlePostQuery(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
+			err := &influxdb.Error{
+				Code: influxdb.EInternal,
+				Msg:  "failed to execute query against proxy service",
+				Op:   op,
+				Err:  err,
+			}
 			EncodeError(ctx, err, w)
 			return
 		}

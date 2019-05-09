@@ -59,7 +59,7 @@ class DatePicker extends PureComponent<Props> {
     return (
       <Input
         size={ComponentSize.Medium}
-        customClass="range-picker--input react-datepicker-ignore-onclickoutside"
+        className="range-picker--input react-datepicker-ignore-onclickoutside"
         titleText={label}
       />
     )

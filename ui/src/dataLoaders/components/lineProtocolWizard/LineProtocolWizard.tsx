@@ -22,7 +22,6 @@ import {
 import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {Notification, NotificationFunc} from 'src/types'
 import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
@@ -30,7 +29,7 @@ export interface LineProtocolStepProps {
   currentStepIndex: number
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onExit: () => void
 }
 
@@ -40,7 +39,7 @@ interface OwnProps {
 }
 
 interface DispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onSetBucketInfo: typeof setBucketInfo
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
@@ -69,15 +68,11 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
     const {buckets} = this.props
 
     return (
-      <WizardOverlay title="Add Line Protocol" onDismiss={this.handleDismiss}>
-        <div className="wizard-contents">
-          <div className="wizard-step--container">
-            <LineProtocolStepSwitcher
-              stepProps={this.stepProps}
-              buckets={buckets}
-            />
-          </div>
-        </div>
+      <WizardOverlay title="Line Protocol" onDismiss={this.handleDismiss}>
+        <LineProtocolStepSwitcher
+          stepProps={this.stepProps}
+          buckets={buckets}
+        />
       </WizardOverlay>
     )
   }
@@ -85,9 +80,9 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
     if (!bucket && (buckets && buckets.length)) {
-      const {organization, organizationID, name, id} = buckets[0]
+      const {orgID, name, id} = buckets[0]
 
-      this.props.onSetBucketInfo(organization, organizationID, name, id)
+      this.props.onSetBucketInfo(orgID, name, id)
     }
   }
 

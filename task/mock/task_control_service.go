@@ -259,7 +259,10 @@ func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID i
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	run := d.runs[taskID][runID]
+	run, ok := d.runs[taskID][runID]
+	if !ok {
+		panic("run state called without a run")
+	}
 	switch state {
 	case backend.RunStarted:
 		run.StartedAt = when.Format(time.RFC3339Nano)
@@ -281,7 +284,7 @@ func (d *TaskControlService) AddRunLog(ctx context.Context, taskID, runID influx
 
 	run := d.runs[taskID][runID]
 	if run == nil {
-		panic("cannot add a log to a non existant run")
+		panic("cannot add a log to a non existent run")
 	}
 	run.Log = append(run.Log, influxdb.Log{Time: when.Format(time.RFC3339Nano), Message: log})
 	return nil

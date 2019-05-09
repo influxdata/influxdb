@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -13,6 +12,7 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {DE_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
+import LimitChecker from 'src/cloud/components/LimitChecker'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -29,11 +29,11 @@ class DataExplorer extends PureComponent<DispatchProps, {}> {
   public render() {
     return (
       <div className="data-explorer">
-        <HoverTimeProvider>
-          <GetResources resource={ResourceTypes.Variables}>
+        <LimitChecker>
+          <HoverTimeProvider>
             <TimeMachine />
-          </GetResources>
-        </HoverTimeProvider>
+          </HoverTimeProvider>
+        </LimitChecker>
       </div>
     )
   }

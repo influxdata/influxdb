@@ -1,6 +1,6 @@
 // Library
 import {Component} from 'react'
-import {isEqual, flatten} from 'lodash'
+import {isEqual, flatten, get} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -14,6 +14,14 @@ import {
 import {parseResponse} from 'src/shared/parsing/flux/response'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
+// Constants
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
+import {rateLimitReached} from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_TEXT} from 'src/cloud/constants'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
+
 // Types
 import {RemoteDataState, FluxTable} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
@@ -25,7 +33,7 @@ interface QueriesState {
   tables: FluxTable[]
   files: string[] | null
   loading: RemoteDataState
-  error: Error | null
+  errorMessage: string
   isInitialFetch: boolean
   duration: number
 }
@@ -43,13 +51,17 @@ interface OwnProps {
   children: (r: QueriesState) => JSX.Element
 }
 
-type Props = StateProps & OwnProps
+interface DispatchProps {
+  notify: typeof notifyAction
+}
+
+type Props = StateProps & OwnProps & DispatchProps
 
 interface State {
   loading: RemoteDataState
   tables: FluxTable[]
   files: string[] | null
-  error: Error | null
+  errorMessage: string
   fetchCount: number
   duration: number
 }
@@ -59,7 +71,7 @@ const defaultState = (): State => ({
   tables: [],
   files: null,
   fetchCount: 0,
-  error: null,
+  errorMessage: '',
   duration: 0,
 })
 
@@ -86,20 +98,27 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   public render() {
-    const {tables, files, loading, error, fetchCount, duration} = this.state
+    const {
+      tables,
+      files,
+      loading,
+      errorMessage,
+      fetchCount,
+      duration,
+    } = this.state
 
     return this.props.children({
       tables,
       files,
       loading,
-      error,
+      errorMessage,
       duration,
       isInitialFetch: fetchCount === 1,
     })
   }
 
   private reload = async () => {
-    const {inView, queryLink, variables} = this.props
+    const {inView, variables, notify} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
     const orgID = this.props.params.orgID
 
@@ -116,7 +135,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
     this.setState({
       loading: RemoteDataState.Loading,
       fetchCount: this.state.fetchCount + 1,
-      error: null,
+      errorMessage: '',
     })
 
     try {
@@ -127,7 +146,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       // Issue new queries
       this.pendingResults = queries.map(({text}) =>
-        executeQueryWithVars(queryLink, orgID, text, variables)
+        executeQueryWithVars(orgID, text, variables)
       )
 
       // Wait for new queries to complete
@@ -150,8 +169,17 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         return
       }
 
+      let errorMessage = get(error, 'message', '')
+
+      if (get(error, 'status') === RATE_LIMIT_ERROR_STATUS) {
+        const retryAfter = get(error, 'headers.Retry-After')
+
+        notify(rateLimitReached(retryAfter))
+        errorMessage = RATE_LIMIT_ERROR_TEXT
+      }
+
       this.setState({
-        error,
+        errorMessage,
         loading: RemoteDataState.Error,
       })
     }
@@ -184,7 +212,11 @@ const mstp = (state: AppState) => {
   return {queryLink: links.query.self}
 }
 
+const mdtp: DispatchProps = {
+  notify: notifyAction,
+}
+
 export default connect<StateProps, {}, OwnProps>(
   mstp,
-  null
+  mdtp
 )(withRouter(TimeSeries))

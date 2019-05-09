@@ -10,8 +10,9 @@ import {Page} from 'src/pageLayout'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetLabels from 'src/labels/components/GetLabels'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Actions
 import {
@@ -26,10 +27,17 @@ import {
   removeTaskLabelsAsync,
   runTask,
 } from 'src/tasks/actions'
+import {
+  checkTaskLimits as checkTasksLimitsAction,
+  LimitStatus,
+} from 'src/cloud/actions/limits'
 
 // Types
 import {AppState, Task, TaskStatus, RemoteDataState} from 'src/types'
 import {InjectedRouter, WithRouterProps} from 'react-router'
+import {Sort} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
+import {extractTaskLimits} from 'src/cloud/utils/limits'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -46,6 +54,7 @@ interface ConnectedDispatchProps {
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRemoveTaskLabels: typeof removeTaskLabelsAsync
   onRunTask: typeof runTask
+  checkTaskLimits: typeof checkTasksLimitsAction
 }
 
 interface ConnectedStateProps {
@@ -53,6 +62,7 @@ interface ConnectedStateProps {
   searchTerm: string
   showInactive: boolean
   status: RemoteDataState
+  limitStatus: LimitStatus
 }
 
 type Props = ConnectedDispatchProps &
@@ -63,7 +73,12 @@ type Props = ConnectedDispatchProps &
 interface State {
   isImporting: boolean
   taskLabelsEdit: Task
+  sortKey: SortKey
+  sortDirection: Sort
+  sortType: SortTypes
 }
+
+type SortKey = keyof Task
 
 @ErrorHandling
 class TasksPage extends PureComponent<Props, State> {
@@ -78,10 +93,14 @@ class TasksPage extends PureComponent<Props, State> {
     this.state = {
       isImporting: false,
       taskLabelsEdit: null,
+      sortKey: 'name',
+      sortDirection: Sort.Ascending,
+      sortType: SortTypes.String,
     }
   }
 
   public render(): JSX.Element {
+    const {sortKey, sortDirection, sortType} = this.state
     const {
       setSearchTerm,
       updateTaskName,
@@ -91,6 +110,8 @@ class TasksPage extends PureComponent<Props, State> {
       onAddTaskLabels,
       onRemoveTaskLabels,
       onRunTask,
+      checkTaskLimits,
+      limitStatus,
     } = this.props
 
     return (
@@ -102,38 +123,51 @@ class TasksPage extends PureComponent<Props, State> {
             showInactive={showInactive}
             filterComponent={() => this.search}
             onImportTask={this.summonOverlay}
+            limitStatus={limitStatus}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
             <div className="col-xs-12">
               <GetResources resource={ResourceTypes.Tasks}>
-                <GetLabels>
-                  <FilterList<Task>
-                    list={this.filteredTasks}
-                    searchTerm={searchTerm}
-                    searchKeys={['name', 'labels[].name']}
-                  >
-                    {ts => (
-                      <TasksList
+                <GetResources resource={ResourceTypes.Labels}>
+                  <GetAssetLimits>
+                    <AssetLimitAlert
+                      resourceName="tasks"
+                      limitStatus={limitStatus}
+                    >
+                      <FilterList<Task>
+                        list={this.filteredTasks}
                         searchTerm={searchTerm}
-                        tasks={ts}
-                        totalCount={this.totalTaskCount}
-                        onActivate={this.handleActivate}
-                        onDelete={this.handleDelete}
-                        onCreate={this.handleCreateTask}
-                        onClone={this.handleClone}
-                        onSelect={this.props.selectTask}
-                        onAddTaskLabels={onAddTaskLabels}
-                        onRemoveTaskLabels={onRemoveTaskLabels}
-                        onRunTask={onRunTask}
-                        onFilterChange={setSearchTerm}
-                        filterComponent={() => this.search}
-                        onUpdate={updateTaskName}
-                        onImportTask={this.summonOverlay}
-                      />
-                    )}
-                  </FilterList>
-                  {this.hiddenTaskAlert}
-                </GetLabels>
+                        searchKeys={['name', 'labels[].name']}
+                      >
+                        {ts => (
+                          <TasksList
+                            searchTerm={searchTerm}
+                            tasks={ts}
+                            totalCount={this.totalTaskCount}
+                            onActivate={this.handleActivate}
+                            onDelete={this.handleDelete}
+                            onCreate={this.handleCreateTask}
+                            onClone={this.handleClone}
+                            onSelect={this.props.selectTask}
+                            onAddTaskLabels={onAddTaskLabels}
+                            onRemoveTaskLabels={onRemoveTaskLabels}
+                            onRunTask={onRunTask}
+                            onFilterChange={setSearchTerm}
+                            filterComponent={() => this.search}
+                            onUpdate={updateTaskName}
+                            onImportTask={this.summonOverlay}
+                            sortKey={sortKey}
+                            sortDirection={sortDirection}
+                            sortType={sortType}
+                            onClickColumn={this.handleClickColumn}
+                            checkTaskLimits={checkTaskLimits}
+                          />
+                        )}
+                      </FilterList>
+                      {this.hiddenTaskAlert}
+                    </AssetLimitAlert>
+                  </GetAssetLimits>
+                </GetResources>
               </GetResources>
             </div>
           </Page.Contents>
@@ -141,6 +175,16 @@ class TasksPage extends PureComponent<Props, State> {
         {this.props.children}
       </>
     )
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    let sortType = SortTypes.String
+
+    if (sortKey === 'latestCompleted') {
+      sortType = SortTypes.Date
+    }
+
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
   private handleActivate = (task: Task) => {
@@ -229,12 +273,14 @@ class TasksPage extends PureComponent<Props, State> {
 
 const mstp = ({
   tasks: {status, list, searchTerm, showInactive},
+  cloud: {limits},
 }: AppState): ConnectedStateProps => {
   return {
     tasks: list,
     status: status,
     searchTerm,
     showInactive,
+    limitStatus: extractTaskLimits(limits),
   }
 }
 
@@ -249,6 +295,7 @@ const mdtp: ConnectedDispatchProps = {
   onRemoveTaskLabels: removeTaskLabelsAsync,
   onAddTaskLabels: addTaskLabelsAsync,
   onRunTask: runTask,
+  checkTaskLimits: checkTasksLimitsAction,
 }
 
 export default connect<

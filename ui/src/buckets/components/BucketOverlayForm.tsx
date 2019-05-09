@@ -52,7 +52,11 @@ export default class BucketOverlayForm extends PureComponent<Props> {
         <Grid>
           <Grid.Row>
             <Grid.Column>
-              <Form.Element label="Name" errorMessage={nameErrorMessage}>
+              <Form.Element
+                label="Name"
+                errorMessage={nameErrorMessage}
+                helpText={this.nameHelpText}
+              >
                 <Input
                   placeholder="Give your bucket a name"
                   name="name"
@@ -63,7 +67,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 />
               </Form.Element>
               <Form.Element
-                label="How often to clear data?"
+                label="Delete data older than"
                 errorMessage={this.ruleErrorMessage}
               >
                 <Retention
@@ -95,6 +99,14 @@ export default class BucketOverlayForm extends PureComponent<Props> {
         </Grid>
       </Form>
     )
+  }
+
+  private get nameHelpText(): string {
+    if (this.props.nameInputStatus !== ComponentStatus.Disabled) {
+      return ''
+    }
+
+    return 'To rename the bucket use the rename button. Bucket renaming is not allowed here.'
   }
 
   private get submitButtonColor(): ComponentColor {

@@ -20,9 +20,10 @@ type mmapAccessor struct {
 	logger       *zap.Logger
 	mmapWillNeed bool // If true then mmap advise value MADV_WILLNEED will be provided the kernel for b.
 
-	mu sync.RWMutex
-	b  []byte
-	f  *os.File
+	mu    sync.RWMutex
+	b     []byte
+	f     *os.File
+	_path string // If the underlying file is renamed then this gets updated
 
 	index *indirectIndex
 }
@@ -30,6 +31,9 @@ type mmapAccessor struct {
 func (m *mmapAccessor) init() (*indirectIndex, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Set the path explicitly.
+	m._path = m.f.Name()
 
 	if err := verifyVersion(m.f); err != nil {
 		return nil, err
@@ -119,41 +123,10 @@ func (m *mmapAccessor) rename(path string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	err := munmap(m.b)
-	if err != nil {
+	if err := file.RenameFile(m._path, path); err != nil {
 		return err
 	}
-
-	if err := m.f.Close(); err != nil {
-		return err
-	}
-
-	if err := file.RenameFile(m.f.Name(), path); err != nil {
-		return err
-	}
-
-	m.f, err = os.Open(path)
-	if err != nil {
-		return err
-	}
-
-	if _, err := m.f.Seek(0, 0); err != nil {
-		return err
-	}
-
-	stat, err := m.f.Stat()
-	if err != nil {
-		return err
-	}
-
-	m.b, err = mmap(m.f, 0, int(stat.Size()))
-	if err != nil {
-		return err
-	}
-
-	if m.mmapWillNeed {
-		return madviseWillNeed(m.b)
-	}
+	m._path = path
 	return nil
 }
 
@@ -251,9 +224,8 @@ func (m *mmapAccessor) readAll(key []byte) ([]Value, error) {
 
 func (m *mmapAccessor) path() string {
 	m.mu.RLock()
-	path := m.f.Name()
-	m.mu.RUnlock()
-	return path
+	defer m.mu.RUnlock()
+	return m._path
 }
 
 func (m *mmapAccessor) close() error {

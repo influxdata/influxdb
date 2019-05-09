@@ -71,6 +71,11 @@ func (r *Run) ScheduledForTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, r.ScheduledFor)
 }
 
+// StartedAtTime gives the time.Time that the run was started.
+func (r *Run) StartedAtTime() (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, r.StartedAt)
+}
+
 // RequestedAtTime gives the time.Time that the run was requested.
 func (r *Run) RequestedAtTime() (time.Time, error) {
 	return time.Parse(time.RFC3339, r.RequestedAt)
@@ -150,6 +155,10 @@ func (t TaskCreate) Validate() error {
 type TaskUpdate struct {
 	Flux   *string `json:"flux,omitempty"`
 	Status *string `json:"status,omitempty"`
+
+	// LatestCompleted us to set latest completed on startup to skip task catchup
+	LatestCompleted *string `json:"-"`
+
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.
 	Options options.Options // when we unmarshal this gets unmarshalled from flat key-values
 

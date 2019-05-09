@@ -266,7 +266,7 @@ func (r dashboardCellViewResponse) MarshalJSON() ([]byte, error) {
 func newDashboardCellViewResponse(dashID, cellID platform.ID, v *platform.View) dashboardCellViewResponse {
 	return dashboardCellViewResponse{
 		Links: viewLinks{
-			Self: fmt.Sprintf("/api/v2/dashboards/%s/cells/%s/view", dashID, cellID),
+			Self: fmt.Sprintf("/api/v2/dashboards/%s/cells/%s", dashID, cellID),
 		},
 		View: *v,
 	}
@@ -431,11 +431,7 @@ func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if err := h.DashboardService.CreateDashboard(ctx, req.Dashboard); err != nil {
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EInternal,
-			Msg:  "Error loading dashboards",
-			Err:  err,
-		}, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 

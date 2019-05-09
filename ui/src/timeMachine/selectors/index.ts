@@ -1,16 +1,19 @@
 // Libraries
 import memoizeOne from 'memoize-one'
 import {get, flatMap} from 'lodash'
-import {Table, isNumeric} from '@influxdata/vis'
+import {isNumeric, fluxToTable, Table} from '@influxdata/vis'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {toMinardTable} from 'src/shared/utils/toMinardTable'
 
 // Types
-import {FluxTable} from 'src/types'
-import {AppState} from 'src/types'
-import {DashboardDraftQuery} from 'src/types/dashboards'
+import {
+  FluxTable,
+  QueryView,
+  AppState,
+  DashboardDraftQuery,
+  ViewType,
+} from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines
@@ -32,11 +35,11 @@ const getTablesMemoized = memoizeOne(
 export const getTables = (state: AppState): FluxTable[] =>
   getTablesMemoized(getActiveTimeMachine(state).queryResults.files)
 
-const getVisTableMemoized = memoizeOne(toMinardTable)
+const getVisTableMemoized = memoizeOne(fluxToTable)
 
 export const getVisTable = (state: AppState): Table => {
-  const fluxTables = getTables(state)
-  const {table} = getVisTableMemoized(fluxTables)
+  const files = getActiveTimeMachine(state).queryResults.files
+  const {table} = getVisTableMemoized(files.join('\n\n'))
 
   return table
 }
@@ -117,4 +120,29 @@ export const getFillColumnsSelection = (state: AppState): string[] => {
   )
 
   return getFillColumnsSelectionMemoized(validFillColumns, preference)
+}
+
+export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
+  const {view, draftQueries} = getActiveTimeMachine(state)
+
+  let saveableView: QueryView & {id?: string} = {
+    ...view,
+    properties: {
+      ...view.properties,
+      queries: draftQueries,
+    },
+  }
+
+  if (saveableView.properties.type === ViewType.Histogram) {
+    saveableView = {
+      ...saveableView,
+      properties: {
+        ...saveableView.properties,
+        xColumn: getXColumnSelection(state),
+        fillColumns: getFillColumnsSelection(state),
+      },
+    }
+  }
+
+  return saveableView
 }

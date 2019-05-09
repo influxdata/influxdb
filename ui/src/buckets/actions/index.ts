@@ -6,15 +6,23 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState, AppState, Bucket} from 'src/types'
 
+// Utils
+import {getErrorMessage} from 'src/utils/api'
+
 // Actions
 import {notify} from 'src/shared/actions/notifications'
-import {getBucketsFailed} from 'src/shared/copy/notifications'
+import {checkBucketLimits} from 'src/cloud/actions/limits'
 
+// Constants
+import {getBucketsFailed} from 'src/shared/copy/notifications'
 import {
   bucketCreateFailed,
   bucketUpdateFailed,
   bucketDeleteFailed,
-} from 'src/shared/copy/v2/notifications'
+  bucketUpdateSuccess,
+  bucketRenameSuccess,
+  bucketRenameFailed,
+} from 'src/shared/copy/notifications'
 
 export type Action = SetBuckets | AddBucket | EditBucket | RemoveBucket
 
@@ -78,7 +86,7 @@ export const getBuckets = () => async (
       orgs: {org},
     } = getState()
 
-    const buckets = (await client.buckets.getAll(org.id)) as Bucket[]
+    const buckets = await client.buckets.getAll(org.id)
 
     dispatch(setBuckets(RemoteDataState.Done, buckets))
   } catch (e) {
@@ -99,14 +107,15 @@ export const createBucket = (bucket: Bucket) => async (
 
     const createdBucket = await client.buckets.create({
       ...bucket,
-      organizationID: org.id,
+      orgID: org.id,
     })
 
     dispatch(addBucket(createdBucket))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(bucketCreateFailed()))
-    throw e
+    dispatch(checkBucketLimits())
+  } catch (error) {
+    console.error(error)
+    const message = getErrorMessage(error)
+    dispatch(notify(bucketCreateFailed(message)))
   }
 }
 
@@ -117,9 +126,26 @@ export const updateBucket = (updatedBucket: Bucket) => async (
     const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
 
     dispatch(editBucket(bucket))
+    dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)
-    dispatch(notify(bucketUpdateFailed(updatedBucket.name)))
+    const message = getErrorMessage(e)
+    dispatch(notify(bucketUpdateFailed(message)))
+  }
+}
+
+export const renameBucket = (
+  originalName: string,
+  updatedBucket: Bucket
+) => async (dispatch: Dispatch<Action>) => {
+  try {
+    const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
+
+    dispatch(editBucket(bucket))
+    dispatch(notify(bucketRenameSuccess(updatedBucket.name)))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(bucketRenameFailed(originalName)))
   }
 }
 
@@ -130,6 +156,7 @@ export const deleteBucket = (id: string, name: string) => async (
     await client.buckets.delete(id)
 
     dispatch(removeBucket(id))
+    dispatch(checkBucketLimits())
   } catch (e) {
     console.error(e)
     dispatch(notify(bucketDeleteFailed(name)))

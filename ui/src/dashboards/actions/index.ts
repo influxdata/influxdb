@@ -1,9 +1,10 @@
 // Libraries
 import {Dispatch} from 'redux'
-import {replace} from 'react-router-redux'
+import {replace, push} from 'react-router-redux'
 
 // APIs
 import {
+  createDashboard as createDashboardAJAX,
   getDashboard as getDashboardAJAX,
   getDashboards as getDashboardsAJAX,
   deleteDashboard as deleteDashboardAJAX,
@@ -17,16 +18,15 @@ import {
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
 
 // Actions
-import {notify} from 'src/shared/actions/notifications'
+import {
+  notify,
+  PublishNotificationAction,
+} from 'src/shared/actions/notifications'
 import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
   DeleteTimeRangeAction,
 } from 'src/dashboards/actions/ranges'
-import {
-  importDashboardSucceeded,
-  importDashboardFailed,
-} from 'src/shared/copy/notifications'
 import {setView, SetViewAction, setViews} from 'src/dashboards/actions/views'
 import {
   getVariables,
@@ -34,6 +34,7 @@ import {
   selectValue,
 } from 'src/variables/actions'
 import {setExportTemplate} from 'src/templates/actions'
+import {checkDashboardLimits} from 'src/cloud/actions/limits'
 
 // Utils
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
@@ -49,13 +50,16 @@ import {
 import {dashboardToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {client} from 'src/utils/api'
 import {exportVariables} from 'src/variables/utils/exportVariables'
+import {getSaveableView} from 'src/timeMachine/selectors'
+import {incrementCloneName} from 'src/utils/naming'
+import {isLimitError} from 'src/cloud/utils/limits'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {PublishNotificationAction} from 'src/types/actions/notifications'
 import {CreateCell, ILabel} from '@influxdata/influx'
 import {
   Dashboard,
@@ -83,7 +87,6 @@ export type Action =
   | SetDashboardAction
   | EditDashboardAction
   | RemoveCellAction
-  | PublishNotificationAction
   | SetViewAction
   | DeleteTimeRangeAction
   | DeleteDashboardFailedAction
@@ -211,6 +214,63 @@ export const removeDashboardLabels = (
 
 // Thunks
 
+export const createDashboard = () => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      orgs: {org},
+    } = getState()
+
+    const newDashboard = {
+      name: DEFAULT_DASHBOARD_NAME,
+      cells: [],
+      orgID: org.id,
+    }
+
+    const data = await createDashboardAJAX(newDashboard)
+    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
+    dispatch(checkDashboardLimits())
+  } catch (error) {
+    console.error(error)
+
+    if (isLimitError(error)) {
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
+    } else {
+      dispatch(notify(copy.dashboardCreateFailed()))
+    }
+  }
+}
+
+export const cloneDashboard = (dashboard: Dashboard) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      orgs: {org},
+      dashboards,
+    } = getState()
+
+    const allDashboardNames = dashboards.list.map(d => d.name)
+
+    const clonedName = incrementCloneName(allDashboardNames, dashboard.name)
+
+    const data = await client.dashboards.clone(dashboard.id, clonedName, org.id)
+
+    dispatch(checkDashboardLimits())
+    dispatch(push(`/orgs/${org.id}/dashboards/${data.id}`))
+  } catch (error) {
+    console.error(error)
+    if (isLimitError(error)) {
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
+    } else {
+      dispatch(notify(copy.dashboardCreateFailed()))
+    }
+  }
+}
+
 export const getDashboardsAsync = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -245,14 +305,19 @@ export const createDashboardFromTemplate = (
     const dashboards = await getDashboardsAJAX(org.id)
 
     dispatch(setDashboards(RemoteDataState.Done, dashboards))
-    dispatch(notify(importDashboardSucceeded()))
+    dispatch(notify(copy.importDashboardSucceeded()))
+    dispatch(checkDashboardLimits())
   } catch (error) {
-    dispatch(notify(importDashboardFailed(error)))
+    if (isLimitError(error)) {
+      dispatch(notify(copy.resourceLimitReached('dashboards')))
+    } else {
+      dispatch(notify(copy.importDashboardFailed(error)))
+    }
   }
 }
 
 export const deleteDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
+  dispatch
 ): Promise<void> => {
   dispatch(removeDashboard(dashboard.id))
   dispatch(deleteTimeRange(dashboard.id))
@@ -260,6 +325,7 @@ export const deleteDashboardAsync = (dashboard: Dashboard) => async (
   try {
     await deleteDashboardAJAX(dashboard)
     dispatch(notify(copy.dashboardDeleted(dashboard.name)))
+    dispatch(checkDashboardLimits())
   } catch (error) {
     dispatch(
       notify(copy.dashboardDeleteFailed(dashboard.name, error.data.message))
@@ -312,7 +378,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
 }
 
 export const updateDashboardAsync = (dashboard: Dashboard) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | PublishNotificationAction>
 ): Promise<void> => {
   try {
     const updatedDashboard = await updateDashboardAJAX(dashboard)
@@ -420,7 +486,9 @@ export const deleteCellAsync = (dashboard: Dashboard, cell: Cell) => async (
 export const copyDashboardCellAsync = (
   dashboard: Dashboard,
   cell: Cell
-) => async (dispatch: Dispatch<Action>): Promise<void> => {
+) => async (
+  dispatch: Dispatch<Action | PublishNotificationAction>
+): Promise<void> => {
   try {
     const clonedCell = getClonedDashboardCell(dashboard, cell)
     const updatedDashboard = {
@@ -438,7 +506,7 @@ export const copyDashboardCellAsync = (
 export const addDashboardLabelsAsync = (
   dashboardID: string,
   labels: ILabel[]
-) => async (dispatch: Dispatch<Action>) => {
+) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     const newLabels = await client.dashboards.addLabels(
       dashboardID,
@@ -455,7 +523,7 @@ export const addDashboardLabelsAsync = (
 export const removeDashboardLabelsAsync = (
   dashboardID: string,
   labels: ILabel[]
-) => async (dispatch: Dispatch<Action>) => {
+) => async (dispatch: Dispatch<Action | PublishNotificationAction>) => {
   try {
     await client.dashboards.removeLabels(dashboardID, labels.map(l => l.id))
 
@@ -506,5 +574,23 @@ export const convertToTemplate = (dashboardID: string) => async (
   } catch (error) {
     dispatch(setExportTemplate(RemoteDataState.Error))
     dispatch(notify(copy.createTemplateFailed(error)))
+  }
+}
+
+export const saveVEOView = (dashboard: Dashboard) => async (
+  dispatch,
+  getState: GetState
+): Promise<void> => {
+  const view = getSaveableView(getState())
+
+  try {
+    if (view.id) {
+      await dispatch(updateView(dashboard, view))
+    } else {
+      await dispatch(createCellWithView(dashboard, view))
+    }
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.cellAddFailed()))
   }
 }

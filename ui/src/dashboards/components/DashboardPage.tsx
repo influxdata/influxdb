@@ -17,34 +17,51 @@ import VariablesControlBar from 'src/dashboards/components/variablesControlBar/V
 import * as dashboardActions from 'src/dashboards/actions'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
-import * as notifyActions from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
+import {
+  setAutoRefreshInterval,
+  setAutoRefreshStatus,
+} from 'src/shared/actions/autoRefresh'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
 // Constants
-import {DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
+import {
+  DASHBOARD_LAYOUT_ROW_HEIGHT,
+  AUTOREFRESH_DEFAULT,
+} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
-import {Links, Dashboard, Cell, View, TimeRange, AppState} from 'src/types'
+import {
+  Links,
+  Dashboard,
+  Cell,
+  View,
+  TimeRange,
+  AppState,
+  AutoRefresh,
+  AutoRefreshStatus,
+} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
-import * as NotificationsActions from 'src/types/actions/notifications'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
+import {Organization} from '@influxdata/influx'
+import LimitChecker from 'src/cloud/components/LimitChecker'
 
 interface StateProps {
+  org: Organization
   links: Links
   zoomedTimeRange: TimeRange
   timeRange: TimeRange
   dashboard: Dashboard
-  autoRefresh: number
+  autoRefresh: AutoRefresh
   inPresentationMode: boolean
   showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
@@ -59,9 +76,9 @@ interface DispatchProps {
   updateQueryParams: typeof rangesActions.updateQueryParams
   setDashTimeV1: typeof rangesActions.setDashTimeV1
   setZoomedTimeRange: typeof rangesActions.setZoomedTimeRange
-  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
+  handleChooseAutoRefresh: typeof setAutoRefreshInterval
+  onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
-  notify: NotificationsActions.PublishNotificationActionCreator
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -108,7 +125,9 @@ class DashboardPage extends Component<Props, State> {
   public async componentDidMount() {
     const {autoRefresh} = this.props
 
-    GlobalAutoRefresher.poll(autoRefresh)
+    if (autoRefresh.status === AutoRefreshStatus.Active) {
+      GlobalAutoRefresher.poll(autoRefresh.interval)
+    }
 
     window.addEventListener('resize', this.handleWindowResize, true)
 
@@ -125,8 +144,13 @@ class DashboardPage extends Component<Props, State> {
       this.getDashboard()
     }
 
-    if (autoRefresh !== prevProps.autoRefresh) {
-      GlobalAutoRefresher.poll(autoRefresh)
+    if (!_.isEqual(autoRefresh, prevProps.autoRefresh)) {
+      if (autoRefresh.status === AutoRefreshStatus.Active) {
+        GlobalAutoRefresher.poll(autoRefresh.interval)
+        return
+      }
+
+      GlobalAutoRefresher.stopPolling()
     }
   }
 
@@ -138,6 +162,7 @@ class DashboardPage extends Component<Props, State> {
 
   public render() {
     const {
+      org,
       timeRange,
       zoomedTimeRange,
       dashboard,
@@ -146,7 +171,6 @@ class DashboardPage extends Component<Props, State> {
       onManualRefresh,
       inPresentationMode,
       showVariablesControls,
-      handleChooseAutoRefresh,
       handleClickPresentationButton,
       onToggleShowVariablesControls,
       children,
@@ -154,47 +178,49 @@ class DashboardPage extends Component<Props, State> {
 
     return (
       <Page titleTag={this.pageTitle}>
-        <HoverTimeProvider>
-          <DashboardHeader
-            dashboard={dashboard}
-            timeRange={timeRange}
-            autoRefresh={autoRefresh}
-            isHidden={inPresentationMode}
-            onAddCell={this.handleAddCell}
-            onAddNote={this.showNoteOverlay}
-            onManualRefresh={onManualRefresh}
-            zoomedTimeRange={zoomedTimeRange}
-            onRenameDashboard={this.handleRenameDashboard}
-            activeDashboard={dashboard ? dashboard.name : ''}
-            handleChooseAutoRefresh={handleChooseAutoRefresh}
-            handleChooseTimeRange={this.handleChooseTimeRange}
-            handleClickPresentationButton={handleClickPresentationButton}
-            toggleVariablesControlBar={onToggleShowVariablesControls}
-            isShowingVariablesControlBar={showVariablesControls}
-          />
-          {showVariablesControls && !!dashboard && (
-            <VariablesControlBar dashboardID={dashboard.id} />
-          )}
-          {!!dashboard && (
-            <DashboardComponent
-              inView={this.inView}
+        <LimitChecker>
+          <HoverTimeProvider>
+            <DashboardHeader
+              org={org}
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
-              manualRefresh={manualRefresh}
-              setScrollTop={this.setScrollTop}
-              onCloneCell={this.handleCloneCell}
-              onZoom={this.handleZoomedTimeRange}
-              inPresentationMode={inPresentationMode}
-              onPositionChange={this.handlePositionChange}
-              onDeleteCell={this.handleDeleteDashboardCell}
-              onEditView={this.handleEditView}
+              isHidden={inPresentationMode}
               onAddCell={this.handleAddCell}
-              onEditNote={this.showNoteOverlay}
+              onAddNote={this.showNoteOverlay}
+              onManualRefresh={onManualRefresh}
+              zoomedTimeRange={zoomedTimeRange}
+              onRenameDashboard={this.handleRenameDashboard}
+              activeDashboard={dashboard ? dashboard.name : ''}
+              handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+              onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              handleClickPresentationButton={handleClickPresentationButton}
+              toggleVariablesControlBar={onToggleShowVariablesControls}
+              isShowingVariablesControlBar={showVariablesControls}
             />
-          )}
-          {children}
-        </HoverTimeProvider>
+            {showVariablesControls && !!dashboard && (
+              <VariablesControlBar dashboardID={dashboard.id} />
+            )}
+            {!!dashboard && (
+              <DashboardComponent
+                inView={this.inView}
+                dashboard={dashboard}
+                timeRange={timeRange}
+                manualRefresh={manualRefresh}
+                setScrollTop={this.setScrollTop}
+                onCloneCell={this.handleCloneCell}
+                inPresentationMode={inPresentationMode}
+                onPositionChange={this.handlePositionChange}
+                onDeleteCell={this.handleDeleteDashboardCell}
+                onEditView={this.handleEditView}
+                onAddCell={this.handleAddCell}
+                onEditNote={this.showNoteOverlay}
+              />
+            )}
+            {children}
+          </HoverTimeProvider>
+        </LimitChecker>
       </Page>
     )
   }
@@ -226,6 +252,33 @@ class DashboardPage extends Component<Props, State> {
       lower: timeRange.lower,
       upper: timeRange.upper,
     })
+  }
+
+  private handleSetAutoRefreshStatus = (
+    autoRefreshStatus: AutoRefreshStatus
+  ) => {
+    const {
+      onSetAutoRefreshStatus,
+      params: {dashboardID},
+    } = this.props
+
+    onSetAutoRefreshStatus(dashboardID, autoRefreshStatus)
+  }
+
+  private handleChooseAutoRefresh = (autoRefreshInterval: number) => {
+    const {
+      handleChooseAutoRefresh,
+      params: {dashboardID},
+    } = this.props
+
+    handleChooseAutoRefresh(dashboardID, autoRefreshInterval)
+
+    if (autoRefreshInterval === 0) {
+      this.handleSetAutoRefreshStatus(AutoRefreshStatus.Paused)
+      return
+    }
+
+    this.handleSetAutoRefreshStatus(AutoRefreshStatus.Active)
   }
 
   private handlePositionChange = async (cells: Cell[]): Promise<void> => {
@@ -277,8 +330,6 @@ class DashboardPage extends Component<Props, State> {
     await deleteCell(dashboard, cell)
   }
 
-  private handleZoomedTimeRange = (__: TimeRange): void => {}
-
   private setScrollTop = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement
 
@@ -301,20 +352,23 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     links,
     app: {
       ephemeral: {inPresentationMode},
-      persisted: {autoRefresh},
     },
     ranges,
     dashboards,
     views: {views},
     userSettings: {showVariablesControls},
+    orgs: {org},
   } = state
 
   const timeRange =
     ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
 
+  const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
+
   const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
   return {
+    org,
     links,
     views,
     zoomedTimeRange: {lower: null, upper: null},
@@ -332,9 +386,9 @@ const mdtp: DispatchProps = {
   copyCell: dashboardActions.copyDashboardCellAsync,
   deleteCell: dashboardActions.deleteCellAsync,
   updateCells: dashboardActions.updateCellsAsync,
-  handleChooseAutoRefresh: appActions.setAutoRefresh,
+  handleChooseAutoRefresh: setAutoRefreshInterval,
+  onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
-  notify: notifyActions.notify,
   setDashTimeV1: rangesActions.setDashTimeV1,
   updateQueryParams: rangesActions.updateQueryParams,
   setZoomedTimeRange: rangesActions.setZoomedTimeRange,

@@ -52,7 +52,7 @@ type DashboardService interface {
 	// AddDashboardCell adds a cell to a dashboard.
 	AddDashboardCell(ctx context.Context, id ID, c *Cell, opts AddDashboardCellOptions) error
 
-	// RemoveDashboardCell removes a dashbaord.
+	// RemoveDashboardCell removes a dashboard.
 	RemoveDashboardCell(ctx context.Context, dashboardID, cellID ID) error
 
 	// UpdateDashboardCell replaces the dashboard cell with the provided ID.
@@ -288,8 +288,9 @@ type View struct {
 	Properties ViewProperties
 }
 
-// ViewContents holds the non properties content of a View.
+// ViewContents is the id and name of a specific view.
 type ViewContents struct {
+	ID   ID     `json:"id,omitempty"`
 	Name string `json:"name"`
 }
 

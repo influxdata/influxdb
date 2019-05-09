@@ -20,6 +20,7 @@ const setup = (override?) => {
     onCreate: secondTestFunction,
     onSelect: oneTestFunction,
     onImportTask: oneTestFunction,
+    checkTaskLimits: secondTestFunction,
     ...override,
   }
 

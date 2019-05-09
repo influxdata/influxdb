@@ -11,7 +11,7 @@ vendor
 # binary databases
 influxd.bolt
 
-# Project distirbution
+# Project distribution
 /dist
 
 # Project binaries.

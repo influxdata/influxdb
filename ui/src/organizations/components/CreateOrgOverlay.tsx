@@ -6,8 +6,7 @@ import {WithRouterProps, withRouter} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, Button} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {Form, Input, Button, Overlay} from '@influxdata/clockface'
 
 // Types
 import {Organization, Bucket} from '@influxdata/influx'
@@ -63,7 +62,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={500}>
-          <Overlay.Heading
+          <Overlay.Header
             title="Create Organization"
             onDismiss={this.closeModal}
           />

@@ -197,11 +197,19 @@ func (tl *TestLauncher) ExecuteQuery(q string) (*QueryResults, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = fq.Err(); err != nil {
-		return nil, fq.Err()
+
+	results := make([]flux.Result, 0, 1)
+	for res := range fq.Results() {
+		results = append(results, res)
 	}
+
+	if err := fq.Err(); err != nil {
+		fq.Done()
+		return nil, err
+	}
+
 	return &QueryResults{
-		Results: <-fq.Ready(),
+		Results: results,
 		Query:   fq,
 	}, nil
 }
@@ -335,7 +343,7 @@ func (r *QueryResult) TablesN() int {
 
 // QueryResults wraps a set of query results with some helper methods.
 type QueryResults struct {
-	Results map[string]flux.Result
+	Results []flux.Result
 	Query   flux.Query
 }
 
@@ -360,14 +368,14 @@ func (r *QueryResults) HasTableCount(t *testing.T, n int) {
 	}
 }
 
-// Names returns the sorted set of table names for the query results.
+// Names returns the sorted set of result names for the query results.
 func (r *QueryResults) Names() []string {
 	if len(r.Results) == 0 {
 		return nil
 	}
 	names := make([]string, len(r.Results), 0)
-	for k := range r.Results {
-		names = append(names, k)
+	for _, r := range r.Results {
+		names = append(names, r.Name())
 	}
 	return names
 }

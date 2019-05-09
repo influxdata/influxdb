@@ -14,7 +14,7 @@ import {
 } from 'src/timeMachine/constants'
 
 // Types
-import {TimeRange, View} from 'src/types'
+import {TimeRange, View, AutoRefresh} from 'src/types'
 import {
   ViewType,
   DashboardDraftQuery,
@@ -28,6 +28,7 @@ import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
 import {RemoteDataState} from 'src/types'
 import {Color} from 'src/types/colors'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 interface QueryBuilderState {
   buckets: string[]
@@ -53,6 +54,7 @@ interface QueryResultsState {
 export interface TimeMachineState {
   view: QueryView
   timeRange: TimeRange
+  autoRefresh: AutoRefresh
   draftQueries: DashboardDraftQuery[]
   isViewingRawData: boolean
   activeTab: TimeMachineTab
@@ -70,6 +72,7 @@ export interface TimeMachinesState {
 
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
+  autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
@@ -177,6 +180,14 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SET_AUTO_REFRESH': {
+      return produce(state, draftState => {
+        draftState.autoRefresh = action.payload.autoRefresh
+
+        buildAllQueries(draftState)
+      })
+    }
+
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
       const view = convertView(state.view, type)
@@ -243,22 +254,8 @@ export const timeMachineReducer = (
       return setYAxis(state, {label})
     }
 
-    case 'SET_Y_AXIS_MIN_BOUND': {
-      const {min} = action.payload
-
-      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
-
-      bounds[0] = min
-
-      return setYAxis(state, {bounds})
-    }
-
-    case 'SET_Y_AXIS_MAX_BOUND': {
-      const {max} = action.payload
-
-      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
-
-      bounds[1] = max
+    case 'SET_Y_AXIS_BOUNDS': {
+      const {bounds} = action.payload
 
       return setYAxis(state, {bounds})
     }

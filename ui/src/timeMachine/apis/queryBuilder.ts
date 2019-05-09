@@ -2,7 +2,7 @@
 import {get} from 'lodash'
 
 // APIs
-import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
+import {runQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Utils
@@ -23,12 +23,12 @@ export interface FindBucketsOptions {
   orgID: string
 }
 
-export function findBuckets({url, orgID}: FindBucketsOptions): CancelableQuery {
+export function findBuckets({orgID}: FindBucketsOptions): CancelableQuery {
   const query = `buckets()
   |> sort(columns: ["name"])
   |> limit(n: ${DEFAULT_LIMIT})`
 
-  const {promise, cancel} = executeQuery(url, orgID, query)
+  const {promise, cancel} = runQuery(orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, 'name')),
@@ -47,7 +47,6 @@ export interface FindKeysOptions {
 }
 
 export function findKeys({
-  url,
   orgID,
   bucket,
   tagsSelections,
@@ -66,13 +65,13 @@ export function findKeys({
   |> range(${timeRangeArguments})
   |> filter(fn: ${tagFilters})
   |> keys()
-  |> keep(columns: ["_value"])${searchFilter}${previousKeyFilter}
+  |> keep(columns: ["_value"])
+  |> distinct()${searchFilter}${previousKeyFilter}
   |> filter(fn: (r) => r._value != "_time" and r._value != "_start" and r._value !=  "_stop" and r._value != "_value")
-  |> distinct()
   |> sort()
   |> limit(n: ${limit})`
 
-  const {promise, cancel} = executeQuery(url, orgID, query)
+  const {promise, cancel} = runQuery(orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),
@@ -92,7 +91,6 @@ export interface FindValuesOptions {
 }
 
 export function findValues({
-  url,
   orgID,
   bucket,
   tagsSelections,
@@ -110,13 +108,13 @@ export function findValues({
   const query = `from(bucket: "${bucket}")
   |> range(${timeRangeArguments})
   |> filter(fn: ${tagFilters})
-  |> group(columns: ["${key}"])
-  |> distinct(column: "${key}")
-  |> keep(columns: ["_value"])${searchFilter}
+  |> keep(columns: ["${key}"])
+  |> group()
+  |> distinct(column: "${key}")${searchFilter}
   |> limit(n: ${limit})
   |> sort()`
 
-  const {promise, cancel} = executeQuery(url, orgID, query)
+  const {promise, cancel} = runQuery(orgID, query)
 
   return {
     promise: promise.then(resp => extractCol(resp, '_value')),

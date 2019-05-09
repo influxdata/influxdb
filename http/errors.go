@@ -117,6 +117,7 @@ var statusCodePlatformError = map[string]int{
 	platform.ENotFound:            http.StatusNotFound,
 	platform.EUnavailable:         http.StatusServiceUnavailable,
 	platform.EForbidden:           http.StatusForbidden,
+	platform.ETooManyRequests:     http.StatusTooManyRequests,
 	platform.EUnauthorized:        http.StatusUnauthorized,
 	platform.EMethodNotAllowed:    http.StatusMethodNotAllowed,
 }

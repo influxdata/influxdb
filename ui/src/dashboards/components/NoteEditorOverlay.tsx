@@ -11,8 +11,8 @@ import {
   ComponentStatus,
   SpinnerContainer,
   TechnoSpinner,
+  Overlay,
 } from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
 
 // Actions
 import {
@@ -24,7 +24,7 @@ import {
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
-import {savingNoteFailed} from 'src/shared/copy/v2/notifications'
+import {savingNoteFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {RemoteDataState} from 'src/types'
@@ -96,7 +96,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
       <div className="note-editor-container">
         <Overlay visible={true}>
           <Overlay.Container maxWidth={900}>
-            <Overlay.Heading title={this.overlayTitle} onDismiss={this.close} />
+            <Overlay.Header title={this.overlayTitle} onDismiss={this.close} />
             <Overlay.Body>
               <SpinnerContainer
                 loading={this.props.viewsStatus}

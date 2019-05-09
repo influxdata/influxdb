@@ -22,16 +22,7 @@ type resultSet struct {
 	mb  multiShardCursors
 }
 
-func NewResultSet(ctx context.Context, req *datatypes.ReadRequest, cur SeriesCursor) ResultSet {
-	return &resultSet{
-		ctx: ctx,
-		agg: req.Aggregate,
-		cur: cur,
-		mb:  newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit),
-	}
-}
-
-func NewResultSetFromFilter(ctx context.Context, req *datatypes.ReadFilterRequest, cur SeriesCursor) ResultSet {
+func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, cur SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx: ctx,
 		cur: cur,

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 )
 
@@ -17,19 +17,55 @@ const (
 	targetThreeID = "020f755c3c082002"
 )
 
+var (
+	target1 = influxdb.ScraperTarget{
+		Name:     "name1",
+		Type:     influxdb.PrometheusScraperType,
+		OrgID:    MustIDBase16(orgOneID),
+		BucketID: MustIDBase16(bucketOneID),
+		URL:      "url1",
+		ID:       MustIDBase16(targetOneID),
+	}
+	target2 = influxdb.ScraperTarget{
+		Name:     "name2",
+		Type:     influxdb.PrometheusScraperType,
+		OrgID:    MustIDBase16(orgTwoID),
+		BucketID: MustIDBase16(bucketTwoID),
+		URL:      "url2",
+		ID:       MustIDBase16(targetTwoID),
+	}
+	target3 = influxdb.ScraperTarget{
+		Name:     "name3",
+		Type:     influxdb.PrometheusScraperType,
+		OrgID:    MustIDBase16(orgOneID),
+		BucketID: MustIDBase16(bucketThreeID),
+		URL:      "url3",
+		ID:       MustIDBase16(targetThreeID),
+	}
+	org1 = influxdb.Organization{
+		ID:   MustIDBase16(orgOneID),
+		Name: "org1",
+	}
+	org2 = influxdb.Organization{
+		ID:   MustIDBase16(orgTwoID),
+		Name: "org2",
+	}
+)
+
 // TargetFields will include the IDGenerator, and targets
 type TargetFields struct {
-	IDGenerator          platform.IDGenerator
-	Targets              []*platform.ScraperTarget
-	UserResourceMappings []*platform.UserResourceMapping
+	IDGenerator          influxdb.IDGenerator
+	Targets              []*influxdb.ScraperTarget
+	UserResourceMappings []*influxdb.UserResourceMapping
+	Organizations        []*influxdb.Organization
 }
 
 var targetCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []platform.ScraperTarget) []platform.ScraperTarget {
-		out := append([]platform.ScraperTarget(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []influxdb.ScraperTarget) []influxdb.ScraperTarget {
+		out := append([]influxdb.ScraperTarget(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -39,12 +75,12 @@ var targetCmpOptions = cmp.Options{
 
 // ScraperService tests all the service functions.
 func ScraperService(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()), t *testing.T,
+	init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()), t *testing.T,
 ) {
 	t.Helper()
 	tests := []struct {
 		name string
-		fn   func(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
+		fn   func(init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()),
 			t *testing.T)
 	}{
 		{
@@ -77,18 +113,18 @@ func ScraperService(
 
 // AddTarget testing.
 func AddTarget(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
+	init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 	t.Helper()
 	type args struct {
-		userID platform.ID
-		target *platform.ScraperTarget
+		userID influxdb.ID
+		target *influxdb.ScraperTarget
 	}
 	type wants struct {
 		err                  error
-		targets              []platform.ScraperTarget
-		userResourceMappings []*platform.UserResourceMapping
+		targets              []influxdb.ScraperTarget
+		userResourceMappings []*influxdb.UserResourceMapping
 	}
 	tests := []struct {
 		name   string
@@ -100,32 +136,33 @@ func AddTarget(
 			name: "create targets with empty set",
 			fields: TargetFields{
 				IDGenerator:          mock.NewIDGenerator(targetOneID, t),
-				Targets:              []*platform.ScraperTarget{},
-				UserResourceMappings: []*platform.UserResourceMapping{},
+				Targets:              []*influxdb.ScraperTarget{},
+				UserResourceMappings: []*influxdb.UserResourceMapping{},
+				Organizations:        []*influxdb.Organization{&org1},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
-				target: &platform.ScraperTarget{
+				target: &influxdb.ScraperTarget{
 					Name:     "name1",
-					Type:     platform.PrometheusScraperType,
+					Type:     influxdb.PrometheusScraperType,
 					OrgID:    MustIDBase16(orgOneID),
 					BucketID: MustIDBase16(bucketOneID),
 					URL:      "url1",
 				},
 			},
 			wants: wants{
-				userResourceMappings: []*platform.UserResourceMapping{
+				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.ScraperResourceType,
+						ResourceType: influxdb.ScraperResourceType,
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						UserType:     influxdb.Owner,
 					},
 				},
-				targets: []platform.ScraperTarget{
+				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
@@ -138,11 +175,12 @@ func AddTarget(
 			name: "create target with invalid org id",
 			fields: TargetFields{
 				IDGenerator:          mock.NewIDGenerator(targetTwoID, t),
-				UserResourceMappings: []*platform.UserResourceMapping{},
-				Targets: []*platform.ScraperTarget{
+				UserResourceMappings: []*influxdb.UserResourceMapping{},
+				Organizations:        []*influxdb.Organization{&org1},
+				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
@@ -151,25 +189,25 @@ func AddTarget(
 				},
 			},
 			args: args{
-				target: &platform.ScraperTarget{
+				target: &influxdb.ScraperTarget{
 					ID:       MustIDBase16(targetTwoID),
 					Name:     "name2",
-					Type:     platform.PrometheusScraperType,
+					Type:     influxdb.PrometheusScraperType,
 					BucketID: MustIDBase16(bucketTwoID),
 					URL:      "url2",
 				},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInvalid,
+				err: &influxdb.Error{
+					Code: influxdb.EInvalid,
 					Msg:  "provided organization ID has invalid format",
-					Op:   platform.OpAddTarget,
+					Op:   influxdb.OpAddTarget,
 				},
-				userResourceMappings: []*platform.UserResourceMapping{},
-				targets: []platform.ScraperTarget{
+				userResourceMappings: []*influxdb.UserResourceMapping{},
+				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
@@ -182,11 +220,12 @@ func AddTarget(
 			name: "create target with invalid bucket id",
 			fields: TargetFields{
 				IDGenerator:          mock.NewIDGenerator(targetTwoID, t),
-				UserResourceMappings: []*platform.UserResourceMapping{},
-				Targets: []*platform.ScraperTarget{
+				UserResourceMappings: []*influxdb.UserResourceMapping{},
+				Organizations:        []*influxdb.Organization{&org1},
+				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
@@ -195,25 +234,25 @@ func AddTarget(
 				},
 			},
 			args: args{
-				target: &platform.ScraperTarget{
+				target: &influxdb.ScraperTarget{
 					ID:    MustIDBase16(targetTwoID),
 					Name:  "name2",
-					Type:  platform.PrometheusScraperType,
+					Type:  influxdb.PrometheusScraperType,
 					OrgID: MustIDBase16(orgTwoID),
 					URL:   "url2",
 				},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInvalid,
+				err: &influxdb.Error{
+					Code: influxdb.EInvalid,
 					Msg:  "provided bucket ID has invalid format",
-					Op:   platform.OpAddTarget,
+					Op:   influxdb.OpAddTarget,
 				},
-				userResourceMappings: []*platform.UserResourceMapping{},
-				targets: []platform.ScraperTarget{
+				userResourceMappings: []*influxdb.UserResourceMapping{},
+				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
@@ -226,55 +265,56 @@ func AddTarget(
 			name: "basic create target",
 			fields: TargetFields{
 				IDGenerator: mock.NewIDGenerator(targetTwoID, t),
-				Targets: []*platform.ScraperTarget{
+				Targets: []*influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
 					},
 				},
-				UserResourceMappings: []*platform.UserResourceMapping{
+				Organizations: []*influxdb.Organization{&org1, &org2},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(targetOneID),
-						ResourceType: platform.ScraperResourceType,
+						ResourceType: influxdb.ScraperResourceType,
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						UserType:     influxdb.Member,
 					},
 				},
 			},
 			args: args{
 				userID: MustIDBase16(threeID),
-				target: &platform.ScraperTarget{
+				target: &influxdb.ScraperTarget{
 					ID:       MustIDBase16(targetTwoID),
 					Name:     "name2",
-					Type:     platform.PrometheusScraperType,
+					Type:     influxdb.PrometheusScraperType,
 					OrgID:    MustIDBase16(orgTwoID),
 					BucketID: MustIDBase16(bucketTwoID),
 					URL:      "url2",
 				},
 			},
 			wants: wants{
-				userResourceMappings: []*platform.UserResourceMapping{
+				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
-						ResourceType: platform.ScraperResourceType,
+						ResourceType: influxdb.ScraperResourceType,
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
+						UserType:     influxdb.Member,
 					},
 					{
 						ResourceID:   MustIDBase16(twoID),
-						ResourceType: platform.ScraperResourceType,
+						ResourceType: influxdb.ScraperResourceType,
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
+						UserType:     influxdb.Owner,
 					},
 				},
-				targets: []platform.ScraperTarget{
+				targets: []influxdb.ScraperTarget{
 					{
 						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
@@ -282,7 +322,7 @@ func AddTarget(
 					},
 					{
 						Name:     "name2",
-						Type:     platform.PrometheusScraperType,
+						Type:     influxdb.PrometheusScraperType,
 						OrgID:    MustIDBase16(orgTwoID),
 						BucketID: MustIDBase16(bucketTwoID),
 						URL:      "url2",
@@ -301,16 +341,16 @@ func AddTarget(
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 			defer s.RemoveTarget(ctx, tt.args.target.ID)
 
-			targets, err := s.ListTargets(ctx)
+			targets, err := s.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve scraper targets: %v", err)
 			}
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
 				t.Errorf("scraper targets are different -got/+want\ndiff %s", diff)
 			}
-			urms, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 				UserID:       tt.args.userID,
-				ResourceType: platform.ScraperResourceType,
+				ResourceType: influxdb.ScraperResourceType,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)
@@ -325,60 +365,192 @@ func AddTarget(
 
 // ListTargets testing
 func ListTargets(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
+	init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
-
+	type args struct {
+		filter influxdb.ScraperTargetFilter
+	}
 	type wants struct {
-		targets []platform.ScraperTarget
+		targets []influxdb.ScraperTarget
 		err     error
 	}
 
 	tests := []struct {
 		name   string
 		fields TargetFields
+		args   args
 		wants  wants
 	}{
 		{
-			name: "find all targets",
+			name: "get all targets",
 			fields: TargetFields{
-				Targets: []*platform.ScraperTarget{
-					{
-						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
-						URL:      "url1",
-						ID:       MustIDBase16(targetOneID),
-					},
-					{
-						Name:     "name2",
-						Type:     platform.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgTwoID),
-						BucketID: MustIDBase16(bucketTwoID),
-						URL:      "url2",
-						ID:       MustIDBase16(targetTwoID),
-					},
+				Organizations: []*influxdb.Organization{
+					&org1,
+					&org2,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{},
+			},
+			wants: wants{
+				targets: []influxdb.ScraperTarget{
+					target1,
+					target2,
+					target3,
+				},
+			},
+		},
+		{
+			name: "filter by name",
+			fields: TargetFields{
+				Organizations: []*influxdb.Organization{
+					&org1,
+					&org2,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{
+					Name: strPtr(target2.Name),
 				},
 			},
 			wants: wants{
-				targets: []platform.ScraperTarget{
-					{
-						Name:     "name1",
-						Type:     platform.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgOneID),
-						BucketID: MustIDBase16(bucketOneID),
-						URL:      "url1",
-						ID:       MustIDBase16(targetOneID),
-					},
-					{
-						Name:     "name2",
-						Type:     platform.PrometheusScraperType,
-						OrgID:    MustIDBase16(orgTwoID),
-						BucketID: MustIDBase16(bucketTwoID),
-						URL:      "url2",
-						ID:       MustIDBase16(targetTwoID),
-					},
+				targets: []influxdb.ScraperTarget{
+					target2,
+				},
+			},
+		},
+		{
+			name: "filter by id",
+			fields: TargetFields{
+				Organizations: []*influxdb.Organization{
+					&org1,
+					&org2,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{
+					IDs: map[influxdb.ID]bool{target2.ID: false},
+				},
+			},
+			wants: wants{
+				targets: []influxdb.ScraperTarget{
+					target2,
+				},
+			},
+		},
+		{
+			name: "filter targets by orgID",
+			fields: TargetFields{
+				Organizations: []*influxdb.Organization{
+					&org1,
+					&org2,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{
+					OrgID: idPtr(MustIDBase16(orgOneID)),
+				},
+			},
+			wants: wants{
+				targets: []influxdb.ScraperTarget{
+					target1,
+					target3,
+				},
+			},
+		},
+		{
+			name: "filter targets by orgID not exist",
+			fields: TargetFields{
+				Organizations: []*influxdb.Organization{
+					&org2,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{
+					OrgID: idPtr(MustIDBase16(orgOneID)),
+				},
+			},
+			wants: wants{
+				targets: []influxdb.ScraperTarget{},
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Msg:  "organization not found",
+				},
+			},
+		},
+		{
+			name: "filter targets by org name",
+			fields: TargetFields{
+				Organizations: []*influxdb.Organization{
+					&org1,
+					&org2,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{
+					Org: strPtr("org1"),
+				},
+			},
+			wants: wants{
+				targets: []influxdb.ScraperTarget{
+					target1,
+					target3,
+				},
+			},
+		},
+		{
+			name: "filter targets by org name not exist",
+			fields: TargetFields{
+				Organizations: []*influxdb.Organization{
+					&org1,
+				},
+				Targets: []*influxdb.ScraperTarget{
+					&target1,
+					&target2,
+					&target3,
+				},
+			},
+			args: args{
+				filter: influxdb.ScraperTargetFilter{
+					Org: strPtr("org2"),
+				},
+			},
+			wants: wants{
+				targets: []influxdb.ScraperTarget{},
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Msg:  `organization name "org2" not found`,
 				},
 			},
 		},
@@ -388,7 +560,7 @@ func ListTargets(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			targets, err := s.ListTargets(ctx)
+			targets, err := s.ListTargets(ctx, tt.args.filter)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
@@ -400,16 +572,16 @@ func ListTargets(
 
 // GetTargetByID testing
 func GetTargetByID(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
+	init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 	t.Helper()
 	type args struct {
-		id platform.ID
+		id influxdb.ID
 	}
 	type wants struct {
 		err    error
-		target *platform.ScraperTarget
+		target *influxdb.ScraperTarget
 	}
 
 	tests := []struct {
@@ -421,7 +593,8 @@ func GetTargetByID(
 		{
 			name: "basic find target by id",
 			fields: TargetFields{
-				Targets: []*platform.ScraperTarget{
+				Organizations: []*influxdb.Organization{&org1},
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						Name:     "target1",
@@ -440,7 +613,7 @@ func GetTargetByID(
 				id: MustIDBase16(targetTwoID),
 			},
 			wants: wants{
-				target: &platform.ScraperTarget{
+				target: &influxdb.ScraperTarget{
 					ID:       MustIDBase16(targetTwoID),
 					Name:     "target2",
 					OrgID:    MustIDBase16(orgOneID),
@@ -451,7 +624,7 @@ func GetTargetByID(
 		{
 			name: "find target by id not find",
 			fields: TargetFields{
-				Targets: []*platform.ScraperTarget{
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						Name:     "target1",
@@ -470,9 +643,9 @@ func GetTargetByID(
 				id: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpGetTargetByID,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpGetTargetByID,
 					Msg:  "scraper target is not found",
 				},
 			},
@@ -496,16 +669,16 @@ func GetTargetByID(
 }
 
 // RemoveTarget testing
-func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
+func RemoveTarget(init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()),
 	t *testing.T) {
 	type args struct {
-		ID     platform.ID
-		userID platform.ID
+		ID     influxdb.ID
+		userID influxdb.ID
 	}
 	type wants struct {
 		err                  error
-		userResourceMappings []*platform.UserResourceMapping
-		targets              []platform.ScraperTarget
+		userResourceMappings []*influxdb.UserResourceMapping
+		targets              []influxdb.ScraperTarget
 	}
 	tests := []struct {
 		name   string
@@ -516,21 +689,22 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 		{
 			name: "delete targets using exist id",
 			fields: TargetFields{
-				UserResourceMappings: []*platform.UserResourceMapping{
+				Organizations: []*influxdb.Organization{&org1},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Owner,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 					{
 						ResourceID:   MustIDBase16(twoID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 				},
-				Targets: []*platform.ScraperTarget{
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						OrgID:    MustIDBase16(orgOneID),
@@ -548,15 +722,15 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				userResourceMappings: []*platform.UserResourceMapping{
+				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(twoID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 				},
-				targets: []platform.ScraperTarget{
+				targets: []influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetTwoID),
 						OrgID:    MustIDBase16(orgOneID),
@@ -568,21 +742,22 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 		{
 			name: "delete targets using id that does not exist",
 			fields: TargetFields{
-				UserResourceMappings: []*platform.UserResourceMapping{
+				Organizations: []*influxdb.Organization{&org1},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Owner,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 					{
 						ResourceID:   MustIDBase16(twoID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 				},
-				Targets: []*platform.ScraperTarget{
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						OrgID:    MustIDBase16(orgOneID),
@@ -600,12 +775,12 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpRemoveTarget,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpRemoveTarget,
 					Msg:  "scraper target is not found",
 				},
-				targets: []platform.ScraperTarget{
+				targets: []influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						OrgID:    MustIDBase16(orgOneID),
@@ -617,18 +792,18 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 						BucketID: MustIDBase16(bucketOneID),
 					},
 				},
-				userResourceMappings: []*platform.UserResourceMapping{
+				userResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Owner,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Owner,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 					{
 						ResourceID:   MustIDBase16(twoID),
 						UserID:       MustIDBase16(threeID),
-						UserType:     platform.Member,
-						ResourceType: platform.ScraperResourceType,
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.ScraperResourceType,
 					},
 				},
 			},
@@ -642,16 +817,16 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 			err := s.RemoveTarget(ctx, tt.args.ID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			targets, err := s.ListTargets(ctx)
+			targets, err := s.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve targets: %v", err)
 			}
 			if diff := cmp.Diff(targets, tt.wants.targets, targetCmpOptions...); diff != "" {
 				t.Errorf("targets are different -got/+want\ndiff %s", diff)
 			}
-			urms, _, err := s.FindUserResourceMappings(ctx, platform.UserResourceMappingFilter{
+			urms, _, err := s.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 				UserID:       tt.args.userID,
-				ResourceType: platform.ScraperResourceType,
+				ResourceType: influxdb.ScraperResourceType,
 			})
 			if err != nil {
 				t.Fatalf("failed to retrieve user resource mappings: %v", err)
@@ -665,17 +840,17 @@ func RemoveTarget(init func(TargetFields, *testing.T) (platform.ScraperTargetSto
 
 // UpdateTarget testing
 func UpdateTarget(
-	init func(TargetFields, *testing.T) (platform.ScraperTargetStoreService, string, func()),
+	init func(TargetFields, *testing.T) (influxdb.ScraperTargetStoreService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
 		url    string
-		userID platform.ID
-		id     platform.ID
+		userID influxdb.ID
+		id     influxdb.ID
 	}
 	type wants struct {
 		err    error
-		target *platform.ScraperTarget
+		target *influxdb.ScraperTarget
 	}
 
 	tests := []struct {
@@ -687,7 +862,8 @@ func UpdateTarget(
 		{
 			name: "update url with blank id",
 			fields: TargetFields{
-				Targets: []*platform.ScraperTarget{
+				Organizations: []*influxdb.Organization{&org1},
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						URL:      "url1",
@@ -706,9 +882,9 @@ func UpdateTarget(
 				url: "changed",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInvalid,
-					Op:   platform.OpUpdateTarget,
+				err: &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Op:   influxdb.OpUpdateTarget,
 					Msg:  "provided scraper target ID has invalid format",
 				},
 			},
@@ -716,7 +892,8 @@ func UpdateTarget(
 		{
 			name: "update url with non exist id",
 			fields: TargetFields{
-				Targets: []*platform.ScraperTarget{
+				Organizations: []*influxdb.Organization{&org1},
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						URL:      "url1",
@@ -736,9 +913,9 @@ func UpdateTarget(
 				url: "changed",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpUpdateTarget,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpUpdateTarget,
 					Msg:  "scraper target is not found",
 				},
 			},
@@ -746,7 +923,8 @@ func UpdateTarget(
 		{
 			name: "update url",
 			fields: TargetFields{
-				Targets: []*platform.ScraperTarget{
+				Organizations: []*influxdb.Organization{&org1},
+				Targets: []*influxdb.ScraperTarget{
 					{
 						ID:       MustIDBase16(targetOneID),
 						URL:      "url1",
@@ -766,7 +944,7 @@ func UpdateTarget(
 				url: "changed",
 			},
 			wants: wants{
-				target: &platform.ScraperTarget{
+				target: &influxdb.ScraperTarget{
 					ID:       MustIDBase16(targetOneID),
 					URL:      "changed",
 					OrgID:    MustIDBase16(orgOneID),
@@ -782,7 +960,7 @@ func UpdateTarget(
 			defer done()
 			ctx := context.Background()
 
-			upd := &platform.ScraperTarget{
+			upd := &influxdb.ScraperTarget{
 				ID:  tt.args.id,
 				URL: tt.args.url,
 			}

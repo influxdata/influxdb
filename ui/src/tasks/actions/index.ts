@@ -21,7 +21,7 @@ import {
   taskCloneFailed,
   taskRunSuccess,
   taskGetFailed,
-} from 'src/shared/copy/v2/notifications'
+} from 'src/shared/copy/notifications'
 import {
   importTaskFailed,
   importTaskSucceeded,
@@ -45,6 +45,8 @@ import {getErrorMessage} from 'src/utils/api'
 import {insertPreambleInScript} from 'src/shared/utils/insertPreambleInScript'
 import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
+import {isLimitError} from 'src/cloud/utils/limits'
+import {checkTaskLimits} from 'src/cloud/actions/limits'
 
 export type Action =
   | SetNewScript
@@ -241,7 +243,7 @@ export const getTasks = () => async (
       orgs: {org},
     } = getState()
 
-    const tasks = await client.tasks.getAllByOrgID(org.id)
+    const tasks = await client.tasks.getAll(org.id)
 
     dispatch(setTasks(tasks))
     dispatch(setTasksStatus(RemoteDataState.Done))
@@ -327,10 +329,15 @@ export const cloneTask = (task: Task, _) => async dispatch => {
 
     dispatch(notify(taskCloneSuccess(task.name)))
     dispatch(getTasks())
-  } catch (e) {
-    console.error(e)
-    const message = getErrorMessage(e)
-    dispatch(notify(taskCloneFailed(task.name, message)))
+    dispatch(checkTaskLimits())
+  } catch (error) {
+    console.error(error)
+    if (isLimitError(error)) {
+      dispatch(notify(copy.resourceLimitReached('tasks')))
+    } else {
+      const message = getErrorMessage(error)
+      dispatch(notify(taskCloneFailed(task.name, message)))
+    }
   }
 }
 
@@ -387,8 +394,10 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
 
     if (taskOptions.taskScheduleType === TaskSchedule.interval) {
       updatedTask.every = taskOptions.interval
+      updatedTask.cron = null
     } else {
       updatedTask.cron = taskOptions.cron
+      updatedTask.every = null
     }
 
     await client.tasks.update(task.id, updatedTask)
@@ -421,10 +430,15 @@ export const saveNewScript = (script: string, preamble: string) => async (
     dispatch(getTasks())
     dispatch(goToTasks())
     dispatch(notify(taskCreatedSuccess()))
+    dispatch(checkTaskLimits())
   } catch (error) {
     console.error(error)
-    const message = getErrorMessage(error)
-    dispatch(notify(taskNotCreated(message)))
+    if (isLimitError(error)) {
+      dispatch(notify(copy.resourceLimitReached('tasks')))
+    } else {
+      const message = getErrorMessage(error)
+      dispatch(notify(taskNotCreated(message)))
+    }
   }
 }
 
@@ -487,6 +501,8 @@ export const runTask = (taskID: string) => async dispatch => {
     await client.tasks.startRunByTaskID(taskID)
     dispatch(notify(taskRunSuccess()))
   } catch (error) {
+    const message = getErrorMessage(error)
+    dispatch(notify(copy.taskRunFailed(message)))
     console.error(error)
   }
 }
@@ -531,14 +547,22 @@ export const createTaskFromTemplate = (template: ITaskTemplate) => async (
 
     dispatch(getTasks())
     dispatch(notify(importTaskSucceeded()))
+    dispatch(checkTaskLimits())
   } catch (error) {
-    dispatch(notify(importTaskFailed(error)))
+    if (isLimitError(error)) {
+      dispatch(notify(copy.resourceLimitReached('tasks')))
+    } else {
+      dispatch(notify(importTaskFailed(error)))
+    }
   }
 }
 
 export const runDuration = (finishedAt: Date, startedAt: Date): string => {
   let timeTag = 'seconds'
 
+  if (isNaN(finishedAt.getTime()) || isNaN(startedAt.getTime())) {
+    return ''
+  }
   let diff = (finishedAt.getTime() - startedAt.getTime()) / 1000
 
   if (diff > 60) {

@@ -46,7 +46,9 @@ var (
 	doc1 = influxdb.Document{
 		ID: doc1ID,
 		Meta: influxdb.DocumentMeta{
-			Name: "doc1",
+			Name:        "doc1",
+			Type:        "typ1",
+			Description: "desc1",
 		},
 		Content: "content1",
 		Labels: []*influxdb.Label{
@@ -75,6 +77,7 @@ var (
 		ID: doc4ID,
 		Meta: influxdb.DocumentMeta{
 			Name: "doc4",
+			Type: "typ4",
 		},
 		Content: "content4",
 	}
@@ -122,7 +125,9 @@ var (
 						}
 				  ],
 				"meta": {
-					"name": "doc1"
+					"name": "doc1",
+					"type": "typ1",
+					"description": "desc1"
 				}
 			},
 			{
@@ -130,7 +135,7 @@ var (
 				"links": {
 					"self": "/api/v2/documents/template/020f755c3c082011"
 				},
-				"content": "content2", 
+				"content": "content2",
 				"meta": {
 					"name": "doc2"
 				}
@@ -311,8 +316,12 @@ func TestService_handleDeleteDocumentLabel(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteDocumentLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handleDeleteDocumentLabel() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteDocumentLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteDocumentLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -487,8 +496,12 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDocumentLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handlePostDocumentLabel() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostDocumentLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostDocumentLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -594,8 +607,12 @@ func TestService_handleGetDocumentLabels(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDocumentLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetDocumentLabel() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetDocumentLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetDocumentLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -621,20 +638,6 @@ func TestService_handleGetDocuments(t *testing.T) {
 		args   args
 		wants  wants
 	}{
-		{
-			name: "get all documents without org or orgID",
-			fields: fields{
-				DocumentService: findDocsServiceMock,
-			},
-			args: args{
-				authorizer: &influxdb.Session{UserID: user1ID},
-			},
-			wants: wants{
-				statusCode:  http.StatusBadRequest,
-				contentType: "application/json; charset=utf-8",
-				body:        `{"code":"invalid", "message":"Please provide either org or orgID"}`,
-			},
-		},
 		{
 			name: "get all documents with both org and orgID",
 			fields: fields{
@@ -721,8 +724,12 @@ func TestService_handleGetDocuments(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDocuments() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetDocuments() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetDocuments(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetDocuments() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -903,8 +910,12 @@ func TestService_handlePostDocuments(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDocument() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handlePostDocument() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostDocument(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostDocument() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
