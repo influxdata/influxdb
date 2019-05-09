@@ -13,9 +13,6 @@ import {RemoteDataState} from 'src/types'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/clockface/components/resource_list/ResourceName.scss'
-
 interface Props {
   onUpdate: (name: string) => void
   name: string
@@ -100,7 +97,7 @@ class ResourceName extends Component<Props, State> {
             onFocus={this.handleInputFocus}
             onChange={this.handleInputChange}
             onKeyDown={this.handleKeyDown}
-            customClass="resource-name--input"
+            className="resource-name--input"
             value={workingName}
             testID={inputTestID}
           />

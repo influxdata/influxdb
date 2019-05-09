@@ -34,14 +34,14 @@ export const RANGE: FluxToolbarFunction = {
     {
       name: 'stop',
       desc:
-        'Specifies the exclusive newest time to be included in the results. Defaults to `now`.',
+        'Specifies the exclusive newest time to be included in the results. Defaults to `now()`.',
       type: 'Duration',
     },
   ],
   package: '',
   desc:
     "Filters records based on time bounds. Each input table's records are filtered to contain only records that exist within the time bounds. Each input table's group key value is modified to fit within the time bounds. Tables where all records exists outside the time bounds are filtered entirely.",
-  example: 'range(start: -15m, stop: now)',
+  example: 'range(start: -15m, stop: now())',
   category: 'Transformations',
   link:
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/range/',
@@ -2706,14 +2706,14 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/sum/',
   },
   {
-    name: 'systemTime',
+    name: 'system.time',
     args: [],
-    package: '',
+    package: 'system',
     desc: 'Returns the current system time.',
-    example: 'systemTime()',
+    example: 'system.time()',
     category: 'Miscellaneous',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/misc/systemtime/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/system/time/',
   },
   {
     name: 'testing.assertEmpty',
@@ -3166,18 +3166,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Function',
       },
       {
-        name: 'timeCol',
+        name: 'timeColumn',
         desc: 'The column containing time. Defaults to `"_time"`.',
         type: 'String',
       },
       {
-        name: 'startCol',
+        name: 'startColumn',
         desc:
           'The column containing the window start time. Defaults to `"_start"`.',
         type: 'String',
       },
       {
-        name: 'stopCol',
+        name: 'stopColumn',
         desc:
           'The column containing the window stop time. Defaults to `"_stop"`.',
         type: 'String',
@@ -3187,7 +3187,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Groups records based on a time value. New columns are added to uniquely identify each window. Those columns are added to the group key of the output tables. A single input record will be placed into zero or more output tables, depending on the specific windowing function.',
     example:
-      'window(every: 5m, period: 5m, offset: 12h, timeCol: "_time", startCol: "_start", stopCol: "_stop")',
+      'window(every: 5m, period: 5m, offset: 12h, timeColumn: "_time", startColumn: "_start", stopColumn: "_stop")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/window/',

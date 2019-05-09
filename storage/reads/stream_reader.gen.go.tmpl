@@ -7,17 +7,11 @@ import (
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
-type streamCursor interface {
-	streamCursor()
-}
-
 {{range .}}
 type {{.name}}CursorStreamReader struct {
 	fr *frameReader
 	a  cursors.{{.Name}}Array
 }
-
-func (c *{{.name}}CursorStreamReader) streamCursor() {}
 
 func (c *{{.name}}CursorStreamReader) Close() {
 	for c.fr.state == stateRead{{.Name}}Points {

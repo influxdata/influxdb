@@ -1,8 +1,11 @@
 @import "src/style/modules";
 
+#notes-portal {
+  z-index: $z--notes-portal;
+}
+
 .cell-header-note-tooltip {
   position: fixed;
-  z-index: 3;
 }
 
 .cell-header-note-tooltip--content {

@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Overlay, Input, Form} from 'src/clockface'
+import {Form} from 'src/clockface'
 import {
   IconFont,
   ComponentColor,
@@ -15,13 +15,14 @@ import {
   ButtonType,
   Grid,
   Columns,
+  Input,
+  Overlay,
 } from '@influxdata/clockface'
 import BucketsSelector from 'src/authorizations/components/BucketsSelector'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Utils
 import {
-  allBucketsPermissions,
   specificBucketsPermissions,
   selectBucket,
 } from 'src/authorizations/utils/permissions'
@@ -33,11 +34,10 @@ import {createAuthorization} from 'src/authorizations/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, RemoteDataState} from 'src/types'
+import {AppState} from 'src/types'
 import {Bucket, Permission, Authorization} from '@influxdata/influx'
 
 interface StateProps {
-  bucketsStatus: RemoteDataState
   buckets: Bucket[]
 }
 
@@ -64,7 +64,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container>
-          <Overlay.Heading
+          <Overlay.Header
             title="Generate Read/Write Token"
             onDismiss={this.handleDismiss}
           />
@@ -196,17 +196,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 
   private get writeBucketPermissions(): Permission[] {
-    const {
-      buckets,
-      params: {orgID},
-    } = this.props
-
-    const allWriteBucketsSelected =
-      this.state.writeBuckets.length === buckets.length
-
-    if (allWriteBucketsSelected) {
-      return allBucketsPermissions(orgID, Permission.ActionEnum.Write)
-    }
+    const {buckets} = this.props
 
     const writeBuckets = this.state.writeBuckets.map(bucketName => {
       return buckets.find(b => b.name === bucketName)
@@ -216,17 +206,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 
   private get readBucketPermissions(): Permission[] {
-    const {
-      buckets,
-      params: {orgID},
-    } = this.props
-
-    const allReadBucketsSelected =
-      this.state.readBuckets.length === buckets.length
-
-    if (allReadBucketsSelected) {
-      return allBucketsPermissions(orgID, Permission.ActionEnum.Read)
-    }
+    const {buckets} = this.props
 
     const readBuckets = this.state.readBuckets.map(bucketName => {
       return buckets.find(b => b.name === bucketName)
@@ -251,8 +231,8 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({buckets: {status, list}}: AppState): StateProps => {
-  return {bucketsStatus: status, buckets: list}
+const mstp = ({buckets: {list}}: AppState): StateProps => {
+  return {buckets: list}
 }
 
 const mdtp: DispatchProps = {

@@ -7,17 +7,14 @@ import {client} from 'src/utils/api'
 import {RemoteDataState, AppState, Bucket} from 'src/types'
 
 // Utils
-import {isLimitError} from 'src/cloud/utils/limits'
+import {getErrorMessage} from 'src/utils/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 import {checkBucketLimits} from 'src/cloud/actions/limits'
 
 // Constants
-import {
-  getBucketsFailed,
-  resourceLimitReached,
-} from 'src/shared/copy/notifications'
+import {getBucketsFailed} from 'src/shared/copy/notifications'
 import {
   bucketCreateFailed,
   bucketUpdateFailed,
@@ -117,11 +114,8 @@ export const createBucket = (bucket: Bucket) => async (
     dispatch(checkBucketLimits())
   } catch (error) {
     console.error(error)
-    if (isLimitError(error)) {
-      dispatch(notify(resourceLimitReached('buckets')))
-    } else {
-      dispatch(notify(bucketCreateFailed()))
-    }
+    const message = getErrorMessage(error)
+    dispatch(notify(bucketCreateFailed(message)))
   }
 }
 
@@ -135,7 +129,8 @@ export const updateBucket = (updatedBucket: Bucket) => async (
     dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)
-    dispatch(notify(bucketUpdateFailed(updatedBucket.name)))
+    const message = getErrorMessage(e)
+    dispatch(notify(bucketUpdateFailed(message)))
   }
 }
 

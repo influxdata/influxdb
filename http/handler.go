@@ -86,6 +86,11 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var span opentracing.Span
 	span, r = tracing.ExtractFromHTTPRequest(r, h.name)
+	userAgent := r.Header.Get("User-Agent")
+	if userAgent == "" {
+		userAgent = "unknown"
+	}
+
 	defer span.Finish()
 
 	// TODO: better way to do this?
@@ -98,16 +103,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		statusClass := statusW.statusCodeClass()
 		statusCode := statusW.code()
 		h.requests.With(prometheus.Labels{
-			"handler": h.name,
-			"method":  r.Method,
-			"path":    r.URL.Path,
-			"status":  statusClass,
+			"handler":    h.name,
+			"method":     r.Method,
+			"path":       r.URL.Path,
+			"status":     statusClass,
+			"user_agent": userAgent,
 		}).Inc()
 		h.requestDur.With(prometheus.Labels{
-			"handler": h.name,
-			"method":  r.Method,
-			"path":    r.URL.Path,
-			"status":  statusClass,
+			"handler":    h.name,
+			"method":     r.Method,
+			"path":       r.URL.Path,
+			"status":     statusClass,
+			"user_agent": userAgent,
 		}).Observe(duration.Seconds())
 		if h.Logger != nil {
 			errField := zap.Skip()
@@ -169,14 +176,14 @@ func (h *Handler) initMetrics() {
 		Subsystem: handlerSubsystem,
 		Name:      "requests_total",
 		Help:      "Number of http requests received",
-	}, []string{"handler", "method", "path", "status"})
+	}, []string{"handler", "method", "path", "status", "user_agent"})
 
 	h.requestDur = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: namespace,
 		Subsystem: handlerSubsystem,
 		Name:      "request_duration_seconds",
 		Help:      "Time taken to respond to HTTP request",
-	}, []string{"handler", "method", "path", "status"})
+	}, []string{"handler", "method", "path", "status", "user_agent"})
 }
 
 func logEncodingError(logger *zap.Logger, r *http.Request, err error) {

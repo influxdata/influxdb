@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
@@ -1007,8 +1009,11 @@ func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.Reference
 		p.tracker.CompactionAttempted(level, success, time.Since(start))
 	}()
 
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
+
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
+	log, logEnd := logger.NewOperation(ctx, p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
 	defer logEnd()
 
 	// Check for cancellation.
@@ -1144,6 +1149,9 @@ func (p *Partition) checkLogFile() error {
 		return nil
 	}
 
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
+
 	// Swap current log file.
 	logFile := p.activeLogFile
 
@@ -1156,7 +1164,7 @@ func (p *Partition) checkLogFile() error {
 	// Begin compacting in a background goroutine.
 	p.compactionsWG.Add(1)
 	go func() {
-		p.compactLogFile(logFile, ref.Closing())
+		p.compactLogFile(ctx, logFile, ref.Closing())
 		ref.Release()          // release our reference
 		p.compactionsWG.Done() // compaction is now complete
 		p.Compact()            // check for new compactions
@@ -1168,7 +1176,7 @@ func (p *Partition) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (p *Partition) compactLogFile(logFile *LogFile, interrupt <-chan struct{}) {
+func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interrupt <-chan struct{}) {
 	defer func() {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
@@ -1184,7 +1192,7 @@ func (p *Partition) compactLogFile(logFile *LogFile, interrupt <-chan struct{}) 
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(p.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
+	log, logEnd := logger.NewOperation(ctx, p.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
 	defer logEnd()
 
 	// Create new index file.

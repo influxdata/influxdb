@@ -156,10 +156,8 @@ describe('DataExplorer', () => {
         cy.createBucket(id, name, 'newBucket')
       })
 
-      cy.getByTestID('buckets--button').click()
-
-      cy.getByTestID('dropdown--item defbuck').should('exist')
-      cy.getByTestID('dropdown--item newBucket').should('exist')
+      cy.getByTestID('selector-list defbuck').should('exist')
+      cy.getByTestID('selector-list newBucket').should('exist')
     })
 
     it('can delete a second query', () => {

@@ -38,6 +38,10 @@ func (w *StringIteratorWriter) WrittenN() int {
 }
 
 func (w *StringIteratorWriter) WriteStringIterator(si cursors.StringIterator) error {
+	if si == nil {
+		return nil
+	}
+
 	for si.Next() {
 		v := si.Value()
 		if v == "" {

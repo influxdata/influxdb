@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
@@ -90,7 +91,7 @@ var _ backend.RunPromise = (*syncRunPromise)(nil)
 func newSyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr backend.QueuedRun, e *queryServiceExecutor, t *influxdb.Task) *syncRunPromise {
 	ctx, cancel := context.WithCancel(ctx)
 	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
-	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
+	log, logEnd := logger.NewOperation(ctx, opLogger, "Executing task", "execute")
 	rp := &syncRunPromise{
 		qr:     qr,
 		auth:   auth,
@@ -252,7 +253,7 @@ func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.Que
 		return nil, err
 	}
 
-	return newAsyncRunPromise(run, q, e), nil
+	return newAsyncRunPromise(ctx, run, q, e), nil
 }
 
 func (e *asyncQueryServiceExecutor) Wait() {
@@ -275,9 +276,12 @@ type asyncRunPromise struct {
 
 var _ backend.RunPromise = (*asyncRunPromise)(nil)
 
-func newAsyncRunPromise(qr backend.QueuedRun, q flux.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
+func newAsyncRunPromise(ctx context.Context, qr backend.QueuedRun, q flux.Query, e *asyncQueryServiceExecutor) *asyncRunPromise {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
-	log, logEnd := logger.NewOperation(opLogger, "Executing task", "execute")
+	log, logEnd := logger.NewOperation(ctx, opLogger, "Executing task", "execute")
 
 	p := &asyncRunPromise{
 		qr:    qr,

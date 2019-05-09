@@ -20,11 +20,10 @@
   left: 0;
   right: 0;
   cursor: pointer;
-  font-size: 22px;
   user-select: none;
   width: 100%;
   height: 100%;
-  display: inline-flex;
+  display: flex;
   justify-content: center;
   flex-direction: column;
   align-items: center;
@@ -37,9 +36,11 @@
 
 .card-select--image {
   justify-content: center;
-  max-width: 60%;
+  max-width: 50%;
   filter: grayscale(0.8) opacity(30%);
   transition: filter 0.2s ease;
+  transform: translateY(-6%);
+
   img {
     width: 100%;
     height: 100%;
@@ -71,10 +72,10 @@
   min-width: 100%;
   display: inline-block;
   position: absolute;
-  bottom: 5%;
+  bottom: 10%;
   font-family: $ix-text-font;
   color: $ix-text-default;
-  font-size: $ix-text-base;
+  font-size: $form-md-font;
   font-weight: 600;
 }
 
@@ -82,17 +83,14 @@
   display: flex;
   justify-content: center;
   align-items: center;
-}
-
-.card-select--label,
-.card-select--no-image {
   position: relative;
 }
 
 .card-select--checkmark {
+  font-size: 20px;
   position: absolute;
-  left: 5%;
-  top: 5%;
+  left: 12px;
+  top: 12px;
   height: 22px;
   width: 22px;
   color: $c-rainforest;

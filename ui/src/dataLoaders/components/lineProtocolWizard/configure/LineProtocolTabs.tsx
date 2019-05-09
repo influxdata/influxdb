@@ -17,18 +17,13 @@ import {WritePrecision} from '@influxdata/influx'
 import {
   setLineProtocolBody,
   setActiveLPTab,
-  writeLineProtocolAction,
   setPrecision,
 } from 'src/dataLoaders/actions/dataLoaders'
-
-// Styles
-import 'src/clockface/components/auto_input/AutoInput.scss'
 
 interface OwnProps {
   tabs: LineProtocolTab[]
   bucket: string
   org: string
-  handleUpload?: () => void
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -36,7 +31,6 @@ type Props = OwnProps & DispatchProps & StateProps
 interface DispatchProps {
   setLineProtocolBody: typeof setLineProtocolBody
   setActiveLPTab: typeof setActiveLPTab
-  writeLineProtocolAction: typeof writeLineProtocolAction
   setPrecision: typeof setPrecision
 }
 
@@ -67,7 +61,6 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
       tabs,
       setLineProtocolBody,
       lineProtocolBody,
-      handleUpload,
     } = this.props
 
     const {urlInput} = this.state
@@ -102,7 +95,6 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
                     urlInput={urlInput}
                     lineProtocolBody={lineProtocolBody}
                     setLineProtocolBody={setLineProtocolBody}
-                    handleUpload={handleUpload}
                   />
                 </div>
               </div>
@@ -136,7 +128,6 @@ const mstp = ({
 const mdtp: DispatchProps = {
   setLineProtocolBody,
   setActiveLPTab,
-  writeLineProtocolAction,
   setPrecision,
 }
 

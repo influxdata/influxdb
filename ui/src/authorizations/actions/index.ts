@@ -15,6 +15,8 @@ import {
   authorizationUpdateFailed,
   authorizationDeleteFailed,
   authorizationCreateSuccess,
+  authorizationDeleteSuccess,
+  authorizationUpdateSuccess,
 } from 'src/shared/copy/notifications'
 
 // Types
@@ -126,6 +128,7 @@ export const updateAuthorization = (authorization: Authorization) => async (
     await client.authorizations.update(authorization.id, authorization)
 
     dispatch(getAuthorizations())
+    dispatch(notify(authorizationUpdateSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationUpdateFailed(authorization.id)))
@@ -139,6 +142,7 @@ export const deleteAuthorization = (id: string, name: string = '') => async (
     await client.authorizations.delete(id)
 
     dispatch(removeAuthorization(id))
+    dispatch(notify(authorizationDeleteSuccess()))
   } catch (e) {
     console.error(e)
     dispatch(notify(authorizationDeleteFailed(name)))

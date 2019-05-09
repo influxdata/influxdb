@@ -13,6 +13,7 @@ import {EXCLUDED_KEYS} from 'src/shared/constants/fluxEditor'
 
 // Utils
 import {getSuggestions} from 'src/shared/utils/autoComplete'
+import {onTab} from 'src/shared/utils/fluxEditor'
 
 // Types
 import {OnChangeScript, Suggestion} from 'src/types/flux'
@@ -96,6 +97,7 @@ class FluxEditor extends PureComponent<Props, State> {
       theme: 'time-machine',
       completeSingle: false,
       gutters: ['error-gutter'],
+      extraKeys: {Tab: onTab},
     }
 
     return (

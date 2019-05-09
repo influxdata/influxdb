@@ -12,9 +12,6 @@ import {ComponentSize} from '@influxdata/clockface'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Styles
-import 'src/clockface/components/resource_list/ResourceDescription.scss'
-
 interface Props {
   onUpdate: (name: string) => void
   description: string
@@ -77,7 +74,7 @@ class ResourceDescription extends Component<Props, State> {
         onFocus={this.handleInputFocus}
         onChange={this.handleInputChange}
         onKeyDown={this.handleKeyDown}
-        customClass="resource-description--input"
+        className="resource-description--input"
         value={workingDescription}
       />
     )

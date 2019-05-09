@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/influxdata/influxdb/logger"
@@ -47,6 +48,18 @@ func TestParseSeriesKeyInto(t *testing.T) {
 		t.Fatalf("got tags length %d, expected %d", got, exp)
 	} else if got, exp := gotTags, tags; !got.Equal(exp) {
 		t.Fatalf("got tags %v, expected %v", got, exp)
+	}
+}
+
+// Ensure that broken series files are closed
+func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
+	f := NewBrokenSeriesFile([]byte{0, 0, 0, 0, 0})
+	defer f.Close()
+	f.Logger = logger.New(os.Stdout)
+
+	err := f.Open(context.Background())
+	if err == nil {
+		t.Fatalf("should report error")
 	}
 }
 
@@ -238,6 +251,27 @@ func NewSeriesFile() *SeriesFile {
 		panic(err)
 	}
 	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
+}
+
+func NewBrokenSeriesFile(content []byte) *SeriesFile {
+	sFile := NewSeriesFile()
+	fPath := sFile.Path()
+	if err := sFile.Open(context.Background()); err != nil {
+		panic(err)
+	}
+	if err := sFile.SeriesFile.Close(); err != nil {
+		panic(err)
+	}
+
+	segPath := path.Join(fPath, "00", "0000")
+	if _, err := os.Stat(segPath); os.IsNotExist(err) {
+		panic(err)
+	}
+	err := ioutil.WriteFile(segPath, content, 0777)
+	if err != nil {
+		panic(err)
+	}
+	return sFile
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.

@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Apis
-import {executeQuery} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -122,8 +122,7 @@ class DataListening extends PureComponent<OwnProps & WithRouterProps, State> {
     let timePassed: number
 
     try {
-      const response = await executeQuery('/api/v2/query', orgID, script)
-        .promise
+      const response = await runQuery(orgID, script).promise
       rowCount = response.rowCount
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {

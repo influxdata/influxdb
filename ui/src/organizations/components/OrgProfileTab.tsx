@@ -15,6 +15,8 @@ import {
   AlignItems,
   FlexDirection,
   Gradients,
+  InfluxColors,
+  JustifyContent,
 } from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -27,7 +29,7 @@ type Props = WithRouterProps
 class OrgProfileTab extends PureComponent<Props> {
   public render() {
     return (
-      <Panel size={ComponentSize.Medium}>
+      <Panel size={ComponentSize.Small} backgroundColor={InfluxColors.Onyx}>
         <Panel.Header title="Organization Profile" />
         <Panel.Body>
           <Form onSubmit={this.handleShowEditOverlay}>
@@ -38,13 +40,14 @@ class OrgProfileTab extends PureComponent<Props> {
               <Panel.Header title="Danger Zone!" />
               <Panel.Body>
                 <ComponentSpacer
+                  stretchToFitWidth={true}
                   alignItems={AlignItems.Center}
                   direction={FlexDirection.Row}
-                  margin={ComponentSize.Large}
+                  justifyContent={JustifyContent.SpaceBetween}
                 >
                   <div>
-                    <h4>Rename Organization</h4>
-                    <p>
+                    <h5 style={{marginBottom: '0'}}>Rename Organization</h5>
+                    <p style={{marginTop: '2px'}}>
                       This action can have wide-reaching unintended
                       consequences.
                     </p>

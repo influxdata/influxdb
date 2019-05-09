@@ -28,6 +28,7 @@ class InitStep extends PureComponent<OnboardingStepProps> {
           text="Get Started"
           size={ComponentSize.Large}
           onClick={this.handleNext}
+          testID="onboarding-get-started"
         />
       </div>
     )

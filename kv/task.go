@@ -558,6 +558,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		tc.Status = string(backend.TaskActive)
 	}
 
+	createdAt := time.Now().UTC().Format(time.RFC3339)
 	task := &influxdb.Task{
 		ID:              s.IDGenerator.ID(),
 		OrganizationID:  org.ID,
@@ -568,7 +569,8 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		Flux:            tc.Flux,
 		Every:           opt.Every.String(),
 		Cron:            opt.Cron,
-		CreatedAt:       time.Now().UTC().Format(time.RFC3339),
+		CreatedAt:       createdAt,
+		LatestCompleted: createdAt,
 	}
 	if opt.Offset != nil {
 		task.Offset = opt.Offset.String()
@@ -1189,6 +1191,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 			Created: backend.QueuedRun{
 				TaskID: taskID,
 				RunID:  mRun.ID,
+				DueAt:  time.Now().UTC().Unix(),
 				Now:    schedFor.Unix(),
 			},
 			NextDue:  nextDue,
@@ -1307,6 +1310,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		Created: backend.QueuedRun{
 			TaskID: taskID,
 			RunID:  id,
+			DueAt:  dueAt.Unix(),
 			Now:    nextScheduledUnix,
 		},
 		NextDue:  nextDue.Unix(),

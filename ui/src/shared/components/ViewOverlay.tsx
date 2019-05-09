@@ -2,8 +2,13 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Button, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
-import {Overlay, ComponentSize} from 'src/clockface'
+import {
+  Button,
+  SpinnerContainer,
+  TechnoSpinner,
+  Overlay,
+  ComponentSize,
+} from '@influxdata/clockface'
 import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import CopyButton from 'src/shared/components/CopyButton'
 
@@ -31,10 +36,7 @@ export default class ViewOverlay extends PureComponent<Props> {
     return (
       <Overlay visible={isVisible}>
         <Overlay.Container maxWidth={800}>
-          <Overlay.Heading
-            title={overlayHeading}
-            onDismiss={onDismissOverlay}
-          />
+          <Overlay.Header title={overlayHeading} onDismiss={onDismissOverlay} />
           <Overlay.Body>
             <SpinnerContainer
               loading={status}

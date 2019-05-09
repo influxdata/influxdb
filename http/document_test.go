@@ -316,8 +316,12 @@ func TestService_handleDeleteDocumentLabel(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteDocumentLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handleDeleteDocumentLabel() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteDocumentLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteDocumentLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -492,8 +496,12 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDocumentLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handlePostDocumentLabel() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostDocumentLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostDocumentLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -599,8 +607,12 @@ func TestService_handleGetDocumentLabels(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDocumentLabel() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetDocumentLabel() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetDocumentLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetDocumentLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -712,8 +724,12 @@ func TestService_handleGetDocuments(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDocuments() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetDocuments() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetDocuments(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetDocuments() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -894,8 +910,12 @@ func TestService_handlePostDocuments(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDocument() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handlePostDocument() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostDocument(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostDocument() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}

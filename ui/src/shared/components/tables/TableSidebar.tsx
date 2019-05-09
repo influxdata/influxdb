@@ -43,7 +43,7 @@ export default class TableSidebar extends PureComponent<Props, State> {
               onChange={this.handleSearch}
               placeholder="Filter tables..."
               value={searchTerm}
-              customClass="time-machine-sidebar--filter"
+              className="time-machine-sidebar--filter"
             />
           </div>
         )}

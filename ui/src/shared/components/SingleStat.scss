@@ -1,5 +1,3 @@
-@import 'src/style/modules';
-
 .single-stat {
   display: flex;
   align-items: center;
@@ -10,13 +8,24 @@
   padding: 10px;
   color: $c-laser;
   @include no-user-select();
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 
 .single-stat--resizer {
   overflow: hidden;
   width: 100%;
-  height: 100%;
+  height: calc(100% - 32px);
+  margin-top: 32px;
 }
+
+.dygraph-child .single-stat--resizer {
+    height: 100%;
+    margin-top: 0;
+  }
 
 .single-stat--text {
   font-family: $ix-text-font;

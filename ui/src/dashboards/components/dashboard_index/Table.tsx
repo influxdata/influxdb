@@ -133,6 +133,7 @@ class DashboardsTable extends PureComponent<Props, State> {
           onSelectImport={onImportDashboard}
           onSelectTemplate={this.summonImportFromTemplateOverlay}
           resourceName="Dashboard"
+          canImportFromTemplate={true}
         />
       </EmptyState>
     )
