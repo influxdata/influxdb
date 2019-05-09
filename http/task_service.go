@@ -1366,7 +1366,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, taskIDPath(id))
+	u, err := NewURL(t.Addr, taskIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -1378,7 +1378,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -1409,7 +1409,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, tasksPath)
+	u, err := NewURL(t.Addr, tasksPath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1440,7 +1440,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, 0, err
@@ -1468,7 +1468,7 @@ func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*p
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, tasksPath)
+	u, err := NewURL(t.Addr, tasksPath)
 	if err != nil {
 		return nil, err
 	}
@@ -1487,7 +1487,7 @@ func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*p
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1511,7 +1511,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, taskIDPath(id))
+	u, err := NewURL(t.Addr, taskIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -1530,7 +1530,7 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1555,7 +1555,7 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, taskIDPath(id))
+	u, err := NewURL(t.Addr, taskIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -1569,7 +1569,7 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1596,7 +1596,7 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 		urlPath = path.Join(taskIDRunIDPath(filter.Task, *filter.Run), "logs")
 	}
 
-	u, err := newURL(t.Addr, urlPath)
+	u, err := NewURL(t.Addr, urlPath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1608,7 +1608,7 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1637,7 +1637,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 		return nil, 0, errors.New("task ID required")
 	}
 
-	u, err := newURL(t.Addr, taskIDRunsPath(filter.Task))
+	u, err := NewURL(t.Addr, taskIDRunsPath(filter.Task))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1659,7 +1659,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1689,7 +1689,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, taskIDRunIDPath(taskID, runID))
+	u, err := NewURL(t.Addr, taskIDRunIDPath(taskID, runID))
 	if err != nil {
 		return nil, err
 	}
@@ -1702,7 +1702,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1733,7 +1733,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	defer span.Finish()
 
 	p := path.Join(taskIDRunIDPath(taskID, runID), "retry")
-	u, err := newURL(t.Addr, p)
+	u, err := NewURL(t.Addr, p)
 	if err != nil {
 		return nil, err
 	}
@@ -1746,7 +1746,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1780,7 +1780,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, taskIDRunsPath(taskID))
+	u, err := NewURL(t.Addr, taskIDRunsPath(taskID))
 	if err != nil {
 		return nil, err
 	}
@@ -1794,7 +1794,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -1832,7 +1832,7 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) e
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(t.Addr, cancelPath(taskID, runID))
+	u, err := NewURL(t.Addr, cancelPath(taskID, runID))
 	if err != nil {
 		return err
 	}
@@ -1845,7 +1845,7 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) e
 	SetToken(t.Token, req)
 	tracing.InjectToHTTPRequest(span, req)
 
-	hc := newClient(u.Scheme, t.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {

@@ -29,7 +29,7 @@ var defaultTransport http.RoundTripper = &http.Transport{
 }
 
 // skipVerifyTransport is the default implementation of Transport and is
-// used by traceClient (newClient with insecure set to true). It establishes network connections as needed
+// used by traceClient (NewClient with insecure set to true). It establishes network connections as needed
 // and caches them for reuse by subsequent calls. It uses HTTP proxies
 // as directed by the $HTTP_PROXY and $NO_PROXY (or $http_proxy and
 // $no_proxy) environment variables.
