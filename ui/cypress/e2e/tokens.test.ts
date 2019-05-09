@@ -307,7 +307,7 @@ describe('tokens', () => {
       .contains('Jeton 01')
       .click()
     cy.getByTestID('overlay--container').should('be.visible')
-    cy.getByTestID('overlay--title').should('contain', 'Jeton 01')
+    cy.getByTestID('overlay--header').should('contain', 'Jeton 01')
     cy.getByTestID('permissions-section').should('have.length', 2)
 
     cy.getByTestID('permissions-section')
@@ -349,7 +349,7 @@ describe('tokens', () => {
 
     //title match
     cy.getByTestID('overlay--container').should('be.visible')
-    cy.getByTestID('overlay--title').should('contain', 'token test \u0950')
+    cy.getByTestID('overlay--header').should('contain', 'token test \u0950')
 
     //summary match
     cy.getByTestID('permissions-section').should('have.length', 4)
@@ -374,7 +374,9 @@ describe('tokens', () => {
     //todo check system clipboard
 
     //close button
-    cy.getByTestID('button--dismiss').click()
+    cy.getByTestID('overlay--header').within(() => {
+      cy.get('button').click()
+    })
     cy.getByTestID('overlay--container').should('not.be.visible')
   })
 })
