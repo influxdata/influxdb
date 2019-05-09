@@ -404,8 +404,12 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetTasks() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetTasks() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetTasks(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetTasks() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -508,8 +512,12 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostTask() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostTask() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostTask(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostTask() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -614,8 +622,12 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetRun() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetRun() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetRun(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetRun() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -724,8 +736,12 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetRuns() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetRuns() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetRuns(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetRuns() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -1109,8 +1125,12 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("got %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("Diff\n%s", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostTaskLabel(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostTaskLabel() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}

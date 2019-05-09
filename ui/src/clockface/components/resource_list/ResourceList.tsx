@@ -9,9 +9,6 @@ import ResourceCard from 'src/clockface/components/resource_list/ResourceCard'
 import ResourceName from 'src/clockface/components/resource_list/ResourceName'
 import ResourceDescription from 'src/clockface/components/resource_list/ResourceDescription'
 
-// Styles
-import 'src/clockface/components/resource_list/ResourceList.scss'
-
 interface Props {
   children: JSX.Element[] | JSX.Element
 }

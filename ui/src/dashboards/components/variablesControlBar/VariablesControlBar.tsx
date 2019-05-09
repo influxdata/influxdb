@@ -18,9 +18,6 @@ import {
   getDashboardVariablesStatus,
 } from 'src/variables/selectors'
 
-// Styles
-import 'src/dashboards/components/variablesControlBar/VariablesControlBar.scss'
-
 // Actions
 import {moveVariable} from 'src/variables/actions'
 
@@ -94,7 +91,7 @@ class VariablesControlBar extends PureComponent<Props, State> {
     return (
       <EmptyState
         size={ComponentSize.ExtraSmall}
-        customClass="variables-control-bar--empty"
+        className="variables-control-bar--empty"
       >
         <EmptyState.Text text="To see variable controls here, use a variable in a cell query" />
       </EmptyState>

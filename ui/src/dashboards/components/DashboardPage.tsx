@@ -210,7 +210,6 @@ class DashboardPage extends Component<Props, State> {
                 manualRefresh={manualRefresh}
                 setScrollTop={this.setScrollTop}
                 onCloneCell={this.handleCloneCell}
-                onZoom={this.handleZoomedTimeRange}
                 inPresentationMode={inPresentationMode}
                 onPositionChange={this.handlePositionChange}
                 onDeleteCell={this.handleDeleteDashboardCell}
@@ -330,8 +329,6 @@ class DashboardPage extends Component<Props, State> {
     const {dashboard, deleteCell} = this.props
     await deleteCell(dashboard, cell)
   }
-
-  private handleZoomedTimeRange = (__: TimeRange): void => {}
 
   private setScrollTop = (e: MouseEvent<HTMLElement>): void => {
     const target = e.target as HTMLElement

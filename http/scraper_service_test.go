@@ -236,8 +236,12 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetScraperTargets() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetScraperTargets() = ***%s***\n\ngot:\n%s\n\nwant:\n%s", tt.name, diff, string(body), tt.wants.body)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetScraperTargets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetScraperTargets() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -370,8 +374,12 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetScraperTarget() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetScraperTarget(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetScraperTarget() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -471,8 +479,12 @@ func TestService_handleDeleteScraperTarget(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteScraperTarget() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteScraperTarget(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteScraperTarget() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -594,8 +606,12 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostScraperTarget() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostScraperTarget(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostScraperTarget() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -781,8 +797,12 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchScraperTarget() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchScraperTarget() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePatchScraperTarget(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePatchScraperTarget() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}

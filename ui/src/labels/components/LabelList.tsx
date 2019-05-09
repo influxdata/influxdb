@@ -2,7 +2,8 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList, Overlay} from 'src/clockface'
+import {IndexList} from 'src/clockface'
+import {Overlay} from '@influxdata/clockface'
 import UpdateLabelOverlay from 'src/labels/components/UpdateLabelOverlay'
 import LabelRow from 'src/labels/components/LabelRow'
 

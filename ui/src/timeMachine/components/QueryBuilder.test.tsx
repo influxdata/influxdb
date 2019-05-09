@@ -20,31 +20,13 @@ const setInitialState = state => {
 
 describe('QueryBuilder', () => {
   it('can select a bucket', async () => {
-    const {
-      getByTestId,
-      getAllByTestId,
-      queryAllByTestId,
-      getByText,
-    } = renderWithRedux(<QueryBuilder />, setInitialState)
+    const {getByTestId} = renderWithRedux(<QueryBuilder />, setInitialState)
 
-    const bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
-
-    fireEvent.click(bucketsDropdownClosed)
-
-    const bucketItems = getAllByTestId(/dropdown--item/)
-
-    expect(bucketItems.length).toBe(2)
-
-    const b2 = getByTestId('dropdown--item b2')
+    const b2 = await waitForElement(() => getByTestId('selector-list b2'))
 
     fireEvent.click(b2)
 
-    const closedDropdown = await waitForElement(() =>
-      getByTestId('buckets--button')
-    )
-
-    expect(closedDropdown.textContent).toBe('b2')
-    expect(queryAllByTestId(/dropdown--item/).length).toBe(0)
+    expect(b2.className).toContain('selected')
   })
 
   it('can select a tag', async () => {

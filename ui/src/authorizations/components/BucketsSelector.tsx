@@ -60,14 +60,14 @@ class BucketsSelector extends PureComponent<Props> {
               <Button
                 text="Select All"
                 size={ComponentSize.ExtraSmall}
-                customClass="bucket-selectors--button"
+                className="bucket-selectors--button"
                 onClick={onSelectAll}
                 testID="button--select-all"
               />
               <Button
                 text="Deselect All"
                 size={ComponentSize.ExtraSmall}
-                customClass="bucket-selectors--button"
+                className="bucket-selectors--button"
                 onClick={onDeselectAll}
                 testID="button-deselect-all"
               />
@@ -95,6 +95,7 @@ class BucketsSelector extends PureComponent<Props> {
                   items={sortedBuckets.map(b => b.name)}
                   selectedItems={selectedBuckets}
                   onSelectItem={onSelect}
+                  multiSelect={false}
                 />
               )}
             </SortingHat>

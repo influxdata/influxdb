@@ -137,6 +137,38 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	}
 }
 
+func TestScheduler_DontRunInactiveTasks(t *testing.T) {
+	t.Parallel()
+
+	tcs := mock.NewTaskControlService()
+	e := mock.NewExecutor()
+	o := backend.NewScheduler(tcs, e, 5)
+	o.Start(context.Background())
+	defer o.Stop()
+
+	task := &platform.Task{
+		ID:              platform.ID(1),
+		Every:           "1s",
+		LatestCompleted: "1970-01-01T00:00:05Z",
+		Status:          "inactive",
+		Flux:            `option task = {concurrency: 2, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
+	}
+
+	tcs.SetTask(task)
+	if err := o.ClaimTask(context.Background(), task); err != nil {
+		t.Fatal(err)
+	}
+
+	if x, err := tcs.PollForNumberCreated(task.ID, 0); err != nil {
+		t.Fatalf("expected no runs queued, but got %d", len(x))
+	}
+
+	o.Tick(6)
+	if x, err := tcs.PollForNumberCreated(task.ID, 0); err != nil {
+		t.Fatalf("expected no runs on inactive task, got %d", len(x))
+	}
+}
+
 func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	t.Parallel()
 
@@ -829,7 +861,10 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 1 {
 		t.Fatalf("expected 1 run active for task ID %s, got %v", task.ID.String(), got)
 	}
-
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_run_queue_delta", nil)
+	if got := m.Summary.GetSampleCount(); got != 1.0 {
+		t.Fatalf("expected 1 delta in summary: got: %v", got)
+	}
 	s.Tick(7)
 	if _, err := e.PollForNumberRunning(task.ID, 2); err != nil {
 		t.Fatal(err)
@@ -843,6 +878,10 @@ func TestScheduler_Metrics(t *testing.T) {
 	m = promtest.MustFindMetric(t, mfs, "task_scheduler_runs_active", map[string]string{"task_id": task.ID.String()})
 	if got := *m.Gauge.Value; got != 2 {
 		t.Fatalf("expected 2 runs active for task ID %s, got %v", task.ID.String(), got)
+	}
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_run_queue_delta", nil)
+	if got := m.Summary.GetSampleCount(); got != 2.0 {
+		t.Fatalf("expected 2 delta in summary: got: %v", got)
 	}
 
 	// Runs active decreases as run finishes.

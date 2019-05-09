@@ -65,7 +65,6 @@ export default class TasksHeader extends PureComponent<Props> {
               onSelectImport={onImportTask}
               resourceName="Task"
               status={this.addResourceStatus}
-              titleText={this.addResourceTitleText}
             />
           </Page.Header.Right>
         </Page.Header>
@@ -112,12 +111,5 @@ export default class TasksHeader extends PureComponent<Props> {
       return ComponentStatus.Disabled
     }
     return ComponentStatus.Default
-  }
-
-  private get addResourceTitleText(): string {
-    const {limitStatus} = this.props
-    if (limitStatus === LimitStatus.EXCEEDED) {
-      return 'This account has the maximum number of tasks allowed'
-    }
   }
 }

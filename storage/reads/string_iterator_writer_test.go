@@ -45,3 +45,12 @@ func TestStringIteratorWriter(t *testing.T) {
 		t.Errorf("expected %v got %v", expect, got)
 	}
 }
+
+func TestStringIteratorWriter_Nil(t *testing.T) {
+	w := reads.NewStringIteratorWriter(&mockStringValuesStream{})
+	err := w.WriteStringIterator(nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	w.Flush()
+}

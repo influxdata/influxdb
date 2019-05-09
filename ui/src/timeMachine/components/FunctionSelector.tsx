@@ -47,7 +47,7 @@ class FunctionSelector extends PureComponent<Props, State> {
         <BuilderCard.Header title="Aggregate Functions" />
         <BuilderCard.Menu>
           <Input
-            customClass="function-selector--search"
+            className="function-selector--search"
             value={searchTerm}
             onChange={this.handleSetSearchTerm}
             placeholder="Search functions..."
@@ -57,6 +57,7 @@ class FunctionSelector extends PureComponent<Props, State> {
           items={this.functions}
           selectedItems={this.selectedFunctions}
           onSelectItem={onSelectFunction}
+          multiSelect={true}
         />
       </BuilderCard>
     )

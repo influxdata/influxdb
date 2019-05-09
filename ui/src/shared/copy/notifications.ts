@@ -84,6 +84,16 @@ export const QuickstartScraperCreationError: Notification = {
   message: `Failed to configure InfluxDB Scraper`,
 }
 
+export const QuickstartDashboardCreationSuccess: Notification = {
+  ...defaultSuccessNotification,
+  message: `The Local Metrics Dashboard has been created`,
+}
+
+export const QuickstartDashboardCreationError: Notification = {
+  ...defaultErrorNotification,
+  message: `Failed to create the Local Metrics Dashboard`,
+}
+
 export const TelegrafConfigCreationSuccess: Notification = {
   ...defaultSuccessNotification,
   message: `Your configurations have been saved`,
@@ -395,22 +405,32 @@ export const getBucketsFailed = (): Notification => ({
 // Limits
 export const writeLimitReached = (): Notification => ({
   ...defaultErrorNotification,
-  message: `It looks like you have exceeded the write rate limits allowed as part of your plan. If you would like to increase your write rate limits, reach out to cloudbeta@influxdata.com.`,
-  duration: INFINITE,
+  message: `Exceeded write limits.`,
+  duration: FIVE_SECONDS,
   type: 'writeLimitReached',
 })
 
 export const readLimitReached = (): Notification => ({
   ...defaultErrorNotification,
-  message: `It looks like you have exceeded the query limits allowed as part of your plan. Try reducing the number of cells on your dashboard. If you would like to increase your query limits, reach out to cloudbeta@influxdata.com.`,
-  duration: INFINITE,
+  message: `Exceeded query limits.`,
+  duration: FIVE_SECONDS,
   type: 'readLimitReached',
 })
+
+export const rateLimitReached = (secs?: string): Notification => {
+  const retryText = ` Please try again in ${secs} seconds`
+  return {
+    ...defaultErrorNotification,
+    message: `Exceeded rate limits.${secs ? retryText : ''} `,
+    duration: FIVE_SECONDS,
+    type: 'rateLimitReached',
+  }
+}
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
   message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
-  duration: INFINITE,
+  duration: FIVE_SECONDS,
   type: 'resourceLimitReached',
 })
 
@@ -480,9 +500,15 @@ export const taskImportSuccess = (): Notification => ({
 })
 
 export const taskRunSuccess = (): Notification => ({
+  ...defaultErrorNotification,
+  duration: FIVE_SECONDS,
+  message: 'Task scheduled successfully',
+})
+
+export const taskRunFailed = (error: string): Notification => ({
   ...defaultSuccessNotification,
   duration: FIVE_SECONDS,
-  message: 'Task ran successfully',
+  message: `Failed to run task: ${error}`,
 })
 
 export const taskGetFailed = (error: string): Notification => ({
@@ -512,9 +538,9 @@ export const bucketCreateSuccess = (): Notification => ({
   message: 'Bucket was successfully created',
 })
 
-export const bucketCreateFailed = (): Notification => ({
+export const bucketCreateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
-  message: 'Failed to create bucket',
+  message: `Failed to create bucket: ${error}`,
 })
 
 export const bucketUpdateSuccess = (bucketName: string): Notification => ({
@@ -522,9 +548,9 @@ export const bucketUpdateSuccess = (bucketName: string): Notification => ({
   message: `Bucket "${bucketName}" was successfully updated`,
 })
 
-export const bucketUpdateFailed = (bucketName: string): Notification => ({
+export const bucketUpdateFailed = (error: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Failed to update bucket: "${bucketName}"`,
+  message: `Failed to update bucket: "${error}"`,
 })
 
 export const bucketRenameSuccess = (bucketName: string): Notification => ({
@@ -637,9 +663,19 @@ export const authorizationCreateFailed = (): Notification => ({
   message: 'Failed to create tokens',
 })
 
+export const authorizationUpdateSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token was updated successfully',
+})
+
 export const authorizationUpdateFailed = (desc: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to update token: "${desc}"`,
+})
+
+export const authorizationDeleteSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Token was deleted successfully',
 })
 
 export const authorizationDeleteFailed = (desc: string): Notification => ({

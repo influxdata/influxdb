@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"sort"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/slices"
 )
 
@@ -97,6 +98,7 @@ type groupByMergedGroupResultSet struct {
 	nilVal       []byte
 	err          error
 
+	km models.TagKeysSet
 	gc groupByMergedGroupCursor
 }
 
@@ -183,7 +185,13 @@ func (r *groupByMergedGroupResultSet) Next() GroupCursor {
 
 	r.gc.first = true
 	r.gc.heap.init(r.resultSets)
-	r.gc.keys = r.groupCursors[0].Keys()
+
+	r.km.Clear()
+	for i := range r.groupCursors {
+		r.km.UnionBytes(r.groupCursors[i].Keys())
+	}
+
+	r.gc.keys = append(r.gc.keys[:0], r.km.KeysBytes()...)
 	r.gc.vals = r.groupCursors[0].PartitionKeyVals()
 	return &r.gc
 }

@@ -222,10 +222,11 @@ func TestWALWriter_DeleteBucketRange(t *testing.T) {
 	w := NewWALSegmentWriter(f)
 
 	entry := &DeleteBucketRangeWALEntry{
-		OrgID:    influxdb.ID(1),
-		BucketID: influxdb.ID(2),
-		Min:      3,
-		Max:      4,
+		OrgID:     influxdb.ID(1),
+		BucketID:  influxdb.ID(2),
+		Min:       3,
+		Max:       4,
+		Predicate: []byte("predicate"),
 	}
 
 	if err := w.Write(mustMarshalEntry(entry)); err != nil {
@@ -449,10 +450,14 @@ func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {
 func TestDeleteBucketRangeWALEntry_UnmarshalBinary(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		in := &DeleteBucketRangeWALEntry{
-			OrgID:    influxdb.ID(rand.Int63()) + 1,
-			BucketID: influxdb.ID(rand.Int63()) + 1,
-			Min:      rand.Int63(),
-			Max:      rand.Int63(),
+			OrgID:     influxdb.ID(rand.Int63()) + 1,
+			BucketID:  influxdb.ID(rand.Int63()) + 1,
+			Min:       rand.Int63(),
+			Max:       rand.Int63(),
+			Predicate: make([]byte, rand.Intn(100)),
+		}
+		if len(in.Predicate) == 0 {
+			in.Predicate = nil
 		}
 
 		b, err := in.MarshalBinary()
@@ -473,10 +478,11 @@ func TestDeleteBucketRangeWALEntry_UnmarshalBinary(t *testing.T) {
 
 func TestWriteWALSegment_UnmarshalBinary_DeleteBucketRangeWALCorrupt(t *testing.T) {
 	w := &DeleteBucketRangeWALEntry{
-		OrgID:    influxdb.ID(1),
-		BucketID: influxdb.ID(2),
-		Min:      3,
-		Max:      4,
+		OrgID:     influxdb.ID(1),
+		BucketID:  influxdb.ID(2),
+		Min:       3,
+		Max:       4,
+		Predicate: []byte("predicate"),
 	}
 
 	b, err := w.MarshalBinary()

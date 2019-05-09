@@ -3,8 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, ComponentColor} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {Button, ComponentColor, Overlay} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -51,7 +50,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
         {this.button}
         <Overlay visible={isOverlayVisible}>
           <Overlay.Container maxWidth={400}>
-            <Overlay.Heading
+            <Overlay.Header
               title="Are you sure?"
               onDismiss={this.handleDismissOverlay}
             />

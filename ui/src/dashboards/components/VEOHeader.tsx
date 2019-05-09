@@ -4,8 +4,7 @@ import React, {PureComponent} from 'react'
 // Components
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
-  ButtonShape,
-  Button,
+  SquareButton,
   ComponentColor,
   ComponentSize,
   IconFont,
@@ -45,15 +44,13 @@ class VEOHeader extends PureComponent<Props> {
           <Page.Header.Right>
             <ViewTypeDropdown />
             <VisOptionsButton />
-            <Button
+            <SquareButton
               icon={IconFont.Remove}
-              shape={ButtonShape.Square}
               onClick={onCancel}
               size={ComponentSize.Small}
             />
-            <Button
+            <SquareButton
               icon={IconFont.Checkmark}
-              shape={ButtonShape.Square}
               color={ComponentColor.Success}
               size={ComponentSize.Small}
               onClick={onSave}

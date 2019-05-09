@@ -20,6 +20,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
         active={true}
         color="danger"
         onClick={[Function]}
+        placeIconAfterText={false}
         shape="none"
         size="sm"
         status="default"
@@ -27,17 +28,34 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
         text="I am a dangerous button!"
         type="button"
       >
-        <button
-          className="button button-sm button-danger active"
-          data-testid="delete-button"
-          disabled={false}
+        <t
+          active={true}
+          color="danger"
           onClick={[Function]}
+          shape="none"
+          size="sm"
+          status="default"
           tabIndex={0}
-          title="I am a dangerous button!"
+          testID="delete-button"
+          titleText="I am a dangerous button!"
           type="button"
         >
-          I am a dangerous button!
-        </button>
+          <button
+            className="button button-sm button-danger active"
+            data-testid="delete-button"
+            disabled={false}
+            onClick={[Function]}
+            tabIndex={0}
+            title="I am a dangerous button!"
+            type="button"
+          >
+            <span
+              className="button--label"
+            >
+              I am a dangerous button!
+            </span>
+          </button>
+        </t>
       </t>
       <div
         className="confirmation-button--tooltip visible"

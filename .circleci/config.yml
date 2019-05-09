@@ -19,7 +19,10 @@ jobs:
           command: bash ~/project/etc/litmus_fail_notify.sh Smoke
       - store_artifacts:
           path: ~/project
-
+          destination: raw-daily-output
+      - store_test_results:
+          path: ~/project
+          destination: daily-junit
   litmus_nightly:
     machine: true
     steps:
@@ -37,6 +40,10 @@ jobs:
           command: bash ~/project/etc/litmus_fail_notify.sh Nightly
       - store_artifacts:
           path: ~/project
+          destination: raw-nightly-output
+      - store_test_results:
+          path: ~/project
+          destination: nightly-junit
   e2e:
     docker:
       - image: circleci/golang:1.12-node-browsers
@@ -88,6 +95,7 @@ jobs:
     environment:
       GOCACHE: /tmp/go-cache
       GOFLAGS: '-mod=readonly -p=2' # Go on Circle thinks 32 CPUs are available, but there aren't.
+      TEST_RESULTS: /tmp/test-results
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -104,14 +112,14 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
       - run: make checkfmt
       - run: make checktidy
-      - run: make test-go-race # This doesn't use the test cache because of -count=1, so it will not complete quickly.
+      - run: GOTRACEBACK=all GO111MODULE=on gotestsum --format standard-verbose --junitfile /tmp/test-results/gotestsum.xml -- -race -count=1 ./...
       # TODO add these checks to the Makefile
       # - run: go get -v -t -d ./...
-
       - run: GO111MODULE=on go mod vendor # staticcheck looks in vendor for dependencies.
       - run: GO111MODULE=on go install honnef.co/go/tools/cmd/staticcheck # Install staticcheck from the version we specify in go.mod.
       - run: staticcheck ./...
@@ -128,7 +136,11 @@ jobs:
           paths:
             - /go/pkg/mod
           when: always
-
+      - store_artifacts: # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results: # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
+          path: /tmp/test-results
   build:
     docker:
       - image: circleci/golang:1.12-node-browsers
@@ -159,7 +171,6 @@ jobs:
             - bin/linux/influx
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
-
   deploy-nightly:
     docker:
       - image: circleci/golang:1.12-node-browsers
@@ -233,7 +244,6 @@ workflows:
           filters:
             branches:
               only: /^(?!pull\/).*$/
-
   e2e:
     jobs:
       - e2e

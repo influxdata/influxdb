@@ -1,14 +1,14 @@
-// Utils
 import Deferred from 'src/utils/Deferred'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {client} from 'src/utils/api'
+
+import {File} from '@influxdata/influx'
 
 // Types
-import {File} from 'src/types/ast'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
-const CHECK_LIMIT_INTERVAL = 200
 const MAX_ROWS = 50000
 
 export interface ExecuteFluxQueryResult {
@@ -17,59 +17,32 @@ export interface ExecuteFluxQueryResult {
   rowCount: number
 }
 
-interface XHRError extends Error {
-  xhr?: XMLHttpRequest
-}
-
-export const executeQuery = (
-  url: string,
+export const runQuery = (
   orgID: string,
   query: string,
   extern?: File
 ): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
-  // We're using `XMLHttpRequest` directly here rather than through `axios` so
-  // that we can poll the response size as it comes back. If the response size
-  // is greater than a predefined limit, we close the HTTP connection and
-  // return the partial response. We could acheive this more elegantly using
-  // `fetch` and the [Streams API][0], but the Streams API is currently behind
-  // a feature flag in Firefox.
-  //
-  // [0]: https://developer.mozilla.org/en-US/docs/Web/API/Streams_API
-  const xhr = new XMLHttpRequest()
   const deferred = new Deferred()
+
+  const conn = client.queries.execute(orgID, query, extern)
 
   let didTruncate = false
   let rowCount = 0
-  let rowCountIndex = 0
+  let csv = ''
 
-  const countNewRows = (): number => {
-    // Don't extract this to a non-closure helper, since passing
-    // `xhr.responseText` as an argument will be expensive
-    if (!xhr.responseText) {
-      return 0
+  conn.stream.on('data', d => {
+    rowCount++
+    csv += d
+
+    if (rowCount < MAX_ROWS) {
+      return
     }
 
-    let count = 0
+    didTruncate = true
+    conn.cancel()
+  })
 
-    for (let i = rowCountIndex; i < xhr.responseText.length; i++) {
-      if (xhr.responseText[i] === '\n') {
-        count++
-      }
-    }
-
-    return count
-  }
-
-  const resolve = () => {
-    let csv = xhr.responseText
-
-    if (didTruncate) {
-      // Discard the last line in the response since it may be partially read
-      csv = csv.slice(0, csv.lastIndexOf('\n'))
-    }
-
-    rowCount += countNewRows()
-
+  conn.stream.on('end', () => {
     const result: ExecuteFluxQueryResult = {
       csv,
       didTruncate,
@@ -77,71 +50,16 @@ export const executeQuery = (
     }
 
     deferred.resolve(result)
-    clearTimeout(interval)
-  }
+  })
 
-  const reject = () => {
-    let bodyError = null
-
-    try {
-      const body = JSON.parse(xhr.responseText)
-
-      bodyError = body.message || body.error
-    } catch {
-      if (xhr.responseText && xhr.responseText.trim() !== '') {
-        bodyError = xhr.responseText
-      }
-    }
-
-    const statusError = xhr.statusText
-    const fallbackError = 'failed to execute Flux query'
-    const error: XHRError = new Error(bodyError || statusError || fallbackError)
-    error.xhr = xhr
-
-    deferred.reject(error)
-    clearTimeout(interval)
-  }
-
-  const interval = setInterval(() => {
-    if (!xhr.responseText) {
-      // Haven't received any data yet
-      return
-    }
-
-    rowCount += countNewRows()
-    rowCountIndex = xhr.responseText.length
-
-    if (rowCount < MAX_ROWS) {
-      return
-    }
-
-    didTruncate = true
-    resolve()
-    xhr.abort()
-  }, CHECK_LIMIT_INTERVAL)
-
-  xhr.onload = () => {
-    if (xhr.status === 200) {
-      resolve()
-    } else {
-      reject()
-    }
-  }
-
-  xhr.onerror = reject
-
-  const dialect = {annotations: ['group', 'datatype', 'default']}
-  const body = extern ? {query, dialect, extern} : {query, dialect}
-
-  xhr.open('POST', `${url}?orgID=${encodeURIComponent(orgID)}`)
-  xhr.setRequestHeader('Content-Type', 'application/json')
-  xhr.send(JSON.stringify(body))
+  conn.stream.on('error', err => {
+    deferred.reject(err)
+  })
 
   return {
     promise: deferred.promise,
     cancel: () => {
-      clearTimeout(interval)
-      xhr.abort()
+      conn.cancel()
       deferred.reject(new CancellationError())
     },
   }
@@ -165,7 +83,6 @@ export const executeQuery = (
   used in the query.
 */
 export const executeQueryWithVars = (
-  url: string,
   orgID: string,
   query: string,
   variables?: VariableAssignment[]
@@ -187,7 +104,7 @@ export const executeQueryWithVars = (
     }
 
     const extern = buildVarsOption([...variables, ...windowVars])
-    const pendingResult = executeQuery(url, orgID, query, extern)
+    const pendingResult = runQuery(orgID, query, extern)
 
     cancelExecution = pendingResult.cancel
 

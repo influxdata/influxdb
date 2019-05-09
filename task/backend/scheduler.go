@@ -51,6 +51,9 @@ type QueuedRun struct {
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set when a run a manually requested
 	RequestedAt int64
 
+	// The Unix timestamp representing when this run was due to run.
+	DueAt int64
+
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
 	// as the "now" option when executing the task.
 	Now int64
@@ -489,6 +492,10 @@ func newTaskScheduler(
 // Work begins a work cycle on the taskScheduler.
 // As many runners are started as possible.
 func (ts *taskScheduler) Work() {
+	// if the task is inactive we wont do any work.
+	if ts.task.Status == "inactive" {
+		return
+	}
 	for _, r := range ts.runners {
 		r.Start()
 		if r.IsIdle() {
@@ -502,11 +509,11 @@ func (ts *taskScheduler) WorkCurrentlyRunning(runs []*platform.Run) error {
 	for _, cr := range runs {
 		foundWorker := false
 		for _, r := range ts.runners {
-			time, err := time.Parse(time.RFC3339, cr.ScheduledFor)
+			t, err := time.Parse(time.RFC3339, cr.ScheduledFor)
 			if err != nil {
 				return err
 			}
-			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.ID), Now: time.Unix()}
+			qr := QueuedRun{TaskID: ts.task.ID, RunID: platform.ID(cr.ID), DueAt: time.Now().UTC().Unix(), Now: t.Unix()}
 			if r.RestartRun(qr) {
 				foundWorker = true
 				break
@@ -781,7 +788,8 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger) {
 	switch s {
 	case RunStarted:
-		r.ts.metrics.StartRun(r.task.ID.String())
+		dueAt := time.Unix(qr.DueAt, 0)
+		r.ts.metrics.StartRun(r.task.ID.String(), time.Since(dueAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Flux))
 	case RunSuccess:
 		r.ts.metrics.FinishRun(r.task.ID.String(), true)

@@ -3,7 +3,7 @@ import {Dispatch} from 'redux'
 import {push, RouterAction} from 'react-router-redux'
 
 // APIs
-import {client} from 'src/utils/api'
+import {client, getErrorMessage} from 'src/utils/api'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -159,6 +159,10 @@ export const createOrgWithBucket = (
       ...defaultTemplates.gettingStartedWithFluxTemplate(),
       orgID: createdOrg.id,
     })
+    await client.templates.create({
+      ...defaultTemplates.localMetricsTemplate(),
+      orgID: createdOrg.id,
+    })
     dispatch(notify(orgCreateSuccess()))
 
     dispatch(addOrg(createdOrg))
@@ -176,7 +180,8 @@ export const createOrgWithBucket = (
     if (!createdOrg) {
       dispatch(notify(orgCreateFailed()))
     }
-    dispatch(notify(bucketCreateFailed()))
+    const message = getErrorMessage(e)
+    dispatch(notify(bucketCreateFailed(message)))
   }
 }
 

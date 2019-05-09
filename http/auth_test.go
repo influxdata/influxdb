@@ -352,8 +352,10 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetAuthorizations() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleGetAuthorizations() = -got/+want %s", tt.name, diff)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, handleGetAuthorizations(). error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. handleGetAuthorizations() = ***%s***", tt.name, diff)
 			}
 
 		})
@@ -537,7 +539,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 				t.Errorf("%q. handleGetAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handleGetAuthorization. unexpected error %v", tt.name, err)
+				t.Errorf("%q, handleGetAuthorization. error unmarshaling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetAuthorization() = -got/+want %s**", tt.name, diff)
 			}
@@ -714,8 +716,10 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostAuthorization() = -got/+want%s", tt.name, diff)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, handlePostAuthorization(). error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostAuthorization() = ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -823,8 +827,12 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 				t.Errorf("%q. handleDeleteAuthorization() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); !eq {
-				t.Errorf("%q. handleDeleteAuthorization() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteAuthorization(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteAuthorization() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}

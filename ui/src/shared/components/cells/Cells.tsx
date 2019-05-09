@@ -30,7 +30,6 @@ interface Props {
   cells: Cell[]
   timeRange: TimeRange
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   onCloneCell?: (cell: Cell) => void
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
@@ -55,7 +54,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
   public render() {
     const {
       cells,
-      onZoom,
       onDeleteCell,
       onCloneCell,
       timeRange,
@@ -81,7 +79,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
           <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
-              onZoom={onZoom}
               manualRefresh={manualRefresh}
               timeRange={timeRange}
               onCloneCell={onCloneCell}

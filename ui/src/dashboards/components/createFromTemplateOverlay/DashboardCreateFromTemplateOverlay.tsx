@@ -5,8 +5,12 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
-import {Overlay} from 'src/clockface'
+import {
+  Button,
+  ComponentColor,
+  ComponentStatus,
+  Overlay,
+} from '@influxdata/clockface'
 import DashboardTemplateBrowser from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateBrowser'
 import DashboardTemplatesEmpty from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplatesEmpty'
 
@@ -63,7 +67,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
       <GetResources resource={ResourceTypes.Templates}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={900}>
-            <Overlay.Heading
+            <Overlay.Header
               title="Create Dashboard from a Template"
               onDismiss={this.onDismiss}
             />
@@ -171,10 +175,14 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 }
 
-const mstp = ({templates: {items, status}}: AppState): StateProps => ({
-  templates: items,
-  templateStatus: status,
-})
+const mstp = ({templates: {items, status}}: AppState): StateProps => {
+  const templates = _.sortBy(items, item => item.meta.name.toLocaleLowerCase())
+
+  return {
+    templates,
+    templateStatus: status,
+  }
+}
 
 const mdtp: DispatchProps = {
   createDashboardFromTemplate: createDashboardFromTemplateAction,

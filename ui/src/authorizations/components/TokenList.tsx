@@ -4,8 +4,8 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {EmptyState} from '@influxdata/clockface'
-import {IndexList, Overlay} from 'src/clockface'
+import {EmptyState, Overlay} from '@influxdata/clockface'
+import {IndexList} from 'src/clockface'
 import TokenRow from 'src/authorizations/components/TokenRow'
 import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
