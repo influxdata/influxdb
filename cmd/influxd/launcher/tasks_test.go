@@ -19,6 +19,7 @@ import (
 )
 
 func TestLauncher_Task(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13867")
 	be := launcher.RunTestLauncherOrFail(t, ctx)
 	be.SetupOrFail(t)
 	defer be.ShutdownOrFail(t, ctx)
