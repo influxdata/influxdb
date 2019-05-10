@@ -120,14 +120,23 @@ func (s *Scheduler) TaskFor(id platform.ID) *platform.Task {
 }
 
 func (s *Scheduler) TaskCreateChan() <-chan *platform.Task {
+	s.Lock()
+	defer s.Unlock()
+
 	s.createChan = make(chan *platform.Task, 10)
 	return s.createChan
 }
 func (s *Scheduler) TaskReleaseChan() <-chan *platform.Task {
+	s.Lock()
+	defer s.Unlock()
+
 	s.releaseChan = make(chan *platform.Task, 10)
 	return s.releaseChan
 }
 func (s *Scheduler) TaskUpdateChan() <-chan *platform.Task {
+	s.Lock()
+	defer s.Unlock()
+
 	s.updateChan = make(chan *platform.Task, 10)
 	return s.updateChan
 }
