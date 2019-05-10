@@ -6,8 +6,8 @@ import {get} from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import BucketRow, {PrettyBucket} from 'src/buckets/components/BucketRow'
-import {IndexList} from 'src/clockface'
+import BucketCard, {PrettyBucket} from 'src/buckets/components/BucketCard'
+import {ResourceList} from 'src/clockface'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -76,28 +76,25 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
 
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
+        <ResourceList>
+          <ResourceList.Header>
+            <ResourceList.Sorter
+              name="Name"
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              columnName="Name"
-              width="40%"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell
+            <ResourceList.Sorter
+              name="Retention"
               sortKey={this.headerKeys[1]}
               sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-              columnName="Retention"
-              width="40%"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell columnName="" width="20%" />
-          </IndexList.Header>
-          <IndexList.Body columnCount={3} emptyState={emptyState}>
+          </ResourceList.Header>
+          <ResourceList.Body emptyState={emptyState}>
             {this.listBuckets}
-          </IndexList.Body>
-        </IndexList>
+          </ResourceList.Body>
+        </ResourceList>
       </>
     )
   }
@@ -123,7 +120,7 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     )
 
     return sortedBuckets.map(bucket => (
-      <BucketRow
+      <BucketCard
         key={bucket.id}
         bucket={bucket}
         onEditBucket={this.handleStartEdit}
