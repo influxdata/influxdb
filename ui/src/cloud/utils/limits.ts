@@ -12,7 +12,7 @@ export const extractBucketLimits = (limits: LimitsState): LimitStatus => {
 }
 
 export const extractBucketMax = (limits: LimitsState): number => {
-  return get(limits, 'buckets.maxAllowed', Infinity)
+  return get(limits, 'buckets.maxAllowed') || Infinity // if maxAllowed == 0, there are no limits on asset
 }
 
 export const extractDashboardLimits = (limits: LimitsState): LimitStatus => {
@@ -20,7 +20,7 @@ export const extractDashboardLimits = (limits: LimitsState): LimitStatus => {
 }
 
 export const extractDashboardMax = (limits: LimitsState): number => {
-  return get(limits, 'dashboards.maxAllowed', Infinity)
+  return get(limits, 'dashboards.maxAllowed') || Infinity
 }
 
 export const extractTaskLimits = (limits: LimitsState): LimitStatus => {
@@ -28,5 +28,5 @@ export const extractTaskLimits = (limits: LimitsState): LimitStatus => {
 }
 
 export const extractTaskMax = (limits: LimitsState): number => {
-  return get(limits, 'tasks.maxAllowed', Infinity)
+  return get(limits, 'tasks.maxAllowed') || Infinity
 }
