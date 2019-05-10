@@ -57,7 +57,7 @@ class DashboardCard extends PureComponent<Props> {
         key={`dashboard-id--${id}`}
         testID="dashboard-card"
         name={() => (
-          <ResourceList.Name
+          <ResourceList.EditableName
             onUpdate={this.handleUpdateDashboard}
             onClick={this.handleClickDashboard}
             name={dashboard.name}
