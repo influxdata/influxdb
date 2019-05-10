@@ -593,10 +593,7 @@ func (s *OrganizationService) FindOrganizationByID(ctx context.Context, id influ
 // FindOrganization gets a single organization matching the filter using HTTP.
 func (s *OrganizationService) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 	if filter.ID == nil && filter.Name == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "no filter parameters provided",
-		}
+		return nil, influxdb.ErrInvalidOrgFilter
 	}
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {
@@ -641,7 +638,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 		}
 	}
 
-	url, err := newURL(s.Addr, organizationPath)
+	url, err := NewURL(s.Addr, organizationPath)
 	if err != nil {
 		return nil, 0, tracing.LogError(span, err)
 	}
@@ -662,7 +659,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	tracing.InjectToHTTPRequest(span, req)
 
 	SetToken(s.Token, req)
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -696,7 +693,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 		span.LogKV("org-id", o.ID)
 	}
 
-	url, err := newURL(s.Addr, organizationPath)
+	url, err := NewURL(s.Addr, organizationPath)
 	if err != nil {
 		return tracing.LogError(span, err)
 	}
@@ -715,7 +712,7 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(url.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -743,7 +740,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 	span.LogKV("org-id", id)
 	span.LogKV("name", upd.Name)
 
-	u, err := newURL(s.Addr, organizationIDPath(id))
+	u, err := NewURL(s.Addr, organizationIDPath(id))
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
@@ -762,7 +759,7 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -787,7 +784,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxd
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := newURL(s.Addr, organizationIDPath(id))
+	u, err := NewURL(s.Addr, organizationIDPath(id))
 	if err != nil {
 		return tracing.LogError(span, err)
 	}
@@ -800,7 +797,7 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxd
 
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return tracing.LogError(span, err)

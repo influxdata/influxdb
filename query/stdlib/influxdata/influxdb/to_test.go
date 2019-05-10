@@ -183,6 +183,107 @@ c _value=4 41`),
 			},
 		},
 		{
+			name: "default with heterogeneous tag columns",
+			spec: &influxdb.ToProcedureSpec{
+				Spec: &influxdb.ToOpSpec{
+					Org:               "my-org",
+					Bucket:            "my-bucket",
+					TimeColumn:        "_time",
+					MeasurementColumn: "_measurement",
+				},
+			},
+			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+				ColMeta: []flux.ColMeta{
+					{Label: "_time", Type: flux.TTime},
+					{Label: "_measurement", Type: flux.TString},
+					{Label: "tag1", Type: flux.TString},
+					{Label: "tag2", Type: flux.TString},
+					{Label: "_field", Type: flux.TString},
+					{Label: "_value", Type: flux.TFloat},
+				},
+				KeyCols: []string{"_measurement", "tag1", "tag2", "_field"},
+				Data: [][]interface{}{
+					{execute.Time(11), "a", "a", "aa", "_value", 2.0},
+					{execute.Time(21), "a", "a", "bb", "_value", 2.0},
+					{execute.Time(21), "a", "b", "cc", "_value", 1.0},
+					{execute.Time(31), "a", "a", "dd", "_value", 3.0},
+					{execute.Time(41), "a", "c", "ee", "_value", 4.0},
+				},
+			}),
+				executetest.MustCopyTable(&executetest.Table{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "tagA", Type: flux.TString},
+						{Label: "tagB", Type: flux.TString},
+						{Label: "tagC", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+					},
+					KeyCols: []string{"_measurement", "tagA", "tagB", "tagC", "_field"},
+					Data: [][]interface{}{
+						{execute.Time(11), "b", "a", "aa", "ff", "_value", 2.0},
+						{execute.Time(21), "b", "a", "bb", "gg", "_value", 2.0},
+						{execute.Time(21), "b", "b", "cc", "hh", "_value", 1.0},
+						{execute.Time(31), "b", "a", "dd", "ii", "_value", 3.0},
+						{execute.Time(41), "b", "c", "ee", "jj", "_value", 4.0},
+					},
+				}),
+			},
+			want: wanted{
+				result: &mock.PointsWriter{
+					Points: mockPoints(oid, bid, `a,tag1=a,tag2=aa _value=2 11
+a,tag1=a,tag2=bb _value=2 21
+a,tag1=b,tag2=cc _value=1 21
+a,tag1=a,tag2=dd _value=3 31
+a,tag1=c,tag2=ee _value=4 41
+b,tagA=a,tagB=aa,tagC=ff _value=2 11
+b,tagA=a,tagB=bb,tagC=gg _value=2 21
+b,tagA=b,tagB=cc,tagC=hh _value=1 21
+b,tagA=a,tagB=dd,tagC=ii _value=3 31
+b,tagA=c,tagB=ee,tagC=jj _value=4 41`),
+				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "tag1", Type: flux.TString},
+						{Label: "tag2", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+					},
+					KeyCols: []string{"_measurement", "tag1", "tag2", "_field"},
+					Data: [][]interface{}{
+						{execute.Time(11), "a", "a", "aa", "_value", 2.0},
+						{execute.Time(21), "a", "a", "bb", "_value", 2.0},
+						{execute.Time(21), "a", "b", "cc", "_value", 1.0},
+						{execute.Time(31), "a", "a", "dd", "_value", 3.0},
+						{execute.Time(41), "a", "c", "ee", "_value", 4.0},
+					},
+				},
+					{
+						ColMeta: []flux.ColMeta{
+							{Label: "_time", Type: flux.TTime},
+							{Label: "_measurement", Type: flux.TString},
+							{Label: "tagA", Type: flux.TString},
+							{Label: "tagB", Type: flux.TString},
+							{Label: "tagC", Type: flux.TString},
+							{Label: "_field", Type: flux.TString},
+							{Label: "_value", Type: flux.TFloat},
+						},
+						KeyCols: []string{"_measurement", "tagA", "tagB", "tagC", "_field"},
+						Data: [][]interface{}{
+							{execute.Time(11), "b", "a", "aa", "ff", "_value", 2.0},
+							{execute.Time(21), "b", "a", "bb", "gg", "_value", 2.0},
+							{execute.Time(21), "b", "b", "cc", "hh", "_value", 1.0},
+							{execute.Time(31), "b", "a", "dd", "ii", "_value", 3.0},
+							{execute.Time(41), "b", "c", "ee", "jj", "_value", 4.0},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "no _measurement with multiple tag columns",
 			spec: &influxdb.ToProcedureSpec{
 				Spec: &influxdb.ToOpSpec{

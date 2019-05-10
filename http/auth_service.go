@@ -617,7 +617,7 @@ var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
 // FindAuthorizationByID finds the authorization against a remote influx server.
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-	u, err := newURL(s.Addr, authorizationIDPath(id))
+	u, err := NewURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -628,7 +628,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -655,7 +655,7 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, tok
 // FindAuthorizations returns a list of authorizations that match filter and the total count of matching authorizations.
 // Additional options provide pagination & sorting.
 func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter platform.AuthorizationFilter, opt ...platform.FindOptions) ([]*platform.Authorization, int, error) {
-	u, err := newURL(s.Addr, authorizationPath)
+	u, err := NewURL(s.Addr, authorizationPath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -690,7 +690,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, 0, err
@@ -720,7 +720,7 @@ const (
 
 // CreateAuthorization creates a new authorization and sets b.ID with the new identifier.
 func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
-	u, err := newURL(s.Addr, authorizationPath)
+	u, err := NewURL(s.Addr, authorizationPath)
 	if err != nil {
 		return err
 	}
@@ -745,7 +745,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -767,7 +767,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 
 // UpdateAuthorization updates the status and description if available.
 func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
-	u, err := newURL(s.Addr, authorizationIDPath(id))
+	u, err := NewURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -785,7 +785,7 @@ func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platf
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -807,7 +807,7 @@ func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platf
 
 // DeleteAuthorization removes a authorization by id.
 func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
-	u, err := newURL(s.Addr, authorizationIDPath(id))
+	u, err := NewURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -818,7 +818,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err

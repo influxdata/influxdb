@@ -57,6 +57,12 @@ type OrganizationUpdate struct {
 	Name *string
 }
 
+// ErrInvalidOrgFilter is the error indicate org filter is empty
+var ErrInvalidOrgFilter = &Error{
+	Code: EInvalid,
+	Msg:  "Please provide either orgID or org",
+}
+
 // OrganizationFilter represents a set of filter that restrict the returned results.
 type OrganizationFilter struct {
 	Name *string

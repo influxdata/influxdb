@@ -25,6 +25,8 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import {
   specificBucketsPermissions,
   selectBucket,
+  allBucketsPermissions,
+  BucketTab,
 } from 'src/authorizations/utils/permissions'
 
 // Actions
@@ -49,17 +51,31 @@ interface State {
   description: string
   readBuckets: string[]
   writeBuckets: string[]
+  activeTabRead: BucketTab
+  activeTabWrite: BucketTab
 }
 
 type Props = WithRouterProps & DispatchProps & StateProps
 
 @ErrorHandling
 class BucketsTokenOverlay extends PureComponent<Props, State> {
-  public state = {description: '', readBuckets: [], writeBuckets: []}
+  public state = {
+    description: '',
+    readBuckets: [],
+    writeBuckets: [],
+    activeTabRead: BucketTab.Scoped,
+    activeTabWrite: BucketTab.Scoped,
+  }
 
   render() {
     const {buckets} = this.props
-    const {description, readBuckets, writeBuckets} = this.state
+    const {
+      description,
+      readBuckets,
+      writeBuckets,
+      activeTabRead,
+      activeTabWrite,
+    } = this.state
 
     return (
       <Overlay visible={true}>
@@ -97,6 +113,8 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                           title="Read"
                           onSelectAll={this.handleReadSelectAllBuckets}
                           onDeselectAll={this.handleReadDeselectAllBuckets}
+                          activeTab={activeTabRead}
+                          onTabClick={this.handleReadTabClick}
                         />
                       </Grid.Column>
                       <Grid.Column
@@ -110,6 +128,8 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                           title="Write"
                           onSelectAll={this.handleWriteSelectAllBuckets}
                           onDeselectAll={this.handleWriteDeselectAllBuckets}
+                          activeTab={activeTabWrite}
+                          onTabClick={this.handleWriteTabClick}
                         />
                       </Grid.Column>
                     </Grid.Row>
@@ -141,6 +161,14 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
         </Overlay.Container>
       </Overlay>
     )
+  }
+
+  private handleReadTabClick = (tab: BucketTab) => {
+    this.setState({activeTabRead: tab})
+  }
+
+  private handleWriteTabClick = (tab: BucketTab) => {
+    this.setState({activeTabWrite: tab})
   }
 
   private handleSelectReadBucket = (bucketName: string): void => {
@@ -178,11 +206,21 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       params: {orgID},
       onCreateAuthorization,
     } = this.props
+    const {activeTabRead, activeTabWrite} = this.state
 
-    const permissions = [
-      ...this.writeBucketPermissions,
-      ...this.readBucketPermissions,
-    ]
+    let permissions = []
+
+    if (activeTabRead === BucketTab.Scoped) {
+      permissions = [...this.readBucketPermissions]
+    } else {
+      permissions = [...this.allReadBucketPermissions]
+    }
+
+    if (activeTabWrite === BucketTab.Scoped) {
+      permissions = [...permissions, ...this.writeBucketPermissions]
+    } else {
+      permissions = [...permissions, ...this.allWriteBucketPermissions]
+    }
 
     const token: Authorization = {
       orgID,
@@ -213,6 +251,22 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
     })
 
     return specificBucketsPermissions(readBuckets, Permission.ActionEnum.Read)
+  }
+
+  private get allReadBucketPermissions(): Permission[] {
+    const {
+      params: {orgID},
+    } = this.props
+
+    return allBucketsPermissions(orgID, Permission.ActionEnum.Read)
+  }
+
+  private get allWriteBucketPermissions(): Permission[] {
+    const {
+      params: {orgID},
+    } = this.props
+
+    return allBucketsPermissions(orgID, Permission.ActionEnum.Write)
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {

@@ -518,7 +518,7 @@ type SourceService struct {
 
 // FindSourceByID returns a single source by ID.
 func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*platform.Source, error) {
-	u, err := newURL(s.Addr, sourceIDPath(id))
+	u, err := NewURL(s.Addr, sourceIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -529,7 +529,7 @@ func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*pl
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -551,7 +551,7 @@ func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*pl
 // FindSources returns a list of sources that match filter and the total count of matching sources.
 // Additional options provide pagination & sorting.
 func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOptions) ([]*platform.Source, int, error) {
-	u, err := newURL(s.Addr, sourcePath)
+	u, err := NewURL(s.Addr, sourcePath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -563,7 +563,7 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, 0, err
@@ -584,7 +584,7 @@ func (s *SourceService) FindSources(ctx context.Context, opt platform.FindOption
 
 // CreateSource creates a new source and sets b.ID with the new identifier.
 func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) error {
-	u, err := newURL(s.Addr, sourcePath)
+	u, err := NewURL(s.Addr, sourcePath)
 	if err != nil {
 		return err
 	}
@@ -602,7 +602,7 @@ func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) er
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -625,7 +625,7 @@ func (s *SourceService) CreateSource(ctx context.Context, b *platform.Source) er
 // UpdateSource updates a single source with changeset.
 // Returns the new source state after update.
 func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd platform.SourceUpdate) (*platform.Source, error) {
-	u, err := newURL(s.Addr, sourceIDPath(id))
+	u, err := NewURL(s.Addr, sourceIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -643,7 +643,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd pl
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -665,7 +665,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd pl
 
 // DeleteSource removes a source by ID.
 func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error {
-	u, err := newURL(s.Addr, sourceIDPath(id))
+	u, err := NewURL(s.Addr, sourceIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -676,7 +676,7 @@ func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error 
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err

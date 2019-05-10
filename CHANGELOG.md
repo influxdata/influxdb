@@ -1,7 +1,11 @@
 ## v2.0.0-alpha.10 [unreleased]
+
 ### Features
 
+1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks.
+
 ### Bug Fixes
+
 1. [13753](https://github.com/influxdata/influxdb/pull/13753): Removed hardcoded bucket for Getting Started with Flux dashboard
 1. [13783](https://github.com/influxdata/influxdb/pull/13783): Ensure map type variables allow for selecting values
 1. [13800](https://github.com/influxdata/influxdb/pull/13800): Generate more idiomatic Flux in query builder
