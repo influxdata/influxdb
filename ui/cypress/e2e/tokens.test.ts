@@ -118,6 +118,7 @@ describe('tokens', () => {
                 cy.get<Organization>('@org').then(({id}) => {
                   cy.request('api/v2/authorizations?orgID=' + id).then(resp => {
                     expect(resp.body.authorizations).to.have.length(4)
+                    cy.wait(1000) //wait a second to allow ui sync
                   })
                 })
               })
@@ -131,11 +132,8 @@ describe('tokens', () => {
       .should('have.length', 4)
       .then(rows => {
         authData = authData.sort((a, b) =>
-          a.description < b.description
-            ? -1
-            : a.description > b.description
-            ? 1
-            : 0
+          //eslint ignore
+          a.description < b.description ? -1 : a.description > b.description ? 1 : 0
         )
 
         for (var i = 0; i < rows.length; i++) {
@@ -256,7 +254,7 @@ describe('tokens', () => {
       .should('not.exist')
   })
 
-  it('can generate a read/write token', () => {
+  it.only('can generate a read/write token', () => {
     cy.getByTestID('table-row').should('have.length', 4)
 
     //create some extra buckets for filters
@@ -287,11 +285,11 @@ describe('tokens', () => {
 
     //Create a token  //todo filters in this or seperate test
     cy.getByTestID('input-field--descr').type('Jeton 01')
-    cy.getByTestID('builder-card--Read').within(() => {
+    cy.getByTestID('builder-card--body').eq(0).within(() => {
       cy.getByTitle('Click to filter by Sicilsky Bull').click()
       cy.getByTitle('Click to filter by A la Carta').click()
     })
-    cy.getByTestID('builder-card--Write').within(() => {
+    cy.getByTestID('builder-card--body').eq(1).within(() => {
       cy.getByTitle('Click to filter by Sicilsky Bull').click()
     })
 
