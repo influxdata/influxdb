@@ -38,6 +38,7 @@ import {
   QueryViewProperties,
   QueryEditMode,
 } from 'src/types/dashboards'
+import {selectAggregateWindow} from '../actions/queryBuilder'
 
 describe('timeMachinesReducer', () => {
   test('it directs actions to the currently active timeMachine', () => {
@@ -77,13 +78,23 @@ describe('timeMachinesReducer', () => {
         name: '',
         text: 'foo',
         editMode: QueryEditMode.Advanced,
-        builderConfig: {buckets: [], tags: [], functions: []},
+        builderConfig: {
+          buckets: [],
+          tags: [],
+          functions: [],
+          aggregateWindow: {period: 'auto'},
+        },
       },
       {
         name: '',
         text: 'bar',
         editMode: QueryEditMode.Builder,
-        builderConfig: {buckets: [], tags: [], functions: []},
+        builderConfig: {
+          buckets: [],
+          tags: [],
+          functions: [],
+          aggregateWindow: {period: 'auto'},
+        },
       },
     ]
 
@@ -116,14 +127,24 @@ describe('timeMachineReducer', () => {
           name: '',
           text: 'foo',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
           name: '',
           text: 'bar',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -139,14 +160,24 @@ describe('timeMachineReducer', () => {
           name: '',
           text: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
           name: '',
           text: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ])
@@ -163,14 +194,24 @@ describe('timeMachineReducer', () => {
           name: '',
           text: 'foo',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
           name: '',
           text: 'bar',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -183,14 +224,24 @@ describe('timeMachineReducer', () => {
           name: '',
           text: 'foo',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
           name: '',
           text: 'bar',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ])
@@ -208,13 +259,23 @@ describe('timeMachineReducer', () => {
             name: '',
             text: 'foo',
             editMode: QueryEditMode.Builder,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
           {
             name: '',
             text: 'bar',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
         ]
 
@@ -232,13 +293,23 @@ describe('timeMachineReducer', () => {
             name: '',
             text: 'foo',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
           {
             name: '',
             text: 'bar',
             editMode: QueryEditMode.Builder,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
         ]
 
@@ -256,13 +327,23 @@ describe('timeMachineReducer', () => {
             name: '',
             text: 'foo',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
           {
             name: '',
             text: 'bar',
             editMode: QueryEditMode.Builder,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
         ]
 
@@ -283,7 +364,12 @@ describe('timeMachineReducer', () => {
           name: '',
           text: 'a',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -296,7 +382,12 @@ describe('timeMachineReducer', () => {
           name: '',
           text: 'a',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
@@ -307,6 +398,7 @@ describe('timeMachineReducer', () => {
             buckets: [],
             tags: [{key: '_measurement', values: []}],
             functions: [],
+            aggregateWindow: {period: 'auto'},
           },
           hidden: false,
         },
@@ -323,21 +415,36 @@ describe('timeMachineReducer', () => {
           name: '',
           text: 'a',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
           name: '',
           text: 'b',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
           name: '',
           text: 'c',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -375,7 +482,12 @@ describe('timeMachineReducer', () => {
       const state = initialStateHelper()
       state.activeQueryIndex = 1
 
-      const builderConfig = {buckets: [], tags: [], functions: []}
+      const builderConfig = {
+        buckets: [],
+        tags: [],
+        functions: [],
+        aggregateWindow: {period: 'auto'},
+      }
 
       state.draftQueries = [
         {
@@ -506,5 +618,47 @@ describe('timeMachineReducer', () => {
 
       expect(actual).toEqual(expected)
     })
+  })
+
+  describe('SET_AGGREGATE_WINDOW', () => {
+    const state = initialStateHelper()
+    state.activeQueryIndex = 1
+
+    const builderConfig = {
+      buckets: [],
+      tags: [],
+      functions: [],
+      aggregateWindow: {period: 'auto'},
+    }
+
+    const dq0 = {
+      name: '',
+      text: '',
+      editMode: QueryEditMode.Advanced,
+      builderConfig,
+      hidden: false,
+    }
+
+    const dq1 = {
+      name: '',
+      text: '',
+      editMode: QueryEditMode.Builder,
+      builderConfig,
+      hidden: false,
+    }
+
+    state.draftQueries = [dq0, dq1]
+
+    const period = '15m'
+    const nextState = timeMachineReducer(state, selectAggregateWindow(period))
+    const updatedConfig = {
+      ...builderConfig,
+      aggregateWindow: {period},
+    }
+
+    expect(nextState.draftQueries).toEqual([
+      dq0,
+      {...dq1, builderConfig: updatedConfig},
+    ])
   })
 })

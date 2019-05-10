@@ -54,7 +54,7 @@ const WindowSelector: FunctionComponent<Props> = ({
 }
 
 const showPrefix = (id: string): boolean => {
-  return id !== AGG_WINDOW_AUTO && id !== AGG_WINDOW_NONE
+  return id !== AGG_WINDOW_AUTO // && id !== AGG_WINDOW_NONE
 }
 
 const getStatus = (disabled: boolean): ComponentStatus => {
