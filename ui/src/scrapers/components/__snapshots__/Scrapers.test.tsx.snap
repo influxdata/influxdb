@@ -2,35 +2,25 @@
 
 exports[`ScraperList rendering renders 1`] = `
 <Fragment>
-  <IndexList>
-    <IndexListHeader>
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Name"
+  <ResourceList>
+    <ResourceListHeader>
+      <ResourceListSorter
+        name="name"
         sort="none"
         sortKey="name"
-        width="50%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Target URL"
+      <ResourceListSorter
+        name="url"
         sort="none"
         sortKey="url"
-        width="20%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Bucket"
-        width="15%"
+      <ResourceListSorter
+        name="bucket"
+        sort="none"
+        sortKey="bucket"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName=""
-        width="15%"
-      />
-    </IndexListHeader>
-    <IndexListBody
-      columnCount={4}
+    </ResourceListHeader>
+    <ResourceListBody
       emptyState={<React.Fragment />}
     >
       <ScraperRow
@@ -67,7 +57,7 @@ exports[`ScraperList rendering renders 1`] = `
           }
         }
       />
-    </IndexListBody>
-  </IndexList>
+    </ResourceListBody>
+  </ResourceList>
 </Fragment>
 `;

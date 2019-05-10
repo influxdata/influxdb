@@ -18,12 +18,12 @@ describe('Scrapers', () => {
     })
   })
 
-  describe('from the org view', () => {
+  describe('from the org settings', () => {
     it('can create a scraper from the create button in the page header', () => {
       const newScraper = '🐍craper'
       const newURL = 'http://google.com'
 
-      cy.getByTestID('table-row').should('have.length', 0)
+      cy.getByTestID('resource-card').should('have.length', 0)
 
       cy.getByTestID('create-scraper-button-header').click()
       cy.getByTestID('overlay--container').within(() => {
@@ -36,14 +36,14 @@ describe('Scrapers', () => {
         cy.getByTestID('create-scraper--submit').click()
       })
 
-      cy.getByTestID('table-row').should('have.length', 1)
+      cy.getByTestID('resource-card').should('have.length', 1)
     })
 
     it('can create a scraper from the create button in the empty state', () => {
       const newScraper = '🐍craper'
       const newURL = 'http://google.com'
 
-      cy.getByTestID('table-row').should('have.length', 0)
+      cy.getByTestID('resource-card').should('have.length', 0)
 
       cy.getByTestID('create-scraper-button-empty').click()
       cy.getByTestID('overlay--container').within(() => {
@@ -56,7 +56,7 @@ describe('Scrapers', () => {
         cy.getByTestID('create-scraper--submit').click()
       })
 
-      cy.getByTestID('table-row').should('have.length', 1)
+      cy.getByTestID('resource-card').should('have.length', 1)
     })
 
     it('can update scrapers name', () => {
@@ -73,7 +73,7 @@ describe('Scrapers', () => {
         })
       })
 
-      cy.getByTestID('table-cell').within(() => {
+      cy.getByTestID('resource-card').within(() => {
         cy.getByTestID('editable-name').click()
         cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
       })
@@ -92,13 +92,13 @@ describe('Scrapers', () => {
         })
       })
 
-      cy.getByTestID('table-row').should('have.length', 2)
+      cy.getByTestID('resource-card').should('have.length', 2)
 
       cy.getByTestID('confirmation-button')
         .last()
         .click({force: true})
 
-      cy.getByTestID('table-row').should('have.length', 1)
+      cy.getByTestID('resource-card').should('have.length', 1)
     })
   })
 })
