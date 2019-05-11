@@ -174,10 +174,7 @@ func requestVariableID(ctx context.Context) (platform.ID, error) {
 
 	id, err := platform.IDFromString(urlID)
 	if err != nil {
-		return platform.InvalidID(), &platform.Error{
-			Code: platform.EInvalid,
-			Msg:  err.Error(),
-		}
+		return platform.InvalidID(), err
 	}
 
 	return *id, nil

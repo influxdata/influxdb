@@ -192,7 +192,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("kv/setPassword: <internal error> User ID for user1 has been corrupted; Err: invalid ID"),
+				err: fmt.Errorf("kv/setPassword: <internal error> User ID for user1 has been corrupted; Err: <invalid> invalid ID"),
 			},
 		},
 		{
@@ -403,7 +403,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("kv/setPassword: <internal error> User ID for user1 has been corrupted; Err: invalid ID"),
+				err: fmt.Errorf("kv/setPassword: <internal error> User ID for user1 has been corrupted; Err: <invalid> invalid ID"),
 			},
 		},
 		{

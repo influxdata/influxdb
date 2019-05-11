@@ -711,11 +711,7 @@ func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*post
 	}
 
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Msg:  "invalid dashboard id",
-			Err:  err,
-		}
+		return nil, err
 	}
 
 	return req, nil
