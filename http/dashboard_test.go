@@ -74,10 +74,12 @@ func TestService_handleGetDashboards(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							},
@@ -238,10 +240,12 @@ func TestService_handleGetDashboards(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							},
@@ -401,10 +405,12 @@ func TestService_handleGetDashboard(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							}, nil
@@ -561,10 +567,12 @@ func TestService_handlePostDashboard(t *testing.T) {
 					Cells: []*platform.Cell{
 						{
 							ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-							X:  1,
-							Y:  2,
-							W:  3,
-							H:  4,
+							CellProperty: platform.CellProperty{
+								X: 1,
+								Y: 2,
+								W: 3,
+								H: 4,
+							},
 						},
 					},
 				},
@@ -786,10 +794,12 @@ func TestService_handlePatchDashboard(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							}
@@ -946,7 +956,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 	}
 	type args struct {
 		id   string
-		cell *platform.Cell
+		body string
 	}
 	type wants struct {
 		statusCode  int
@@ -961,7 +971,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "create a dashboard cell",
+			name: "empty body",
 			fields: fields{
 				&mock.DashboardService{
 					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
@@ -972,11 +982,81 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			},
 			args: args{
 				id: "020f755c3c082000",
-				cell: &platform.Cell{
-					ID: platformtesting.MustIDBase16("020f755c3c082000"),
-					X:  10,
-					Y:  11,
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"bad request json body","error":"EOF"}`,
+			},
+		},
+		{
+			name: "no properties",
+			fields: fields{
+				&mock.DashboardService{
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
 				},
+			},
+			args: args{
+				id:   "020f755c3c082000",
+				body: `{"bad":1}`,
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `
+				{
+					"code": "invalid",
+					"message": "req body is empty"
+				}`,
+			},
+		},
+		{
+			name: "bad dash id",
+			fields: fields{
+				&mock.DashboardService{
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+				},
+			},
+			args: args{
+				id:   "fff",
+				body: `{}`,
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `
+				{
+					"code": "invalid",
+					"error": "id must have a length of 16 bytes",
+					"message": "invalid dashboard id"
+				}`,
+			},
+		},
+		{
+			name: "general create a dashboard cell",
+			fields: fields{
+				&mock.DashboardService{
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+					GetDashboardCellViewF: func(ctx context.Context, id1, id2 platform.ID) (*platform.View, error) {
+						return &platform.View{
+							ViewContents: platform.ViewContents{
+								ID: platformtesting.MustIDBase16("020f755c3c082001"),
+							}}, nil
+					},
+				},
+			},
+			args: args{
+				id:   "020f755c3c082000",
+				body: `{"x":10,"y":11,"name":"name1","usingView":"020f755c3c082001"}`,
 			},
 			wants: wants{
 				statusCode:  http.StatusCreated,
@@ -1003,13 +1083,9 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
-
-			b, err := json.Marshal(tt.args.cell)
-			if err != nil {
-				t.Fatalf("failed to unmarshal cell: %v", err)
-			}
-
-			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
+			buf := new(bytes.Buffer)
+			_, _ = buf.WriteString(tt.args.body)
+			r := httptest.NewRequest("POST", "http://any.url", buf)
 
 			r = r.WithContext(context.WithValue(
 				context.Background(),
