@@ -75,13 +75,13 @@ class AccountNavSubItem extends PureComponent<Props> {
             acc.push(
               <NavMenu.SubItem
                 titleLink={className => (
-                  <Link
+                  <a
                     className={className}
-                    to={`/orgs/${org.id}`}
+                    href={`/orgs/${org.id}`}
                     style={{display: 'block'}}
                   >
                     {org.name}
-                  </Link>
+                  </a>
                 )}
                 key={org.id}
                 active={false}
