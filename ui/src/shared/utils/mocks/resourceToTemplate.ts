@@ -54,6 +54,7 @@ export const myView: View = {
             },
           ],
           functions: [],
+          aggregateWindow: {period: 'auto'},
         },
       },
     ],

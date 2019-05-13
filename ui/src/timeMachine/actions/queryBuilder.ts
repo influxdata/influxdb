@@ -23,6 +23,7 @@ export type Action =
   | AddTagSelectorAction
   | RemoveTagSelectorAction
   | SelectFunctionAction
+  | SelectAggregateWindowAction
   | SetValuesSearchTermAction
   | SetKeysSearchTermAction
   | SetBuilderTagsStatusAction
@@ -180,6 +181,18 @@ interface SelectFunctionAction {
 export const selectFunction = (name: string): SelectFunctionAction => ({
   type: 'SELECT_BUILDER_FUNCTION',
   payload: {name},
+})
+
+interface SelectAggregateWindowAction {
+  type: 'SELECT_AGGREGATE_WINDOW'
+  payload: {period: string}
+}
+
+export const selectAggregateWindow = (
+  period: string
+): SelectAggregateWindowAction => ({
+  type: 'SELECT_AGGREGATE_WINDOW',
+  payload: {period},
 })
 
 interface SetValuesSearchTermAction {
