@@ -3,8 +3,8 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {IndexList} from 'src/clockface'
-import VariableRow from 'src/variables/components/VariableRow'
+import {ResourceList} from 'src/clockface'
+import VariableCard from 'src/variables/components/VariableCard'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
@@ -55,27 +55,31 @@ export default class VariableList extends PureComponent<Props, State> {
 
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
+        <ResourceList>
+          <ResourceList.Header>
+            <ResourceList.Sorter
+              name="Name"
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              columnName="Name"
-              width="60%"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell columnName="Type" width="40%" />
-          </IndexList.Header>
-          <IndexList.Body columnCount={3} emptyState={emptyState}>
+            <ResourceList.Sorter
+              name="Type"
+              sortKey={this.headerKeys[1]}
+              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+              onClick={onClickColumn}
+            />
+          </ResourceList.Header>
+          <ResourceList.Body emptyState={emptyState}>
             {this.rows}
-          </IndexList.Body>
-        </IndexList>
+          </ResourceList.Body>
+        </ResourceList>
       </>
     )
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name']
+    return ['name', 'arguments']
   }
 
   private get rows(): JSX.Element[] {
@@ -96,7 +100,7 @@ export default class VariableList extends PureComponent<Props, State> {
     )
 
     return sortedVariables.map((variable, index) => (
-      <VariableRow
+      <VariableCard
         key={variable.id || `variable-${index}`}
         variable={variable}
         onDeleteVariable={onDeleteVariable}
