@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {IndexList} from 'src/clockface'
+import {ResourceList} from 'src/clockface'
 import ScraperRow from 'src/scrapers/components/ScraperRow'
 
 // Types
@@ -37,35 +37,37 @@ export default class ScraperList extends PureComponent<Props> {
 
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
+        <ResourceList>
+          <ResourceList.Header>
+            <ResourceList.Sorter
+              name={this.headerKeys[0]}
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              columnName="Name"
-              width="50%"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell
+            <ResourceList.Sorter
+              name={this.headerKeys[1]}
               sortKey={this.headerKeys[1]}
               sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-              columnName="Target URL"
-              width="20%"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell columnName="Bucket" width="15%" />
-            <IndexList.HeaderCell columnName="" width="15%" />
-          </IndexList.Header>
-          <IndexList.Body columnCount={4} emptyState={emptyState}>
+            <ResourceList.Sorter
+              name={this.headerKeys[2]}
+              sortKey={this.headerKeys[2]}
+              sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
+              onClick={onClickColumn}
+            />
+          </ResourceList.Header>
+          <ResourceList.Body emptyState={emptyState}>
             {this.scrapersList}
-          </IndexList.Body>
-        </IndexList>
+          </ResourceList.Body>
+        </ResourceList>
       </>
     )
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'url']
+    return ['name', 'url', 'bucket']
   }
 
   public get scrapersList(): JSX.Element[] {

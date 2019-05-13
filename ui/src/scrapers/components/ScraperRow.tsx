@@ -2,17 +2,12 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  ComponentSize,
-  IndexList,
-  ConfirmationButton,
-  Alignment,
-} from 'src/clockface'
+import {ResourceList, Context} from 'src/clockface'
 import {ScraperTargetResponse} from '@influxdata/influx'
-import EditableName from 'src/shared/components/EditableName'
 
 // Constants
 import {DEFAULT_SCRAPER_NAME} from 'src/dashboards/constants'
+import {IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
   scraper: ScraperTargetResponse
@@ -22,31 +17,46 @@ interface Props {
 
 export default class ScraperRow extends PureComponent<Props> {
   public render() {
-    const {scraper, onDeleteScraper} = this.props
+    const {scraper} = this.props
     return (
       <>
-        <IndexList.Row>
-          <IndexList.Cell>
-            <EditableName
+        <ResourceList.Card
+          name={() => (
+            <ResourceList.EditableName
               onUpdate={this.handleUpdateScraperName}
               name={scraper.name}
               noNameString={DEFAULT_SCRAPER_NAME}
+              buttonTestID="editable-name"
+              inputTestID="input-field"
             />
-          </IndexList.Cell>
-          <IndexList.Cell>{scraper.url}</IndexList.Cell>
-          <IndexList.Cell>{scraper.bucket}</IndexList.Cell>
-          <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-            <ConfirmationButton
-              size={ComponentSize.ExtraSmall}
-              text="Delete"
-              confirmText="Confirm"
-              returnValue={scraper}
-              onConfirm={onDeleteScraper}
-            />
-          </IndexList.Cell>
-        </IndexList.Row>
+          )}
+          metaData={() => [
+            <>Bucket: {scraper.bucket}</>,
+            <>URL: {scraper.url}</>,
+          ]}
+          contextMenu={() => this.contextMenu}
+        />
       </>
     )
+  }
+
+  private get contextMenu(): JSX.Element {
+    return (
+      <Context>
+        <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
+          <Context.Item
+            label="Delete"
+            action={this.handleDeleteScraper}
+            testID="confirmation-button"
+          />
+        </Context.Menu>
+      </Context>
+    )
+  }
+
+  private handleDeleteScraper = () => {
+    const {onDeleteScraper, scraper} = this.props
+    onDeleteScraper(scraper)
   }
 
   private handleUpdateScraperName = async (name: string) => {
