@@ -20,7 +20,7 @@ describe('Buckets', () => {
   describe('from the org view', () => {
     it('can create a bucket', () => {
       const newBucket = '🅱️ucket'
-      cy.getByTestID('table-row').should('have.length', 1)
+      cy.getByTestID('resource-card').should('have.length', 1)
 
       cy.getByTestID('Create Bucket').click()
       cy.getByTestID('overlay--container').within(() => {
@@ -30,7 +30,7 @@ describe('Buckets', () => {
           .click()
       })
 
-      cy.getByTestID('table-row')
+      cy.getByTestID('resource-card')
         .should('have.length', 2)
         .and('contain', newBucket)
     })
@@ -53,7 +53,7 @@ describe('Buckets', () => {
         cy.contains('Save').click()
       })
 
-      cy.getByTestID('table-row').should('contain', '1 day')
+      cy.getByTestID('resource-card').should('contain', '1 day')
     })
 
     it.skip('can delete a bucket', () => {
@@ -62,13 +62,13 @@ describe('Buckets', () => {
         cy.createBucket(id, name, 'newbucket2')
       })
 
-      cy.getByTestID('table-row').should('have.length', 3)
+      cy.getByTestID('resource-card').should('have.length', 3)
 
       cy.getByTestID('confirmation-button')
         .last()
         .click({force: true})
 
-      cy.getByTestID('table-row').should('have.length', 2)
+      cy.getByTestID('resource-card').should('have.length', 2)
     })
   })
 })

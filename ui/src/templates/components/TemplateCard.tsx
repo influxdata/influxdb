@@ -67,7 +67,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         testID="template-card"
         contextMenu={() => this.contextMenu}
         name={() => (
-          <ResourceList.Name
+          <ResourceList.EditableName
             onClick={this.handleNameClick}
             onUpdate={this.handleUpdateTemplate}
             name={template.meta.name}

@@ -58,7 +58,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
         labels={() => this.labels}
         contextMenu={() => this.contextMenu}
         name={() => (
-          <ResourceList.Name
+          <ResourceList.EditableName
             onClick={this.handleNameClick}
             onUpdate={this.handleRenameTask}
             name={task.name}

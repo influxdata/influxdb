@@ -3,8 +3,8 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {IndexList} from 'src/clockface'
-import MemberRow from 'src/members/components/MemberRow'
+import {ResourceList} from 'src/clockface'
+import MemberCard from 'src/members/components/MemberCard'
 
 // Types
 import {Member} from 'src/types'
@@ -35,32 +35,28 @@ export default class MemberList extends PureComponent<Props> {
     const {sortKey, sortDirection, onClickColumn} = this.props
 
     return (
-      <IndexList>
-        <IndexList.Header>
-          <IndexList.HeaderCell
+      <ResourceList>
+        <ResourceList.Header>
+          <ResourceList.Sorter
+            name="Username"
             sortKey={this.headerKeys[0]}
             sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-            columnName="Username"
-            width="20%"
             onClick={onClickColumn}
           />
-          <IndexList.HeaderCell
+          <ResourceList.Sorter
+            name="Role"
             sortKey={this.headerKeys[1]}
             sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-            columnName="Role"
-            width="20%"
             onClick={onClickColumn}
           />
-          <IndexList.HeaderCell width="60%" />
-        </IndexList.Header>
-        <IndexList.Body
-          columnCount={3}
+        </ResourceList.Header>
+        <ResourceList.Body
           emptyState={this.props.emptyState}
           data-testid="members-list"
         >
           {this.rows}
-        </IndexList.Body>
-      </IndexList>
+        </ResourceList.Body>
+      </ResourceList>
     )
   }
 
@@ -78,7 +74,7 @@ export default class MemberList extends PureComponent<Props> {
     )
 
     return sortedMembers.map(member => (
-      <MemberRow key={member.id} member={member} onDelete={onDelete} />
+      <MemberCard key={member.id} member={member} onDelete={onDelete} />
     ))
   }
 }
