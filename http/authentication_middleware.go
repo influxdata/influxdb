@@ -18,6 +18,7 @@ type AuthenticationHandler struct {
 
 	AuthorizationService platform.AuthorizationService
 	SessionService       platform.SessionService
+	SessionAutoRenew     bool
 
 	// This is only really used for it's lookup method the specific http
 	// handler used to register routes does not matter.
@@ -27,11 +28,12 @@ type AuthenticationHandler struct {
 }
 
 // NewAuthenticationHandler creates an authentication handler.
-func NewAuthenticationHandler() *AuthenticationHandler {
+func NewAuthenticationHandler(b *APIBackend) *AuthenticationHandler {
 	return &AuthenticationHandler{
-		Logger:       zap.NewNop(),
-		Handler:      http.DefaultServeMux,
-		noAuthRouter: httprouter.New(),
+		Logger:           zap.NewNop(),
+		Handler:          http.DefaultServeMux,
+		noAuthRouter:     httprouter.New(),
+		SessionAutoRenew: b.SessionAutoRenew,
 	}
 }
 
@@ -124,9 +126,11 @@ func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Requ
 	}
 
 	// if the session is not expired, renew the session
-	e = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
-	if e != nil {
-		return ctx, e
+	if h.SessionAutoRenew {
+		e = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
+		if e != nil {
+			return ctx, e
+		}
 	}
 
 	return platcontext.SetAuthorizer(ctx, s), nil
