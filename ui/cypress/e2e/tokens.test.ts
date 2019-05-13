@@ -146,9 +146,9 @@ describe('tokens', () => {
             // @ts-ignore
             cy.request(
               'api/v2/authorizations/' +
-              authData.find(function(item) {
-                return item.description === 'token test 02'
-              }).id
+                authData.find(function(item) {
+                  return item.description === 'token test 02'
+                }).id
             ).then(resp => {
               expect(resp.body.status).equals('active')
             })
@@ -176,9 +176,9 @@ describe('tokens', () => {
             // @ts-ignore
             cy.request(
               'api/v2/authorizations/' +
-              authData.find(function(item) {
-                return item.description === 'token test 02'
-              }).id
+                authData.find(function(item) {
+                  return item.description === 'token test 02'
+                }).id
             ).then(resp => {
               expect(resp.body.status).equals('inactive')
             })
@@ -214,7 +214,7 @@ describe('tokens', () => {
       .should('not.exist')
   })
 
-  it.only('can generate a read/write token', () => {
+  it('can generate a read/write token', () => {
     cy.getByTestID('table-row').should('have.length', 4)
 
     //create some extra buckets for filters
