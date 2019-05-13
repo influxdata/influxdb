@@ -133,7 +133,11 @@ describe('tokens', () => {
       .then(rows => {
         authData = authData.sort((a, b) =>
           //eslint ignore
-          a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+          a.description < b.description
+            ? -1
+            : a.description > b.description
+            ? 1
+            : 0
         )
 
         for (var i = 0; i < rows.length; i++) {
@@ -285,13 +289,17 @@ describe('tokens', () => {
 
     //Create a token  //todo filters in this or seperate test
     cy.getByTestID('input-field--descr').type('Jeton 01')
-    cy.getByTestID('builder-card--body').eq(0).within(() => {
-      cy.getByTitle('Click to filter by Sicilsky Bull').click()
-      cy.getByTitle('Click to filter by A la Carta').click()
-    })
-    cy.getByTestID('builder-card--body').eq(1).within(() => {
-      cy.getByTitle('Click to filter by Sicilsky Bull').click()
-    })
+    cy.getByTestID('builder-card--body')
+      .eq(0)
+      .within(() => {
+        cy.getByTitle('Click to filter by Sicilsky Bull').click()
+        cy.getByTitle('Click to filter by A la Carta').click()
+      })
+    cy.getByTestID('builder-card--body')
+      .eq(1)
+      .within(() => {
+        cy.getByTitle('Click to filter by Sicilsky Bull').click()
+      })
 
     cy.getByTestID('button--save').click()
     cy.getByTestID('overlay--container').should('not.be.visible')
