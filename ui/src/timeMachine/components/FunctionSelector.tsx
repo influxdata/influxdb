@@ -57,7 +57,7 @@ class FunctionSelector extends PureComponent<Props, State> {
     const {searchTerm} = this.state
 
     return (
-      <BuilderCard className="function-selector">
+      <BuilderCard className="function-selector" testID="function-selector">
         <BuilderCard.Header title="Aggregate Functions" />
         <BuilderCard.Menu>
           <WindowSelector

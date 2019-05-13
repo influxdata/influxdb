@@ -11,7 +11,7 @@ interface Window {
   period: string
 }
 
-const windows: Window[] = [
+export const windows: Window[] = [
   {period: AGG_WINDOW_AUTO},
   {period: '5m'},
   {period: '15m'},
@@ -37,12 +37,14 @@ const WindowSelector: FunctionComponent<Props> = ({
 }) => {
   return (
     <Dropdown
+      testID="window-selector"
+      buttonTestID="window-selector--button"
       selectedID={period}
       onChange={onSelect}
       status={getStatus(disabled)}
     >
       {windows.map(({period}) => (
-        <Dropdown.Item id={period} key={period} value={period}>
+        <Dropdown.Item id={period} key={period} value={period} testID={period}>
           {showPrefix(period) && (
             <span className="window-selector--label">Every</span>
           )}
