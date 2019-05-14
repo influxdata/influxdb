@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/kv"
 )
 
 var _ influxdb.SourceService = (*SourceService)(nil)
@@ -99,7 +99,7 @@ func (s *SourceService) FindSources(ctx context.Context, opts influxdb.FindOptio
 
 		// TODO(desa): this is a totaly hack and needs to be fixed.
 		// Specifically, we need to remove the concept of a default source.
-		if src.OrganizationID.String() == bolt.DefaultSourceOrganizationID {
+		if src.OrganizationID.String() == kv.DefaultSourceOrganizationID {
 			sources = append(sources, src)
 			continue
 		}

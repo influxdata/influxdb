@@ -17,8 +17,8 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -290,7 +290,7 @@ func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
 }
 
 func (tl *TestLauncher) BucketService() *http.BucketService {
-	return &http.BucketService{Addr: tl.URL(), Token: tl.Auth.Token, OpPrefix: bolt.OpPrefix}
+	return &http.BucketService{Addr: tl.URL(), Token: tl.Auth.Token, OpPrefix: kv.OpPrefix}
 }
 
 func (tl *TestLauncher) AuthorizationService() *http.AuthorizationService {
