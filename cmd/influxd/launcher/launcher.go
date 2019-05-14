@@ -186,7 +186,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Flag: "session-auto-renew",
 			Default: true,
 			Desc: "automatically extends session ttl on request",
-		}
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -201,7 +201,7 @@ type Launcher struct {
 	storeType  string
 	assetsPath string
 	testing    bool
-	sessionLength int
+	sessionLength int // in minutes
 	sessionAutoRenew bool
 
 	logLevel          string
@@ -396,18 +396,22 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	serviceConfig := kv.ServiceConfig{
+		SessionLength: time.Duration(m.sessionLength) * time.Minute,
+	}
+
 	var flusher http.Flusher
 	switch m.storeType {
 	case BoltStore:
 		store := bolt.NewKVStore(m.boltPath)
 		store.WithDB(m.boltClient.DB())
-		m.kvService = kv.NewService(store)
+		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
 			flusher = store
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
-		m.kvService = kv.NewService(store)
+		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
 			flusher = store
 		}

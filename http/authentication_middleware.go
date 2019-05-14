@@ -28,12 +28,11 @@ type AuthenticationHandler struct {
 }
 
 // NewAuthenticationHandler creates an authentication handler.
-func NewAuthenticationHandler(b *APIBackend) *AuthenticationHandler {
+func NewAuthenticationHandler() *AuthenticationHandler {
 	return &AuthenticationHandler{
-		Logger:           zap.NewNop(),
-		Handler:          http.DefaultServeMux,
-		noAuthRouter:     httprouter.New(),
-		SessionAutoRenew: b.SessionAutoRenew,
+		Logger:       zap.NewNop(),
+		Handler:      http.DefaultServeMux,
+		noAuthRouter: httprouter.New(),
 	}
 }
 
