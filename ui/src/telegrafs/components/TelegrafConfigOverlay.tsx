@@ -93,7 +93,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
       telegrafConfig,
       telegraf: {name},
     } = this.props
-    downloadTextFile(telegrafConfig, `${name || 'config'}.toml`)
+    downloadTextFile(telegrafConfig, name || 'config', '.toml')
   }
 }
 
