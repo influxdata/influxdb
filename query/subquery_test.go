@@ -274,6 +274,40 @@ func TestSubquery(t *testing.T) {
 			},
 		},
 		{
+			Name:      "TimeOrderingInTheOuterQuery",
+			Statement: `select * from (select last(value) from cpu group by host) order by time asc`,
+			Fields:    map[string]influxql.DataType{"value": influxql.Float},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := m.Name, "cpu"; got != want {
+						t.Errorf("unexpected source: got=%s want=%s", got, want)
+					}
+
+					var itr query.Iterator = &FloatIterator{Points: []query.FloatPoint{
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: 2},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 7},
+						{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: 8},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 10 * Second, Value: 3},
+						{Name: "cpu", Tags: ParseTags("host=B"), Time: 19 * Second, Value: 7},
+					}}
+					if _, ok := opt.Expr.(*influxql.Call); ok {
+						i, err := query.NewCallIterator(itr, opt)
+						if err != nil {
+							panic(err)
+						}
+						itr = i
+					}
+					return itr
+				}
+			},
+			Rows: []query.Row{
+				{Time: 19 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{"B", float64(7)}},
+				{Time: 20 * Second, Series: query.Series{Name: "cpu"}, Values: []interface{}{"A", float64(3)}},
+			},
+		},
+		{
 			Name:      "TimeZone",
 			Statement: `SELECT * FROM (SELECT * FROM cpu WHERE time >= '2019-04-17 09:00:00' and time < '2019-04-17 10:00:00' TZ('America/Chicago'))`,
 			Fields:    map[string]influxql.DataType{"value": influxql.Float},

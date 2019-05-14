@@ -587,6 +587,7 @@ func (b *exprIteratorBuilder) callIterator(ctx context.Context, expr *influxql.C
 				// Identify the name of the field we are using.
 				arg0 := expr.Args[0].(*influxql.VarRef)
 
+				opt.Ordered = false
 				input, err := buildExprIterator(ctx, arg0, b.ic, []influxql.Source{source}, opt, b.selector, false)
 				if err != nil {
 					return err
