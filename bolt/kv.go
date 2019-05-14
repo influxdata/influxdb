@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/coreos/bbolt"
+	bolt "github.com/coreos/bbolt"
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb/kit/tracing"
