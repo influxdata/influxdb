@@ -176,16 +176,16 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
 		},
 		{
-			DestP: &l.sessionLength,
-			Flag: "session-length",
+			DestP:   &l.sessionLength,
+			Flag:    "session-length",
 			Default: 60, // 60 minutes
-			Desc: "ttl in minutes for newly created sessions",
+			Desc:    "ttl in minutes for newly created sessions",
 		},
 		{
-			DestP: &l.sessionAutoRenew,
-			Flag: "session-auto-renew",
-			Default: true,
-			Desc: "automatically extends session ttl on request",
+			DestP:   &l.sessionRenewDisabled,
+			Flag:    "session-renew-disabled",
+			Default: false,
+			Desc:    "disables automatically extending session ttl on request",
 		},
 	}
 
@@ -198,11 +198,11 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	storeType  string
-	assetsPath string
-	testing    bool
-	sessionLength int // in minutes
-	sessionAutoRenew bool
+	storeType            string
+	assetsPath           string
+	testing              bool
+	sessionLength        int // in minutes
+	sessionRenewDisabled bool
 
 	logLevel          string
 	tracingType       string
@@ -598,7 +598,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		Logger:               m.logger,
-		SessionAutoRenew:			m.sessionAutoRenew,
+		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
 		PointsWriter:         pointsWriter,

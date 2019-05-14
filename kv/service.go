@@ -34,8 +34,7 @@ type Service struct {
 // NewService returns an instance of a Service.
 func NewService(kv Store, configs ...ServiceConfig) *Service {
 	s := &Service{
-		Logger: zap.NewNop(),
-		// Config:         config,
+		Logger:         zap.NewNop(),
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		Hash:           &Bcrypt{},
