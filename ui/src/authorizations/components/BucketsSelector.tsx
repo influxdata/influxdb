@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
+import SelectorList from 'src/shared/components/selectorList/SelectorList'
 import BucketsTabBody from 'src/authorizations/components/BucketsTabBody'
 import {BucketTab} from 'src/authorizations/utils/permissions'
 import BucketsTabSelector from 'src/authorizations/components/BucketsTabSelector'
@@ -78,8 +78,8 @@ class BucketsSelector extends PureComponent<Props> {
         )
       case BucketTab.Scoped:
         return (
-          <BuilderCard className="bucket-selectors">
-            <BuilderCard.Header title="Buckets">
+          <SelectorList className="bucket-selectors">
+            <SelectorList.Header title="Buckets">
               <div className="bucket-selectors--buttons">
                 <ComponentSpacer
                   alignItems={AlignItems.Center}
@@ -100,13 +100,13 @@ class BucketsSelector extends PureComponent<Props> {
                   />
                 </ComponentSpacer>
               </div>
-            </BuilderCard.Header>
+            </SelectorList.Header>
             <BucketsTabBody
               buckets={buckets}
               onSelect={onSelect}
               selectedBuckets={selectedBuckets}
             />
-          </BuilderCard>
+          </SelectorList>
         )
     }
   }
