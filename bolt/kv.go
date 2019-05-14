@@ -14,6 +14,9 @@ import (
 	"github.com/influxdata/influxdb/kv"
 )
 
+// OpPrefix is the prefix for bolt ops
+const OpPrefix = "bolt/"
+
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path   string

@@ -14,9 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// OpPrefix is the prefix for bolt ops
-const OpPrefix = "bolt/"
-
 func getOp(op string) string {
 	return OpPrefix + op
 }
