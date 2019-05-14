@@ -8,6 +8,7 @@ v1.7.7 [unreleased]
 -	[#13566](https://github.com/influxdata/influxdb/pull/13566): Fix csv decoder bug where empty tag values cause an array index panic.
 -	[#13837](https://github.com/influxdata/influxdb/pull/13837): Fix open/close race in SeriesFile.
 -	[#13860](https://github.com/influxdata/influxdb/pull/13860): Sync series segment after truncate.
+-	[#13854](https://github.com/influxdata/influxdb/pull/13854): Fix the ordering for selectors within a subquery with different outer tags.
 
 v1.7.6 [2019-04-16]
 -------------------
