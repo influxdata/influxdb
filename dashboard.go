@@ -122,11 +122,16 @@ func SortDashboards(opts FindOptions, ds []*Dashboard) {
 
 // Cell holds positional information about a cell on dashboard and a reference to a cell.
 type Cell struct {
-	ID ID    `json:"id,omitempty"`
-	X  int32 `json:"x"`
-	Y  int32 `json:"y"`
-	W  int32 `json:"w"`
-	H  int32 `json:"h"`
+	ID ID `json:"id,omitempty"`
+	CellProperty
+}
+
+// CellProperty contains the properties of a cell.
+type CellProperty struct {
+	X int32 `json:"x"`
+	Y int32 `json:"y"`
+	W int32 `json:"w"`
+	H int32 `json:"h"`
 }
 
 // DashboardFilter is a filter for dashboards.
@@ -686,6 +691,9 @@ type BuilderConfig struct {
 	Functions []struct {
 		Name string `json:"name"`
 	} `json:"functions"`
+	AggregateWindow struct {
+		Period string `json:"period"`
+	} `json:"aggregateWindow"`
 }
 
 // Axis represents the visible extents of a visualization

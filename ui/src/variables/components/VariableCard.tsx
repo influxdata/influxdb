@@ -1,19 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps, Link} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {IndexList, Alignment, Context, IconFont} from 'src/clockface'
-import {
-  ComponentColor,
-  ComponentSpacer,
-  FlexDirection,
-  AlignItems,
-  ComponentSize,
-  Button,
-} from '@influxdata/clockface'
+import {ResourceList} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import VariableContextMenu from 'src/variables/components/VariableContextMenu'
 
 // Types
 import {IVariable as Variable, ILabel} from '@influxdata/influx'
@@ -49,58 +42,30 @@ interface DispatchProps {
 
 type Props = OwnProps & DispatchProps & StateProps
 
-class VariableRow extends PureComponent<Props & WithRouterProps> {
+class VariableCard extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {variable, onDeleteVariable} = this.props
 
     return (
-      <IndexList.Row testID="variable-row">
-        <IndexList.Cell alignment={Alignment.Left}>
-          <ComponentSpacer
-            margin={ComponentSize.Small}
-            direction={FlexDirection.Column}
-            alignItems={AlignItems.FlexStart}
-            stretchToFitWidth={true}
-          >
-            <div className="editable-name">
-              <Link to={this.editVariablePath}>
-                <span>{variable.name}</span>
-              </Link>
-            </div>
-            {this.labels}
-          </ComponentSpacer>
-        </IndexList.Cell>
-        <IndexList.Cell alignment={Alignment.Left}>
-          {variable.arguments.type}
-        </IndexList.Cell>
-        <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <Button
-            text="Rename"
-            onClick={this.handleRenameVariable}
-            color={ComponentColor.Danger}
-            size={ComponentSize.ExtraSmall}
+      <ResourceList.Card
+        testID="resource-card"
+        labels={() => this.labels}
+        contextMenu={() => (
+          <VariableContextMenu
+            variable={variable}
+            onExport={this.handleExport}
+            onRename={this.handleRenameVariable}
+            onDelete={onDeleteVariable}
           />
-        </IndexList.Cell>
-        <IndexList.Cell revealOnHover={true} alignment={Alignment.Right}>
-          <Context>
-            <Context.Menu icon={IconFont.CogThick}>
-              <Context.Item label="Export" action={this.handleExport} />
-            </Context.Menu>
-            <Context.Menu
-              icon={IconFont.Trash}
-              color={ComponentColor.Danger}
-              testID="context-delete-menu"
-            >
-              <Context.Item
-                label="Delete"
-                action={onDeleteVariable}
-                value={variable}
-                testID="context-delete-task"
-              />
-            </Context.Menu>
-          </Context>
-        </IndexList.Cell>
-      </IndexList.Row>
+        )}
+        name={() => (
+          <ResourceList.Name
+            hrefValue={this.editVariablePath}
+            name={variable.name}
+          />
+        )}
+        metaData={() => [<>Type: {variable.arguments.type}</>]}
+      />
     )
   }
 
@@ -185,4 +150,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(VariableRow))
+)(withRouter<Props>(VariableCard))

@@ -2,26 +2,23 @@
 
 exports[`VariableList rendering renders 1`] = `
 <Fragment>
-  <IndexList>
-    <IndexListHeader>
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Name"
+  <ResourceList>
+    <ResourceListHeader>
+      <ResourceListSorter
+        name="Name"
         sort="none"
         sortKey="name"
-        width="60%"
       />
-      <IndexListHeaderCell
-        alignment="left"
-        columnName="Type"
-        width="40%"
+      <ResourceListSorter
+        name="Type"
+        sort="none"
+        sortKey="arguments"
       />
-    </IndexListHeader>
-    <IndexListBody
-      columnCount={3}
+    </ResourceListHeader>
+    <ResourceListBody
       emptyState={<React.Fragment />}
     >
-      <Connect(withRouter(VariableRow))
+      <Connect(withRouter(VariableCard))
         key="variable-0"
         onDeleteVariable={[MockFunction]}
         onEditVariable={[Function]}
@@ -39,7 +36,7 @@ exports[`VariableList rendering renders 1`] = `
           }
         }
       />
-    </IndexListBody>
-  </IndexList>
+    </ResourceListBody>
+  </ResourceList>
 </Fragment>
 `;

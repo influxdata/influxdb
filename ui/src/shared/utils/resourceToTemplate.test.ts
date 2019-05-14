@@ -315,6 +315,7 @@ describe('resourceToTemplate', () => {
                           },
                         ],
                         functions: [],
+                        aggregateWindow: {period: 'auto'},
                       },
                     },
                   ],

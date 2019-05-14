@@ -40,7 +40,12 @@ export function defaultViewQuery(): DashboardQuery {
 }
 
 export function defaultBuilderConfig(): BuilderConfig {
-  return {buckets: [], tags: [{key: '_measurement', values: []}], functions: []}
+  return {
+    buckets: [],
+    tags: [{key: '_measurement', values: []}],
+    functions: [],
+    aggregateWindow: {period: 'auto'},
+  }
 }
 
 function defaultLineViewProperties() {

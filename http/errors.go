@@ -1,12 +1,16 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -57,9 +61,17 @@ func CheckError(resp *http.Response) (err error) {
 		}
 	}
 	pe := new(platform.Error)
-	parseErr := json.NewDecoder(resp.Body).Decode(pe)
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, resp.Body); err != nil {
+		return &platform.Error{
+			Code: platform.EInternal,
+			Msg:  err.Error(),
+		}
+	}
+	parseErr := json.Unmarshal(buf.Bytes(), pe)
 	if parseErr != nil {
-		return parseErr
+		return errors.Wrap(stderrors.New(buf.String()), parseErr.Error())
 	}
 	return pe
 }

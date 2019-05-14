@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"path"
 
@@ -687,13 +686,13 @@ func (r *patchDashboardRequest) Valid() error {
 
 type postDashboardCellRequest struct {
 	dashboardID platform.ID
-	cell        *platform.Cell
-	opts        platform.AddDashboardCellOptions
+	*platform.CellProperty
+	UsingView *platform.ID `json:"usingView"`
+	Name      *string      `json:"name"`
 }
 
 func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*postDashboardCellRequest, error) {
 	req := &postDashboardCellRequest{}
-
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -702,21 +701,21 @@ func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*post
 			Msg:  "url missing id",
 		}
 	}
+
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "bad request json body",
+			Err:  err,
+		}
+	}
+
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	bs, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.cell = &platform.Cell{}
-	if err := json.NewDecoder(bytes.NewReader(bs)).Decode(req.cell); err != nil {
-		return nil, err
-	}
-	if err := json.NewDecoder(bytes.NewReader(bs)).Decode(&req.opts); err != nil {
-		return nil, err
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "invalid dashboard id",
+			Err:  err,
+		}
 	}
 
 	return req, nil
@@ -731,12 +730,40 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 		EncodeError(ctx, err, w)
 		return
 	}
-	if err := h.DashboardService.AddDashboardCell(ctx, req.dashboardID, req.cell, req.opts); err != nil {
+	cell := new(platform.Cell)
+
+	opts := new(platform.AddDashboardCellOptions)
+	if req.UsingView != nil || req.Name != nil {
+		opts.View = new(platform.View)
+		if req.UsingView != nil {
+			// load the view
+			opts.View, err = h.DashboardService.GetDashboardCellView(ctx, req.dashboardID, *req.UsingView)
+			if err != nil {
+				EncodeError(ctx, err, w)
+				return
+			}
+		}
+		if req.Name != nil {
+			opts.View.Name = *req.Name
+		}
+	} else if req.CellProperty == nil {
+		EncodeError(ctx, &platform.Error{
+			Code: platform.EInvalid,
+			Msg:  "req body is empty",
+		}, w)
+		return
+	}
+
+	if req.CellProperty != nil {
+		cell.CellProperty = *req.CellProperty
+	}
+
+	if err := h.DashboardService.AddDashboardCell(ctx, req.dashboardID, cell, *opts); err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardCellResponse(req.dashboardID, req.cell)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardCellResponse(req.dashboardID, cell)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
