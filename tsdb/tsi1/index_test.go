@@ -417,6 +417,7 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 
 // Ensure index keeps the correct set of series even with concurrent compactions.
 func TestIndex_CompactionConsistency(t *testing.T) {
+	t.Skip("TODO: flaky test: https://github.com/influxdata/influxdb/issues/13755")
 	t.Parallel()
 
 	idx := NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
