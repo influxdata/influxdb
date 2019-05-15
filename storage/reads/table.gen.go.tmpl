@@ -18,7 +18,6 @@ import (
 
 type {{.name}}Table struct {
 	table
-	valBuf []{{.Type}}
 	mu     sync.Mutex
 	cur    cursors.{{.Name}}ArrayCursor
 	alloc  *memory.Allocator
@@ -97,22 +96,8 @@ func (t *{{.name}}Table) advance() bool {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]{{.Type}}, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
+	t.colBufs[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	t.colBufs[valueColIdx] = t.toArrowBuffer(a.Values)
 	t.appendTags()
 	t.appendBounds()
 	return true
@@ -122,7 +107,6 @@ func (t *{{.name}}Table) advance() bool {
 
 type {{.name}}GroupTable struct {
 	table
-	valBuf []{{.Type}}
 	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.{{.Name}}ArrayCursor
@@ -192,22 +176,8 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]{{.Type}}, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
+	t.colBufs[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	t.colBufs[valueColIdx] = t.toArrowBuffer(a.Values)
 	t.appendTags()
 	t.appendBounds()
 	return true

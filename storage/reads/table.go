@@ -29,7 +29,6 @@ type table struct {
 	l int
 
 	colBufs []array.Interface
-	timeBuf []int64
 
 	err error
 
