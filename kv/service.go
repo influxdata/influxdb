@@ -22,6 +22,7 @@ const OpPrefix = "kv/"
 type Service struct {
 	kv     Store
 	Logger *zap.Logger
+	Config ServiceConfig
 
 	IDGenerator    influxdb.IDGenerator
 	TokenGenerator influxdb.TokenGenerator
@@ -31,8 +32,8 @@ type Service struct {
 }
 
 // NewService returns an instance of a Service.
-func NewService(kv Store) *Service {
-	return &Service{
+func NewService(kv Store, configs ...ServiceConfig) *Service {
+	s := &Service{
 		Logger:         zap.NewNop(),
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
@@ -40,6 +41,19 @@ func NewService(kv Store) *Service {
 		kv:             kv,
 		time:           time.Now,
 	}
+
+	if len(configs) > 0 {
+		s.Config = configs[0]
+	} else {
+		s.Config.SessionLength = influxdb.DefaultSessionLength
+	}
+
+	return s
+}
+
+// ServiceConfig allows us to configure Services
+type ServiceConfig struct {
+	SessionLength time.Duration
 }
 
 // Initialize creates Buckets needed.

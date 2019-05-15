@@ -175,6 +175,18 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: false,
 			Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
 		},
+		{
+			DestP:   &l.sessionLength,
+			Flag:    "session-length",
+			Default: 60, // 60 minutes
+			Desc:    "ttl in minutes for newly created sessions",
+		},
+		{
+			DestP:   &l.sessionRenewDisabled,
+			Flag:    "session-renew-disabled",
+			Default: false,
+			Desc:    "disables automatically extending session ttl on request",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -186,9 +198,11 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	storeType  string
-	assetsPath string
-	testing    bool
+	storeType            string
+	assetsPath           string
+	testing              bool
+	sessionLength        int // in minutes
+	sessionRenewDisabled bool
 
 	logLevel          string
 	tracingType       string
@@ -382,18 +396,22 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	serviceConfig := kv.ServiceConfig{
+		SessionLength: time.Duration(m.sessionLength) * time.Minute,
+	}
+
 	var flusher http.Flusher
 	switch m.storeType {
 	case BoltStore:
 		store := bolt.NewKVStore(m.boltPath)
 		store.WithDB(m.boltClient.DB())
-		m.kvService = kv.NewService(store)
+		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
 			flusher = store
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
-		m.kvService = kv.NewService(store)
+		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
 			flusher = store
 		}
@@ -580,6 +598,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.apibackend = &http.APIBackend{
 		AssetsPath:           m.assetsPath,
 		Logger:               m.logger,
+		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
 		PointsWriter:         pointsWriter,

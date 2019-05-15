@@ -3,6 +3,7 @@
 ### Features
 
 1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks.
+1. [13924](https://github.com/influxdata/influxdb/pull/13924): Add CLI arguments for configuring session length and renewal.
 
 ### Bug Fixes
 
