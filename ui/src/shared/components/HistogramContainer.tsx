@@ -63,10 +63,10 @@ const HistogramContainer: FunctionComponent<Props> = ({
     ...VIS_THEME,
     table,
     xAxisLabel,
-    xTickFormatter: formatNumber,
     xDomain,
     onSetXDomain,
     onResetXDomain,
+    valueFormatters: {[xColumn]: formatNumber},
     layers: [
       {
         type: 'histogram',

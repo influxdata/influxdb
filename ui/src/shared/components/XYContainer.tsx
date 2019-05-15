@@ -97,7 +97,6 @@ const XYContainer: FunctionComponent<Props> = ({
     table,
     xAxisLabel,
     yAxisLabel,
-    yTickFormatter: t => `${yTickPrefix}${formatNumber(t)}${yTickSuffix}`,
     xDomain,
     onSetXDomain,
     onResetXDomain,
@@ -105,6 +104,9 @@ const XYContainer: FunctionComponent<Props> = ({
     onSetYDomain,
     onResetYDomain,
     legendColumns,
+    valueFormatters: {
+      [yColumn]: t => `${yTickPrefix}${formatNumber(t)}${yTickSuffix}`,
+    },
     layers: [
       {
         type: 'line',
