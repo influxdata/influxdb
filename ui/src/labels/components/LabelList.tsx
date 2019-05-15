@@ -2,10 +2,10 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {IndexList} from 'src/clockface'
+import {ResourceList} from 'src/clockface'
 import {Overlay} from '@influxdata/clockface'
 import UpdateLabelOverlay from 'src/labels/components/UpdateLabelOverlay'
-import LabelRow from 'src/labels/components/LabelRow'
+import LabelCard from 'src/labels/components/LabelCard'
 
 // Utils
 import {validateLabelUniqueness} from 'src/labels/utils/'
@@ -56,22 +56,25 @@ export default class LabelList extends PureComponent<Props, State> {
     const {sortKey, sortDirection, onClickColumn} = this.props
     return (
       <>
-        <IndexList>
-          <IndexList.Header>
-            <IndexList.HeaderCell
+        <ResourceList>
+          <ResourceList.Header>
+            <ResourceList.Sorter
+              name={this.headerKeys[0]}
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-              columnName="Name"
-              width="20%"
               onClick={onClickColumn}
             />
-            <IndexList.HeaderCell columnName="Description" width="55%" />
-            <IndexList.HeaderCell width="25%" />
-          </IndexList.Header>
-          <IndexList.Body columnCount={3} emptyState={this.props.emptyState}>
+            <ResourceList.Sorter
+              name="Description"
+              sortKey={this.headerKeys[1]}
+              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+              onClick={onClickColumn}
+            />
+          </ResourceList.Header>
+          <ResourceList.Body emptyState={this.props.emptyState}>
             {this.rows}
-          </IndexList.Body>
-        </IndexList>
+          </ResourceList.Body>
+        </ResourceList>
         <Overlay visible={this.isOverlayVisible}>
           <UpdateLabelOverlay
             label={this.label}
@@ -85,7 +88,7 @@ export default class LabelList extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name']
+    return ['name', 'properties']
   }
 
   private get rows(): JSX.Element[] {
@@ -98,7 +101,7 @@ export default class LabelList extends PureComponent<Props, State> {
     )
 
     return sortedLabels.map((label, index) => (
-      <LabelRow
+      <LabelCard
         key={label.id || `label-${index}`}
         onDelete={onDeleteLabel}
         onClick={this.handleStartEdit}

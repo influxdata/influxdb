@@ -144,6 +144,7 @@
   transition: border-color 0.25s ease, color 0.25s ease;
   border-right: $ix-border solid $g5-pepper;
   padding-right: $ix-marg-b;
+  margin-left: $ix-marg-b;
   margin-right: $ix-marg-b;
 
   &:last-child {
