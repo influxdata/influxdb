@@ -16,7 +16,7 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel watch -d build src/index.html",
+    "start": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel watch --no-autoinstall -d build src/index.html",
     "build": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --no-source-maps --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
@@ -128,7 +128,7 @@
     "junit-viewer": "^4.11.1",
     "mocha": "^5.2.0",
     "mocha-junit-reporter": "^1.18.0",
-    "parcel": "^1.11.0",
+    "parcel": "^1.12.3",
     "prettier": "^1.16.4",
     "react-testing-library": "^5.4.4",
     "sass": "^1.15.3",
@@ -141,6 +141,7 @@
   "dependencies": {
     "@influxdata/clockface": "0.0.13",
     "@influxdata/influx": "0.3.4",
+    "@influxdata/influxdb-templates": "git+ssh://git@github.com:influxdata/influxdb-templates.git",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "@influxdata/vis": "^0.6.0",
     "axios": "^0.18.0",
