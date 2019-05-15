@@ -135,7 +135,7 @@ func TestTagKeysSet_IsSuperset(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("tags/" + tt.name, func(t *testing.T) {
+		t.Run("tags/"+tt.name, func(t *testing.T) {
 			if got := km.IsSupersetKeys(tt.tags); got != tt.exp {
 				t.Errorf("unexpected IsSuperset -got/+exp\n%s", cmp.Diff(got, tt.exp))
 			}
@@ -143,7 +143,7 @@ func TestTagKeysSet_IsSuperset(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run("bytes/" + tt.name, func(t *testing.T) {
+		t.Run("bytes/"+tt.name, func(t *testing.T) {
 			var keys [][]byte
 			for i := range tt.tags {
 				keys = append(keys, tt.tags[i].Key)

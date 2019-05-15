@@ -62,7 +62,7 @@ group:
 					"cpu,tag0=00011,tag1=1",
 				)},
 			group: datatypes.GroupBy,
-			keys:  []string{"tag0","tag1"},
+			keys:  []string{"tag0", "tag1"},
 			exp: `group:
   tag key      : _m,tag0,tag1
   partition key: 0,00111
