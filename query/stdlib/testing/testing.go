@@ -19,6 +19,7 @@ var FluxEndToEndSkipList = map[string]string{
 	"histogram_quantile":       "Reason TBD",
 	"join":                     "Reason TBD",
 	"join_across_measurements": "Reason TBD",
+	"join_agg":                 "Reason TBD",
 	"keep_non_existent":        "Reason TBD",
 	"key_values":               "Reason TBD",
 	"key_values_host_name":     "Reason TBD",
@@ -107,4 +108,6 @@ var FluxEndToEndSkipList = map[string]string{
 	"range":                 "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
 	"window_generate_empty": "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
 	"parse_regex":           "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
+
+	"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
 }
