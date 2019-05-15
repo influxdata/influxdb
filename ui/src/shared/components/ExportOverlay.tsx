@@ -136,8 +136,8 @@ class ExportOverlay extends PureComponent<Props> {
 
   private handleExport = (): void => {
     const {resource, resourceName, onDismissOverlay} = this.props
-    const name = get(resource, 'name', resourceName)
-    downloadTextFile(JSON.stringify(resource, null, 1), `${name}.json`)
+    const name = get(resource, 'content.data.attributes.name', resourceName)
+    downloadTextFile(JSON.stringify(resource, null, 1), name, '.json')
     onDismissOverlay()
   }
 
