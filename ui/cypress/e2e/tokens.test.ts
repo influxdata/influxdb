@@ -20,10 +20,6 @@ describe('tokens', () => {
       } = body
       cy.wrap(body.org).as('org')
 
-      cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/tokens`)
-      })
-
       testTokens = [
         {
           id: id,
@@ -69,13 +65,13 @@ describe('tokens', () => {
           id: resp.body.authorizations[0].id,
         })
 
-        cy.createToken(
-          testTokens[0].id,
-          testTokens[0].description,
-          testTokens[0].status,
-          testTokens[0].permissions
-        )
-          .then(resp => {
+        testTokens.forEach(token => {
+          cy.createToken(
+            token.id,
+            token.description,
+            token.status,
+            token.permissions
+          ).then(resp => {
             expect(resp.body).to.exist
             authData.push({
               description: resp.body.description,
@@ -83,81 +79,41 @@ describe('tokens', () => {
               id: resp.body.id,
             })
           })
-          .then(() => {
-            cy.createToken(
-              testTokens[1].id,
-              testTokens[1].description,
-              testTokens[1].status,
-              testTokens[1].permissions
-            )
-              .then(resp => {
-                expect(resp.body).to.exist
-                authData.push({
-                  description: resp.body.description,
-                  status: resp.body.status === 'active',
-                  id: resp.body.id,
-                })
-              })
-              .then(() => {
-                cy.createToken(
-                  testTokens[2].id,
-                  testTokens[2].description,
-                  testTokens[2].status,
-                  testTokens[2].permissions
-                ).then(resp => {
-                  expect(resp.body).to.exist
-                  authData.push({
-                    description: resp.body.description,
-                    status: resp.body.status === 'active',
-                    id: resp.body.id,
-                  })
-                })
-              })
-              .then(() => {
-                //sanity check that data is seeded
-                cy.get<Organization>('@org').then(({id}) => {
-                  cy.request('api/v2/authorizations?orgID=' + id).then(resp => {
-                    expect(resp.body.authorizations).to.have.length(4)
-                    cy.wait(1000) //wait a second to allow ui sync
-                  })
-                })
-              })
-          })
+        })
+
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${id}/tokens`)
+        })
       })
     })
   })
 
   it('can list tokens', () => {
-    cy.getByTestID('table-row')
-      .should('have.length', 4)
-      .then(rows => {
-        authData = authData.sort((a, b) =>
-          //eslint ignore
-          a.description < b.description
-            ? -1
-            : a.description > b.description
-            ? 1
-            : 0
-        )
+    cy.getByTestID('table-row').should('have.length', 4)
+    cy.getByTestID('table-row').then(rows => {
+      authData = authData.sort((a, b) =>
+        // eslint-disable-next-line
+          a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+      )
 
-        for (var i = 0; i < rows.length; i++) {
-          cy.getByTestID('editable-name')
+      for (var i = 0; i < rows.length; i++) {
+        cy.getByTestID('editable-name')
+          .eq(i)
+          .children('a')
+          .children('span')
+          .should('have.text', authData[i].description)
+
+        if (authData[i].status) {
+          cy.getByTestID('slide-toggle')
             .eq(i)
-            .children('a')
-            .children('span')
-            .should('have.text', authData[i].description)
-
-          if (authData[i].status) {
-            cy.getByTestID('slide-toggle')
-              .eq(i)
-              .should('have.class', 'active')
-          } else {
-            cy.getByTestID('slide-toggle')
-              .eq(i)
-              .should('not.have.class', 'active')
-          }
+            .should('have.class', 'active')
+        } else {
+          cy.getByTestID('slide-toggle')
+            .eq(i)
+            .should('not.have.class', 'active')
         }
-      })
+      }
+    })
   })
 
   it('can filter tokens', () => {
