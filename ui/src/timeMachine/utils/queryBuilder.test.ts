@@ -8,6 +8,7 @@ describe('buildQuery', () => {
       buckets: ['b0'],
       tags: [{key: '_measurement', values: ['m0']}],
       functions: [],
+      aggregateWindow: {period: 'auto'},
     }
 
     const expected = `from(bucket: "b0")
@@ -27,6 +28,7 @@ describe('buildQuery', () => {
         {key: '_field', values: ['f0', 'f1']},
       ],
       functions: [],
+      aggregateWindow: {period: 'auto'},
     }
 
     const expected = `from(bucket: "b0")
@@ -44,6 +46,7 @@ describe('buildQuery', () => {
       buckets: ['b0'],
       tags: [{key: '_measurement', values: ['m0']}],
       functions: [{name: 'mean'}, {name: 'median'}],
+      aggregateWindow: {period: 'auto'},
     }
 
     const expected = `from(bucket: "b0")

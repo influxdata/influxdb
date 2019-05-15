@@ -358,6 +358,30 @@ from(bucket:"test") |> range(start:-1h)`
 			t.Fatalf("exp meta %v, got meta %v", *meta, ts[0].Meta)
 		}
 
+		// Test ListTasks with After
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: id - 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ts) != 2 {
+			t.Fatalf("expected 2 result, got %d", len(ts))
+		}
+		if ts[0].Task.ID != id {
+			t.Fatalf("got task ID %v, exp %v", ts[0].Task.ID, id)
+		}
+
+		if ts[1].Task.ID != newID {
+			t.Fatalf("got task ID %v, exp %v", ts[1].Task.ID, newID)
+		}
+
+		ts, err = s.ListTasks(context.Background(), backend.TaskSearchParams{After: newID})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ts) != 0 {
+			t.Fatalf("expected 0 result, got %d", len(ts))
+		}
+
 		// should return the last 2 tasks
 		_, err = s.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, AuthorizationID: authzID, Script: fmt.Sprintf(scriptFmt, 3)})
 		if err != nil {

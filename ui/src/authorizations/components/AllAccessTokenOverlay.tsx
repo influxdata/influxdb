@@ -59,13 +59,6 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                 direction={FlexDirection.Column}
                 margin={ComponentSize.Large}
               >
-                <Form.Element label="Description">
-                  <Input
-                    placeholder="Describe this new token"
-                    value={description}
-                    onChange={this.handleInputChange}
-                  />
-                </Form.Element>
                 <Alert
                   icon={IconFont.AlertTriangle}
                   color={ComponentColor.Warning}
@@ -73,6 +66,13 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                   This token will be able to create, update, delete, read, and
                   write to anything in this organization
                 </Alert>
+                <Form.Element label="Description">
+                  <Input
+                    placeholder="Describe this new token"
+                    value={description}
+                    onChange={this.handleInputChange}
+                  />
+                </Form.Element>
 
                 <ComponentSpacer
                   alignItems={AlignItems.Center}

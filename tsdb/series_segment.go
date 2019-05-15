@@ -70,6 +70,8 @@ func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 		return nil, err
 	} else if err := f.Truncate(int64(SeriesSegmentSize(id))); err != nil {
 		return nil, err
+	} else if err := f.Sync(); err != nil {
+		return nil, err
 	} else if err := f.Close(); err != nil {
 		return nil, err
 	}

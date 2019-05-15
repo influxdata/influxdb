@@ -69,13 +69,13 @@ func (h *ThingHandler) handlePostThing(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePostThingRequest(ctx, r)
 	if err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 
 	// Do stuff here
 	if err := h.ThingService.CreateThing(ctx, req.Thing); err != nil {
-		errors.EncodeHTTP(ctx, err, w)
+		EncodeError(ctx, err, w)
 		return
 	}
 

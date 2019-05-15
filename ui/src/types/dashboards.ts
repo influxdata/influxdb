@@ -57,10 +57,15 @@ export enum QueryEditMode {
   Advanced = 'advanced',
 }
 
+export interface AggregateWindow {
+  period: string
+}
+
 export interface BuilderConfig {
   buckets: string[]
   tags: Array<{key: string; values: string[]}>
   functions: Array<{name: string}>
+  aggregateWindow: AggregateWindow
 }
 
 export interface DashboardQuery {

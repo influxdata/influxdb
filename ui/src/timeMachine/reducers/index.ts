@@ -12,6 +12,7 @@ import {
   VEO_TIME_MACHINE_ID,
   DE_TIME_MACHINE_ID,
 } from 'src/timeMachine/constants'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 // Types
 import {TimeRange, View, AutoRefresh} from 'src/types'
@@ -23,16 +24,18 @@ import {
   QueryView,
   QueryViewProperties,
   ExtractWorkingView,
+  AggregateWindow,
 } from 'src/types/dashboards'
 import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
 import {RemoteDataState} from 'src/types'
 import {Color} from 'src/types/colors'
-import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
 interface QueryBuilderState {
   buckets: string[]
   bucketsStatus: RemoteDataState
+  functions: Array<[{name: string}]>
+  aggregateWindow: AggregateWindow
   tags: Array<{
     valuesSearchTerm: string
     keysSearchTerm: string
@@ -82,6 +85,8 @@ export const initialStateHelper = (): TimeMachineState => ({
   queryBuilder: {
     buckets: [],
     bucketsStatus: RemoteDataState.NotStarted,
+    aggregateWindow: {period: 'auto'},
+    functions: [],
     tags: [
       {
         valuesSearchTerm: '',
@@ -663,6 +668,16 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SELECT_AGGREGATE_WINDOW': {
+      return produce(state, draftState => {
+        const {activeQueryIndex, draftQueries} = draftState
+        const {period} = action.payload
+
+        draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {period}
+        buildActiveQuery(draftState)
+      })
+    }
+
     case 'UPDATE_ACTIVE_QUERY_NAME': {
       const {activeQueryIndex} = state
       const {queryName} = action.payload
@@ -788,6 +803,8 @@ const initialQueryBuilderState = (
   return {
     buckets: builderConfig.buckets,
     bucketsStatus: RemoteDataState.NotStarted,
+    functions: [],
+    aggregateWindow: {period: 'auto'},
     tags: builderConfig.tags.map(_ => ({
       valuesSearchTerm: '',
       keysSearchTerm: '',

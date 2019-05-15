@@ -15,6 +15,7 @@
 package bolt
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -302,7 +303,17 @@ func (s *Store) ListTasks(ctx context.Context, params backend.TaskSearchParams) 
 			if err != nil {
 				return err
 			}
-			c.Seek(encodedAfter)
+
+			// If the taskID returned by c.Seek is greater than after param, append taskID to taskIDs.
+			k, _ := c.Seek(encodedAfter)
+			if bytes.Compare(k, encodedAfter) > 0 {
+				var nID platform.ID
+				if err := nID.Decode(k); err != nil {
+					return err
+				}
+				taskIDs = append(taskIDs, nID)
+			}
+
 			for k, _ := c.Next(); k != nil && len(taskIDs) < lim; k, _ = c.Next() {
 				var nID platform.ID
 				if err := nID.Decode(k); err != nil {

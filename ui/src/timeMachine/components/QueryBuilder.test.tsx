@@ -2,6 +2,7 @@ import React from 'react'
 
 import {renderWithRedux} from 'src/mockState'
 import {waitForElement, fireEvent} from 'react-testing-library'
+import {windows} from 'src/timeMachine/components/WindowSelector'
 
 import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
@@ -70,5 +71,29 @@ describe('QueryBuilder', () => {
     await waitForElement(() => getByTestId('tag-selector--container 1'))
 
     expect(queryAllByTestId(/tag-selector--container/).length).toBe(2)
+  })
+
+  it('can select an aggregate window', async () => {
+    const {getByTestId} = renderWithRedux(<QueryBuilder />, setInitialState)
+
+    // can only select an aggregate window if you've already selected a function
+    const mean = getByTestId('selector-list mean')
+    fireEvent.click(mean)
+
+    let windowSelectorButton = getByTestId('window-selector--button')
+
+    fireEvent.click(windowSelectorButton)
+
+    const windowSelector = getByTestId('dropdown--menu window-selector')
+
+    expect(windowSelector.childElementCount).toBe(windows.length)
+
+    const fiveMins = getByTestId('5m')
+
+    fireEvent.click(fiveMins)
+
+    windowSelectorButton = getByTestId('window-selector--button')
+
+    expect(windowSelectorButton.textContent).toContain('5m')
   })
 })

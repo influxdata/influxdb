@@ -56,7 +56,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         key={`telegraf-id--${collector.id}`}
         testID="resource-card"
         name={() => (
-          <ResourceList.Name
+          <ResourceList.EditableName
             onUpdate={this.handleUpdateName}
             onClick={this.handleNameClick}
             name={collector.name}

@@ -734,10 +734,7 @@ func FindOrganization(
 				},
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EInvalid,
-					Msg:  "no filter parameters provided",
-				},
+				err: platform.ErrInvalidOrgFilter,
 			},
 		},
 		{

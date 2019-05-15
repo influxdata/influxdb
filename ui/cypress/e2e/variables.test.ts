@@ -28,7 +28,7 @@ describe('Variables', () => {
       .contains('Create')
       .click()
 
-    cy.getByTestID('variable-row').should('have.length', 1)
+    cy.getByTestID('resource-card').should('have.length', 1)
   })
 
   it.skip('can delete a variable', () => {
@@ -37,12 +37,12 @@ describe('Variables', () => {
       cy.createVariable(id)
     })
 
-    cy.getByTestID('variable-row').should('have.length', 2)
+    cy.getByTestID('resource-card').should('have.length', 2)
 
     cy.getByTestID('confirmation-button')
       .first()
       .click({force: true})
 
-    cy.getByTestID('variable-row').should('have.length', 1)
+    cy.getByTestID('resource-card').should('have.length', 1)
   })
 })

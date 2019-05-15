@@ -19,7 +19,7 @@ import {
 import {Tabs} from 'src/clockface'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/buckets/components/BucketList'
-import {PrettyBucket} from 'src/buckets/components/BucketRow'
+import {PrettyBucket} from 'src/buckets/components/BucketCard'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 

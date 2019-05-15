@@ -1,77 +1,82 @@
-import {WINDOW_PERIOD, OPTION_NAME} from 'src/variables/constants'
+export const AGG_WINDOW_AUTO = 'auto'
+export const AGG_WINDOW_NONE = 'none'
 
 export interface QueryFn {
   name: string
-  flux: string
+  flux: (period?: string) => string
 }
 
 export const FUNCTIONS: QueryFn[] = [
   {
     name: 'mean',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: mean)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: mean)`,
   },
   {
     name: 'median',
     // TODO: https://github.com/influxdata/influxdb/issues/13806
-    flux: `|> window(period: ${OPTION_NAME}.${WINDOW_PERIOD})
+    flux: period => `|> window(period: ${period})
   |> toFloat()
   |> median()
   |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")`,
   },
   {
     name: 'max',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: max)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: max)`,
   },
   {
     name: 'min',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: min)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: min)`,
   },
   {
     name: 'sum',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: sum)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: sum)`,
   },
   {
     name: 'derivative',
-    flux: `|> derivative(unit: ${OPTION_NAME}.${WINDOW_PERIOD}, nonNegative: false)`,
+    flux: period => `|> derivative(unit: ${period}, nonNegative: false)`,
+  },
+  {
+    name: 'nonnegative derivative',
+    flux: period => `|> derivative(unit: ${period}, nonNegative: true)`,
   },
   {
     name: 'distinct',
-    flux: '|> distinct()',
+    flux: () => '|> distinct()',
   },
   {
     name: 'count',
-    flux: '|> count()',
+    flux: () => '|> count()',
   },
   {
     name: 'increase',
-    flux: '|> increase()',
+    flux: () => '|> increase()',
   },
   {
     name: 'skew',
-    flux: '|> skew()',
+    flux: () => '|> skew()',
   },
   {
     name: 'spread',
-    flux: '|> spread()',
+    flux: () => '|> spread()',
   },
   {
     name: 'stddev',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: stddev)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: stddev)`,
   },
   {
     name: 'first',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: first)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: first)`,
   },
   {
     name: 'last',
-    flux: `|> aggregateWindow(every: ${OPTION_NAME}.${WINDOW_PERIOD}, fn: last)`,
+    flux: period => `|> aggregateWindow(every: ${period}, fn: last)`,
   },
   {
     name: 'unique',
-    flux: '|> unique()',
+    flux: () => '|> unique()',
   },
   {
     name: 'sort',
-    flux: '|> sort()',
+    flux: () => '|> sort()',
   },
 ]

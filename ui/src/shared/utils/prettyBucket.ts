@@ -1,7 +1,7 @@
 import {Bucket} from 'src/types'
 
 import {BucketRetentionRules} from '@influxdata/influx'
-import {PrettyBucket} from 'src/buckets/components/BucketRow'
+import {PrettyBucket} from 'src/buckets/components/BucketCard'
 
 // Utils
 import {ruleToString} from 'src/utils/formatting'
