@@ -476,5 +476,5 @@ func (c *Client) appendUserEventToLog(ctx context.Context, tx *bolt.Tx, id platf
 		return err
 	}
 
-	return c.addLogEntry(ctx, tx, k, v, c.time())
+	return c.addLogEntry(ctx, tx, k, v, c.Now())
 }

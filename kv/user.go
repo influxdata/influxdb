@@ -515,7 +515,7 @@ func (s *Service) appendUserEventToLog(ctx context.Context, tx Tx, id influxdb.I
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.time())
+	return s.addLogEntry(ctx, tx, k, v, s.Now())
 }
 
 var (

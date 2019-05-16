@@ -3,7 +3,6 @@ package kv_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
@@ -46,12 +45,12 @@ func initInmemDashboardService(f influxdbtesting.DashboardFields, t *testing.T) 
 
 func initDashboardService(s kv.Store, f influxdbtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
 
-	if f.NowFn == nil {
-		f.NowFn = time.Now
+	if f.TimeGenerator == nil {
+		f.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
 	svc := kv.NewService(s)
 	svc.IDGenerator = f.IDGenerator
-	svc.WithTime(f.NowFn)
+	svc.TimeGenerator = f.TimeGenerator
 
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {

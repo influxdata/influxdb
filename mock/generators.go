@@ -2,6 +2,7 @@ package mock
 
 import (
 	"testing"
+	"time"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -46,4 +47,14 @@ type TokenGenerator struct {
 // Token generates a new platform.Token from a mock function.
 func (g TokenGenerator) Token() (string, error) {
 	return g.TokenFn()
+}
+
+// TimeGenerator stores a fake value of time.
+type TimeGenerator struct {
+	FakeValue time.Time
+}
+
+// Now will return the FakeValue stored in the struct.
+func (g TimeGenerator) Now() time.Time {
+	return g.FakeValue
 }

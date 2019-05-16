@@ -3,7 +3,6 @@ package inmem
 import (
 	"context"
 	"sync"
-	"time"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
@@ -35,7 +34,7 @@ type Service struct {
 
 	TokenGenerator platform.TokenGenerator
 	IDGenerator    platform.IDGenerator
-	time           func() time.Time
+	platform.TimeGenerator
 }
 
 // NewService creates an instance of a Service.
@@ -43,16 +42,10 @@ func NewService() *Service {
 	s := &Service{
 		TokenGenerator: rand.NewTokenGenerator(64),
 		IDGenerator:    snowflake.NewIDGenerator(),
-		time:           time.Now,
+		TimeGenerator:  platform.RealTimeGenerator{},
 	}
 	s.initializeSources(context.TODO())
 	return s
-}
-
-// WithTime sets the function for computing the current time. Used for updating meta data
-// about objects stored. Should only be used in tests for mocking.
-func (s *Service) WithTime(fn func() time.Time) {
-	s.time = fn
 }
 
 // Flush removes all data from the in-memory store
