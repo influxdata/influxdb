@@ -21,14 +21,18 @@ interface Props {
   title: string
   onSelectAll?: (sectionID: string) => void
   onDeselectAll?: (sectionID: string) => void
+  testID?: string
 }
 
 class PermissionsWidgetSection extends Component<Props> {
   public render() {
-    const {title} = this.props
+    const {title, testID} = this.props
 
     return (
-      <section className="permissions-widget--section">
+      <section
+        className="permissions-widget--section"
+        data-testid={testID || 'permissions-section'}
+      >
         <header className="permissions-widget--section-heading">
           <h3 className="permissions-widget--section-title">{title}</h3>
           {this.selectionButtons}
