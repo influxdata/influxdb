@@ -665,6 +665,11 @@ func (f *FileStore) Open(ctx context.Context) error {
 
 	var lm int64
 	counts := make(map[int]uint64, 5)
+	sizes := make(map[int]uint64, 5)
+	for i := 0; i <= 5; i++ {
+		counts[i] = 0
+		sizes[i] = 0
+	}
 	for range files {
 		res := <-readerC
 		if res.err != nil {
@@ -685,7 +690,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 		for _, ts := range res.r.TombstoneFiles() {
 			totalSize += uint64(ts.Size)
 		}
-		f.tracker.AddBytes(totalSize, seq)
+		sizes[seq] += totalSize
 
 		// Re-initialize the lastModified time for the file store
 		if res.r.LastModified() > lm {
@@ -697,6 +702,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
+	f.tracker.SetBytes(sizes)
 	f.tracker.SetFileCount(counts)
 	return nil
 }
@@ -1000,6 +1006,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 
 	// Recalculate the disk size stat
 	sizes := make(map[int]uint64, 5)
+	counts := make(map[int]uint64, 5)
 	for _, file := range f.files {
 		size := uint64(file.Size())
 		for _, ts := range file.TombstoneFiles() {
@@ -1010,8 +1017,10 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 			return err
 		}
 		sizes[seq] += size
+		counts[seq]++
 	}
 	f.tracker.SetBytes(sizes)
+	f.tracker.SetFileCount(counts)
 
 	return nil
 }
