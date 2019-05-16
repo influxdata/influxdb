@@ -115,7 +115,11 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
   const initialMax = domain ? String(domain[1]) : ''
 
   return (
-    <Form.Element label={label} errorMessage={errorMessage}>
+    <Form.Element
+      label={label}
+      errorMessage={errorMessage}
+      className="auto-domain-input"
+    >
       <Grid>
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
@@ -141,16 +145,16 @@ const AutoDomainInput: SFC<AutoDomainInputProps> = ({
             </Radio>
           </Grid.Column>
         </Grid.Row>
-        <Grid.Row>
-          {showInputs && (
+        {showInputs && (
+          <Grid.Row className="auto-domain-input--custom">
             <MinMaxInputs
               initialMin={initialMin}
               initialMax={initialMax}
               onSetMinMax={onSetDomain}
               onSetErrorMessage={setErrorMessage}
             />
-          )}
-        </Grid.Row>
+          </Grid.Row>
+        )}
       </Grid>
     </Form.Element>
   )

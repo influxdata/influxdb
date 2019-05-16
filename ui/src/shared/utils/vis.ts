@@ -1,6 +1,6 @@
 // Libraries
 import {format} from 'd3-format'
-import {isNumeric, Table} from '@influxdata/vis'
+import {isNumeric, Table, ColumnType} from '@influxdata/vis'
 
 // Types
 import {XYViewGeom, Axis} from 'src/types'
@@ -29,6 +29,16 @@ export const resolveGeom = (geom: XYViewGeom) => {
   }
 
   return XYViewGeom.Line
+}
+
+export const getFormatter = (
+  columnType: ColumnType,
+  prefix: string = '',
+  suffix: string = ''
+): null | ((x: any) => string) => {
+  return columnType === 'number'
+    ? x => `${prefix}${formatNumber(x)}${suffix}`
+    : null
 }
 
 const NOISY_LEGEND_COLUMNS = new Set(['_start', '_stop', 'result'])

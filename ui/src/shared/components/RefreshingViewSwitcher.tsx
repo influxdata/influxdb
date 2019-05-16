@@ -7,6 +7,7 @@ import GaugeChart from 'src/shared/components/GaugeChart'
 import SingleStat from 'src/shared/components/SingleStat'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import HistogramContainer from 'src/shared/components/HistogramContainer'
+import HeatmapContainer from 'src/shared/components/HeatmapContainer'
 import VisTableTransform from 'src/shared/components/VisTableTransform'
 import XYContainer from 'src/shared/components/XYContainer'
 import LatestValueTransform from 'src/shared/components/LatestValueTransform'
@@ -116,6 +117,20 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
             >
               {config => <Plot config={config} />}
             </HistogramContainer>
+          )}
+        </VisTableTransform>
+      )
+    case ViewType.Heatmap:
+      return (
+        <VisTableTransform files={files}>
+          {table => (
+            <HeatmapContainer
+              table={table}
+              loading={loading}
+              viewProperties={properties}
+            >
+              {config => <Plot config={config} />}
+            </HeatmapContainer>
           )}
         </VisTableTransform>
       )

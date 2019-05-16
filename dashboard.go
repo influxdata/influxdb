@@ -388,6 +388,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = hv
+		case "heatmap":
+			var hv HeatmapViewProperties
+			if err := json.Unmarshal(v.B, &hv); err != nil {
+				return nil, err
+			}
+			vis = hv
 		}
 	case "empty":
 		var ev EmptyViewProperties
@@ -459,6 +465,15 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			HistogramViewProperties: vis,
+		}
+	case HeatmapViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			HeatmapViewProperties
+		}{
+			Shape: "chronograf-v2",
+
+			HeatmapViewProperties: vis,
 		}
 	case MarkdownViewProperties:
 		s = struct {
@@ -602,6 +617,26 @@ type HistogramViewProperties struct {
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
+// HeatmapViewProperties represents options for heatmap view in Chronograf
+type HeatmapViewProperties struct {
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	ViewColors        []string         `json:"colors"`
+	BinSize           int32            `json:"binSize"`
+	XColumn           string           `json:"xColumn"`
+	YColumn           string           `json:"yColumn"`
+	XDomain           []float64        `json:"xDomain,omitEmpty"`
+	YDomain           []float64        `json:"yDomain,omitEmpty"`
+	XAxisLabel        string           `json:"xAxisLabel"`
+	YAxisLabel        string           `json:"yAxisLabel"`
+	XPrefix           string           `json:"xPrefix"`
+	XSuffix           string           `json:"xSuffix"`
+	YPrefix           string           `json:"yPrefix"`
+	YSuffix           string           `json:"ySuffix"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+}
+
 // GaugeViewProperties represents options for gauge view in Chronograf
 type GaugeViewProperties struct {
 	Type              string           `json:"type"`
@@ -656,6 +691,7 @@ func (XYViewProperties) viewProperties()             {}
 func (LinePlusSingleStatProperties) viewProperties() {}
 func (SingleStatViewProperties) viewProperties()     {}
 func (HistogramViewProperties) viewProperties()      {}
+func (HeatmapViewProperties) viewProperties()        {}
 func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
@@ -665,6 +701,7 @@ func (v XYViewProperties) GetType() string             { return v.Type }
 func (v LinePlusSingleStatProperties) GetType() string { return v.Type }
 func (v SingleStatViewProperties) GetType() string     { return v.Type }
 func (v HistogramViewProperties) GetType() string      { return v.Type }
+func (v HeatmapViewProperties) GetType() string        { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }

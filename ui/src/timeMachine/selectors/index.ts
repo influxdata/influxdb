@@ -47,7 +47,10 @@ export const getVisTable = (state: AppState): Table => {
 const getNumericColumnsMemoized = memoizeOne(
   (table: Table): string[] => {
     const numericColumns = Object.entries(table.columns)
-      .filter(([__, {type}]) => isNumeric(type))
+      .filter(
+        ([__, {name, type}]) =>
+          isNumeric(type) && name !== 'result' && name !== 'table'
+      )
       .map(([name]) => name)
 
     return numericColumns
@@ -77,29 +80,38 @@ export const getGroupableColumns = (state: AppState): string[] => {
   return getGroupableColumnsMemoized(table)
 }
 
-const getXColumnSelectionMemoized = memoizeOne(
-  (validXColumns: string[], preference: string): string => {
-    if (preference && validXColumns.includes(preference)) {
-      return preference
-    }
-
-    if (validXColumns.includes('_value')) {
-      return '_value'
-    }
-
-    if (validXColumns.length) {
-      return validXColumns[0]
-    }
-
-    return null
+const selectXYColumn = (validColumns: string[], preference: string): string => {
+  if (preference && validColumns.includes(preference)) {
+    return preference
   }
-)
+
+  if (validColumns.includes('_value')) {
+    return '_value'
+  }
+
+  if (validColumns.length) {
+    return validColumns[0]
+  }
+
+  return null
+}
+
+const getXColumnSelectionMemoized = memoizeOne(selectXYColumn)
+
+const getYColumnSelectionMemoized = memoizeOne(selectXYColumn)
 
 export const getXColumnSelection = (state: AppState): string => {
   const validXColumns = getNumericColumns(state)
   const preference = get(getActiveTimeMachine(state), 'view.properties.xColumn')
 
   return getXColumnSelectionMemoized(validXColumns, preference)
+}
+
+export const getYColumnSelection = (state: AppState): string => {
+  const validYColumns = getNumericColumns(state)
+  const preference = get(getActiveTimeMachine(state), 'view.properties.yColumn')
+
+  return getYColumnSelectionMemoized(validYColumns, preference)
 }
 
 const getFillColumnsSelectionMemoized = memoizeOne(
@@ -140,6 +152,17 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
         ...saveableView.properties,
         xColumn: getXColumnSelection(state),
         fillColumns: getFillColumnsSelection(state),
+      },
+    }
+  }
+
+  if (saveableView.properties.type === ViewType.Heatmap) {
+    saveableView = {
+      ...saveableView,
+      properties: {
+        ...saveableView.properties,
+        xColumn: getXColumnSelection(state),
+        yColumn: getYColumnSelection(state),
       },
     }
   }

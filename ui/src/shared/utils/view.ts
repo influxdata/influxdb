@@ -1,4 +1,5 @@
 // Constants
+import {INFERNO} from '@influxdata/vis'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {
@@ -12,6 +13,7 @@ import {
   XYView,
   XYViewGeom,
   HistogramView,
+  HeatmapView,
   LinePlusSingleStatView,
   SingleStatView,
   TableView,
@@ -130,6 +132,28 @@ const NEW_VIEW_CREATORS = {
       position: 'stacked',
       binCount: 30,
       colors: DEFAULT_LINE_COLORS,
+      note: '',
+      showNoteWhenEmpty: false,
+    },
+  }),
+  [ViewType.Heatmap]: (): NewView<HeatmapView> => ({
+    ...defaultView(),
+    properties: {
+      queries: [],
+      type: ViewType.Heatmap,
+      shape: ViewShape.ChronografV2,
+      xColumn: '_time',
+      yColumn: '_value',
+      xDomain: null,
+      yDomain: null,
+      xAxisLabel: '',
+      yAxisLabel: '',
+      xPrefix: '',
+      xSuffix: '',
+      yPrefix: '',
+      ySuffix: '',
+      colors: INFERNO,
+      binSize: 10,
       note: '',
       showNoteWhenEmpty: false,
     },

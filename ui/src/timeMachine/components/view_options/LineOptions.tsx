@@ -12,13 +12,10 @@ import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 
 // Actions
 import {
-  setStaticLegend,
   setColors,
   setYAxisLabel,
-  setYAxisPrefix,
-  setYAxisSuffix,
-  setYAxisBase,
-  setYAxisScale,
+  setAxisPrefix,
+  setAxisSuffix,
   setYAxisBounds,
   setGeom,
 } from 'src/timeMachine/actions'
@@ -39,15 +36,12 @@ interface OwnProps {
 }
 
 interface DispatchProps {
-  onUpdateYAxisLabel: (label: string) => void
-  onUpdateYAxisPrefix: (prefix: string) => void
-  onUpdateYAxisSuffix: (suffix: string) => void
-  onUpdateYAxisBase: (base: string) => void
-  onUpdateYAxisScale: (scale: string) => void
-  onUpdateYAxisBounds: (bounds: Axes['y']['bounds']) => void
-  onToggleStaticLegend: (isStaticLegend: boolean) => void
-  onUpdateColors: (colors: Color[]) => void
-  onSetGeom: (geom: XYViewGeom) => void
+  onUpdateYAxisLabel: typeof setYAxisLabel
+  onUpdateAxisPrefix: typeof setAxisPrefix
+  onUpdateAxisSuffix: typeof setAxisSuffix
+  onUpdateYAxisBounds: typeof setYAxisBounds
+  onUpdateColors: typeof setColors
+  onSetGeom: typeof setGeom
 }
 
 type Props = OwnProps & DispatchProps
@@ -62,15 +56,16 @@ class LineOptions extends PureComponent<Props> {
       geom,
       onUpdateColors,
       onUpdateYAxisLabel,
-      onUpdateYAxisPrefix,
-      onUpdateYAxisSuffix,
+      onUpdateAxisPrefix,
+      onUpdateAxisSuffix,
       onSetGeom,
     } = this.props
 
     return (
       <>
         <Grid.Column>
-          <h4 className="view-options--header">Customize Graph</h4>
+          <h4 className="view-options--header">Customize Line Graph</h4>
+          <h5 className="view-options--header">Options</h5>
         </Grid.Column>
         {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
         <ColorSelector
@@ -78,20 +73,22 @@ class LineOptions extends PureComponent<Props> {
           onUpdateColors={onUpdateColors}
         />
         <Grid.Column>
-          <h4 className="view-options--header">Left Y Axis</h4>
+          <h5 className="view-options--header">Y Axis</h5>
         </Grid.Column>
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
-        <AutoDomainInput
-          domain={this.yDomain}
-          onSetDomain={this.handleSetYDomain}
-          label="Set Y Axis Domain"
-        />
         <YAxisAffixes
           prefix={prefix}
           suffix={suffix}
-          onUpdateYAxisPrefix={onUpdateYAxisPrefix}
-          onUpdateYAxisSuffix={onUpdateYAxisSuffix}
+          onUpdateYAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
+          onUpdateYAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
         />
+        <Grid.Column>
+          <AutoDomainInput
+            domain={this.yDomain}
+            onSetDomain={this.handleSetYDomain}
+            label="Y Axis Domain"
+          />
+        </Grid.Column>
       </>
     )
   }
@@ -115,12 +112,9 @@ class LineOptions extends PureComponent<Props> {
 
 const mdtp: DispatchProps = {
   onUpdateYAxisLabel: setYAxisLabel,
-  onUpdateYAxisPrefix: setYAxisPrefix,
-  onUpdateYAxisSuffix: setYAxisSuffix,
-  onUpdateYAxisBase: setYAxisBase,
-  onUpdateYAxisScale: setYAxisScale,
+  onUpdateAxisPrefix: setAxisPrefix,
+  onUpdateAxisSuffix: setAxisSuffix,
   onUpdateYAxisBounds: setYAxisBounds,
-  onToggleStaticLegend: setStaticLegend,
   onUpdateColors: setColors,
   onSetGeom: setGeom,
 }

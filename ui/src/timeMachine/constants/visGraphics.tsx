@@ -589,6 +589,12 @@ export const VIS_GRAPHICS = [
     graphic: GRAPHIC_SVGS[ViewType.LinePlusSingleStat],
   },
   {
+    type: ViewType.Heatmap,
+    name: 'Heatmap',
+    graphic: GRAPHIC_SVGS[ViewType.XY],
+    featureFlag: 'heatmap',
+  },
+  {
     type: ViewType.Histogram,
     name: 'Histogram',
     graphic: GRAPHIC_SVGS[ViewType.Histogram],

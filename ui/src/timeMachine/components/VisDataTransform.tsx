@@ -7,6 +7,7 @@ import {Table} from '@influxdata/vis'
 import {
   getVisTable,
   getXColumnSelection,
+  getYColumnSelection,
   getFillColumnsSelection,
 } from 'src/timeMachine/selectors'
 
@@ -16,6 +17,7 @@ import {AppState} from 'src/types'
 interface StateProps {
   table: Table
   xColumn: string
+  yColumn: string
   fillColumns: string[]
 }
 
@@ -23,36 +25,35 @@ interface OwnProps {
   children: (props: {
     table: Table
     xColumn: string
+    yColumn: string
     fillColumns: string[]
   }) => JSX.Element
 }
 
 type Props = StateProps & OwnProps
 
-const HistogramTransform: FunctionComponent<Props> = ({
+const VisDataTransform: FunctionComponent<Props> = ({
   table,
   xColumn,
+  yColumn,
   fillColumns,
   children,
 }) => {
-  return children({table, xColumn, fillColumns})
+  return children({table, xColumn, yColumn, fillColumns})
 }
 
 const mstp = (state: AppState) => {
   const table = getVisTable(state)
   const xColumn = getXColumnSelection(state)
+  const yColumn = getYColumnSelection(state)
   const fillColumns = getFillColumnsSelection(state)
 
   return {
     table,
     xColumn,
+    yColumn,
     fillColumns,
   }
 }
 
-const mdtp = {}
-
-export default connect<StateProps, {}, OwnProps>(
-  mstp,
-  mdtp
-)(HistogramTransform)
+export default connect<StateProps, {}, OwnProps>(mstp)(VisDataTransform)
