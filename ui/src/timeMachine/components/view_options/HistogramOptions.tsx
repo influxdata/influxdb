@@ -124,12 +124,6 @@ const HistogramOptions: SFC<Props> = props => {
         </MultiSelectDropdown>
       </Form.Element>
       <h5 className="view-options--header">Options</h5>
-      <Form.Element label="X Axis Label">
-        <Input
-          value={xAxisLabel}
-          onChange={e => onSetXAxisLabel(e.target.value)}
-        />
-      </Form.Element>
       <Form.Element label="Color Scheme">
         <ColorSchemeDropdown value={colors} onChange={onSetColors} />
       </Form.Element>
@@ -152,10 +146,17 @@ const HistogramOptions: SFC<Props> = props => {
           min={0}
         />
       </Form.Element>
+      <h5 className="view-options--header">X Axis</h5>
+      <Form.Element label="X Axis Label">
+        <Input
+          value={xAxisLabel}
+          onChange={e => onSetXAxisLabel(e.target.value)}
+        />
+      </Form.Element>
       <AutoDomainInput
         domain={xDomain}
         onSetDomain={onSetXDomain}
-        label="Set X Axis Domain"
+        label="X Axis Domain"
       />
     </Grid.Column>
   )

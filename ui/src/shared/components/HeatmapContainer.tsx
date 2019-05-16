@@ -17,66 +17,81 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HistogramView} from 'src/types'
+import {RemoteDataState, HeatmapView} from 'src/types'
 
 interface Props {
   table: Table
   loading: RemoteDataState
-  viewProperties: HistogramView
+  viewProperties: HeatmapView
   children: (config: Config) => JSX.Element
 }
 
-const HistogramContainer: FunctionComponent<Props> = ({
+const HeatmapContainer: FunctionComponent<Props> = ({
   table,
   loading,
-  children,
   viewProperties: {
     xColumn,
-    fillColumns,
-    binCount,
-    position,
-    colors,
-    xAxisLabel,
+    yColumn,
     xDomain: storedXDomain,
+    yDomain: storedYDomain,
+    xAxisLabel,
+    yAxisLabel,
+    xPrefix,
+    xSuffix,
+    yPrefix,
+    ySuffix,
+    colors: storedColors,
+    binSize,
   },
+  children,
 }) => {
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
     get(table, ['columns', xColumn, 'data'], [])
   )
 
+  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
+    storedYDomain,
+    get(table, ['columns', yColumn, 'data'], [])
+  )
+
   const isValidView =
-    xColumn &&
-    table.columns[xColumn] &&
-    fillColumns.every(col => !!table.columns[col])
+    xColumn && yColumn && table.columns[xColumn] && table.columns[yColumn]
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
-  const colorHexes =
-    colors && colors.length
-      ? colors.map(c => c.hex)
+  const colors: string[] =
+    storedColors && storedColors.length
+      ? storedColors
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(table.columns[xColumn].type)
+  const xFormatter = getFormatter(table.columns[xColumn].type, xPrefix, xSuffix)
+  const yFormatter = getFormatter(table.columns[yColumn].type, yPrefix, ySuffix)
 
   const config: Config = {
     ...VIS_THEME,
     table,
     xAxisLabel,
+    yAxisLabel,
     xDomain,
     onSetXDomain,
     onResetXDomain,
-    valueFormatters: {[xColumn]: xFormatter},
+    yDomain,
+    onSetYDomain,
+    onResetYDomain,
+    valueFormatters: {
+      [xColumn]: xFormatter,
+      [yColumn]: yFormatter,
+    },
     layers: [
       {
-        type: 'histogram',
+        type: 'heatmap',
         x: xColumn,
-        colors: colorHexes,
-        fill: fillColumns,
-        binCount,
-        position,
+        y: yColumn,
+        colors,
+        binSize,
       },
     ],
   }
@@ -89,4 +104,4 @@ const HistogramContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default HistogramContainer
+export default HeatmapContainer

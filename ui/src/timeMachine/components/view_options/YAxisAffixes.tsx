@@ -21,12 +21,12 @@ class YAxisAffixes extends PureComponent<Props> {
     return (
       <>
         <Grid.Column widthSM={Columns.Six}>
-          <FormElement label="Y-Value's Prefix">
+          <FormElement label="Y Tick Prefix">
             <Input value={prefix} onChange={this.handleUpdateYAxisPrefix} />
           </FormElement>
         </Grid.Column>
         <Grid.Column widthSM={Columns.Six}>
-          <FormElement label="Y-Value's Suffix">
+          <FormElement label="Y Tick Suffix">
             <Input value={suffix} onChange={this.handleUpdateYAxisSuffix} />
           </FormElement>
         </Grid.Column>

@@ -253,28 +253,36 @@ export const timeMachineReducer = (
       return setViewProperties(state, {geom})
     }
 
-    case 'SET_Y_AXIS_LABEL': {
-      const {label} = action.payload
-
-      return setYAxis(state, {label})
-    }
-
     case 'SET_Y_AXIS_BOUNDS': {
       const {bounds} = action.payload
 
       return setYAxis(state, {bounds})
     }
 
-    case 'SET_Y_AXIS_PREFIX': {
-      const {prefix} = action.payload
+    case 'SET_AXIS_PREFIX': {
+      const {prefix, axis} = action.payload
+      const viewType = state.view.properties.type
 
-      return setYAxis(state, {prefix})
+      if (viewType === ViewType.Heatmap && axis === 'x') {
+        return setViewProperties(state, {xPrefix: prefix})
+      } else if (viewType === ViewType.Heatmap && axis === 'y') {
+        return setViewProperties(state, {yPrefix: prefix})
+      } else {
+        return setYAxis(state, {prefix})
+      }
     }
 
-    case 'SET_Y_AXIS_SUFFIX': {
-      const {suffix} = action.payload
+    case 'SET_AXIS_SUFFIX': {
+      const {suffix, axis} = action.payload
+      const viewType = state.view.properties.type
 
-      return setYAxis(state, {suffix})
+      if (viewType === ViewType.Heatmap && axis === 'x') {
+        return setViewProperties(state, {xSuffix: suffix})
+      } else if (viewType === ViewType.Heatmap && axis === 'y') {
+        return setViewProperties(state, {ySuffix: suffix})
+      } else {
+        return setYAxis(state, {suffix})
+      }
     }
 
     case 'SET_Y_AXIS_BASE': {
@@ -295,10 +303,34 @@ export const timeMachineReducer = (
       return setViewProperties(state, {xColumn})
     }
 
+    case 'SET_Y_COLUMN': {
+      const {yColumn} = action.payload
+
+      return setViewProperties(state, {yColumn})
+    }
+
     case 'SET_X_AXIS_LABEL': {
       const {xAxisLabel} = action.payload
 
-      return setViewProperties(state, {xAxisLabel})
+      switch (state.view.properties.type) {
+        case ViewType.Histogram:
+        case ViewType.Heatmap:
+          return setViewProperties(state, {xAxisLabel})
+        default:
+          return setYAxis(state, {label: xAxisLabel})
+      }
+    }
+
+    case 'SET_Y_AXIS_LABEL': {
+      const {yAxisLabel} = action.payload
+
+      switch (state.view.properties.type) {
+        case ViewType.Histogram:
+        case ViewType.Heatmap:
+          return setViewProperties(state, {yAxisLabel})
+        default:
+          return setYAxis(state, {label: yAxisLabel})
+      }
     }
 
     case 'SET_FILL_COLUMNS': {
@@ -319,10 +351,28 @@ export const timeMachineReducer = (
       return setViewProperties(state, {binCount})
     }
 
+    case 'SET_BIN_SIZE': {
+      const {binSize} = action.payload
+
+      return setViewProperties(state, {binSize})
+    }
+
+    case 'SET_COLOR_HEXES': {
+      const {colors} = action.payload
+
+      return setViewProperties(state, {colors})
+    }
+
     case 'SET_VIEW_X_DOMAIN': {
       const {xDomain} = action.payload
 
       return setViewProperties(state, {xDomain})
+    }
+
+    case 'SET_VIEW_Y_DOMAIN': {
+      const {yDomain} = action.payload
+
+      return setViewProperties(state, {yDomain})
     }
 
     case 'SET_PREFIX': {
@@ -380,7 +430,9 @@ export const timeMachineReducer = (
     }
 
     case 'SET_BACKGROUND_THRESHOLD_COLORING': {
-      const colors = state.view.properties.colors.map(color => {
+      const viewColors = state.view.properties.colors as Color[]
+
+      const colors = viewColors.map(color => {
         if (color.type !== 'scale') {
           return {
             ...color,
@@ -395,7 +447,9 @@ export const timeMachineReducer = (
     }
 
     case 'SET_TEXT_THRESHOLD_COLORING': {
-      const colors = state.view.properties.colors.map(color => {
+      const viewColors = state.view.properties.colors as Color[]
+
+      const colors = viewColors.map(color => {
         if (color.type !== 'scale') {
           return {
             ...color,

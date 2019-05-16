@@ -7,8 +7,9 @@ import {Plot} from '@influxdata/vis'
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 import HistogramContainer from 'src/shared/components/HistogramContainer'
-import HistogramTransform from 'src/timeMachine/components/HistogramTransform'
+import VisDataTransform from 'src/timeMachine/components/VisDataTransform'
 import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
+import HeatmapContainer from 'src/shared/components/HeatmapContainer'
 
 // Utils
 import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
@@ -50,15 +51,16 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
     )
   }
 
+  // Histograms and heatmaps have special treatment when rendered within a time
+  // machine, since they allow for selecting which query response columns are
+  // visualized.  If the column selections are invalid given the current query
+  // response, then we fall back to using valid selections for those fields if
+  // possible.  This is in contrast to when these visualizations are rendered
+  // on a dashboard; in this case we use the selections stored in the view
+  // verbatim and display an error if they are invalid.
   if (properties.type === ViewType.Histogram) {
-    // Histograms have special treatment when rendered within a time machine:
-    // if the backing view for the histogram has `xColumn` and `fillColumn`
-    // selections that are invalid given the current query response, then we
-    // fall back to using valid selections for those fields (if available).
-    // When a histogram is rendered on a dashboard, we use the selections
-    // stored in the view verbatim and display an error if they are invalid.
     return (
-      <HistogramTransform>
+      <VisDataTransform>
         {({table, xColumn, fillColumns}) => (
           <HistogramContainer
             table={table}
@@ -68,7 +70,23 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
             {config => <Plot config={config} />}
           </HistogramContainer>
         )}
-      </HistogramTransform>
+      </VisDataTransform>
+    )
+  }
+
+  if (properties.type === ViewType.Heatmap) {
+    return (
+      <VisDataTransform>
+        {({table, xColumn, yColumn}) => (
+          <HeatmapContainer
+            table={table}
+            loading={loading}
+            viewProperties={{...properties, xColumn, yColumn}}
+          >
+            {config => <Plot config={config} />}
+          </HeatmapContainer>
+        )}
+      </VisDataTransform>
     )
   }
 

@@ -44,8 +44,8 @@ export type Action =
   | SetColors
   | SetYAxisLabel
   | SetYAxisBounds
-  | SetYAxisPrefix
-  | SetYAxisSuffix
+  | SetAxisPrefix
+  | SetAxisSuffix
   | SetYAxisBase
   | SetYAxisScale
   | SetPrefix
@@ -61,10 +61,14 @@ export type Action =
   | SetTableOptionsAction
   | SetTimeFormatAction
   | SetXColumnAction
+  | SetYColumnAction
+  | SetBinSizeAction
+  | SetColorHexesAction
   | SetFillColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
   | SetXDomainAction
+  | SetYDomainAction
   | SetXAxisLabelAction
 
 interface SetActiveTimeMachineAction {
@@ -187,12 +191,12 @@ export const setAxes = (axes: Axes): SetAxes => ({
 
 interface SetYAxisLabel {
   type: 'SET_Y_AXIS_LABEL'
-  payload: {label: string}
+  payload: {yAxisLabel: string}
 }
 
-export const setYAxisLabel = (label: string): SetYAxisLabel => ({
+export const setYAxisLabel = (yAxisLabel: string): SetYAxisLabel => ({
   type: 'SET_Y_AXIS_LABEL',
-  payload: {label},
+  payload: {yAxisLabel},
 })
 
 interface SetYAxisBounds {
@@ -207,24 +211,30 @@ export const setYAxisBounds = (
   payload: {bounds},
 })
 
-interface SetYAxisPrefix {
-  type: 'SET_Y_AXIS_PREFIX'
-  payload: {prefix: string}
+interface SetAxisPrefix {
+  type: 'SET_AXIS_PREFIX'
+  payload: {prefix: string; axis: 'x' | 'y'}
 }
 
-export const setYAxisPrefix = (prefix: string): SetYAxisPrefix => ({
-  type: 'SET_Y_AXIS_PREFIX',
-  payload: {prefix},
+export const setAxisPrefix = (
+  prefix: string,
+  axis: 'x' | 'y'
+): SetAxisPrefix => ({
+  type: 'SET_AXIS_PREFIX',
+  payload: {prefix, axis},
 })
 
-interface SetYAxisSuffix {
-  type: 'SET_Y_AXIS_SUFFIX'
-  payload: {suffix: string}
+interface SetAxisSuffix {
+  type: 'SET_AXIS_SUFFIX'
+  payload: {suffix: string; axis: 'x' | 'y'}
 }
 
-export const setYAxisSuffix = (suffix: string): SetYAxisSuffix => ({
-  type: 'SET_Y_AXIS_SUFFIX',
-  payload: {suffix},
+export const setAxisSuffix = (
+  suffix: string,
+  axis: 'x' | 'y'
+): SetAxisSuffix => ({
+  type: 'SET_AXIS_SUFFIX',
+  payload: {suffix, axis},
 })
 
 interface SetYAxisBase {
@@ -465,6 +475,36 @@ export const setXColumn = (xColumn: string): SetXColumnAction => ({
   payload: {xColumn},
 })
 
+interface SetYColumnAction {
+  type: 'SET_Y_COLUMN'
+  payload: {yColumn: string}
+}
+
+export const setYColumn = (yColumn: string): SetYColumnAction => ({
+  type: 'SET_Y_COLUMN',
+  payload: {yColumn},
+})
+
+interface SetBinSizeAction {
+  type: 'SET_BIN_SIZE'
+  payload: {binSize: number}
+}
+
+export const setBinSize = (binSize: number): SetBinSizeAction => ({
+  type: 'SET_BIN_SIZE',
+  payload: {binSize},
+})
+
+interface SetColorHexesAction {
+  type: 'SET_COLOR_HEXES'
+  payload: {colors: string[]}
+}
+
+export const setColorHexes = (colors: string[]): SetColorHexesAction => ({
+  type: 'SET_COLOR_HEXES',
+  payload: {colors},
+})
+
 interface SetFillColumnsAction {
   type: 'SET_FILL_COLUMNS'
   payload: {fillColumns: string[]}
@@ -507,6 +547,16 @@ interface SetXDomainAction {
 export const setXDomain = (xDomain: [number, number]): SetXDomainAction => ({
   type: 'SET_VIEW_X_DOMAIN',
   payload: {xDomain},
+})
+
+interface SetYDomainAction {
+  type: 'SET_VIEW_Y_DOMAIN'
+  payload: {yDomain: [number, number]}
+}
+
+export const setYDomain = (yDomain: [number, number]): SetYDomainAction => ({
+  type: 'SET_VIEW_Y_DOMAIN',
+  payload: {yDomain},
 })
 
 interface SetXAxisLabelAction {

@@ -85,7 +85,7 @@ class ThresholdColoring extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const colors = getActiveTimeMachine(state).view.properties.colors
+  const colors = getActiveTimeMachine(state).view.properties.colors as Color[]
 
   return {colors}
 }

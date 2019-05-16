@@ -143,7 +143,7 @@
     "@influxdata/influx": "0.3.4",
     "@influxdata/influxdb-templates": "git+ssh://git@github.com:influxdata/influxdb-templates.git",
     "@influxdata/react-custom-scrollbars": "4.3.8",
-    "@influxdata/vis": "^0.7.0",
+    "@influxdata/vis": "^0.8.0",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",
     "bignumber.js": "^4.0.2",

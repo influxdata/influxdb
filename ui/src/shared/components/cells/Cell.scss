@@ -29,6 +29,10 @@ $cell--header-size: 36px;
   .time-machine-tables {
     padding-top: 0;
   }
+
+  .vis-plot-container {
+    padding-top: $ix-marg-a;
+  }
 }
 
 .cell--view-empty {
@@ -171,6 +175,12 @@ $cell--header-size: 36px;
   .cell--header:hover .cell--header-bar {
     opacity: 1;
   }
+}
+
+.vis-plot-container {
+  width: 100%;
+  height: 100%;
+  padding: $ix-marg-c;
 }
 
 .vis-tooltip-container {

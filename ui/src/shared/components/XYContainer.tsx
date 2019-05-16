@@ -10,7 +10,7 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 // Utils
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
 import {
-  formatNumber,
+  getFormatter,
   resolveGeom,
   filterNoisyColumns,
   parseBounds,
@@ -92,6 +92,12 @@ const XYContainer: FunctionComponent<Props> = ({
     table
   )
 
+  const yFormatter = getFormatter(
+    table.columns[yColumn].type,
+    yTickPrefix,
+    yTickSuffix
+  )
+
   const config: Config = {
     ...VIS_THEME,
     table,
@@ -104,9 +110,7 @@ const XYContainer: FunctionComponent<Props> = ({
     onSetYDomain,
     onResetYDomain,
     legendColumns,
-    valueFormatters: {
-      [yColumn]: t => `${yTickPrefix}${formatNumber(t)}${yTickSuffix}`,
-    },
+    valueFormatters: {[yColumn]: yFormatter},
     layers: [
       {
         type: 'line',
@@ -120,7 +124,7 @@ const XYContainer: FunctionComponent<Props> = ({
   }
 
   return (
-    <div className="xy-container">
+    <div className="vis-plot-container">
       {loading === RemoteDataState.Loading && <GraphLoadingDots />}
       {children(config)}
     </div>
