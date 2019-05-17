@@ -38,7 +38,7 @@ export const getTables = (state: AppState): FluxTable[] =>
 const getVisTableMemoized = memoizeOne(fluxToTable)
 
 export const getVisTable = (state: AppState): Table => {
-  const files = getActiveTimeMachine(state).queryResults.files
+  const files = getActiveTimeMachine(state).queryResults.files || []
   const {table} = getVisTableMemoized(files.join('\n\n'))
 
   return table
