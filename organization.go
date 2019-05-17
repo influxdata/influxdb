@@ -54,7 +54,8 @@ type OrganizationService interface {
 // OrganizationUpdate represents updates to a organization.
 // Only fields which are set are updated.
 type OrganizationUpdate struct {
-	Name *string
+	Name        *string
+	Description *string `json:"description,omitempty"`
 }
 
 // ErrInvalidOrgFilter is the error indicate org filter is empty

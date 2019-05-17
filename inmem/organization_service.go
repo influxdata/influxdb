@@ -229,6 +229,10 @@ func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd pl
 		o.Name = *upd.Name
 	}
 
+	if upd.Description != nil {
+		o.Description = *upd.Description
+	}
+
 	s.organizationKV.Store(o.ID.String(), o)
 
 	return o, nil
