@@ -15,6 +15,7 @@ import (
 type OnboardingFields struct {
 	IDGenerator    platform.IDGenerator
 	TokenGenerator platform.TokenGenerator
+	TimeGenerator  platform.TimeGenerator
 	IsOnboarding   bool
 }
 
@@ -133,6 +134,7 @@ func Generate(
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
 				},
+				TimeGenerator:  mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
 			},
@@ -161,6 +163,10 @@ func Generate(
 						Name:            "bucket1",
 						OrgID:           MustIDBase16(twoID),
 						RetentionPeriod: time.Hour * 24 * 7,
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 					Auth: &platform.Authorization{
 						ID:          MustIDBase16(fourID),

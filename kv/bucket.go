@@ -383,6 +383,8 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 	}
 
 	b.ID = s.IDGenerator.ID()
+	b.CreatedAt = s.Now()
+	b.UpdatedAt = s.Now()
 
 	if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
 		return &influxdb.Error{
@@ -615,6 +617,8 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 		}
 		b.Name = *upd.Name
 	}
+
+	b.UpdatedAt = s.Now()
 
 	if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketUpdatedEvent); err != nil {
 		return nil, err

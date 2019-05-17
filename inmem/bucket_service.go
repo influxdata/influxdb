@@ -242,6 +242,8 @@ func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 		}
 	}
 	b.ID = s.IDGenerator.ID()
+	b.CreatedAt = s.Now()
+	b.UpdatedAt = s.Now()
 	return s.PutBucket(ctx, b)
 }
 
@@ -284,6 +286,7 @@ func (s *Service) UpdateBucket(ctx context.Context, id platform.ID, upd platform
 		}
 	}
 
+	b.UpdatedAt = s.Now()
 	s.bucketKV.Store(b.ID.String(), b)
 
 	return b, nil

@@ -11,6 +11,10 @@ import (
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, string, func()) {
 	s := NewService()
 	s.IDGenerator = f.IDGenerator
+	s.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		s.TimeGenerator = platform.RealTimeGenerator{}
+	}
 	ctx := context.Background()
 	for _, o := range f.Organizations {
 		if err := s.PutOrganization(ctx, o); err != nil {
