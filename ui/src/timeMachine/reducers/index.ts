@@ -411,6 +411,7 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Gauge:
         case ViewType.SingleStat:
+        case ViewType.Scatter:
         case ViewType.XY:
         case ViewType.Histogram:
           return setViewProperties(state, {colors})
