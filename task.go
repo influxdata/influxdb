@@ -64,7 +64,7 @@ type Run struct {
 	StartedAt    string `json:"startedAt,omitempty"`
 	FinishedAt   string `json:"finishedAt,omitempty"`
 	RequestedAt  string `json:"requestedAt,omitempty"`
-	Log          []Log  `json:"log"`
+	Log          []Log  `json:"log,omitempty"`
 }
 
 // ScheduledForTime gives the time.Time that the run is scheduled for.

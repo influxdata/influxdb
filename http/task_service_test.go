@@ -586,8 +586,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
   "scheduledFor": "2018-12-01T17:00:13Z",
   "startedAt": "2018-12-01T17:00:03.155645Z",
   "finishedAt": "2018-12-01T17:00:13.155645Z",
-  "requestedAt": "2018-12-01T17:00:13Z",
-  "log": null
+  "requestedAt": "2018-12-01T17:00:13Z"
 }`,
 			},
 		},
@@ -702,8 +701,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
       "scheduledFor": "2018-12-01T17:00:13Z",
       "startedAt": "2018-12-01T17:00:03.155645Z",
       "finishedAt": "2018-12-01T17:00:13.155645Z",
-      "requestedAt": "2018-12-01T17:00:13Z",
-      "log": null
+      "requestedAt": "2018-12-01T17:00:13Z"
     }
   ]
 }`,

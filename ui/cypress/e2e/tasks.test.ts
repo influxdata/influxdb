@@ -17,7 +17,7 @@ describe('Tasks', () => {
   })
 
   it('can create a task', () => {
-    const taskName = '🦄ask'
+    const taskName = 'Task'
     cy.get('.empty-state').within(() => {
       cy.contains('Create').click()
     })
@@ -84,7 +84,7 @@ describe('Tasks', () => {
       cy.createTask(id)
     })
 
-    const newName = '🅱️ask'
+    const newName = 'Task'
 
     cy.getByTestID('task-card').within(() => {
       cy.getByTestID('task-card--name').trigger('mouseover')
@@ -112,7 +112,7 @@ describe('Tasks', () => {
 
     cy.getByTestID('dropdown--item new').click()
 
-    cy.getByInputName('name').type('🦄ask')
+    cy.getByInputName('name').type('Task')
     cy.getByInputName('interval').type('24h')
     cy.getByInputName('offset').type('20m')
 

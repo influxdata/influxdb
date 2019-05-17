@@ -5782,6 +5782,16 @@ components:
           description: Time used for run's "now" option, RFC3339.
           type: string
           format: date-time
+        log:
+          description: An array of logs associated with the run.
+          type: array
+          items:
+            type: object
+            properties:
+              time:
+                type: string
+              message:
+                type: string
         startedAt:
           readOnly: true
           description: Time run started executing, RFC3339Nano.

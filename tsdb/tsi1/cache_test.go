@@ -156,6 +156,7 @@ func TestTagValueSeriesIDCache_addToSet(t *testing.T) {
 }
 
 func TestTagValueSeriesIDCache_ConcurrentGetPutDelete(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/13963")
 	// Exercise concurrent operations against a series ID cache.
 	// This will catch any likely data races, when run with the race detector.
 
