@@ -10,17 +10,19 @@ interface Props {
   sort: Sort
   name: string
   onClick?: (nextSort: Sort, sortKey: string) => void
+  testID?: string
 }
 
 export default class ResourceListSorter extends PureComponent<Props> {
   public render() {
-    const {name} = this.props
+    const {name, testID} = this.props
 
     return (
       <div
         className={this.className}
         onClick={this.handleClick}
         title={this.title}
+        data-testid={testID}
       >
         {name}
         {this.sortIndicator}

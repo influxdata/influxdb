@@ -155,7 +155,11 @@ export const createVariable = (
 
 export const createLabel = (
   name?: string,
-  orgID?: string
+  orgID?: string,
+  properties: {description: string; color: string} = {
+    description: `test ${name}`,
+    color: '#ff0054',
+  }
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -163,10 +167,7 @@ export const createLabel = (
     body: {
       name,
       orgID,
-      properties: {
-        description: `test ${name}`,
-        color: '#ff0054',
-      },
+      properties: properties,
     },
   })
 }
