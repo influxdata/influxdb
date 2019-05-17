@@ -2,8 +2,9 @@
 
 ### Features
 
-1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks.
-1. [13924](https://github.com/influxdata/influxdb/pull/13924): Add CLI arguments for configuring session length and renewal.
+1. [13945](https://github.com/influxdata/influxdb/pull/13945): Add heatmap visualization type
+1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks
+1. [13924](https://github.com/influxdata/influxdb/pull/13924): Add CLI arguments for configuring session length and renewal
 
 ### Bug Fixes
 
@@ -13,6 +14,7 @@
 1. [13797](https://github.com/influxdata/influxdb/pull/13797): Expand tab key presses to 2 spaces in the Flux editor
 1. [13823](https://github.com/influxdata/influxdb/pull/13823): Prevent dragging of Variable Dropdowns when dragging a scrollbar inside the dropdown
 1. [13853](https://github.com/influxdata/influxdb/pull/13853): Improve single stat computation
+1. [13945](https://github.com/influxdata/influxdb/pull/13945): Fix crash when opening histogram settings with no data
 
 ### UI Improvements
 1. [#13835](https://github.com/influxdata/influxdb/pull/13835): Render checkboxes in query builder tag selection lists
