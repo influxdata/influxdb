@@ -14,6 +14,9 @@ const ErrSessionExpired = "session has expired"
 // RenewSessionTime is the the time to extend session, currently set to 5min.
 var RenewSessionTime = time.Duration(time.Second * 300)
 
+// DefaultSessionLength is the default session length on initial creation.
+var DefaultSessionLength = time.Hour
+
 var (
 	// OpFindSession represents the operation that looks for sessions.
 	OpFindSession = "FindSession"

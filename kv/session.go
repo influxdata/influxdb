@@ -215,8 +215,7 @@ func (s *Service) createSession(ctx context.Context, tx Tx, user string) (*influ
 	sn.Key = k
 	sn.UserID = u.ID
 	sn.CreatedAt = time.Now()
-	// TODO(desa): make this configurable
-	sn.ExpiresAt = sn.CreatedAt.Add(time.Hour)
+	sn.ExpiresAt = sn.CreatedAt.Add(s.Config.SessionLength)
 	// TODO(desa): not totally sure what to do here. Possibly we should have a maximal privilege permission.
 	sn.Permissions = []influxdb.Permission{}
 

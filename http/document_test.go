@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -43,6 +44,9 @@ var (
 	label3MappingJSON, _ = json.Marshal(influxdb.LabelMapping{
 		LabelID: label3ID,
 	})
+	mockGen = mock.TimeGenerator{
+		FakeValue: time.Date(2006, 5, 24, 1, 2, 3, 4, time.UTC),
+	}
 	doc1 = influxdb.Document{
 		ID: doc1ID,
 		Meta: influxdb.DocumentMeta{
@@ -127,6 +131,8 @@ var (
 				"meta": {
 					"name": "doc1",
 					"type": "typ1",
+					"createdAt": "0001-01-01T00:00:00Z",
+					"updatedAt": "0001-01-01T00:00:00Z",
 					"description": "desc1"
 				}
 			},
@@ -137,7 +143,9 @@ var (
 				},
 				"content": "content2",
 				"meta": {
-					"name": "doc2"
+					"name": "doc2",
+					"createdAt": "0001-01-01T00:00:00Z",
+					"updatedAt": "0001-01-01T00:00:00Z"	
 				}
 			}
 		]
@@ -427,6 +435,7 @@ func TestService_handlePostDocumentLabel(t *testing.T) {
 				DocumentService: &mock.DocumentService{
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
+							TimeGenerator: mockGen,
 							FindDocumentsFn: func(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
 								return []*influxdb.Document{&doc4}, nil
 							},
@@ -801,7 +810,9 @@ func TestService_handlePostDocuments(t *testing.T) {
 				DocumentService: &mock.DocumentService{
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
+							TimeGenerator: mockGen,
 							CreateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
+								d.Meta.CreatedAt = mockGen.Now()
 								return nil
 							},
 						}, nil
@@ -826,7 +837,9 @@ func TestService_handlePostDocuments(t *testing.T) {
 						"self": "/api/v2/documents/template/020f755c3c082014"
 					},
 					"meta": {
-						"name": "doc5"
+						"name": "doc5",
+						"createdAt": "2006-05-24T01:02:03.000000004Z",
+						"updatedAt": "0001-01-01T00:00:00Z"
 					}}`,
 			},
 		},
@@ -836,8 +849,10 @@ func TestService_handlePostDocuments(t *testing.T) {
 				DocumentService: &mock.DocumentService{
 					FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 						return &mock.DocumentStore{
+							TimeGenerator: mockGen,
 							CreateDocumentFn: func(ctx context.Context, d *influxdb.Document, opts ...influxdb.DocumentOptions) error {
 								d.Labels = []*influxdb.Label{&label1, &label2}
+								d.Meta.CreatedAt = mockGen.Now()
 								return nil
 							},
 						}, nil
@@ -877,7 +892,9 @@ func TestService_handlePostDocuments(t *testing.T) {
             			"name": "l2"
             		}],
 					"meta": {
-						"name": "doc6"
+						"name": "doc6",
+						"createdAt": "2006-05-24T01:02:03.000000004Z",
+						"updatedAt": "0001-01-01T00:00:00Z"
 					}}`,
 			},
 		},

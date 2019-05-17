@@ -759,7 +759,7 @@ func (s *Service) appendBucketEventToLog(ctx context.Context, tx Tx, id influxdb
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.time())
+	return s.addLogEntry(ctx, tx, k, v, s.Now())
 }
 
 // UnexpectedBucketError is used when the error comes from an internal system.

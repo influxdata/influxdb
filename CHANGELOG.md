@@ -3,6 +3,7 @@
 ### Features
 
 1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks.
+1. [13924](https://github.com/influxdata/influxdb/pull/13924): Add CLI arguments for configuring session length and renewal.
 
 ### Bug Fixes
 
@@ -17,6 +18,7 @@
 1. [#13835](https://github.com/influxdata/influxdb/pull/13835): Render checkboxes in query builder tag selection lists
 1. [#13856](https://github.com/influxdata/influxdb/pull/13856): Fix jumbled card text in Telegraf configuration wizard
 1. [#13888](https://github.com/influxdata/influxdb/pull/13888): Change scrapers in scrapers list to be resource cards
+1. [#13925](https://github.com/influxdata/influxdb/pull/13925): Export and download resource with formatted resource name with no spaces
 
 ## v2.0.0-alpha.9 [2019-05-01]
 

@@ -28,6 +28,7 @@ type DocumentMeta struct {
 	Type        string `json:"type,omitempty"`
 	Description string `json:"description,omitempty"`
 	Version     string `json:"version,omitempty"`
+	CRUDLog
 }
 
 // DocumentStore is used to perform CRUD operations on documents. It follows an options

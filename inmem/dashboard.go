@@ -129,7 +129,7 @@ func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardF
 // CreateDashboard implements platform.DashboardService interface.
 func (s *Service) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	d.ID = s.IDGenerator.ID()
-	d.Meta.CreatedAt = s.time()
+	d.Meta.CreatedAt = s.Now()
 	err := s.PutDashboardWithMeta(ctx, d)
 	if err != nil {
 		return &platform.Error{
@@ -160,7 +160,7 @@ func (s *Service) PutCellView(ctx context.Context, cell *platform.Cell) error {
 
 // PutDashboardWithMeta sets a dashboard while updating the meta field of a dashboard.
 func (s *Service) PutDashboardWithMeta(ctx context.Context, d *platform.Dashboard) error {
-	d.Meta.UpdatedAt = s.time()
+	d.Meta.UpdatedAt = s.Now()
 	return s.PutDashboard(ctx, d)
 }
 

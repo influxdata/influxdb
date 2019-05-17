@@ -28,6 +28,7 @@ func NewPlatformHandler(b *APIBackend) *PlatformHandler {
 	h.Handler = NewAPIHandler(b)
 	h.AuthorizationService = b.AuthorizationService
 	h.SessionService = b.SessionService
+	h.SessionRenewDisabled = b.SessionRenewDisabled
 
 	h.RegisterNoAuthRoute("GET", "/api/v2")
 	h.RegisterNoAuthRoute("POST", "/api/v2/signin")

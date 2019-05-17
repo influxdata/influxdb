@@ -1363,7 +1363,7 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
-	svc.WithTime(f.NowFn)
+	svc.TimeGenerator = f.TimeGenerator
 	ctx := context.Background()
 	for _, d := range f.Dashboards {
 		if err := svc.PutDashboard(ctx, d); err != nil {

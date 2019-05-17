@@ -54,9 +54,9 @@ class CSVExportButton extends PureComponent<StateProps, {}> {
     const {files} = this.props
     const csv = files.join('\n\n')
     const now = moment().format('YYYY-MM-DD-HH-mm')
-    const filename = `${now} Chronograf Data.csv`
+    const filename = `${now} Chronograf Data`
 
-    downloadTextFile(csv, filename, 'text/csv')
+    downloadTextFile(csv, filename, '.csv', 'text/csv')
   }
 }
 

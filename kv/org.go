@@ -570,7 +570,7 @@ func (s *Service) appendOrganizationEventToLog(ctx context.Context, tx Tx, id in
 		return err
 	}
 
-	return s.addLogEntry(ctx, tx, k, v, s.time())
+	return s.addLogEntry(ctx, tx, k, v, s.Now())
 }
 
 // FindResourceOrganizationID is used to find the organization that a resource belongs to five the id of a resource and a resource type.

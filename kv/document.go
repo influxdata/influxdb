@@ -348,7 +348,7 @@ func (i *DocumentIndex) GetAccessorsDocuments(ownerType string, ownerID influxdb
 
 func (s *Service) createDocument(ctx context.Context, tx Tx, ns string, d *influxdb.Document) error {
 	d.ID = s.IDGenerator.ID()
-
+	d.Meta.CreatedAt = s.Now()
 	if err := s.putDocument(ctx, tx, ns, d); err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func (s *Service) createDocument(ctx context.Context, tx Tx, ns string, d *influ
 }
 
 func (s *Service) putDocument(ctx context.Context, tx Tx, ns string, d *influxdb.Document) error {
-	if err := s.putDocumentMeta(ctx, tx, ns, d.ID, &d.Meta); err != nil {
+	if err := s.putDocumentMeta(ctx, tx, ns, d.ID, d.Meta); err != nil {
 		return err
 	}
 
@@ -397,7 +397,7 @@ func (s *Service) putDocumentContent(ctx context.Context, tx Tx, ns string, id i
 	return s.putAtID(ctx, tx, path.Join(ns, documentContentBucket), id, data)
 }
 
-func (s *Service) putDocumentMeta(ctx context.Context, tx Tx, ns string, id influxdb.ID, m *influxdb.DocumentMeta) error {
+func (s *Service) putDocumentMeta(ctx context.Context, tx Tx, ns string, id influxdb.ID, m influxdb.DocumentMeta) error {
 	return s.putAtID(ctx, tx, path.Join(ns, documentMetaBucket), id, m)
 }
 
@@ -735,7 +735,7 @@ func (s *DocumentStore) UpdateDocument(ctx context.Context, d *influxdb.Document
 
 func (s *Service) updateDocument(ctx context.Context, tx Tx, ns string, d *influxdb.Document) error {
 	// TODO(desa): deindex meta
-
+	d.Meta.UpdatedAt = s.Now()
 	if err := s.putDocument(ctx, tx, ns, d); err != nil {
 		return err
 	}

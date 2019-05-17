@@ -140,6 +140,8 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	h.Logger.Info("document created")
+
 	if err := encodeResponse(ctx, w, http.StatusCreated, newDocumentResponse(req.Namespace, req.Document)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -459,6 +461,8 @@ func (h *DocumentHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	h.Logger.Info("document deleted")
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -525,6 +529,8 @@ func (h *DocumentHandler) handlePutDocument(w http.ResponseWriter, r *http.Reque
 		EncodeError(ctx, err, w)
 		return
 	}
+
+	h.Logger.Info("document updated")
 
 	ds, err := s.FindDocuments(ctx, influxdb.WhereID(req.Document.ID), influxdb.IncludeContent)
 	if err != nil {
