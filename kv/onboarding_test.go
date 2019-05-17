@@ -47,6 +47,11 @@ func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *te
 	svc := kv.NewService(s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
+	svc.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		svc.TimeGenerator = influxdb.RealTimeGenerator{}
+	}
+
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatalf("unable to initialize kv store: %v", err)

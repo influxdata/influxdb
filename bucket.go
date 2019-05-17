@@ -26,6 +26,7 @@ type Bucket struct {
 	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
+	CRUDLog
 }
 
 // ops for buckets error and buckets op logs.

@@ -35,6 +35,7 @@ var bucketCmpOptions = cmp.Options{
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
 	IDGenerator   platform.IDGenerator
+	TimeGenerator platform.TimeGenerator
 	Buckets       []*platform.Bucket
 	Organizations []*platform.Organization
 }
@@ -107,8 +108,9 @@ func CreateBucket(
 		{
 			name: "create buckets with empty set",
 			fields: BucketFields{
-				IDGenerator: mock.NewIDGenerator(bucketOneID, t),
-				Buckets:     []*platform.Bucket{},
+				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Buckets:       []*platform.Bucket{},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -130,6 +132,10 @@ func CreateBucket(
 						ID:          MustIDBase16(bucketOneID),
 						OrgID:       MustIDBase16(orgOneID),
 						Description: "desc1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 				},
 			},
@@ -142,6 +148,7 @@ func CreateBucket(
 						return MustIDBase16(bucketTwoID)
 					},
 				},
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Buckets: []*platform.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
@@ -177,6 +184,10 @@ func CreateBucket(
 						ID:    MustIDBase16(bucketTwoID),
 						Name:  "bucket2",
 						OrgID: MustIDBase16(orgTwoID),
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 				},
 			},
@@ -189,6 +200,7 @@ func CreateBucket(
 						return MustIDBase16(bucketTwoID)
 					},
 				},
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Buckets: []*platform.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
@@ -236,6 +248,7 @@ func CreateBucket(
 						return MustIDBase16(bucketTwoID)
 					},
 				},
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -271,6 +284,10 @@ func CreateBucket(
 						ID:    MustIDBase16(bucketTwoID),
 						Name:  "bucket1",
 						OrgID: MustIDBase16(orgTwoID),
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 				},
 			},
@@ -279,6 +296,7 @@ func CreateBucket(
 			name: "create bucket with orgID not exist",
 			fields: BucketFields{
 				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Buckets:       []*platform.Bucket{},
 				Organizations: []*platform.Organization{},
 			},
@@ -1012,6 +1030,7 @@ func UpdateBucket(
 		{
 			name: "update name",
 			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -1040,12 +1059,16 @@ func UpdateBucket(
 					ID:    MustIDBase16(bucketOneID),
 					OrgID: MustIDBase16(orgOneID),
 					Name:  "changed",
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
 				},
 			},
 		},
 		{
 			name: "update name unique",
 			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -1079,6 +1102,7 @@ func UpdateBucket(
 		{
 			name: "update retention",
 			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -1108,12 +1132,16 @@ func UpdateBucket(
 					OrgID:           MustIDBase16(orgOneID),
 					Name:            "bucket1",
 					RetentionPeriod: 100 * time.Minute,
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
 				},
 			},
 		},
 		{
 			name: "update description",
 			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -1143,12 +1171,16 @@ func UpdateBucket(
 					OrgID:       MustIDBase16(orgOneID),
 					Name:        "bucket1",
 					Description: "desc1",
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
 				},
 			},
 		},
 		{
 			name: "update retention and name",
 			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -1179,12 +1211,16 @@ func UpdateBucket(
 					OrgID:           MustIDBase16(orgOneID),
 					Name:            "changed",
 					RetentionPeriod: 101 * time.Minute,
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
 				},
 			},
 		},
 		{
 			name: "update retention and same name",
 			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						Name: "theorg",
@@ -1215,6 +1251,9 @@ func UpdateBucket(
 					OrgID:           MustIDBase16(orgOneID),
 					Name:            "bucket2",
 					RetentionPeriod: 101 * time.Minute,
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
 				},
 			},
 		},

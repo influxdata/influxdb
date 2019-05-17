@@ -132,6 +132,7 @@ type bucket struct {
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
+	influxdb.CRUDLog
 }
 
 // retentionRule is the retention rule action for a bucket.
@@ -165,6 +166,7 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 		Name:                b.Name,
 		RetentionPolicyName: b.RetentionPolicyName,
 		RetentionPeriod:     d,
+		CRUDLog:             b.CRUDLog,
 	}, nil
 }
 
@@ -189,6 +191,7 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
 		RetentionRules:      rules,
+		CRUDLog:             pb.CRUDLog,
 	}
 }
 

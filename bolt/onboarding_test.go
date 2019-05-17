@@ -15,6 +15,10 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	}
 	c.IDGenerator = f.IDGenerator
 	c.TokenGenerator = f.TokenGenerator
+	c.TimeGenerator = f.TimeGenerator
+	if c.TimeGenerator == nil {
+		c.TimeGenerator = platform.RealTimeGenerator{}
+	}
 	ctx := context.TODO()
 	if err = c.PutOnboardingStatus(ctx, !f.IsOnboarding); err != nil {
 		t.Fatalf("failed to set new onboarding finished: %v", err)

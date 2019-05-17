@@ -113,7 +113,9 @@ func TestService_handleGetBuckets(t *testing.T) {
         "owners": "/api/v2/buckets/0b501e7e557ab1ed/owners",
         "members": "/api/v2/buckets/0b501e7e557ab1ed/members",
         "write": "/api/v2/write?org=50f7ba1150f7ba11&bucket=0b501e7e557ab1ed"
-      },
+	  },
+	  "createdAt": "0001-01-01T00:00:00Z",
+	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "0b501e7e557ab1ed",
       "orgID": "50f7ba1150f7ba11",
       "name": "hello",
@@ -137,7 +139,9 @@ func TestService_handleGetBuckets(t *testing.T) {
         "members": "/api/v2/buckets/c0175f0077a77005/members",
         "owners": "/api/v2/buckets/c0175f0077a77005/owners",
         "write": "/api/v2/write?org=7e55e118dbabb1ed&bucket=c0175f0077a77005"
-      },
+	  },
+	  "createdAt": "0001-01-01T00:00:00Z",
+	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "c0175f0077a77005",
       "orgID": "7e55e118dbabb1ed",
       "name": "example",
@@ -278,6 +282,8 @@ func TestService_handleGetBucket(t *testing.T) {
 		    "owners": "/api/v2/buckets/020f755c3c082000/owners",
 		    "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
 		  },
+		  "createdAt": "0001-01-01T00:00:00Z",
+		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
 		  "orgID": "020f755c3c082000",
 		  "name": "hello",
@@ -407,6 +413,8 @@ func TestService_handlePostBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=6f626f7274697320&bucket=020f755c3c082000"
   },
+  "createdAt": "0001-01-01T00:00:00Z",
+  "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "6f626f7274697320",
   "name": "hello",
@@ -626,6 +634,8 @@ func TestService_handlePatchBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
   },
+  "createdAt": "0001-01-01T00:00:00Z",
+  "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "020f755c3c082000",
   "name": "example",
@@ -702,6 +712,8 @@ func TestService_handlePatchBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
   },
+  "createdAt": "0001-01-01T00:00:00Z",
+  "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "020f755c3c082000",
   "name": "bucket with no retention",
@@ -759,6 +771,8 @@ func TestService_handlePatchBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
   },
+  "createdAt": "0001-01-01T00:00:00Z",
+  "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "020f755c3c082000",
   "name": "b1",
@@ -1053,6 +1067,10 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, string, func()) {
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
+	svc.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		svc.TimeGenerator = platform.RealTimeGenerator{}
+	}
 
 	ctx := context.Background()
 	for _, o := range f.Organizations {
