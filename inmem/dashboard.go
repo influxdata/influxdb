@@ -130,6 +130,7 @@ func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardF
 func (s *Service) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	d.ID = s.IDGenerator.ID()
 	d.Meta.CreatedAt = s.Now()
+	d.Meta.UpdatedAt = s.Now()
 	err := s.PutDashboardWithMeta(ctx, d)
 	if err != nil {
 		return &platform.Error{

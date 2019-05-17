@@ -349,6 +349,7 @@ func (i *DocumentIndex) GetAccessorsDocuments(ownerType string, ownerID influxdb
 func (s *Service) createDocument(ctx context.Context, tx Tx, ns string, d *influxdb.Document) error {
 	d.ID = s.IDGenerator.ID()
 	d.Meta.CreatedAt = s.Now()
+	d.Meta.UpdatedAt = s.Now()
 	if err := s.putDocument(ctx, tx, ns, d); err != nil {
 		return err
 	}
