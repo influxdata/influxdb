@@ -20,10 +20,13 @@ interface Props {
 const Geom: SFC<Props> = ({geom, onSetGeom}) => {
   return (
     <Grid.Column widthXS={Columns.Twelve}>
-      <Form.Element label="Geometry">
+      <Form.Element label="Interpolation">
         <Dropdown selectedID={resolveGeom(geom)} onChange={onSetGeom}>
           <Dropdown.Item id={XYViewGeom.Line} value={XYViewGeom.Line}>
-            Line
+            Linear
+          </Dropdown.Item>
+          <Dropdown.Item id={XYViewGeom.MonotoneX} value={XYViewGeom.MonotoneX}>
+            Smooth
           </Dropdown.Item>
           <Dropdown.Item id={XYViewGeom.Step} value={XYViewGeom.Step}>
             Step

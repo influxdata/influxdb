@@ -11,7 +11,7 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
 import {
   getFormatter,
-  resolveGeom,
+  geomToInterpolation,
   filterNoisyColumns,
   parseBounds,
   chooseXColumn,
@@ -24,7 +24,7 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYView, XYViewGeom} from 'src/types'
+import {RemoteDataState, XYView} from 'src/types'
 
 interface Props {
   files: string[]
@@ -82,8 +82,7 @@ const XYContainer: FunctionComponent<Props> = ({
       ? colors.map(c => c.hex)
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const interpolation =
-    resolveGeom(geom) === XYViewGeom.Step ? 'step' : 'linear'
+  const interpolation = geomToInterpolation(geom)
 
   const groupKey = [...fluxGroupKeyUnion, 'result']
 
