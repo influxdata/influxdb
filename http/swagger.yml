@@ -7,6 +7,7 @@ servers:
 paths:
   /signin:
     post:
+      operationId: PostSignin
       summary: Exchange basic auth credentials for session
       security:
         - BasicAuth: []
@@ -29,6 +30,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /signout:
     post:
+      operationId: PostSignout
       summary: Expire the current session
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
@@ -49,6 +51,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /:
     get:
+      operationId: GetRoutes
       summary: Map of all top level routes available
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
@@ -61,6 +64,7 @@ paths:
                 $ref: "#/components/schemas/Routes"
   /setup:
     get:
+      operationId: GetSetup
       tags:
         - Setup
       summary: check if database has default user, org, bucket created, returns true if not.
@@ -75,6 +79,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/IsOnboarding"
     post:
+      operationId: PostSetup
       tags:
         - Setup
       summary: post onboarding request, to setup initial user, org and bucket
@@ -96,6 +101,7 @@ paths:
                 $ref: "#/components/schemas/OnboardingResponse"
   /documents/templates:
     get:
+      operationId: GetDocumentsTemplates
       tags:
         - Templates
       parameters:
@@ -124,6 +130,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostDocumentsTemplates
       tags:
         - Templates
       summary: Create a template
@@ -151,6 +158,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/documents/templates/{templateID}':
     get:
+      operationId: GetDocumentsTemplates
       tags:
         - Templates
       parameters:
@@ -175,6 +183,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     put:
+      operationId: PutDocumentsTemplates
       tags:
         - Templates
       parameters:
@@ -206,6 +215,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteDocumentsTemplates
       tags:
         - Templates
       summary: delete a template document
@@ -228,6 +238,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/documents/templates/{templateID}/labels':
     get:
+      operationId: GetDocumentsTemplates
       tags:
         - Templates
       summary: list all labels for a template
@@ -253,6 +264,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostDocumentsTemplates
       tags:
         - Templates
       summary: add a label to a template
@@ -286,6 +298,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/documents/templates/{templateID}/labels/{labelID}':
     delete:
+      operationId: DeleteDocumentsTemplates
       tags:
         - Templates
       summary: delete a label from a template
@@ -320,6 +333,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /telegrafs:
     get:
+      operationId: GetTelegrafs
       tags:
         - Telegrafs
       parameters:
@@ -343,6 +357,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTelegrafs
       tags:
         - Telegrafs
       summary: Create a telegraf config
@@ -370,6 +385,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}':
     get:
+      operationId: GetTelegrafs
       tags:
         - Telegrafs
       summary: Retrieve a telegraf config
@@ -413,6 +429,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     put:
+      operationId: PutTelegrafs
       tags:
         - Telegrafs
       summary: Update a telegraf config
@@ -445,6 +462,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteTelegrafs
       tags:
         - Telegrafs
       summary: delete a telegraf config
@@ -467,6 +485,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/labels':
     get:
+      operationId: GetTelegrafs
       tags:
         - Telegrafs
       summary: list all labels for a telegraf config
@@ -492,6 +511,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTelegrafs
       tags:
         - Telegrafs
       summary: add a label to a telegraf config
@@ -525,6 +545,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/labels/{labelID}':
     delete:
+      operationId: DeleteTelegrafs
       tags:
         - Telegrafs
       summary: delete a label from a telegraf config
@@ -559,6 +580,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/members':
     get:
+      operationId: GetTelegrafs
       tags:
         - Users
         - Telegrafs
@@ -585,6 +607,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTelegrafs
       tags:
         - Users
         - Telegrafs
@@ -619,6 +642,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/members/{userID}':
     delete:
+      operationId: DeleteTelegrafs
       tags:
         - Users
         - Telegrafs
@@ -648,6 +672,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/owners':
     get:
+      operationId: GetTelegrafs
       tags:
         - Users
         - Telegrafs
@@ -674,6 +699,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTelegrafs
       tags:
         - Users
         - Telegrafs
@@ -708,6 +734,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/telegrafs/{telegrafID}/owners/{userID}':
     delete:
+      operationId: DeleteTelegrafs
       tags:
         - Users
         - Telegrafs
@@ -737,6 +764,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /scrapers:
     get:
+      operationId: GetScrapers
       tags:
         - ScraperTargets
       summary: get all scraper targets
@@ -772,6 +800,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ScraperTargetResponses"
     post:
+      operationId: PostScrapers
       summary: create a scraper target
       tags:
         - ScraperTargets
@@ -799,6 +828,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}':
     get:
+      operationId: GetScrapers
       tags:
         - ScraperTargets
       summary: get a scraper target by id
@@ -824,6 +854,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteScrapers
       tags:
         - ScraperTargets
       summary: delete a scraper target
@@ -845,6 +876,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchScrapers
       summary: update a scraper target
       tags:
         - ScraperTargets
@@ -878,6 +910,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}/labels':
     get:
+      operationId: GetScrapers
       tags:
         - ScraperTargets
       summary: list all labels for a scraper targets
@@ -903,6 +936,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostScrapers
       tags:
         - ScraperTargets
       summary: add a label to a scraper target
@@ -936,6 +970,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}/labels/{labelID}':
     delete:
+      operationId: DeleteScrapers
       tags:
         - ScraperTargets
       summary: delete a label from a scraper target
@@ -969,6 +1004,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchScrapers
       tags:
         - ScraperTargets
       summary: update a label from a scraper target
@@ -1010,6 +1046,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}/members':
     get:
+      operationId: GetScrapers
       tags:
         - Users
         - ScraperTargets
@@ -1036,6 +1073,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostScrapers
       tags:
         - Users
         - ScraperTargets
@@ -1070,6 +1108,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}/members/{userID}':
     delete:
+      operationId: DeleteScrapers
       tags:
         - Users
         - ScraperTargets
@@ -1099,6 +1138,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}/owners':
     get:
+      operationId: GetScrapers
       tags:
         - Users
         - ScraperTargets
@@ -1125,6 +1165,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostScrapers
       tags:
         - Users
         - ScraperTargets
@@ -1159,6 +1200,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/scrapers/{scraperTargetID}/owners/{userID}':
     delete:
+      operationId: DeleteScrapers
       tags:
         - Users
         - ScraperTargets
@@ -1188,6 +1230,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /variables:
     get:
+      operationId: GetVariables
       tags:
         - Variables
       summary: get all variables
@@ -1223,6 +1266,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostVariables
       summary: create a variable
       tags:
         - Variables
@@ -1250,6 +1294,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/variables/{variableID}':
     get:
+      operationId: GetVariables
       tags:
         - Variables
       summary: get a variable
@@ -1281,6 +1326,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteVariables
       tags:
         - Variables
       summary: delete a variable
@@ -1302,6 +1348,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchVariables
       summary: update a variable
       tags:
         - Variables
@@ -1334,6 +1381,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     put:
+      operationId: PutVariables
       summary: replace a variable
       tags:
         - Variables
@@ -1367,6 +1415,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/variables/{variableID}/labels':
     get:
+      operationId: GetVariables
       tags:
         - Variables
       summary: list all labels for a variable
@@ -1392,6 +1441,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostVariables
       tags:
         - Variables
       summary: add a label to a variable
@@ -1425,6 +1475,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/variables/{variableID}/labels/{labelID}':
     delete:
+      operationId: DeleteVariables
       tags:
         - Variables
       summary: delete a label from a variable
@@ -1459,6 +1510,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /write:
     post:
+      operationId: PostWrite
       tags:
         - Write
       summary: write time-series data into influxdb
@@ -1579,6 +1631,7 @@ paths:
     servers:
         - url: /
     get:
+      operationId: GetReady
       tags:
         - Ready
       summary: Get the readiness of a instance at startup. Allow us to confirm the instance is prepared to accept requests.
@@ -1601,6 +1654,7 @@ paths:
     servers:
         - url: /
     get:
+      operationId: GetHealth
       tags:
         - Health
       summary: Get the health of an instance anytime during execution. Allow us to check if the instance is still healthy.
@@ -1627,6 +1681,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /sources:
     post:
+      operationId: PostSources
       tags:
         - Sources
       summary: Creates a Source
@@ -1653,6 +1708,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      operationId: GetSources
       tags:
         - Sources
       summary: Get all sources
@@ -1678,6 +1734,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}:
     delete:
+      operationId: DeleteSources
       tags:
         - Sources
       summary: Delete a source
@@ -1705,6 +1762,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchSources
       tags:
         - Sources
       summary: Updates a Source
@@ -1743,6 +1801,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      operationId: GetSources
       tags:
         - Sources
       summary: Get a source
@@ -1775,6 +1834,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}/health:
     get:
+      operationId: GetSources
       tags:
         - Sources
       summary: Get a sources health
@@ -1807,6 +1867,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /sources/{sourceID}/buckets:
     get:
+      operationId: GetSources
       tags:
         - Sources
         - Buckets
@@ -1845,6 +1906,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /labels:
     post:
+      operationId: PostLabels
       tags:
         - Labels
       summary: Create a label
@@ -1869,6 +1931,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      operationId: GetLabels
       tags:
         - Labels
       summary: Get all labels
@@ -1894,6 +1957,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /labels/{labelID}:
     get:
+      operationId: GetLabels
       tags:
         - Labels
       summary: Get a label
@@ -1919,6 +1983,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchLabels
       tags:
         - Labels
       summary: Update a single label
@@ -1957,6 +2022,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteLabels
       tags:
         - Labels
       summary: Delete a label
@@ -1985,6 +2051,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /dashboards:
     post:
+      operationId: PostDashboards
       tags:
         - Dashboards
       summary: Create a dashboard
@@ -2011,6 +2078,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     get:
+      operationId: GetDashboards
       tags:
         - Dashboards
       summary: Get all dashboards
@@ -2238,6 +2306,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/cells/{cellID}':
     patch:
+      operationId: PatchDashboards
       tags:
         - Cells
         - Dashboards
@@ -2283,6 +2352,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteDashboards
       tags:
         - Cells
         - Dashboards
@@ -2318,6 +2388,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/cells/{cellID}/view':
     get:
+      operationId: GetDashboards
       tags:
         - Cells
         - Dashboards
@@ -2357,6 +2428,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchDashboards
       tags:
         - Cells
         - Dashboards
@@ -2404,6 +2476,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/labels':
     get:
+      operationId: GetDashboards
       tags:
         - Dashboards
       summary: list all labels for a dashboard
@@ -2429,6 +2502,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostDashboards
       tags:
         - Dashboards
       summary: add a label to a dashboard
@@ -2462,6 +2536,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/labels/{labelID}':
     delete:
+      operationId: DeleteDashboards
       tags:
         - Dashboards
       summary: delete a label from a dashboard
@@ -2496,6 +2571,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/members':
     get:
+      operationId: GetDashboards
       tags:
         - Users
         - Dashboards
@@ -2522,6 +2598,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostDashboards
       tags:
         - Users
         - Dashboards
@@ -2556,6 +2633,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/members/{userID}':
     delete:
+      operationId: DeleteDashboards
       tags:
         - Users
         - Dashboards
@@ -2645,6 +2723,7 @@ paths:
                   $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/owners/{userID}':
     delete:
+      operationId: DeleteDashboards
       tags:
         - Users
         - Dashboards
@@ -2674,6 +2753,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/dashboards/{dashboardID}/logs':
     get:
+      operationId: GetDashboards
       tags:
         - Dashboards
         - OperationLogs
@@ -2703,6 +2783,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /query/ast:
     post:
+      operationId: PostQueryAst
       description: analyzes flux query and generates a query specification.
       tags:
         - Query
@@ -2735,6 +2816,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /query/suggestions:
     get:
+      operationId: GetQuerySuggestions
       tags:
         - Query
       parameters:
@@ -2762,6 +2844,7 @@ paths:
         required: true
         description: name of branching suggestion
     get:
+      operationId: GetQuerySuggestions
       tags:
         - Query
       responses:
@@ -2779,6 +2862,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /authorizations:
     get:
+      operationId: GetAuthorizations
       tags:
         - Authorizations
       summary: List all authorizations
@@ -2818,6 +2902,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostAuthorizations
       tags:
         - Authorizations
       summary: Create an authorization
@@ -2851,6 +2936,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /authorizations/{authID}:
     get:
+      operationId: GetAuthorizations
       tags:
         - Authorizations
       summary: Retrieve an authorization
@@ -2876,6 +2962,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchAuthorizations
       tags:
         - Authorizations
       summary: update authorization to be active or inactive. requests using an inactive authorization will be rejected.
@@ -2908,6 +2995,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteAuthorizations
       tags:
         - Authorizations
       summary: Delete a authorization
@@ -3074,6 +3162,7 @@ paths:
                   format: binary
   /buckets:
     get:
+      operationId: GetBuckets
       tags:
         - Buckets
       summary: List all buckets
@@ -3110,6 +3199,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostBuckets
       tags:
         - Buckets
       summary: Create a bucket
@@ -3137,6 +3227,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}':
     get:
+      operationId: GetBuckets
       tags:
         - Buckets
       summary: Retrieve a bucket
@@ -3162,6 +3253,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchBuckets
       tags:
         - Buckets
       summary: Update a bucket
@@ -3194,6 +3286,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteBuckets
       tags:
         - Buckets
       summary: Delete a bucket
@@ -3222,6 +3315,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/labels':
     get:
+      operationId: GetBuckets
       tags:
         - Buckets
       summary: list all labels for a bucket
@@ -3247,6 +3341,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostBuckets
       tags:
         - Buckets
       summary: add a label to a bucket
@@ -3280,6 +3375,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/labels/{labelID}':
     delete:
+      operationId: DeleteBuckets
       tags:
         - Buckets
       summary: delete a label from a bucket
@@ -3314,6 +3410,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/members':
     get:
+      operationId: GetBuckets
       tags:
         - Users
         - Buckets
@@ -3340,6 +3437,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostBuckets
       tags:
         - Users
         - Buckets
@@ -3374,6 +3472,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/members/{userID}':
     delete:
+      operationId: DeleteBuckets
       tags:
         - Users
         - Buckets
@@ -3403,6 +3502,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/owners':
     get:
+      operationId: GetBuckets
       tags:
         - Users
         - Buckets
@@ -3429,6 +3529,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostBuckets
       tags:
         - Users
         - Buckets
@@ -3463,6 +3564,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/owners/{userID}':
     delete:
+      operationId: DeleteBuckets
       tags:
         - Users
         - Buckets
@@ -3492,6 +3594,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/buckets/{bucketID}/logs':
     get:
+      operationId: GetBuckets
       tags:
         - Buckets
         - OperationLogs
@@ -3521,6 +3624,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /orgs:
     get:
+      operationId: GetOrgs
       tags:
         - Organizations
       summary: List all organizations
@@ -3550,6 +3654,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostOrgs
       tags:
         - Organizations
       summary: Create an organization
@@ -3577,6 +3682,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}':
     get:
+      operationId: GetOrgs
       tags:
         - Organizations
       summary: Retrieve an organization
@@ -3602,6 +3708,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchOrgs
       tags:
         - Organizations
       summary: Update an organization
@@ -3634,6 +3741,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteOrgs
       tags:
         - Organizations
       summary: Delete an organization
@@ -3662,6 +3770,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/labels':
     get:
+      operationId: GetOrgs
       tags:
         - Organizations
       summary: list all labels for a organization
@@ -3687,6 +3796,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostOrgs
       tags:
         - Organizations
       summary: add a label to an organization
@@ -3720,6 +3830,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/labels/{labelID}':
     delete:
+      operationId: DeleteOrgs
       tags:
         - Organizations
       summary: delete a label from an organization
@@ -3754,6 +3865,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/secrets':
     get:
+      operationId: GetOrgs
       tags:
         - Secrets
         - Organizations
@@ -3780,6 +3892,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchOrgs
       tags:
         - Secrets
         - Organizations
@@ -3810,6 +3923,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/secrets/delete': # had to make this because swagger wouldn't let me have a request body with a DELETE
     post:
+      operationId: PostOrgs
       tags:
         - Secrets
         - Organizations
@@ -3840,6 +3954,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/members':
     get:
+      operationId: GetOrgs
       tags:
         - Users
         - Organizations
@@ -3866,6 +3981,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostOrgs
       tags:
         - Users
         - Organizations
@@ -3900,6 +4016,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/members/{userID}':
     delete:
+      operationId: DeleteOrgs
       tags:
         - Users
         - Organizations
@@ -3929,6 +4046,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/owners':
     get:
+      operationId: GetOrgs
       tags:
         - Users
         - Organizations
@@ -3955,6 +4073,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostOrgs
       tags:
         - Users
         - Organizations
@@ -3989,6 +4108,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/owners/{userID}':
     delete:
+      operationId: DeleteOrgs
       tags:
         - Users
         - Organizations
@@ -4018,6 +4138,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/orgs/{orgID}/logs':
     get:
+      operationId: GetOrgs
       tags:
         - Organizations
         - OperationLogs
@@ -4047,6 +4168,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /tasks:
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: List tasks.
@@ -4094,6 +4216,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTasks
       tags:
         - Tasks
       summary: Create a new task
@@ -4121,6 +4244,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}':
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: Retrieve an task
@@ -4146,6 +4270,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchTasks
       tags:
         - Tasks
       summary: Update a task
@@ -4179,6 +4304,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteTasks
       tags:
         - Tasks
       summary: Delete a task
@@ -4202,6 +4328,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs':
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: Retrieve list of run records for a task
@@ -4252,6 +4379,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTasks
       tags:
         - Tasks
       summary: manually start a run of the task now overriding the current schedule.
@@ -4282,6 +4410,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs/{runID}':
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: Retrieve a single run record for a task
@@ -4314,6 +4443,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs/{runID}/retry':
     post:
+      operationId: PostTasks
       tags:
         - Tasks
       summary: Retry a task run
@@ -4346,6 +4476,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/logs':
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: Retrieve all logs for a task
@@ -4372,6 +4503,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs/{runID}/logs':
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: Retrieve all logs for a run
@@ -4404,6 +4536,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/labels':
     get:
+      operationId: GetTasks
       tags:
         - Tasks
       summary: list all labels for a task
@@ -4429,6 +4562,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostTasks
       tags:
         - Tasks
       summary: add a label to a task
@@ -4462,6 +4596,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/labels/{labelID}':
     delete:
+      operationId: DeleteTasks
       tags:
         - Tasks
       summary: delete a label from a task
@@ -4496,6 +4631,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /me:
     get:
+      operationId: GetMe
       tags:
         - Users
       summary: Returns currently authenticated user
@@ -4516,6 +4652,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /me/password:
     put:
+      operationId: PutMePassword
       tags:
         - Users
       summary: Update password
@@ -4541,6 +4678,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/members':
     get:
+      operationId: GetMePassword
       tags:
         - Users
         - Tasks
@@ -4567,6 +4705,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostMePassword
       tags:
         - Users
         - Tasks
@@ -4601,6 +4740,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/members/{userID}':
     delete:
+      operationId: DeleteMePassword
       tags:
         - Users
         - Tasks
@@ -4690,6 +4830,7 @@ paths:
                   $ref: "#/components/schemas/Error"
   '/tasks/taskID}/owners/{userID}':
     delete:
+      operationId: DeleteMePassword
       tags:
         - Users
         - Tasks
@@ -4719,6 +4860,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /users:
     get:
+      operationId: GetUsers
       tags:
         - Users
       summary: List all users
@@ -4738,6 +4880,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
+      operationId: PostUsers
       tags:
         - Users
       summary: Create a user
@@ -4765,6 +4908,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/users/{userID}':
     get:
+      operationId: GetUsers
       tags:
         - Users
       summary: Retrieve a user
@@ -4790,6 +4934,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     patch:
+      operationId: PatchUsers
       tags:
         - Users
       summary: Update a user
@@ -4822,6 +4967,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     delete:
+      operationId: DeleteUsers
       tags:
         - Users
       summary: deletes a user
@@ -4844,6 +4990,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/users/{userID}/password':
     put:
+      operationId: PutUsers
       tags:
         - Users
       summary: Update password
@@ -4875,6 +5022,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   '/users/{userID}/logs':
     get:
+      operationId: GetUsers
       tags:
         - Users
         - OperationLogs
