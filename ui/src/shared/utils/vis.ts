@@ -1,6 +1,6 @@
 // Libraries
 import {format} from 'd3-format'
-import {isNumeric, Table, ColumnType} from '@influxdata/vis'
+import {isNumeric, Table, ColumnType, LineInterpolation} from '@influxdata/vis'
 
 // Types
 import {XYViewGeom, Axis} from 'src/types'
@@ -20,15 +20,28 @@ export const formatNumber = (t: number): string => {
 }
 
 /*
-  A geom may be stored as "line", "step", "bar", or "stacked", but we currently
-  only support the "line" and "step" geoms.
+  A geom may be stored as "line", "step", "monotoneX", "bar", or "stacked", but
+  we currently only support the "line", "step", and "monotoneX" geoms.
 */
 export const resolveGeom = (geom: XYViewGeom) => {
-  if (geom === XYViewGeom.Step) {
+  if (geom === XYViewGeom.Step || geom === XYViewGeom.MonotoneX) {
     return geom
   }
 
   return XYViewGeom.Line
+}
+
+export const geomToInterpolation = (geom: XYViewGeom): LineInterpolation => {
+  const resolvedGeom = resolveGeom(geom)
+
+  switch (resolvedGeom) {
+    case XYViewGeom.Step:
+      return 'step'
+    case XYViewGeom.MonotoneX:
+      return 'monotoneX'
+    default:
+      return 'linear'
+  }
 }
 
 export const getFormatter = (

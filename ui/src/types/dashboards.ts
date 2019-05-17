@@ -160,9 +160,10 @@ export interface EmptyView {
 
 export enum XYViewGeom {
   Line = 'line',
-  Bar = 'bar',
   Step = 'step',
+  Bar = 'bar',
   Stacked = 'stacked',
+  MonotoneX = 'monotoneX',
 }
 
 export interface XYView {
