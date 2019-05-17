@@ -4688,7 +4688,7 @@ paths:
               application/json:
                 schema:
                   $ref: "#/components/schemas/Error"
-  '/tasks/taskID}/owners/{userID}':
+  '/tasks/{taskID}/owners/{userID}':
     delete:
       tags:
         - Users
