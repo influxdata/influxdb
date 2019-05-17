@@ -249,6 +249,8 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 	}
 
 	o.ID = s.IDGenerator.ID()
+	o.CreatedAt = s.Now()
+	o.UpdatedAt = s.Now()
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
 		return &influxdb.Error{
 			Err: err,
@@ -401,6 +403,8 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 	if upd.Description != nil {
 		o.Description = *upd.Description
 	}
+
+	o.UpdatedAt = s.Now()
 
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
 		return nil, &influxdb.Error{

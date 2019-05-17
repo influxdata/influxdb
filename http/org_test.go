@@ -36,6 +36,10 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
+	svc.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		svc.TimeGenerator = platform.RealTimeGenerator{}
+	}
 
 	ctx := context.Background()
 	for _, o := range f.Organizations {

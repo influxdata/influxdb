@@ -5734,6 +5734,14 @@ components:
           type: string
         description:
           type: string
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
         status:
           description: if inactive the organization is inactive.
           default: active
