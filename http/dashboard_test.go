@@ -1033,8 +1033,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 				body: `
 				{
 					"code": "invalid",
-					"error": "id must have a length of 16 bytes",
-					"message": "invalid dashboard id"
+					"message": "id must have a length of 16 bytes"
 				}`,
 			},
 		},

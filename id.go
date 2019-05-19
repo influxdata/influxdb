@@ -3,7 +3,6 @@ package influxdb
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"reflect"
 	"strconv"
 	"unsafe"
@@ -12,11 +11,19 @@ import (
 // IDLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
 const IDLength = 16
 
-// ErrInvalidID signifies invalid IDs.
-var ErrInvalidID = errors.New("invalid ID")
+var (
+	// ErrInvalidID signifies invalid IDs.
+	ErrInvalidID = &Error{
+		Code: EInvalid,
+		Msg:  "invalid ID",
+	}
 
-// ErrInvalidIDLength is returned when an ID has the incorrect number of bytes.
-var ErrInvalidIDLength = errors.New("id must have a length of 16 bytes")
+	// ErrInvalidIDLength is returned when an ID has the incorrect number of bytes.
+	ErrInvalidIDLength = &Error{
+		Code: EInvalid,
+		Msg:  "id must have a length of 16 bytes",
+	}
+)
 
 // ID is a unique identifier.
 //
@@ -57,7 +64,7 @@ func (i *ID) Decode(b []byte) error {
 
 	res, err := strconv.ParseUint(unsafeBytesToString(b), 16, 64)
 	if err != nil {
-		return err
+		return ErrInvalidID
 	}
 
 	if *i = ID(res); !i.Valid() {

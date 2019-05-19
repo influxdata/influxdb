@@ -40,7 +40,7 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should not be able to decode a non hex ID",
 			id:      "gggggggggggggggg",
 			wantErr: true,
-			err:     `strconv.ParseUint: parsing "gggggggggggggggg": invalid syntax`,
+			err: platform.ErrInvalidID.Error(),
 		},
 		{
 			name:    "Should not be able to decode inputs with length less than 16 bytes",
