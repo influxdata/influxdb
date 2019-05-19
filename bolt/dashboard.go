@@ -285,8 +285,8 @@ func (c *Client) CreateDashboard(ctx context.Context, d *platform.Dashboard) err
 			return err
 		}
 
-		// TODO(desa): don't populate this here. use the first/last methods of the oplog to get meta fields.
 		d.Meta.CreatedAt = c.Now()
+		d.Meta.UpdatedAt = c.Now()
 
 		return c.putDashboardWithMeta(ctx, tx, d)
 	})
