@@ -5861,7 +5861,7 @@ components:
           description: The name of the task.
           type: string
         description:
-          descripton: An optional description of the task.
+          description: An optional description of the task.
           type: string
         status:
           description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
