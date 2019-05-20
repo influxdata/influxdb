@@ -805,11 +805,7 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
 	}
 
-	// Arbitrarily chosen short time limit for how fast the log write must complete.
-	// If we start seeing errors from this, we know the time limit is too short or the system is overloaded.
-	ctx, cancel := context.WithTimeout(r.ctx, 10*time.Millisecond)
-	defer cancel()
-	if err := r.taskControlService.UpdateRunState(ctx, r.task.ID, qr.RunID, time.Now(), s); err != nil {
+	if err := r.taskControlService.UpdateRunState(r.ctx, r.task.ID, qr.RunID, time.Now(), s); err != nil {
 		runLogger.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
 	}
 }
