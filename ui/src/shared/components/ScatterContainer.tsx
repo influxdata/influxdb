@@ -29,14 +29,11 @@ interface Props {
 
 const ScatterContainer: FunctionComponent<Props> = ({
   table,
-  groupKeyUnion = [],
   loading,
   children,
   viewProperties: {
     xAxisLabel,
     yAxisLabel,
-    xPrefix,
-    xSuffix,
     yPrefix,
     ySuffix,
     fillColumns: storedFill,
@@ -46,10 +43,8 @@ const ScatterContainer: FunctionComponent<Props> = ({
     yDomain: storedYDomain,
   },
 }) => {
-  const fillColumns =
-    storedFill && storedFill.length > 0 ? storedFill : groupKeyUnion
-  const symbolColumns =
-    storedSymbol && storedSymbol.length > 0 ? storedSymbol : groupKeyUnion
+  const fillColumns = storedFill || []
+  const symbolColumns = storedSymbol || []
 
   const xColumn = chooseXColumn(table)
   const yColumn = chooseYColumn(table)
@@ -81,7 +76,6 @@ const ScatterContainer: FunctionComponent<Props> = ({
       ? colors.map(c => c.hex)
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(table.columns[xColumn].type, xPrefix, xSuffix)
   const yFormatter = getFormatter(table.columns[yColumn].type, yPrefix, ySuffix)
 
   const config: Config = {
@@ -96,7 +90,6 @@ const ScatterContainer: FunctionComponent<Props> = ({
     onSetYDomain,
     onResetYDomain,
     valueFormatters: {
-      [xColumn]: xFormatter,
       [yColumn]: yFormatter,
     },
     layers: [

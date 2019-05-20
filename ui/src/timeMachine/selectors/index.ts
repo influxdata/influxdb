@@ -134,6 +134,29 @@ export const getFillColumnsSelection = (state: AppState): string[] => {
   return getFillColumnsSelectionMemoized(validFillColumns, preference)
 }
 
+const getSymbolColumnsSelectionMemoized = memoizeOne(
+  (validSymbolColumns: string[], preference: string[]): string[] => {
+    if (
+      preference &&
+      preference.every(col => validSymbolColumns.includes(col))
+    ) {
+      return preference
+    }
+
+    return []
+  }
+)
+
+export const getSymbolColumnsSelection = (state: AppState): string[] => {
+  const validSymbolColumns = getGroupableColumns(state)
+  const preference = get(
+    getActiveTimeMachine(state),
+    'view.properties.symbolColumns'
+  )
+
+  return getSymbolColumnsSelectionMemoized(validSymbolColumns, preference)
+}
+
 export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
   const {view, draftQueries} = getActiveTimeMachine(state)
 
