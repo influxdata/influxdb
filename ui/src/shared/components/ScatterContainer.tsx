@@ -21,7 +21,7 @@ import {RemoteDataState, ScatterView} from 'src/types'
 
 interface Props {
   table: Table
-  groupKeyUnion: Array<string>
+  groupKeyUnion?: Array<string>
   loading: RemoteDataState
   viewProperties: ScatterView
   children: (config: Config) => JSX.Element
@@ -29,7 +29,7 @@ interface Props {
 
 const ScatterContainer: FunctionComponent<Props> = ({
   table,
-  groupKeyUnion,
+  groupKeyUnion = [],
   loading,
   children,
   viewProperties: {
@@ -51,7 +51,6 @@ const ScatterContainer: FunctionComponent<Props> = ({
   const symbolColumns =
     storedSymbol && storedSymbol.length > 0 ? storedSymbol : groupKeyUnion
 
-  // Eventually these will be configurable in the scatterGraph options UI
   const xColumn = chooseXColumn(table)
   const yColumn = chooseYColumn(table)
 
