@@ -110,4 +110,5 @@ var FluxEndToEndSkipList = map[string]string{
 	"parse_regex":           "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
 
 	"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
+	"dynamic_query": "separate `from` and `to` in e2e tests (https://github.com/influxdata/influxdb/issues/13975)",
 }
