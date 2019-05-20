@@ -3,6 +3,7 @@
 ### Features
 
 1. [13945](https://github.com/influxdata/influxdb/pull/13945): Add heatmap visualization type
+1. [13961](https://github.com/influxdata/influxdb/pull/13961): Add scatter graph visualization type
 1. [13850](https://github.com/influxdata/influxdb/pull/13850): Add description field to Tasks
 1. [13924](https://github.com/influxdata/influxdb/pull/13924): Add CLI arguments for configuring session length and renewal
 1. [13961](https://github.com/influxdata/influxdb/pull/13961): Add smooth interpolation option to line graphs
