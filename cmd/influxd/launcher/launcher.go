@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
+	"github.com/influxdata/influxdb/kit/log_control"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/signals"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -119,7 +120,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		{
 			DestP:   &l.logLevel,
 			Flag:    "log-level",
-			Default: zapcore.InfoLevel.String(),
+			Default: zapcore.ErrorLevel.String(),
 			Desc:    "supported log levels are debug, info, and error",
 		},
 		{
@@ -346,10 +347,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return fmt.Errorf("unknown log level; supported levels are debug, info, and error")
 	}
 
+	atom := zap.NewAtomicLevel()
+	atom.SetLevel(zapcore.InfoLevel)
 	// Create top level logger
 	logconf := &influxlogger.Config{
 		Format: "auto",
-		Level:  lvl,
+		Level:  atom,
 	}
 	m.logger, err = logconf.New(m.Stdout)
 	if err != nil {
@@ -642,6 +645,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
+	h.DebugHandler = log_control.NewControl(atom, h.DebugHandler)
 	h.Logger = httpLogger
 
 	m.httpServer.Handler = h
@@ -665,7 +669,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	go func(logger *zap.Logger) {
 		defer m.wg.Done()
 		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
-
+		atom.SetLevel(lvl)
 		if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
 			logger.Error("failed http service", zap.Error(err))
 		}
