@@ -276,6 +276,7 @@ export const flush = () => {
   })
 }
 
+<<<<<<< HEAD
 export const writeData = (
   lines: string[]
 ): Cypress.Chainable<Cypress.Response> => {
@@ -288,6 +289,26 @@ export const writeData = (
       })
     }
   })
+=======
+export const writeData = (lines: string[]): Cypress.Chainable<Cypress.Response> => {
+
+  return cy.fixture('user').then(({org, bucket}) => {
+
+    var date = new Date()
+
+    for(var line in lines){
+      console.log("DEBUG line: " + lines[line] )
+      cy.request({
+        method: 'POST',
+        url: '/api/v2/write?org=' + org + '&bucket=' + bucket,
+        body: lines[line]
+      })
+
+    }
+
+  })
+
+>>>>>>> 3aeda31... added writeData command
 }
 
 // DOM node getters
