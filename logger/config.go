@@ -14,5 +14,6 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Format: "auto",
+		Level:  zapcore.DebugLevel,
 	}
 }
