@@ -6451,112 +6451,208 @@ components:
           value: info
         - type: displayName
           value: Log Severity!
-    V1ViewProperties:
+    ViewProperties:
       properties:
-        type:
-          type: string
-          enum: ["chronograf-v1"]
         queries:
           type: array
           items:
             $ref: "#/components/schemas/DashboardQuery"
-        axes:
-          description: The viewport for a View's visualizations
-          type: object
-          properties:
-            x:
-              $ref: '#/components/schemas/Axis'
-            "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
-              $ref: '#/components/schemas/Axis'
-            y2:
-              $ref: '#/components/schemas/Axis'
-        graphType:
-          description: The viewport for a view's graph/visualization
-          type: string
-          enum:
-            - single-stat
-            - line
-            - line-plus-single-stat
-            - line-stacked
-            - line-stepplot
-            - bar
-            - gauge
-            - table
-          default: line
         colors:
           description: Colors define color encoding of data into a visualization
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
-        legend:
-          description: Legend define encoding of data into a view's legend
-          type: object
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: if true, will display note when empty
+          type: boolean
+    LinePlusSingleStatProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            axes:
+              $ref: '#/components/schemas/Axes'
+            type:
+              type: string
+              enum: ["line-plus-single-stat"]
+            legend:
+              $ref: '#/components/schemas/Legend'
+            prefix:
+              type: string
+            suffix:
+              type: string
+            decimalPlaces:
+              $ref: '#/components/schemas/DecimalPlaces'
+    XYViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            axes:
+              $ref: '#/components/schemas/Axes'
+            type:
+              type: string
+              enum: ["xy"]
+            legend:
+              $ref: '#/components/schemas/Legend'
+            geom:
+              type: string
+              enum: ["line", "step", "stacked", "bar"]
+    SingleStatViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
           properties:
             type:
-              description: type is the style of the legend
               type: string
-              enum:
-                - static
-            orientation:
-              description: >-
-                orientation is the location of the legend with respect to the view
-                graph
+              enum: ["single-stat"]
+            prefix:
               type: string
-              enum:
-                - top
-                - bottom
-                - left
-                - right
-        tableOptions:
+            suffix:
+              type: string
+            legend:
+              $ref: '#/components/schemas/Legend'
+            decimalPlaces:
+              $ref: "#/components/schemas/DecimalPlaces"
+    HistogramViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
           properties:
-            verticalTimeAxis:
-              description: >-
-                verticalTimeAxis describes the orientation of the table by
-                indicating whether the time axis will be displayed vertically
-              type: boolean
-            sortBy:
-              $ref: "#/components/schemas/RenamableField"
-            wrapping:
-              description: wrapping describes the text wrapping style to be used in table views
+            type:
               type: string
-              enum:
-                - truncate
-                - wrap
-                - single-line
-            fixFirstColumn:
-              description: >-
-                fixFirstColumn indicates whether the first column of the table
-                should be locked
-              type: boolean
-        fieldOptions:
-          description: >-
-            fieldOptions represent the fields retrieved by the query with
-            customization options
-          type: array
-          items:
-            $ref: '#/components/schemas/RenamableField'
-        timeFormat:
-          description: >-
-            timeFormat describes the display format for time values according to
-            moment.js date formatting
-          type: string
-        decimalPoints:
-          description: >-
-            decimal points indicates whether and how many digits to show after
-            decimal point
-          type: object
-          properties:
-            isEnforced:
-              description: Indicates whether decimal point setting should be enforced
-              type: boolean
-            digits:
-              description: The number of digists after decimal to display
+              enum: ["histogram"]
+            xColumn:
+              type: string
+            fillColumns:
+              type: array
+              items:
+                type: string
+            xDomain:
+              type: array
+              items:
+                type: number
+                format: float
+            xAxisLabel:
+              type: string
+            position:
+              type: string
+            binCount:
               type: integer
+    GaugeViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: ["gauge"]
+            prefix:
+              type: string
+            suffix:
+              type: string
+            legend:
+              $ref: '#/components/schemas/Legend'
+            decimalPlaces:
+              $ref: '#/components/schemas/DecimalPlaces'
+    TableViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            type:
+              type: string
+              enum: ["table"]
+            tableOptions:
+              properties:
+                verticalTimeAxis:
+                  description: >-
+                    verticalTimeAxis describes the orientation of the table by
+                    indicating whether the time axis will be displayed vertically
+                  type: boolean
+                sortBy:
+                  $ref: "#/components/schemas/RenamableField"
+                wrapping:
+                  description: wrapping describes the text wrapping style to be used in table views
+                  type: string
+                  enum:
+                    - truncate
+                    - wrap
+                    - single-line
+                fixFirstColumn:
+                  description: >-
+                    fixFirstColumn indicates whether the first column of the table
+                    should be locked
+                  type: boolean
+            fieldOptions:
+              description: >-
+                fieldOptions represent the fields retrieved by the query with
+                customization options
+              type: array
+              items:
+                $ref: '#/components/schemas/RenamableField'
+            timeFormat:
+              description: >-
+                timeFormat describes the display format for time values according to
+                moment.js date formatting
+              type: string
+            decimalPlaces:
+              $ref: '#/components/schemas/DecimalPlaces'
+    MarkdownViewProperties:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["markdown"]
+        note:
+          type: string
     EmptyViewProperties:
       properties:
         type:
           type: string
           enum: ["empty"]
+    Axes:
+      description: The viewport for a View's visualizations
+      type: object
+      properties:
+        x:
+          $ref: '#/components/schemas/Axis'
+        "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
+          $ref: '#/components/schemas/Axis'
+        y2:
+          $ref: '#/components/schemas/Axis'
+    Legend:
+      description: Legend define encoding of data into a view's legend
+      type: object
+      properties:
+        type:
+          description: type is the style of the legend
+          type: string
+          enum:
+            - static
+        orientation:
+          description: >-
+            orientation is the location of the legend with respect to the view
+            graph
+          type: string
+          enum:
+            - top
+            - bottom
+            - left
+            - right
+    DecimalPlaces:
+      description: indicates whether decimal places should be enforced, and how many digits it should show.
+      type: object
+      properties:
+        isEnforced:
+          description: Indicates whether decimal point setting should be enforced
+          type: boolean
+        digits:
+          description: The number of digits after decimal to display
+          type: integer
+          format: int32
     ConstantVariableProperties:
       properties:
         type:
@@ -6682,9 +6778,27 @@ components:
           type: string
         properties:
           oneOf:
-            - $ref: "#/components/schemas/V1ViewProperties"
-            - $ref: "#/components/schemas/EmptyViewProperties"
+            - $ref: "#/components/schemas/LinePlusSingleStatProperties"
+            - $ref: "#/components/schemas/XYViewProperties"
+            - $ref: "#/components/schemas/SingleStatViewProperties"
+            - $ref: "#/components/schemas/HistogramViewProperties"
+            - $ref: "#/components/schemas/GaugeViewProperties"
+            - $ref: "#/components/schemas/TableViewProperties"
+            - $ref: "#/components/schemas/MarkdownViewProperties"
             - $ref: "#/components/schemas/LogViewProperties"
+            - $ref: "#/components/schemas/EmptyViewProperties"
+    Views:
+      type: object
+      properties:
+        links:
+          type: object
+          properties:
+            self:
+              type: string
+        views:
+          type: array
+          items:
+            $ref: "#/components/schemas/View"
     CellUpdate:
       type: object
       properties:
