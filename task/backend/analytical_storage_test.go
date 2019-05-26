@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
@@ -14,7 +13,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
-	pcontrol "github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/readservice"
 	"github.com/influxdata/influxdb/task/backend"
@@ -56,7 +55,7 @@ func TestAnalyticalStore(t *testing.T) {
 }
 
 type analyticalBackend struct {
-	queryController *pcontrol.Controller
+	queryController *control.Controller
 	rootDir         string
 	storageEngine   *storage.Engine
 }
@@ -124,7 +123,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		t.Fatal(err)
 	}
 
-	queryController, err := pcontrol.New(cc)
+	queryController, err := control.New(cc)
 	if err != nil {
 		t.Fatal(err)
 	}
