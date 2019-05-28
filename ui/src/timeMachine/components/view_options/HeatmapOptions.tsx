@@ -3,7 +3,7 @@ import React, {FunctionComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {VIRIDIS, MAGMA, INFERNO, PLASMA} from '@influxdata/vis'
 import {
-  Dropdown,
+  SelectDropdown,
   Form,
   Grid,
   Input,
@@ -37,7 +37,7 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {ComponentStatus} from '@influxdata/clockface'
+// import {ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 
 const HEATMAP_COLOR_SCHEMES = [
@@ -82,9 +82,9 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const HeatmapOptions: FunctionComponent<Props> = props => {
-  const dataDropdownStatus = props.numericColumns.length
-    ? ComponentStatus.Default
-    : ComponentStatus.Disabled
+  // const dataDropdownStatus = props.numericColumns.length
+  //   ? ComponentStatus.Default
+  //   : ComponentStatus.Disabled
 
   const onSetBinSize = (e: ChangeEvent<HTMLInputElement>) => {
     const val = +e.target.value
@@ -101,32 +101,20 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
       <h4 className="view-options--header">Customize Heatmap</h4>
       <h5 className="view-options--header">Data</h5>
       <Form.Element label="X Column">
-        <Dropdown
-          selectedID={props.xColumn}
-          onChange={props.onSetXColumn}
-          status={dataDropdownStatus}
-          titleText="None"
-        >
-          {props.numericColumns.map(columnName => (
-            <Dropdown.Item id={columnName} key={columnName} value={columnName}>
-              {columnName}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
+        <SelectDropdown
+          selectedOption={props.xColumn}
+          onSelect={props.onSetXColumn}
+          // status={dataDropdownStatus}
+          options={props.numericColumns}
+        />
       </Form.Element>
       <Form.Element label="Y Column">
-        <Dropdown
-          selectedID={props.yColumn}
-          onChange={props.onSetYColumn}
-          status={dataDropdownStatus}
-          titleText="None"
-        >
-          {props.numericColumns.map(columnName => (
-            <Dropdown.Item id={columnName} key={columnName} value={columnName}>
-              {columnName}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
+        <SelectDropdown
+          selectedOption={props.yColumn}
+          onSelect={props.onSetYColumn}
+          // status={dataDropdownStatus}
+          options={props.numericColumns}
+        />
       </Form.Element>
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
