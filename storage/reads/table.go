@@ -58,7 +58,6 @@ func newTable(
 
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
-func (t *table) RefCount(n int)       {}
 func (t *table) Err() error           { return t.err }
 func (t *table) Empty() bool          { return t.l == 0 }
 func (t *table) Len() int             { return t.l }
@@ -70,6 +69,9 @@ func (t *table) Cancel() {
 func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
 }
+
+func (t *table) Retain()  {}
+func (t *table) Release() {}
 
 func (t *table) Bools(j int) *array.Boolean {
 	execute.CheckColType(t.cols[j], flux.TBool)

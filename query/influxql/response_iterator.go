@@ -344,9 +344,7 @@ func (r *queryTable) Do(f func(flux.ColReader) error) error {
 	return f(r)
 }
 
-// RefCount is a noop.
-// It is used to implement flux.ColReader.
-func (r *queryTable) RefCount(n int) {}
+func (r *queryTable) Done() {}
 
 // Empty returns true if a Row has no values.
 // It is used to implement flux.Table.
@@ -357,6 +355,9 @@ func (r *queryTable) Empty() bool { return r.Len() == 0 }
 func (r *queryTable) Len() int {
 	return len(r.row.Values)
 }
+
+func (r *queryTable) Retain()  {}
+func (r *queryTable) Release() {}
 
 // Bools returns the values in column index j as bools.
 // It will panic if the column is not a []bool.
