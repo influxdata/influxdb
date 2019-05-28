@@ -3,7 +3,13 @@ import _ from 'lodash'
 import {connect} from 'react-redux'
 
 // Component
-import {Grid, Form, TextArea, Dropdown, Columns} from '@influxdata/clockface'
+import {
+  Grid,
+  Form,
+  TextArea,
+  Columns,
+  SelectDropdown,
+} from '@influxdata/clockface'
 
 // Utils
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -65,18 +71,12 @@ class MapVariableBuilder extends PureComponent<Props, State> {
           </Grid.Column>
           <Grid.Column widthXS={Columns.Six}>
             {
-              <Form.Element label="Select A Default">
-                <Dropdown
-                  selectedID={this.defaultID}
-                  onChange={onSelectDefault}
-                  titleText="Key Values"
-                >
-                  {entries.map(v => (
-                    <Dropdown.Item key={v.key} id={v.key} value={v.key}>
-                      <strong>{v.key}</strong> -> {v.value}
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown>
+              <Form.Element label="Select a Default Value">
+                <SelectDropdown
+                  selectedOption={this.defaultID}
+                  onSelect={onSelectDefault}
+                  options={entries.map(v => `${v.key} -> ${v.value}`)}
+                />
               </Form.Element>
             }
           </Grid.Column>
@@ -90,7 +90,9 @@ class MapVariableBuilder extends PureComponent<Props, State> {
     const {entries} = this
     const firstEntry = _.get(entries, '0.key', '')
 
-    return _.get(selected, '0', firstEntry)
+    const defaultID = _.get(selected, '0', firstEntry)
+
+    return defaultID || 'No Key/Value Pairs found'
   }
 
   private get entries(): {key: string; value: string}[] {
