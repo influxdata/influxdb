@@ -133,6 +133,7 @@ export type ViewProperties =
   | HistogramView
   | HeatmapView
   | ScatterView
+  | CandlestickView
 
 export type QueryViewProperties = Extract<
   ViewProperties,
@@ -286,6 +287,9 @@ export interface ScatterView {
   showNoteWhenEmpty: boolean
 }
 
+export interface CandlestickView {
+  type: ViewType.Candlestick
+}
 export interface MarkdownView {
   type: ViewType.Markdown
   shape: ViewShape.ChronografV2
@@ -308,6 +312,7 @@ export enum ViewType {
   Histogram = 'histogram',
   Heatmap = 'heatmap',
   Scatter = 'scatter',
+  Candlestick = 'candlestick',
 }
 
 export interface DashboardFile {

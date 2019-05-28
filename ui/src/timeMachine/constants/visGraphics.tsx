@@ -3,6 +3,224 @@ import React from 'react'
 import {ViewType} from 'src/types/dashboards'
 
 const GRAPHIC_SVGS = {
+  [ViewType.Candlestick]: (
+    <div className="vis-graphic">
+      <svg
+        width="100%"
+        height="100%"
+        version="1.1"
+        id="Candlestick"
+        x="0px"
+        y="0px"
+        viewBox="0 0 150 150"
+        preserveAspectRatio="none meet"
+      >
+        <g>
+          <rect
+            x="5.2"
+            y="86.5"
+            className="vis-graphic--fill vis-graphic--fill-c"
+            width="12"
+            height="35.8"
+          />
+          <rect
+            x="5.2"
+            y="86.5"
+            className="vis-graphic--line vis-graphic--line-c"
+            width="12"
+            height="35.8"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="11.2"
+            y1="122.3"
+            x2="11.2"
+            y2="137.3"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="11.2"
+            y1="69.9"
+            x2="11.2"
+            y2="86.5"
+          />
+        </g>
+        <g>
+          <rect
+            x="47.7"
+            y="54"
+            className="vis-graphic--fill vis-graphic--fill-c"
+            width="12"
+            height="69.9"
+          />
+          <rect
+            x="47.7"
+            y="54"
+            className="vis-graphic--line vis-graphic--line-c"
+            width="12"
+            height="69.9"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="53.7"
+            y1="140.8"
+            x2="53.7"
+            y2="124"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="53.7"
+            y1="54"
+            x2="53.7"
+            y2="34.1"
+          />
+        </g>
+        <g>
+          <rect
+            x="90.3"
+            y="42.5"
+            className="vis-graphic--fill vis-graphic--fill-c"
+            width="12"
+            height="47.5"
+          />
+          <rect
+            x="90.3"
+            y="42.5"
+            className="vis-graphic--line vis-graphic--line-c"
+            width="12"
+            height="47.5"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="96.3"
+            y1="18.1"
+            x2="96.3"
+            y2="42.5"
+          />
+        </g>
+        <g>
+          <rect
+            x="111.6"
+            y="24.1"
+            className="vis-graphic--fill vis-graphic--fill-c"
+            width="12"
+            height="32"
+          />
+          <rect
+            x="111.6"
+            y="24.1"
+            className="vis-graphic--line vis-graphic--line-c"
+            width="12"
+            height="32"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="117.6"
+            y1="56.1"
+            x2="117.6"
+            y2="94.2"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-c"
+            x1="117.6"
+            y1="9.2"
+            x2="117.6"
+            y2="24.1"
+          />
+        </g>
+        <g>
+          <rect
+            x="69"
+            y="61.3"
+            className="vis-graphic--fill vis-graphic--fill-b"
+            width="12"
+            height="21.9"
+          />
+          <rect
+            x="69"
+            y="61.3"
+            className="vis-graphic--line vis-graphic--line-b"
+            width="12"
+            height="21.9"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-b"
+            x1="75"
+            y1="132.2"
+            x2="75"
+            y2="83.2"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-b"
+            x1="75"
+            y1="61.9"
+            x2="75"
+            y2="44.4"
+          />
+        </g>
+        <g>
+          <rect
+            x="132.8"
+            y="51.6"
+            className="vis-graphic--fill vis-graphic--fill-b"
+            width="12"
+            height="20.5"
+          />
+          <rect
+            x="132.8"
+            y="51.6"
+            className="vis-graphic--line vis-graphic--line-b"
+            width="12"
+            height="20.5"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-b"
+            x1="138.8"
+            y1="72.3"
+            x2="138.8"
+            y2="87.4"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-b"
+            x1="138.8"
+            y1="27.2"
+            x2="138.8"
+            y2="51.6"
+          />
+        </g>
+        <g>
+          <rect
+            x="26.4"
+            y="93.9"
+            className="vis-graphic--fill vis-graphic--fill-b"
+            width="12"
+            height="19.4"
+          />
+          <rect
+            x="26.4"
+            y="93.9"
+            className="vis-graphic--line vis-graphic--line-b"
+            width="12"
+            height="19.4"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-b"
+            x1="32.4"
+            y1="113.3"
+            x2="32.4"
+            y2="120.1"
+          />
+          <line
+            className="vis-graphic--line vis-graphic--line-b"
+            x1="32.4"
+            y1="87.1"
+            x2="32.4"
+            y2="93.9"
+          />
+        </g>
+      </svg>
+    </div>
+  ),
   [ViewType.Heatmap]: (
     <div className="vis-graphic">
       <svg
@@ -939,5 +1157,10 @@ export const VIS_GRAPHICS = [
     name: 'Scatter',
     graphic: GRAPHIC_SVGS[ViewType.Scatter],
     featureFlag: 'scatter',
+  },
+  {
+    type: ViewType.Candlestick,
+    name: 'Candlestick',
+    graphic: GRAPHIC_SVGS[ViewType.Candlestick],
   },
 ]
