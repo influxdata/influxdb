@@ -83,6 +83,8 @@ func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
+func (t *{{.name}}Table) Done() {}
+
 func (t *{{.name}}Table) advance() bool {
 	for _, cb := range t.colBufs {
 		if cb != nil {
@@ -163,6 +165,8 @@ func (t *{{.name}}GroupTable) Do(f func(flux.ColReader) error) error {
 
 	return t.err
 }
+
+func (t *{{.name}}GroupTable) Done() {}
 
 func (t *{{.name}}GroupTable) advance() bool {
 RETRY:
