@@ -2851,7 +2851,7 @@ paths:
         required: true
         description: name of branching suggestion
     get:
-      operationId: GetQuerySuggestions
+      operationId: GetQuerySuggestionsName
       tags:
         - Query
       responses:
