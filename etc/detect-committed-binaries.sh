@@ -26,7 +26,8 @@ for rev in $(git rev-list "$1"); do
 	for binFile in $(git log -1 --format='' --stat=255 "$rev" | grep ' Bin 0 ->' | cut -d '|' -f 1 | awk '{$1=$1;print}'); do
 		# We have found a new binary file in $rev.
 		# Was it in the commit's whitelist?
-		if git log -1 --format=%b "$rev" | grep -q -F -x "Adds-Binary: $binFile"; then
+		# (GitHub seems to use \r\n on Squash&Merge commit messages, which doesn't play well with grep -x; hence the awk line.)
+		if git log -1 --format=%b "$rev" | awk '{ sub("\r$", ""); print }' | grep -q -F -x "Adds-Binary: $binFile"; then
 			# Yes it was. Skip this file.
 			echo "Revision $rev $(git log -1 --format='[%s]' "$rev") added whitelisted binary file: $binFile"
 			continue
