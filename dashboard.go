@@ -394,6 +394,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = hv
+		case "scatter":
+			var sv ScatterViewProperties
+			if err := json.Unmarshal(v.B, &sv); err != nil {
+				return nil, err
+			}
+			vis = sv
 		}
 	case "empty":
 		var ev EmptyViewProperties
@@ -474,6 +480,15 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			HeatmapViewProperties: vis,
+		}
+	case ScatterViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			ScatterViewProperties
+		}{
+			Shape: "chronograf-v2",
+
+			ScatterViewProperties: vis,
 		}
 	case MarkdownViewProperties:
 		s = struct {
@@ -637,6 +652,27 @@ type HeatmapViewProperties struct {
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
+// ScatterViewProperties represents options for scatter view in Chronograf
+type ScatterViewProperties struct {
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	ViewColors        []string         `json:"colors"`
+	FillColumns       []string         `json:"fillColumns"`
+	SymbolColumns     []string         `json:"symbolColumns"`
+	XColumn           string           `json:"xColumn"`
+	YColumn           string           `json:"yColumn"`
+	XDomain           []float64        `json:"xDomain,omitEmpty"`
+	YDomain           []float64        `json:"yDomain,omitEmpty"`
+	XAxisLabel        string           `json:"xAxisLabel"`
+	YAxisLabel        string           `json:"yAxisLabel"`
+	XPrefix           string           `json:"xPrefix"`
+	XSuffix           string           `json:"xSuffix"`
+	YPrefix           string           `json:"yPrefix"`
+	YSuffix           string           `json:"ySuffix"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+}
+
 // GaugeViewProperties represents options for gauge view in Chronograf
 type GaugeViewProperties struct {
 	Type              string           `json:"type"`
@@ -692,6 +728,7 @@ func (LinePlusSingleStatProperties) viewProperties() {}
 func (SingleStatViewProperties) viewProperties()     {}
 func (HistogramViewProperties) viewProperties()      {}
 func (HeatmapViewProperties) viewProperties()        {}
+func (ScatterViewProperties) viewProperties()        {}
 func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
@@ -702,6 +739,7 @@ func (v LinePlusSingleStatProperties) GetType() string { return v.Type }
 func (v SingleStatViewProperties) GetType() string     { return v.Type }
 func (v HistogramViewProperties) GetType() string      { return v.Type }
 func (v HeatmapViewProperties) GetType() string        { return v.Type }
+func (v ScatterViewProperties) GetType() string        { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }

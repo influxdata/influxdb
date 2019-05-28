@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Grid} from '@influxdata/clockface'
 import Geom from 'src/timeMachine/components/view_options/Geom'
 import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
-import YAxisAffixes from 'src/timeMachine/components/view_options/YAxisAffixes'
+import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 import ColorSelector from 'src/timeMachine/components/view_options/ColorSelector'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 
@@ -76,11 +76,12 @@ class LineOptions extends PureComponent<Props> {
           <h5 className="view-options--header">Y Axis</h5>
         </Grid.Column>
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
-        <YAxisAffixes
+        <AxisAffixes
           prefix={prefix}
           suffix={suffix}
-          onUpdateYAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
-          onUpdateYAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
+          axisName="y"
+          onUpdateAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
+          onUpdateAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
         />
         <Grid.Column>
           <AutoDomainInput

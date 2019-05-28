@@ -263,26 +263,26 @@ export const timeMachineReducer = (
       const {prefix, axis} = action.payload
       const viewType = state.view.properties.type
 
-      if (viewType === ViewType.Heatmap && axis === 'x') {
-        return setViewProperties(state, {xPrefix: prefix})
-      } else if (viewType === ViewType.Heatmap && axis === 'y') {
+      if (viewType === ViewType.Heatmap || viewType == ViewType.Scatter) {
+        if (axis === 'x') {
+          return setViewProperties(state, {xPrefix: prefix})
+        }
         return setViewProperties(state, {yPrefix: prefix})
-      } else {
-        return setYAxis(state, {prefix})
       }
+      return setYAxis(state, {prefix})
     }
 
     case 'SET_AXIS_SUFFIX': {
       const {suffix, axis} = action.payload
       const viewType = state.view.properties.type
 
-      if (viewType === ViewType.Heatmap && axis === 'x') {
-        return setViewProperties(state, {xSuffix: suffix})
-      } else if (viewType === ViewType.Heatmap && axis === 'y') {
+      if (viewType === ViewType.Heatmap || viewType === ViewType.Scatter) {
+        if (axis === 'x') {
+          return setViewProperties(state, {xSuffix: suffix})
+        }
         return setViewProperties(state, {ySuffix: suffix})
-      } else {
-        return setYAxis(state, {suffix})
       }
+      return setYAxis(state, {suffix})
     }
 
     case 'SET_Y_AXIS_BASE': {
@@ -315,6 +315,7 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Histogram:
         case ViewType.Heatmap:
+        case ViewType.Scatter:
           return setViewProperties(state, {xAxisLabel})
         default:
           return setYAxis(state, {label: xAxisLabel})
@@ -327,6 +328,7 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Histogram:
         case ViewType.Heatmap:
+        case ViewType.Scatter:
           return setViewProperties(state, {yAxisLabel})
         default:
           return setYAxis(state, {label: yAxisLabel})
@@ -337,6 +339,12 @@ export const timeMachineReducer = (
       const {fillColumns} = action.payload
 
       return setViewProperties(state, {fillColumns})
+    }
+
+    case 'SET_SYMBOL_COLUMNS': {
+      const {symbolColumns} = action.payload
+
+      return setViewProperties(state, {symbolColumns})
     }
 
     case 'SET_HISTOGRAM_POSITION': {
@@ -411,6 +419,7 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Gauge:
         case ViewType.SingleStat:
+        case ViewType.Scatter:
         case ViewType.XY:
         case ViewType.Histogram:
           return setViewProperties(state, {colors})

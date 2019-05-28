@@ -8,6 +8,7 @@ import SingleStatOptions from 'src/timeMachine/components/view_options/SingleSta
 import TableOptions from 'src/timeMachine/components/view_options/TableOptions'
 import HistogramOptions from 'src/timeMachine/components/view_options/HistogramOptions'
 import HeatmapOptions from 'src/timeMachine/components/view_options/HeatmapOptions'
+import ScatterOptions from 'src/timeMachine/components/view_options/ScatterOptions'
 
 // Types
 import {ViewType, View, NewView} from 'src/types'
@@ -40,6 +41,8 @@ class OptionsSwitcher extends PureComponent<Props> {
         return <HistogramOptions {...view.properties} />
       case ViewType.Heatmap:
         return <HeatmapOptions {...view.properties} />
+      case ViewType.Scatter:
+        return <ScatterOptions {...view.properties} />
       default:
         return <div />
     }

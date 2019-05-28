@@ -1,5 +1,5 @@
 // Constants
-import {INFERNO} from '@influxdata/vis'
+import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/vis'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {
@@ -24,6 +24,7 @@ import {
   DashboardQuery,
   QueryEditMode,
   BuilderConfig,
+  ScatterView,
 } from 'src/types/dashboards'
 
 function defaultView() {
@@ -211,6 +212,29 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.Markdown,
       shape: ViewShape.ChronografV2,
       note: '',
+    },
+  }),
+  [ViewType.Scatter]: (): NewView<ScatterView> => ({
+    ...defaultView(),
+    properties: {
+      type: ViewType.Scatter,
+      shape: ViewShape.ChronografV2,
+      queries: [defaultViewQuery()],
+      colors: NINETEEN_EIGHTY_FOUR,
+      note: '',
+      showNoteWhenEmpty: false,
+      fillColumns: [],
+      symbolColumns: [],
+      xColumn: '_time',
+      xDomain: null,
+      yColumn: '_value',
+      yDomain: null,
+      xAxisLabel: '',
+      yAxisLabel: '',
+      xPrefix: '',
+      xSuffix: '',
+      yPrefix: '',
+      ySuffix: '',
     },
   }),
 }

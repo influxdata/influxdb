@@ -65,6 +65,7 @@ export type Action =
   | SetBinSizeAction
   | SetColorHexesAction
   | SetFillColumnsAction
+  | SetSymbolColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
   | SetXDomainAction
@@ -515,6 +516,18 @@ export const setFillColumns = (
 ): SetFillColumnsAction => ({
   type: 'SET_FILL_COLUMNS',
   payload: {fillColumns},
+})
+
+interface SetSymbolColumnsAction {
+  type: 'SET_SYMBOL_COLUMNS'
+  payload: {symbolColumns: string[]}
+}
+
+export const setSymbolColumns = (
+  symbolColumns: string[]
+): SetSymbolColumnsAction => ({
+  type: 'SET_SYMBOL_COLUMNS',
+  payload: {symbolColumns},
 })
 
 interface SetBinCountAction {

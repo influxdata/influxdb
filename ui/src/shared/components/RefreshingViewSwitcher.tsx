@@ -10,6 +10,7 @@ import HistogramContainer from 'src/shared/components/HistogramContainer'
 import HeatmapContainer from 'src/shared/components/HeatmapContainer'
 import VisTableTransform from 'src/shared/components/VisTableTransform'
 import XYContainer from 'src/shared/components/XYContainer'
+import ScatterContainer from 'src/shared/components/ScatterContainer'
 import LatestValueTransform from 'src/shared/components/LatestValueTransform'
 
 // Types
@@ -39,7 +40,7 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.SingleStat:
       return (
         <VisTableTransform files={files}>
-          {table => (
+          {({table}) => (
             <LatestValueTransform table={table}>
               {latestValue => (
                 <SingleStat stat={latestValue} properties={properties} />
@@ -53,7 +54,7 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.Gauge:
       return (
         <VisTableTransform files={files}>
-          {table => (
+          {({table}) => (
             <LatestValueTransform table={table}>
               {latestValue => (
                 <GaugeChart value={latestValue} properties={properties} />
@@ -109,7 +110,7 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.Histogram:
       return (
         <VisTableTransform files={files}>
-          {table => (
+          {({table}) => (
             <HistogramContainer
               table={table}
               loading={loading}
@@ -123,7 +124,7 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.Heatmap:
       return (
         <VisTableTransform files={files}>
-          {table => (
+          {({table}) => (
             <HeatmapContainer
               table={table}
               loading={loading}
@@ -131,6 +132,21 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
             >
               {config => <Plot config={config} />}
             </HeatmapContainer>
+          )}
+        </VisTableTransform>
+      )
+    case ViewType.Scatter:
+      return (
+        <VisTableTransform files={files}>
+          {({table, groupKeyUnion}) => (
+            <ScatterContainer
+              table={table}
+              groupKeyUnion={groupKeyUnion}
+              loading={loading}
+              viewProperties={properties}
+            >
+              {config => <Plot config={config} />}
+            </ScatterContainer>
           )}
         </VisTableTransform>
       )
