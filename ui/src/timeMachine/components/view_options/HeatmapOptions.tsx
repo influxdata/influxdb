@@ -9,6 +9,7 @@ import {
   Input,
   Columns,
   InputType,
+  ComponentStatus,
 } from '@influxdata/clockface'
 
 // Components
@@ -37,7 +38,6 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-// import {ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 
 const HEATMAP_COLOR_SCHEMES = [
@@ -82,11 +82,9 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const HeatmapOptions: FunctionComponent<Props> = props => {
-  // const dataDropdownStatus = props.numericColumns.length
-  //   ? ComponentStatus.Default
-  //   : ComponentStatus.Disabled
-
-  // TODO: Fix this component status stuff
+  const dataDropdownStatus = props.numericColumns.length
+    ? ComponentStatus.Default
+    : ComponentStatus.Disabled
 
   const onSetBinSize = (e: ChangeEvent<HTMLInputElement>) => {
     const val = +e.target.value
@@ -106,7 +104,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
         <SelectDropdown
           selectedOption={props.xColumn}
           onSelect={props.onSetXColumn}
-          // status={dataDropdownStatus}
+          buttonStatus={dataDropdownStatus}
           options={props.numericColumns}
         />
       </Form.Element>
@@ -114,7 +112,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
         <SelectDropdown
           selectedOption={props.yColumn}
           onSelect={props.onSetYColumn}
-          // status={dataDropdownStatus}
+          buttonStatus={dataDropdownStatus}
           options={props.numericColumns}
         />
       </Form.Element>
