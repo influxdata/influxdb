@@ -3,7 +3,13 @@ import Papa from 'papaparse'
 import _ from 'lodash'
 
 // Component
-import {Grid, Form, TextArea, Dropdown, Columns} from '@influxdata/clockface'
+import {
+  Grid,
+  Form,
+  TextArea,
+  SelectDropdown,
+  Columns,
+} from '@influxdata/clockface'
 
 // Utils
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -52,17 +58,11 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
           <Grid.Column widthXS={Columns.Six}>
             {
               <Form.Element label="Select A Default">
-                <Dropdown
-                  selectedID={this.defaultID}
-                  onChange={onSelectDefault}
-                  titleText="Values"
-                >
-                  {values.map(value => (
-                    <Dropdown.Item key={value} id={value} value={value}>
-                      {value}
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown>
+                <SelectDropdown
+                  selectedOption={this.defaultID}
+                  onSelect={onSelectDefault}
+                  options={values}
+                />
               </Form.Element>
             }
           </Grid.Column>
@@ -75,7 +75,9 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
     const {selected, values} = this.props
     const firstEntry = _.get(values, '0', '')
 
-    return _.get(selected, '0', firstEntry)
+    const defaultID = _.get(selected, '0', firstEntry)
+
+    return defaultID || 'Add some values above'
   }
 
   private handleBlur = (): void => {
