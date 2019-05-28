@@ -10,7 +10,7 @@ import {
   Input,
   Button,
   Grid,
-  Dropdown,
+  SelectDropdown,
   Columns,
   Overlay,
 } from '@influxdata/clockface'
@@ -87,20 +87,11 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
                   </Grid.Column>
                   <Grid.Column widthXS={Columns.Six}>
                     <Form.Element label="Type" required={true}>
-                      <Dropdown
-                        selectedID={workingVariable.arguments.type}
-                        onChange={this.handleChangeType}
-                      >
-                        {variableItemTypes.map(v => (
-                          <Dropdown.Item
-                            key={v.type}
-                            id={v.type}
-                            value={v.type}
-                          >
-                            {v.label}
-                          </Dropdown.Item>
-                        ))}
-                      </Dropdown>
+                      <SelectDropdown
+                        selectedOption={workingVariable.arguments.type}
+                        onSelect={this.handleChangeType}
+                        options={variableItemTypes}
+                      />
                     </Form.Element>
                   </Grid.Column>
                 </Grid.Row>
