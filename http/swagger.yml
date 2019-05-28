@@ -2695,7 +2695,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
     post:
-      operationId: GetDashboardsIDOwners
+      operationId: PostDashboardsIDOwners
       tags:
         - Users
         - Dashboards
@@ -2851,7 +2851,7 @@ paths:
         required: true
         description: name of branching suggestion
     get:
-      operationId: GetQuerySuggestions{Name}
+      operationId: GetQuerySuggestions
       tags:
         - Query
       responses:
