@@ -8,7 +8,6 @@ import {
   ComponentColor,
   ComponentSize,
   Dropdown,
-  DropdownMode,
   ComponentStatus,
 } from '@influxdata/clockface'
 
@@ -38,83 +37,69 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     const {titleText, status} = this.props
     return (
       <Dropdown
-        mode={DropdownMode.ActionList}
-        titleText={titleText || `Create ${this.props.resourceName}`}
-        icon={IconFont.Plus}
-        buttonColor={ComponentColor.Primary}
-        buttonSize={ComponentSize.Small}
         widthPixels={160}
-        onChange={this.handleSelect}
-        status={status}
-      >
-        {this.optionItems}
-      </Dropdown>
+        button={(active, onClick) => (
+          <Dropdown.Button
+            status={status}
+            active={active}
+            onClick={onClick}
+            color={ComponentColor.Primary}
+            size={ComponentSize.Small}
+            icon={IconFont.Plus}
+          >
+            {titleText || `Create ${this.props.resourceName}`}
+          </Dropdown.Button>
+        )}
+        menu={onCollapse => (
+          <Dropdown.Menu onCollapse={onCollapse} overrideWidth={160}>
+            {this.dropdownMenuOptions}
+          </Dropdown.Menu>
+        )}
+      />
     )
   }
 
-  private get optionItems(): JSX.Element[] {
-    const importOption = this.importOption
-    const newOption = this.newOption
-    const templateOption = this.templateOption
+  private get dropdownMenuOptions(): JSX.Element[] {
+    const {
+      resourceName,
+      onSelectNew,
+      onSelectImport,
+      onSelectTemplate,
+      canImportFromTemplate,
+    } = this.props
 
     const items = [
       <Dropdown.Item
-        id={newOption}
-        key={newOption}
-        value={newOption}
+        key="add-resource--new"
+        value={null}
         testID="dropdown--item new"
+        onClick={onSelectNew}
       >
-        {newOption}
+        {`New ${resourceName}`}
       </Dropdown.Item>,
       <Dropdown.Item
-        id={importOption}
-        key={importOption}
-        value={importOption}
+        key="add-resource--import"
+        value={null}
         testID="dropdown--item import"
+        onClick={onSelectImport}
       >
-        {importOption}
+        {`Import ${resourceName}`}
       </Dropdown.Item>,
     ]
 
-    if (!!this.props.canImportFromTemplate) {
+    if (canImportFromTemplate) {
       items.push(
         <Dropdown.Item
-          id={templateOption}
-          key={templateOption}
-          value={templateOption}
+          key="add-resource--template"
+          value={null}
           testID="dropdown--item template"
+          onClick={onSelectTemplate}
         >
-          {templateOption}
+          {`From a Template`}
         </Dropdown.Item>
       )
     }
 
     return items
-  }
-
-  private get newOption(): string {
-    return `New ${this.props.resourceName}`
-  }
-
-  private get importOption(): string {
-    return `Import ${this.props.resourceName}`
-  }
-
-  private get templateOption(): string {
-    return `From a Template`
-  }
-
-  private handleSelect = (selection: string): void => {
-    const {onSelectNew, onSelectImport, onSelectTemplate} = this.props
-
-    if (selection === this.newOption) {
-      onSelectNew()
-    }
-    if (selection === this.importOption) {
-      onSelectImport()
-    }
-    if (selection == this.templateOption) {
-      onSelectTemplate()
-    }
   }
 }
