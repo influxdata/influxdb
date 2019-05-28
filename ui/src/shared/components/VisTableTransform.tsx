@@ -1,6 +1,6 @@
 // Libraries
 import {useMemo, FunctionComponent} from 'react'
-import {fluxToTable, Table} from '@influxdata/vis'
+import {fromFlux, Table} from '@influxdata/vis'
 
 interface VisTableTransformResult {
   table: Table
@@ -14,7 +14,7 @@ interface Props {
 
 const VisTableTransform: FunctionComponent<Props> = ({files, children}) => {
   const {table, fluxGroupKeyUnion} = useMemo(
-    () => fluxToTable(files.join('\n\n')),
+    () => fromFlux(files.join('\n\n')),
     [files]
   )
 

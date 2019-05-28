@@ -1,7 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {Config, Table} from '@influxdata/vis'
-import {get} from 'lodash'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -40,15 +39,15 @@ const HistogramContainer: FunctionComponent<Props> = ({
     xDomain: storedXDomain,
   },
 }) => {
+  const columnKeys = table.columnKeys
+
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    get(table, ['columns', xColumn, 'data'], [])
+    columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
   )
 
-  const isValidView =
-    xColumn &&
-    table.columns[xColumn] &&
-    fillColumns.every(col => !!table.columns[col])
+  const isValidView = xColumn && columnKeys.includes(xColumn)
+  fillColumns.every(col => columnKeys.includes(col))
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
@@ -59,7 +58,7 @@ const HistogramContainer: FunctionComponent<Props> = ({
       ? colors.map(c => c.hex)
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(table.columns[xColumn].type)
+  const xFormatter = getFormatter(table.getColumnType(xColumn))
 
   const config: Config = {
     ...VIS_THEME,

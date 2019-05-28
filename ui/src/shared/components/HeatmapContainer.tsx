@@ -1,7 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {Config, Table} from '@influxdata/vis'
-import {get} from 'lodash'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -45,18 +44,23 @@ const HeatmapContainer: FunctionComponent<Props> = ({
   },
   children,
 }) => {
+  const columnKeys = table.columnKeys
+
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    get(table, ['columns', xColumn, 'data'], [])
+    columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
     storedYDomain,
-    get(table, ['columns', yColumn, 'data'], [])
+    columnKeys.includes(yColumn) ? table.getColumn(yColumn, 'number') : []
   )
 
   const isValidView =
-    xColumn && yColumn && table.columns[xColumn] && table.columns[yColumn]
+    xColumn &&
+    yColumn &&
+    xColumn in table.columnKeys &&
+    yColumn in table.columnKeys
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
@@ -67,8 +71,17 @@ const HeatmapContainer: FunctionComponent<Props> = ({
       ? storedColors
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(table.columns[xColumn].type, xPrefix, xSuffix)
-  const yFormatter = getFormatter(table.columns[yColumn].type, yPrefix, ySuffix)
+  const xFormatter = getFormatter(
+    table.getColumnType(xColumn),
+    xPrefix,
+    xSuffix
+  )
+
+  const yFormatter = getFormatter(
+    table.getColumnType(yColumn),
+    yPrefix,
+    ySuffix
+  )
 
   const config: Config = {
     ...VIS_THEME,

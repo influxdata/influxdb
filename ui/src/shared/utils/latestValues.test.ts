@@ -1,4 +1,4 @@
-import {fluxToTable} from '@influxdata/vis'
+import {fromFlux} from '@influxdata/vis'
 
 import {latestValues} from 'src/shared/utils/latestValues'
 
@@ -32,8 +32,8 @@ describe('latestValues', () => {
 ,,1,2018-12-10T18:29:48Z,1
 ,,1,2018-12-10T18:54:18Z,2`
 
-    const latestValuesA = latestValues(fluxToTable(respA).table)
-    const latestValuesB = latestValues(fluxToTable(respB).table)
+    const latestValuesA = latestValues(fromFlux(respA).table)
+    const latestValuesB = latestValues(fromFlux(respB).table)
 
     expect(latestValuesA).toEqual([2])
     expect(latestValuesB).toEqual([2])
@@ -54,7 +54,7 @@ describe('latestValues', () => {
 ,,1,2018-12-10T19:00:00Z,howdy
 ,,1,2018-12-10T20:00:00Z,howdy`
 
-    const result = latestValues(fluxToTable(resp).table)
+    const result = latestValues(fromFlux(resp).table)
 
     expect(result).toEqual([4])
   })
@@ -67,7 +67,7 @@ describe('latestValues', () => {
 ,,0,2018-12-10T18:29:48Z,2018-12-10T18:29:48Z,3
 ,,0,2018-12-10T18:40:18Z,2018-12-10T18:40:18Z,4`
 
-    const result = latestValues(fluxToTable(resp).table)
+    const result = latestValues(fromFlux(resp).table)
 
     expect(result).toEqual([4])
   })
@@ -80,7 +80,7 @@ describe('latestValues', () => {
 ,,0,3
 ,,0,4`
 
-    const result = latestValues(fluxToTable(resp).table)
+    const result = latestValues(fromFlux(resp).table)
 
     expect(result).toEqual([])
   })
@@ -92,7 +92,7 @@ describe('latestValues', () => {
 ,result,table,_value,foo
 ,,0,3,4`
 
-    const result = latestValues(fluxToTable(resp).table)
+    const result = latestValues(fromFlux(resp).table)
 
     expect(result).toEqual([3, 4])
   })
@@ -105,7 +105,7 @@ describe('latestValues', () => {
 ,,1,2018-12-10T19:00:00Z,howdy
 ,,1,2018-12-10T20:00:00Z,howdy`
 
-    const result = latestValues(fluxToTable(resp).table)
+    const result = latestValues(fromFlux(resp).table)
 
     expect(result).toEqual([])
   })
@@ -124,7 +124,7 @@ describe('latestValues', () => {
 ,result,table,_time,_value,foo
 ,,0,2018-12-10T18:29:48Z,1,7.0
 ,,0,2018-12-10T18:40:18Z,2,8.0`
-    const table = fluxToTable(resp).table
+    const table = fromFlux(resp).table
     const result = latestValues(table)
 
     expect(result).toEqual([4, 6.0, 2.0, 8.0])

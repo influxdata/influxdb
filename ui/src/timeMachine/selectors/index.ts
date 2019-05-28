@@ -1,7 +1,7 @@
 // Libraries
 import memoizeOne from 'memoize-one'
 import {get, flatMap} from 'lodash'
-import {isNumeric, fluxToTable, Table} from '@influxdata/vis'
+import {fromFlux, Table} from '@influxdata/vis'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
@@ -35,7 +35,7 @@ const getTablesMemoized = memoizeOne(
 export const getTables = (state: AppState): FluxTable[] =>
   getTablesMemoized(getActiveTimeMachine(state).queryResults.files)
 
-const getVisTableMemoized = memoizeOne(fluxToTable)
+const getVisTableMemoized = memoizeOne(fromFlux)
 
 export const getVisTable = (state: AppState): Table => {
   const files = getActiveTimeMachine(state).queryResults.files || []
@@ -46,14 +46,19 @@ export const getVisTable = (state: AppState): Table => {
 
 const getNumericColumnsMemoized = memoizeOne(
   (table: Table): string[] => {
-    const numericColumns = Object.entries(table.columns)
-      .filter(
-        ([__, {name, type}]) =>
-          isNumeric(type) && name !== 'result' && name !== 'table'
-      )
-      .map(([name]) => name)
-
-    return numericColumns
+    const columnKeys = table.columnKeys
+    return columnKeys.reduce((numericColumns, key) => {
+      const columnType = table.getColumnType(key)
+      const columnName = table.getColumnName(key)
+      if (
+        (columnType === 'number' || columnType === 'time') &&
+        columnName !== 'result' &&
+        columnName !== 'table'
+      ) {
+        numericColumns.push(columnName)
+      }
+      return numericColumns
+    }, [])
   }
 )
 
@@ -66,7 +71,7 @@ export const getNumericColumns = (state: AppState): string[] => {
 const getGroupableColumnsMemoized = memoizeOne(
   (table: Table): string[] => {
     const invalidGroupColumns = new Set(['_value', '_start', '_stop', '_time'])
-    const groupableColumns = Object.keys(table.columns).filter(
+    const groupableColumns = table.columnKeys.filter(
       name => !invalidGroupColumns.has(name)
     )
 
