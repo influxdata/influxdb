@@ -3,10 +3,12 @@ import {CLOUD} from 'src/shared/constants'
 
 const OSS_FLAGS = {
   heatmap: true,
+  scatter: true,
 }
 
 const CLOUD_FLAGS = {
   heatmap: false, // We need to ensure the API updates have been deployed before enabling
+  scatter: false, // ditto ^^
 }
 
 export const isFlagEnabled = (flagName: string) => {
