@@ -281,7 +281,7 @@ export interface ScatterView {
   xSuffix: string
   yPrefix: string
   ySuffix: string
-  colors: Color[]
+  colors: string[]
   note: string
   showNoteWhenEmpty: boolean
 }

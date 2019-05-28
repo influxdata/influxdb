@@ -1,5 +1,5 @@
 // Constants
-import {INFERNO} from '@influxdata/vis'
+import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/vis'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {
@@ -220,7 +220,7 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.Scatter,
       shape: ViewShape.ChronografV2,
       queries: [defaultViewQuery()],
-      colors: [],
+      colors: NINETEEN_EIGHTY_FOUR,
       note: '',
       showNoteWhenEmpty: false,
       fillColumns: [],

@@ -72,9 +72,7 @@ const ScatterContainer: FunctionComponent<Props> = ({
   }
 
   const colorHexes =
-    colors && colors.length
-      ? colors.map(c => c.hex)
-      : DEFAULT_LINE_COLORS.map(c => c.hex)
+    colors && colors.length ? colors : DEFAULT_LINE_COLORS.map(c => c.hex)
 
   const yFormatter = getFormatter(table.columns[yColumn].type, yPrefix, ySuffix)
 

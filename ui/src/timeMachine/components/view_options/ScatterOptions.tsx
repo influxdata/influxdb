@@ -1,22 +1,30 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
+import {
+  NINETEEN_EIGHTY_FOUR,
+  ATLANTIS,
+  DO_ANDROIDS_DREAM,
+  DELOREAN,
+  CTHULHU,
+  ECTOPLASM,
+  T_MAX_400_FILM,
+} from '@influxdata/vis'
 
 // Components
 import {Form, Input, Grid} from '@influxdata/clockface'
 import {Dropdown, MultiSelectDropdown} from 'src/clockface'
-import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 
 // Actions
 import {
   setFillColumns,
   setSymbolColumns,
-  setColors,
   setYAxisLabel,
   setXAxisLabel,
   setAxisPrefix,
   setAxisSuffix,
+  setColorHexes,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -28,8 +36,18 @@ import {
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
-import {Color} from 'src/types/colors'
 import {AppState} from 'src/types'
+import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
+
+const COLOR_SCHEMES = [
+  {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
+  {name: 'Atlantis', colors: ATLANTIS},
+  {name: 'Do Androids Dream of Electric Sheep?', colors: DO_ANDROIDS_DREAM},
+  {name: 'Delorean', colors: DELOREAN},
+  {name: 'Cthulhu', colors: CTHULHU},
+  {name: 'Ectoplasm', colors: ECTOPLASM},
+  {name: 'T-MAX 400 Film', colors: T_MAX_400_FILM},
+]
 
 interface StateProps {
   fillColumns: string[]
@@ -40,7 +58,7 @@ interface StateProps {
 interface DispatchProps {
   onSetFillColumns: typeof setFillColumns
   onSetSymbolColumns: typeof setSymbolColumns
-  onSetColors: typeof setColors
+  onSetColors: typeof setColorHexes
   onSetYAxisLabel: typeof setYAxisLabel
   onSetXAxisLabel: typeof setXAxisLabel
   onUpdateAxisSuffix: typeof setAxisSuffix
@@ -60,7 +78,7 @@ interface OwnProps {
   xSuffix: string
   yPrefix: string
   ySuffix: string
-  colors: Color[]
+  colors: string[]
   showNoteWhenEmpty: boolean
 }
 
@@ -70,12 +88,12 @@ const ScatterOptions: SFC<Props> = props => {
   const {
     fillColumns,
     symbolColumns,
-    colors,
     availableGroupColumns,
     yAxisLabel,
     xAxisLabel,
     onSetFillColumns,
     onSetSymbolColumns,
+    colors,
     onSetColors,
     onSetYAxisLabel,
     onSetXAxisLabel,
@@ -129,10 +147,11 @@ const ScatterOptions: SFC<Props> = props => {
         </MultiSelectDropdown>
       </Form.Element>
       <h5 className="view-options--header">Options</h5>
-      <Form.Element label="Colors">
-        <ColorSchemeDropdown
-          value={colors.filter(c => c.type === 'scale')}
-          onChange={onSetColors}
+      <Form.Element label="Color Scheme">
+        <HexColorSchemeDropdown
+          colorSchemes={COLOR_SCHEMES}
+          selectedColorScheme={colors}
+          onSelectColorScheme={onSetColors}
         />
       </Form.Element>
       <h5 className="view-options--header">Y Axis</h5>
@@ -171,7 +190,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp = {
   onSetFillColumns: setFillColumns,
   onSetSymbolColumns: setSymbolColumns,
-  onSetColors: setColors,
+  onSetColors: setColorHexes,
   onSetYAxisLabel: setYAxisLabel,
   onSetXAxisLabel: setXAxisLabel,
   onUpdateAxisPrefix: setAxisPrefix,

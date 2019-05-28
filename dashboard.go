@@ -656,7 +656,7 @@ type HeatmapViewProperties struct {
 type ScatterViewProperties struct {
 	Type              string           `json:"type"`
 	Queries           []DashboardQuery `json:"queries"`
-	ViewColors        []ViewColor      `json:"colors"`
+	ViewColors        []string         `json:"colors"`
 	FillColumns       []string         `json:"fillColumns"`
 	SymbolColumns     []string         `json:"symbolColumns"`
 	XColumn           string           `json:"xColumn"`
