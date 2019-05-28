@@ -46,34 +46,48 @@ export default class AutoRefreshDropdown extends Component<Props> {
   }
 
   public render() {
+    const {onChoose} = this.props
+
     return (
       <div className={this.className}>
         <Dropdown
-          icon={this.dropdownIcon}
           widthPixels={this.dropdownWidthPixels}
-          menuWidthPixels={DROPDOWN_WIDTH_FULL}
-          onChange={this.handleDropdownChange}
-          selectedID={this.selectedID}
-          status={this.dropdownStatus}
-        >
-          {autoRefreshOptions.map(option => {
-            if (option.type === AutoRefreshOptionType.Header) {
-              return (
-                <Dropdown.Divider
-                  key={option.id}
-                  id={option.id}
-                  text={option.label}
-                />
-              )
-            }
+          button={(active, onClick) => (
+            <Dropdown.Button
+              status={this.dropdownStatus}
+              icon={this.dropdownIcon}
+              active={active}
+              onClick={onClick}
+            >
+              {this.selectedLabel}
+            </Dropdown.Button>
+          )}
+          menu={onCollapse => (
+            <Dropdown.Menu
+              onCollapse={onCollapse}
+              overrideWidth={DROPDOWN_WIDTH_FULL}
+            >
+              {autoRefreshOptions.map(option => {
+                if (option.type === AutoRefreshOptionType.Header) {
+                  return (
+                    <Dropdown.Divider key={option.id} text={option.label} />
+                  )
+                }
 
-            return (
-              <Dropdown.Item key={option.id} id={option.id} value={option}>
-                {option.label}
-              </Dropdown.Item>
-            )
-          })}
-        </Dropdown>
+                return (
+                  <Dropdown.Item
+                    key={option.id}
+                    selected={option.id === this.selectedID}
+                    value={option.milliseconds}
+                    onClick={onChoose}
+                  >
+                    {option.label}
+                  </Dropdown.Item>
+                )
+              })}
+            </Dropdown.Menu>
+          )}
+        />
         {this.manualRefreshButton}
       </div>
     )
@@ -123,6 +137,16 @@ export default class AutoRefreshDropdown extends Component<Props> {
     }
 
     return DROPDOWN_WIDTH_FULL
+  }
+
+  private get selectedLabel(): string {
+    const {selected} = this.props
+
+    const selectedOption = autoRefreshOptions.find(
+      option => option.milliseconds === selected.interval
+    )
+
+    return selectedOption.label
   }
 
   private get selectedID(): string {
