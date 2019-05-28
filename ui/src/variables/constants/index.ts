@@ -68,17 +68,4 @@ const FLUX_BOUNDARY = [
 
 export const BOUNDARY_GROUP = `(${FLUX_BOUNDARY})`
 
-export const variableItemTypes = [
-  {
-    type: 'map',
-    label: 'Map',
-  },
-  {
-    type: 'query',
-    label: 'Query',
-  },
-  {
-    type: 'constant',
-    label: 'CSV',
-  },
-]
+export const variableItemTypes = ['map', 'query', 'constant']

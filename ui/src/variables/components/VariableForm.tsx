@@ -8,7 +8,7 @@ import {
   Button,
   Grid,
   Columns,
-  Dropdown,
+  SelectDropdown,
 } from '@influxdata/clockface'
 import VariableArgumentsEditor from 'src/variables/components/VariableArgumentsEditor'
 
@@ -93,16 +93,11 @@ export default class VariableForm extends PureComponent<Props, State> {
             </Grid.Column>
             <Grid.Column widthXS={Columns.Six}>
               <Form.Element label="Type" required={true}>
-                <Dropdown
-                  selectedID={args.type}
-                  onChange={this.handleChangeType}
-                >
-                  {variableItemTypes.map(v => (
-                    <Dropdown.Item key={v.type} id={v.type} value={v.type}>
-                      {v.label}
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown>
+                <SelectDropdown
+                  selectedOption={args.type}
+                  onSelect={this.handleChangeType}
+                  options={variableItemTypes}
+                />
               </Form.Element>
             </Grid.Column>
           </Grid.Row>
