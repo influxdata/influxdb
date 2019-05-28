@@ -86,6 +86,8 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
   //   ? ComponentStatus.Default
   //   : ComponentStatus.Disabled
 
+  // TODO: Fix this component status stuff
+
   const onSetBinSize = (e: ChangeEvent<HTMLInputElement>) => {
     const val = +e.target.value
 
