@@ -89,6 +89,8 @@ func (t *floatTable) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
+func (t *floatTable) Done() {}
+
 func (t *floatTable) advance() bool {
 	for _, cb := range t.colBufs {
 		if cb != nil {
@@ -169,6 +171,8 @@ func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
 
 	return t.err
 }
+
+func (t *floatGroupTable) Done() {}
 
 func (t *floatGroupTable) advance() bool {
 RETRY:
@@ -294,6 +298,8 @@ func (t *integerTable) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
+func (t *integerTable) Done() {}
+
 func (t *integerTable) advance() bool {
 	for _, cb := range t.colBufs {
 		if cb != nil {
@@ -374,6 +380,8 @@ func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
 
 	return t.err
 }
+
+func (t *integerGroupTable) Done() {}
 
 func (t *integerGroupTable) advance() bool {
 RETRY:
@@ -499,6 +507,8 @@ func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
+func (t *unsignedTable) Done() {}
+
 func (t *unsignedTable) advance() bool {
 	for _, cb := range t.colBufs {
 		if cb != nil {
@@ -579,6 +589,8 @@ func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
 
 	return t.err
 }
+
+func (t *unsignedGroupTable) Done() {}
 
 func (t *unsignedGroupTable) advance() bool {
 RETRY:
@@ -704,6 +716,8 @@ func (t *stringTable) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
+func (t *stringTable) Done() {}
+
 func (t *stringTable) advance() bool {
 	for _, cb := range t.colBufs {
 		if cb != nil {
@@ -784,6 +798,8 @@ func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
 
 	return t.err
 }
+
+func (t *stringGroupTable) Done() {}
 
 func (t *stringGroupTable) advance() bool {
 RETRY:
@@ -909,6 +925,8 @@ func (t *booleanTable) Do(f func(flux.ColReader) error) error {
 	return t.err
 }
 
+func (t *booleanTable) Done() {}
+
 func (t *booleanTable) advance() bool {
 	for _, cb := range t.colBufs {
 		if cb != nil {
@@ -989,6 +1007,8 @@ func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
 
 	return t.err
 }
+
+func (t *booleanGroupTable) Done() {}
 
 func (t *booleanGroupTable) advance() bool {
 RETRY:

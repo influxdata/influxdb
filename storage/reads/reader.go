@@ -565,12 +565,6 @@ func (ti *tagKeysIterator) handleRead(f func(flux.Table) error, rs cursors.Strin
 	if err != nil {
 		return err
 	}
-	tbl.RefCount(1)
-	// TODO(jsternberg): We do not properly handle reference counts
-	// in the query engine so even though we should release our reference
-	// count, we cannot since the function may take ownership of the data
-	// without telling us.
-	// defer tbl.RefCount(-1)
 
 	// Release the references to the arrays held by the builder.
 	builder.ClearData()
@@ -645,12 +639,6 @@ func (ti *tagValuesIterator) handleRead(f func(flux.Table) error, rs cursors.Str
 	if err != nil {
 		return err
 	}
-	tbl.RefCount(1)
-	// TODO(jsternberg): We do not properly handle reference counts
-	// in the query engine so even though we should release our reference
-	// count, we cannot since the function may take ownership of the data
-	// without telling us.
-	// defer tbl.RefCount(-1)
 
 	// Release the references to the arrays held by the builder.
 	builder.ClearData()
