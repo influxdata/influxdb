@@ -2,7 +2,11 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Dropdown, ComponentStatus} from '@influxdata/clockface'
+import {
+  Dropdown,
+  ComponentStatus,
+  DropdownItemType,
+} from '@influxdata/clockface'
 
 // Constants
 import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
@@ -38,25 +42,41 @@ const WindowSelector: FunctionComponent<Props> = ({
   return (
     <Dropdown
       testID="window-selector"
-      buttonTestID="window-selector--button"
-      selectedID={period}
-      onChange={onSelect}
-      status={getStatus(disabled)}
-    >
-      {windows.map(({period}) => (
-        <Dropdown.Item id={period} key={period} value={period} testID={period}>
+      button={(active, onClick) => (
+        <Dropdown.Button
+          status={getStatus(disabled)}
+          active={active}
+          onClick={onClick}
+          testID="window-selector--button"
+        >
           {showPrefix(period) && (
             <span className="window-selector--label">Every</span>
           )}
           {period}
-        </Dropdown.Item>
-      ))}
-    </Dropdown>
+        </Dropdown.Button>
+      )}
+      menu={onCollapse => (
+        <Dropdown.Menu onCollapse={onCollapse}>
+          {windows.map(w => (
+            <Dropdown.Item
+              onClick={onSelect}
+              key={w.period}
+              value={w.period}
+              testID={w.period}
+              type={DropdownItemType.Dot}
+              selected={w.period === period}
+            >
+              {w.period}
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      )}
+    />
   )
 }
 
-const showPrefix = (id: string): boolean => {
-  return id !== AGG_WINDOW_AUTO // && id !== AGG_WINDOW_NONE
+const showPrefix = (period: string): boolean => {
+  return period !== AGG_WINDOW_AUTO // && id !== AGG_WINDOW_NONE
 }
 
 const getStatus = (disabled: boolean): ComponentStatus => {
