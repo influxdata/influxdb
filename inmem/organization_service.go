@@ -190,6 +190,8 @@ func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organizati
 		}
 	}
 	o.ID = s.IDGenerator.ID()
+	o.CreatedAt = s.Now()
+	o.UpdatedAt = s.Now()
 	err := s.PutOrganization(ctx, o)
 	if err != nil {
 		return &platform.Error{
@@ -232,6 +234,8 @@ func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd pl
 	if upd.Description != nil {
 		o.Description = *upd.Description
 	}
+
+	o.UpdatedAt = s.Now()
 
 	s.organizationKV.Store(o.ID.String(), o)
 

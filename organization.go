@@ -7,6 +7,7 @@ type Organization struct {
 	ID          ID     `json:"id,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	CRUDLog
 }
 
 // errors of org

@@ -230,6 +230,8 @@ func (c *Client) CreateOrganization(ctx context.Context, o *influxdb.Organizatio
 		}
 
 		o.ID = c.IDGenerator.ID()
+		o.CreatedAt = c.Now()
+		o.UpdatedAt = c.Now()
 		if err := c.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
 			return &influxdb.Error{
 				Err: err,
@@ -362,6 +364,8 @@ func (c *Client) updateOrganization(ctx context.Context, tx *bolt.Tx, id influxd
 	if upd.Description != nil {
 		o.Description = *upd.Description
 	}
+
+	o.UpdatedAt = c.Now()
 
 	if err := c.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
 		return nil, &influxdb.Error{

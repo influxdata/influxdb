@@ -15,6 +15,10 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
 	c.IDGenerator = f.IDGenerator
+	c.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		c.TimeGenerator = platform.RealTimeGenerator{}
+	}
 	ctx := context.TODO()
 	for _, u := range f.Organizations {
 		if err := c.PutOrganization(ctx, u); err != nil {

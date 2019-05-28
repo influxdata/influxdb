@@ -157,6 +157,10 @@ func Generate(
 					Org: &platform.Organization{
 						ID:   MustIDBase16(twoID),
 						Name: "org1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 					Bucket: &platform.Bucket{
 						ID:              MustIDBase16(threeID),
