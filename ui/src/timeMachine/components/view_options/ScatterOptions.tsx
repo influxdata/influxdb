@@ -25,6 +25,7 @@ import {
   setAxisPrefix,
   setAxisSuffix,
   setColorHexes,
+  setYDomain,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -38,6 +39,7 @@ import {
 import {ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
+import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 
 const COLOR_SCHEMES = [
   {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
@@ -63,6 +65,7 @@ interface DispatchProps {
   onSetXAxisLabel: typeof setXAxisLabel
   onUpdateAxisSuffix: typeof setAxisSuffix
   onUpdateAxisPrefix: typeof setAxisPrefix
+  onSetYDomain: typeof setYDomain
 }
 
 interface OwnProps {
@@ -101,6 +104,8 @@ const ScatterOptions: SFC<Props> = props => {
     ySuffix,
     onUpdateAxisSuffix,
     onUpdateAxisPrefix,
+    yDomain,
+    onSetYDomain,
   } = props
 
   const groupDropdownStatus = availableGroupColumns.length
@@ -112,7 +117,7 @@ const ScatterOptions: SFC<Props> = props => {
       <h4 className="view-options--header">Customize Scatter Plot</h4>
       <h5 className="view-options--header">Data</h5>
 
-      <Form.Element label="Symbol domain column">
+      <Form.Element label="Symbol Column">
         <MultiSelectDropdown
           selectedIDs={symbolColumns}
           onChange={onSetSymbolColumns}
@@ -129,7 +134,7 @@ const ScatterOptions: SFC<Props> = props => {
           ))}
         </MultiSelectDropdown>
       </Form.Element>
-      <Form.Element label="Fill domain column">
+      <Form.Element label="Fill Column">
         <MultiSelectDropdown
           selectedIDs={fillColumns}
           onChange={onSetFillColumns}
@@ -154,20 +159,6 @@ const ScatterOptions: SFC<Props> = props => {
           onSelectColorScheme={onSetColors}
         />
       </Form.Element>
-      <h5 className="view-options--header">Y Axis</h5>
-      <Form.Element label="Y Axis Label">
-        <Input
-          value={yAxisLabel}
-          onChange={e => onSetYAxisLabel(e.target.value)}
-        />
-      </Form.Element>
-      <AxisAffixes
-        prefix={yPrefix}
-        suffix={ySuffix}
-        axisName="y"
-        onUpdateAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
-        onUpdateAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
-      />
       <h5 className="view-options--header">X Axis</h5>
       <Form.Element label="X Axis Label">
         <Input
@@ -175,6 +166,27 @@ const ScatterOptions: SFC<Props> = props => {
           onChange={e => onSetXAxisLabel(e.target.value)}
         />
       </Form.Element>
+      <h5 className="view-options--header">Y Axis</h5>
+      <Form.Element label="Y Axis Label">
+        <Input
+          value={yAxisLabel}
+          onChange={e => onSetYAxisLabel(e.target.value)}
+        />
+      </Form.Element>
+      <Grid.Row>
+        <AxisAffixes
+          prefix={yPrefix}
+          suffix={ySuffix}
+          axisName="y"
+          onUpdateAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
+          onUpdateAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
+        />
+      </Grid.Row>
+      <AutoDomainInput
+        domain={yDomain}
+        onSetDomain={onSetYDomain}
+        label="Y Axis Domain"
+      />
     </Grid.Column>
   )
 }
@@ -195,6 +207,7 @@ const mdtp = {
   onSetXAxisLabel: setXAxisLabel,
   onUpdateAxisPrefix: setAxisPrefix,
   onUpdateAxisSuffix: setAxisSuffix,
+  onSetYDomain: setYDomain,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

@@ -46,6 +46,7 @@ const ScatterContainer: FunctionComponent<Props> = ({
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
 
+  // TODO: allow xcolumn and ycolumn to be user selectable
   const xColumn = chooseXColumn(table)
   const yColumn = chooseYColumn(table)
 
