@@ -6,77 +6,103 @@ export interface QueryFn {
   flux: (period?: string) => string
 }
 
+export const genFlux = (func: string, period?: string) => {
+  if (period === AGG_WINDOW_NONE) {
+    return `|> ${func}()`
+  }
+
+  switch (func) {
+    case 'derivative': {
+      return `|> derivative(unit: ${period}, nonNegative: false)`
+    }
+
+    case 'nonnegative derivative': {
+      return `|> derivative(unit: ${period}, nonNegative: true)`
+    }
+
+    case 'median':
+    case 'mean':
+    case 'max':
+    case 'min':
+    case 'sum':
+    case 'stddev':
+    case 'first':
+    case 'last': {
+      return `|> aggregateWindow(every: ${period}, fn: ${func})`
+    }
+
+    default:
+      return `|> ${func}()`
+  }
+}
+
 export const FUNCTIONS: QueryFn[] = [
   {
     name: 'mean',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: mean)`,
+    flux: period => genFlux('mean', period),
   },
   {
     name: 'median',
-    // TODO: https://github.com/influxdata/influxdb/issues/13806
-    flux: period => `|> window(period: ${period})
-  |> toFloat()
-  |> median()
-  |> group(columns: ["_value", "_time", "_start", "_stop"], mode: "except")`,
+    flux: period => genFlux('median', period),
   },
   {
     name: 'max',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: max)`,
+    flux: period => genFlux('max', period),
   },
   {
     name: 'min',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: min)`,
+    flux: period => genFlux('min', period),
   },
   {
     name: 'sum',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: sum)`,
+    flux: period => genFlux('sum', period),
   },
   {
     name: 'derivative',
-    flux: period => `|> derivative(unit: ${period}, nonNegative: false)`,
+    flux: period => genFlux('derivative', period),
   },
   {
     name: 'nonnegative derivative',
-    flux: period => `|> derivative(unit: ${period}, nonNegative: true)`,
+    flux: period => genFlux('nonnegative derivative', period),
   },
   {
     name: 'distinct',
-    flux: () => '|> distinct()',
+    flux: period => genFlux('distinct', period),
   },
   {
     name: 'count',
-    flux: () => '|> count()',
+    flux: period => genFlux('count', period),
   },
   {
     name: 'increase',
-    flux: () => '|> increase()',
+    flux: period => genFlux('increase', period),
   },
   {
     name: 'skew',
-    flux: () => '|> skew()',
+    flux: period => genFlux('skew', period),
   },
   {
     name: 'spread',
-    flux: () => '|> spread()',
+    flux: period => genFlux('spread', period),
   },
   {
     name: 'stddev',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: stddev)`,
+    flux: period => genFlux('stddev', period),
   },
   {
     name: 'first',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: first)`,
+    flux: period => genFlux('first', period),
   },
   {
     name: 'last',
-    flux: period => `|> aggregateWindow(every: ${period}, fn: last)`,
+    flux: period => genFlux('last', period),
   },
   {
     name: 'unique',
-    flux: () => '|> unique()',
+    flux: period => genFlux('unique', period),
   },
   {
     name: 'sort',
-    flux: () => '|> sort()',
+    flux: period => genFlux('sort', period),
   },
 ]
