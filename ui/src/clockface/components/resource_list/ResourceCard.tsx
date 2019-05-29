@@ -144,7 +144,14 @@ export default class ResourceListCard extends PureComponent<Props> {
     if (metaData()) {
       return React.Children.map(metaData(), (m: JSX.Element) => {
         if (m !== null && m !== undefined) {
-          return <div className="resource-list--meta-item">{m}</div>
+          return (
+            <div
+              className="resource-list--meta-item"
+              data-testid="resource-list--meta-item"
+            >
+              {m}
+            </div>
+          )
         }
       })
     }

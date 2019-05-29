@@ -26,7 +26,7 @@ export default class LabelCard extends PureComponent<Props> {
     return (
       <>
         <ResourceList.Card
-          testID="task-card"
+          testID="label-card"
           contextMenu={() => (
             <LabelContextMenu label={label} onDelete={onDelete} />
           )}

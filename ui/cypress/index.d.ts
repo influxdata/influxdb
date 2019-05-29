@@ -3,6 +3,7 @@ import {
   signin,
   setupUser,
   createDashboard,
+  createCell,
   createOrg,
   createSource,
   flush,
@@ -33,6 +34,7 @@ declare global {
       createVariable: typeof createVariable
       createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard
+      createCell: typeof createCell
       createOrg: typeof createOrg
       flush: typeof flush
       getByTestID: typeof getByTestID

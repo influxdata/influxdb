@@ -28,6 +28,29 @@ export const createDashboard = (
   })
 }
 
+export const createCell = (
+  dbID: string,
+  dims: {x: number; y: number; height: number; width: number} = {
+    x: 0,
+    y: 0,
+    height: 4,
+    width: 4,
+  },
+  name?: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.request({
+    method: 'POST',
+    url: `/api/v2/dashboards/${dbID}/cells`,
+    body: {
+      x: dims.x,
+      y: dims.y,
+      h: dims.height,
+      w: dims.width,
+      name: name,
+    },
+  })
+}
+
 export const createDashboardTemplate = (
   orgID?: string,
   name: string = 'Bashboard'
@@ -132,7 +155,11 @@ export const createVariable = (
 
 export const createLabel = (
   name?: string,
-  orgID?: string
+  orgID?: string,
+  properties: {description: string; color: string} = {
+    description: `test ${name}`,
+    color: '#ff0054',
+  }
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -140,10 +167,7 @@ export const createLabel = (
     body: {
       name,
       orgID,
-      properties: {
-        description: `test ${name}`,
-        color: '#ff0054',
-      },
+      properties: properties,
     },
   })
 }
@@ -277,15 +301,24 @@ export const flush = () => {
 }
 
 export const writeData = (
-  lines: string[]
+  lines: string[],
+  chunkSize: number = 100
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({org, bucket}) => {
-    for (var line in lines) {
+    let chunk: string[]
+    let chunkCt: number = 0
+    while (chunkCt < lines.length) {
+      chunk =
+        chunkCt + chunkSize <= lines.length
+          ? lines.slice(chunkCt, chunkCt + chunkSize - 1)
+          : lines.slice(chunkCt, chunkCt + (chunkSize % lines.length))
       cy.request({
         method: 'POST',
         url: '/api/v2/write?org=' + org + '&bucket=' + bucket,
-        body: lines[line],
+        body: chunk.join('\n'),
       })
+      chunkCt += chunkSize
+      chunk = []
     }
   })
 }
@@ -342,6 +375,7 @@ Cypress.Commands.add('setupUser', setupUser)
 // dashboards
 Cypress.Commands.add('createDashboard', createDashboard)
 Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
+Cypress.Commands.add('createCell', createCell)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)

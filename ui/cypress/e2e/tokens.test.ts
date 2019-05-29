@@ -93,7 +93,7 @@ describe('tokens', () => {
     cy.getByTestID('table-row').then(rows => {
       authData = authData.sort((a, b) =>
         // eslint-disable-next-line
-          a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+        a.description < b.description ? -1 : a.description > b.description ? 1 : 0
       )
 
       for (var i = 0; i < rows.length; i++) {
@@ -224,121 +224,121 @@ describe('tokens', () => {
           cy.createBucket(id, name, 'A la Carta')
         })
       })
+
+      // open overlay
+      cy.getByTestID('dropdown-button--gen-token').click()
+      cy.getByTestIDSubStr('dropdown--item').should('have.length', 2)
+      cy.getByTestID('dropdown--item Read/Write Token').click()
+      cy.getByTestID('overlay--container').should('be.visible')
+
+      //check cancel
+      cy.getByTestID('button--cancel').click()
+      cy.getByTestID('overlay--container').should('not.be.visible')
+      cy.getByTestID('table-row').should('have.length', 4)
+
+      // open overlay - again
+      cy.getByTestID('dropdown-button--gen-token').click()
+      cy.getByTestIDSubStr('dropdown--item').should('have.length', 2)
+      cy.getByTestID('dropdown--item Read/Write Token').click()
+      cy.getByTestID('overlay--container').should('be.visible')
+
+      //Create a token  //todo filters in this or seperate test
+      cy.getByTestID('input-field--descr').type('Jeton 01')
+      cy.getByTestID('builder-card--body')
+        .eq(0)
+        .within(() => {
+          cy.getByTitle('Click to filter by Sicilsky Bull').click()
+          cy.getByTitle('Click to filter by A la Carta').click()
+        })
+      cy.getByTestID('builder-card--body')
+        .eq(1)
+        .within(() => {
+          cy.getByTitle('Click to filter by Sicilsky Bull').click()
+        })
+
+      cy.getByTestID('button--save').click()
+      cy.getByTestID('overlay--container').should('not.be.visible')
+
+      //Verify token
+      cy.getByTestID('table-row')
+        .should('have.length', 5)
+        .contains('Jeton 01')
+        .should('be.visible')
+      cy.getByTestID('table-row')
+        .contains('Jeton 01')
+        .click()
+      cy.getByTestID('overlay--container').should('be.visible')
+      cy.getByTestID('overlay--header').should('contain', 'Jeton 01')
+      cy.getByTestID('permissions-section').should('have.length', 2)
+
+      cy.getByTestID('permissions-section')
+        .contains('buckets-Sicilsky Bull')
+        .should('be.visible')
+      cy.getByTestID('permissions-section')
+        .contains('buckets-Sicilsky Bull')
+        .parent()
+        .parent()
+        .within(() => {
+          cy.getByTestID('permissions--item').should('have.length', 2)
+          cy.getByTestID('permissions--item')
+            .contains('write')
+            .should('be.visible')
+          cy.getByTestID('permissions--item')
+            .contains('read')
+            .should('be.visible')
+        })
+
+      cy.getByTestID('permissions-section')
+        .contains('buckets-A la Carta')
+        .parent()
+        .parent()
+        .within(() => {
+          cy.getByTestID('permissions--item').should('have.length', 1)
+          cy.getByTestID('permissions--item')
+            .contains('write')
+            .should('not.be.visible')
+          cy.getByTestID('permissions--item')
+            .contains('read')
+            .should('be.visible')
+        })
     })
 
-    // open overlay
-    cy.getByTestID('dropdown-button--gen-token').click()
-    cy.getByTestIDSubStr('dropdown--item').should('have.length', 2)
-    cy.getByTestID('dropdown--item Read/Write Token').click()
-    cy.getByTestID('overlay--container').should('be.visible')
+    it('can view a token', () => {
+      cy.getByTestID('table-row')
+        .contains('token test \u0950')
+        .click()
 
-    //check cancel
-    cy.getByTestID('button--cancel').click()
-    cy.getByTestID('overlay--container').should('not.be.visible')
-    cy.getByTestID('table-row').should('have.length', 4)
+      //title match
+      cy.getByTestID('overlay--container').should('be.visible')
+      cy.getByTestID('overlay--header').should('contain', 'token test \u0950')
 
-    // open overlay - again
-    cy.getByTestID('dropdown-button--gen-token').click()
-    cy.getByTestIDSubStr('dropdown--item').should('have.length', 2)
-    cy.getByTestID('dropdown--item Read/Write Token').click()
-    cy.getByTestID('overlay--container').should('be.visible')
+      //summary match
+      cy.getByTestID('permissions-section').should('have.length', 4)
+      cy.getByTestID('permissions-section')
+        .contains('views')
+        .should('be.visible')
+      cy.getByTestID('permissions-section')
+        .contains('documents')
+        .should('be.visible')
+      cy.getByTestID('permissions-section')
+        .contains('dashboards')
+        .should('be.visible')
+      cy.getByTestID('permissions-section')
+        .contains('buckets')
+        .should('be.visible')
 
-    //Create a token  //todo filters in this or seperate test
-    cy.getByTestID('input-field--descr').type('Jeton 01')
-    cy.getByTestID('builder-card--body')
-      .eq(0)
-      .within(() => {
-        cy.getByTitle('Click to filter by Sicilsky Bull').click()
-        cy.getByTitle('Click to filter by A la Carta').click()
+      //copy to clipboard + notification
+      cy.getByTestID('button-copy').click()
+      cy.getByTestID('notification-success').should($msg => {
+        expect($msg).to.contain('has been copied to clipboard')
       })
-    cy.getByTestID('builder-card--body')
-      .eq(1)
-      .within(() => {
-        cy.getByTitle('Click to filter by Sicilsky Bull').click()
+      //todo check system clipboard
+
+      //close button
+      cy.getByTestID('overlay--header').within(() => {
+        cy.get('button').click()
       })
-
-    cy.getByTestID('button--save').click()
-    cy.getByTestID('overlay--container').should('not.be.visible')
-
-    //Verify token
-    cy.getByTestID('table-row')
-      .should('have.length', 5)
-      .contains('Jeton 01')
-      .should('be.visible')
-    cy.getByTestID('table-row')
-      .contains('Jeton 01')
-      .click()
-    cy.getByTestID('overlay--container').should('be.visible')
-    cy.getByTestID('overlay--header').should('contain', 'Jeton 01')
-    cy.getByTestID('permissions-section').should('have.length', 2)
-
-    cy.getByTestID('permissions-section')
-      .contains('buckets-Sicilsky Bull')
-      .should('be.visible')
-    cy.getByTestID('permissions-section')
-      .contains('buckets-Sicilsky Bull')
-      .parent()
-      .parent()
-      .within(() => {
-        cy.getByTestID('permissions--item').should('have.length', 2)
-        cy.getByTestID('permissions--item')
-          .contains('write')
-          .should('be.visible')
-        cy.getByTestID('permissions--item')
-          .contains('read')
-          .should('be.visible')
-      })
-
-    cy.getByTestID('permissions-section')
-      .contains('buckets-A la Carta')
-      .parent()
-      .parent()
-      .within(() => {
-        cy.getByTestID('permissions--item').should('have.length', 1)
-        cy.getByTestID('permissions--item')
-          .contains('write')
-          .should('not.be.visible')
-        cy.getByTestID('permissions--item')
-          .contains('read')
-          .should('be.visible')
-      })
-  })
-
-  it('can view a token', () => {
-    cy.getByTestID('table-row')
-      .contains('token test \u0950')
-      .click()
-
-    //title match
-    cy.getByTestID('overlay--container').should('be.visible')
-    cy.getByTestID('overlay--header').should('contain', 'token test \u0950')
-
-    //summary match
-    cy.getByTestID('permissions-section').should('have.length', 4)
-    cy.getByTestID('permissions-section')
-      .contains('views')
-      .should('be.visible')
-    cy.getByTestID('permissions-section')
-      .contains('documents')
-      .should('be.visible')
-    cy.getByTestID('permissions-section')
-      .contains('dashboards')
-      .should('be.visible')
-    cy.getByTestID('permissions-section')
-      .contains('buckets')
-      .should('be.visible')
-
-    //copy to clipboard + notification
-    cy.getByTestID('button-copy').click()
-    cy.getByTestID('notification-success').should($msg => {
-      expect($msg).to.contain('has been copied to clipboard')
+      cy.getByTestID('overlay--container').should('not.be.visible')
     })
-    //todo check system clipboard
-
-    //close button
-    cy.getByTestID('overlay--header').within(() => {
-      cy.get('button').click()
-    })
-    cy.getByTestID('overlay--container').should('not.be.visible')
   })
 })

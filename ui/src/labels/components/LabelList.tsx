@@ -63,12 +63,14 @@ export default class LabelList extends PureComponent<Props, State> {
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
               onClick={onClickColumn}
+              testID="sorter--name"
             />
             <ResourceList.Sorter
               name="Description"
               sortKey={this.headerKeys[1]}
               sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
               onClick={onClickColumn}
+              testID="sorter--desc"
             />
           </ResourceList.Header>
           <ResourceList.Body emptyState={this.props.emptyState}>

@@ -96,6 +96,7 @@ class Labels extends PureComponent<Props, State> {
             color={ComponentColor.Primary}
             icon={IconFont.Plus}
             onClick={this.handleShowOverlay}
+            testID="button-create"
           />
         </TabbedPageHeader>
         <FilterList<ILabel>
@@ -187,6 +188,7 @@ class Labels extends PureComponent<Props, State> {
           color={ComponentColor.Primary}
           icon={IconFont.Plus}
           onClick={this.handleShowOverlay}
+          testID="button-create-initial"
         />
       </EmptyState>
     )
