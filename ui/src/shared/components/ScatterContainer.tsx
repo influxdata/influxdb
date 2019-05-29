@@ -20,7 +20,7 @@ import {RemoteDataState, ScatterView} from 'src/types'
 
 interface Props {
   table: Table
-  groupKeyUnion?: Array<string>
+  fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
   viewProperties: ScatterView
   children: (config: Config) => JSX.Element

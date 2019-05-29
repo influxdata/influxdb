@@ -4,7 +4,7 @@ import {fromFlux, Table} from '@influxdata/vis'
 
 interface VisTableTransformResult {
   table: Table
-  groupKeyUnion: Array<string>
+  fluxGroupKeyUnion: string[]
 }
 
 interface Props {
@@ -18,9 +18,7 @@ const VisTableTransform: FunctionComponent<Props> = ({files, children}) => {
     [files]
   )
 
-  const groupKeyUnion = Array.from(fluxGroupKeyUnion)
-
-  return children({table, groupKeyUnion})
+  return children({table, fluxGroupKeyUnion})
 }
 
 export default VisTableTransform
