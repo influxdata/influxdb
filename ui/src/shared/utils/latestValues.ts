@@ -1,5 +1,5 @@
-import {get, range, flatMap} from 'lodash'
-import {isNumeric, Table} from '@influxdata/vis'
+import {range, flatMap} from 'lodash'
+import {Table} from '@influxdata/vis'
 
 /*
   Return a list of the maximum elements in `xs`, where the magnitude of each
@@ -36,9 +36,13 @@ const EXCLUDED_COLUMNS = new Set([
   Determine if the values in a column should be considered in `latestValues`.
 */
 const isValueCol = (table: Table, colKey: string): boolean => {
-  const {name, type} = table.columns[colKey]
+  const columnType = table.getColumnType(colKey)
+  const columnName = table.getColumnName(colKey)
 
-  return isNumeric(type) && !EXCLUDED_COLUMNS.has(name)
+  return (
+    (columnType === 'number' || columnType === 'time') &&
+    !EXCLUDED_COLUMNS.has(columnName)
+  )
 }
 
 /*
@@ -66,26 +70,29 @@ const sortTableKeys = (keyA: string, keyB: string): number => {
   If the table only has one row, then a time column is not needed.
 */
 export const latestValues = (table: Table): number[] => {
-  const valueColsData = Object.keys(table.columns)
+  const valueColsData = table.columnKeys
     .sort((a, b) => sortTableKeys(a, b))
     .filter(k => isValueCol(table, k))
-    .map(k => table.columns[k].data) as number[][]
+    .map(k => table.getColumn(k)) as number[][]
 
   if (!valueColsData.length) {
     return []
   }
 
-  const timeColData = get(
-    table,
-    'columns._time.data',
-    get(table, 'columns._stop.data') // Fallback to `_stop` column if `_time` column missing
-  )
+  const columnKeys = table.columnKeys
+  // Fallback to `_stop` column if `_time` column missing otherwise return empty array.
+  let timeColData = []
+  if (columnKeys.includes('_time')) {
+    timeColData = table.getColumn('_time', 'number')
+  } else if (columnKeys.includes('_stop')) {
+    timeColData = table.getColumn('_stop', 'number')
+  }
 
   if (!timeColData && table.length !== 1) {
     return []
   }
 
-  const d = i => {
+  const d = (i: number) => {
     const time = timeColData[i]
 
     if (time && valueColsData.some(colData => !isNaN(colData[i]))) {

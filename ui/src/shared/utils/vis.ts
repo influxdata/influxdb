@@ -1,6 +1,6 @@
 // Libraries
 import {format} from 'd3-format'
-import {isNumeric, Table, ColumnType, LineInterpolation} from '@influxdata/vis'
+import {Table, ColumnType, LineInterpolation} from '@influxdata/vis'
 
 // Types
 import {XYViewGeom, Axis} from 'src/types'
@@ -68,7 +68,7 @@ export const filterNoisyColumns = (columns: string[], table: Table): string[] =>
       return true
     }
 
-    const keyData = table.columns[key].data
+    const keyData = table.getColumn(key)
 
     return !keyData.every(d => d === keyData[0])
   })
@@ -111,7 +111,7 @@ export const extent = (xs: number[]): [number, number] | null => {
 }
 
 export const chooseXColumn = (table: Table): string | null => {
-  const columnKeys = new Set(Object.keys(table.columns))
+  const columnKeys = new Set(table.columnKeys)
 
   if (columnKeys.has('_time')) {
     return '_time'
@@ -129,7 +129,9 @@ export const chooseXColumn = (table: Table): string | null => {
 }
 
 export const chooseYColumn = (table: Table): string | null => {
-  return Object.keys(table.columns).find(
-    k => k.startsWith('_value') && isNumeric(table.columns[k].type)
+  return table.columnKeys.find(
+    k =>
+      k.startsWith('_value') &&
+      (table.getColumnType(k) === 'number' || table.getColumnType(k) === 'time')
   )
 }

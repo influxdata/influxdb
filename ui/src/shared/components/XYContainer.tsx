@@ -1,7 +1,6 @@
 // Libraries
-import {get} from 'lodash'
 import React, {FunctionComponent, useMemo} from 'react'
-import {Config, fluxToTable} from '@influxdata/vis'
+import {Config, fromFlux} from '@influxdata/vis'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -52,7 +51,7 @@ const XYContainer: FunctionComponent<Props> = ({
   },
 }) => {
   const {table, fluxGroupKeyUnion} = useMemo(
-    () => fluxToTable(files.join('\n\n')),
+    () => fromFlux(files.join('\n\n')),
     [files]
   )
 
@@ -63,16 +62,17 @@ const XYContainer: FunctionComponent<Props> = ({
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
 
+  const columnKeys = table.columnKeys
+
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    get(table, ['columns', xColumn, 'data'], [])
+    columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
     storedYDomain,
-    get(table, ['columns', yColumn, 'data'], [])
+    columnKeys.includes(yColumn) ? table.getColumn(yColumn, 'number') : []
   )
-
   if (!xColumn || !yColumn) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
@@ -92,7 +92,7 @@ const XYContainer: FunctionComponent<Props> = ({
   )
 
   const yFormatter = getFormatter(
-    table.columns[yColumn].type,
+    table.getColumnType(yColumn),
     yTickPrefix,
     yTickSuffix
   )

@@ -1,7 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {Config, Table} from '@influxdata/vis'
-import {get} from 'lodash'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -21,7 +20,7 @@ import {RemoteDataState, ScatterView} from 'src/types'
 
 interface Props {
   table: Table
-  groupKeyUnion?: Array<string>
+  fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
   viewProperties: ScatterView
   children: (config: Config) => JSX.Element
@@ -50,23 +49,25 @@ const ScatterContainer: FunctionComponent<Props> = ({
   const xColumn = chooseXColumn(table)
   const yColumn = chooseYColumn(table)
 
+  const columnKeys = table.columnKeys
+
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    get(table, ['columns', xColumn, 'data'], [])
+    columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
     storedYDomain,
-    get(table, ['columns', yColumn, 'data'], [])
+    columnKeys.includes(yColumn) ? table.getColumn(yColumn, 'number') : []
   )
 
   const isValidView =
     xColumn &&
-    table.columns[xColumn] &&
+    columnKeys.includes(xColumn) &&
     yColumn &&
-    table.columns[yColumn] &&
-    fillColumns.every(col => !!table.columns[col]) &&
-    symbolColumns.every(col => !!table.columns[col])
+    columnKeys.includes(yColumn) &&
+    fillColumns.every(col => columnKeys.includes(col)) &&
+    symbolColumns.every(col => columnKeys.includes(col))
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
@@ -75,7 +76,11 @@ const ScatterContainer: FunctionComponent<Props> = ({
   const colorHexes =
     colors && colors.length ? colors : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const yFormatter = getFormatter(table.columns[yColumn].type, yPrefix, ySuffix)
+  const yFormatter = getFormatter(
+    table.getColumnType(yColumn),
+    yPrefix,
+    ySuffix
+  )
 
   const config: Config = {
     ...VIS_THEME,
