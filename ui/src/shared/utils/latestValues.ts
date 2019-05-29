@@ -80,10 +80,13 @@ export const latestValues = (table: Table): number[] => {
   }
 
   const columnKeys = table.columnKeys
-  // Fallback to `_stop` column if `_time` column missing
-  const timeColData = columnKeys.includes('_time')
-    ? table.getColumn('_time', 'number')
-    : table.getColumn('_stop', 'number')
+  // Fallback to `_stop` column if `_time` column missing otherwise return empty array.
+  let timeColData = []
+  if (columnKeys.includes('_time')) {
+    timeColData = table.getColumn('_time', 'number')
+  } else if (columnKeys.includes('_stop')) {
+    timeColData = table.getColumn('_stop', 'number')
+  }
 
   if (!timeColData && table.length !== 1) {
     return []
