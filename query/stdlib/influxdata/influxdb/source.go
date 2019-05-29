@@ -55,17 +55,7 @@ func (s *Source) Metadata() flux.Metadata {
 
 func (s *Source) processTables(ctx context.Context, tables TableIterator, watermark execute.Time) error {
 	err := tables.Do(func(tbl flux.Table) error {
-		for _, t := range s.ts {
-			if err := t.Process(s.id, tbl); err != nil {
-				return err
-			}
-			//TODO(nathanielc): Also add mechanism to send UpdateProcessingTime calls, when no data is arriving.
-			// This is probably not needed for this source, but other sources should do so.
-			if err := t.UpdateProcessingTime(s.id, execute.Now()); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.processTable(ctx, tbl)
 	})
 	if err != nil {
 		return err
@@ -78,6 +68,30 @@ func (s *Source) processTables(ctx context.Context, tables TableIterator, waterm
 
 	for _, t := range s.ts {
 		if err := t.UpdateWatermark(s.id, watermark); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Source) processTable(ctx context.Context, tbl flux.Table) error {
+	if len(s.ts) == 0 {
+		tbl.Done()
+		return nil
+	} else if len(s.ts) == 1 {
+		return s.ts[0].Process(s.id, tbl)
+	}
+
+	// There is more than one transformation so we need to
+	// copy the table for each transformation.
+	bufTable, err := execute.CopyTable(tbl)
+	if err != nil {
+		return err
+	}
+	defer bufTable.Done()
+
+	for _, t := range s.ts {
+		if err := t.Process(s.id, bufTable.Copy()); err != nil {
 			return err
 		}
 	}
