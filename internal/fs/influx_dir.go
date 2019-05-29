@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -56,4 +57,26 @@ func BoltFile() (string, error) {
 	}
 
 	return file, nil
+}
+
+// ExpandFiles expands any directories listed in paths and filters out any
+// paths which do not match the regular expression pattern.
+func ExpandFiles(paths []string, pattern string) ([]string, error) {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, err
+	}
+
+	var other []string
+	for _, path := range paths {
+		if err := filepath.Walk(path, func(path string, fi os.FileInfo, err error) error {
+			if !fi.IsDir() && re.MatchString(path) {
+				other = append(other, path)
+			}
+			return err
+		}); err != nil {
+			return nil, err
+		}
+	}
+	return other, nil
 }

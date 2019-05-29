@@ -56,7 +56,7 @@ func NewCommand() *Command {
 }
 
 // Run executes the command.
-func (cmd *Command) Run(args ...string) error {
+func (cmd *Command) Run(args []string) error {
 	fs := flag.NewFlagSet("buildtsi", flag.ExitOnError)
 	dataDir := fs.String("datadir", "", "data directory")
 	walDir := fs.String("waldir", "", "WAL directory")
