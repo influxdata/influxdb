@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
@@ -32,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/nats"
 	infprom "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
-	pcontrol "github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/source"
 	"github.com/influxdata/influxdb/storage"
@@ -218,7 +217,7 @@ type Launcher struct {
 	engine        *storage.Engine
 	StorageConfig storage.Config
 
-	queryController *pcontrol.Controller
+	queryController *control.Controller
 
 	httpPort   int
 	httpServer *nethttp.Server
@@ -519,7 +518,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		c, err := pcontrol.New(cc)
+		c, err := control.New(cc)
 		if err != nil {
 			m.logger.Error("Failed to create query controller", zap.Error(err))
 			return err
@@ -681,7 +680,7 @@ func (m *Launcher) OrganizationService() platform.OrganizationService {
 }
 
 // QueryController returns the internal query service.
-func (m *Launcher) QueryController() *pcontrol.Controller {
+func (m *Launcher) QueryController() *control.Controller {
 	return m.queryController
 }
 

@@ -8,12 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/query"
-	pcontrol "github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/readservice"
 	"github.com/influxdata/influxdb/task/backend"
@@ -52,7 +51,7 @@ type fullStackAwareLogReaderWriter struct {
 	*backend.PointLogWriter
 	*backend.QueryLogReader
 
-	queryController *pcontrol.Controller
+	queryController *control.Controller
 
 	rootDir       string
 	storageEngine *storage.Engine
@@ -139,7 +138,7 @@ func newFullStackAwareLogReaderWriter(t *testing.T) *fullStackAwareLogReaderWrit
 		t.Fatal(err)
 	}
 
-	queryController, err := pcontrol.New(cc)
+	queryController, err := control.New(cc)
 	if err != nil {
 		t.Fatal(err)
 	}
