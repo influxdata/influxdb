@@ -1158,9 +1158,4 @@ export const VIS_GRAPHICS = [
     graphic: GRAPHIC_SVGS[ViewType.Scatter],
     featureFlag: 'scatter',
   },
-  {
-    type: ViewType.Candlestick,
-    name: 'Candlestick',
-    graphic: GRAPHIC_SVGS[ViewType.Candlestick],
-  },
 ]

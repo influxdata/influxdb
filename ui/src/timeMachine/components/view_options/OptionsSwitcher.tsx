@@ -43,8 +43,6 @@ class OptionsSwitcher extends PureComponent<Props> {
         return <HeatmapOptions {...view.properties} />
       case ViewType.Scatter:
         return <ScatterOptions {...view.properties} />
-      case ViewType.Candlestick:
-        return <div />
       default:
         return <div />
     }
