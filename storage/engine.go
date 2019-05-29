@@ -315,6 +315,9 @@ func (e *Engine) runRetentionEnforcer() {
 func (e *Engine) Close() error {
 	e.mu.RLock()
 	if e.closing == nil {
+		e.mu.RUnlock()
+		// Unusual if an engine is closed more than once, so note it.
+		e.logger.Info("Close() called on already-closed engine")
 		return nil // Already closed
 	}
 
