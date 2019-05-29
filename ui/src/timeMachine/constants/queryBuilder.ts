@@ -7,7 +7,7 @@ export interface QueryFn {
 }
 
 export const genFlux = (func: string, period?: string) => {
-  if (period === 'none') {
+  if (period === AGG_WINDOW_NONE) {
     return `|> ${func}()`
   }
 
