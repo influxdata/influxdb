@@ -17,7 +17,7 @@
   },
   "scripts": {
     "start": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel watch --no-autoinstall -d build src/index.html",
-    "build": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --no-source-maps --log-level 2 src/index.html",
+    "build": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
     "test:watch": "jest --watch --verbose false",
