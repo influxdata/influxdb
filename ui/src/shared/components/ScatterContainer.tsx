@@ -1,5 +1,6 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useEffect} from 'react'
+import {connect} from 'react-redux'
 import {Config, Table} from '@influxdata/vis'
 
 // Components
@@ -17,8 +18,9 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
 import {RemoteDataState, ScatterView} from 'src/types'
+import {setFillColumns, setSymbolColumns} from 'src/timeMachine/actions'
 
-interface Props {
+interface OwnProps {
   table: Table
   fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
@@ -26,10 +28,18 @@ interface Props {
   children: (config: Config) => JSX.Element
 }
 
+interface DispatchProps {
+  onSetFillColumns: typeof setFillColumns
+  onSetSymbolColumns: typeof setSymbolColumns
+}
+
+type Props = OwnProps & DispatchProps
+
 const ScatterContainer: FunctionComponent<Props> = ({
   table,
   loading,
   children,
+  fluxGroupKeyUnion,
   viewProperties: {
     xAxisLabel,
     yAxisLabel,
@@ -41,7 +51,32 @@ const ScatterContainer: FunctionComponent<Props> = ({
     xDomain: storedXDomain,
     yDomain: storedYDomain,
   },
+  onSetFillColumns,
+  onSetSymbolColumns,
 }) => {
+  useEffect(() => {
+    if (fluxGroupKeyUnion && (!storedSymbol || !storedFill)) {
+      // if new view, maximize variations in symbol and color
+      const filteredGroupKeys = fluxGroupKeyUnion.filter(
+        k =>
+          ![
+            'result',
+            'table',
+            '_measurement',
+            '_start',
+            '_stop',
+            '_field',
+          ].includes(k)
+      )
+      if (!storedSymbol) {
+        onSetSymbolColumns(filteredGroupKeys)
+      }
+      if (!storedFill) {
+        onSetFillColumns(filteredGroupKeys)
+      }
+    }
+  })
+
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
 
@@ -115,4 +150,12 @@ const ScatterContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default ScatterContainer
+const mdtp = {
+  onSetFillColumns: setFillColumns,
+  onSetSymbolColumns: setSymbolColumns,
+}
+
+export default connect<{}, DispatchProps, {}>(
+  null,
+  mdtp
+)(ScatterContainer)
