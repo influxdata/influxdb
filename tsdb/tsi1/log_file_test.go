@@ -128,6 +128,7 @@ func TestLogFile_AddSeriesList(t *testing.T) {
 }
 
 func TestLogFile_SeriesStoredInOrder(t *testing.T) {
+	t.Skip("TODO(#14028): flaky test (https://github.com/influxdata/influxdb/issues/14028)")
 	t.Parallel()
 
 	sfile := MustOpenSeriesFile()
