@@ -25,10 +25,7 @@ type table struct {
 
 	done chan struct{}
 
-	// The current number of records in memory
-	l int
-
-	colBufs []array.Interface
+	colBufs *colReader
 
 	err error
 
@@ -45,22 +42,20 @@ func newTable(
 	alloc *memory.Allocator,
 ) table {
 	return table{
-		done:    done,
-		bounds:  bounds,
-		key:     key,
-		tags:    make([][]byte, len(cols)),
-		defs:    defs,
-		colBufs: make([]array.Interface, len(cols)),
-		cols:    cols,
-		alloc:   alloc,
+		done:   done,
+		bounds: bounds,
+		key:    key,
+		tags:   make([][]byte, len(cols)),
+		defs:   defs,
+		cols:   cols,
+		alloc:  alloc,
 	}
 }
 
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
 func (t *table) Err() error           { return t.err }
-func (t *table) Empty() bool          { return t.l == 0 }
-func (t *table) Len() int             { return t.l }
+func (t *table) Empty() bool          { return false }
 
 func (t *table) Cancel() {
 	atomic.StoreInt32(&t.cancelled, 1)
@@ -70,37 +65,78 @@ func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
 }
 
-func (t *table) Retain()  {}
-func (t *table) Release() {}
+// getBuffer will retrieve a suitable buffer for the
+// table implementations to use. If the existing buffer
+// is not used anymore, then it may be reused.
+func (t *table) getBuffer(l int) *colReader {
+	if t.colBufs != nil && atomic.LoadInt64(&t.colBufs.refCount) == 0 {
+		return t.colBufs
+	}
 
-func (t *table) Bools(j int) *array.Boolean {
-	execute.CheckColType(t.cols[j], flux.TBool)
-	return t.colBufs[j].(*array.Boolean)
+	// The current buffer is still being used so we should
+	// generate a new one.
+	t.colBufs = &colReader{
+		refCount: 1,
+		key:      t.key,
+		colMeta:  t.cols,
+		cols:     make([]array.Interface, len(t.cols)),
+		l:        l,
+	}
+	return t.colBufs
 }
 
-func (t *table) Ints(j int) *array.Int64 {
-	execute.CheckColType(t.cols[j], flux.TInt)
-	return t.colBufs[j].(*array.Int64)
+type colReader struct {
+	refCount int64
+
+	key     flux.GroupKey
+	colMeta []flux.ColMeta
+	cols    []array.Interface
+	l       int
 }
 
-func (t *table) UInts(j int) *array.Uint64 {
-	execute.CheckColType(t.cols[j], flux.TUInt)
-	return t.colBufs[j].(*array.Uint64)
+func (cr *colReader) Retain() {
+	atomic.AddInt64(&cr.refCount, 1)
+}
+func (cr *colReader) Release() {
+	if atomic.AddInt64(&cr.refCount, -1) == 0 {
+		for _, col := range cr.cols {
+			col.Release()
+		}
+	}
 }
 
-func (t *table) Floats(j int) *array.Float64 {
-	execute.CheckColType(t.cols[j], flux.TFloat)
-	return t.colBufs[j].(*array.Float64)
+func (cr *colReader) Key() flux.GroupKey   { return cr.key }
+func (cr *colReader) Cols() []flux.ColMeta { return cr.colMeta }
+func (cr *colReader) Len() int             { return cr.l }
+
+func (cr *colReader) Bools(j int) *array.Boolean {
+	execute.CheckColType(cr.colMeta[j], flux.TBool)
+	return cr.cols[j].(*array.Boolean)
 }
 
-func (t *table) Strings(j int) *array.Binary {
-	execute.CheckColType(t.cols[j], flux.TString)
-	return t.colBufs[j].(*array.Binary)
+func (cr *colReader) Ints(j int) *array.Int64 {
+	execute.CheckColType(cr.colMeta[j], flux.TInt)
+	return cr.cols[j].(*array.Int64)
 }
 
-func (t *table) Times(j int) *array.Int64 {
-	execute.CheckColType(t.cols[j], flux.TTime)
-	return t.colBufs[j].(*array.Int64)
+func (cr *colReader) UInts(j int) *array.Uint64 {
+	execute.CheckColType(cr.colMeta[j], flux.TUInt)
+	return cr.cols[j].(*array.Uint64)
+}
+
+func (cr *colReader) Floats(j int) *array.Float64 {
+	execute.CheckColType(cr.colMeta[j], flux.TFloat)
+	return cr.cols[j].(*array.Float64)
+}
+
+func (cr *colReader) Strings(j int) *array.Binary {
+	execute.CheckColType(cr.colMeta[j], flux.TString)
+	return cr.cols[j].(*array.Binary)
+}
+
+func (cr *colReader) Times(j int) *array.Int64 {
+	execute.CheckColType(cr.colMeta[j], flux.TTime)
+	return cr.cols[j].(*array.Int64)
 }
 
 // readTags populates b.tags with the provided tags
@@ -120,32 +156,32 @@ func (t *table) readTags(tags models.Tags) {
 }
 
 // appendTags fills the colBufs for the tag columns with the tag value.
-func (t *table) appendTags() {
+func (t *table) appendTags(cr *colReader) {
 	for j := range t.cols {
 		v := t.tags[j]
 		if v != nil {
 			b := arrow.NewStringBuilder(t.alloc)
-			b.Reserve(t.l)
-			b.ReserveData(t.l * len(v))
-			for i := 0; i < t.l; i++ {
+			b.Reserve(cr.l)
+			b.ReserveData(cr.l * len(v))
+			for i := 0; i < cr.l; i++ {
 				b.Append(v)
 			}
-			t.colBufs[j] = b.NewArray()
+			cr.cols[j] = b.NewArray()
 			b.Release()
 		}
 	}
 }
 
 // appendBounds fills the colBufs for the time bounds
-func (t *table) appendBounds() {
+func (t *table) appendBounds(cr *colReader) {
 	bounds := []execute.Time{t.bounds.Start, t.bounds.Stop}
 	for j := range []int{startColIdx, stopColIdx} {
 		b := arrow.NewIntBuilder(t.alloc)
-		b.Reserve(t.l)
-		for i := 0; i < t.l; i++ {
+		b.Reserve(cr.l)
+		for i := 0; i < cr.l; i++ {
 			b.UnsafeAppend(int64(bounds[j]))
 		}
-		t.colBufs[j] = b.NewArray()
+		cr.cols[j] = b.NewArray()
 		b.Release()
 	}
 }

@@ -104,11 +104,6 @@ var FluxEndToEndSkipList = map[string]string{
 
 	"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
 
-	// Flaky test cases, see (https://github.com/influxdata/influxdb/issues/12891)
-	"range":                 "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
-	"window_generate_empty": "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
-	"parse_regex":           "flaky test (https://github.com/influxdata/influxdb/issues/12891)",
-
 	"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
 	"dynamic_query": "panic when executing",
 }
