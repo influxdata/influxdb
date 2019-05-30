@@ -59,8 +59,8 @@ const HeatmapContainer: FunctionComponent<Props> = ({
   const isValidView =
     xColumn &&
     yColumn &&
-    xColumn in table.columnKeys &&
-    yColumn in table.columnKeys
+    columnKeys.includes(yColumn) &&
+    columnKeys.includes(xColumn)
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
