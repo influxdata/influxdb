@@ -10,7 +10,6 @@ import HistogramContainer from 'src/shared/components/HistogramContainer'
 import VisDataTransform from 'src/timeMachine/components/VisDataTransform'
 import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
 import HeatmapContainer from 'src/shared/components/HeatmapContainer'
-import ScatterContainer from 'src/shared/components/ScatterContainer'
 
 // Utils
 import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
@@ -86,22 +85,6 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
           >
             {config => <Plot config={config} />}
           </HeatmapContainer>
-        )}
-      </VisDataTransform>
-    )
-  }
-
-  if (properties.type === ViewType.Scatter) {
-    return (
-      <VisDataTransform>
-        {({table, xColumn, yColumn}) => (
-          <ScatterContainer
-            table={table}
-            loading={loading}
-            viewProperties={{...properties, xColumn, yColumn}}
-          >
-            {config => <Plot config={config} />}
-          </ScatterContainer>
         )}
       </VisDataTransform>
     )
