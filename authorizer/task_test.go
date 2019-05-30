@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -51,6 +52,7 @@ func mockTaskService(orgID, taskID, runID influxdb.ID) influxdb.TaskService {
 		ID:             taskID,
 		OrganizationID: orgID,
 		Name:           "cows",
+		Status:         string(backend.TaskActive),
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
