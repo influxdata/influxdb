@@ -675,7 +675,7 @@ func TestController_QueueSize(t *testing.T) {
 	done := make(chan struct{})
 	defer close(done)
 
-	executing := make(chan struct{}, config.ConcurrencyQuota)
+	executing := make(chan struct{}, concurrencyQuota+queueSize)
 	compiler := &mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
 			return &mock.Program{
