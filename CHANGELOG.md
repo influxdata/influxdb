@@ -1,4 +1,4 @@
-## v2.0.0-alpha.10.1 [2019-05-30]
+## v2.0.0-alpha.11 [2019-05-31]
 
 1. [14031](https://github.com/influxdata/influxdb/pull/14031): Correctly check if columnKeys include xColumn in heatmap
 
