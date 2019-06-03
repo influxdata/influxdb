@@ -142,11 +142,11 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 		close(p.ready)
 
 		if err != nil {
-			p.logger.Info("Execution failed to get result", zap.Error(err))
+			p.logger.Debug("Execution failed to get result", zap.Error(err))
 		} else if res.err != nil {
-			p.logger.Info("Got result with error", zap.Error(res.err))
+			p.logger.Debug("Got result with error", zap.Error(res.err))
 		} else {
-			p.logger.Info("Completed successfully")
+			p.logger.Debug("Completed successfully")
 		}
 	})
 }
@@ -374,7 +374,7 @@ func (p *asyncRunPromise) finish(res *runResult, err error) {
 		} else if res.err != nil {
 			p.logger.Info("Got result with error", zap.Error(res.err))
 		} else {
-			p.logger.Info("Completed successfully")
+			p.logger.Debug("Completed successfully")
 		}
 	})
 }

@@ -674,7 +674,7 @@ func (r *runner) startFromWorking(now int64) {
 	// and we'll quickly end up with many run_ids associated with the log.
 	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
-	runLogger.Info("Created run; beginning execution")
+	runLogger.Debug("Created run; beginning execution")
 	r.wg.Add(1)
 	go r.executeAndWait(ctx, qr, runLogger)
 
@@ -779,7 +779,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		r.taskControlService.AddRunLog(authCtx, r.task.ID, qr.RunID, time.Now(), string(b))
 	}
 	r.updateRunState(qr, RunSuccess, runLogger)
-	runLogger.Info("Execution succeeded")
+	runLogger.Debug("Execution succeeded")
 
 	// Check again if there is a new run available, without returning to idle state.
 	r.startFromWorking(atomic.LoadInt64(r.ts.now))
