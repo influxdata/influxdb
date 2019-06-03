@@ -23,12 +23,20 @@ class AxisAffixes extends PureComponent<Props> {
       <>
         <Grid.Column widthSM={Columns.Six}>
           <FormElement label={`${axisName.toUpperCase()} Axis Prefix`}>
-            <Input value={prefix} onChange={this.handleUpdateAxisPrefix} />
+            <Input
+              value={prefix}
+              onChange={this.handleUpdateAxisPrefix}
+              testID={`input--${axisName.toUpperCase()}-axis-pref`}
+            />
           </FormElement>
         </Grid.Column>
         <Grid.Column widthSM={Columns.Six}>
           <FormElement label={`${axisName.toUpperCase()} Axis Suffix`}>
-            <Input value={suffix} onChange={this.handleUpdateAxisSuffix} />
+            <Input
+              value={suffix}
+              onChange={this.handleUpdateAxisSuffix}
+              testID={`input--${axisName.toUpperCase()}-axis-suff`}
+            />
           </FormElement>
         </Grid.Column>
       </>

@@ -1,3 +1,4 @@
+import {Organization} from '@influxdata/influx'
 // Covers creating cells and managing view options
 describe('cells veo', () => {
   let nowNano = new Date().getTime() * 1000000
@@ -5,6 +6,9 @@ describe('cells veo', () => {
   let lines: string[] = []
   let recCount = 256
   let startTime = nowNano - recCount * intervalNano
+
+  let dbId: string
+  let cellId: string
 
   for (let i = 0; i < recCount; i++) {
     lines[i] =
@@ -36,11 +40,8 @@ describe('cells veo', () => {
       const {
         org: {id},
       } = body
-      //cy.wrap(body.org).as('org')
+      cy.wrap(body.org).as('org')
       cy.writeData(lines)
-
-      let dbId: string
-      let cellId: string
 
       cy.createDashboard(id).then(({body}) => {
         //cy.wrap(body.id).as('dbId')
@@ -64,6 +65,7 @@ describe('cells veo', () => {
     })
   })
 
+  //todo - further investigate snapshot visual comparisons - issue with timestamp (x-axis) differences between images
   describe('Graph Visualizations', () => {
     it('can change the line interpolation to Smooth', () => {
       //todo - activate testID instead of classes once https://github.com/influxdata/vis/pull/69 is merged and released
@@ -148,7 +150,7 @@ describe('cells veo', () => {
         let sum1 = canvasCheckSum(jqcanvas1.get(1) as HTMLCanvasElement)
 
         // N.B. updates contents of canvas .vis-axes
-        cy.getByTestID('input-y-axis-prefix').type('над')
+        cy.getByTestID('input--Y-axis-pref').type('над')
 
         //todo - activate testID instead of classes once https://github.com/influxdata/vis/pull/69 is merged and released
         //cy.getByTestID('vis-layer--line').then((jqcanvas2) => {
@@ -167,7 +169,7 @@ describe('cells veo', () => {
         let sum1 = canvasCheckSum(jqcanvas1.get(1) as HTMLCanvasElement)
 
         // N.B. updates contents of canvas .vis-axes
-        cy.getByTestID('input-y-axis-suffix').type('под')
+        cy.getByTestID('input--Y-axis-suff').type('под')
 
         //todo - activate testID instead of classes once https://github.com/influxdata/vis/pull/69 is merged and released
         //cy.getByTestID('vis-layer--line').then((jqcanvas2) => {
@@ -179,7 +181,7 @@ describe('cells veo', () => {
       })
     })
 
-    it.only('can set a custom Y axis domain', () => {
+    it('can set a custom Y axis domain', () => {
       //todo - activate testID instead of classes once https://github.com/influxdata/vis/pull/69 is merged and released
       //cy.getByTestID('vis-layer--line')..then((jqcanvas1) => {
       cy.get('.vis-axes').then(jqcanvas1 => {
@@ -204,7 +206,66 @@ describe('cells veo', () => {
       })
     })
 
-    //comprehensive test of above - begin in dashboard view, modify everything, save and check everything
-    it.skip('can modify the dashboard view of the cell', () => {})
+    //comprehensive test of above - begin in dashboard view, modify everything, save and check cell in dashboard
+    it('can modify the dashboard view of the cell', () => {
+      let sumInit: number
+      let sumFinal: number
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${id}/dashboards/${dbId}?lower=now%28%29%20-%206h`)
+          cy.contains('TEST CELL').should('be.visible')
+          //todo testid from vis
+          cy.get('.vis-layer.line').should('be.visible')
+
+          cy.get('.vis-layer.line').then(jqCanvas1 => {
+            sumInit = canvasCheckSum(jqCanvas1.get(0) as HTMLCanvasElement)
+
+            cy.getByTestID('context-menu')
+              .eq(0)
+              .click()
+            cy.getByTestID('context-menu-item')
+              .eq(0)
+              .click()
+            cy.getByTestID('button--vis-opts').click()
+            cy.contains('Linear').click()
+            cy.contains('Step').click()
+            cy.contains('Nineteen Eighty Four').click()
+            cy.contains('Delorean').click()
+            cy.getByTestID('input--y-axis-label').type('DVORNIK')
+            cy.getByTestID('input--Y-axis-pref').type('над')
+            cy.getByTestID('input--Y-axis-suff').type('под')
+            cy.getByTestID('radio-button--custom').click()
+            cy.getByTestID('input--min-val').type('-10{enter}')
+            cy.getByTestID('input--max-val').type('110{enter}')
+
+            cy.getByTestID('save-cell--button').click()
+
+            cy.get('.vis-layer.line').then(jqCanvas1 => {
+              sumFinal = canvasCheckSum(jqCanvas1.get(0) as HTMLCanvasElement)
+              expect(sumInit).not.equals(sumFinal)
+            })
+          })
+        })
+      })
+    })
   })
+
+  describe.skip('Graph with single stat Visualiztaion', () => {
+    it('can switch view to graph with stat', () => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${id}/dashboards/${dbId}?lower=now%28%29%20-%206h`)
+          cy.getByTestID('context-menu')
+            .eq(0)
+            .click()
+          cy.getByTestID('context-menu-item')
+            .eq(0)
+            .click()
+        })
+      })
+    })
+  })
+
+  //todo - add other visualizations e.g. Histogram, Table, etc.
 })
