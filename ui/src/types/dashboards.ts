@@ -12,10 +12,10 @@ export enum Scale {
   Log = 'log',
 }
 
-export enum Base {
-  Two = '2',
-  Ten = '10',
-}
+export type Base =
+  | '' // Do not format using a prefix
+  | '2' // Format using a binary prefix
+  | '10' // Format using a decimal/SI prefix
 
 export interface Axis {
   label: string

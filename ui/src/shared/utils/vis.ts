@@ -1,23 +1,11 @@
 // Libraries
-import {format} from 'd3-format'
 import {Table, ColumnType, LineInterpolation} from '@influxdata/vis'
 
+// Utils
+import {formatNumber} from 'src/shared/utils/formatNumber'
+
 // Types
-import {XYViewGeom, Axis} from 'src/types'
-
-const MAX_DECIMALS = 3
-
-const formatSmallNumber = format(`.${MAX_DECIMALS}~f`) // e.g. "0.032"
-
-const formatLargeNumber = format(`.${MAX_DECIMALS}~s`) // e.g. "2.452M"
-
-export const formatNumber = (t: number): string => {
-  if (t >= -1 && t <= 1) {
-    return formatSmallNumber(t)
-  }
-
-  return formatLargeNumber(t)
-}
+import {XYViewGeom, Axis, Base} from 'src/types'
 
 /*
   A geom may be stored as "line", "step", "monotoneX", "bar", or "stacked", but
@@ -47,10 +35,11 @@ export const geomToInterpolation = (geom: XYViewGeom): LineInterpolation => {
 export const getFormatter = (
   columnType: ColumnType,
   prefix: string = '',
-  suffix: string = ''
+  suffix: string = '',
+  base: Base = ''
 ): null | ((x: any) => string) => {
   return columnType === 'number'
-    ? x => `${prefix}${formatNumber(x)}${suffix}`
+    ? x => `${prefix}${formatNumber(x, base)}${suffix}`
     : null
 }
 

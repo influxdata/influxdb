@@ -9,6 +9,7 @@ import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
 import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 import ColorSelector from 'src/timeMachine/components/view_options/ColorSelector'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
+import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
 
 // Actions
 import {
@@ -17,6 +18,7 @@ import {
   setAxisPrefix,
   setAxisSuffix,
   setYAxisBounds,
+  setYAxisBase,
   setGeom,
 } from 'src/timeMachine/actions'
 
@@ -40,6 +42,7 @@ interface DispatchProps {
   onUpdateAxisPrefix: typeof setAxisPrefix
   onUpdateAxisSuffix: typeof setAxisSuffix
   onUpdateYAxisBounds: typeof setYAxisBounds
+  onUpdateYAxisBase: typeof setYAxisBase
   onUpdateColors: typeof setColors
   onSetGeom: typeof setGeom
 }
@@ -50,7 +53,7 @@ class LineOptions extends PureComponent<Props> {
   public render() {
     const {
       axes: {
-        y: {label, prefix, suffix},
+        y: {label, prefix, suffix, base},
       },
       colors,
       geom,
@@ -58,6 +61,7 @@ class LineOptions extends PureComponent<Props> {
       onUpdateYAxisLabel,
       onUpdateAxisPrefix,
       onUpdateAxisSuffix,
+      onUpdateYAxisBase,
       onSetGeom,
     } = this.props
 
@@ -76,6 +80,7 @@ class LineOptions extends PureComponent<Props> {
           <h5 className="view-options--header">Y Axis</h5>
         </Grid.Column>
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
+        <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
         <AxisAffixes
           prefix={prefix}
           suffix={suffix}
@@ -116,6 +121,7 @@ const mdtp: DispatchProps = {
   onUpdateAxisPrefix: setAxisPrefix,
   onUpdateAxisSuffix: setAxisSuffix,
   onUpdateYAxisBounds: setYAxisBounds,
+  onUpdateYAxisBase: setYAxisBase,
   onUpdateColors: setColors,
   onSetGeom: setGeom,
 }
