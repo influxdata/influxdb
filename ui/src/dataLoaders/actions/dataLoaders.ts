@@ -402,7 +402,7 @@ const createTelegraf = async (dispatch, getState, plugins) => {
       name: telegrafConfigName,
       description: telegrafConfigDescription,
       agent: {collectionInterval: DEFAULT_COLLECTION_INTERVAL},
-      organizationID: org.id,
+      orgID: org.id,
       plugins,
     }
 

@@ -165,9 +165,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "regular config",
 			cfg: &TelegrafConfig{
-				ID:             *id1,
-				OrganizationID: *id2,
-				Name:           "n1",
+				ID:    *id1,
+				OrgID: *id2,
+				Name:  "n1",
 				Agent: TelegrafAgentConfig{
 					Interval: 4000,
 				},
@@ -201,9 +201,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin type",
 			cfg: &TelegrafConfig{
-				ID:             *id1,
-				OrganizationID: *id2,
-				Name:           "n1",
+				ID:    *id1,
+				OrgID: *id2,
+				Name:  "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Comment: "comment3",
@@ -222,9 +222,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin",
 			cfg: &TelegrafConfig{
-				ID:             *id1,
-				OrganizationID: *id2,
-				Name:           "n1",
+				ID:    *id1,
+				OrgID: *id2,
+				Name:  "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Config: &unsupportedPlugin{
