@@ -81,6 +81,8 @@ export const myView: View = {
     colors: [],
     note: '',
     showNoteWhenEmpty: false,
+    xColumn: null,
+    yColumn: null,
   },
 }
 

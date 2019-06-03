@@ -1,10 +1,14 @@
 // Libraries
-import React, {FunctionComponent, useMemo} from 'react'
+import React, {FunctionComponent, useMemo, useEffect} from 'react'
+import {connect} from 'react-redux'
 import {Config, fromFlux} from '@influxdata/vis'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
+
+// Actions
+import {setXColumn, setYColumn} from 'src/timeMachine/actions'
 
 // Utils
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
@@ -25,12 +29,19 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 // Types
 import {RemoteDataState, XYView} from 'src/types'
 
-interface Props {
+interface DispatchProps {
+  onSetXColumn: typeof setXColumn
+  onSetYColumn: typeof setYColumn
+}
+
+interface OwnProps {
   files: string[]
   loading: RemoteDataState
   viewProperties: XYView
   children: (config: Config) => JSX.Element
 }
+
+type Props = OwnProps & DispatchProps
 
 const XYContainer: FunctionComponent<Props> = ({
   files,
@@ -39,6 +50,8 @@ const XYContainer: FunctionComponent<Props> = ({
   viewProperties: {
     geom,
     colors,
+    xColumn,
+    yColumn,
     axes: {
       x: {label: xAxisLabel, bounds: xBounds},
       y: {
@@ -50,15 +63,24 @@ const XYContainer: FunctionComponent<Props> = ({
       },
     },
   },
+  onSetXColumn,
+  onSetYColumn,
 }) => {
   const {table, fluxGroupKeyUnion} = useMemo(
     () => fromFlux(files.join('\n\n')),
     [files]
   )
 
-  // Eventually these will be configurable in the line graph options UI
-  const xColumn = chooseXColumn(table)
-  const yColumn = chooseYColumn(table)
+  useEffect(() => {
+    if (!xColumn) {
+      xColumn = chooseXColumn(table)
+      onSetXColumn(xColumn)
+    }
+    if (!yColumn) {
+      yColumn = chooseYColumn(table)
+      onSetYColumn(yColumn)
+    }
+  })
 
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
@@ -132,4 +154,12 @@ const XYContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default XYContainer
+const mdtp = {
+  onSetXColumn: setXColumn,
+  onSetYColumn: setYColumn,
+}
+
+export default connect<{}, DispatchProps, {}>(
+  null,
+  mdtp
+)(XYContainer)

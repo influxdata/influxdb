@@ -118,6 +118,8 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.XY,
       shape: ViewShape.ChronografV2,
       geom: XYViewGeom.Line,
+      xColumn: null,
+      yColumn: null,
     },
   }),
   [ViewType.Histogram]: (): NewView<HistogramView> => ({
@@ -182,6 +184,8 @@ const NEW_VIEW_CREATORS = {
       ...defaultSingleStatViewProperties(),
       type: ViewType.LinePlusSingleStat,
       shape: ViewShape.ChronografV2,
+      xColumn: null,
+      yColumn: null,
     },
   }),
   [ViewType.Table]: (): NewView<TableView> => ({
