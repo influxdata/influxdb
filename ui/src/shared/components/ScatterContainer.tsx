@@ -18,7 +18,12 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
 import {RemoteDataState, ScatterView} from 'src/types'
-import {setFillColumns, setSymbolColumns} from 'src/timeMachine/actions'
+import {
+  setFillColumns,
+  setSymbolColumns,
+  setXColumn,
+  setYColumn,
+} from 'src/timeMachine/actions'
 
 interface OwnProps {
   table: Table
@@ -31,6 +36,8 @@ interface OwnProps {
 interface DispatchProps {
   onSetFillColumns: typeof setFillColumns
   onSetSymbolColumns: typeof setSymbolColumns
+  onSetXColumn: typeof setXColumn
+  onSetYColumn: typeof setYColumn
 }
 
 type Props = OwnProps & DispatchProps
@@ -50,9 +57,13 @@ const ScatterContainer: FunctionComponent<Props> = ({
     colors,
     xDomain: storedXDomain,
     yDomain: storedYDomain,
+    xColumn,
+    yColumn,
   },
   onSetFillColumns,
   onSetSymbolColumns,
+  onSetXColumn,
+  onSetYColumn,
 }) => {
   useEffect(() => {
     if (fluxGroupKeyUnion && (!storedSymbol || !storedFill)) {
@@ -75,14 +86,16 @@ const ScatterContainer: FunctionComponent<Props> = ({
         onSetFillColumns(filteredGroupKeys)
       }
     }
+    if (!xColumn) {
+      onSetXColumn(chooseXColumn(table))
+    }
+    if (!yColumn) {
+      onSetYColumn(chooseYColumn(table))
+    }
   })
 
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
-
-  // TODO: allow xcolumn and ycolumn to be user selectable
-  const xColumn = chooseXColumn(table)
-  const yColumn = chooseYColumn(table)
 
   const columnKeys = table.columnKeys
 
@@ -153,6 +166,8 @@ const ScatterContainer: FunctionComponent<Props> = ({
 const mdtp = {
   onSetFillColumns: setFillColumns,
   onSetSymbolColumns: setSymbolColumns,
+  onSetXColumn: setXColumn,
+  onSetYColumn: setYColumn,
 }
 
 export default connect<{}, DispatchProps, {}>(
