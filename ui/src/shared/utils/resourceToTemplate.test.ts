@@ -343,6 +343,8 @@ describe('resourceToTemplate', () => {
                   colors: [],
                   note: '',
                   showNoteWhenEmpty: false,
+                  xColumn: null,
+                  yColumn: null,
                 },
               },
             },
