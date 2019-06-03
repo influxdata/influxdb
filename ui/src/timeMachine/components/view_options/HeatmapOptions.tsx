@@ -2,18 +2,12 @@
 import React, {FunctionComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {VIRIDIS, MAGMA, INFERNO, PLASMA} from '@influxdata/vis'
-import {
-  Dropdown,
-  Form,
-  Grid,
-  Input,
-  Columns,
-  InputType,
-} from '@influxdata/clockface'
+import {Form, Grid, Input, Columns, InputType} from '@influxdata/clockface'
 
 // Components
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
+import ColumnSelector from 'src/shared/components/ColumnSelector'
 
 // Actions
 import {
@@ -37,7 +31,6 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 
 const HEATMAP_COLOR_SCHEMES = [
@@ -82,10 +75,6 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const HeatmapOptions: FunctionComponent<Props> = props => {
-  const dataDropdownStatus = props.numericColumns.length
-    ? ComponentStatus.Default
-    : ComponentStatus.Disabled
-
   const onSetBinSize = (e: ChangeEvent<HTMLInputElement>) => {
     const val = +e.target.value
 
@@ -100,34 +89,19 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
     <Grid.Column>
       <h4 className="view-options--header">Customize Heatmap</h4>
       <h5 className="view-options--header">Data</h5>
-      <Form.Element label="X Column">
-        <Dropdown
-          selectedID={props.xColumn}
-          onChange={props.onSetXColumn}
-          status={dataDropdownStatus}
-          titleText="None"
-        >
-          {props.numericColumns.map(columnName => (
-            <Dropdown.Item id={columnName} key={columnName} value={columnName}>
-              {columnName}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
-      </Form.Element>
-      <Form.Element label="Y Column">
-        <Dropdown
-          selectedID={props.yColumn}
-          onChange={props.onSetYColumn}
-          status={dataDropdownStatus}
-          titleText="None"
-        >
-          {props.numericColumns.map(columnName => (
-            <Dropdown.Item id={columnName} key={columnName} value={columnName}>
-              {columnName}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
-      </Form.Element>
+      <ColumnSelector
+        selectedColumn={props.xColumn}
+        onSelectColumn={props.onSetXColumn}
+        availableColumns={props.numericColumns}
+        axisName="x"
+      />
+      <ColumnSelector
+        selectedColumn={props.yColumn}
+        onSelectColumn={props.onSetYColumn}
+        availableColumns={props.numericColumns}
+        axisName="y"
+      />
+
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <HexColorSchemeDropdown
