@@ -13,7 +13,6 @@ import {
   TimeRange,
   QueryConfig,
   Scale,
-  Base,
 } from 'src/types'
 
 export const dashboard: Dashboard = {
@@ -133,7 +132,7 @@ export const axes: Axes = {
     label: '',
     prefix: '',
     suffix: '',
-    base: Base.Ten,
+    base: '10',
     scale: Scale.Linear,
   },
   y: {
@@ -141,7 +140,7 @@ export const axes: Axes = {
     label: '',
     prefix: '',
     suffix: '',
-    base: Base.Ten,
+    base: '10',
     scale: Scale.Linear,
   },
 }

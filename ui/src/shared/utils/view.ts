@@ -64,7 +64,7 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: Base.Ten,
+        base: '10' as Base,
         scale: Scale.Linear,
       },
       y: {
@@ -72,7 +72,7 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: Base.Ten,
+        base: '10' as Base,
         scale: Scale.Linear,
       },
     },

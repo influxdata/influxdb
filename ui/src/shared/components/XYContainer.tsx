@@ -46,6 +46,7 @@ const XYContainer: FunctionComponent<Props> = ({
         prefix: yTickPrefix,
         suffix: yTickSuffix,
         bounds: yBounds,
+        base: yTickBase,
       },
     },
   },
@@ -94,7 +95,8 @@ const XYContainer: FunctionComponent<Props> = ({
   const yFormatter = getFormatter(
     table.getColumnType(yColumn),
     yTickPrefix,
-    yTickSuffix
+    yTickSuffix,
+    yTickBase
   )
 
   const config: Config = {

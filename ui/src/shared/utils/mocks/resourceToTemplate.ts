@@ -7,7 +7,6 @@ import {
   XYViewGeom,
   Scale,
   QueryEditMode,
-  Base,
   Label,
   TaskStatus,
 } from 'src/types'
@@ -64,7 +63,7 @@ export const myView: View = {
         label: '',
         prefix: '',
         suffix: '',
-        base: Base.Ten,
+        base: '10',
         scale: Scale.Linear,
       },
       y: {
@@ -72,7 +71,7 @@ export const myView: View = {
         label: '',
         prefix: '',
         suffix: '',
-        base: Base.Ten,
+        base: '10',
         scale: Scale.Linear,
       },
     },
