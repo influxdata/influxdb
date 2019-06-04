@@ -138,10 +138,9 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.Scatter:
       return (
         <VisTableTransform files={files}>
-          {({table, fluxGroupKeyUnion}) => (
+          {({table}) => (
             <ScatterContainer
               table={table}
-              fluxGroupKeyUnion={fluxGroupKeyUnion}
               loading={loading}
               viewProperties={properties}
             >

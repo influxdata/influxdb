@@ -1,6 +1,5 @@
 // Libraries
-import React, {FunctionComponent, useEffect} from 'react'
-import {connect} from 'react-redux'
+import React, {FunctionComponent} from 'react'
 import {Config, Table} from '@influxdata/vis'
 
 // Components
@@ -9,7 +8,7 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
-import {getFormatter, chooseYColumn, chooseXColumn} from 'src/shared/utils/vis'
+import {getFormatter} from 'src/shared/utils/vis'
 
 // Constants
 import {VIS_THEME} from 'src/shared/constants'
@@ -18,14 +17,8 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
 import {RemoteDataState, ScatterView} from 'src/types'
-import {
-  setFillColumns,
-  setSymbolColumns,
-  setXColumn,
-  setYColumn,
-} from 'src/timeMachine/actions'
 
-interface OwnProps {
+interface Props {
   table: Table
   fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
@@ -33,20 +26,10 @@ interface OwnProps {
   children: (config: Config) => JSX.Element
 }
 
-interface DispatchProps {
-  onSetFillColumns: typeof setFillColumns
-  onSetSymbolColumns: typeof setSymbolColumns
-  onSetXColumn: typeof setXColumn
-  onSetYColumn: typeof setYColumn
-}
-
-type Props = OwnProps & DispatchProps
-
 const ScatterContainer: FunctionComponent<Props> = ({
   table,
   loading,
   children,
-  fluxGroupKeyUnion,
   viewProperties: {
     xAxisLabel,
     yAxisLabel,
@@ -60,40 +43,7 @@ const ScatterContainer: FunctionComponent<Props> = ({
     xColumn,
     yColumn,
   },
-  onSetFillColumns,
-  onSetSymbolColumns,
-  onSetXColumn,
-  onSetYColumn,
 }) => {
-  useEffect(() => {
-    if (fluxGroupKeyUnion && (!storedSymbol || !storedFill)) {
-      // if new view, maximize variations in symbol and color
-      const filteredGroupKeys = fluxGroupKeyUnion.filter(
-        k =>
-          ![
-            'result',
-            'table',
-            '_measurement',
-            '_start',
-            '_stop',
-            '_field',
-          ].includes(k)
-      )
-      if (!storedSymbol) {
-        onSetSymbolColumns(filteredGroupKeys)
-      }
-      if (!storedFill) {
-        onSetFillColumns(filteredGroupKeys)
-      }
-    }
-    if (!xColumn) {
-      onSetXColumn(chooseXColumn(table))
-    }
-    if (!yColumn) {
-      onSetYColumn(chooseYColumn(table))
-    }
-  })
-
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
 
@@ -163,14 +113,4 @@ const ScatterContainer: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp = {
-  onSetFillColumns: setFillColumns,
-  onSetSymbolColumns: setSymbolColumns,
-  onSetXColumn: setXColumn,
-  onSetYColumn: setYColumn,
-}
-
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(ScatterContainer)
+export default ScatterContainer

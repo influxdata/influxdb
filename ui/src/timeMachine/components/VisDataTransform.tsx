@@ -9,6 +9,7 @@ import {
   getXColumnSelection,
   getYColumnSelection,
   getFillColumnsSelection,
+  getSymbolColumnsSelection,
 } from 'src/timeMachine/selectors'
 
 // Types
@@ -19,6 +20,7 @@ interface StateProps {
   xColumn: string
   yColumn: string
   fillColumns: string[]
+  symbolColumns: string[]
 }
 
 interface OwnProps {
@@ -27,6 +29,7 @@ interface OwnProps {
     xColumn: string
     yColumn: string
     fillColumns: string[]
+    symbolColumns: string[]
   }) => JSX.Element
 }
 
@@ -37,22 +40,25 @@ const VisDataTransform: FunctionComponent<Props> = ({
   xColumn,
   yColumn,
   fillColumns,
+  symbolColumns,
   children,
 }) => {
-  return children({table, xColumn, yColumn, fillColumns})
+  return children({table, xColumn, yColumn, fillColumns, symbolColumns})
 }
 
-const mstp = (state: AppState) => {
-  const table = getVisTable(state)
+const mstp = (state: AppState): StateProps => {
+  const {table} = getVisTable(state)
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const fillColumns = getFillColumnsSelection(state)
+  const symbolColumns = getSymbolColumnsSelection(state)
 
   return {
     table,
     xColumn,
     yColumn,
     fillColumns,
+    symbolColumns,
   }
 }
 
