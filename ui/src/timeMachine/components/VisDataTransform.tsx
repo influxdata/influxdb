@@ -21,16 +21,11 @@ interface StateProps {
   yColumn: string
   fillColumns: string[]
   symbolColumns: string[]
+  fluxGroupKeyUnion: string[]
 }
 
 interface OwnProps {
-  children: (props: {
-    table: Table
-    xColumn: string
-    yColumn: string
-    fillColumns: string[]
-    symbolColumns: string[]
-  }) => JSX.Element
+  children: (props: StateProps) => JSX.Element
 }
 
 type Props = StateProps & OwnProps
@@ -42,12 +37,20 @@ const VisDataTransform: FunctionComponent<Props> = ({
   fillColumns,
   symbolColumns,
   children,
+  fluxGroupKeyUnion,
 }) => {
-  return children({table, xColumn, yColumn, fillColumns, symbolColumns})
+  return children({
+    table,
+    xColumn,
+    yColumn,
+    fillColumns,
+    symbolColumns,
+    fluxGroupKeyUnion,
+  })
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {table} = getVisTable(state)
+  const {table, fluxGroupKeyUnion} = getVisTable(state)
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const fillColumns = getFillColumnsSelection(state)
@@ -59,6 +62,7 @@ const mstp = (state: AppState): StateProps => {
     yColumn,
     fillColumns,
     symbolColumns,
+    fluxGroupKeyUnion,
   }
 }
 

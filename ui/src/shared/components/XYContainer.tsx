@@ -1,14 +1,10 @@
 // Libraries
-import React, {FunctionComponent, useMemo, useEffect} from 'react'
-import {connect} from 'react-redux'
-import {Config, fromFlux} from '@influxdata/vis'
+import React, {FunctionComponent, useMemo} from 'react'
+import {Config, Table} from '@influxdata/vis'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
-
-// Actions
-import {setXColumn, setYColumn} from 'src/timeMachine/actions'
 
 // Utils
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
@@ -17,8 +13,6 @@ import {
   geomToInterpolation,
   filterNoisyColumns,
   parseBounds,
-  chooseXColumn,
-  chooseYColumn,
 } from 'src/shared/utils/vis'
 
 // Constants
@@ -29,22 +23,17 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 // Types
 import {RemoteDataState, XYView} from 'src/types'
 
-interface DispatchProps {
-  onSetXColumn: typeof setXColumn
-  onSetYColumn: typeof setYColumn
-}
-
-interface OwnProps {
-  files: string[]
+interface Props {
+  table: Table
+  fluxGroupKeyUnion: string[]
   loading: RemoteDataState
   viewProperties: XYView
   children: (config: Config) => JSX.Element
 }
 
-type Props = OwnProps & DispatchProps
-
 const XYContainer: FunctionComponent<Props> = ({
-  files,
+  table,
+  fluxGroupKeyUnion,
   loading,
   children,
   viewProperties: {
@@ -63,25 +52,7 @@ const XYContainer: FunctionComponent<Props> = ({
       },
     },
   },
-  onSetXColumn,
-  onSetYColumn,
 }) => {
-  const {table, fluxGroupKeyUnion} = useMemo(
-    () => fromFlux(files.join('\n\n')),
-    [files]
-  )
-
-  useEffect(() => {
-    if (!xColumn) {
-      xColumn = chooseXColumn(table)
-      onSetXColumn(xColumn)
-    }
-    if (!yColumn) {
-      yColumn = chooseYColumn(table)
-      onSetYColumn(yColumn)
-    }
-  })
-
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
 
@@ -96,7 +67,14 @@ const XYContainer: FunctionComponent<Props> = ({
     storedYDomain,
     columnKeys.includes(yColumn) ? table.getColumn(yColumn, 'number') : []
   )
-  if (!xColumn || !yColumn) {
+
+  const isValidView =
+    xColumn &&
+    columnKeys.includes(xColumn) &&
+    yColumn &&
+    columnKeys.includes(yColumn)
+
+  if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
@@ -154,12 +132,4 @@ const XYContainer: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp = {
-  onSetXColumn: setXColumn,
-  onSetYColumn: setYColumn,
-}
-
-export default connect<{}, DispatchProps, {}>(
-  null,
-  mdtp
-)(XYContainer)
+export default XYContainer

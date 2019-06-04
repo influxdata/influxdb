@@ -229,5 +229,27 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
     }
   }
 
+  if (saveableView.properties.type === ViewType.XY) {
+    saveableView = {
+      ...saveableView,
+      properties: {
+        ...saveableView.properties,
+        xColumn: getXColumnSelection(state),
+        yColumn: getYColumnSelection(state),
+      },
+    }
+  }
+
+  if (saveableView.properties.type === ViewType.LinePlusSingleStat) {
+    saveableView = {
+      ...saveableView,
+      properties: {
+        ...saveableView.properties,
+        xColumn: getXColumnSelection(state),
+        yColumn: getYColumnSelection(state),
+      },
+    }
+  }
+
   return saveableView
 }
