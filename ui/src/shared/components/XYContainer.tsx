@@ -13,6 +13,8 @@ import {
   geomToInterpolation,
   filterNoisyColumns,
   parseBounds,
+  chooseXColumn,
+  chooseYColumn,
 } from 'src/shared/utils/vis'
 
 // Constants
@@ -39,8 +41,8 @@ const XYContainer: FunctionComponent<Props> = ({
   viewProperties: {
     geom,
     colors,
-    xColumn,
-    yColumn,
+    xColumn: storedXColumn,
+    yColumn: storedYColumn,
     axes: {
       x: {label: xAxisLabel, bounds: xBounds},
       y: {
@@ -55,6 +57,9 @@ const XYContainer: FunctionComponent<Props> = ({
 }) => {
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
+
+  const xColumn = storedXColumn || chooseXColumn(table)
+  const yColumn = storedYColumn || chooseYColumn(table)
 
   const columnKeys = table.columnKeys
 
