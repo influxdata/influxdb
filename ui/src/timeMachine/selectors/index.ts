@@ -135,7 +135,7 @@ export const getYColumnSelection = (state: AppState): string => {
   )
 }
 
-const getColumnSelection = (
+const getGroupableColumnSelection = (
   validColumns: string[],
   preference: string[],
   fluxGroupKeyUnion: string[]
@@ -147,9 +147,11 @@ const getColumnSelection = (
   return fluxGroupKeyUnion
 }
 
-const getFillColumnsSelectionMemoized = memoizeOne(getColumnSelection)
+const getFillColumnsSelectionMemoized = memoizeOne(getGroupableColumnSelection)
 
-const getSymbolColumnsSelectionMemoized = memoizeOne(getColumnSelection)
+const getSymbolColumnsSelectionMemoized = memoizeOne(
+  getGroupableColumnSelection
+)
 
 export const getFillColumnsSelection = (state: AppState): string[] => {
   const validFillColumns = getGroupableColumns(state)
