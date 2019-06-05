@@ -230,10 +230,6 @@ func (ts tables) Do(f func(flux.Table) error) error {
 
 func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
 
-type noopRunCanceler struct{}
-
-func (noopRunCanceler) CancelRun(ctx context.Context, taskID, runID platform.ID) error { return nil }
-
 type system struct {
 	name string
 	svc  *fakeQueryService

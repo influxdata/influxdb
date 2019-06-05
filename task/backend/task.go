@@ -44,19 +44,6 @@ const (
 	DefaultTaskStatus TaskStatus = TaskActive
 )
 
-// validate returns an error if s is not a known task status.
-func (s TaskStatus) validate(allowEmpty bool) error {
-	if allowEmpty && s == "" {
-		return nil
-	}
-
-	if s == TaskActive || s == TaskInactive {
-		return nil
-	}
-
-	return fmt.Errorf("invalid task status: %q", s)
-}
-
 type RunStatus int
 
 const (
