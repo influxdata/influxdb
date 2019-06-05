@@ -70,6 +70,8 @@ func (t *table) isCancelled() bool {
 // is not used anymore, then it may be reused.
 func (t *table) getBuffer(l int) *colReader {
 	if t.colBufs != nil && atomic.LoadInt64(&t.colBufs.refCount) == 0 {
+		t.colBufs.refCount = 1
+		t.colBufs.l = l
 		return t.colBufs
 	}
 
