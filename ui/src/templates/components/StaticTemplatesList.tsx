@@ -1,12 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import memoizeOne from 'memoize-one'
+// import _ from 'lodash'
 
 // Components
 import {ResourceList} from 'src/clockface'
 import EmptyTemplatesList from 'src/templates/components/EmptyTemplatesList'
-import TemplateCard from 'src/templates/components/TemplateCard'
+import StaticTemplateCard from 'src/templates/components/StaticTemplateCard'
 
 // Types
 import {TemplateSummary} from '@influxdata/influx'
@@ -19,7 +19,7 @@ import {getSortedResources} from 'src/shared/utils/sort'
 type SortKey = 'meta.name'
 
 interface Props {
-  templates: TemplateSummary[]
+  templates: {name: string; template: TemplateSummary}[]
   searchTerm: string
   onFilterChange: (searchTerm: string) => void
   onImport: () => void
@@ -30,7 +30,7 @@ interface Props {
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
-export default class TemplatesList extends PureComponent<Props> {
+export default class StaticTemplatesList extends PureComponent<Props> {
   private memGetSortedResources = memoizeOne<typeof getSortedResources>(
     getSortedResources
   )
@@ -48,7 +48,7 @@ export default class TemplatesList extends PureComponent<Props> {
 
     return (
       <>
-        {this.header}
+        <h1>Static Templates</h1>
         <ResourceList>
           <ResourceList.Header>
             <ResourceList.Sorter
@@ -70,16 +70,6 @@ export default class TemplatesList extends PureComponent<Props> {
     )
   }
 
-  private get header(): JSX.Element {
-    const {title} = this.props
-
-    if (title) {
-      return <h1>{title}</h1>
-    } else {
-      return null
-    }
-  }
-
   private get rows(): JSX.Element[] {
     const {
       templates,
@@ -91,15 +81,16 @@ export default class TemplatesList extends PureComponent<Props> {
 
     const sortedTemplates = this.memGetSortedResources(
       templates,
-      sortKey,
+      `template.${sortKey}`,
       sortDirection,
       sortType
     )
 
     return sortedTemplates.map(t => (
-      <TemplateCard
-        key={`template-id--${t.id}`}
-        template={t}
+      <StaticTemplateCard
+        key={`template-id--static-${t.name}`}
+        name={t.name}
+        template={t.template}
         onFilterChange={onFilterChange}
       />
     ))

@@ -73,6 +73,7 @@ import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverla
 import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
+import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -262,6 +263,10 @@ class Root extends PureComponent {
                             <Route
                               path=":id/view"
                               component={TemplateViewOverlay}
+                            />
+                            <Route
+                              path=":id/static/view"
+                              component={StaticTemplateViewOverlay}
                             />
                           </Route>
                           <Route path="variables" component={VariablesIndex}>
