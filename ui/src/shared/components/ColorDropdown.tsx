@@ -43,6 +43,7 @@ const ColorDropdown: SFC<Props> = props => {
       status={status}
       widthPixels={width}
       menuColor={DropdownMenuColors.Onyx}
+      buttonTestID="dropdown--color"
     >
       {colors.map(color => (
         <Dropdown.Item id={color.name} key={color.name} value={color}>

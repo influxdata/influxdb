@@ -1,4 +1,5 @@
 import {Organization} from '@influxdata/influx'
+
 // Covers creating cells and managing view options
 describe('cells veo', () => {
   let nowNano = new Date().getTime() * 1000000
@@ -241,6 +242,8 @@ describe('cells veo', () => {
 
             cy.getByTestID('save-cell--button').click()
 
+            cy.wait(500) //update of cell can take a short moment
+
             cy.get('.vis-layer.line').then(jqCanvas1 => {
               sumFinal = canvasCheckSum(jqCanvas1.get(0) as HTMLCanvasElement)
               expect(sumInit).not.equals(sumFinal)
@@ -251,17 +254,138 @@ describe('cells veo', () => {
     })
   })
 
-  describe.skip('Graph with single stat Visualiztaion', () => {
+  describe('Graph with single stat Visualization', () => {
     it('can switch view to graph with stat', () => {
+      let sumGraphInit: number = 0
+      let sumGraphFinal: number = 0
+      let sumAxesInit: number = 0
+      let sumAxesFinal: number = 0
+
+      cy.wait(500) //do not abort load in beforeEach - leads to undefined objects
       cy.get<Organization>('@org').then(({id}) => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${id}/dashboards/${dbId}?lower=now%28%29%20-%206h`)
+          cy.get('.vis-layer.line').then(jqcanvas => {
+            sumGraphInit = canvasCheckSum(jqcanvas.get(0) as HTMLCanvasElement)
+            expect(jqcanvas).to.be.visible
+            cy.get('.vis-axes').then(jqaxcanv => {
+              sumAxesInit = canvasCheckSum(jqaxcanv.get(0) as HTMLCanvasElement)
+              expect(jqaxcanv).to.be.visible
+            })
+          })
+
+          //check initial state
+          cy.getByTestID('text--single-stat').should('not.exist')
+
           cy.getByTestID('context-menu')
             .eq(0)
             .click()
           cy.getByTestID('context-menu-item')
             .eq(0)
             .click()
+          cy.getByTestID('button--vis-opts').click()
+          cy.contains('Graph').click()
+          cy.contains('Graph + Single Stat').click()
+
+          //check base default value
+          cy.getByTestID('text--single-stat').should('contain', '6.88')
+          cy.getByTestID('text--single-stat').should(
+            'have.css',
+            'fill',
+            'rgb(0, 201, 255)'
+          )
+
+          //check prefix
+          cy.getByTestID('input--prefix').type('перед')
+          cy.getByTestID('text--single-stat').should('contain', 'перед6.88')
+          cy.getByTestID('input--prefix').clear()
+          cy.getByTestID('text--single-stat').should('contain', '6.88')
+
+          //check suffix
+          cy.getByTestID('input--suffix').type('после')
+          cy.getByTestID('text--single-stat').should('contain', '6.88после')
+          cy.getByTestID('input--suffix').clear()
+          cy.getByTestID('text--single-stat').should('contain', '6.88')
+
+          //check decimal places
+          cy.getByTestID('input-text--decimal').clear()
+          cy.getByTestID('input-text--decimal').type('5{enter}')
+          cy.getByTestID('text--single-stat').should('contain', '6.88482')
+          cy.getByTestID('radio-default').click()
+          cy.getByTestID('text--single-stat').should('contain', '6.88')
+          cy.getByTestID('radio-custom').click()
+          cy.getByTestID('text--single-stat').should('contain', '6.88')
+          cy.getByTestID('input-text--decimal').should('have.value', '')
+          //check max 10 constraint
+          cy.getByTestID('input-text--decimal').type('15{enter}')
+          cy.getByTestID('input-text--decimal').should('have.value', '10')
+          cy.getByTestID('text--single-stat').should('contain', '6.8848196084')
+          cy.getByTestID('input-text--decimal').clear()
+          cy.getByTestID('input-text--decimal').type('3{enter}') //check in DBrd after save
+
+          //change base color
+          cy.getByTestID('dropdown--color').click()
+          cy.getByTestID('dropdown--color').click() //todo remove after fix of issue 14056
+          cy.getByTestID('dropdown--item comet').click()
+          cy.getByTestID('text--single-stat').should(
+            'have.css',
+            'fill',
+            'rgb(147, 148, 255)'
+          )
+
+          //extra threshold --
+          cy.getByTestID('button-add-threshold').click()
+          cy.getByTestID('input-text--threshold')
+            .invoke('val')
+            .then(val => {
+              expect(val).is.greaterThan(0)
+              expect(val).is.lessThan(100)
+            })
+          cy.getByTestID('input-text--threshold').clear()
+          cy.getByTestID('input-text--threshold').type('5.0')
+          cy.getByTestID('input-text--threshold').blur()
+          //cy.getByTestID('input-text--threshold').type('{enter}')
+
+          cy.getByTestID('dropdown--color')
+            .eq(1)
+            .click()
+          cy.getByTestID('dropdown--item tiger').click()
+          cy.getByTestID('text--single-stat').should(
+            'have.css',
+            'fill',
+            'rgb(244, 141, 56)'
+          )
+
+          cy.getByTestID('input--prefix').type('α-')
+          cy.getByTestID('input--suffix').type('-ω')
+
+          //todo finish threshold input once issue 14057 is resolved
+          /*
+          cy.getByTestID('input-text--threshold').clear()
+          cy.getByTestID('input-text--threshold').type('20.1{enter}')
+          cy.getByTestID('text--single-stat').should('have.css', 'fill', 'rgb(147, 148, 255)')
+          */
+
+          //Now check in Dashboard
+          cy.getByTestID('save-cell--button').click()
+          cy.getByTestID('text--single-stat').should('contain', 'α-6.885-ω')
+          cy.getByTestID('text--single-stat').should(
+            'have.css',
+            'fill',
+            'rgb(244, 141, 56)'
+          )
+          cy.get('.vis-layer.line').then(jqcanvas => {
+            sumGraphFinal = canvasCheckSum(jqcanvas.get(0) as HTMLCanvasElement)
+            expect(jqcanvas).to.be.visible
+            expect(sumGraphInit).equals(sumGraphFinal) //nothing concerning the graph should have changed
+            cy.get('.vis-axes').then(jqaxcanv => {
+              sumAxesFinal = canvasCheckSum(jqaxcanv.get(
+                0
+              ) as HTMLCanvasElement)
+              expect(jqaxcanv).to.be.visible
+              expect(sumAxesInit).equals(sumAxesFinal) //nothing concerning axes should have changed
+            })
+          })
         })
       })
     })

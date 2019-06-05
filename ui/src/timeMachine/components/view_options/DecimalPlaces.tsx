@@ -36,6 +36,7 @@ class DecimalPlacesOption extends PureComponent<Props> {
             value={this.value}
             min={MIN_DECIMAL_PLACES}
             max={MAX_DECIMAL_PLACES}
+            inputTestID="input-text--decimal"
           />
         </Form.Element>
       </Grid.Column>

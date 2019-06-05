@@ -40,6 +40,7 @@ const SingleStat: SFC<Props> = ({stat, properties}) => {
             dominantBaseline="middle"
             textAnchor="middle"
             style={{fill: textColor}}
+            data-testid="text--single-stat"
           >
             {formattedValue}
           </text>

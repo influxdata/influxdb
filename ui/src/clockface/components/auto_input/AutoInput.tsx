@@ -22,6 +22,7 @@ interface Props {
   value?: number
   min?: number
   max?: number
+  inputTestID?: string
 }
 
 interface State {
@@ -56,6 +57,7 @@ export default class AutoInput extends Component<Props, State> {
               titleText="Decide for me"
               value={Mode.Auto}
               onClick={this.handleRadioClick}
+              testID="radio-default"
             >
               Auto
             </Radio.Button>
@@ -65,6 +67,7 @@ export default class AutoInput extends Component<Props, State> {
               titleText="I want to specify my own value"
               value={Mode.Custom}
               onClick={this.handleRadioClick}
+              testID="radio-custom"
             >
               Custom
             </Radio.Button>
@@ -78,6 +81,7 @@ export default class AutoInput extends Component<Props, State> {
   private get input(): JSX.Element {
     const {inputMode, inputValue} = this.state
     const {inputPlaceholder} = this.props
+    const {inputTestID} = this.props
 
     if (inputMode === Mode.Custom) {
       return (
@@ -89,6 +93,7 @@ export default class AutoInput extends Component<Props, State> {
             onKeyPress={this.handleInputKeyPress}
             onBlur={this.emitValue}
             autoFocus={true}
+            testID={inputTestID || "autoinput-text"}
           />
         </div>
       )

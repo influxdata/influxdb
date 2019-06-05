@@ -43,6 +43,7 @@ class ThresholdList extends PureComponent<Props> {
               icon={IconFont.Plus}
               type={ButtonType.Button}
               text="Add a Threshold"
+              testID="button-add-threshold"
             />
             {this.sortedColorConfigs.map<JSX.Element>(colorConfig => {
               const {

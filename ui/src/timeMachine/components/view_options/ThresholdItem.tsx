@@ -71,6 +71,7 @@ class Threshold extends PureComponent<Props, State> {
             onBlur={this.handleBlur}
             onKeyUp={this.handleKeyUp}
             status={this.inputStatus}
+            testID="input-text--threshold"
           />
         )}
         <ColorDropdown
@@ -80,6 +81,7 @@ class Threshold extends PureComponent<Props, State> {
           disabled={disableColor}
           stretchToFit={isBase}
           widthPixels={this.dropdownWidthPixels}
+
         />
         {isDeletable && !isBase && (
           <SquareButton
@@ -87,6 +89,7 @@ class Threshold extends PureComponent<Props, State> {
             onClick={this.handleDelete}
             icon={IconFont.Remove}
             type={ButtonType.Button}
+            testID="button--remove-threshold-item"
           />
         )}
       </div>
