@@ -769,7 +769,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		expLine1 := &influxdb.Log{Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
+		expLine1 := &influxdb.Log{RunID: rc1.Created.RunID, Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
 		exp := []*influxdb.Log{expLine1}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)
@@ -788,7 +788,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expLine2 := &influxdb.Log{Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
+		expLine2 := &influxdb.Log{RunID: rc2.Created.RunID, Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
 		exp = []*influxdb.Log{expLine1, expLine2}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)

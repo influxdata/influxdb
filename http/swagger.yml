@@ -5945,6 +5945,8 @@ components:
           items:
             type: object
             properties:
+              runID:
+                type: string
               time:
                 type: string
               message:
