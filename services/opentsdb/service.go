@@ -403,7 +403,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		case 10:
 			t = time.Unix(ts, 0)
 		case 13:
-			t = time.Unix(ts/1000, (ts%1000)*1000)
+			t = time.Unix(ts/1000, (ts%1000)*1000000)
 		default:
 			atomic.AddInt64(&s.stats.TelnetBadTime, 1)
 			if s.LogPointErrors {

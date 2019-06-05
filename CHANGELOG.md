@@ -9,6 +9,7 @@ v1.7.7 [unreleased]
 -	[#13837](https://github.com/influxdata/influxdb/pull/13837): Fix open/close race in SeriesFile.
 -	[#13860](https://github.com/influxdata/influxdb/pull/13860): Sync series segment after truncate.
 -	[#13854](https://github.com/influxdata/influxdb/pull/13854): Fix the ordering for selectors within a subquery with different outer tags.
+-	[#14063](https://github.com/influxdata/influxdb/pull/14063): Fix writing millisecond timestamps through OpenTSDB telnet protocol
 
 v1.7.6 [2019-04-16]
 -------------------
