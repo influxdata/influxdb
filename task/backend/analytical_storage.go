@@ -3,17 +3,42 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
+)
+
+const (
+	runIDField        = "runID"
+	scheduledForField = "scheduledFor"
+	startedAtField    = "startedAt"
+	finishedAtField   = "finishedAt"
+	requestedAtField  = "requestedAt"
+	statusField       = "status"
+	logField          = "logs"
+
+	taskIDTag = "taskID"
+
+	// Fixed system bucket ID for task and run logs.
+	taskSystemBucketID platform.ID = 10
+)
+
+var (
+	// ErrTaskNotFound indicates no task could be found for given parameters.
+	ErrTaskNotFound = errors.New("task not found")
+
+	// ErrRunNotFound is returned when searching for a single run that doesn't exist.
+	ErrRunNotFound = errors.New("run not found")
 )
 
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware

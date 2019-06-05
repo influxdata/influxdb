@@ -18,9 +18,9 @@ import (
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/executor"
 	"go.uber.org/zap"
@@ -241,39 +241,45 @@ type system struct {
 	ex   backend.Executor
 	// We really just want an authorization service here, but we take a whole inmem service
 	// to ensure that the authorization service validates org and user existence properly.
-	i *inmem.Service
+	i *kv.Service
 }
 
 type createSysFn func() *system
 
 func createAsyncSystem() *system {
 	svc := newFakeQueryService()
-	i := inmem.NewService()
-	ts := task.PlatformAdapter(backend.NewInMemStore(), backend.NopLogReader{}, noopRunCanceler{}, i, i, i)
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		panic(err)
+	}
+
 	return &system{
 		name: "AsyncExecutor",
 		svc:  svc,
-		ts:   ts,
-		ex:   executor.NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, ts),
+		ts:   i,
+		ex:   executor.NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
 		i:    i,
 	}
 }
 
 func createSyncSystem() *system {
 	svc := newFakeQueryService()
-	i := inmem.NewService()
-	ts := task.PlatformAdapter(backend.NewInMemStore(), backend.NopLogReader{}, noopRunCanceler{}, i, i, i)
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		panic(err)
+	}
+
 	return &system{
 		name: "SynchronousExecutor",
 		svc:  svc,
-		ts:   ts,
+		ts:   i,
 		ex: executor.NewQueryServiceExecutor(
 			zap.NewNop(),
 			query.QueryServiceBridge{
 				AsyncQueryService: svc,
 			},
 			i,
-			ts,
+			i,
 		),
 		i: i,
 	}
@@ -660,7 +666,7 @@ type testCreds struct {
 	Auth          *platform.Authorization
 }
 
-func createCreds(t *testing.T, i *inmem.Service) testCreds {
+func createCreds(t *testing.T, i *kv.Service) testCreds {
 	t.Helper()
 
 	org := &platform.Organization{Name: t.Name() + "-org"}
