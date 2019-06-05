@@ -7,6 +7,7 @@ import {connect} from 'react-redux'
 import FilterList from 'src/shared/components/Filter'
 import TemplatesHeader from 'src/templates/components/TemplatesHeader'
 import TemplatesList from 'src/templates/components/TemplatesList'
+import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
@@ -15,6 +16,18 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import {TemplateSummary, AppState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {Sort} from '@influxdata/clockface'
+
+import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
+
+interface StaticTemplate {
+  name: string
+  template: TemplateSummary
+}
+
+const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
+  name,
+  template,
+}))
 
 interface OwnProps {
   onImport: () => void
@@ -60,14 +73,15 @@ class TemplatesPage extends PureComponent<Props, State> {
           isFullPage={false}
           filterComponent={() => this.filterComponent}
         />
-        <GetResources resource={ResourceTypes.Labels}>
-          <FilterList<TemplateSummary>
-            searchTerm={searchTerm}
-            searchKeys={['meta.name', 'labels[].name']}
-            list={templates}
-          >
-            {ts => (
-              <TemplatesList
+        <FilterList<StaticTemplate>
+          searchTerm={searchTerm}
+          searchKeys={['template.meta.name', 'labels[].name']}
+          list={staticTemplates}
+        >
+          {ts => {
+            return (
+              <StaticTemplatesList
+                title="Static Templates"
                 searchTerm={searchTerm}
                 templates={ts}
                 onFilterChange={this.setSearchTerm}
@@ -77,7 +91,30 @@ class TemplatesPage extends PureComponent<Props, State> {
                 sortType={sortType}
                 onClickColumn={this.handleClickColumn}
               />
-            )}
+            )
+          }}
+        </FilterList>
+        <GetResources resource={ResourceTypes.Labels}>
+          <FilterList<TemplateSummary>
+            searchTerm={searchTerm}
+            searchKeys={['meta.name', 'labels[].name']}
+            list={templates}
+          >
+            {ts => {
+              return (
+                <TemplatesList
+                  title="User Templates"
+                  searchTerm={searchTerm}
+                  templates={ts}
+                  onFilterChange={this.setSearchTerm}
+                  onImport={onImport}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  sortType={sortType}
+                  onClickColumn={this.handleClickColumn}
+                />
+              )
+            }}
           </FilterList>
         </GetResources>
       </>
