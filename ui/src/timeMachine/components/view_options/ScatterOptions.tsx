@@ -26,6 +26,8 @@ import {
   setAxisSuffix,
   setColorHexes,
   setYDomain,
+  setXColumn,
+  setYColumn,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -33,6 +35,9 @@ import {
   getGroupableColumns,
   getFillColumnsSelection,
   getSymbolColumnsSelection,
+  getXColumnSelection,
+  getYColumnSelection,
+  getNumericColumns,
 } from 'src/timeMachine/selectors'
 
 // Types
@@ -40,6 +45,8 @@ import {ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
+import ColumnSelector from 'src/shared/components/ColumnSelector'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 const COLOR_SCHEMES = [
   {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
@@ -55,6 +62,9 @@ interface StateProps {
   fillColumns: string[]
   symbolColumns: string[]
   availableGroupColumns: string[]
+  xColumn: string
+  yColumn: string
+  numericColumns: string[]
 }
 
 interface DispatchProps {
@@ -66,6 +76,8 @@ interface DispatchProps {
   onUpdateAxisSuffix: typeof setAxisSuffix
   onUpdateAxisPrefix: typeof setAxisPrefix
   onSetYDomain: typeof setYDomain
+  onSetXColumn: typeof setXColumn
+  onSetYColumn: typeof setYColumn
 }
 
 interface OwnProps {
@@ -106,6 +118,11 @@ const ScatterOptions: SFC<Props> = props => {
     onUpdateAxisPrefix,
     yDomain,
     onSetYDomain,
+    xColumn,
+    yColumn,
+    numericColumns,
+    onSetXColumn,
+    onSetYColumn,
   } = props
 
   const groupDropdownStatus = availableGroupColumns.length
@@ -151,6 +168,20 @@ const ScatterOptions: SFC<Props> = props => {
           ))}
         </MultiSelectDropdown>
       </Form.Element>
+      <CloudExclude>
+        <ColumnSelector
+          selectedColumn={xColumn}
+          onSelectColumn={onSetXColumn}
+          availableColumns={numericColumns}
+          axisName="x"
+        />
+        <ColumnSelector
+          selectedColumn={yColumn}
+          onSelectColumn={onSetYColumn}
+          availableColumns={numericColumns}
+          axisName="y"
+        />
+      </CloudExclude>
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <HexColorSchemeDropdown
@@ -195,8 +226,18 @@ const mstp = (state: AppState): StateProps => {
   const availableGroupColumns = getGroupableColumns(state)
   const fillColumns = getFillColumnsSelection(state)
   const symbolColumns = getSymbolColumnsSelection(state)
+  const xColumn = getXColumnSelection(state)
+  const yColumn = getYColumnSelection(state)
+  const numericColumns = getNumericColumns(state)
 
-  return {availableGroupColumns, fillColumns, symbolColumns}
+  return {
+    availableGroupColumns,
+    fillColumns,
+    symbolColumns,
+    xColumn,
+    yColumn,
+    numericColumns,
+  }
 }
 
 const mdtp = {
@@ -208,6 +249,8 @@ const mdtp = {
   onUpdateAxisPrefix: setAxisPrefix,
   onUpdateAxisSuffix: setAxisSuffix,
   onSetYDomain: setYDomain,
+  onSetXColumn: setXColumn,
+  onSetYColumn: setYColumn,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

@@ -46,8 +46,10 @@ const HistogramContainer: FunctionComponent<Props> = ({
     columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
   )
 
-  const isValidView = xColumn && columnKeys.includes(xColumn)
-  fillColumns.every(col => columnKeys.includes(col))
+  const isValidView =
+    xColumn &&
+    columnKeys.includes(xColumn) &&
+    fillColumns.every(col => columnKeys.includes(col))
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />

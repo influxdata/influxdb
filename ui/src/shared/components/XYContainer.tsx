@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useMemo} from 'react'
-import {Config, fromFlux} from '@influxdata/vis'
+import {Config, Table} from '@influxdata/vis'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -26,19 +26,23 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 import {RemoteDataState, XYView} from 'src/types'
 
 interface Props {
-  files: string[]
+  table: Table
+  fluxGroupKeyUnion: string[]
   loading: RemoteDataState
   viewProperties: XYView
   children: (config: Config) => JSX.Element
 }
 
 const XYContainer: FunctionComponent<Props> = ({
-  files,
+  table,
+  fluxGroupKeyUnion,
   loading,
   children,
   viewProperties: {
     geom,
     colors,
+    xColumn: storedXColumn,
+    yColumn: storedYColumn,
     axes: {
       x: {label: xAxisLabel, bounds: xBounds},
       y: {
@@ -51,17 +55,11 @@ const XYContainer: FunctionComponent<Props> = ({
     },
   },
 }) => {
-  const {table, fluxGroupKeyUnion} = useMemo(
-    () => fromFlux(files.join('\n\n')),
-    [files]
-  )
-
-  // Eventually these will be configurable in the line graph options UI
-  const xColumn = chooseXColumn(table)
-  const yColumn = chooseYColumn(table)
-
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
+
+  const xColumn = storedXColumn || chooseXColumn(table)
+  const yColumn = storedYColumn || chooseYColumn(table)
 
   const columnKeys = table.columnKeys
 
@@ -74,7 +72,14 @@ const XYContainer: FunctionComponent<Props> = ({
     storedYDomain,
     columnKeys.includes(yColumn) ? table.getColumn(yColumn, 'number') : []
   )
-  if (!xColumn || !yColumn) {
+
+  const isValidView =
+    xColumn &&
+    columnKeys.includes(xColumn) &&
+    yColumn &&
+    columnKeys.includes(yColumn)
+
+  if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 

@@ -591,6 +591,8 @@ type LinePlusSingleStatProperties struct {
 	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+	XColumn           string           `json:"xColumn"`
+	YColumn           string           `json:"yColumn"`
 }
 
 // XYViewProperties represents options for line, bar, step, or stacked view in Chronograf
@@ -603,6 +605,8 @@ type XYViewProperties struct {
 	ViewColors        []ViewColor      `json:"colors"`
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+	XColumn           string           `json:"xColumn"`
+	YColumn           string           `json:"yColumn"`
 }
 
 // SingleStatViewProperties represents options for single stat view in Chronograf

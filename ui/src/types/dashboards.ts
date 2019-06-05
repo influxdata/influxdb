@@ -173,6 +173,8 @@ export interface XYView {
   queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
+  xColumn: string
+  yColumn: string
   colors: Color[]
   legend: Legend
   note: string
@@ -188,6 +190,8 @@ export interface LinePlusSingleStatView {
   legend: Legend
   prefix: string
   suffix: string
+  xColumn: string
+  yColumn: string
   decimalPlaces: DecimalPlaces
   note: string
   showNoteWhenEmpty: boolean

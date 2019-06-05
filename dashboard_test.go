@@ -47,7 +47,9 @@ func TestView_MarshalJSON(t *testing.T) {
     "legend": {},
 	"geom": "",
     "note": "",
-    "showNoteWhenEmpty": false
+		"showNoteWhenEmpty": false,
+		"xColumn": "",
+		"yColumn": ""
   }
 }
 `,
