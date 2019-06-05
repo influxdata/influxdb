@@ -9,8 +9,10 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
-	"github.com/influxdata/influxdb/task/servicetest"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/servicetest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestTaskService(t *testing.T) {
@@ -28,12 +30,16 @@ func TestTaskService(t *testing.T) {
 
 			h := http.NewAuthenticationHandler()
 			h.AuthorizationService = service
-			th := http.NewTaskHandler(http.NewMockTaskBackend(t))
-			th.TaskService = service
-			th.AuthorizationService = service
-			th.OrganizationService = service
-			th.UserService = service
-			th.UserResourceMappingService = service
+			th := http.NewTaskHandler(&http.TaskBackend{
+				Logger:                     zaptest.NewLogger(t).With(zap.String("handler", "task")),
+				TaskService:                service,
+				AuthorizationService:       service,
+				OrganizationService:        service,
+				UserResourceMappingService: service,
+				LabelService:               service,
+				UserService:                service,
+				BucketService:              service,
+			})
 			h.Handler = th
 
 			org := &platform.Organization{Name: t.Name() + "_org"}
