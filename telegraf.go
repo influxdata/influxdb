@@ -58,8 +58,14 @@ type TelegrafConfigFilter struct {
 	UserResourceMappingFilter
 }
 
+// TelegrafBucket is the bucket of the telgraf config.
+var (
+	TelegrafBucket = []byte("telegrafv1")
+)
+
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
+	Version     string
 	ID          ID
 	OrgID       ID
 	Name        string
@@ -135,6 +141,7 @@ func (tc TelegrafConfig) TOML() string {
 
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
+	Version     string `json:"version"`
 	ID          ID     `json:"id"`
 	OrgID       ID     `json:"orgID,omitempty"`
 	Name        string `json:"name"`
@@ -156,8 +163,9 @@ type telegrafPluginEncode struct {
 
 // telegrafConfigDecode is the helper struct for json decoding.
 type telegrafConfigDecode struct {
-	ID             ID     `json:"id"`
 	OrganizationID ID     `json:"organizationID,omitempty"`
+	Version        string `json:"version,omitempty"`
+	ID             ID     `json:"id"`
 	OrgID          ID     `json:"orgID,omitempty"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
@@ -200,6 +208,7 @@ const (
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 	tce := new(telegrafConfigEncode)
 	*tce = telegrafConfigEncode{
+		Version:     tc.Version,
 		ID:          tc.ID,
 		OrgID:       tc.OrgID,
 		Name:        tc.Name,
@@ -311,6 +320,7 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 		orgID = tcd.OrganizationID
 	}
 	*tc = TelegrafConfig{
+		Version:     tcd.Version,
 		ID:          tcd.ID,
 		OrgID:       orgID,
 		Name:        tcd.Name,

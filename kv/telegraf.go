@@ -67,10 +67,6 @@ func ErrUnprocessableTelegraf(err error) *influxdb.Error {
 	}
 }
 
-var (
-	telegrafBucket = []byte("telegrafv1")
-)
-
 var _ influxdb.TelegrafConfigStore = (*Service)(nil)
 
 func (s *Service) initializeTelegraf(ctx context.Context, tx Tx) error {
@@ -81,7 +77,7 @@ func (s *Service) initializeTelegraf(ctx context.Context, tx Tx) error {
 }
 
 func (s *Service) telegrafBucket(tx Tx) (Bucket, error) {
-	b, err := tx.Bucket(telegrafBucket)
+	b, err := tx.Bucket(influxdb.TelegrafBucket)
 	if err != nil {
 		return nil, UnavailableTelegrafServiceError(err)
 	}
