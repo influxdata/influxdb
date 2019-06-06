@@ -7775,6 +7775,10 @@ components:
             id:
               type: string
               readOnly: true
+            version:
+              type: string
+              readOnly: true
+              description: api schema version
             links:
               type: object
               readOnly: true

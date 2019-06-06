@@ -51,6 +51,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 					if filter.OrgID != nil && *filter.OrgID == platform.ID(2) {
 						return []*platform.TelegrafConfig{
 							{
+								Version:     "v1",
 								ID:          platform.ID(1),
 								OrgID:       platform.ID(2),
 								Name:        "tc1",
@@ -81,6 +82,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 								"owners": "/api/v2/telegrafs/0000000000000001/owners",
 								"self": "/api/v2/telegrafs/0000000000000001"
 							},
+						"version": "v1",
 						"id":"0000000000000001",
 						"orgID":"0000000000000002",
 						"name":"tc1",
@@ -110,6 +112,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 				FindTelegrafConfigsF: func(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
 					return []*platform.TelegrafConfig{
 						{
+							Version:     "v1",
 							ID:          platform.ID(1),
 							OrgID:       platform.ID(2),
 							Name:        "my config",
@@ -149,6 +152,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 								"owners": "/api/v2/telegrafs/0000000000000001/owners",
 								"self": "/api/v2/telegrafs/0000000000000001"
 							},
+			"version": "v1",								
             "id": "0000000000000001",
             "orgID": "0000000000000002",
             "name": "my config",
@@ -233,6 +237,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			svc: &mock.TelegrafConfigStore{
 				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
+						Version:     "v1",
 						ID:          platform.ID(1),
 						OrgID:       platform.ID(2),
 						Name:        "my config",
@@ -262,6 +267,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `{
+			"version": "v1",
             "id": "0000000000000001",
             "orgID": "0000000000000002",
             "name": "my config",
@@ -307,6 +313,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			svc: &mock.TelegrafConfigStore{
 				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
+						Version:     "v1",
 						ID:          platform.ID(1),
 						OrgID:       platform.ID(2),
 						Name:        "my config",
@@ -336,6 +343,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `{
+			"version": "v1",
             "id": "0000000000000001",
             "orgID": "0000000000000002",
             "name": "my config",
@@ -381,9 +389,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			svc: &mock.TelegrafConfigStore{
 				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:    platform.ID(1),
-						OrgID: platform.ID(2),
-						Name:  "my config",
+						Version: "v1",
+						ID:      platform.ID(1),
+						OrgID:   platform.ID(2),
+						Name:    "my config",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 10000,
 						},
@@ -496,9 +505,10 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			svc: &mock.TelegrafConfigStore{
 				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
 					return &platform.TelegrafConfig{
-						ID:    platform.ID(1),
-						OrgID: platform.ID(2),
-						Name:  "my config",
+						Version: "v1",
+						ID:      platform.ID(1),
+						OrgID:   platform.ID(2),
+						Name:    "my config",
 						Agent: platform.TelegrafAgentConfig{
 							Interval: 10000,
 						},
@@ -769,6 +779,7 @@ func Test_newTelegrafResponses(t *testing.T) {
 			args: args{
 				tcs: []*platform.TelegrafConfig{
 					{
+						Version:     "v1",
 						ID:          platform.ID(1),
 						OrgID:       platform.ID(2),
 						Name:        "my config",
@@ -804,7 +815,8 @@ func Test_newTelegrafResponses(t *testing.T) {
 			"members": "/api/v2/telegrafs/0000000000000001/members",
 			"owners": "/api/v2/telegrafs/0000000000000001/owners",
 	        "self": "/api/v2/telegrafs/0000000000000001"
-          },
+		  },
+		  "version":"v1",
           "id": "0000000000000001",
           "orgID": "0000000000000002",
           "name": "my config",
@@ -866,6 +878,7 @@ func Test_newTelegrafResponse(t *testing.T) {
 		{
 			args: args{
 				tc: &platform.TelegrafConfig{
+					Version:     "v1",
 					ID:          platform.ID(1),
 					OrgID:       platform.ID(2),
 					Name:        "my config",
@@ -891,6 +904,7 @@ func Test_newTelegrafResponse(t *testing.T) {
 				},
 			},
 			want: `{
+	  "version": "v1",					
       "id": "0000000000000001",
       "orgID": "0000000000000002",
       "name": "my config",

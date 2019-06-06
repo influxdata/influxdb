@@ -145,6 +145,7 @@ func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
 		Plugins     []telegrafPluginEncode       `json:"plugins"`
 		Labels      []platform.Label             `json:"labels"`
 		Links       telegrafLinks                `json:"links"`
+		Version     string                       `json:"version"`
 	}
 
 	tce := new(telegrafConfigEncode)
@@ -157,6 +158,7 @@ func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
 		Plugins:     make([]telegrafPluginEncode, len(r.Plugins)),
 		Labels:      r.Labels,
 		Links:       r.Links,
+		Version:     r.Version,
 	}
 
 	for k, p := range r.Plugins {
