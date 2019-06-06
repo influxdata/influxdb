@@ -18,9 +18,9 @@ import (
 )
 
 func TestPipeline_Write_Query_FieldKey(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx)
+	be := launcher.RunTestLauncherOrFail(ctx, t)
 	be.SetupOrFail(t)
-	defer be.ShutdownOrFail(t, ctx)
+	defer be.ShutdownOrFail(ctx, t)
 
 	resp, err := nethttp.DefaultClient.Do(
 		be.MustNewHTTPRequest(
@@ -64,9 +64,9 @@ mem,server=b value=45.2`))
 // and checks that the queried results contain the expected number of tables
 // and expected number of columns.
 func TestPipeline_WriteV2_Query(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx)
+	be := launcher.RunTestLauncherOrFail(ctx, t)
 	be.SetupOrFail(t)
-	defer be.ShutdownOrFail(t, ctx)
+	defer be.ShutdownOrFail(ctx, t)
 
 	// The default gateway instance inserts some values directly such that ID lookups seem to break,
 	// so go the roundabout way to insert things correctly.
@@ -105,9 +105,9 @@ func TestPipeline_WriteV2_Query(t *testing.T) {
 func TestPipeline_QueryMemoryLimits(t *testing.T) {
 	t.Skip("setting memory limits in the client is not implemented yet")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(ctx, t)
 	l.SetupOrFail(t)
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 
 	// write some points
 	for i := 0; i < 100; i++ {

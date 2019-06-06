@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/migrator"
+
 	"github.com/influxdata/flux/execute"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
@@ -186,6 +188,12 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: false,
 			Desc:    "disables automatically extending session ttl on request",
 		},
+		{
+			DestP:   &l.needDataMigration,
+			Flag:    "data-migration",
+			Default: false,
+			Desc:    "enable to update data to the newest schema",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -202,6 +210,7 @@ type Launcher struct {
 	testing              bool
 	sessionLength        int // in minutes
 	sessionRenewDisabled bool
+	needDataMigration    bool
 
 	logLevel          string
 	tracingType       string
@@ -455,6 +464,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc         platform.LabelService                    = m.kvService
 		secretSvc        platform.SecretService                   = m.kvService
 		lookupSvc        platform.LookupService                   = m.kvService
+		migratorSvc      platform.MigratorService                 = m.kvService
 	)
 
 	switch m.secretStore {
@@ -578,6 +588,40 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	if err != nil {
 		m.logger.Error("failed to create scraper subscriber", zap.Error(err))
 		return err
+	}
+
+	if m.needDataMigration {
+		mg := platform.NewMigrationManager(migratorSvc, 50000)
+		mg.Register(
+			migrator.TelegrafConfigMigrator{Included: true},
+		)
+		migratorErrCh := make(chan error)
+		migrationDone := make(chan struct{})
+		// dry run
+		dryrunOk := true
+		go mg.DryRun(ctx, migratorErrCh, migrationDone)
+	migrationDryRun:
+		for {
+			select {
+			case <-migrationDone:
+				break migrationDryRun
+			case err := <-migratorErrCh:
+				dryrunOk = false
+				m.logger.Error("Migration Err:", zap.Error(err))
+			}
+		}
+		if !dryrunOk {
+			return &platform.Error{
+				Code: platform.EInternal,
+				Msg:  "Data Migration Failed in dry run",
+			}
+		}
+		// migrate
+		if err := mg.Migrate(ctx, true); err != nil {
+			// rollback
+			_ = mg.Migrate(ctx, false)
+			return err
+		}
 	}
 
 	m.wg.Add(1)

@@ -60,8 +60,8 @@ func NewTestLauncher() *TestLauncher {
 	return l
 }
 
-// RunLauncherOrFail initializes and starts the server.
-func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *TestLauncher {
+// RunTestLauncherOrFail initializes and starts the server.
+func RunTestLauncherOrFail(ctx context.Context, tb testing.TB, args ...string) *TestLauncher {
 	tb.Helper()
 	l := NewTestLauncher()
 	if err := l.Run(ctx, args...); err != nil {
@@ -76,6 +76,7 @@ func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
 	args = append(args, "--engine-path", filepath.Join(tl.Path, "engine"))
 	args = append(args, "--http-bind-address", "127.0.0.1:0")
 	args = append(args, "--log-level", "debug")
+	args = append(args, "--data-migration", "true")
 	return tl.Launcher.Run(ctx, args...)
 }
 
@@ -87,7 +88,7 @@ func (tl *TestLauncher) Shutdown(ctx context.Context) error {
 }
 
 // ShutdownOrFail stops the program and cleans up temporary paths. Fail on error.
-func (tl *TestLauncher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
+func (tl *TestLauncher) ShutdownOrFail(ctx context.Context, tb testing.TB) {
 	tb.Helper()
 	if err := tl.Shutdown(ctx); err != nil {
 		tb.Fatal(err)

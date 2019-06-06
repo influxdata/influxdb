@@ -38,9 +38,9 @@ func BenchmarkFluxEndToEnd(b *testing.B) {
 }
 
 func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(ctx, t)
 	l.SetupOrFail(t)
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 	for _, pkg := range pkgs {
 		pkg := pkg.Copy().(*ast.Package)
 		name := pkg.Files[0].Name
@@ -54,9 +54,9 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 }
 
 func benchEndToEnd(b *testing.B, pkgs []*ast.Package) {
-	l := launcher.RunTestLauncherOrFail(b, ctx)
+	l := launcher.RunTestLauncherOrFail(ctx, b)
 	l.SetupOrFail(b)
-	defer l.ShutdownOrFail(b, ctx)
+	defer l.ShutdownOrFail(ctx, b)
 	for _, pkg := range pkgs {
 		pkg := pkg.Copy().(*ast.Package)
 		name := pkg.Files[0].Name

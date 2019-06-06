@@ -17,7 +17,7 @@ import (
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(ctx, t)
 
 	org1 := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
 		User:     "USER-1",
@@ -32,7 +32,7 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 		Bucket:   "BUCKET",
 	})
 
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 
 	// Execute single write against the server.
 	l.WriteOrFail(t, org1, `m,k=v1 f=100i 946684800000000000`)
@@ -54,9 +54,9 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(ctx, t)
 	l.SetupOrFail(t)
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 
 	// Execute single write against the server.
 	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
@@ -92,9 +92,9 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_BucketDelete(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l := launcher.RunTestLauncherOrFail(ctx, t)
 	l.SetupOrFail(t)
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 
 	// Execute single write against the server.
 	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
@@ -161,7 +161,7 @@ func TestStorage_CacheSnapshot_Size(t *testing.T) {
 	l := launcher.NewTestLauncher()
 	l.StorageConfig.Engine.Cache.SnapshotMemorySize = 10
 	l.StorageConfig.Engine.Cache.SnapshotAgeDuration = toml.Duration(time.Hour)
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 
 	if err := l.Run(ctx); err != nil {
 		t.Fatal(err)
@@ -206,7 +206,7 @@ func TestStorage_CacheSnapshot_Size(t *testing.T) {
 func TestStorage_CacheSnapshot_Age(t *testing.T) {
 	l := launcher.NewTestLauncher()
 	l.StorageConfig.Engine.Cache.SnapshotAgeDuration = toml.Duration(time.Second)
-	defer l.ShutdownOrFail(t, ctx)
+	defer l.ShutdownOrFail(ctx, t)
 
 	if err := l.Run(ctx); err != nil {
 		t.Fatal(err)
