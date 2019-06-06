@@ -9,6 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 const (
@@ -25,6 +26,8 @@ var (
 		BucketID: MustIDBase16(bucketOneID),
 		URL:      "url1",
 		ID:       MustIDBase16(targetOneID),
+		Interval: *options.MustParseDuration("1m"),
+		Timeout:  *options.MustParseDuration("1s"),
 	}
 	target2 = influxdb.ScraperTarget{
 		Name:     "name2",
@@ -33,6 +36,8 @@ var (
 		BucketID: MustIDBase16(bucketTwoID),
 		URL:      "url2",
 		ID:       MustIDBase16(targetTwoID),
+		Interval: *options.MustParseDuration("2m"),
+		Timeout:  *options.MustParseDuration("2s"),
 	}
 	target3 = influxdb.ScraperTarget{
 		Name:     "name3",
@@ -41,6 +46,8 @@ var (
 		BucketID: MustIDBase16(bucketThreeID),
 		URL:      "url3",
 		ID:       MustIDBase16(targetThreeID),
+		Interval: *options.MustParseDuration("3m"),
+		Timeout:  *options.MustParseDuration("3s"),
 	}
 	org1 = influxdb.Organization{
 		ID:   MustIDBase16(orgOneID),
@@ -148,6 +155,8 @@ func AddTarget(
 					OrgID:    MustIDBase16(orgOneID),
 					BucketID: MustIDBase16(bucketOneID),
 					URL:      "url1",
+					Interval: *options.MustParseDuration("1m"),
+					Timeout:  *options.MustParseDuration("1s"),
 				},
 			},
 			wants: wants{
@@ -167,6 +176,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -185,6 +196,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -195,6 +208,8 @@ func AddTarget(
 					Type:     influxdb.PrometheusScraperType,
 					BucketID: MustIDBase16(bucketTwoID),
 					URL:      "url2",
+					Interval: *options.MustParseDuration("2m"),
+					Timeout:  *options.MustParseDuration("2s"),
 				},
 			},
 			wants: wants{
@@ -212,6 +227,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -230,16 +247,20 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 				},
 			},
 			args: args{
 				target: &influxdb.ScraperTarget{
-					ID:    MustIDBase16(targetTwoID),
-					Name:  "name2",
-					Type:  influxdb.PrometheusScraperType,
-					OrgID: MustIDBase16(orgTwoID),
-					URL:   "url2",
+					ID:       MustIDBase16(targetTwoID),
+					Name:     "name2",
+					Type:     influxdb.PrometheusScraperType,
+					OrgID:    MustIDBase16(orgTwoID),
+					URL:      "url2",
+					Interval: *options.MustParseDuration("2m"),
+					Timeout:  *options.MustParseDuration("2s"),
 				},
 			},
 			wants: wants{
@@ -257,6 +278,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -273,6 +296,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 				},
 				Organizations: []*influxdb.Organization{&org1, &org2},
@@ -294,6 +319,8 @@ func AddTarget(
 					OrgID:    MustIDBase16(orgTwoID),
 					BucketID: MustIDBase16(bucketTwoID),
 					URL:      "url2",
+					Interval: *options.MustParseDuration("2m"),
+					Timeout:  *options.MustParseDuration("2s"),
 				},
 			},
 			wants: wants{
@@ -319,6 +346,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketOneID),
 						URL:      "url1",
 						ID:       MustIDBase16(targetOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 					{
 						Name:     "name2",
@@ -327,6 +356,8 @@ func AddTarget(
 						BucketID: MustIDBase16(bucketTwoID),
 						URL:      "url2",
 						ID:       MustIDBase16(targetTwoID),
+						Interval: *options.MustParseDuration("2m"),
+						Timeout:  *options.MustParseDuration("2s"),
 					},
 				},
 			},
@@ -600,12 +631,16 @@ func GetTargetByID(
 						Name:     "target1",
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						Name:     "target2",
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
+						Interval: *options.MustParseDuration("2m"),
+						Timeout:  *options.MustParseDuration("2s"),
 					},
 				},
 			},
@@ -618,6 +653,8 @@ func GetTargetByID(
 					Name:     "target2",
 					OrgID:    MustIDBase16(orgOneID),
 					BucketID: MustIDBase16(bucketOneID),
+					Interval: *options.MustParseDuration("2m"),
+					Timeout:  *options.MustParseDuration("2s"),
 				},
 			},
 		},
@@ -630,12 +667,16 @@ func GetTargetByID(
 						Name:     "target1",
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
+						Interval: *options.MustParseDuration("1m"),
+						Timeout:  *options.MustParseDuration("1s"),
 					},
 					{
 						ID:       MustIDBase16(targetTwoID),
 						Name:     "target2",
 						OrgID:    MustIDBase16(orgOneID),
 						BucketID: MustIDBase16(bucketOneID),
+						Interval: *options.MustParseDuration("2m"),
+						Timeout:  *options.MustParseDuration("2s"),
 					},
 				},
 			},

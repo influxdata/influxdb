@@ -17,6 +17,7 @@ import (
 	httpMock "github.com/influxdata/influxdb/http/mock"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/task/options"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
@@ -97,6 +98,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 								URL:      "www.one.url",
 								OrgID:    platformtesting.MustIDBase16("0000000000000211"),
 								BucketID: platformtesting.MustIDBase16("0000000000000212"),
+								Interval: *options.MustParseDuration("10m"),
+								Timeout:  *options.MustParseDuration("10s"),
 							},
 							{
 								ID:       targetTwoID,
@@ -105,6 +108,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 								URL:      "www.two.url",
 								OrgID:    platformtesting.MustIDBase16("0000000000000211"),
 								BucketID: platformtesting.MustIDBase16("0000000000000212"),
+								Interval: *options.MustParseDuration("10m"),
+								Timeout:  *options.MustParseDuration("10s"),
 							},
 						}, nil
 					},
@@ -130,6 +135,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "orgID": "0000000000000211",
 						  "type": "prometheus",
 						  "url": "www.one.url",
+						  "interval": "10m",
+						  "timeout": "10s",
 						  "links": {
 						    "bucket": "/api/v2/buckets/0000000000000212",
 						    "organization": "/api/v2/orgs/0000000000000211",
@@ -147,6 +154,8 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 						  "org": "org1",
 						  "type": "prometheus",
 						  "url": "www.two.url",
+						  "interval": "10m",
+						  "timeout": "10s",
 						  "links": {
 						    "bucket": "/api/v2/buckets/0000000000000212",
 						    "organization": "/api/v2/orgs/0000000000000211",
@@ -299,6 +308,8 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 								URL:      "www.some.url",
 								OrgID:    platformtesting.MustIDBase16("0000000000000211"),
 								BucketID: platformtesting.MustIDBase16("0000000000000212"),
+								Interval: *options.MustParseDuration("10m"),
+								Timeout:  *options.MustParseDuration("10s"),
 							}, nil
 						}
 						return nil, &influxdb.Error{
@@ -325,6 +336,8 @@ func TestService_handleGetScraperTarget(t *testing.T) {
                       "bucketID": "0000000000000212",
 					  "orgID": "0000000000000211",
 					  "org": "org1",
+					  "interval": "10m",
+					  "timeout": "10s",
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
@@ -546,6 +559,8 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 					BucketID: platformtesting.MustIDBase16("0000000000000212"),
 					OrgID:    platformtesting.MustIDBase16("0000000000000211"),
 					URL:      "www.some.url",
+					Interval: *options.MustParseDuration("5m"),
+					Timeout:  *options.MustParseDuration("5s"),
 				},
 			},
 			wants: wants{
@@ -562,6 +577,72 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 					  "org": "org1",
 					  "bucket": "bucket1",
                       "bucketID": "0000000000000212",
+                      "interval": "5m",
+                      "timeout": "5s",
+                      "links": {
+                        "bucket": "/api/v2/buckets/0000000000000212",
+                        "organization": "/api/v2/orgs/0000000000000211",
+                        "self": "/api/v2/scrapers/%s",
+                        "members": "/api/v2/scrapers/%s/members",
+                        "owners": "/api/v2/scrapers/%s/owners"
+                      }
+                    }
+                    `,
+					targetOneIDString, targetOneIDString, targetOneIDString, targetOneIDString,
+				),
+			},
+		},
+		{
+			name: "create a new scraper target with default interval and timeout",
+			fields: fields{
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
+							ID:   platformtesting.MustIDBase16("0000000000000211"),
+							Name: "org1",
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:   platformtesting.MustIDBase16("0000000000000212"),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				ScraperTargetStoreService: &mock.ScraperTargetStoreService{
+					AddTargetF: func(ctx context.Context, st *influxdb.ScraperTarget, userID influxdb.ID) error {
+						st.ID = targetOneID
+						return nil
+					},
+				},
+			},
+			args: args{
+				target: &influxdb.ScraperTarget{
+					Name:     "hello",
+					Type:     influxdb.PrometheusScraperType,
+					BucketID: platformtesting.MustIDBase16("0000000000000212"),
+					OrgID:    platformtesting.MustIDBase16("0000000000000211"),
+					URL:      "www.some.url",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: fmt.Sprintf(
+					`
+                    {
+                      "id": "%s",
+                      "name": "hello",
+                      "type": "prometheus",
+                      "url": "www.some.url",
+					  "orgID": "0000000000000211",
+					  "org": "org1",
+					  "bucket": "bucket1",
+                      "bucketID": "0000000000000212",
+                      "interval": "10s",
+                      "timeout": "30s",
                       "links": {
                         "bucket": "/api/v2/buckets/0000000000000212",
                         "organization": "/api/v2/orgs/0000000000000211",
@@ -682,6 +763,8 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					Type:     influxdb.PrometheusScraperType,
 					URL:      "www.example.url",
 					OrgID:    platformtesting.MustIDBase16("0000000000000211"),
+					Interval: *options.MustParseDuration("3m"),
+					Timeout:  *options.MustParseDuration("3s"),
 				},
 			},
 			wants: wants{
@@ -697,6 +780,8 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 					  "orgID":"0000000000000211",
 					  "bucket": "bucket1",
 					  "bucketID":"0000000000000212",
+					  "interval": "3m",
+					  "timeout": "3s",
 		              "links":{
 		                "bucket": "/api/v2/buckets/0000000000000212",
 		                "organization": "/api/v2/orgs/0000000000000211",

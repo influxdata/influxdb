@@ -302,6 +302,15 @@ func decodeScraperTargetAddRequest(ctx context.Context, r *http.Request) (*influ
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		return nil, err
 	}
+
+	if req.Interval.IsZero() {
+		req.Interval = influxdb.DefaultScraperInterval
+	}
+
+	if req.Timeout.IsZero() {
+		req.Timeout = influxdb.DefaultScraperTimeout
+	}
+
 	return req, nil
 }
 

@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/task/options"
 )
 
 // ErrScraperTargetNotFound is the error msg for a missing scraper target.
@@ -16,14 +17,21 @@ const (
 	OpUpdateTarget  = "UpdateTarget"
 )
 
+var (
+	DefaultScraperInterval = *options.MustParseDuration("10s")
+	DefaultScraperTimeout  = *options.MustParseDuration("30s")
+)
+
 // ScraperTarget is a target to scrape
 type ScraperTarget struct {
-	ID       ID          `json:"id,omitempty"`
-	Name     string      `json:"name"`
-	Type     ScraperType `json:"type"`
-	URL      string      `json:"url"`
-	OrgID    ID          `json:"orgID,omitempty"`
-	BucketID ID          `json:"bucketID,omitempty"`
+	ID       ID               `json:"id,omitempty"`
+	Name     string           `json:"name"`
+	Type     ScraperType      `json:"type"`
+	URL      string           `json:"url"`
+	OrgID    ID               `json:"orgID,omitempty"`
+	BucketID ID               `json:"bucketID,omitempty"`
+	Interval options.Duration `json:"interval,omitempty"`
+	Timeout  options.Duration `json:"timeout,omitempty"`
 }
 
 // ScraperTargetStoreService defines the crud service for ScraperTarget.
