@@ -84,6 +84,7 @@ func (r *Run) RequestedAtTime() (time.Time, error) {
 
 // Log represents a link to a log resource
 type Log struct {
+	RunID   ID     `json:"runID,omitempty"`
 	Time    string `json:"time"`
 	Message string `json:"message"`
 }

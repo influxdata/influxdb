@@ -1601,7 +1601,7 @@ func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.I
 		return err
 	}
 	// update log
-	l := influxdb.Log{Time: when.Format(time.RFC3339Nano), Message: log}
+	l := influxdb.Log{RunID: runID, Time: when.Format(time.RFC3339Nano), Message: log}
 	run.Log = append(run.Log, l)
 	// save run
 	b, err := tx.Bucket(taskRunBucket)
