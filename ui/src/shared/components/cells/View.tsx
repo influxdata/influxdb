@@ -42,7 +42,6 @@ class ViewComponent extends Component<Props> {
             timeRange={timeRange}
             properties={view.properties}
             manualRefresh={manualRefresh}
-            inView={true}
             dashboardID={dashboardID}
           />
         )

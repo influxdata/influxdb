@@ -47,7 +47,6 @@ interface OwnProps {
   variables?: VariableAssignment[]
   submitToken: number
   implicitSubmit?: boolean
-  inView?: boolean
   children: (r: QueriesState) => JSX.Element
 }
 
@@ -77,7 +76,6 @@ const defaultState = (): State => ({
 
 class TimeSeries extends Component<Props & WithRouterProps, State> {
   public static defaultProps = {
-    inView: true,
     implicitSubmit: true,
   }
 
@@ -118,13 +116,9 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   }
 
   private reload = async () => {
-    const {inView, variables, notify} = this.props
+    const {variables, notify} = this.props
     const queries = this.props.queries.filter(({text}) => !!text.trim())
     const orgID = this.props.params.orgID
-
-    if (!inView) {
-      return
-    }
 
     if (!queries.length) {
       this.setState(defaultState())
