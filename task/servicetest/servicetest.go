@@ -602,6 +602,17 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
+		// check run filter errors
+		_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: -1})
+		if err0 != backend.ErrOutOfBoundsLimit {
+			t.Fatalf("failed to error with out of bounds run limit: %d", -1)
+		}
+
+		_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: influxdb.TaskMaxPageSize + 1})
+		if err1 != backend.ErrOutOfBoundsLimit {
+			t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
+		}
+
 		requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.
 
 		rc0, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
@@ -1031,6 +1042,17 @@ func testRunStorage(t *testing.T, sys *System) {
 	task, err := sys.TaskService.CreateTask(icontext.SetAuthorizer(sys.Ctx, cr.Authorizer()), ct)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// check run filter errors
+	_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: -1})
+	if err0 != backend.ErrOutOfBoundsLimit {
+		t.Fatalf("failed to error with out of bounds run limit: %d", -1)
+	}
+
+	_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: influxdb.TaskMaxPageSize + 1})
+	if err1 != backend.ErrOutOfBoundsLimit {
+		t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 	}
 
 	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make two runs.

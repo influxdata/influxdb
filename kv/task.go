@@ -862,9 +862,14 @@ func (s *Service) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*i
 }
 
 func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter) ([]*influxdb.Run, int, error) {
-	if filter.Limit == 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		filter.Limit = influxdb.TaskMaxPageSize
+	if filter.Limit == 0 {
+		filter.Limit = influxdb.TaskDefaultPageSize
 	}
+
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
+		return nil, 0, backend.ErrOutOfBoundsLimit
+	}
+
 	var runs []*influxdb.Run
 	// manual runs
 	manualRuns, err := s.manualRuns(ctx, tx, filter.Task)
