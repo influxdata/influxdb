@@ -138,7 +138,7 @@ func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
 	// telegrafConfigEncode is the helper struct for json encoding.
 	type telegrafConfigEncode struct {
 		ID          platform.ID                  `json:"id"`
-		OrgID       platform.ID                  `json:"OrgID,omitempty"`
+		OrgID       platform.ID                  `json:"orgID,omitempty"`
 		Name        string                       `json:"name"`
 		Description string                       `json:"description"`
 		Agent       platform.TelegrafAgentConfig `json:"agent"`
