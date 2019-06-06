@@ -7381,7 +7381,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
-        organizationID:
+        orgID:
           type: string
     TelegrafRequestPlugin:
         oneOf:

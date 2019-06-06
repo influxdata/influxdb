@@ -157,7 +157,7 @@ func (s *Service) findTelegrafConfigs(ctx context.Context, tx Tx, filter influxd
 		}
 
 		// Restrict results by organization ID, if it has been provided
-		if filter.OrganizationID != nil && filter.OrganizationID.Valid() && tc.OrganizationID != *filter.OrganizationID {
+		if filter.OrgID != nil && filter.OrgID.Valid() && tc.OrgID != *filter.OrgID {
 			continue
 		}
 		tcs = append(tcs, tc)
@@ -178,7 +178,7 @@ func (s *Service) putTelegrafConfig(ctx context.Context, tx Tx, tc *influxdb.Tel
 		return ErrInvalidTelegrafID
 	}
 
-	if !tc.OrganizationID.Valid() {
+	if !tc.OrgID.Valid() {
 		return ErrInvalidTelegrafOrgID
 	}
 
@@ -239,7 +239,7 @@ func (s *Service) updateTelegrafConfig(ctx context.Context, tx Tx, id influxdb.I
 
 	// ID and OrganizationID can not be updated
 	tc.ID = current.ID
-	tc.OrganizationID = current.OrganizationID
+	tc.OrgID = current.OrgID
 	err = s.putTelegrafConfig(ctx, tx, tc)
 	return tc, err
 }

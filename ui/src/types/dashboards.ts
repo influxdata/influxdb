@@ -12,10 +12,10 @@ export enum Scale {
   Log = 'log',
 }
 
-export enum Base {
-  Two = '2',
-  Ten = '10',
-}
+export type Base =
+  | '' // Do not format using a prefix
+  | '2' // Format using a binary prefix
+  | '10' // Format using a decimal/SI prefix
 
 export interface Axis {
   label: string
@@ -173,6 +173,8 @@ export interface XYView {
   queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
+  xColumn: string
+  yColumn: string
   colors: Color[]
   legend: Legend
   note: string
@@ -188,6 +190,8 @@ export interface LinePlusSingleStatView {
   legend: Legend
   prefix: string
   suffix: string
+  xColumn: string
+  yColumn: string
   decimalPlaces: DecimalPlaces
   note: string
   showNoteWhenEmpty: boolean

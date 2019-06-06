@@ -10,6 +10,9 @@ import HistogramContainer from 'src/shared/components/HistogramContainer'
 import VisDataTransform from 'src/timeMachine/components/VisDataTransform'
 import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
 import HeatmapContainer from 'src/shared/components/HeatmapContainer'
+import ScatterContainer from 'src/shared/components/ScatterContainer'
+import SingleStat from 'src/shared/components/SingleStat'
+import LatestValueTransform from 'src/shared/components/LatestValueTransform'
 
 // Utils
 import {getActiveTimeMachine, getTables} from 'src/timeMachine/selectors'
@@ -21,7 +24,11 @@ import {
   FluxTable,
   RemoteDataState,
   AppState,
+  XYViewGeom,
+  XYView,
+  SingleStatView,
 } from 'src/types'
+import XYContainer from 'src/shared/components/XYContainer'
 
 interface StateProps {
   files: string[]
@@ -85,6 +92,94 @@ const VisSwitcher: FunctionComponent<StateProps> = ({
           >
             {config => <Plot config={config} />}
           </HeatmapContainer>
+        )}
+      </VisDataTransform>
+    )
+  }
+
+  if (properties.type === ViewType.Scatter) {
+    return (
+      <VisDataTransform>
+        {({table, xColumn, yColumn, fillColumns, symbolColumns}) => (
+          <ScatterContainer
+            table={table}
+            loading={loading}
+            viewProperties={{
+              ...properties,
+              xColumn,
+              yColumn,
+              fillColumns,
+              symbolColumns,
+            }}
+          >
+            {config => <Plot config={config} />}
+          </ScatterContainer>
+        )}
+      </VisDataTransform>
+    )
+  }
+
+  if (properties.type === ViewType.XY) {
+    return (
+      <VisDataTransform>
+        {({table, fluxGroupKeyUnion, xColumn, yColumn}) => (
+          <XYContainer
+            table={table}
+            fluxGroupKeyUnion={fluxGroupKeyUnion}
+            loading={loading}
+            viewProperties={{
+              ...properties,
+              xColumn,
+              yColumn,
+            }}
+          >
+            {config => <Plot config={config} />}
+          </XYContainer>
+        )}
+      </VisDataTransform>
+    )
+  }
+
+  if (properties.type === ViewType.LinePlusSingleStat) {
+    const xyProperties = {
+      ...properties,
+      colors: properties.colors.filter(c => c.type === 'scale'),
+      type: ViewType.XY,
+      geom: XYViewGeom.Line,
+    } as XYView
+
+    const singleStatProperties = {
+      ...properties,
+      colors: properties.colors.filter(c => c.type !== 'scale'),
+      type: ViewType.SingleStat,
+    } as SingleStatView
+
+    return (
+      <VisDataTransform>
+        {({table, fluxGroupKeyUnion, xColumn, yColumn}) => (
+          <XYContainer
+            table={table}
+            fluxGroupKeyUnion={fluxGroupKeyUnion}
+            loading={loading}
+            viewProperties={{
+              ...xyProperties,
+              xColumn,
+              yColumn,
+            }}
+          >
+            {config => (
+              <Plot config={config}>
+                <LatestValueTransform table={table} quiet={true}>
+                  {latestValue => (
+                    <SingleStat
+                      stat={latestValue}
+                      properties={singleStatProperties}
+                    />
+                  )}
+                </LatestValueTransform>
+              </Plot>
+            )}
+          </XYContainer>
         )}
       </VisDataTransform>
     )

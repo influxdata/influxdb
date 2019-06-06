@@ -18,8 +18,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/task"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/options"
 )
@@ -36,11 +34,6 @@ func init() {
 //
 // If creating the System fails, the implementer should call t.Fatal.
 type BackendComponentFactory func(t *testing.T) (*System, context.CancelFunc)
-
-// UsePlatformAdaptor allows you to set the platform adaptor as your TaskService.
-func UsePlatformAdaptor(s backend.Store, lr backend.LogReader, rc task.RunController, i *inmem.Service) influxdb.TaskService {
-	return task.PlatformAdapter(s, lr, rc, i, i, i)
-}
 
 // TestTaskService should be called by consumers of the servicetest package.
 // This will call fn once to create a single influxdb.TaskService

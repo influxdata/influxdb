@@ -1,3 +1,17 @@
+## UNRELEASED
+
+### Features
+
+1. [14059](https://github.com/influxdata/influxdb/pull/14059): Enable formatting line graph y ticks with binary prefix
+
+### Bug Fixes
+
+### UI Improvements
+
+## v2.0.0-alpha.11 [2019-05-31]
+
+1. [14031](https://github.com/influxdata/influxdb/pull/14031): Correctly check if columnKeys include xColumn in heatmap
+
 ## v2.0.0-alpha.10 [2019-05-30]
 
 ### Features

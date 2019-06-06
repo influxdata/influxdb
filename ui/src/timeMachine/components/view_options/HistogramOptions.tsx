@@ -32,11 +32,12 @@ import {ComponentStatus} from '@influxdata/clockface'
 import {HistogramPosition} from '@influxdata/vis'
 import {Color} from 'src/types/colors'
 import {AppState} from 'src/types'
+import ColumnSelector from 'src/shared/components/ColumnSelector'
 
 interface StateProps {
   xColumn: string
   fillColumns: string[]
-  availableXColumns: string[]
+  numericColumns: string[]
   availableGroupColumns: string[]
 }
 
@@ -64,7 +65,7 @@ const HistogramOptions: SFC<Props> = props => {
   const {
     xColumn,
     fillColumns,
-    availableXColumns,
+    numericColumns,
     availableGroupColumns,
     position,
     binCount,
@@ -80,10 +81,6 @@ const HistogramOptions: SFC<Props> = props => {
     onSetXAxisLabel,
   } = props
 
-  const xDropdownStatus = availableXColumns.length
-    ? ComponentStatus.Default
-    : ComponentStatus.Disabled
-
   const groupDropdownStatus = availableGroupColumns.length
     ? ComponentStatus.Default
     : ComponentStatus.Disabled
@@ -92,20 +89,12 @@ const HistogramOptions: SFC<Props> = props => {
     <Grid.Column>
       <h4 className="view-options--header">Customize Histogram</h4>
       <h5 className="view-options--header">Data</h5>
-      <Form.Element label="Column">
-        <Dropdown
-          selectedID={xColumn}
-          onChange={onSetXColumn}
-          status={xDropdownStatus}
-          titleText="None"
-        >
-          {availableXColumns.map(columnName => (
-            <Dropdown.Item id={columnName} key={columnName} value={columnName}>
-              {columnName}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
-      </Form.Element>
+      <ColumnSelector
+        selectedColumn={xColumn}
+        onSelectColumn={onSetXColumn}
+        availableColumns={numericColumns}
+        axisName="x"
+      />
       <Form.Element label="Group By">
         <MultiSelectDropdown
           selectedIDs={fillColumns}
@@ -163,12 +152,12 @@ const HistogramOptions: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const availableXColumns = getNumericColumns(state)
+  const numericColumns = getNumericColumns(state)
   const availableGroupColumns = getGroupableColumns(state)
   const xColumn = getXColumnSelection(state)
   const fillColumns = getFillColumnsSelection(state)
 
-  return {availableXColumns, availableGroupColumns, xColumn, fillColumns}
+  return {numericColumns, availableGroupColumns, xColumn, fillColumns}
 }
 
 const mdtp = {

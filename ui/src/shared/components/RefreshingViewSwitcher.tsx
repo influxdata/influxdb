@@ -65,14 +65,20 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
       )
     case ViewType.XY:
       return (
-        <XYContainer
-          files={files}
-          viewProperties={properties}
-          loading={loading}
-        >
-          {config => <Plot config={config} />}
-        </XYContainer>
+        <VisTableTransform files={files}>
+          {({table, fluxGroupKeyUnion}) => (
+            <XYContainer
+              table={table}
+              fluxGroupKeyUnion={fluxGroupKeyUnion}
+              viewProperties={properties}
+              loading={loading}
+            >
+              {config => <Plot config={config} />}
+            </XYContainer>
+          )}
+        </VisTableTransform>
       )
+
     case ViewType.LinePlusSingleStat:
       const xyProperties = {
         ...properties,
@@ -88,24 +94,29 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
       } as SingleStatView
 
       return (
-        <XYContainer
-          files={files}
-          viewProperties={xyProperties}
-          loading={loading}
-        >
-          {config => (
-            <Plot config={config}>
-              <LatestValueTransform table={config.table} quiet={true}>
-                {latestValue => (
-                  <SingleStat
-                    stat={latestValue}
-                    properties={singleStatProperties}
-                  />
-                )}
-              </LatestValueTransform>
-            </Plot>
+        <VisTableTransform files={files}>
+          {({table, fluxGroupKeyUnion}) => (
+            <XYContainer
+              table={table}
+              fluxGroupKeyUnion={fluxGroupKeyUnion}
+              viewProperties={xyProperties}
+              loading={loading}
+            >
+              {config => (
+                <Plot config={config}>
+                  <LatestValueTransform table={config.table} quiet={true}>
+                    {latestValue => (
+                      <SingleStat
+                        stat={latestValue}
+                        properties={singleStatProperties}
+                      />
+                    )}
+                  </LatestValueTransform>
+                </Plot>
+              )}
+            </XYContainer>
           )}
-        </XYContainer>
+        </VisTableTransform>
       )
     case ViewType.Histogram:
       return (
@@ -138,10 +149,9 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.Scatter:
       return (
         <VisTableTransform files={files}>
-          {({table, fluxGroupKeyUnion}) => (
+          {({table}) => (
             <ScatterContainer
               table={table}
-              fluxGroupKeyUnion={fluxGroupKeyUnion}
               loading={loading}
               viewProperties={properties}
             >
