@@ -2,6 +2,7 @@
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
+import {get} from 'lodash'
 
 // Components
 const Grid = WidthProvider(ReactGridLayout)
@@ -31,8 +32,18 @@ interface Props {
   onEditNote: (id: string) => void
 }
 
+interface State {
+  mounted: boolean
+}
+
 @ErrorHandling
-class Cells extends Component<Props & WithRouterProps> {
+class Cells extends Component<Props & WithRouterProps, State> {
+  animated = false
+
+  componentDidMount() {
+    this.animated = true
+  }
+
   public render() {
     const {
       cells,
@@ -48,13 +59,14 @@ class Cells extends Component<Props & WithRouterProps> {
         cols={12}
         layout={this.cells}
         rowHeight={DASHBOARD_LAYOUT_ROW_HEIGHT}
-        useCSSTransforms={true}
+        useCSSTransforms={false}
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
         draggableHandle=".cell--draggable"
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
+        className={this.animated ? 'animated' : ''}
       >
         {fastMap(cells, cell => (
           <div key={cell.id} className="cell">

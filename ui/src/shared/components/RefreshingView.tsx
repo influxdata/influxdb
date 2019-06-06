@@ -24,7 +24,6 @@ import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   timeRange: TimeRange
-  inView: boolean
   manualRefresh: number
   properties: QueryViewProperties
   dashboardID: string
@@ -62,7 +61,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {inView, properties, manualRefresh, variablesStatus} = this.props
+    const {properties, manualRefresh, variablesStatus} = this.props
     const {submitToken} = this.state
 
     return (
@@ -71,7 +70,6 @@ class RefreshingView extends PureComponent<Props, State> {
         spinnerComponent={<TechnoSpinner />}
       >
         <TimeSeries
-          inView={inView}
           submitToken={submitToken}
           queries={this.queries}
           key={manualRefresh}

@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, RefObject} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -38,10 +38,36 @@ interface OwnProps {
   onEditNote: (id: string) => void
 }
 
+interface State {
+  inView: boolean
+}
+
 type Props = StateProps & OwnProps
 
 @ErrorHandling
-class CellComponent extends Component<Props> {
+class CellComponent extends Component<Props, State> {
+  state: State = {
+    inView: false,
+  }
+
+  private observer: IntersectionObserver
+
+  private cellRef: RefObject<HTMLDivElement> = React.createRef()
+
+  public componentDidMount() {
+    this.observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const {isIntersecting} = entry
+        if (isIntersecting) {
+          this.setState({inView: true})
+          this.observer.disconnect()
+        }
+      })
+    })
+
+    this.observer.observe(this.cellRef.current)
+  }
+
   public render() {
     const {
       onEditCell,
@@ -51,6 +77,7 @@ class CellComponent extends Component<Props> {
       cell,
       view,
     } = this.props
+    const {inView} = this.state
 
     return (
       <>
@@ -66,8 +93,12 @@ class CellComponent extends Component<Props> {
             onCSVDownload={this.handleCSVDownload}
           />
         )}
-        <div className="cell--view" data-testid="cell--view-empty">
-          {this.view}
+        <div
+          className="cell--view"
+          data-testid="cell--view-empty"
+          ref={this.cellRef}
+        >
+          {inView && this.view}
         </div>
       </>
     )

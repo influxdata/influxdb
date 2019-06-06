@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, RefObject} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
@@ -42,7 +42,6 @@ class ViewComponent extends Component<Props> {
             timeRange={timeRange}
             properties={view.properties}
             manualRefresh={manualRefresh}
-            inView={true}
             dashboardID={dashboardID}
           />
         )
