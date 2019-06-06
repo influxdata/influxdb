@@ -31,18 +31,8 @@ interface Props {
   onEditNote: (id: string) => void
 }
 
-interface State {
-  mounted: boolean
-}
-
 @ErrorHandling
-class Cells extends Component<Props & WithRouterProps, State> {
-  animated = false
-
-  componentDidMount() {
-    this.animated = true
-  }
-
+class Cells extends Component<Props & WithRouterProps> {
   public render() {
     const {
       cells,
@@ -65,7 +55,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
         draggableHandle=".cell--draggable"
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
-        className={this.animated ? 'animated' : ''}
       >
         {fastMap(cells, cell => (
           <div key={cell.id} className="cell">
