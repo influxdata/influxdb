@@ -18,17 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	// ErrRunCanceled is returned from the RunResult when a Run is Canceled.  It is used mostly internally.
-	ErrRunCanceled = errors.New("run canceled")
-
-	// ErrTaskNotClaimed is returned when attempting to operate against a task that must be claimed but is not.
-	ErrTaskNotClaimed = errors.New("task not claimed")
-
-	// ErrTaskAlreadyClaimed is returned when attempting to operate against a task that must not be claimed but is.
-	ErrTaskAlreadyClaimed = errors.New("task already claimed")
-)
-
 // Executor handles execution of a run.
 type Executor interface {
 	// Execute attempts to begin execution of a run.
@@ -41,6 +30,18 @@ type Executor interface {
 	// Once Wait has been called, it is an error to call Execute before Wait has returned.
 	// After Wait returns, it is safe to call Execute again.
 	Wait()
+}
+
+// RunCreation is returned by CreateNextRun.
+type RunCreation struct {
+	Created QueuedRun
+
+	// Unix timestamp for when the next run is due.
+	NextDue int64
+
+	// Whether there are any manual runs queued for this task.
+	// If so, the scheduler should begin executing them after handling real-time tasks.
+	HasQueue bool
 }
 
 // QueuedRun is a task run that has been assigned an ID,

@@ -2,10 +2,11 @@ package backend
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/task/options"
 )
 
 // TaskControlService is a low-level controller interface, intended to be passed to
@@ -34,212 +35,98 @@ type TaskControlService interface {
 	AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error
 }
 
-// TaskControlAdaptor creates a TaskControlService for the older TaskStore system.
-// TODO(lh): remove task control adaptor when we transition away from Store.
-func TaskControlAdaptor(s Store, lw LogWriter, lr LogReader) TaskControlService {
-	return &taskControlAdaptor{s, lw, lr}
+type TaskStatus string
+
+const (
+	TaskActive   TaskStatus = "active"
+	TaskInactive TaskStatus = "inactive"
+
+	DefaultTaskStatus TaskStatus = TaskActive
+)
+
+type RunStatus int
+
+const (
+	RunStarted RunStatus = iota
+	RunSuccess
+	RunFail
+	RunCanceled
+	RunScheduled
+)
+
+func (r RunStatus) String() string {
+	switch r {
+	case RunStarted:
+		return "started"
+	case RunSuccess:
+		return "success"
+	case RunFail:
+		return "failed"
+	case RunCanceled:
+		return "canceled"
+	case RunScheduled:
+		return "scheduled"
+	}
+	panic(fmt.Sprintf("unknown RunStatus: %d", r))
 }
 
-// taskControlAdaptor adapts a Store and log readers and writers to implement the task control service.
-type taskControlAdaptor struct {
-	s  Store
-	lw LogWriter
-	lr LogReader
+var (
+	// ErrRunCanceled is returned from the RunResult when a Run is Canceled.  It is used mostly internally.
+	ErrRunCanceled = errors.New("run canceled")
+
+	// ErrTaskNotClaimed is returned when attempting to operate against a task that must be claimed but is not.
+	ErrTaskNotClaimed = errors.New("task not claimed")
+
+	// ErrNoRunsFound is returned when searching for a range of runs, but none are found.
+	ErrNoRunsFound = errors.New("no matching runs found")
+
+	// ErrTaskAlreadyClaimed is returned when attempting to operate against a task that must not be claimed but is.
+	ErrTaskAlreadyClaimed = errors.New("task already claimed")
+)
+
+// RunNotYetDueError is returned from CreateNextRun if a run is not yet due.
+type RunNotYetDueError struct {
+	// DueAt is the unix timestamp of when the next run is due.
+	DueAt int64
 }
 
-func (tcs *taskControlAdaptor) CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (RunCreation, error) {
-	return tcs.s.CreateNextRun(ctx, taskID, now)
+func (e RunNotYetDueError) Error() string {
+	return "run not due until " + time.Unix(e.DueAt, 0).UTC().Format(time.RFC3339)
 }
 
-func (tcs *taskControlAdaptor) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-	// Once we completely switch over to the new system we can look at the returned run in the tests.
-	task, err := tcs.s.FindTaskByID(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-	tcs.lr.FindRunByID(ctx, task.Org, runID)
-
-	return nil, tcs.s.FinishRun(ctx, taskID, runID)
+// RequestStillQueuedError is returned when attempting to retry a run which has not yet completed.
+type RequestStillQueuedError struct {
+	// Unix timestamps matching existing request's start and end.
+	Start, End int64
 }
 
-func (tcs *taskControlAdaptor) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
-	t, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
+const fmtRequestStillQueued = "previous retry for start=%s end=%s has not yet finished"
 
-	var rtn = make([]*influxdb.Run, len(m.CurrentlyRunning))
-	for i, cr := range m.CurrentlyRunning {
-		rtn[i] = &influxdb.Run{
-			ID:           influxdb.ID(cr.RunID),
-			TaskID:       t.ID,
-			ScheduledFor: time.Unix(cr.Now, 0).UTC().Format(time.RFC3339),
-		}
-		if cr.RequestedAt != 0 {
-			rtn[i].RequestedAt = time.Unix(cr.RequestedAt, 0).UTC().Format(time.RFC3339)
-		}
-	}
-	return rtn, nil
-}
-
-func (tcs *taskControlAdaptor) ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
-	t, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
-	if err != nil {
-		return nil, err
-	}
-
-	var rtn = make([]*influxdb.Run, len(m.ManualRuns))
-	for i, cr := range m.ManualRuns {
-		rtn[i] = &influxdb.Run{
-			ID:           influxdb.ID(cr.RunID),
-			TaskID:       t.ID,
-			ScheduledFor: time.Unix(cr.Start, 0).UTC().Format(time.RFC3339),
-		}
-		if cr.RequestedAt != 0 {
-			rtn[i].RequestedAt = time.Unix(cr.RequestedAt, 0).Format(time.RFC3339)
-		}
-	}
-	return rtn, nil
-}
-
-func (tcs *taskControlAdaptor) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
-	m, err := tcs.s.FindTaskMetaByID(ctx, taskID)
-	if err != nil {
-		return 0, err
-	}
-	return m.NextDueRun()
-}
-
-func (tcs *taskControlAdaptor) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state RunStatus) error {
-	st, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	var (
-		schedFor, reqAt time.Time
+func (e RequestStillQueuedError) Error() string {
+	return fmt.Sprintf(fmtRequestStillQueued,
+		time.Unix(e.Start, 0).UTC().Format(time.RFC3339),
+		time.Unix(e.End, 0).UTC().Format(time.RFC3339),
 	)
-	// check the log store
-	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
-	if err == nil && r != nil {
-		schedFor, err = time.Parse(time.RFC3339, r.ScheduledFor)
-		if err != nil {
-			return err
-		}
-		if r.RequestedAt != "" {
-			reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// in the old system the log store may not have the run until after the first
-	// state update, so we will need to pull the currently running.
-	if schedFor.IsZero() {
-		for _, cr := range m.CurrentlyRunning {
-			if influxdb.ID(cr.RunID) == runID {
-				schedFor = time.Unix(cr.Now, 0)
-				if cr.RequestedAt != 0 {
-					reqAt = time.Unix(cr.RequestedAt, 0)
-				}
-			}
-		}
-	}
-
-	rlb := RunLogBase{
-		Task:            st,
-		RunID:           runID,
-		RunScheduledFor: schedFor.Unix(),
-	}
-	if !reqAt.IsZero() {
-		rlb.RequestedAt = reqAt.Unix()
-	}
-	if err := tcs.lw.UpdateRunState(ctx, rlb, when, state); err != nil {
-		return err
-	}
-	return nil
 }
 
-func (tcs *taskControlAdaptor) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error {
-	st, m, err := tcs.s.FindTaskByIDWithMeta(ctx, taskID)
+// ParseRequestStillQueuedError attempts to parse a RequestStillQueuedError from msg.
+// If msg is formatted correctly, the resultant error is returned; otherwise it returns nil.
+func ParseRequestStillQueuedError(msg string) *RequestStillQueuedError {
+	var s, e string
+	n, err := fmt.Sscanf(msg, fmtRequestStillQueued, &s, &e)
+	if err != nil || n != 2 {
+		return nil
+	}
+
+	start, err := time.Parse(time.RFC3339, s)
 	if err != nil {
-		return err
+		return nil
 	}
 
-	var (
-		schedFor, reqAt time.Time
-	)
-
-	r, err := tcs.lr.FindRunByID(ctx, st.Org, runID)
-	if err == nil && r != nil {
-		schedFor, err = time.Parse(time.RFC3339, r.ScheduledFor)
-		if err != nil {
-			return err
-		}
-		if r.RequestedAt != "" {
-			reqAt, err = time.Parse(time.RFC3339, r.RequestedAt)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// in the old system the log store may not have the run until after the first
-	// state update, so we will need to pull the currently running.
-	if schedFor.IsZero() {
-		for _, cr := range m.CurrentlyRunning {
-			if influxdb.ID(cr.RunID) == runID {
-				schedFor = time.Unix(cr.Now, 0)
-				if cr.RequestedAt != 0 {
-					reqAt = time.Unix(cr.RequestedAt, 0)
-				}
-			}
-		}
-	}
-
-	rlb := RunLogBase{
-		Task:            st,
-		RunID:           runID,
-		RunScheduledFor: schedFor.Unix(),
-	}
-	if !reqAt.IsZero() {
-		rlb.RequestedAt = reqAt.Unix()
-	}
-	return tcs.lw.AddRunLog(ctx, rlb, when, log)
-}
-
-// ToInfluxTask converts a backend tas and meta to a influxdb.Task
-// TODO(lh): remove this when we no longer need the backend store.
-func ToInfluxTask(t *StoreTask, m *StoreTaskMeta) (*influxdb.Task, error) {
-	opts, err := options.FromScript(t.Script)
+	end, err := time.Parse(time.RFC3339, e)
 	if err != nil {
-		return nil, err
+		return nil
 	}
 
-	pt := &influxdb.Task{
-		ID:              t.ID,
-		OrganizationID:  t.Org,
-		Name:            t.Name,
-		Flux:            t.Script,
-		Cron:            opts.Cron,
-		AuthorizationID: influxdb.ID(m.AuthorizationID),
-	}
-	if !opts.Every.IsZero() {
-		pt.Every = opts.Every.String()
-	}
-	if opts.Offset != nil && !opts.Offset.IsZero() {
-		pt.Offset = opts.Offset.String()
-	}
-	if m != nil {
-		pt.Status = string(m.Status)
-		pt.LatestCompleted = time.Unix(m.LatestCompleted, 0).UTC().Format(time.RFC3339)
-		if m.CreatedAt != 0 {
-			pt.CreatedAt = time.Unix(m.CreatedAt, 0).UTC().Format(time.RFC3339)
-		}
-		if m.UpdatedAt != 0 {
-			pt.UpdatedAt = time.Unix(m.UpdatedAt, 0).UTC().Format(time.RFC3339)
-		}
-		pt.AuthorizationID = influxdb.ID(m.AuthorizationID)
-	}
-	return pt, nil
+	return &RequestStillQueuedError{Start: start.Unix(), End: end.Unix()}
 }
