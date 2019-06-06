@@ -2,7 +2,6 @@
 import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import ReactGridLayout, {WidthProvider, Layout} from 'react-grid-layout'
-import {get} from 'lodash'
 
 // Components
 const Grid = WidthProvider(ReactGridLayout)

@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, RefObject} from 'react'
+import React, {Component} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
