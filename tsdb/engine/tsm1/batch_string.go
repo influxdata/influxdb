@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"unsafe"
 
 	"github.com/golang/snappy"
@@ -23,13 +24,21 @@ var (
 //
 // Currently only the string compression scheme used snappy.
 func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
-	srcSz := 2 + len(src)*binary.MaxVarintLen32 // strings should't be longer than 64kb
+	srcSz64 := int64(2 + len(src)*binary.MaxVarintLen32) // strings should't be longer than 64kb
 	for i := range src {
-		srcSz += len(src[i])
+		srcSz64 += int64(len(src[i]))
 	}
+
+	// 32-bit systems
+	if srcSz64 > math.MaxUint32 {
+		return b[:0], ErrStringArrayEncodeTooLarge
+	}
+
+	srcSz := int(srcSz64)
 
 	// determine the maximum possible length needed for the buffer, which
 	// includes the compressed size
+	fmt.Println(srcSz64, srcSz)
 	var compressedSz = 0
 	if len(src) > 0 {
 		mle := snappy.MaxEncodedLen(srcSz)

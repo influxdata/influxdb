@@ -36,7 +36,7 @@ func TestStringArrayEncodeAll_NoValues(t *testing.T) {
 func TestStringArrayEncodeAll_ExceedsMaxEncodedLen(t *testing.T) {
 	str := strings.Repeat(" ", 1<<23) // 8MB string
 	var s []string
-	for i := 0; i < (1<<32)/(1<<23); i++ {
+	for i := 0; i < 512; i++ {
 		s = append(s, str)
 	}
 
