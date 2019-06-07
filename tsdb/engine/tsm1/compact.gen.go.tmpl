@@ -275,7 +275,7 @@ func (k *tsmBatchKeyIterator) combine{{.Name}}(dedup bool) blocks {
 				var v tsdb.{{.Name}}Array
 				var err error
 				if err = Decode{{.Name}}ArrayBlock(k.blocks[i].b, &v); err != nil {
-					k.err = err
+					k.handleDecodeError(err, "{{.name}}")
 					return nil
 				}
 
@@ -359,7 +359,7 @@ func (k *tsmBatchKeyIterator) combine{{.Name}}(dedup bool) blocks {
 
 		var v tsdb.{{.Name}}Array
 		if err := Decode{{.Name}}ArrayBlock(k.blocks[i].b, &v); err != nil {
-			k.err = err
+			k.handleDecodeError(err, "{{.name}}")
 			return nil
 		}
 
@@ -393,7 +393,7 @@ func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 
 		cb, err := Encode{{.Name}}ArrayBlock(&values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "{{.name}}")
 			return nil
 		}
 
@@ -413,7 +413,7 @@ func (k *tsmBatchKeyIterator) chunk{{.Name}}(dst blocks) blocks {
 		minTime, maxTime := k.merged{{.Name}}Values.Timestamps[0], k.merged{{.Name}}Values.Timestamps[len(k.merged{{.Name}}Values.Timestamps)-1]
 		cb, err := Encode{{.Name}}ArrayBlock(k.merged{{.Name}}Values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "{{.name}}")
 			return nil
 		}
 

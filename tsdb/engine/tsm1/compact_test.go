@@ -245,6 +245,63 @@ func TestCompactor_CompactFull(t *testing.T) {
 }
 
 // Ensures that a compaction will properly merge multiple TSM files
+func TestCompactor_DecodeError(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// write 3 TSM files with different data and one new point
+	a1 := tsm1.NewValue(1, 1.1)
+	writes := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {a1},
+	}
+	f1 := MustWriteTSM(dir, 1, writes)
+
+	a2 := tsm1.NewValue(2, 1.2)
+	b1 := tsm1.NewValue(1, 2.1)
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {a2},
+		"cpu,host=B#!~#value": {b1},
+	}
+	f2 := MustWriteTSM(dir, 2, writes)
+
+	a3 := tsm1.NewValue(1, 1.3)
+	c1 := tsm1.NewValue(1, 3.1)
+	writes = map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {a3},
+		"cpu,host=C#!~#value": {c1},
+	}
+	f3 := MustWriteTSM(dir, 3, writes)
+	f, err := os.OpenFile(f3, os.O_RDWR, os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+	f.WriteAt([]byte("ffff"), 10) // skip over header
+	f.Close()
+
+	fs := &fakeFileStore{}
+	defer fs.Close()
+	compactor := tsm1.NewCompactor()
+	compactor.Dir = dir
+	compactor.FileStore = fs
+
+	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	if err == nil {
+		t.Fatalf("expected error writing snapshot: %v", err)
+	}
+	if len(files) > 0 {
+		t.Fatalf("no files should be compacted: got %v", len(files))
+
+	}
+
+	compactor.Open()
+
+	files, err = compactor.CompactFull([]string{f1, f2, f3})
+	if err == nil || err.Error() != "decode error: unable to decompress block type float for key 'cpu,host=A#!~#value': unpackBlock: not enough data for timestamp" {
+		t.Fatalf("expected error writing snapshot: %v", err)
+	}
+}
+
+// Ensures that a compaction will properly merge multiple TSM files
 func TestCompactor_Compact_OverlappingBlocks(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)

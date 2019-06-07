@@ -1818,6 +1818,14 @@ func (k *tsmBatchKeyIterator) merge() {
 	}
 }
 
+func (k *tsmBatchKeyIterator) handleEncodeError(err error, typ string) {
+	k.err = fmt.Errorf("encode error: unable to compress block type %s for key '%s': %v", typ, k.key, err)
+}
+
+func (k *tsmBatchKeyIterator) handleDecodeError(err error, typ string) {
+	k.err = fmt.Errorf("decode error: unable to decompress block type %s for key '%s': %v", typ, k.key, err)
+}
+
 func (k *tsmBatchKeyIterator) Read() ([]byte, int64, int64, []byte, error) {
 	// See if compactions were disabled while we were running.
 	select {
