@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+1. [14085](https://github.com/influxdata/influxdb/pull/14085): Fix performance regression in graph tooltips
+
 ### UI Improvements
 
 ## v2.0.0-alpha.11 [2019-05-31]

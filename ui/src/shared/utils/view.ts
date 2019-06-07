@@ -1,5 +1,5 @@
 // Constants
-import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/vis'
+import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/giraffe'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {

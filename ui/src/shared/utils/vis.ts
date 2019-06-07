@@ -1,5 +1,5 @@
 // Libraries
-import {Table, ColumnType, LineInterpolation} from '@influxdata/vis'
+import {Table, ColumnType, LineInterpolation} from '@influxdata/giraffe'
 
 // Utils
 import {formatNumber} from 'src/shared/utils/formatNumber'

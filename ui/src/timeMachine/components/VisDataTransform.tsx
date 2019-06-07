@@ -1,7 +1,7 @@
 // Libraries
 import {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {Table} from '@influxdata/vis'
+import {Table} from '@influxdata/giraffe'
 
 // Utils
 import {

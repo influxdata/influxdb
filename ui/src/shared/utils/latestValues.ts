@@ -1,5 +1,5 @@
 import {range, flatMap} from 'lodash'
-import {Table} from '@influxdata/vis'
+import {Table, NumericColumnData} from '@influxdata/giraffe'
 
 /*
   Return a list of the maximum elements in `xs`, where the magnitude of each
@@ -80,8 +80,10 @@ export const latestValues = (table: Table): number[] => {
   }
 
   const columnKeys = table.columnKeys
+
   // Fallback to `_stop` column if `_time` column missing otherwise return empty array.
-  let timeColData = []
+  let timeColData: NumericColumnData = []
+
   if (columnKeys.includes('_time')) {
     timeColData = table.getColumn('_time', 'number')
   } else if (columnKeys.includes('_stop')) {

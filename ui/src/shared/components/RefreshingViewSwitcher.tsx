@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {Plot} from '@influxdata/vis'
+import {Plot} from '@influxdata/giraffe'
 
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'

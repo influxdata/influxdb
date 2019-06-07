@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {Config, Table} from '@influxdata/vis'
+import {Config, Table} from '@influxdata/giraffe'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -43,7 +43,7 @@ const HistogramContainer: FunctionComponent<Props> = ({
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
+    table.getColumn(xColumn, 'number')
   )
 
   const isValidView =

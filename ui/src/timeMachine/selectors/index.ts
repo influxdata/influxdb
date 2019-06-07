@@ -1,7 +1,7 @@
 // Libraries
 import memoizeOne from 'memoize-one'
 import {get, flatMap} from 'lodash'
-import {fromFlux, Table} from '@influxdata/vis'
+import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'

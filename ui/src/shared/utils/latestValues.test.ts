@@ -1,4 +1,4 @@
-import {fromFlux} from '@influxdata/vis'
+import {fromFlux} from '@influxdata/giraffe'
 
 import {latestValues} from 'src/shared/utils/latestValues'
 

@@ -1,6 +1,6 @@
 // Libraries
 import {useMemo, FunctionComponent} from 'react'
-import {fromFlux, Table} from '@influxdata/vis'
+import {fromFlux, Table} from '@influxdata/giraffe'
 
 interface VisTableTransformResult {
   table: Table
