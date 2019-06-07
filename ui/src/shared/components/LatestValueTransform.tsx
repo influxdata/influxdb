@@ -1,6 +1,6 @@
 // Libraries
 import React, {useMemo, FunctionComponent} from 'react'
-import {Table} from '@influxdata/vis'
+import {Table} from '@influxdata/giraffe'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'

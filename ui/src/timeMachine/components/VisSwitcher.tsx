@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 import {AutoSizer} from 'react-virtualized'
-import {Plot} from '@influxdata/vis'
+import {Plot} from '@influxdata/giraffe'
 
 // Components
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'

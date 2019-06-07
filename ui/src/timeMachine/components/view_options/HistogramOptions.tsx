@@ -29,7 +29,7 @@ import {
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
-import {HistogramPosition} from '@influxdata/vis'
+import {HistogramPosition} from '@influxdata/giraffe'
 import {Color} from 'src/types/colors'
 import {AppState} from 'src/types'
 import ColumnSelector from 'src/shared/components/ColumnSelector'

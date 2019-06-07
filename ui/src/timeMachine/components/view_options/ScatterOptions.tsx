@@ -9,7 +9,7 @@ import {
   CTHULHU,
   ECTOPLASM,
   T_MAX_400_FILM,
-} from '@influxdata/vis'
+} from '@influxdata/giraffe'
 
 // Components
 import {Form, Input, Grid} from '@influxdata/clockface'

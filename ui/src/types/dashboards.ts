@@ -1,4 +1,4 @@
-import {HistogramPosition} from '@influxdata/vis'
+import {HistogramPosition} from '@influxdata/giraffe'
 import {Color} from 'src/types/colors'
 
 import {

@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {VIRIDIS, MAGMA, INFERNO, PLASMA} from '@influxdata/vis'
+import {VIRIDIS, MAGMA, INFERNO, PLASMA} from '@influxdata/giraffe'
 import {Form, Grid, Input, Columns, InputType} from '@influxdata/clockface'
 
 // Components

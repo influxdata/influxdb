@@ -22,7 +22,7 @@ import {
   AutoRefresh,
 } from 'src/types'
 import {Color} from 'src/types/colors'
-import {HistogramPosition} from '@influxdata/vis'
+import {HistogramPosition} from '@influxdata/giraffe'
 
 export type Action =
   | QueryBuilderAction

@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useMemo} from 'react'
-import {Config, Table} from '@influxdata/vis'
+import {Config, Table} from '@influxdata/giraffe'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
@@ -65,12 +65,12 @@ const XYContainer: FunctionComponent<Props> = ({
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    columnKeys.includes(xColumn) ? table.getColumn(xColumn, 'number') : []
+    table.getColumn(xColumn, 'number')
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
     storedYDomain,
-    columnKeys.includes(yColumn) ? table.getColumn(yColumn, 'number') : []
+    table.getColumn(yColumn, 'number')
   )
 
   const isValidView =
