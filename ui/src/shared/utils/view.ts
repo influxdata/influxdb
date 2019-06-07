@@ -128,7 +128,7 @@ const NEW_VIEW_CREATORS = {
       queries: [],
       type: ViewType.Histogram,
       shape: ViewShape.ChronografV2,
-      xColumn: null,
+      xColumn: '_value',
       xDomain: null,
       xAxisLabel: '',
       fillColumns: null,
