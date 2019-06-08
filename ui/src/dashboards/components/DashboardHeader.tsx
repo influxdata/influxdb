@@ -62,6 +62,7 @@ export default class DashboardHeader extends Component<Props> {
       org,
       handleChooseAutoRefresh,
       onManualRefresh,
+      timeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       isHidden,
@@ -106,6 +107,7 @@ export default class DashboardHeader extends Component<Props> {
           <TimeRangeDropdown
             onSetTimeRange={this.handleChooseTimeRange}
             timeRange={{
+              ...timeRange,
               upper: zoomedUpper || upper,
               lower: zoomedLower || lower,
             }}

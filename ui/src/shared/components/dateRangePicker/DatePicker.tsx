@@ -1,6 +1,7 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import ReactDatePicker from 'react-datepicker'
+import moment from 'moment'
 
 // Components
 import {Form, Input, Grid} from '@influxdata/clockface'
@@ -10,6 +11,7 @@ import 'react-datepicker/dist/react-datepicker.css'
 
 // Types
 import {Columns, ComponentSize} from '@influxdata/clockface'
+import {ComponentStatus} from 'src/clockface'
 
 interface Props {
   label: string
@@ -17,11 +19,19 @@ interface Props {
   onSelectDate: (date: string) => void
 }
 
-class DatePicker extends PureComponent<Props> {
+interface State {
+  inputValue: string
+}
+
+export default class DatePicker extends PureComponent<Props, State> {
   private inCurrentMonth: boolean = false
+  state = {
+    inputValue: null,
+  }
 
   public render() {
     const {dateTime, label} = this.props
+
     const date = new Date(dateTime)
 
     return (
@@ -29,23 +39,31 @@ class DatePicker extends PureComponent<Props> {
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Form.Element label={label}>
-              <ReactDatePicker
-                selected={date}
-                onChange={this.handleSelectDate}
-                startOpen={true}
-                dateFormat="yyyy-MM-dd HH:mm"
-                showTimeSelect={true}
-                timeFormat="HH:mm"
-                shouldCloseOnSelect={false}
-                disabledKeyboardNavigation={true}
-                customInput={this.customInput}
-                popperContainer={this.popperContainer}
-                popperClassName="range-picker--popper"
-                calendarClassName="range-picker--calendar"
-                dayClassName={this.dayClassName}
-                timeIntervals={60}
-                fixedHeight={true}
+              <Input
+                size={ComponentSize.Medium}
+                className="range-picker--input react-datepicker-ignore-onclickoutside"
+                titleText={label}
+                value={this.inputValue}
+                onChange={this.handleChangeInput}
+                status={this.inputStatus}
               />
+              <div className="range-picker--popper-container">
+                <ReactDatePicker
+                  inline
+                  selected={date}
+                  onChange={this.handleSelectDate}
+                  startOpen={true}
+                  dateFormat="yyyy-MM-dd HH:mm"
+                  showTimeSelect={true}
+                  timeFormat="HH:mm"
+                  shouldCloseOnSelect={false}
+                  disabledKeyboardNavigation={true}
+                  calendarClassName="range-picker--calendar"
+                  dayClassName={this.dayClassName}
+                  timeIntervals={60}
+                  fixedHeight={true}
+                />
+              </div>
             </Form.Element>
           </Grid.Column>
         </Grid.Row>
@@ -53,16 +71,30 @@ class DatePicker extends PureComponent<Props> {
     )
   }
 
-  private get customInput() {
-    const {label} = this.props
+  private get inputValue(): string {
+    const {dateTime} = this.props
+    const {inputValue} = this.state
 
-    return (
-      <Input
-        size={ComponentSize.Medium}
-        className="range-picker--input react-datepicker-ignore-onclickoutside"
-        titleText={label}
-      />
-    )
+    if (this.isInputValueInvalid) {
+      return inputValue
+    }
+
+    return moment(dateTime).format('YYYY-MM-DD HH:mm')
+  }
+
+  private get isInputValueInvalid(): boolean {
+    const {inputValue} = this.state
+    if (inputValue === null) {
+      return false
+    }
+    return !moment(inputValue, 'YYYY-MM-DD HH:mm', true).isValid()
+  }
+
+  private get inputStatus(): ComponentStatus {
+    if (this.isInputValueInvalid) {
+      return ComponentStatus.Error
+    }
+    return ComponentStatus.Default
   }
 
   private dayClassName = (date: Date) => {
@@ -79,15 +111,19 @@ class DatePicker extends PureComponent<Props> {
     return 'range-picker--day'
   }
 
-  private popperContainer({children}): JSX.Element {
-    return <div className="range-picker--popper-container">{children}</div>
-  }
-
   private handleSelectDate = (date: Date): void => {
     const {onSelectDate} = this.props
-
     onSelectDate(date.toISOString())
   }
-}
 
-export default DatePicker
+  private handleChangeInput = (e: ChangeEvent<HTMLInputElement>): void => {
+    const {onSelectDate} = this.props
+    const value = e.target.value
+
+    if (moment(value, 'YYYY-MM-DD HH:mm', true).isValid()) {
+      onSelectDate(value)
+    }
+
+    this.setState({inputValue: value})
+  }
+}
