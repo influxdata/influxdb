@@ -20,6 +20,7 @@ package control
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,6 +36,7 @@ import (
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // orgLabel is the metric label to use in the controller
@@ -251,7 +253,21 @@ func (c *Controller) countQueryRequest(q *Query, result requestsLabel) {
 	c.metrics.requests.WithLabelValues(lvs...).Inc()
 }
 
-func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) error {
+func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			var ok bool
+			err, ok = e.(error)
+			if !ok {
+				err = fmt.Errorf("panic: %v", e)
+			}
+			if entry := c.logger.Check(zapcore.InfoLevel, "panic during compile"); entry != nil {
+				entry.Stack = string(debug.Stack())
+				entry.Write(zap.Error(err))
+			}
+		}
+	}()
+
 	ctx, ok := q.tryCompile()
 	if !ok {
 		return errors.New("failed to transition query to compiling state")
@@ -297,6 +313,21 @@ func (c *Controller) processQueryQueue() {
 }
 
 func (c *Controller) executeQuery(q *Query) {
+	defer func() {
+		if e := recover(); e != nil {
+			var ok bool
+			err, ok := e.(error)
+			if !ok {
+				err = fmt.Errorf("panic: %v", e)
+			}
+			q.setErr(err)
+			if entry := c.logger.Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
+				entry.Stack = string(debug.Stack())
+				entry.Write(zap.Error(err))
+			}
+		}
+	}()
+
 	ctx, ok := q.tryExec()
 	if !ok {
 		// This may happen if the query was cancelled (either because the
