@@ -62,7 +62,7 @@ func (c *Compiler) Compile(ctx context.Context) (flux.Program, error) {
 		return nil, err
 	}
 	compileOptions := lang.WithLogPlanOpts(c.logicalPlannerOptions...)
-	return lang.CompileAST(astPkg, now, compileOptions), nil
+	return lang.CompileAST(astPkg, now, compileOptions)
 }
 
 func (c *Compiler) CompilerType() flux.CompilerType {
