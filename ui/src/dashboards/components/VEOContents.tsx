@@ -10,6 +10,7 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 // Actions
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -17,9 +18,6 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 // Types
 import {AppState} from 'src/types'
 import {Dashboard} from 'src/types'
-
-// Nofication Messages
-import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface StateProps {
   name: string
@@ -40,8 +38,9 @@ interface OwnProps {
 type Props = OwnProps & StateProps & DispatchProps
 
 class VEOContents extends PureComponent<Props, {}> {
-  public componentDidMount() {
-    this.props.executeQueries()
+  public async componentDidMount() {
+    const {executeQueries} = this.props
+    await executeQueries()
   }
 
   public render() {

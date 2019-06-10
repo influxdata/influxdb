@@ -38,20 +38,7 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps & OwnProps
 
-interface State {
-  hasActivatedTimeMachine: boolean
-}
-
-class VEO extends PureComponent<Props, State> {
-  public state: State = {
-    hasActivatedTimeMachine: false,
-  }
-
-  public componentDidMount() {
-    const {view, onSetActiveTimeMachine} = this.props
-    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
-  }
-
+class VEO extends PureComponent<Props> {
   public render() {
     const {params} = this.props
 
