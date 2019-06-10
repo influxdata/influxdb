@@ -4,14 +4,13 @@ import ReactDatePicker from 'react-datepicker'
 import moment from 'moment'
 
 // Components
-import {Input, Grid, ComponentStatus} from '@influxdata/clockface'
+import {Input, Grid, Form} from '@influxdata/clockface'
 
 // Styles
 import 'react-datepicker/dist/react-datepicker.css'
 
 // Types
-import {Columns, ComponentSize} from '@influxdata/clockface'
-import {Form} from 'src/clockface'
+import {Columns, ComponentSize, ComponentStatus} from '@influxdata/clockface'
 
 interface Props {
   label: string
