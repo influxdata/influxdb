@@ -4,14 +4,14 @@ import ReactDatePicker from 'react-datepicker'
 import moment from 'moment'
 
 // Components
-import {Form, Input, Grid} from '@influxdata/clockface'
+import {Input, Grid, ComponentStatus} from '@influxdata/clockface'
 
 // Styles
 import 'react-datepicker/dist/react-datepicker.css'
 
 // Types
 import {Columns, ComponentSize} from '@influxdata/clockface'
-import {ComponentStatus} from 'src/clockface'
+import {Form} from 'src/clockface'
 
 interface Props {
   label: string
@@ -38,7 +38,7 @@ export default class DatePicker extends PureComponent<Props, State> {
       <div className="range-picker--date-picker">
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
-            <Form.Element label={label}>
+            <Form.Element label={label} errorMessage={this.inputErrorMessage}>
               <Input
                 size={ComponentSize.Medium}
                 className="range-picker--input react-datepicker-ignore-onclickoutside"
@@ -47,24 +47,24 @@ export default class DatePicker extends PureComponent<Props, State> {
                 onChange={this.handleChangeInput}
                 status={this.inputStatus}
               />
-              <div className="range-picker--popper-container">
-                <ReactDatePicker
-                  inline
-                  selected={date}
-                  onChange={this.handleSelectDate}
-                  startOpen={true}
-                  dateFormat="yyyy-MM-dd HH:mm"
-                  showTimeSelect={true}
-                  timeFormat="HH:mm"
-                  shouldCloseOnSelect={false}
-                  disabledKeyboardNavigation={true}
-                  calendarClassName="range-picker--calendar"
-                  dayClassName={this.dayClassName}
-                  timeIntervals={60}
-                  fixedHeight={true}
-                />
-              </div>
             </Form.Element>
+            <div className="range-picker--popper-container">
+              <ReactDatePicker
+                inline
+                selected={date}
+                onChange={this.handleSelectDate}
+                startOpen={true}
+                dateFormat="yyyy-MM-dd HH:mm"
+                showTimeSelect={true}
+                timeFormat="HH:mm"
+                shouldCloseOnSelect={false}
+                disabledKeyboardNavigation={true}
+                calendarClassName="range-picker--calendar"
+                dayClassName={this.dayClassName}
+                timeIntervals={60}
+                fixedHeight={true}
+              />
+            </div>
           </Grid.Column>
         </Grid.Row>
       </div>
@@ -88,6 +88,14 @@ export default class DatePicker extends PureComponent<Props, State> {
       return false
     }
     return !moment(inputValue, 'YYYY-MM-DD HH:mm', true).isValid()
+  }
+
+  private get inputErrorMessage(): string | undefined {
+    if (this.isInputValueInvalid) {
+      return 'Format must be YYYY-MM-DD HH:mm'
+    }
+
+    return '\u00a0\u00a0'
   }
 
   private get inputStatus(): ComponentStatus {

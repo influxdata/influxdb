@@ -8,10 +8,9 @@
   text-align: center;
   background-color: $g1-raven;
   border: $ix-border solid $c-pool;
-  padding: 0 $ix-marg-b;
+  padding: $ix-marg-b;
   border-radius: $ix-radius;
   z-index: 9999;
-  height: 416px;
   
   .react-datepicker {
     font-family: $ix-text-font;
@@ -23,10 +22,11 @@
     display: flex;
     flex-direction: row;
     align-items: center;
-    margin-top: $ix-marg-b;
+    margin-bottom: $ix-marg-b;
     
     .range-picker--date-picker {
       margin: $ix-marg-a;
+      margin-top: 0;
 
       .react-datepicker-wrapper,
       .react-datepicker__input-container {
@@ -169,6 +169,10 @@
   }
 }
 
+.range-picker--submit {
+  margin-bottom: $ix-marg-b;
+}
+
 .range-picker--dismiss {
   position: absolute;
   z-index: 5000;
@@ -207,4 +211,8 @@
     background-color: $c-laser;
     cursor: pointer;
   }
+}
+
+.range-picker--input {
+  margin-bottom: $ix-marg-a;
 }
