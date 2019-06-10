@@ -47,6 +47,7 @@ import {
   AutoRefreshStatus,
   XYView,
   ViewType,
+  QueryView,
 } from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
@@ -301,7 +302,7 @@ class DashboardPage extends Component<Props, State> {
   private showVEO = (id?: string): void => {
     const {router, location, views, onSetActiveTimeMachine} = this.props
     if (id) {
-      const view = _.get<View>(views, `${id}.view`)
+      const view = _.get(views, `${id}.view`) as QueryView
       onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
       router.push(`${location.pathname}/cells/${id}/edit`)
     } else {
