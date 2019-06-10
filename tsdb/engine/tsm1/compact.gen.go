@@ -1072,7 +1072,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 				var v tsdb.FloatArray
 				var err error
 				if err = DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
-					k.err = err
+					k.handleDecodeError(err, "float")
 					return nil
 				}
 
@@ -1156,7 +1156,7 @@ func (k *tsmBatchKeyIterator) combineFloat(dedup bool) blocks {
 
 		var v tsdb.FloatArray
 		if err := DecodeFloatArrayBlock(k.blocks[i].b, &v); err != nil {
-			k.err = err
+			k.handleDecodeError(err, "float")
 			return nil
 		}
 
@@ -1190,7 +1190,7 @@ func (k *tsmBatchKeyIterator) chunkFloat(dst blocks) blocks {
 
 		cb, err := EncodeFloatArrayBlock(&values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "float")
 			return nil
 		}
 
@@ -1210,7 +1210,7 @@ func (k *tsmBatchKeyIterator) chunkFloat(dst blocks) blocks {
 		minTime, maxTime := k.mergedFloatValues.Timestamps[0], k.mergedFloatValues.Timestamps[len(k.mergedFloatValues.Timestamps)-1]
 		cb, err := EncodeFloatArrayBlock(k.mergedFloatValues, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "float")
 			return nil
 		}
 
@@ -1291,7 +1291,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 				var v tsdb.IntegerArray
 				var err error
 				if err = DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
-					k.err = err
+					k.handleDecodeError(err, "integer")
 					return nil
 				}
 
@@ -1375,7 +1375,7 @@ func (k *tsmBatchKeyIterator) combineInteger(dedup bool) blocks {
 
 		var v tsdb.IntegerArray
 		if err := DecodeIntegerArrayBlock(k.blocks[i].b, &v); err != nil {
-			k.err = err
+			k.handleDecodeError(err, "integer")
 			return nil
 		}
 
@@ -1409,7 +1409,7 @@ func (k *tsmBatchKeyIterator) chunkInteger(dst blocks) blocks {
 
 		cb, err := EncodeIntegerArrayBlock(&values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "integer")
 			return nil
 		}
 
@@ -1429,7 +1429,7 @@ func (k *tsmBatchKeyIterator) chunkInteger(dst blocks) blocks {
 		minTime, maxTime := k.mergedIntegerValues.Timestamps[0], k.mergedIntegerValues.Timestamps[len(k.mergedIntegerValues.Timestamps)-1]
 		cb, err := EncodeIntegerArrayBlock(k.mergedIntegerValues, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "integer")
 			return nil
 		}
 
@@ -1510,7 +1510,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 				var v tsdb.UnsignedArray
 				var err error
 				if err = DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
-					k.err = err
+					k.handleDecodeError(err, "unsigned")
 					return nil
 				}
 
@@ -1594,7 +1594,7 @@ func (k *tsmBatchKeyIterator) combineUnsigned(dedup bool) blocks {
 
 		var v tsdb.UnsignedArray
 		if err := DecodeUnsignedArrayBlock(k.blocks[i].b, &v); err != nil {
-			k.err = err
+			k.handleDecodeError(err, "unsigned")
 			return nil
 		}
 
@@ -1628,7 +1628,7 @@ func (k *tsmBatchKeyIterator) chunkUnsigned(dst blocks) blocks {
 
 		cb, err := EncodeUnsignedArrayBlock(&values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "unsigned")
 			return nil
 		}
 
@@ -1648,7 +1648,7 @@ func (k *tsmBatchKeyIterator) chunkUnsigned(dst blocks) blocks {
 		minTime, maxTime := k.mergedUnsignedValues.Timestamps[0], k.mergedUnsignedValues.Timestamps[len(k.mergedUnsignedValues.Timestamps)-1]
 		cb, err := EncodeUnsignedArrayBlock(k.mergedUnsignedValues, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "unsigned")
 			return nil
 		}
 
@@ -1729,7 +1729,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 				var v tsdb.StringArray
 				var err error
 				if err = DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
-					k.err = err
+					k.handleDecodeError(err, "string")
 					return nil
 				}
 
@@ -1813,7 +1813,7 @@ func (k *tsmBatchKeyIterator) combineString(dedup bool) blocks {
 
 		var v tsdb.StringArray
 		if err := DecodeStringArrayBlock(k.blocks[i].b, &v); err != nil {
-			k.err = err
+			k.handleDecodeError(err, "string")
 			return nil
 		}
 
@@ -1847,7 +1847,7 @@ func (k *tsmBatchKeyIterator) chunkString(dst blocks) blocks {
 
 		cb, err := EncodeStringArrayBlock(&values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "string")
 			return nil
 		}
 
@@ -1867,7 +1867,7 @@ func (k *tsmBatchKeyIterator) chunkString(dst blocks) blocks {
 		minTime, maxTime := k.mergedStringValues.Timestamps[0], k.mergedStringValues.Timestamps[len(k.mergedStringValues.Timestamps)-1]
 		cb, err := EncodeStringArrayBlock(k.mergedStringValues, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "string")
 			return nil
 		}
 
@@ -1948,7 +1948,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 				var v tsdb.BooleanArray
 				var err error
 				if err = DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
-					k.err = err
+					k.handleDecodeError(err, "boolean")
 					return nil
 				}
 
@@ -2032,7 +2032,7 @@ func (k *tsmBatchKeyIterator) combineBoolean(dedup bool) blocks {
 
 		var v tsdb.BooleanArray
 		if err := DecodeBooleanArrayBlock(k.blocks[i].b, &v); err != nil {
-			k.err = err
+			k.handleDecodeError(err, "boolean")
 			return nil
 		}
 
@@ -2066,7 +2066,7 @@ func (k *tsmBatchKeyIterator) chunkBoolean(dst blocks) blocks {
 
 		cb, err := EncodeBooleanArrayBlock(&values, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "boolean")
 			return nil
 		}
 
@@ -2086,7 +2086,7 @@ func (k *tsmBatchKeyIterator) chunkBoolean(dst blocks) blocks {
 		minTime, maxTime := k.mergedBooleanValues.Timestamps[0], k.mergedBooleanValues.Timestamps[len(k.mergedBooleanValues.Timestamps)-1]
 		cb, err := EncodeBooleanArrayBlock(k.mergedBooleanValues, nil) // TODO(edd): pool this buffer
 		if err != nil {
-			k.err = err
+			k.handleEncodeError(err, "boolean")
 			return nil
 		}
 
