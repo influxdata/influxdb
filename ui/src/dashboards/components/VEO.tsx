@@ -16,9 +16,6 @@ import {createView} from 'src/shared/utils/view'
 import {AppState, ViewType, QueryView, XYView, RemoteDataState} from 'src/types'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
-// Constants
-import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
-
 interface OwnProps extends WithRouterProps {
   params: {
     dashboardID: string
