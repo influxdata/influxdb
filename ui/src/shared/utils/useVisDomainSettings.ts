@@ -16,12 +16,15 @@ import {extent} from 'src/shared/utils/vis'
 */
 export const useVisDomainSettings = (
   storedDomain: [number, number],
-  data: NumericColumnData = []
+  data: NumericColumnData
 ) => {
-  const initialDomain = useMemo(
-    () => (storedDomain ? storedDomain : extent(data as number[])),
-    [storedDomain, data]
-  )
+  const initialDomain = useMemo(() => {
+    if (storedDomain) {
+      return storedDomain
+    }
+
+    return extent((data as number[]) || [])
+  }, [storedDomain, data])
 
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)
