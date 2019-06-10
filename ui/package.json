@@ -143,7 +143,7 @@
     "@influxdata/influx": "github:influxdata/influxdb2-js#dev",
     "@influxdata/influxdb-templates": "influxdata/influxdb-templates",
     "@influxdata/react-custom-scrollbars": "4.3.8",
-    "@influxdata/giraffe": "0.11.0",
+    "@influxdata/giraffe": "0.11.1",
     "axios": "^0.18.0",
     "babel-polyfill": "^6.26.0",
     "bignumber.js": "^4.0.2",
