@@ -1,5 +1,11 @@
 // Libraries
-import {Table, ColumnType, LineInterpolation} from '@influxdata/giraffe'
+import {get} from 'lodash'
+import {
+  Table,
+  ColumnType,
+  LineInterpolation,
+  FromFluxResult,
+} from '@influxdata/giraffe'
 
 // Utils
 import {formatNumber} from 'src/shared/utils/formatNumber'
@@ -123,4 +129,8 @@ export const chooseYColumn = (table: Table): string | null => {
       k.startsWith('_value') &&
       (table.getColumnType(k) === 'number' || table.getColumnType(k) === 'time')
   )
+}
+
+export const checkResultsLength = (giraffeResult: FromFluxResult): boolean => {
+  return get(giraffeResult, 'table.length', 0) > 0
 }

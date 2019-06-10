@@ -1,18 +1,18 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import TimeSeries from 'src/shared/components/TimeSeries'
 import EmptyQueryView from 'src/shared/components/EmptyQueryView'
-import RefreshingViewSwitcher from 'src/shared/components/RefreshingViewSwitcher'
+import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getVariableAssignments} from 'src/variables/selectors'
 import {getDashboardValuesStatus} from 'src/variables/selectors'
+import {checkResultsLength} from 'src/shared/utils/vis'
 
 // Types
 import {TimeRange, RemoteDataState} from 'src/types'
@@ -75,18 +75,18 @@ class RefreshingView extends PureComponent<Props, State> {
           key={manualRefresh}
           variables={this.variableAssignments}
         >
-          {({tables, files, loading, errorMessage, isInitialFetch}) => {
+          {({giraffeResult, files, loading, errorMessage, isInitialFetch}) => {
             return (
               <EmptyQueryView
                 errorMessage={errorMessage}
-                tables={tables}
+                hasResults={checkResultsLength(giraffeResult)}
                 loading={loading}
                 isInitialFetch={isInitialFetch}
                 queries={this.queries}
                 fallbackNote={this.fallbackNote}
               >
-                <RefreshingViewSwitcher
-                  tables={tables}
+                <ViewSwitcher
+                  giraffeResult={giraffeResult}
                   files={files}
                   loading={loading}
                   properties={properties}

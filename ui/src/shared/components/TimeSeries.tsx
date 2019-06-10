@@ -1,8 +1,9 @@
 // Library
 import {Component} from 'react'
-import {isEqual, flatten, get} from 'lodash'
+import {isEqual, get} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
+import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
 
 // API
 import {
@@ -11,7 +12,6 @@ import {
 } from 'src/shared/apis/query'
 
 // Utils
-import {parseResponse} from 'src/shared/parsing/flux/response'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Constants
@@ -23,19 +23,19 @@ import {RATE_LIMIT_ERROR_TEXT} from 'src/cloud/constants'
 import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {RemoteDataState, FluxTable} from 'src/types'
+import {RemoteDataState} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
 import {AppState} from 'src/types'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
 interface QueriesState {
-  tables: FluxTable[]
   files: string[] | null
   loading: RemoteDataState
   errorMessage: string
   isInitialFetch: boolean
   duration: number
+  giraffeResult: FromFluxResult
 }
 
 interface StateProps {
@@ -58,20 +58,20 @@ type Props = StateProps & OwnProps & DispatchProps
 
 interface State {
   loading: RemoteDataState
-  tables: FluxTable[]
   files: string[] | null
   errorMessage: string
   fetchCount: number
   duration: number
+  giraffeResult: FromFluxResult
 }
 
 const defaultState = (): State => ({
   loading: RemoteDataState.NotStarted,
-  tables: [],
   files: null,
   fetchCount: 0,
   errorMessage: '',
   duration: 0,
+  giraffeResult: null,
 })
 
 class TimeSeries extends Component<Props & WithRouterProps, State> {
@@ -97,7 +97,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
   public render() {
     const {
-      tables,
+      giraffeResult,
       files,
       loading,
       errorMessage,
@@ -106,7 +106,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
     } = this.state
 
     return this.props.children({
-      tables,
+      giraffeResult,
       files,
       loading,
       errorMessage,
@@ -147,13 +147,13 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
 
       const duration = Date.now() - startTime
-      const tables = flatten(results.map(r => parseResponse(r.csv)))
       const files = results.map(r => r.csv)
+      const giraffeResult = fromFlux(files.join('\n\n'))
 
       files.forEach(checkQueryResult)
 
       this.setState({
-        tables,
+        giraffeResult,
         files,
         duration,
         loading: RemoteDataState.Done,
@@ -174,6 +174,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       this.setState({
         errorMessage,
+        giraffeResult: null,
         loading: RemoteDataState.Error,
       })
     }
