@@ -457,6 +457,60 @@ func TestController_LimitExceededError(t *testing.T) {
 	}
 }
 
+func TestController_CompilePanic(t *testing.T) {
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			panic("panic during compile step")
+		},
+	}
+
+	_, err = ctrl.Query(context.Background(), makeRequest(compiler))
+	if err == nil {
+		t.Fatalf("expected error when query was compiled")
+	} else if !strings.Contains(err.Error(), "panic during compile step") {
+		t.Fatalf(`expected error to contain "panic during compile step" instead it contains "%v"`, err.Error())
+	}
+}
+
+func TestController_StartPanic(t *testing.T) {
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				StartFn: func(ctx context.Context, alloc *memory.Allocator) (i *mock.Query, e error) {
+					panic("panic during start step")
+				},
+			}, nil
+		},
+	}
+
+	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	if err != nil {
+		t.Fatalf("unexpected error when query was compiled")
+	}
+
+	for range q.Results() {
+	}
+	q.Done()
+
+	if err = q.Err(); err == nil {
+		t.Fatalf("expected error after query started")
+	} else if !strings.Contains(err.Error(), "panic during start step") {
+		t.Fatalf(`expected error to contain "panic during start step" instead it contains "%v"`, err.Error())
+	}
+}
+
 func TestController_ShutdownWithRunningQuery(t *testing.T) {
 	ctrl, err := control.New(config)
 	if err != nil {
