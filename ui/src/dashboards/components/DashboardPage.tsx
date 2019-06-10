@@ -24,7 +24,6 @@ import {
 } from 'src/shared/actions/autoRefresh'
 
 // Utils
-import {getDeep} from 'src/utils/wrappers'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 
 // Constants
@@ -136,13 +135,6 @@ class DashboardPage extends Component<Props, State> {
 
   public componentDidUpdate(prevProps: Props) {
     const {autoRefresh} = this.props
-
-    const prevPath = getDeep(prevProps.location, 'pathname', null)
-    const thisPath = getDeep(this.props.location, 'pathname', null)
-
-    if (prevPath && thisPath && prevPath !== thisPath) {
-      this.getDashboard()
-    }
 
     if (!_.isEqual(autoRefresh, prevProps.autoRefresh)) {
       if (autoRefresh.status === AutoRefreshStatus.Active) {
@@ -303,10 +295,11 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private showVEO = (id?: string): void => {
+    const {router, location} = this.props
     if (id) {
-      this.props.router.push(`${this.props.location.pathname}/cells/${id}/edit`)
+      router.push(`${location.pathname}/cells/${id}/edit`)
     } else {
-      this.props.router.push(`${this.props.location.pathname}/cells/new`)
+      router.push(`${location.pathname}/cells/new`)
     }
   }
 

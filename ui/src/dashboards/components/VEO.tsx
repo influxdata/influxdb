@@ -47,21 +47,12 @@ class VEO extends PureComponent<Props, State> {
     hasActivatedTimeMachine: false,
   }
 
-  public componentDidUpdate() {
+  public componentDidMount() {
     const {view, onSetActiveTimeMachine} = this.props
-    const {hasActivatedTimeMachine} = this.state
-
-    const timeMachineShouldActivate =
-      !hasActivatedTimeMachine && this.loading === RemoteDataState.Done
-
-    if (timeMachineShouldActivate) {
-      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
-      this.setState({hasActivatedTimeMachine: true})
-    }
+    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
   }
 
   public render() {
-    const {hasActivatedTimeMachine} = this.state
     const {params} = this.props
 
     return (
@@ -71,12 +62,10 @@ class VEO extends PureComponent<Props, State> {
             spinnerComponent={<TechnoSpinner />}
             loading={this.loading}
           >
-            {hasActivatedTimeMachine && (
-              <VEOContents
-                dashboardID={params.dashboardID}
-                onClose={this.handleClose}
-              />
-            )}
+            <VEOContents
+              dashboardID={params.dashboardID}
+              onClose={this.handleClose}
+            />
           </SpinnerContainer>
         </div>
       </Overlay>
