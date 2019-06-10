@@ -20,7 +20,6 @@ import {VariableAssignment} from 'src/types/ast'
 import {AppState} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
 import {QueryViewProperties, ViewType} from 'src/types/dashboards'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   timeRange: TimeRange
@@ -61,41 +60,36 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {properties, manualRefresh, variablesStatus} = this.props
+    const {properties, manualRefresh} = this.props
     const {submitToken} = this.state
 
     return (
-      <SpinnerContainer
-        loading={variablesStatus}
-        spinnerComponent={<TechnoSpinner />}
+      <TimeSeries
+        submitToken={submitToken}
+        queries={this.queries}
+        key={manualRefresh}
+        variables={this.variableAssignments}
       >
-        <TimeSeries
-          submitToken={submitToken}
-          queries={this.queries}
-          key={manualRefresh}
-          variables={this.variableAssignments}
-        >
-          {({giraffeResult, files, loading, errorMessage, isInitialFetch}) => {
-            return (
-              <EmptyQueryView
-                errorMessage={errorMessage}
-                hasResults={checkResultsLength(giraffeResult)}
+        {({giraffeResult, files, loading, errorMessage, isInitialFetch}) => {
+          return (
+            <EmptyQueryView
+              errorMessage={errorMessage}
+              hasResults={checkResultsLength(giraffeResult)}
+              loading={loading}
+              isInitialFetch={isInitialFetch}
+              queries={this.queries}
+              fallbackNote={this.fallbackNote}
+            >
+              <ViewSwitcher
+                giraffeResult={giraffeResult}
+                files={files}
                 loading={loading}
-                isInitialFetch={isInitialFetch}
-                queries={this.queries}
-                fallbackNote={this.fallbackNote}
-              >
-                <ViewSwitcher
-                  giraffeResult={giraffeResult}
-                  files={files}
-                  loading={loading}
-                  properties={properties}
-                />
-              </EmptyQueryView>
-            )
-          }}
-        </TimeSeries>
-      </SpinnerContainer>
+                properties={properties}
+              />
+            </EmptyQueryView>
+          )
+        }}
+      </TimeSeries>
     )
   }
 
