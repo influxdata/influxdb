@@ -38,9 +38,8 @@ interface OwnProps {
 type Props = OwnProps & StateProps & DispatchProps
 
 class VEOContents extends PureComponent<Props, {}> {
-  public async componentDidMount() {
-    const {executeQueries} = this.props
-    await executeQueries()
+  public componentDidMount() {
+    this.props.executeQueries()
   }
 
   public render() {
