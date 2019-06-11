@@ -10,6 +10,7 @@ import {
   TechnoSpinner,
   SpinnerContainer,
 } from '@influxdata/clockface'
+import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 
 // Utils
 import {
@@ -103,14 +104,15 @@ class VariablesControlBar extends PureComponent<Props, State> {
     return (
       <>
         {variables.map((v, i) => (
-          <DraggableDropdown
-            key={v.id}
-            name={v.name}
-            id={v.id}
-            index={i}
-            dashboardID={dashboardID}
-            moveDropdown={this.handleMoveDropdown}
-          />
+          <ErrorBoundary key={v.id}>
+            <DraggableDropdown
+              name={v.name}
+              id={v.id}
+              index={i}
+              dashboardID={dashboardID}
+              moveDropdown={this.handleMoveDropdown}
+            />
+          </ErrorBoundary>
         ))}
         {valuesStatus === RemoteDataState.Loading && (
           <TechnoSpinner diameterPixels={18} />
