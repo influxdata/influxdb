@@ -26,7 +26,6 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  title?: string
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
 }
 
@@ -48,7 +47,6 @@ export default class TemplatesList extends PureComponent<Props> {
 
     return (
       <>
-        {this.header}
         <ResourceList>
           <ResourceList.Header>
             <ResourceList.Sorter
@@ -68,16 +66,6 @@ export default class TemplatesList extends PureComponent<Props> {
         </ResourceList>
       </>
     )
-  }
-
-  private get header(): JSX.Element {
-    const {title} = this.props
-
-    if (title) {
-      return <h1>{title}</h1>
-    } else {
-      return null
-    }
   }
 
   private get rows(): JSX.Element[] {
