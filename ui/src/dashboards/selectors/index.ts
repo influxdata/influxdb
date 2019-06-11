@@ -44,6 +44,11 @@ export const getVariableValuesForDropdown = (
     variableID,
     contextID
   )
+
+  if (!values) {
+    return {list: null, selectedKey: null}
+  }
+
   const type = getTypeForVariable(state, variableID)
 
   switch (type) {
@@ -64,6 +69,7 @@ export const getVariableValuesForDropdown = (
     }
     default:
       const list = values.map(v => ({name: v, value: v}))
+
       return {selectedKey: selectedValue, list}
   }
 }
