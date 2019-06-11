@@ -61,7 +61,7 @@ type AnalyticalStorage struct {
 
 func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	run, err := as.TaskControlService.FinishRun(ctx, taskID, runID)
-	if run != nil {
+	if run != nil && run.ID.String() != "" {
 		task, err := as.TaskService.FindTaskByID(ctx, run.TaskID)
 		if err != nil {
 			return run, err
@@ -310,17 +310,21 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 		for j, col := range cr.Cols() {
 			switch col.Label {
 			case "runID":
-				id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
-				if err != nil {
-					return err
+				if cr.Strings(j).ValueString(i) != "" {
+					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
+					if err != nil {
+						return err
+					}
+					r.ID = *id
 				}
-				r.ID = *id
 			case "taskID":
-				id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
-				if err != nil {
-					return err
+				if cr.Strings(j).ValueString(i) != "" {
+					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
+					if err != nil {
+						return err
+					}
+					r.TaskID = *id
 				}
-				r.TaskID = *id
 			case startedAtField:
 				r.StartedAt = cr.Strings(j).ValueString(i)
 			case requestedAtField:
@@ -341,14 +345,11 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 
 		}
 
-		if !r.ID.Valid() {
-			return &influxdb.Error{
-				Msg:  "failed to pull run id",
-				Code: influxdb.EInternal,
-			}
+		// if we dont have a full enough data set we fail here.
+		if r.ID.Valid() {
+			re.runs = append(re.runs, &r)
 		}
 
-		re.runs = append(re.runs, &r)
 	}
 
 	return nil
