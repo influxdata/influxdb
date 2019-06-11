@@ -16,6 +16,7 @@ import (
 )
 
 func TestTaskService(t *testing.T) {
+	t.Skip("TODO(#14108): flaky test (https://github.com/influxdata/influxdb/issues/14108)")
 	t.Parallel()
 	servicetest.TestTaskService(
 		t,
