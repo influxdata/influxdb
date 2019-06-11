@@ -23,8 +23,8 @@ import {Color} from 'src/types/colors'
 import {DecimalPlaces} from 'src/types/dashboards'
 
 interface Props {
-  width: string
-  height: string
+  width: number
+  height: number
   gaugePosition: number
   colors?: Color[]
   prefix: string

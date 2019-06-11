@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {AutoSizer} from 'react-virtualized'
 
 // Components
 import Gauge from 'src/shared/components/Gauge'
@@ -22,17 +23,21 @@ class GaugeChart extends PureComponent<Props> {
     const {colors, prefix, suffix, decimalPlaces} = this.props.properties
 
     return (
-      <div className="single-stat">
-        <Gauge
-          width="900"
-          height="300"
-          colors={colors}
-          prefix={prefix}
-          suffix={suffix}
-          gaugePosition={value}
-          decimalPlaces={decimalPlaces}
-        />
-      </div>
+      <AutoSizer>
+        {({width, height}) => (
+          <div className="gauge">
+            <Gauge
+              width={width}
+              height={height}
+              colors={colors}
+              prefix={prefix}
+              suffix={suffix}
+              gaugePosition={value}
+              decimalPlaces={decimalPlaces}
+            />
+          </div>
+        )}
+      </AutoSizer>
     )
   }
 }
