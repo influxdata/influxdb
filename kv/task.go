@@ -792,7 +792,10 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 	if err := taskBucket.Delete(key); err != nil {
 		return ErrUnexpectedTaskBucketErr(err)
 	}
-	return nil
+
+	return s.deleteUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
+		ResourceID: task.ID,
+	})
 }
 
 // FindLogs returns logs for a run.
