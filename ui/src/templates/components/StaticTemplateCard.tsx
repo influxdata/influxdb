@@ -85,11 +85,10 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private get description(): JSX.Element {
     const {template} = this.props
+    const description = _.get(template, 'content.data.attributes.description')
 
     return (
-      <ResourceList.Description
-        description={_.get(template, 'content.data.attributes.description')}
-      />
+      <ResourceList.Description description={description || 'No description'} />
     )
   }
 
