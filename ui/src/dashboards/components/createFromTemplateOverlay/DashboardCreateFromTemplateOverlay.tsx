@@ -176,7 +176,13 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
 }
 
 const mstp = ({templates: {items, status}}: AppState): StateProps => {
-  const templates = _.sortBy(items, item => item.meta.name.toLocaleLowerCase())
+  const filteredTemplates = items.filter(
+    t => !t.meta.type || t.meta.type === TemplateType.Dashboard
+  )
+
+  const templates = _.sortBy(filteredTemplates, item =>
+    item.meta.name.toLocaleLowerCase()
+  )
 
   return {
     templates,

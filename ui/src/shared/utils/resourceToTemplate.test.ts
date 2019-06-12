@@ -59,6 +59,7 @@ describe('resourceToTemplate', () => {
         meta: {
           version: '1',
           name: 'beep-Template',
+          type: 'variable',
           description: 'template created from variable: beep',
         },
         content: {
@@ -201,6 +202,7 @@ describe('resourceToTemplate', () => {
         meta: {
           description: 'template created from task: lala',
           name: 'lala-Template',
+          type: 'task',
           version: '1',
         },
       }
@@ -231,6 +233,7 @@ describe('resourceToTemplate', () => {
         meta: {
           version: '1',
           name: 'MyDashboard-Template',
+          type: 'dashboard',
           description: 'template created from dashboard: MyDashboard',
         },
         content: {
