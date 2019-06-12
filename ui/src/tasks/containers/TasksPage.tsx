@@ -122,7 +122,8 @@ class TasksPage extends PureComponent<Props, State> {
             setShowInactive={setShowInactive}
             showInactive={showInactive}
             filterComponent={() => this.search}
-            onImportTask={this.summonOverlay}
+            onImportTask={this.summonImportOverlay}
+            onImportFromTemplate={this.summonImportFromTemplateOverlay}
             limitStatus={limitStatus}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
@@ -155,7 +156,10 @@ class TasksPage extends PureComponent<Props, State> {
                             onFilterChange={setSearchTerm}
                             filterComponent={() => this.search}
                             onUpdate={updateTaskName}
-                            onImportTask={this.summonOverlay}
+                            onImportTask={this.summonImportOverlay}
+                            onImportFromTemplate={
+                              this.summonImportFromTemplateOverlay
+                            }
                             sortKey={sortKey}
                             sortDirection={sortDirection}
                             sortType={sortType}
@@ -209,7 +213,16 @@ class TasksPage extends PureComponent<Props, State> {
     router.push(`/orgs/${orgID}/tasks/new`)
   }
 
-  private summonOverlay = (): void => {
+  private summonImportFromTemplateOverlay = () => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+
+    router.push(`/orgs/${orgID}/tasks/import/template`)
+  }
+
+  private summonImportOverlay = (): void => {
     const {
       router,
       params: {orgID},

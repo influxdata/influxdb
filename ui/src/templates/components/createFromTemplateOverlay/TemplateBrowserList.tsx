@@ -5,7 +5,7 @@ import _ from 'lodash'
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
 import {TemplateSummary} from 'src/types'
-import DashboardTemplateListItem from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateListItem'
+import TemplateBrowserListItem from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserListItem'
 
 interface Props {
   templates: TemplateSummary[]
@@ -13,7 +13,7 @@ interface Props {
   onSelectTemplate: (selectedTemplateSummary: TemplateSummary) => void
 }
 
-class DashboardTemplateBrowser extends PureComponent<Props> {
+class TemplateBrowser extends PureComponent<Props> {
   public render() {
     const {selectedTemplateSummary, templates, onSelectTemplate} = this.props
 
@@ -24,7 +24,7 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
         noScrollX={true}
       >
         {templates.map(t => (
-          <DashboardTemplateListItem
+          <TemplateBrowserListItem
             key={t.id}
             onClick={onSelectTemplate}
             selected={_.get(selectedTemplateSummary, 'id', '') === t.id}
@@ -38,4 +38,4 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
   }
 }
 
-export default DashboardTemplateBrowser
+export default TemplateBrowser

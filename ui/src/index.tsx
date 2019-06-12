@@ -28,7 +28,7 @@ import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
-import DashboardCreateFromTemplateOverlay from 'src/dashboards/components/createFromTemplateOverlay/DashboardCreateFromTemplateOverlay'
+import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
@@ -72,6 +72,7 @@ import RenameVariableOverlay from 'src/variables/components/RenameVariableOverla
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
+import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -147,6 +148,10 @@ class Root extends PureComponent {
                               path="import"
                               component={TaskImportOverlay}
                             />
+                            <Route
+                              path="import/template"
+                              component={TaskImportFromTemplateOverlay}
+                            />
                           </Route>
                           <Route
                             path="tasks/:id/runs"
@@ -167,7 +172,7 @@ class Root extends PureComponent {
                             />
                             <Route
                               path="import/template"
-                              component={DashboardCreateFromTemplateOverlay}
+                              component={CreateFromTemplateOverlay}
                             />
                             <Route
                               path=":dashboardID/export"

@@ -11,8 +11,8 @@ import {
   ComponentStatus,
   Overlay,
 } from '@influxdata/clockface'
-import DashboardTemplateBrowser from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateBrowser'
-import DashboardTemplatesEmpty from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplatesEmpty'
+import TemplateBrowser from 'src/templates/components/createFromTemplateOverlay/TemplateBrowser'
+import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserEmpty'
 
 // Actions
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
@@ -103,11 +103,11 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     const {templates} = this.props
 
     if (!templates.length) {
-      return <DashboardTemplatesEmpty />
+      return <TemplateBrowserEmpty />
     }
 
     return (
-      <DashboardTemplateBrowser
+      <TemplateBrowser
         templates={templates}
         cells={cells}
         variables={variables}
