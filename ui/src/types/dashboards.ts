@@ -116,12 +116,6 @@ export type NewView<T extends ViewProperties = ViewProperties> = Omit<
   'id' | 'links'
 >
 
-export interface ViewLinks {
-  self: string
-}
-
-export type DygraphViewProperties = XYView | LinePlusSingleStatView
-
 export type ViewProperties =
   | XYView
   | LinePlusSingleStatView
@@ -173,8 +167,9 @@ export interface XYView {
   queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
-  xColumn: string
-  yColumn: string
+  xColumn?: string
+  yColumn?: string
+  shadeBelow?: boolean
   colors: Color[]
   legend: Legend
   note: string
@@ -190,8 +185,9 @@ export interface LinePlusSingleStatView {
   legend: Legend
   prefix: string
   suffix: string
-  xColumn: string
-  yColumn: string
+  xColumn?: string
+  yColumn?: string
+  shadeBelow?: boolean
   decimalPlaces: DecimalPlaces
   note: string
   showNoteWhenEmpty: boolean
