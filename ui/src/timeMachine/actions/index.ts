@@ -71,6 +71,7 @@ export type Action =
   | SetXDomainAction
   | SetYDomainAction
   | SetXAxisLabelAction
+  | SetShadeBelowAction
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -484,6 +485,16 @@ interface SetYColumnAction {
 export const setYColumn = (yColumn: string): SetYColumnAction => ({
   type: 'SET_Y_COLUMN',
   payload: {yColumn},
+})
+
+interface SetShadeBelowAction {
+  type: 'SET_SHADE_BELOW'
+  payload: {shadeBelow}
+}
+
+export const setShadeBelow = (shadeBelow: boolean): SetShadeBelowAction => ({
+  type: 'SET_SHADE_BELOW',
+  payload: {shadeBelow},
 })
 
 interface SetBinSizeAction {

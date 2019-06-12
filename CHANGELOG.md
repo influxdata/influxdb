@@ -3,6 +3,7 @@
 ### Features
 
 1. [14059](https://github.com/influxdata/influxdb/pull/14059): Enable formatting line graph y ticks with binary prefix
+1. [14128](https://github.com/influxdata/influxdb/pull/14128): Add option to shade area below line graphs
 
 ### Bug Fixes
 

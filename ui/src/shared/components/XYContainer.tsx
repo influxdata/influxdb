@@ -43,6 +43,7 @@ const XYContainer: FunctionComponent<Props> = ({
     colors,
     xColumn: storedXColumn,
     yColumn: storedYColumn,
+    shadeBelow,
     axes: {
       x: {label: xAxisLabel, bounds: xBounds},
       y: {
@@ -125,6 +126,8 @@ const XYContainer: FunctionComponent<Props> = ({
         fill: groupKey,
         interpolation,
         colors: colorHexes,
+        shadeBelow: !!shadeBelow,
+        shadeBelowOpacity: 0.08,
       },
     ],
   }
