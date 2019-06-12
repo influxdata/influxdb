@@ -25,11 +25,11 @@ const blankTaskTemplate = () => {
   const baseTemplate = blankTemplate()
   return {
     ...baseTemplate,
+    meta: {...baseTemplate.meta, type: TemplateType.Task},
     content: {
       ...baseTemplate.content,
       data: {...baseTemplate.content.data, type: TemplateType.Task},
     },
-    labels: [],
   }
 }
 
@@ -37,11 +37,11 @@ const blankVariableTemplate = () => {
   const baseTemplate = blankTemplate()
   return {
     ...baseTemplate,
+    meta: {...baseTemplate.meta, type: TemplateType.Variable},
     content: {
       ...baseTemplate.content,
       data: {...baseTemplate.content.data, type: TemplateType.Variable},
     },
-    labels: [],
   }
 }
 
@@ -49,11 +49,11 @@ const blankDashboardTemplate = () => {
   const baseTemplate = blankTemplate()
   return {
     ...baseTemplate,
+    meta: {...baseTemplate.meta, type: TemplateType.Dashboard},
     content: {
       ...baseTemplate.content,
       data: {...baseTemplate.content.data, type: TemplateType.Dashboard},
     },
-    labels: [],
   }
 }
 
