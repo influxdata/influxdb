@@ -20,12 +20,39 @@ interface Props {
 
 interface State {
   inputValue: string
+  inputFormat: string
+}
+
+const isValidRTC3339 = (d: string): boolean => {
+  return (
+    moment(d, 'YYYY-MM-DD HH:mm', true).isValid() ||
+    moment(d, 'YYYY-MM-DD HH:mm:ss', true).isValid() ||
+    moment(d, 'YYYY-MM-DD HH:mm:ss.SSS', true).isValid() ||
+    moment(d, 'YYYY-MM-DD', true).isValid()
+  )
+}
+
+const getFormat = (d: string): string => {
+  if (moment(d, 'YYYY-MM-DD', true).isValid()) {
+    return 'YYYY-MM-DD'
+  }
+  if (moment(d, 'YYYY-MM-DD HH:mm', true).isValid()) {
+    return 'YYYY-MM-DD HH:mm'
+  }
+  if (moment(d, 'YYYY-MM-DD HH:mm:ss', true).isValid()) {
+    return 'YYYY-MM-DD HH:mm:ss'
+  }
+  if (moment(d, 'YYYY-MM-DD HH:mm:ss.SSS', true).isValid()) {
+    return 'YYYY-MM-DD HH:mm:ss.SSS'
+  }
+  return null
 }
 
 export default class DatePicker extends PureComponent<Props, State> {
   private inCurrentMonth: boolean = false
   state = {
     inputValue: null,
+    inputFormat: null,
   }
 
   public render() {
@@ -72,13 +99,17 @@ export default class DatePicker extends PureComponent<Props, State> {
 
   private get inputValue(): string {
     const {dateTime} = this.props
-    const {inputValue} = this.state
+    const {inputValue, inputFormat} = this.state
 
     if (this.isInputValueInvalid) {
       return inputValue
     }
 
-    return moment(dateTime).format('YYYY-MM-DD HH:mm')
+    if (inputFormat) {
+      return moment(dateTime).format(inputFormat)
+    }
+
+    return moment(dateTime).format('YYYY-MM-DD HH:mm:ss.SSS')
   }
 
   private get isInputValueInvalid(): boolean {
@@ -86,12 +117,13 @@ export default class DatePicker extends PureComponent<Props, State> {
     if (inputValue === null) {
       return false
     }
-    return !moment(inputValue, 'YYYY-MM-DD HH:mm', true).isValid()
+
+    return !isValidRTC3339(inputValue)
   }
 
   private get inputErrorMessage(): string | undefined {
     if (this.isInputValueInvalid) {
-      return 'Format must be YYYY-MM-DD HH:mm'
+      return 'Format must be YYYY-MM-DD [HH:mm:ss.SSS]'
     }
 
     return '\u00a0\u00a0'
@@ -127,10 +159,12 @@ export default class DatePicker extends PureComponent<Props, State> {
     const {onSelectDate} = this.props
     const value = e.target.value
 
-    if (moment(value, 'YYYY-MM-DD HH:mm', true).isValid()) {
-      onSelectDate(value)
+    if (isValidRTC3339(value)) {
+      onSelectDate(moment(value).toISOString())
+      this.setState({inputValue: value, inputFormat: getFormat(value)})
+      return
     }
 
-    this.setState({inputValue: value})
+    this.setState({inputValue: value, inputFormat: null})
   }
 }
