@@ -1,4 +1,4 @@
-import axios, {AxiosResponse} from 'axios'
+import axios, {AxiosResponse, Method} from 'axios'
 
 // do not prefix route with basepath, ex. for external links
 const addBasepath = (url, excludeBasepath): string => {
@@ -11,7 +11,7 @@ interface RequestParams {
   url?: string | string[]
   resource?: string | null
   id?: string | null
-  method?: string
+  method?: Method
   data?: object | string
   params?: object
   headers?: object
