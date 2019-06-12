@@ -24,14 +24,15 @@ import {
 } from 'src/shared/actions/autoRefresh'
 
 // Utils
-import {getDeep} from 'src/utils/wrappers'
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
+import {createView} from 'src/shared/utils/view'
 
 // Constants
 import {
   DASHBOARD_LAYOUT_ROW_HEIGHT,
   AUTOREFRESH_DEFAULT,
 } from 'src/shared/constants'
+import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
@@ -44,6 +45,9 @@ import {
   AppState,
   AutoRefresh,
   AutoRefreshStatus,
+  XYView,
+  ViewType,
+  QueryView,
 } from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
@@ -136,13 +140,6 @@ class DashboardPage extends Component<Props, State> {
 
   public componentDidUpdate(prevProps: Props) {
     const {autoRefresh} = this.props
-
-    const prevPath = getDeep(prevProps.location, 'pathname', null)
-    const thisPath = getDeep(this.props.location, 'pathname', null)
-
-    if (prevPath && thisPath && prevPath !== thisPath) {
-      this.getDashboard()
-    }
 
     if (!_.isEqual(autoRefresh, prevProps.autoRefresh)) {
       if (autoRefresh.status === AutoRefreshStatus.Active) {
@@ -303,10 +300,15 @@ class DashboardPage extends Component<Props, State> {
   }
 
   private showVEO = (id?: string): void => {
+    const {router, location, views, onSetActiveTimeMachine} = this.props
     if (id) {
-      this.props.router.push(`${this.props.location.pathname}/cells/${id}/edit`)
+      const view = _.get(views, `${id}.view`) as QueryView
+      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
+      router.push(`${location.pathname}/cells/${id}/edit`)
     } else {
-      this.props.router.push(`${this.props.location.pathname}/cells/new`)
+      const view = createView<XYView>(ViewType.XY)
+      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
+      router.push(`${location.pathname}/cells/new`)
     }
   }
 

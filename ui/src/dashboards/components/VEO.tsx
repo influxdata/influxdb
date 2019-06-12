@@ -16,9 +16,6 @@ import {createView} from 'src/shared/utils/view'
 import {AppState, ViewType, QueryView, XYView, RemoteDataState} from 'src/types'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
-// Constants
-import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
-
 interface OwnProps extends WithRouterProps {
   params: {
     dashboardID: string
@@ -38,30 +35,8 @@ interface DispatchProps {
 
 type Props = StateProps & DispatchProps & OwnProps
 
-interface State {
-  hasActivatedTimeMachine: boolean
-}
-
-class VEO extends PureComponent<Props, State> {
-  public state: State = {
-    hasActivatedTimeMachine: false,
-  }
-
-  public componentDidUpdate() {
-    const {view, onSetActiveTimeMachine} = this.props
-    const {hasActivatedTimeMachine} = this.state
-
-    const timeMachineShouldActivate =
-      !hasActivatedTimeMachine && this.loading === RemoteDataState.Done
-
-    if (timeMachineShouldActivate) {
-      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
-      this.setState({hasActivatedTimeMachine: true})
-    }
-  }
-
+class VEO extends PureComponent<Props> {
   public render() {
-    const {hasActivatedTimeMachine} = this.state
     const {params} = this.props
 
     return (
@@ -71,12 +46,10 @@ class VEO extends PureComponent<Props, State> {
             spinnerComponent={<TechnoSpinner />}
             loading={this.loading}
           >
-            {hasActivatedTimeMachine && (
-              <VEOContents
-                dashboardID={params.dashboardID}
-                onClose={this.handleClose}
-              />
-            )}
+            <VEOContents
+              dashboardID={params.dashboardID}
+              onClose={this.handleClose}
+            />
           </SpinnerContainer>
         </div>
       </Overlay>
