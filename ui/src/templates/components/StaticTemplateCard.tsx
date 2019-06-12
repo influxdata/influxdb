@@ -51,11 +51,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
       <ResourceList.Card
         testID="template-card"
         contextMenu={() => this.contextMenu}
-        description={() => (
-          <ResourceList.Description
-            description={_.get(template, 'content.data.attributes.description')}
-          />
-        )}
+        description={() => this.description}
         name={() => (
           <ResourceList.Name
             onClick={this.handleNameClick}
@@ -65,6 +61,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
             inputTestID="template-card--input"
           />
         )}
+        metaData={() => [this.templateType]}
       />
     )
   }
@@ -83,6 +80,26 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
           onClick={this.handleCreate}
         />
       </ComponentSpacer>
+    )
+  }
+
+  private get description(): JSX.Element {
+    const {template} = this.props
+
+    return (
+      <ResourceList.Description
+        description={_.get(template, 'content.data.attributes.description')}
+      />
+    )
+  }
+
+  private get templateType(): JSX.Element {
+    const {template} = this.props
+
+    return (
+      <div className="resource-list--meta-item">
+        {_.get(template, 'content.data.type')}
+      </div>
     )
   }
 
