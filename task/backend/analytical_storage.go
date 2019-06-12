@@ -41,6 +41,12 @@ var (
 	ErrRunNotFound = errors.New("run not found")
 )
 
+// ErrOutOfBoundsLimit is returned with FindRuns is called with an invalid filter limit.
+var ErrOutOfBoundsLimit = &platform.Error{
+	Code: platform.EUnprocessableEntity,
+	Msg:  "run limit is out of bounds, must be between 1 and 500",
+}
+
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
 func NewAnalyticalStorage(ts influxdb.TaskService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
 	return &AnalyticalStorage{
@@ -142,8 +148,12 @@ func (as *AnalyticalStorage) FindLogs(ctx context.Context, filter influxdb.LogFi
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.
 // First attempt to use the TaskService, then append additional analytical's runs to the list
 func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*influxdb.Run, int, error) {
-	if filter.Limit == 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		filter.Limit = influxdb.TaskMaxPageSize
+	if filter.Limit == 0 {
+		filter.Limit = influxdb.TaskDefaultPageSize
+	}
+
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
+		return nil, 0, ErrOutOfBoundsLimit
 	}
 
 	runs, n, err := as.TaskService.FindRuns(ctx, filter)

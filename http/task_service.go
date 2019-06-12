@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/lang"
+	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -939,13 +940,9 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 			return nil, err
 		}
 
-		if i < 1 || i > 100 {
-			return nil, &platform.Error{
-				Code: platform.EUnprocessableEntity,
-				Msg:  "limit must be between 1 and 100",
-			}
+		if i < 1 || i > influxdb.TaskMaxPageSize {
+			return nil, backend.ErrOutOfBoundsLimit
 		}
-
 		req.filter.Limit = i
 	}
 
@@ -1646,9 +1643,12 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	if filter.After != nil {
 		val.Set("after", filter.After.String())
 	}
-	if filter.Limit > 0 {
-		val.Set("limit", strconv.Itoa(filter.Limit))
+
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
+		return nil, 0, backend.ErrOutOfBoundsLimit
 	}
+	val.Set("limit", strconv.Itoa(filter.Limit))
+
 	u.RawQuery = val.Encode()
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {

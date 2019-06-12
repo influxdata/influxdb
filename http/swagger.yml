@@ -4349,8 +4349,8 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 100
-            default: 20
+            maximum: 500
+            default: 100
           description: the number of runs to return
         - in: query
           name: afterTime
