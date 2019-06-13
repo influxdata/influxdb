@@ -1,8 +1,9 @@
-## UNRELEASED
+## v2.0.0-alpha.12 [2019-06-13]
 
 ### Features
 
 1. [14059](https://github.com/influxdata/influxdb/pull/14059): Enable formatting line graph y ticks with binary prefix
+1. [14052](https://github.com/influxdata/influxdb/pull/14052): Add x and y column pickers to graph types
 
 ### Bug Fixes
 
