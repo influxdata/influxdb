@@ -139,7 +139,7 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 		}
 	}
 	if dueAt := nextScheduledUnix + int64(offset); dueAt > now {
-		return backend.RunCreation{}, backend.RunNotYetDueError{DueAt: dueAt}
+		return backend.RunCreation{}, influxdb.ErrRunNotDueYet(dueAt)
 	}
 
 	runID := idgen.ID()

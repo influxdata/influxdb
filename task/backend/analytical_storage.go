@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -34,20 +33,6 @@ const (
 	// Fixed system bucket ID for task and run logs.
 	taskSystemBucketID platform.ID = 10
 )
-
-var (
-	// ErrTaskNotFound indicates no task could be found for given parameters.
-	ErrTaskNotFound = errors.New("task not found")
-
-	// ErrRunNotFound is returned when searching for a single run that doesn't exist.
-	ErrRunNotFound = errors.New("run not found")
-)
-
-// ErrOutOfBoundsLimit is returned with FindRuns is called with an invalid filter limit.
-var ErrOutOfBoundsLimit = &platform.Error{
-	Code: platform.EUnprocessableEntity,
-	Msg:  "run limit is out of bounds, must be between 1 and 500",
-}
 
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
 func NewAnalyticalStorage(logger *zap.Logger, ts influxdb.TaskService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
@@ -157,7 +142,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	}
 
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		return nil, 0, ErrOutOfBoundsLimit
+		return nil, 0, &influxdb.ErrOutOfBoundsLimit
 	}
 
 	runs, n, err := as.TaskService.FindRuns(ctx, filter)
@@ -270,7 +255,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	}
 
 	if len(re.runs) == 0 {
-		return nil, ErrRunNotFound
+		return nil, &platform.ErrRunNotFound
 
 	}
 

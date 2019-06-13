@@ -126,7 +126,7 @@ func (p *syncRunPromise) Wait() (backend.RunResult, error) {
 }
 
 func (p *syncRunPromise) Cancel() {
-	p.finish(nil, backend.ErrRunCanceled)
+	p.finish(nil, &influxdb.ErrRunCanceled)
 }
 
 func (p *syncRunPromise) finish(res *runResult, err error) {
@@ -312,7 +312,7 @@ func (p *asyncRunPromise) Wait() (backend.RunResult, error) {
 }
 
 func (p *asyncRunPromise) Cancel() {
-	p.finish(nil, backend.ErrRunCanceled)
+	p.finish(nil, &influxdb.ErrRunCanceled)
 }
 
 // followQuery waits for the query to become ready and sets p's results.

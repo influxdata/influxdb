@@ -802,7 +802,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return &platform.Task{ID: taskID, Organization: "o"}, nil
 					}
 
-					return nil, backend.ErrTaskNotFound
+					return nil, &platform.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodGet,
@@ -818,7 +818,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return &platform.Task{ID: taskID, Organization: "o"}, nil
 					}
 
-					return nil, backend.ErrTaskNotFound
+					return nil, &platform.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodPatch,
@@ -835,7 +835,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil
 					}
 
-					return backend.ErrTaskNotFound
+					return &platform.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodDelete,
@@ -851,7 +851,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 						return nil, 0, nil
 					}
 
-					return nil, 0, backend.ErrTaskNotFound
+					return nil, 0, &platform.ErrTaskNotFound
 				},
 			},
 			method:           http.MethodGet,
@@ -864,10 +864,10 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				FindLogsFn: func(_ context.Context, f platform.LogFilter) ([]*platform.Log, int, error) {
 					if f.Task != taskID {
-						return nil, 0, backend.ErrTaskNotFound
+						return nil, 0, &platform.ErrTaskNotFound
 					}
 					if *f.Run != runID {
-						return nil, 0, backend.ErrNoRunsFound
+						return nil, 0, &platform.ErrNoRunsFound
 					}
 
 					return nil, 0, nil
@@ -883,7 +883,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
 					if f.Task != taskID {
-						return nil, 0, backend.ErrTaskNotFound
+						return nil, 0, &platform.ErrTaskNotFound
 					}
 
 					return nil, 0, nil
@@ -899,7 +899,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				FindRunsFn: func(_ context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
 					if f.Task != taskID {
-						return nil, 0, backend.ErrNoRunsFound
+						return nil, 0, &platform.ErrNoRunsFound
 					}
 
 					return nil, 0, nil
@@ -915,7 +915,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				ForceRunFn: func(_ context.Context, tid platform.ID, _ int64) (*platform.Run, error) {
 					if tid != taskID {
-						return nil, backend.ErrTaskNotFound
+						return nil, &platform.ErrTaskNotFound
 					}
 
 					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
@@ -932,10 +932,10 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				FindRunByIDFn: func(_ context.Context, tid, rid platform.ID) (*platform.Run, error) {
 					if tid != taskID {
-						return nil, backend.ErrTaskNotFound
+						return nil, &platform.ErrTaskNotFound
 					}
 					if rid != runID {
-						return nil, backend.ErrRunNotFound
+						return nil, &platform.ErrRunNotFound
 					}
 
 					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
@@ -951,10 +951,10 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				RetryRunFn: func(_ context.Context, tid, rid platform.ID) (*platform.Run, error) {
 					if tid != taskID {
-						return nil, backend.ErrTaskNotFound
+						return nil, &platform.ErrTaskNotFound
 					}
 					if rid != runID {
-						return nil, backend.ErrRunNotFound
+						return nil, &platform.ErrRunNotFound
 					}
 
 					return &platform.Run{ID: runID, TaskID: taskID, Status: backend.RunScheduled.String()}, nil
@@ -970,10 +970,10 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 			svc: &mock.TaskService{
 				CancelRunFn: func(_ context.Context, tid, rid platform.ID) error {
 					if tid != taskID {
-						return backend.ErrTaskNotFound
+						return &platform.ErrTaskNotFound
 					}
 					if rid != runID {
-						return backend.ErrRunNotFound
+						return &platform.ErrRunNotFound
 					}
 
 					return nil
@@ -1444,7 +1444,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
 				if id != taskID {
-					return nil, backend.ErrTaskNotFound
+					return nil, &platform.ErrTaskNotFound
 				}
 
 				return &platform.Task{
@@ -1536,7 +1536,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
 				if id != taskID {
-					return nil, backend.ErrTaskNotFound
+					return nil, &platform.ErrTaskNotFound
 				}
 
 				return &platform.Task{
@@ -1632,7 +1632,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
 				if id != taskID {
-					return nil, backend.ErrTaskNotFound
+					return nil, &platform.ErrTaskNotFound
 				}
 
 				return &platform.Task{
@@ -1727,7 +1727,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
 				if id != taskID {
-					return nil, backend.ErrTaskNotFound
+					return nil, &platform.ErrTaskNotFound
 				}
 
 				return &platform.Task{

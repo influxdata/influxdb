@@ -197,13 +197,13 @@ func (s *TickScheduler) CancelRun(_ context.Context, taskID, runID platform.ID) 
 	defer s.schedulerMu.Unlock()
 	ts, ok := s.taskSchedulers[taskID]
 	if !ok {
-		return ErrTaskNotFound
+		return &platform.ErrTaskNotFound
 	}
 	ts.runningMu.Lock()
 	c, ok := ts.running[runID]
 	if !ok {
 		ts.runningMu.Unlock()
-		return ErrRunNotFound
+		return &platform.ErrRunNotFound
 	}
 	ts.runningMu.Unlock()
 	if c.CancelFunc != nil {
@@ -302,7 +302,7 @@ func (s *TickScheduler) ClaimTask(authCtx context.Context, task *platform.Task) 
 
 	_, ok := s.taskSchedulers[task.ID]
 	if ok {
-		return ErrTaskAlreadyClaimed
+		return &platform.ErrTaskAlreadyClaimed
 	}
 
 	s.taskSchedulers[task.ID] = ts
@@ -336,7 +336,7 @@ func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task)
 
 	ts, ok := s.taskSchedulers[task.ID]
 	if !ok {
-		return ErrTaskNotClaimed
+		return &platform.ErrTaskNotClaimed
 	}
 	ts.task = task
 
@@ -390,7 +390,7 @@ func (s *TickScheduler) ReleaseTask(taskID platform.ID) error {
 
 	t, ok := s.taskSchedulers[taskID]
 	if !ok {
-		return ErrTaskNotClaimed
+		return &platform.ErrTaskNotClaimed
 	}
 
 	t.Cancel()
@@ -746,7 +746,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	rr, err := rp.Wait()
 	close(ready)
 	if err != nil {
-		if err == ErrRunCanceled {
+		if err == &platform.ErrRunCanceled {
 			r.updateRunState(qr, RunCanceled, runLogger)
 			errMsg = "Waiting for execution result failed, " + errMsg
 			// Move on to the next execution, for a canceled run.
