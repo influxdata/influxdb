@@ -82,7 +82,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 								"self": "/api/v2/telegrafs/0000000000000001"
 							},
 						"id":"0000000000000001",
-						"OrgID":"0000000000000002",
+						"orgID":"0000000000000002",
 						"name":"tc1",
 						"description":"",
 						"agent":{
@@ -150,7 +150,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 								"self": "/api/v2/telegrafs/0000000000000001"
 							},
             "id": "0000000000000001",
-            "OrgID": "0000000000000002",
+            "orgID": "0000000000000002",
             "name": "my config",
 						"description": "my description",
             "agent": {
@@ -263,7 +263,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
             "id": "0000000000000001",
-            "OrgID": "0000000000000002",
+            "orgID": "0000000000000002",
             "name": "my config",
 						"description": "",
             "agent": {
@@ -337,7 +337,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
             "id": "0000000000000001",
-            "OrgID": "0000000000000002",
+            "orgID": "0000000000000002",
             "name": "my config",
 						"description": "",
             "agent": {
@@ -806,7 +806,7 @@ func Test_newTelegrafResponses(t *testing.T) {
 	        "self": "/api/v2/telegrafs/0000000000000001"
           },
           "id": "0000000000000001",
-          "OrgID": "0000000000000002",
+          "orgID": "0000000000000002",
           "name": "my config",
 					"description": "",
           "agent": {
@@ -892,7 +892,7 @@ func Test_newTelegrafResponse(t *testing.T) {
 			},
 			want: `{
       "id": "0000000000000001",
-      "OrgID": "0000000000000002",
+      "orgID": "0000000000000002",
       "name": "my config",
 			"description": "my description",
       "agent": {
