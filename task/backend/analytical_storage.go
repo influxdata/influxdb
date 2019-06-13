@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -342,13 +343,14 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 			case finishedAtField:
 				r.FinishedAt = cr.Strings(j).ValueString(i)
 			case logField:
-				logBytes := cr.Strings(j).Value(i)
-				err := json.Unmarshal(logBytes, &r.Log)
-				if err != nil {
-					re.logger.Info("failed to parse log data", zap.Error(err))
+				logBytes := bytes.TrimSpace(cr.Strings(j).Value(i))
+				if len(logBytes) != 0 {
+					err := json.Unmarshal(logBytes, &r.Log)
+					if err != nil {
+						re.logger.Info("failed to parse log data", zap.Error(err), zap.ByteString("log_bytes", logBytes))
+					}
 				}
 			}
-
 		}
 
 		// if we dont have a full enough data set we fail here.
