@@ -227,18 +227,11 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
-		pkg, err := flux.Parse(r.Query)
-		if err != nil {
-			return nil, err
+		compiler = lang.FluxCompiler{
+			Now:    now(),
+			Extern: r.Extern,
+			Query:  r.Query,
 		}
-		c := lang.ASTCompiler{
-			AST: pkg,
-			Now: now(),
-		}
-		if r.Extern != nil {
-			c.PrependFile(r.Extern)
-		}
-		compiler = c
 	} else if r.AST != nil {
 		c := lang.ASTCompiler{
 			AST: r.AST,
