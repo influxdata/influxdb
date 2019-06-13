@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
+import _ from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
@@ -50,6 +51,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
       <ResourceList.Card
         testID="template-card"
         contextMenu={() => this.contextMenu}
+        description={() => this.description}
         name={() => (
           <ResourceList.Name
             onClick={this.handleNameClick}
@@ -59,6 +61,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
             inputTestID="template-card--input"
           />
         )}
+        metaData={() => [this.templateType]}
       />
     )
   }
@@ -77,6 +80,25 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
           onClick={this.handleCreate}
         />
       </ComponentSpacer>
+    )
+  }
+
+  private get description(): JSX.Element {
+    const {template} = this.props
+    const description = _.get(template, 'content.data.attributes.description')
+
+    return (
+      <ResourceList.Description description={description || 'No description'} />
+    )
+  }
+
+  private get templateType(): JSX.Element {
+    const {template} = this.props
+
+    return (
+      <div className="resource-list--meta-item">
+        {_.get(template, 'content.data.type')}
+      </div>
     )
   }
 

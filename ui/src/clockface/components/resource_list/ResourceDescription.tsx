@@ -13,7 +13,7 @@ import {ComponentSize} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  onUpdate: (name: string) => void
+  onUpdate?: (name: string) => void
   description: string
   placeholder?: string
 }
@@ -35,8 +35,16 @@ class ResourceDescription extends Component<Props, State> {
   }
 
   public render() {
-    const {description} = this.props
+    const {description, onUpdate} = this.props
     const {isEditing} = this.state
+
+    if (!onUpdate) {
+      return (
+        <div className="resource-description">
+          <div className="resource-description--static">{description}</div>
+        </div>
+      )
+    }
 
     if (isEditing) {
       return (
