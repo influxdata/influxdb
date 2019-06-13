@@ -44,6 +44,7 @@ interface Props {
   sortType: SortTypes
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
   checkTaskLimits: typeof checkTaskLimitsAction
+  onImportFromTemplate: () => void
 }
 
 type SortKey = keyof Task
@@ -80,6 +81,7 @@ export default class TasksList extends PureComponent<Props, State> {
       sortKey,
       sortDirection,
       onClickColumn,
+      onImportFromTemplate,
     } = this.props
 
     const headerKeys: SortKey[] = ['name', 'status', 'every', 'latestCompleted']
@@ -120,6 +122,7 @@ export default class TasksList extends PureComponent<Props, State> {
                 onCreate={onCreate}
                 totalCount={totalCount}
                 onImportTask={onImportTask}
+                onImportFromTemplate={onImportFromTemplate}
               />
             }
           >

@@ -20,7 +20,7 @@ interface Props {
   cells: string[]
 }
 
-class DashboardTemplateDetails extends PureComponent<Props> {
+class TemplateBrowserDetails extends PureComponent<Props> {
   public render() {
     return (
       <DapperScrollbars
@@ -56,14 +56,18 @@ class DashboardTemplateDetails extends PureComponent<Props> {
             {this.templateName}
             {this.templateDescription}
           </Grid.Column>
-          <Grid.Column widthSM={Columns.Six}>
-            <h5 className="import-template-overlay--heading">Variables</h5>
-            {this.variablesList}
-          </Grid.Column>
-          <Grid.Column widthSM={Columns.Six}>
-            <h5 className="import-template-overlay--heading">Cells</h5>
-            {this.cellsList}
-          </Grid.Column>
+          {this.props.variables && (
+            <Grid.Column widthSM={Columns.Six}>
+              <h5 className="import-template-overlay--heading">Variables</h5>
+              {this.variablesList}
+            </Grid.Column>
+          )}
+          {this.props.cells && (
+            <Grid.Column widthSM={Columns.Six}>
+              <h5 className="import-template-overlay--heading">Cells</h5>
+              {this.cellsList}
+            </Grid.Column>
+          )}
         </Grid.Row>
       </Grid>
     )
@@ -138,4 +142,4 @@ class DashboardTemplateDetails extends PureComponent<Props> {
   }
 }
 
-export default DashboardTemplateDetails
+export default TemplateBrowserDetails
