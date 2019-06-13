@@ -535,7 +535,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// validation(coordinator(analyticalstore(kv.Service)))
 
 		// define the executor and build analytical storage middleware
-		combinedTaskService := taskbackend.NewAnalyticalStorage(m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
 		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
 		// create the scheduler
