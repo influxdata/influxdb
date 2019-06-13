@@ -8,6 +8,7 @@
   min-height: $form-xs-height;
 }
 
+.resource-description--static,
 .resource-description--preview,
 .input.resource-description--input > input {
   font-size: $form-xs-font;
@@ -15,12 +16,14 @@
   font-family: $ix-text-font;
 }
 
+.resource-description--static,
 .resource-description--preview,
 .resource-description--input {
   position: relative;
   width: 100%;
 }
 
+.resource-description--static,
 .resource-description--preview {
   width: auto;
   display: inline-block;
@@ -29,9 +32,12 @@
   overflow: hidden;
   @include no-user-select();
   color: $g13-mist;
+  line-height: $form-xs-font + $ix-border;
+}
+
+.resource-description--preview {
   transition: color 0.25s ease, background-color 0.25s ease,
     border-color 0.25s ease;
-  line-height: $form-xs-font + $ix-border;
 
   .icon {
     position: relative;

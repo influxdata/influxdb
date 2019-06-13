@@ -1,6 +1,6 @@
 import {formatDownloadName} from './download'
 
-describe('formatDownloadName', () => [
+describe('formatDownloadName', () => {
   it('formats name correctly', () => {
     const name1 = 'My Dashboard '
     const name2 = 'my_dash'
@@ -19,5 +19,5 @@ describe('formatDownloadName', () => [
     expect(actual1).toEqual(expected1)
     expect(actual2).toEqual(expected2)
     expect(actual3).toEqual(expected3)
-  }),
-])
+  })
+})

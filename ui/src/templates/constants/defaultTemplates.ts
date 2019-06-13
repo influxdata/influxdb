@@ -2,6 +2,10 @@ import {
   system,
   localMetrics,
   gettingStarted,
+  docker,
+  nginx,
+  redis,
+  kubernetes,
 } from '@influxdata/influxdb-templates'
 
 export const localMetricsTemplate = () => {
@@ -14,4 +18,14 @@ export const systemTemplate = () => {
 
 export const gettingStartedWithFluxTemplate = () => {
   return gettingStarted
+}
+
+export const staticTemplates = {
+  'getting-started': gettingStarted,
+  'local-metrics': localMetrics,
+  System: system,
+  Docker: docker,
+  Redis: redis,
+  Nginx: nginx,
+  Kubernetes: kubernetes,
 }
