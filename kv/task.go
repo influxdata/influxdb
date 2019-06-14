@@ -296,6 +296,10 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 	for _, m := range maps {
 		task, err := s.findTaskByID(ctx, tx, m.ResourceID)
 		if err != nil {
+			if err == backend.ErrTaskNotFound {
+				// we might have some crufty map's
+				continue
+			}
 			return nil, 0, err
 		}
 
