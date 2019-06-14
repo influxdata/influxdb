@@ -371,11 +371,9 @@ func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.Task
 			}
 
 			t, err := s.findTaskByID(ctx, tx, *id)
-			if err != nil {
-				if err != backend.ErrTaskNotFound {
-					// we might have some crufty index's
-					return nil, 0, err
-				}
+			if err != nil && err != backend.ErrTaskNotFound {
+				// we might have some crufty index's
+				return nil, 0, err
 			}
 
 			// insert the new task into the list
