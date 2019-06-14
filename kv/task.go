@@ -295,8 +295,11 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 
 	for _, m := range maps {
 		task, err := s.findTaskByID(ctx, tx, m.ResourceID)
-		if err != nil {
+		if err != nil && err == backend.ErrTaskNotFound {
 			return nil, 0, err
+		}
+		if err == backend.ErrTaskNotFound {
+			continue
 		}
 
 		if org != nil && task.OrganizationID != org.ID {
@@ -367,12 +370,16 @@ func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.Task
 			}
 
 			t, err := s.findTaskByID(ctx, tx, *id)
-			if err != nil {
+			if err != nil && err != backend.ErrTaskNotFound {
+				// we might have some crufty index's
 				return nil, 0, err
 			}
 
 			// insert the new task into the list
-			ts = append(ts, t)
+			if t != nil {
+				ts = append(ts, t)
+
+			}
 		}
 	}
 
@@ -394,6 +401,10 @@ func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.Task
 
 		t, err := s.findTaskByID(ctx, tx, *id)
 		if err != nil {
+			if err == backend.ErrTaskNotFound {
+				// we might have some crufty index's
+				continue
+			}
 			return nil, 0, err
 		}
 
