@@ -554,6 +554,8 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 				return err
 			}
 
+			fields = make(models.Fields)
+
 			fieldValues.Range(func(k string, v values.Value) {
 				if v.IsNull() {
 					fields[k] = nil
