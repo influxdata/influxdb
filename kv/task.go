@@ -295,12 +295,11 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 
 	for _, m := range maps {
 		task, err := s.findTaskByID(ctx, tx, m.ResourceID)
-		if err != nil {
-			if err == backend.ErrTaskNotFound {
-				// we might have some crufty map's
-				continue
-			}
+		if err != nil && err == backend.ErrTaskNotFound {
 			return nil, 0, err
+		}
+		if err == backend.ErrTaskNotFound {
+			continue
 		}
 
 		if org != nil && task.OrganizationID != org.ID {
