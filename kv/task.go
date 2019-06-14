@@ -379,7 +379,10 @@ func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.Task
 			}
 
 			// insert the new task into the list
-			ts = append(ts, t)
+			if t != nil {
+				ts = append(ts, t)
+
+			}
 		}
 	}
 
