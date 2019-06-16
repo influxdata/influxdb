@@ -958,12 +958,16 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 			level2Groups := e.CompactionPlan.PlanLevel(2)
 			level3Groups := e.CompactionPlan.PlanLevel(3)
 			level4Groups := e.CompactionPlan.Plan(e.lastModified())
-			e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
+			e.compactionTracker.SetFullQueue(uint64(len(level4Groups)))
 
 			// If no full compactions are need, see if an optimize is needed
+			var optimize bool
 			if len(level4Groups) == 0 {
+				optimize = true
 				level4Groups = e.CompactionPlan.PlanOptimize()
 				e.compactionTracker.SetOptimiseQueue(uint64(len(level4Groups)))
+			} else {
+				e.compactionTracker.SetOptimiseQueue(0)
 			}
 
 			// Update the level plan queue stats
@@ -995,7 +999,7 @@ func (e *Engine) compact(wg *sync.WaitGroup) {
 						level3Groups = level3Groups[1:]
 					}
 				case 4:
-					if e.compactFull(ctx, level4Groups[0], wg) {
+					if e.compactFull(ctx, level4Groups[0], optimize, wg) {
 						level4Groups = level4Groups[1:]
 					}
 				}
@@ -1069,8 +1073,8 @@ func (e *Engine) compactLoPriorityLevel(ctx context.Context, grp CompactionGroup
 
 // compactFull kicks off full and optimize compactions using the lo priority policy. It returns
 // the plans that were not able to be started.
-func (e *Engine) compactFull(ctx context.Context, grp CompactionGroup, wg *sync.WaitGroup) bool {
-	s := e.fullCompactionStrategy(grp, false)
+func (e *Engine) compactFull(ctx context.Context, grp CompactionGroup, optimize bool, wg *sync.WaitGroup) bool {
+	s := e.fullCompactionStrategy(grp, optimize)
 	if s == nil {
 		return false
 	}

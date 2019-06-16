@@ -1,3 +1,9 @@
+## UNRELEASED
+
+### Bug Fixes
+
+1. [14143](https://github.com/influxdata/influxdb/pull/14143): Fix full compaction being run when optimize compaction is requested
+
 ## v2.0.0-alpha.13 [2019-06-13]
 
 ### Features
