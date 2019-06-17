@@ -652,6 +652,60 @@ c,tag2=e humidity=65i,temperature=4 41`),
 				}},
 			},
 		},
+		{
+			name: "multiple _field",
+			spec: &influxdb.ToProcedureSpec{
+				Spec: &influxdb.ToOpSpec{
+					Org:               "my-org",
+					Bucket:            "my-bucket",
+					TimeColumn:        "_time",
+					MeasurementColumn: "_measurement",
+				},
+			},
+			data: []flux.Table{executetest.MustCopyTable(&executetest.Table{
+				ColMeta: []flux.ColMeta{
+					{Label: "_start", Type: flux.TTime},
+					{Label: "_stop", Type: flux.TTime},
+					{Label: "_time", Type: flux.TTime},
+					{Label: "_measurement", Type: flux.TString},
+					{Label: "_field", Type: flux.TString},
+					{Label: "_value", Type: flux.TFloat},
+				},
+				Data: [][]interface{}{
+					{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+					{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+					{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+					{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_hello", 3.0},
+					{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_hello", 4.0},
+				},
+			})},
+			want: wanted{
+				result: &mock.PointsWriter{
+					Points: mockPoints(oid, bid, `a _value=2 11
+a _value=2 21
+b _value=1 21
+a _hello=3 31
+c _hello=4 41`),
+				},
+				tables: []*executetest.Table{{
+					ColMeta: []flux.ColMeta{
+						{Label: "_start", Type: flux.TTime},
+						{Label: "_stop", Type: flux.TTime},
+						{Label: "_time", Type: flux.TTime},
+						{Label: "_measurement", Type: flux.TString},
+						{Label: "_field", Type: flux.TString},
+						{Label: "_value", Type: flux.TFloat},
+					},
+					Data: [][]interface{}{
+						{execute.Time(0), execute.Time(100), execute.Time(11), "a", "_value", 2.0},
+						{execute.Time(0), execute.Time(100), execute.Time(21), "a", "_value", 2.0},
+						{execute.Time(0), execute.Time(100), execute.Time(21), "b", "_value", 1.0},
+						{execute.Time(0), execute.Time(100), execute.Time(31), "a", "_hello", 3.0},
+						{execute.Time(0), execute.Time(100), execute.Time(41), "c", "_hello", 4.0},
+					},
+				}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
