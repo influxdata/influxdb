@@ -333,13 +333,13 @@ func newUserResponse(u *influxdb.User) *userResponse {
 	}
 }
 
-type decoratedUserResponse struct {
+type userResponseFromSession struct {
 	*userResponse
 	OAuthID string `json:"oauthID,omitempty"`
 }
 
-func newUserResponseFromSession(u *influxdb.User, s *influxdb.Session) *decoratedUserResponse {
-	return &decoratedUserResponse{
+func newUserResponseFromSession(u *influxdb.User, s *influxdb.Session) *userResponseFromSession {
+	return &userResponseFromSession{
 		userResponse: newUserResponse(u),
 		OAuthID:      s.OAuthID,
 	}
