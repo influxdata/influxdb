@@ -40,6 +40,7 @@ type Session struct {
 	ExpiresAt   time.Time    `json:"expiresAt"`
 	UserID      ID           `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions,omitempty"`
+	OAuthID     string       `json:"oauthID,omitempty"`
 }
 
 // Expired returns an error if the session is expired.

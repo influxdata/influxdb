@@ -180,23 +180,25 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var id influxdb.ID
-	switch s := a.(type) {
-	case *influxdb.Session:
-		id = s.UserID
-	case *influxdb.Authorization:
-		id = s.UserID
-	}
+	id := a.GetUserID()
+	user, err := h.UserService.FindUserByID(ctx, id)
 
-	b, err := h.UserService.FindUserByID(ctx, id)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
-		EncodeError(ctx, err, w)
-		return
+	switch s := a.(type) {
+	case *influxdb.Session:
+		if err := encodeResponse(ctx, w, http.StatusOK, newDecoratedUserResponse(user, s)); err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
+	case *influxdb.Authorization:
+		if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(user)); err != nil {
+			EncodeError(ctx, err, w)
+			return
+		}
 	}
 }
 
@@ -328,6 +330,18 @@ func newUserResponse(u *influxdb.User) *userResponse {
 			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
 		},
 		User: *u,
+	}
+}
+
+type decoratedUserResponse struct {
+	*userResponse
+	OAuthID string `json:"oauthID,omitempty"`
+}
+
+func newDecoratedUserResponse(u *influxdb.User, s *influxdb.Session) *decoratedUserResponse {
+	return &decoratedUserResponse{
+		userResponse: newUserResponse(u),
+		OAuthID:      s.OAuthID,
 	}
 }
 
