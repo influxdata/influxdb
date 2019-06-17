@@ -190,7 +190,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 
 	switch s := a.(type) {
 	case *influxdb.Session:
-		if err := encodeResponse(ctx, w, http.StatusOK, newDecoratedUserResponse(user, s)); err != nil {
+		if err := encodeResponse(ctx, w, http.StatusOK, newUserResponseFromSession(user, s)); err != nil {
 			EncodeError(ctx, err, w)
 			return
 		}
@@ -338,7 +338,7 @@ type decoratedUserResponse struct {
 	OAuthID string `json:"oauthID,omitempty"`
 }
 
-func newDecoratedUserResponse(u *influxdb.User, s *influxdb.Session) *decoratedUserResponse {
+func newUserResponseFromSession(u *influxdb.User, s *influxdb.Session) *decoratedUserResponse {
 	return &decoratedUserResponse{
 		userResponse: newUserResponse(u),
 		OAuthID:      s.OAuthID,
