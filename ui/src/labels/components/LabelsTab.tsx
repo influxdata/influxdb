@@ -101,7 +101,7 @@ class Labels extends PureComponent<Props, State> {
         </TabbedPageHeader>
         <FilterList<ILabel>
           list={labels}
-          searchKeys={['name', 'description']}
+          searchKeys={['name', 'properties.description']}
           searchTerm={searchTerm}
         >
           {ls => (
