@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -15,7 +14,7 @@ type TaskControlService interface {
 	// CreateNextRun attempts to create a new run.
 	// The new run's ScheduledFor is assigned the earliest possible time according to task's cron,
 	// that is later than any in-progress run and LatestCompleted run.
-	// If the run's ScheduledFor would be later than the passed-in now, CreateNextRun returns a RunNotYetDueError.
+	// If the run's ScheduledFor would be later than the passed-in now, CreateNextRun returns an ErrRunNotDueYet.
 	CreateNextRun(ctx context.Context, taskID influxdb.ID, now int64) (RunCreation, error)
 
 	CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)
@@ -68,30 +67,6 @@ func (r RunStatus) String() string {
 		return "scheduled"
 	}
 	panic(fmt.Sprintf("unknown RunStatus: %d", r))
-}
-
-var (
-	// ErrRunCanceled is returned from the RunResult when a Run is Canceled.  It is used mostly internally.
-	ErrRunCanceled = errors.New("run canceled")
-
-	// ErrTaskNotClaimed is returned when attempting to operate against a task that must be claimed but is not.
-	ErrTaskNotClaimed = errors.New("task not claimed")
-
-	// ErrNoRunsFound is returned when searching for a range of runs, but none are found.
-	ErrNoRunsFound = errors.New("no matching runs found")
-
-	// ErrTaskAlreadyClaimed is returned when attempting to operate against a task that must not be claimed but is.
-	ErrTaskAlreadyClaimed = errors.New("task already claimed")
-)
-
-// RunNotYetDueError is returned from CreateNextRun if a run is not yet due.
-type RunNotYetDueError struct {
-	// DueAt is the unix timestamp of when the next run is due.
-	DueAt int64
-}
-
-func (e RunNotYetDueError) Error() string {
-	return "run not due until " + time.Unix(e.DueAt, 0).UTC().Format(time.RFC3339)
 }
 
 // RequestStillQueuedError is returned when attempting to retry a run which has not yet completed.
