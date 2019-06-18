@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/task/options"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -673,7 +674,7 @@ func (r *runner) startFromWorking(now int64) {
 	// Create a new child logger for the individual run.
 	// We can't do r.logger = r.logger.With(zap.String("run_id", qr.RunID.String()) because zap doesn't deduplicate fields,
 	// and we'll quickly end up with many run_ids associated with the log.
-	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
+	runLogger := r.logger.With(logger.TraceID(ctx), zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
 	runLogger.Debug("Created run; beginning execution")
 	r.wg.Add(1)
