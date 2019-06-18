@@ -118,19 +118,19 @@ class DataListening extends PureComponent<OwnProps & WithRouterProps, State> {
     const script = `from(bucket: "${bucket}")
       |> range(start: -1m)`
 
-    let rowCount: number
+    let responseLength: number
     let timePassed: number
 
     try {
       const response = await runQuery(orgID, script).promise
-      rowCount = response.rowCount
+      responseLength = response.length
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {
       this.setState({loading: LoadingState.Error})
       return
     }
 
-    if (rowCount > 1) {
+    if (responseLength > 1) {
       this.setState({loading: LoadingState.Done})
       return
     }
@@ -139,6 +139,7 @@ class DataListening extends PureComponent<OwnProps & WithRouterProps, State> {
       this.setState({loading: LoadingState.NotFound})
       return
     }
+
     this.intervalID = setTimeout(this.checkForData, FETCH_WAIT)
   }
 

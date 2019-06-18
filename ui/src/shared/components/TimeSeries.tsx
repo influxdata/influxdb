@@ -6,10 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
 
 // API
-import {
-  executeQueryWithVars,
-  ExecuteFluxQueryResult,
-} from 'src/shared/apis/query'
+import {executeQueryWithVars} from 'src/shared/apis/query'
 
 // Utils
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
@@ -81,9 +78,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
   public state: State = defaultState()
 
-  private pendingResults: Array<
-    WrappedCancelablePromise<ExecuteFluxQueryResult>
-  > = []
+  private pendingResults: Array<WrappedCancelablePromise<string>> = []
 
   public async componentDidMount() {
     this.reload()
@@ -144,10 +139,8 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       )
 
       // Wait for new queries to complete
-      const results = await Promise.all(this.pendingResults.map(r => r.promise))
-
+      const files = await Promise.all(this.pendingResults.map(r => r.promise))
       const duration = Date.now() - startTime
-      const files = results.map(r => r.csv)
       const giraffeResult = fromFlux(files.join('\n\n'))
 
       files.forEach(checkQueryResult)
