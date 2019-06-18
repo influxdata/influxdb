@@ -199,8 +199,9 @@ type FileStore struct {
 	// recalculated
 	lastFileStats []FileStat
 
-	currentGeneration int
-	dir               string
+	currentGeneration     int        // internally maintained generation
+	currentGenerationFunc func() int // external generation
+	dir                   string
 
 	files           []TSMFile
 	tsmMMAPWillNeed bool          // If true then the kernel will be advised MMAP_WILLNEED for TSM files.
@@ -277,6 +278,11 @@ func (f *FileStore) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 
 func (f *FileStore) ParseFileName(path string) (int, int, error) {
 	return f.parseFileName(path)
+}
+
+// SetCurrentGenerationFunc must be set before using FileStore.
+func (f *FileStore) SetCurrentGenerationFunc(fn func() int) {
+	f.currentGenerationFunc = fn
 }
 
 // WithLogger sets the logger on the file store.
@@ -382,14 +388,24 @@ func (f *FileStore) Files() []TSMFile {
 }
 
 // CurrentGeneration returns the current generation of the TSM files.
+// Delegates to currentGenerationFunc, if set. Only called by tests.
 func (f *FileStore) CurrentGeneration() int {
+	if fn := f.currentGenerationFunc; fn != nil {
+		return fn()
+	}
+
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.currentGeneration
 }
 
 // NextGeneration increments the max file ID and returns the new value.
+// Delegates to currentGenerationFunc, if set.
 func (f *FileStore) NextGeneration() int {
+	if fn := f.currentGenerationFunc; fn != nil {
+		return fn()
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.currentGeneration++
@@ -606,7 +622,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 			return err
 		}
 
-		if generation >= f.currentGeneration {
+		if f.currentGenerationFunc == nil && generation >= f.currentGeneration {
 			f.currentGeneration = generation + 1
 		}
 
