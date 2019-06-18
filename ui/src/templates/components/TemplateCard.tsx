@@ -89,6 +89,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             onCreateLabel={this.handleCreateLabel}
           />
         )}
+        metaData={() => [this.templateType]}
       />
     )
   }
@@ -113,9 +114,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private get description(): JSX.Element {
     const {template} = this.props
-
-    const description = _.get(template, 'meta.description')
-    const name = _.get(template, 'meta.name')
+    const description = _.get(template, 'meta.description', '')
+    const name = _.get(template, 'meta.name', '')
 
     return (
       <ResourceList.Description
@@ -123,6 +123,16 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         description={description}
         placeholder={`Describe ${name} Template`}
       />
+    )
+  }
+
+  private get templateType(): JSX.Element {
+    const {template} = this.props
+
+    return (
+      <div className="resource-list--meta-item">
+        {_.get(template, 'meta.type', '')}
+      </div>
     )
   }
 
