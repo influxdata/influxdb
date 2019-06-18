@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+
 	"github.com/influxdata/influxdb"
 )
 
@@ -368,7 +369,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 				Err: pe,
 			}
 		}
-		m.UpdatedAt = s.Now() 
+		m.UpdatedAt = s.Now()
 		if err := update.Apply(m); err != nil {
 			return &influxdb.Error{
 				Err: err,
