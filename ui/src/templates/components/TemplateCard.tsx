@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import {
   Button,
@@ -69,7 +70,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         name={() => (
           <ResourceList.EditableName
             onClick={this.handleNameClick}
-            onUpdate={this.handleUpdateTemplate}
+            onUpdate={this.handleUpdateTemplateName}
             name={template.meta.name}
             noNameString={DEFAULT_TEMPLATE_NAME}
             parentTestID="template-card--name"
@@ -77,6 +78,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             inputTestID="template-card--input"
           />
         )}
+        description={() => this.description}
         labels={() => (
           <InlineLabels
             selectedLabels={template.labels}
@@ -91,13 +93,37 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleUpdateTemplate = (name: string) => {
+  private handleUpdateTemplateName = (name: string) => {
     const {template} = this.props
 
     this.props.onUpdate(template.id, {
       ...template,
       meta: {...template.meta, name},
     })
+  }
+
+  private handleUpdateTemplateDescription = (description: string) => {
+    const {template} = this.props
+
+    this.props.onUpdate(template.id, {
+      ...template,
+      meta: {...template.meta, description},
+    })
+  }
+
+  private get description(): JSX.Element {
+    const {template} = this.props
+
+    const description = _.get(template, 'meta.description')
+    const name = _.get(template, 'meta.name')
+
+    return (
+      <ResourceList.Description
+        onUpdate={this.handleUpdateTemplateDescription}
+        description={description}
+        placeholder={`Describe ${name} Template`}
+      />
+    )
   }
 
   private get contextMenu(): JSX.Element {

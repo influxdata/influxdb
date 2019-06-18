@@ -417,7 +417,7 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 		rp.Cancel()
 
 		res, err := rp.Wait()
-		if err != backend.ErrRunCanceled {
+		if err != &platform.ErrRunCanceled {
 			t.Fatalf("expected ErrRunCanceled, got %v", err)
 		}
 		if res != nil {

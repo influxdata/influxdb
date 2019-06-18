@@ -52,7 +52,7 @@ export default class VariableForm extends PureComponent<Props, State> {
       args: {
         type: 'query',
         values: {
-          query: '',
+          query: this.props.initialScript || '',
           language: 'flux',
         },
       },

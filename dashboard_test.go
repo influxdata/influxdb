@@ -45,11 +45,12 @@ func TestView_MarshalJSON(t *testing.T) {
     "type": "xy",
     "colors": null,
     "legend": {},
-	"geom": "",
+    "geom": "",
     "note": "",
-		"showNoteWhenEmpty": false,
-		"xColumn": "",
-		"yColumn": ""
+    "showNoteWhenEmpty": false,
+    "xColumn": "",
+    "yColumn": "",
+    "shadeBelow": false
   }
 }
 `,

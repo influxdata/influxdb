@@ -1,9 +1,9 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
+	"go.uber.org/zap"
 )
 
 const (
@@ -33,17 +34,10 @@ const (
 	taskSystemBucketID platform.ID = 10
 )
 
-var (
-	// ErrTaskNotFound indicates no task could be found for given parameters.
-	ErrTaskNotFound = errors.New("task not found")
-
-	// ErrRunNotFound is returned when searching for a single run that doesn't exist.
-	ErrRunNotFound = errors.New("run not found")
-)
-
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
-func NewAnalyticalStorage(ts influxdb.TaskService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
+func NewAnalyticalStorage(logger *zap.Logger, ts influxdb.TaskService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
 	return &AnalyticalStorage{
+		logger:             logger,
 		TaskService:        ts,
 		TaskControlService: tcs,
 		pw:                 pw,
@@ -55,13 +49,14 @@ type AnalyticalStorage struct {
 	influxdb.TaskService
 	TaskControlService
 
-	pw storage.PointsWriter
-	qs query.QueryService
+	pw     storage.PointsWriter
+	qs     query.QueryService
+	logger *zap.Logger
 }
 
 func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	run, err := as.TaskControlService.FinishRun(ctx, taskID, runID)
-	if run != nil {
+	if run != nil && run.ID.String() != "" {
 		task, err := as.TaskService.FindTaskByID(ctx, run.TaskID)
 		if err != nil {
 			return run, err
@@ -142,8 +137,12 @@ func (as *AnalyticalStorage) FindLogs(ctx context.Context, filter influxdb.LogFi
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.
 // First attempt to use the TaskService, then append additional analytical's runs to the list
 func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*influxdb.Run, int, error) {
-	if filter.Limit == 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		filter.Limit = influxdb.TaskMaxPageSize
+	if filter.Limit == 0 {
+		filter.Limit = influxdb.TaskDefaultPageSize
+	}
+
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
+		return nil, 0, &influxdb.ErrOutOfBoundsLimit
 	}
 
 	runs, n, err := as.TaskService.FindRuns(ctx, filter)
@@ -191,7 +190,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	}
 	defer ittr.Release()
 
-	re := &runReader{}
+	re := &runReader{logger: as.logger.With(zap.String("component", "run-reader"), zap.String("taskID", filter.Task.String()))}
 	for ittr.More() {
 		err := ittr.Next().Tables().Do(re.readTable)
 		if err != nil {
@@ -256,7 +255,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	}
 
 	if len(re.runs) == 0 {
-		return nil, ErrRunNotFound
+		return nil, &platform.ErrRunNotFound
 
 	}
 
@@ -297,7 +296,8 @@ func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID influxd
 }
 
 type runReader struct {
-	runs []*influxdb.Run
+	runs   []*influxdb.Run
+	logger *zap.Logger
 }
 
 func (re *runReader) readTable(tbl flux.Table) error {
@@ -310,17 +310,23 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 		for j, col := range cr.Cols() {
 			switch col.Label {
 			case "runID":
-				id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
-				if err != nil {
-					return err
+				if cr.Strings(j).ValueString(i) != "" {
+					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
+					if err != nil {
+						re.logger.Info("failed to parse runID", zap.Error(err))
+						continue
+					}
+					r.ID = *id
 				}
-				r.ID = *id
 			case "taskID":
-				id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
-				if err != nil {
-					return err
+				if cr.Strings(j).ValueString(i) != "" {
+					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
+					if err != nil {
+						re.logger.Info("failed to parse taskID", zap.Error(err))
+						continue
+					}
+					r.TaskID = *id
 				}
-				r.TaskID = *id
 			case startedAtField:
 				r.StartedAt = cr.Strings(j).ValueString(i)
 			case requestedAtField:
@@ -332,23 +338,21 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 			case finishedAtField:
 				r.FinishedAt = cr.Strings(j).ValueString(i)
 			case logField:
-				logBytes := cr.Strings(j).Value(i)
-				err := json.Unmarshal(logBytes, &r.Log)
-				if err != nil {
-					return err
+				logBytes := bytes.TrimSpace(cr.Strings(j).Value(i))
+				if len(logBytes) != 0 {
+					err := json.Unmarshal(logBytes, &r.Log)
+					if err != nil {
+						re.logger.Info("failed to parse log data", zap.Error(err), zap.ByteString("log_bytes", logBytes))
+					}
 				}
 			}
-
 		}
 
-		if !r.ID.Valid() {
-			return &influxdb.Error{
-				Msg:  "failed to pull run id",
-				Code: influxdb.EInternal,
-			}
+		// if we dont have a full enough data set we fail here.
+		if r.ID.Valid() {
+			re.runs = append(re.runs, &r)
 		}
 
-		re.runs = append(re.runs, &r)
 	}
 
 	return nil

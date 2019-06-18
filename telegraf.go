@@ -156,10 +156,11 @@ type telegrafPluginEncode struct {
 
 // telegrafConfigDecode is the helper struct for json decoding.
 type telegrafConfigDecode struct {
-	ID          ID     `json:"id"`
-	OrgID       ID     `json:"orgID,omitempty"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID             ID     `json:"id"`
+	OrganizationID ID     `json:"organizationID,omitempty"`
+	OrgID          ID     `json:"orgID,omitempty"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -305,9 +306,13 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
+	orgID := tcd.OrgID
+	if !orgID.Valid() {
+		orgID = tcd.OrganizationID
+	}
 	*tc = TelegrafConfig{
 		ID:          tcd.ID,
-		OrgID:       tcd.OrgID,
+		OrgID:       orgID,
 		Name:        tcd.Name,
 		Description: tcd.Description,
 		Agent:       tcd.Agent,

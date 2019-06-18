@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Dropdown, DropdownMenuColors} from 'src/clockface'
+import {Dropdown, DropdownMenuColors, ComponentStatus} from 'src/clockface'
 
 // Actions
 import {selectVariableValue} from 'src/dashboards/actions/index'
@@ -40,6 +40,11 @@ class VariableDropdown extends PureComponent<Props> {
     const {selectedKey} = this.props
     const dropdownValues = this.props.values || []
 
+    const dropdownStatus =
+      dropdownValues.length === 0
+        ? ComponentStatus.Disabled
+        : ComponentStatus.Default
+
     return (
       <div className="variable-dropdown">
         {/* TODO: Add variable description to title attribute when it is ready */}
@@ -51,6 +56,7 @@ class VariableDropdown extends PureComponent<Props> {
           customClass="variable-dropdown--dropdown"
           menuColor={DropdownMenuColors.Amethyst}
           buttonTestID="variable-dropdown"
+          status={dropdownStatus}
         >
           {dropdownValues.map(({name}) => (
             /*

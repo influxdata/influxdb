@@ -26,6 +26,7 @@ interface Props {
   isFullPage?: boolean
   filterComponent: () => JSX.Element
   limitStatus: LimitStatus
+  onImportFromTemplate: () => void
 }
 
 export default class TasksHeader extends PureComponent<Props> {
@@ -45,6 +46,7 @@ export default class TasksHeader extends PureComponent<Props> {
       onImportTask,
       isFullPage,
       filterComponent,
+      onImportFromTemplate,
     } = this.props
 
     if (isFullPage) {
@@ -61,8 +63,10 @@ export default class TasksHeader extends PureComponent<Props> {
               onChange={setShowInactive}
             />
             <AddResourceDropdown
+              canImportFromTemplate={true}
               onSelectNew={onCreateTask}
               onSelectImport={onImportTask}
+              onSelectTemplate={onImportFromTemplate}
               resourceName="Task"
               status={this.addResourceStatus}
             />

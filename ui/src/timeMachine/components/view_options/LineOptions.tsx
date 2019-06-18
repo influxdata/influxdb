@@ -11,6 +11,8 @@ import ColorSelector from 'src/timeMachine/components/view_options/ColorSelector
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
+import Checkbox from 'src/shared/components/Checkbox'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {
@@ -23,6 +25,7 @@ import {
   setGeom,
   setXColumn,
   setYColumn,
+  setShadeBelow,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -45,6 +48,7 @@ interface OwnProps {
   axes: Axes
   geom?: XYViewGeom
   colors: Color[]
+  shadeBelow?: boolean
 }
 
 interface StateProps {
@@ -60,6 +64,7 @@ interface DispatchProps {
   onUpdateYAxisBounds: typeof setYAxisBounds
   onUpdateYAxisBase: typeof setYAxisBase
   onUpdateColors: typeof setColors
+  onSetShadeBelow: typeof setShadeBelow
   onSetXColumn: typeof setXColumn
   onSetYColumn: typeof setYColumn
   onSetGeom: typeof setGeom
@@ -75,11 +80,13 @@ class LineOptions extends PureComponent<Props> {
       },
       colors,
       geom,
+      shadeBelow,
       onUpdateColors,
       onUpdateYAxisLabel,
       onUpdateAxisPrefix,
       onUpdateAxisSuffix,
       onUpdateYAxisBase,
+      onSetShadeBelow,
       onSetGeom,
       onSetYColumn,
       yColumn,
@@ -114,6 +121,15 @@ class LineOptions extends PureComponent<Props> {
           colors={colors.filter(c => c.type === 'scale')}
           onUpdateColors={onUpdateColors}
         />
+        <Grid.Column>
+          <FeatureFlag name="lineGraphShading">
+            <Checkbox
+              label="Shade Area Below Lines"
+              checked={!!shadeBelow}
+              onSetChecked={onSetShadeBelow}
+            />
+          </FeatureFlag>
+        </Grid.Column>
         <Grid.Column>
           <h5 className="view-options--header">Y Axis</h5>
         </Grid.Column>
@@ -170,6 +186,7 @@ const mdtp: DispatchProps = {
   onUpdateYAxisBase: setYAxisBase,
   onSetXColumn: setXColumn,
   onSetYColumn: setYColumn,
+  onSetShadeBelow: setShadeBelow,
   onUpdateColors: setColors,
   onSetGeom: setGeom,
 }

@@ -7,6 +7,7 @@ import {connect} from 'react-redux'
 import FilterList from 'src/shared/components/Filter'
 import TemplatesHeader from 'src/templates/components/TemplatesHeader'
 import TemplatesList from 'src/templates/components/TemplatesList'
+import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
@@ -14,7 +15,26 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 // Types
 import {TemplateSummary, AppState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
-import {Sort} from '@influxdata/clockface'
+import {
+  Sort,
+  Radio,
+  ComponentSpacer,
+  AlignItems,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
+
+import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
+
+interface StaticTemplate {
+  name: string
+  template: TemplateSummary
+}
+
+const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
+  name,
+  template,
+}))
 
 interface OwnProps {
   onImport: () => void
@@ -31,6 +51,7 @@ interface State {
   sortKey: SortKey
   sortDirection: Sort
   sortType: SortTypes
+  activeTab: string
 }
 
 type SortKey = 'meta.name'
@@ -45,12 +66,13 @@ class TemplatesPage extends PureComponent<Props, State> {
       sortKey: 'meta.name',
       sortDirection: Sort.Ascending,
       sortType: SortTypes.String,
+      activeTab: 'static-templates',
     }
   }
 
   public render() {
-    const {templates, onImport} = this.props
-    const {searchTerm, sortKey, sortDirection, sortType} = this.state
+    const {onImport} = this.props
+    const {activeTab} = this.state
 
     return (
       <>
@@ -60,14 +82,61 @@ class TemplatesPage extends PureComponent<Props, State> {
           isFullPage={false}
           filterComponent={() => this.filterComponent}
         />
-        <GetResources resource={ResourceTypes.Labels}>
-          <FilterList<TemplateSummary>
-            searchTerm={searchTerm}
-            searchKeys={['meta.name', 'labels[].name']}
-            list={templates}
-          >
-            {ts => (
-              <TemplatesList
+        <ComponentSpacer
+          direction={FlexDirection.Row}
+          alignItems={AlignItems.Center}
+          justifyContent={JustifyContent.Center}
+          stretchToFitWidth={true}
+        >
+          <Radio>
+            <Radio.Button
+              id="static-templates"
+              active={activeTab === 'static-templates'}
+              value="static-templates"
+              onClick={this.handleClickTab}
+              titleText="Static Templates"
+            >
+              Static Templates
+            </Radio.Button>
+            <Radio.Button
+              id="user-templates"
+              active={activeTab === 'user-templates'}
+              value="user-templates"
+              onClick={this.handleClickTab}
+              titleText="User Templates"
+            >
+              User Templates
+            </Radio.Button>
+          </Radio>
+        </ComponentSpacer>
+        {this.templatesList}
+      </>
+    )
+  }
+
+  private handleClickTab = val => {
+    this.setState({activeTab: val})
+  }
+
+  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
+    const sortType = SortTypes.String
+    this.setState({sortKey, sortDirection: nextSort, sortType})
+  }
+
+  private get templatesList(): JSX.Element {
+    const {templates, onImport} = this.props
+    const {searchTerm, sortKey, sortDirection, sortType, activeTab} = this.state
+
+    if (activeTab === 'static-templates') {
+      return (
+        <FilterList<StaticTemplate>
+          searchTerm={searchTerm}
+          searchKeys={['template.meta.name', 'labels[].name']}
+          list={staticTemplates}
+        >
+          {ts => {
+            return (
+              <StaticTemplatesList
                 searchTerm={searchTerm}
                 templates={ts}
                 onFilterChange={this.setSearchTerm}
@@ -77,16 +146,38 @@ class TemplatesPage extends PureComponent<Props, State> {
                 sortType={sortType}
                 onClickColumn={this.handleClickColumn}
               />
-            )}
+            )
+          }}
+        </FilterList>
+      )
+    }
+
+    if (activeTab === 'user-templates') {
+      return (
+        <GetResources resource={ResourceTypes.Labels}>
+          <FilterList<TemplateSummary>
+            searchTerm={searchTerm}
+            searchKeys={['meta.name', 'labels[].name']}
+            list={templates}
+          >
+            {ts => {
+              return (
+                <TemplatesList
+                  searchTerm={searchTerm}
+                  templates={ts}
+                  onFilterChange={this.setSearchTerm}
+                  onImport={onImport}
+                  sortKey={sortKey}
+                  sortDirection={sortDirection}
+                  sortType={sortType}
+                  onClickColumn={this.handleClickColumn}
+                />
+              )
+            }}
           </FilterList>
         </GetResources>
-      </>
-    )
-  }
-
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
-    this.setState({sortKey, sortDirection: nextSort, sortType})
+      )
+    }
   }
 
   private get filterComponent(): JSX.Element {

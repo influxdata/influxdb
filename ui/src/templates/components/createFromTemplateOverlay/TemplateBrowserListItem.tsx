@@ -14,7 +14,7 @@ interface Props {
   testID: string
 }
 
-class DashboardTemplateBrowser extends PureComponent<Props> {
+class TemplateBrowser extends PureComponent<Props> {
   public render() {
     const {testID, label} = this.props
 
@@ -46,4 +46,4 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
   }
 }
 
-export default DashboardTemplateBrowser
+export default TemplateBrowser

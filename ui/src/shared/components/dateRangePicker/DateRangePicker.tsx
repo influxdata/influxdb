@@ -78,6 +78,7 @@ class DateRangePicker extends PureComponent<Props, State> {
             />
           </div>
           <Button
+            className="range-picker--submit"
             color={ComponentColor.Primary}
             size={ComponentSize.Small}
             onClick={this.handleSetTimeRange}

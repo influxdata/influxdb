@@ -76,6 +76,7 @@ export default class TemplatesList extends PureComponent<Props> {
       sortType,
       onFilterChange,
     } = this.props
+
     const sortedTemplates = this.memGetSortedResources(
       templates,
       sortKey,

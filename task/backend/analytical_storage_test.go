@@ -33,7 +33,7 @@ func TestAnalyticalStore(t *testing.T) {
 			}
 
 			ab := newAnalyticalBackend(t, svc, svc)
-			svcStack := backend.NewAnalyticalStorage(svc, svc, ab.PointsWriter(), ab.QueryService())
+			svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), svc, svc, ab.PointsWriter(), ab.QueryService())
 
 			go func() {
 				<-ctx.Done()

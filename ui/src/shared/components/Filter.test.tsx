@@ -173,6 +173,47 @@ describe('FilterList', () => {
     expect(expected[2].textContent).toEqual(itemThree.name)
   })
 
+  it('can filter nested objects', () => {
+    const itemOne = {
+      id: '1',
+      name: 'crackle',
+      properties: {
+        description: 'a',
+      },
+    }
+
+    const itemTwo = {
+      id: '2',
+      name: 'ports',
+      properties: {
+        description: 'b',
+      },
+    }
+
+    const itemThree = {
+      id: '3',
+      name: 'rando',
+      properties: {
+        description: 'z',
+      },
+    }
+
+    const list = [itemOne, itemTwo, itemThree]
+
+    const searchTerm = 'Z'
+    const searchKeys = ['name', 'properties.description']
+    const {getAllByTestId} = setup({
+      list,
+      searchTerm,
+      searchKeys,
+    })
+
+    const expected = getAllByTestId('list-item')
+
+    expect(expected.length).toEqual(1)
+    expect(expected[0].textContent).toEqual(itemThree.name)
+  })
+
   it('errors when searchKey value is an object', () => {
     const itemOne = {
       name: {
