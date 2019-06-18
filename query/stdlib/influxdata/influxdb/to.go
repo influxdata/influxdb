@@ -517,9 +517,9 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 		var pointTime time.Time
 		var points models.Points
 		var tags models.Tags
-		fields := make(models.Fields)
 		var fieldValues values.Object
 		for i := 0; i < er.Len(); i++ {
+			fields := make(models.Fields)
 			tags = nil
 			// Gather the timestamp and the tags.
 			for j, col := range er.Cols() {
@@ -553,8 +553,6 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 			} else if fieldValues, err = t.fn.Eval(i, er); err != nil {
 				return err
 			}
-
-			fields = make(models.Fields)
 
 			fieldValues.Range(func(k string, v values.Value) {
 				if v.IsNull() {
