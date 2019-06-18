@@ -3,12 +3,13 @@ package testing
 import (
 	"bytes"
 	"context"
-	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/mock"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
+	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/mock"
 )
 
 const (
@@ -35,8 +36,8 @@ var variableCmpOptions = cmp.Options{
 
 // VariableFields defines fields for a variable test
 type VariableFields struct {
-	Variables   []*platform.Variable
-	IDGenerator platform.IDGenerator
+	Variables     []*platform.Variable
+	IDGenerator   platform.IDGenerator
 	TimeGenerator platform.TimeGenerator
 }
 
@@ -491,6 +492,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 		{
 			name: "updating a variable's name",
 			fields: VariableFields{
+				TimeGenerator: faketime,
 				Variables: []*platform.Variable{
 					{
 						ID:             MustIDBase16(idA),
