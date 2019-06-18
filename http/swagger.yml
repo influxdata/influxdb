@@ -6883,6 +6883,9 @@ components:
             - $ref: "#/components/schemas/QueryVariableProperties"
             - $ref: "#/components/schemas/ConstantVariableProperties"
             - $ref: "#/components/schemas/MapVariableProperties"
+        createdAt:
+          type: string
+          format: date-time
     Variables:
       type: object
       example:

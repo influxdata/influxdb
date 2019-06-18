@@ -31,7 +31,6 @@ var bucketCmpOptions = cmp.Options{
 		return out
 	}),
 }
-
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
 	IDGenerator   platform.IDGenerator

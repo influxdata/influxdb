@@ -16,6 +16,7 @@ func initVariableService(f platformtesting.VariableFields, t *testing.T) (platfo
 	}
 
 	c.IDGenerator = f.IDGenerator
+	c.TimeGenerator = f.TimeGenerator
 	ctx := context.TODO()
 
 	for _, variable := range f.Variables {

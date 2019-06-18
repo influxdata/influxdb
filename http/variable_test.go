@@ -5,12 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
@@ -108,6 +107,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 								"b"
 							 ]
 						  },
+                          "createdAt": "2009-11-10 23:00:00 +0000 UTC",
 						  "description":"",
 						  "id":"6162207574726f71",
 						  "labels":[
@@ -138,6 +138,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 								"c":"d"
 							 }
 						  },
+                          "createdAt": "2009-11-10 23:00:00 +0000 UTC",
 						  "description":"",
 						  "id":"61726920617a696f",
 						  "labels":[
@@ -244,6 +245,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 							"b"
 						  ]
 						},
+                        "createdAt": "2009-11-10 23:00:00 +0000 UTC",
 				        "description": "",
 						"id": "6162207574726f71",
 						"labels": [
@@ -355,8 +357,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","description":"","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
-`,
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","description":"","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"createdAt":"2009-11-10 23:00:00 +0000 UTC","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}`,
 			},
 		},
 		{
@@ -479,6 +480,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
       "foo"
     ]
   },
+  "createdAt":"2009-11-10 23:00:00 +0000 UTC",
   "selected": [
     "'foo'"
   ]
@@ -488,7 +490,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","description":"","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","description":"","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"createdAt":"2009-11-10 23:00:00 +0000 UTC","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -605,7 +607,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","description":"","selected":[],"arguments":{"type":"constant","values":[]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000002"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","description":"","selected":[],"arguments":{"type":"constant","values":[]},"createdAt":"2009-11-10 23:00:00 +0000 UTC","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000002"}}
 `,
 			},
 		},

@@ -46,7 +46,7 @@ func initInmemVariableService(f influxdbtesting.VariableFields, t *testing.T) (i
 func initVariableService(s kv.Store, f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
 	svc := kv.NewService(s)
 	svc.IDGenerator = f.IDGenerator
-
+	svc.TimeGenerator = f.TimeGenerator
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing variable service: %v", err)

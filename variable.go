@@ -50,6 +50,7 @@ type Variable struct {
 	Description    string             `json:"description"`
 	Selected       []string           `json:"selected"`
 	Arguments      *VariableArguments `json:"arguments"`
+	CRUDLog
 }
 
 // DefaultVariableFindOptions are the default find options for variables.

@@ -3,12 +3,12 @@ package testing
 import (
 	"bytes"
 	"context"
-	"sort"
-	"testing"
-
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"sort"
+	"testing"
+	"time"
 )
 
 const (
@@ -17,6 +17,8 @@ const (
 	idC = "020f755c3c082002"
 	idD = "020f755c3c082003"
 )
+
+var faketime = mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)}
 
 var variableCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
@@ -35,6 +37,7 @@ var variableCmpOptions = cmp.Options{
 type VariableFields struct {
 	Variables   []*platform.Variable
 	IDGenerator platform.IDGenerator
+	TimeGenerator platform.TimeGenerator
 }
 
 // VariableService tests all the service functions.
@@ -98,6 +101,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						return MustIDBase16(idD)
 					},
 				},
+				TimeGenerator: faketime,
 				Variables: []*platform.Variable{
 					{
 						ID:             MustIDBase16(idA),
@@ -145,6 +149,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						return MustIDBase16(idA)
 					},
 				},
+				TimeGenerator: faketime,
 				Variables: []*platform.Variable{
 					{
 						ID:             MustIDBase16(idB),
