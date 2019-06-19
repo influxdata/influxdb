@@ -14,7 +14,9 @@ type FluxControllerMock struct {
 func NewFluxControllerMock() *FluxControllerMock {
 	return &FluxControllerMock{
 		QueryFn: func(ctx context.Context, compiler flux.Compiler) (query flux.Query, e error) {
-			return NewFluxQueryMock(), nil
+			// See https://github.com/influxdata/influxdb/issues/14161
+			//return NewFluxQueryMock(), nil
+			return nil, nil
 		},
 	}
 }
