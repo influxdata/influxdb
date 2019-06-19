@@ -110,9 +110,11 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 			Query: r.Query,
 		}
 	} else if r.Spec != nil {
-		compiler = lang.SpecCompiler{
-			Spec: r.Spec,
-		}
+		// See https://github.com/influxdata/influxdb/issues/14159
+		// We need to update this for Flux 0.33.0
+		//compiler = lang.SpecCompiler{
+		//	Spec: r.Spec,
+		//}
 	}
 
 	delimiter, _ := utf8.DecodeRuneInString(r.Dialect.Delimiter)
