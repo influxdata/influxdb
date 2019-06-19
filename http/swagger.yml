@@ -4349,8 +4349,8 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 100
-            default: 20
+            maximum: 500
+            default: 100
           description: the number of runs to return
         - in: query
           name: afterTime
@@ -5945,6 +5945,8 @@ components:
           items:
             type: object
             properties:
+              runID:
+                type: string
               time:
                 type: string
               message:
@@ -7381,7 +7383,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TelegrafRequestPlugin"
-        organizationID:
+        orgID:
           type: string
     TelegrafRequestPlugin:
         oneOf:

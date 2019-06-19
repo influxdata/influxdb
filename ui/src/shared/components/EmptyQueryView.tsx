@@ -10,14 +10,14 @@ import Markdown from 'src/shared/components/views/Markdown'
 import {emptyGraphCopy} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, FluxTable} from 'src/types'
+import {RemoteDataState} from 'src/types'
 import {DashboardQuery} from 'src/types'
 
 interface Props {
   errorMessage: string
   isInitialFetch: boolean
   loading: RemoteDataState
-  tables: FluxTable[]
+  hasResults: boolean
   queries: DashboardQuery[]
   fallbackNote?: string
 }
@@ -28,9 +28,9 @@ export default class EmptyQueryView extends PureComponent<Props> {
       errorMessage,
       isInitialFetch,
       loading,
-      tables,
       queries,
       fallbackNote,
+      hasResults,
     } = this.props
 
     if (loading === RemoteDataState.NotStarted || !queries.length) {
@@ -48,20 +48,18 @@ export default class EmptyQueryView extends PureComponent<Props> {
       )
     }
 
-    const hasNoResults = tables.every(d => !d.data.length)
-
     if (
-      (isInitialFetch || hasNoResults) &&
+      (isInitialFetch || !hasResults) &&
       loading === RemoteDataState.Loading
     ) {
       return <EmptyGraphMessage message="Loading..." />
     }
 
-    if (hasNoResults && fallbackNote) {
+    if (!hasResults && fallbackNote) {
       return <Markdown text={fallbackNote} />
     }
 
-    if (hasNoResults) {
+    if (!hasResults) {
       return (
         <EmptyGraphMessage
           message="No Results"

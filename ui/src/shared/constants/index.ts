@@ -1,5 +1,5 @@
 import _ from 'lodash'
-import {Config} from '@influxdata/vis'
+import {Config} from '@influxdata/giraffe'
 import {AutoRefreshStatus} from 'src/types'
 
 export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'

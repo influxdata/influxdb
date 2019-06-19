@@ -438,11 +438,15 @@ func taskLogFindF(cmd *cobra.Command, args []string) error {
 
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(
-		"Log",
+		"RunID",
+		"Time",
+		"Message",
 	)
 	for _, log := range logs {
 		w.Write(map[string]interface{}{
-			"Log": *log,
+			"RunID":   log.RunID,
+			"Time":    log.Time,
+			"Message": log.Message,
 		})
 	}
 	w.Flush()

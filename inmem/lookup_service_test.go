@@ -153,8 +153,8 @@ func TestService_Name(t *testing.T) {
 				},
 				init: func(ctx context.Context, s *Service) error {
 					return s.CreateTelegrafConfig(ctx, &platform.TelegrafConfig{
-						OrganizationID: platformtesting.MustIDBase16("0000000000000009"),
-						Name:           "telegraf1",
+						OrgID: platformtesting.MustIDBase16("0000000000000009"),
+						Name:  "telegraf1",
 					}, testID)
 				},
 			},

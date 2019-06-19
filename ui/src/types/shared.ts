@@ -1,4 +1,4 @@
-import {ReactNode} from 'react'
+import {ReactNode, ComponentType} from 'react'
 
 export interface DropdownItem {
   text: string
@@ -32,3 +32,5 @@ export interface FluxToolbarFunction {
   category: string
   link: string
 }
+
+export type ErrorMessageComponent = ComponentType<{error: Error}>

@@ -35,9 +35,8 @@ import {setExportTemplate} from 'src/templates/actions'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Label} from 'src/types'
+import {AppState, Label, TaskTemplate} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
-import {ITaskTemplate} from '@influxdata/influx'
 import {Run} from 'src/tasks/components/TaskRunsPage'
 
 // Utils
@@ -534,7 +533,7 @@ export const convertToTemplate = (taskID: string) => async (
   }
 }
 
-export const createTaskFromTemplate = (template: ITaskTemplate) => async (
+export const createTaskFromTemplate = (template: TaskTemplate) => async (
   dispatch,
   getState: GetStateFunc
 ): Promise<void> => {

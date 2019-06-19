@@ -438,6 +438,12 @@ export const timeMachineReducer = (
       return setViewProperties(state, {decimalPlaces})
     }
 
+    case 'SET_SHADE_BELOW': {
+      const {shadeBelow} = action.payload
+
+      return setViewProperties(state, {shadeBelow})
+    }
+
     case 'SET_BACKGROUND_THRESHOLD_COLORING': {
       const viewColors = state.view.properties.colors as Color[]
 

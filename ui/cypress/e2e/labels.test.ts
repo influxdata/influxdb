@@ -188,7 +188,7 @@ describe('labels', () => {
       "(\u03944) J'entends par attribut ce que l'entendement perçoit d'une substance comme constituant son essence. "
     const newLabelColor = '#B0D0FF'
 
-    //create label
+    // create label
 
     cy.get<Organization>('@org').then(({id}) => {
       cy.createLabel(oldLabelName, id, {
@@ -197,14 +197,16 @@ describe('labels', () => {
       })
     })
 
-    //verify name, descr, color
+    // verify name, descr, color
     cy.getByTestID('label-card').should('have.length', 1)
     cy.getByTestID('label-card')
       .contains(oldLabelName)
       .should('be.visible')
+
     cy.getByTestID('label-card')
       .contains(oldLabelDescription)
       .should('be.visible')
+
     cy.getByTestID('label-card')
       .children('div.resource-list--name-meta')
       .children('div.label')
@@ -219,12 +221,13 @@ describe('labels', () => {
       .children('div')
       .invoke('text')
       .should('equal', 'Edit Label')
-    //dissmiss
+
+    // dismiss
     cy.getByTestID('overlay--header')
       .children('button')
       .click()
 
-    //modify
+    // modify
     cy.getByTestID('label-card')
       .contains(oldLabelName)
       .click()
@@ -240,7 +243,7 @@ describe('labels', () => {
       .type(newLabelColor)
     cy.getByTestID('create-label-form--submit').click()
 
-    //verify name, descr, color
+    // verify name, descr, color
     cy.getByTestID('label-card').should('have.length', 1)
     cy.getByTestID('label-card')
       .contains(newLabelName)

@@ -154,6 +154,57 @@ func TestTelegrafConfigJSONDecodeWithoutID(t *testing.T) {
 	}
 }
 
+func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
+	id1, _ := IDFromString("020f755c3c082000")
+	id2, _ := IDFromString("020f755c3c082222")
+	id3, _ := IDFromString("020f755c3c082223")
+	cases := []struct {
+		name string
+		src  []byte
+		cfg  *TelegrafConfig
+		err  error
+	}{
+		{
+			name: "newest",
+			src:  []byte(`{"id":"020f755c3c082000","orgID":"020f755c3c082222","plugins":[]}`),
+			cfg: &TelegrafConfig{
+				ID:      *id1,
+				OrgID:   *id2,
+				Plugins: []TelegrafPlugin{},
+			},
+		},
+		{
+			name: "old",
+			src:  []byte(`{"id":"020f755c3c082000","organizationID":"020f755c3c082222","plugins":[]}`),
+			cfg: &TelegrafConfig{
+				ID:      *id1,
+				OrgID:   *id2,
+				Plugins: []TelegrafPlugin{},
+			},
+		},
+		{
+			name: "conflict",
+			src:  []byte(`{"id":"020f755c3c082000","organizationID":"020f755c3c082222","orgID":"020f755c3c082223","plugins":[]}`),
+			cfg: &TelegrafConfig{
+				ID:      *id1,
+				OrgID:   *id3,
+				Plugins: []TelegrafPlugin{},
+			},
+		},
+	}
+	for _, c := range cases {
+		got := new(TelegrafConfig)
+		err := json.Unmarshal(c.src, got)
+		if diff := cmp.Diff(err, c.err); diff != "" {
+			t.Fatalf("%s decode failed, got err: %v, should be %v", c.name, err, c.err)
+		}
+
+		if diff := cmp.Diff(got, c.cfg, telegrafCmpOptions...); c.err == nil && diff != "" {
+			t.Errorf("failed %s, telegraf configs are different -got/+want\ndiff %s", c.name, diff)
+		}
+	}
+}
+
 func TestTelegrafConfigJSON(t *testing.T) {
 	id1, _ := IDFromString("020f755c3c082000")
 	id2, _ := IDFromString("020f755c3c082222")
@@ -165,9 +216,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "regular config",
 			cfg: &TelegrafConfig{
-				ID:             *id1,
-				OrganizationID: *id2,
-				Name:           "n1",
+				ID:    *id1,
+				OrgID: *id2,
+				Name:  "n1",
 				Agent: TelegrafAgentConfig{
 					Interval: 4000,
 				},
@@ -201,9 +252,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin type",
 			cfg: &TelegrafConfig{
-				ID:             *id1,
-				OrganizationID: *id2,
-				Name:           "n1",
+				ID:    *id1,
+				OrgID: *id2,
+				Name:  "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Comment: "comment3",
@@ -222,9 +273,9 @@ func TestTelegrafConfigJSON(t *testing.T) {
 		{
 			name: "unsupported plugin",
 			cfg: &TelegrafConfig{
-				ID:             *id1,
-				OrganizationID: *id2,
-				Name:           "n1",
+				ID:    *id1,
+				OrgID: *id2,
+				Name:  "n1",
 				Plugins: []TelegrafPlugin{
 					{
 						Config: &unsupportedPlugin{

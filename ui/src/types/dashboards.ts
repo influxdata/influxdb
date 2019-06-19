@@ -1,4 +1,4 @@
-import {HistogramPosition} from '@influxdata/vis'
+import {HistogramPosition} from '@influxdata/giraffe'
 import {Color} from 'src/types/colors'
 
 import {
@@ -12,10 +12,10 @@ export enum Scale {
   Log = 'log',
 }
 
-export enum Base {
-  Two = '2',
-  Ten = '10',
-}
+export type Base =
+  | '' // Do not format using a prefix
+  | '2' // Format using a binary prefix
+  | '10' // Format using a decimal/SI prefix
 
 export interface Axis {
   label: string
@@ -116,12 +116,6 @@ export type NewView<T extends ViewProperties = ViewProperties> = Omit<
   'id' | 'links'
 >
 
-export interface ViewLinks {
-  self: string
-}
-
-export type DygraphViewProperties = XYView | LinePlusSingleStatView
-
 export type ViewProperties =
   | XYView
   | LinePlusSingleStatView
@@ -173,6 +167,9 @@ export interface XYView {
   queries: DashboardQuery[]
   shape: ViewShape.ChronografV2
   axes: Axes
+  xColumn?: string
+  yColumn?: string
+  shadeBelow?: boolean
   colors: Color[]
   legend: Legend
   note: string
@@ -188,6 +185,9 @@ export interface LinePlusSingleStatView {
   legend: Legend
   prefix: string
   suffix: string
+  xColumn?: string
+  yColumn?: string
+  shadeBelow?: boolean
   decimalPlaces: DecimalPlaces
   note: string
   showNoteWhenEmpty: boolean

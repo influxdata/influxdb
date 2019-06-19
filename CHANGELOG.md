@@ -1,3 +1,23 @@
+## v2.0.0-alpha.13 [2019-06-13]
+
+### Features
+
+1. [14130](https://github.com/influxdata/influxdb/pull/14130): Add static templates for system, docker, redis, kubernetes
+
+## v2.0.0-alpha.12 [2019-06-13]
+
+### Features
+
+1. [14059](https://github.com/influxdata/influxdb/pull/14059): Enable formatting line graph y ticks with binary prefix
+1. [14052](https://github.com/influxdata/influxdb/pull/14052): Add x and y column pickers to graph types
+1. [14128](https://github.com/influxdata/influxdb/pull/14128): Add option to shade area below line graphs
+
+### Bug Fixes
+
+1. [14085](https://github.com/influxdata/influxdb/pull/14085): Fix performance regression in graph tooltips
+
+### UI Improvements
+
 ## v2.0.0-alpha.11 [2019-05-31]
 
 1. [14031](https://github.com/influxdata/influxdb/pull/14031): Correctly check if columnKeys include xColumn in heatmap

@@ -144,6 +144,11 @@ func TestSeriesFileCompactor(t *testing.T) {
 			t.Fatalf("series does not exist: %s,%s", iter.Name(), iter.Tags().String())
 		}
 	}
+
+	// Verify total number of series is correct.
+	if got, exp := sfile.SeriesCount(), uint64(len(collection.Names)); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after compaction)", got, exp)
+	}
 }
 
 // Ensures that types are tracked and checked by the series file.
@@ -205,29 +210,64 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 	}
 	id := sfile.SeriesID([]byte("m1"), nil, nil)
 
+	// Verify total number of series is correct.
+	if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (before deleted)", got, exp)
+	}
+
 	// Delete and ensure deletion.
 	if err := sfile.DeleteSeriesID(id); err != nil {
 		t.Fatal(err)
-	} else if err := sfile.CreateSeriesListIfNotExists(&tsdb.SeriesCollection{
-		Names: [][]byte{[]byte("m1")},
-		Tags:  []models.Tags{{}},
-		Types: []models.FieldType{models.String},
-	}); err != nil {
-		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion before compaction")
+	}
+
+	// Verify total number of series is correct.
+	if got, exp := sfile.SeriesCount(), uint64(1); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (before compaction)", got, exp)
 	}
 
 	if err := sfile.ForceCompact(); err != nil {
 		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion after compaction")
+	} else if got, exp := sfile.SeriesCount(), uint64(1); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after compaction)", got, exp)
 	}
 
 	if err := sfile.Reopen(); err != nil {
 		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion after reopen")
+	} else if got, exp := sfile.SeriesCount(), uint64(1); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after reopen)", got, exp)
+	}
+
+	// Recreate series with new ID.
+	if err := sfile.CreateSeriesListIfNotExists(&tsdb.SeriesCollection{
+		Names: [][]byte{[]byte("m1")},
+		Tags:  []models.Tags{{}},
+		Types: []models.FieldType{models.String},
+	}); err != nil {
+		t.Fatal(err)
+	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after recreate)", got, exp)
+	}
+
+	if err := sfile.ForceCompact(); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(id) {
+		t.Fatal("expected deletion after compaction")
+	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after recreate & compaction)", got, exp)
+	}
+
+	if err := sfile.Reopen(); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(id) {
+		t.Fatal("expected deletion after reopen")
+	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after recreate & compaction)", got, exp)
 	}
 }
 

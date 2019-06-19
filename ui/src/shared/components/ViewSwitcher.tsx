@@ -1,6 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {Plot} from '@influxdata/vis'
+import {Plot, FromFluxResult} from '@influxdata/giraffe'
 
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'
@@ -8,7 +8,7 @@ import SingleStat from 'src/shared/components/SingleStat'
 import TableGraphs from 'src/shared/components/tables/TableGraphs'
 import HistogramContainer from 'src/shared/components/HistogramContainer'
 import HeatmapContainer from 'src/shared/components/HeatmapContainer'
-import VisTableTransform from 'src/shared/components/VisTableTransform'
+import FluxTablesTransform from 'src/shared/components/FluxTablesTransform'
 import XYContainer from 'src/shared/components/XYContainer'
 import ScatterContainer from 'src/shared/components/ScatterContainer'
 import LatestValueTransform from 'src/shared/components/LatestValueTransform'
@@ -20,59 +20,60 @@ import {
   SingleStatView,
   XYView,
   XYViewGeom,
-} from 'src/types/dashboards'
-import {FluxTable, RemoteDataState} from 'src/types'
+  RemoteDataState,
+} from 'src/types'
 
 interface Props {
-  tables: FluxTable[]
+  giraffeResult: FromFluxResult
   files: string[]
   loading: RemoteDataState
   properties: QueryViewProperties
 }
 
-const RefreshingViewSwitcher: FunctionComponent<Props> = ({
+const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
   loading,
   files,
-  tables,
+  giraffeResult: {table, fluxGroupKeyUnion},
 }) => {
   switch (properties.type) {
     case ViewType.SingleStat:
       return (
-        <VisTableTransform files={files}>
-          {({table}) => (
-            <LatestValueTransform table={table}>
-              {latestValue => (
-                <SingleStat stat={latestValue} properties={properties} />
-              )}
-            </LatestValueTransform>
+        <LatestValueTransform table={table}>
+          {latestValue => (
+            <SingleStat stat={latestValue} properties={properties} />
           )}
-        </VisTableTransform>
+        </LatestValueTransform>
       )
+
     case ViewType.Table:
-      return <TableGraphs tables={tables} properties={properties} />
+      return (
+        <FluxTablesTransform files={files}>
+          {tables => <TableGraphs tables={tables} properties={properties} />}
+        </FluxTablesTransform>
+      )
+
     case ViewType.Gauge:
       return (
-        <VisTableTransform files={files}>
-          {({table}) => (
-            <LatestValueTransform table={table}>
-              {latestValue => (
-                <GaugeChart value={latestValue} properties={properties} />
-              )}
-            </LatestValueTransform>
+        <LatestValueTransform table={table}>
+          {latestValue => (
+            <GaugeChart value={latestValue} properties={properties} />
           )}
-        </VisTableTransform>
+        </LatestValueTransform>
       )
+
     case ViewType.XY:
       return (
         <XYContainer
-          files={files}
+          table={table}
+          fluxGroupKeyUnion={fluxGroupKeyUnion}
           viewProperties={properties}
           loading={loading}
         >
           {config => <Plot config={config} />}
         </XYContainer>
       )
+
     case ViewType.LinePlusSingleStat:
       const xyProperties = {
         ...properties,
@@ -89,7 +90,8 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
 
       return (
         <XYContainer
-          files={files}
+          table={table}
+          fluxGroupKeyUnion={fluxGroupKeyUnion}
           viewProperties={xyProperties}
           loading={loading}
         >
@@ -107,52 +109,43 @@ const RefreshingViewSwitcher: FunctionComponent<Props> = ({
           )}
         </XYContainer>
       )
+
     case ViewType.Histogram:
       return (
-        <VisTableTransform files={files}>
-          {({table}) => (
-            <HistogramContainer
-              table={table}
-              loading={loading}
-              viewProperties={properties}
-            >
-              {config => <Plot config={config} />}
-            </HistogramContainer>
-          )}
-        </VisTableTransform>
+        <HistogramContainer
+          table={table}
+          loading={loading}
+          viewProperties={properties}
+        >
+          {config => <Plot config={config} />}
+        </HistogramContainer>
       )
+
     case ViewType.Heatmap:
       return (
-        <VisTableTransform files={files}>
-          {({table}) => (
-            <HeatmapContainer
-              table={table}
-              loading={loading}
-              viewProperties={properties}
-            >
-              {config => <Plot config={config} />}
-            </HeatmapContainer>
-          )}
-        </VisTableTransform>
+        <HeatmapContainer
+          table={table}
+          loading={loading}
+          viewProperties={properties}
+        >
+          {config => <Plot config={config} />}
+        </HeatmapContainer>
       )
+
     case ViewType.Scatter:
       return (
-        <VisTableTransform files={files}>
-          {({table, fluxGroupKeyUnion}) => (
-            <ScatterContainer
-              table={table}
-              fluxGroupKeyUnion={fluxGroupKeyUnion}
-              loading={loading}
-              viewProperties={properties}
-            >
-              {config => <Plot config={config} />}
-            </ScatterContainer>
-          )}
-        </VisTableTransform>
+        <ScatterContainer
+          table={table}
+          loading={loading}
+          viewProperties={properties}
+        >
+          {config => <Plot config={config} />}
+        </ScatterContainer>
       )
+
     default:
       return <div />
   }
 }
 
-export default RefreshingViewSwitcher
+export default ViewSwitcher

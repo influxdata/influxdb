@@ -8,79 +8,82 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
-	"github.com/influxdata/influxdb/task"
-	"github.com/influxdata/influxdb/task/backend"
-	tmock "github.com/influxdata/influxdb/task/mock"
 	"github.com/influxdata/influxdb/task/servicetest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
-
-func httpTaskServiceFactory(t *testing.T) (*servicetest.System, context.CancelFunc) {
-	store := backend.NewInMemStore()
-	rrw := backend.NewInMemRunReaderWriter()
-	sch := tmock.NewScheduler()
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	i := inmem.NewService()
-
-	backingTS := task.PlatformAdapter(store, rrw, sch, i, i, i)
-
-	h := http.NewAuthenticationHandler()
-	h.AuthorizationService = i
-	th := http.NewTaskHandler(http.NewMockTaskBackend(t))
-	th.TaskService = backingTS
-	th.AuthorizationService = i
-	th.OrganizationService = i
-	th.UserService = i
-	th.UserResourceMappingService = i
-	h.Handler = th
-
-	org := &platform.Organization{Name: t.Name() + "_org"}
-	if err := i.CreateOrganization(ctx, org); err != nil {
-		t.Fatal(err)
-	}
-	user := &platform.User{Name: t.Name() + "_user"}
-	if err := i.CreateUser(ctx, user); err != nil {
-		t.Fatal(err)
-	}
-	auth := platform.Authorization{UserID: user.ID, OrgID: org.ID}
-	if err := i.CreateAuthorization(ctx, &auth); err != nil {
-		t.Fatal(err)
-	}
-
-	server := httptest.NewServer(h)
-	go func() {
-		<-ctx.Done()
-		server.Close()
-	}()
-
-	taskService := http.TaskService{
-		Addr:  server.URL,
-		Token: auth.Token,
-	}
-
-	cFunc := func() (servicetest.TestCreds, error) {
-		return servicetest.TestCreds{
-			OrgID:           org.ID,
-			Org:             org.Name,
-			UserID:          user.ID,
-			AuthorizationID: auth.ID,
-			Token:           auth.Token,
-		}, nil
-	}
-
-	return &servicetest.System{
-		TaskControlService: backend.TaskControlAdaptor(store, rrw, rrw),
-		TaskService:        taskService,
-		Ctx:                ctx,
-		I:                  i,
-		CredsFunc:          cFunc,
-	}, cancel
-}
 
 func TestTaskService(t *testing.T) {
 	t.Parallel()
+	servicetest.TestTaskService(
+		t,
+		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
 
-	servicetest.TestTaskService(t, httpTaskServiceFactory)
+			service := kv.NewService(inmem.NewKVStore())
+			ctx, cancelFunc := context.WithCancel(context.Background())
+
+			if err := service.Initialize(ctx); err != nil {
+				t.Fatalf("error initializing urm service: %v", err)
+			}
+
+			h := http.NewAuthenticationHandler()
+			h.AuthorizationService = service
+			th := http.NewTaskHandler(&http.TaskBackend{
+				Logger:                     zaptest.NewLogger(t).With(zap.String("handler", "task")),
+				TaskService:                service,
+				AuthorizationService:       service,
+				OrganizationService:        service,
+				UserResourceMappingService: service,
+				LabelService:               service,
+				UserService:                service,
+				BucketService:              service,
+			})
+			h.Handler = th
+
+			org := &platform.Organization{Name: t.Name() + "_org"}
+			if err := service.CreateOrganization(ctx, org); err != nil {
+				t.Fatal(err)
+			}
+			user := &platform.User{Name: t.Name() + "_user"}
+			if err := service.CreateUser(ctx, user); err != nil {
+				t.Fatal(err)
+			}
+			auth := platform.Authorization{UserID: user.ID, OrgID: org.ID}
+			if err := service.CreateAuthorization(ctx, &auth); err != nil {
+				t.Fatal(err)
+			}
+
+			server := httptest.NewServer(h)
+			go func() {
+				<-ctx.Done()
+				server.Close()
+			}()
+
+			taskService := http.TaskService{
+				Addr:  server.URL,
+				Token: auth.Token,
+			}
+
+			cFunc := func() (servicetest.TestCreds, error) {
+				return servicetest.TestCreds{
+					OrgID:           org.ID,
+					Org:             org.Name,
+					UserID:          user.ID,
+					AuthorizationID: auth.ID,
+					Token:           auth.Token,
+				}, nil
+			}
+
+			return &servicetest.System{
+				TaskControlService: service,
+				TaskService:        taskService,
+				I:                  service,
+				Ctx:                ctx,
+				CredsFunc:          cFunc,
+			}, cancelFunc
+		},
+		"transactional",
+	)
 }

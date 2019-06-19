@@ -9,6 +9,10 @@ import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
 import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 import ColorSelector from 'src/timeMachine/components/view_options/ColorSelector'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
+import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
+import ColumnSelector from 'src/shared/components/ColumnSelector'
+import Checkbox from 'src/shared/components/Checkbox'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {
@@ -17,22 +21,40 @@ import {
   setAxisPrefix,
   setAxisSuffix,
   setYAxisBounds,
+  setYAxisBase,
   setGeom,
+  setXColumn,
+  setYColumn,
+  setShadeBelow,
 } from 'src/timeMachine/actions'
 
 // Utils
 import {parseBounds} from 'src/shared/utils/vis'
+import {
+  getXColumnSelection,
+  getYColumnSelection,
+  getNumericColumns,
+} from 'src/timeMachine/selectors'
 
 // Types
 import {ViewType} from 'src/types'
 import {Axes, XYViewGeom} from 'src/types/dashboards'
 import {Color} from 'src/types/colors'
+import {AppState} from 'src/types'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface OwnProps {
   type: ViewType
   axes: Axes
   geom?: XYViewGeom
   colors: Color[]
+  shadeBelow?: boolean
+}
+
+interface StateProps {
+  xColumn: string
+  yColumn: string
+  numericColumns: string[]
 }
 
 interface DispatchProps {
@@ -40,31 +62,58 @@ interface DispatchProps {
   onUpdateAxisPrefix: typeof setAxisPrefix
   onUpdateAxisSuffix: typeof setAxisSuffix
   onUpdateYAxisBounds: typeof setYAxisBounds
+  onUpdateYAxisBase: typeof setYAxisBase
   onUpdateColors: typeof setColors
+  onSetShadeBelow: typeof setShadeBelow
+  onSetXColumn: typeof setXColumn
+  onSetYColumn: typeof setYColumn
   onSetGeom: typeof setGeom
 }
 
-type Props = OwnProps & DispatchProps
+type Props = OwnProps & DispatchProps & StateProps
 
 class LineOptions extends PureComponent<Props> {
   public render() {
     const {
       axes: {
-        y: {label, prefix, suffix},
+        y: {label, prefix, suffix, base},
       },
       colors,
       geom,
+      shadeBelow,
       onUpdateColors,
       onUpdateYAxisLabel,
       onUpdateAxisPrefix,
       onUpdateAxisSuffix,
+      onUpdateYAxisBase,
+      onSetShadeBelow,
       onSetGeom,
+      onSetYColumn,
+      yColumn,
+      onSetXColumn,
+      xColumn,
+      numericColumns,
     } = this.props
 
     return (
       <>
         <Grid.Column>
           <h4 className="view-options--header">Customize Line Graph</h4>
+          <CloudExclude>
+            <h5 className="view-options--header">Data</h5>
+            <ColumnSelector
+              selectedColumn={xColumn}
+              onSelectColumn={onSetXColumn}
+              availableColumns={numericColumns}
+              axisName="x"
+            />
+            <ColumnSelector
+              selectedColumn={yColumn}
+              onSelectColumn={onSetYColumn}
+              availableColumns={numericColumns}
+              axisName="y"
+            />
+          </CloudExclude>
           <h5 className="view-options--header">Options</h5>
         </Grid.Column>
         {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
@@ -73,9 +122,19 @@ class LineOptions extends PureComponent<Props> {
           onUpdateColors={onUpdateColors}
         />
         <Grid.Column>
+          <FeatureFlag name="lineGraphShading">
+            <Checkbox
+              label="Shade Area Below Lines"
+              checked={!!shadeBelow}
+              onSetChecked={onSetShadeBelow}
+            />
+          </FeatureFlag>
+        </Grid.Column>
+        <Grid.Column>
           <h5 className="view-options--header">Y Axis</h5>
         </Grid.Column>
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
+        <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
         <AxisAffixes
           prefix={prefix}
           suffix={suffix}
@@ -111,16 +170,28 @@ class LineOptions extends PureComponent<Props> {
   }
 }
 
+const mstp = (state: AppState) => {
+  const xColumn = getXColumnSelection(state)
+  const yColumn = getYColumnSelection(state)
+  const numericColumns = getNumericColumns(state)
+
+  return {xColumn, yColumn, numericColumns}
+}
+
 const mdtp: DispatchProps = {
   onUpdateYAxisLabel: setYAxisLabel,
   onUpdateAxisPrefix: setAxisPrefix,
   onUpdateAxisSuffix: setAxisSuffix,
   onUpdateYAxisBounds: setYAxisBounds,
+  onUpdateYAxisBase: setYAxisBase,
+  onSetXColumn: setXColumn,
+  onSetYColumn: setYColumn,
+  onSetShadeBelow: setShadeBelow,
   onUpdateColors: setColors,
   onSetGeom: setGeom,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(LineOptions)

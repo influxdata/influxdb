@@ -4,19 +4,19 @@ import _ from 'lodash'
 
 // Components
 import {TemplateSummary, Template} from 'src/types'
-import DashboardTemplateDetails from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateDetails'
-import DashboardTemplateList from 'src/dashboards/components/createFromTemplateOverlay/DashboardTemplateList'
+import TemplateBrowserDetails from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserDetails'
+import TemplateBrowserList from 'src/templates/components/createFromTemplateOverlay/TemplateBrowserList'
 
 interface Props {
   templates: TemplateSummary[]
   selectedTemplateSummary: TemplateSummary
   selectedTemplate: Template
-  variables: string[]
-  cells: string[]
+  variables?: string[]
+  cells?: string[]
   onSelectTemplate: (selectedTemplateSummary: TemplateSummary) => void
 }
 
-class DashboardTemplateBrowser extends PureComponent<Props> {
+class TemplateBrowser extends PureComponent<Props> {
   public render() {
     const {
       selectedTemplateSummary,
@@ -29,12 +29,12 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
 
     return (
       <div className="import-template-overlay">
-        <DashboardTemplateList
+        <TemplateBrowserList
           templates={templates}
           onSelectTemplate={onSelectTemplate}
           selectedTemplateSummary={selectedTemplateSummary}
         />
-        <DashboardTemplateDetails
+        <TemplateBrowserDetails
           cells={cells}
           variables={variables}
           selectedTemplateSummary={selectedTemplateSummary}
@@ -45,4 +45,4 @@ class DashboardTemplateBrowser extends PureComponent<Props> {
   }
 }
 
-export default DashboardTemplateBrowser
+export default TemplateBrowser

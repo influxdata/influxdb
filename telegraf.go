@@ -12,8 +12,8 @@ import (
 	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 )
 
-// ErrTelegrafConfigInvalidOrganizationID is the error message for a missing or invalid organization ID.
-const ErrTelegrafConfigInvalidOrganizationID = "invalid organization ID"
+// ErrTelegrafConfigInvalidOrgID is the error message for a missing or invalid organization ID.
+const ErrTelegrafConfigInvalidOrgID = "invalid org ID"
 
 // ErrTelegrafConfigNotFound is the error message for a missing telegraf config.
 const ErrTelegrafConfigNotFound = "telegraf configuration not found"
@@ -53,17 +53,17 @@ type TelegrafConfigStore interface {
 
 // TelegrafConfigFilter represents a set of filter that restrict the returned telegraf configs.
 type TelegrafConfigFilter struct {
-	OrganizationID *ID
-	Organization   *string
+	OrgID        *ID
+	Organization *string
 	UserResourceMappingFilter
 }
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID             ID
-	OrganizationID ID
-	Name           string
-	Description    string
+	ID          ID
+	OrgID       ID
+	Name        string
+	Description string
 
 	Agent   TelegrafAgentConfig
 	Plugins []TelegrafPlugin
@@ -135,10 +135,10 @@ func (tc TelegrafConfig) TOML() string {
 
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
-	ID             ID     `json:"id"`
-	OrganizationID ID     `json:"organizationID,omitempty"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
+	ID          ID     `json:"id"`
+	OrgID       ID     `json:"orgID,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -158,6 +158,7 @@ type telegrafPluginEncode struct {
 type telegrafConfigDecode struct {
 	ID             ID     `json:"id"`
 	OrganizationID ID     `json:"organizationID,omitempty"`
+	OrgID          ID     `json:"orgID,omitempty"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
 
@@ -199,12 +200,12 @@ const (
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 	tce := new(telegrafConfigEncode)
 	*tce = telegrafConfigEncode{
-		ID:             tc.ID,
-		OrganizationID: tc.OrganizationID,
-		Name:           tc.Name,
-		Description:    tc.Description,
-		Agent:          tc.Agent,
-		Plugins:        make([]telegrafPluginEncode, len(tc.Plugins)),
+		ID:          tc.ID,
+		OrgID:       tc.OrgID,
+		Name:        tc.Name,
+		Description: tc.Description,
+		Agent:       tc.Agent,
+		Plugins:     make([]telegrafPluginEncode, len(tc.Plugins)),
 	}
 	for k, p := range tc.Plugins {
 		tce.Plugins[k] = telegrafPluginEncode{
@@ -305,13 +306,17 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
+	orgID := tcd.OrgID
+	if !orgID.Valid() {
+		orgID = tcd.OrganizationID
+	}
 	*tc = TelegrafConfig{
-		ID:             tcd.ID,
-		OrganizationID: tcd.OrganizationID,
-		Name:           tcd.Name,
-		Description:    tcd.Description,
-		Agent:          tcd.Agent,
-		Plugins:        make([]TelegrafPlugin, len(tcd.Plugins)),
+		ID:          tcd.ID,
+		OrgID:       orgID,
+		Name:        tcd.Name,
+		Description: tcd.Description,
+		Agent:       tcd.Agent,
+		Plugins:     make([]TelegrafPlugin, len(tcd.Plugins)),
 	}
 	return decodePluginRaw(tcd, tc)
 }

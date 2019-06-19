@@ -113,10 +113,13 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
 
     if (isDatePickerOpen) {
       const date = new Date().toISOString()
+
       const upper =
         timeRange.upper && this.isCustomTimeRange ? timeRange.upper : date
       const lower =
-        timeRange.lower && this.isCustomTimeRange ? timeRange.lower : date
+        timeRange.lower && this.isCustomTimeRange
+          ? timeRange.lower
+          : this.calculatedLower
       return {
         label: CUSTOM_TIME_RANGE_LABEL,
         lower,
@@ -142,6 +145,20 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
 
   private get isDatePickerVisible() {
     return this.state.isDatePickerOpen
+  }
+
+  private get calculatedLower() {
+    const {
+      timeRange: {seconds},
+    } = this.props
+
+    if (seconds) {
+      return moment()
+        .subtract(seconds, 's')
+        .toISOString()
+    }
+
+    return new Date().toISOString()
   }
 
   private handleApplyTimeRange = (timeRange: TimeRange) => {

@@ -2,14 +2,15 @@ package authorizer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +24,17 @@ func (ae *authError) AuthzError() error {
 	return fmt.Errorf("permission failed for auth (%s): %s", ae.auth.Identifier().String(), ae.perm.String())
 }
 
-var ErrFailedPermission = errors.New("unauthorized")
+var (
+	ErrInactiveTask = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "inactive task",
+	}
+
+	ErrFailedPermission = &influxdb.Error{
+		Code: influxdb.EInvalid,
+		Msg:  "unauthorized",
+	}
+)
 
 type taskServiceValidator struct {
 	platform.TaskService
@@ -271,6 +282,10 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 		return nil, err
 	}
 
+	if task.Status != string(backend.TaskActive) {
+		return nil, ErrInactiveTask
+	}
+
 	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
@@ -293,6 +308,10 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID
 	task, err := ts.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
+	}
+
+	if task.Status != string(backend.TaskActive) {
+		return nil, ErrInactiveTask
 	}
 
 	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)

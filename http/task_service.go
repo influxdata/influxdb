@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux/lang"
+	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
@@ -643,7 +644,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to update task",
 		}
-		if err.Err == backend.ErrTaskNotFound {
+		if err.Err == &influxdb.ErrTaskNotFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -720,7 +721,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to delete task",
 		}
-		if err.Err == backend.ErrTaskNotFound {
+		if err.Err == &influxdb.ErrTaskNotFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -797,7 +798,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find task logs",
 		}
-		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrNoRunsFound {
+		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrNoRunsFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -889,7 +890,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find runs",
 		}
-		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrNoRunsFound {
+		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrNoRunsFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -939,13 +940,9 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 			return nil, err
 		}
 
-		if i < 1 || i > 100 {
-			return nil, &platform.Error{
-				Code: platform.EUnprocessableEntity,
-				Msg:  "limit must be between 1 and 100",
-			}
+		if i < 1 || i > influxdb.TaskMaxPageSize {
+			return nil, &influxdb.ErrOutOfBoundsLimit
 		}
-
 		req.filter.Limit = i
 	}
 
@@ -997,7 +994,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to force run",
 		}
-		if err.Err == backend.ErrTaskNotFound {
+		if err.Err == &influxdb.ErrTaskNotFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -1096,7 +1093,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find run",
 		}
-		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrRunNotFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -1202,7 +1199,7 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to cancel run",
 		}
-		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrRunNotFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -1253,7 +1250,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to retry run",
 		}
-		if err.Err == backend.ErrTaskNotFound || err.Err == backend.ErrRunNotFound {
+		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &platform.ErrRunNotFound {
 			err.Code = platform.ENotFound
 		}
 		EncodeError(ctx, err, w)
@@ -1390,7 +1387,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 			// ErrTaskNotFound is expected as part of the FindTaskByID contract,
 			// so return that actual error instead of a different error that looks like it.
 			// TODO cleanup backend task service error implementation
-			return nil, backend.ErrTaskNotFound
+			return nil, &influxdb.ErrTaskNotFound
 		}
 		return nil, err
 	}
@@ -1646,9 +1643,12 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 	if filter.After != nil {
 		val.Set("after", filter.After.String())
 	}
-	if filter.Limit > 0 {
-		val.Set("limit", strconv.Itoa(filter.Limit))
+
+	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
+		return nil, 0, &influxdb.ErrOutOfBoundsLimit
 	}
+	val.Set("limit", strconv.Itoa(filter.Limit))
+
 	u.RawQuery = val.Encode()
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -1715,7 +1715,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 			// ErrRunNotFound is expected as part of the FindRunByID contract,
 			// so return that actual error instead of a different error that looks like it.
 			// TODO cleanup backend error implementation
-			return nil, backend.ErrRunNotFound
+			return nil, &platform.ErrRunNotFound
 		}
 
 		return nil, err
@@ -1759,7 +1759,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
 			// TODO cleanup backend task error implementation
-			return nil, backend.ErrRunNotFound
+			return nil, &platform.ErrRunNotFound
 		}
 		// RequestStillQueuedError is also part of the contract.
 		if e := backend.ParseRequestStillQueuedError(err.Error()); e != nil {
@@ -1806,7 +1806,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 		if platform.ErrorCode(err) == platform.ENotFound {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
-			return nil, backend.ErrRunNotFound
+			return nil, &influxdb.ErrRunNotFound
 		}
 
 		// RequestStillQueuedError is also part of the contract.

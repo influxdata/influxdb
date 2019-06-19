@@ -1,5 +1,5 @@
 // Constants
-import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/vis'
+import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/giraffe'
 import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
 import {
@@ -64,7 +64,7 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: Base.Ten,
+        base: '10' as Base,
         scale: Scale.Linear,
       },
       y: {
@@ -72,7 +72,7 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: Base.Ten,
+        base: '10' as Base,
         scale: Scale.Linear,
       },
     },
@@ -118,6 +118,8 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.XY,
       shape: ViewShape.ChronografV2,
       geom: XYViewGeom.Line,
+      xColumn: null,
+      yColumn: null,
     },
   }),
   [ViewType.Histogram]: (): NewView<HistogramView> => ({
@@ -143,8 +145,8 @@ const NEW_VIEW_CREATORS = {
       queries: [],
       type: ViewType.Heatmap,
       shape: ViewShape.ChronografV2,
-      xColumn: '_time',
-      yColumn: '_value',
+      xColumn: null,
+      yColumn: null,
       xDomain: null,
       yDomain: null,
       xAxisLabel: '',
@@ -182,6 +184,8 @@ const NEW_VIEW_CREATORS = {
       ...defaultSingleStatViewProperties(),
       type: ViewType.LinePlusSingleStat,
       shape: ViewShape.ChronografV2,
+      xColumn: null,
+      yColumn: null,
     },
   }),
   [ViewType.Table]: (): NewView<TableView> => ({
@@ -225,9 +229,9 @@ const NEW_VIEW_CREATORS = {
       showNoteWhenEmpty: false,
       fillColumns: null,
       symbolColumns: null,
-      xColumn: '_time',
+      xColumn: null,
       xDomain: null,
-      yColumn: '_value',
+      yColumn: null,
       yDomain: null,
       xAxisLabel: '',
       yAxisLabel: '',

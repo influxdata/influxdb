@@ -3,6 +3,8 @@ import _ from 'lodash'
 // Utils
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 
+import {staticTemplates} from 'src/templates/constants/defaultTemplates'
+
 // Types
 import {
   TemplateSummary,
@@ -241,17 +243,14 @@ export const cloneTemplate = (templateID: string) => async (
   }
 }
 
-export const createResourceFromTemplate = (templateID: string) => async (
-  dispatch
-): Promise<void> => {
-  try {
-    const template = await client.templates.get(templateID)
-    const {
-      content: {
-        data: {type},
-      },
-    } = template
+const createFromTemplate = template => async dispatch => {
+  const {
+    content: {
+      data: {type},
+    },
+  } = template
 
+  try {
     switch (type) {
       case TemplateType.Dashboard:
         return dispatch(
@@ -270,6 +269,20 @@ export const createResourceFromTemplate = (templateID: string) => async (
     console.error(e)
     dispatch(notify(copy.createResourceFromTemplateFailed(e)))
   }
+}
+
+export const createResourceFromStaticTemplate = (
+  name: string
+) => async dispatch => {
+  const template = await staticTemplates[name]
+  dispatch(createFromTemplate(template))
+}
+
+export const createResourceFromTemplate = (templateID: string) => async (
+  dispatch
+): Promise<void> => {
+  const template = await client.templates.get(templateID)
+  dispatch(createFromTemplate(template))
 }
 
 export const addTemplateLabelsAsync = (

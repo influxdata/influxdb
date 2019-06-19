@@ -20,7 +20,7 @@ interface StateProps {
 
 type Props = StateProps & WithRouterProps
 
-class DashboardTemplatesEmpty extends PureComponent<Props> {
+class TemplateBrowserEmpty extends PureComponent<Props> {
   public render() {
     return (
       <div className="import-template-overlay--empty">
@@ -54,4 +54,4 @@ const mstp = ({orgs: {org}}: AppState): StateProps => ({
 export default connect<StateProps, {}>(
   mstp,
   null
-)(withRouter(DashboardTemplatesEmpty))
+)(withRouter(TemplateBrowserEmpty))

@@ -137,26 +137,26 @@ func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
 
 	// telegrafConfigEncode is the helper struct for json encoding.
 	type telegrafConfigEncode struct {
-		ID             platform.ID                  `json:"id"`
-		OrganizationID platform.ID                  `json:"organizationID,omitempty"`
-		Name           string                       `json:"name"`
-		Description    string                       `json:"description"`
-		Agent          platform.TelegrafAgentConfig `json:"agent"`
-		Plugins        []telegrafPluginEncode       `json:"plugins"`
-		Labels         []platform.Label             `json:"labels"`
-		Links          telegrafLinks                `json:"links"`
+		ID          platform.ID                  `json:"id"`
+		OrgID       platform.ID                  `json:"orgID,omitempty"`
+		Name        string                       `json:"name"`
+		Description string                       `json:"description"`
+		Agent       platform.TelegrafAgentConfig `json:"agent"`
+		Plugins     []telegrafPluginEncode       `json:"plugins"`
+		Labels      []platform.Label             `json:"labels"`
+		Links       telegrafLinks                `json:"links"`
 	}
 
 	tce := new(telegrafConfigEncode)
 	*tce = telegrafConfigEncode{
-		ID:             r.ID,
-		OrganizationID: r.OrganizationID,
-		Name:           r.Name,
-		Description:    r.Description,
-		Agent:          r.Agent,
-		Plugins:        make([]telegrafPluginEncode, len(r.Plugins)),
-		Labels:         r.Labels,
-		Links:          r.Links,
+		ID:          r.ID,
+		OrgID:       r.OrgID,
+		Name:        r.Name,
+		Description: r.Description,
+		Agent:       r.Agent,
+		Plugins:     make([]telegrafPluginEncode, len(r.Plugins)),
+		Labels:      r.Labels,
+		Links:       r.Links,
 	}
 
 	for k, p := range r.Plugins {
@@ -303,7 +303,7 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 				Err:  err,
 			}
 		}
-		f.OrganizationID = orgID
+		f.OrgID = orgID
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
 		*f.Organization = orgNameStr
 	}

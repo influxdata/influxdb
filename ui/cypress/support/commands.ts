@@ -313,7 +313,7 @@ export const createScraper = (
 export const createTelegraf = (
   name?: string,
   description?: string,
-  organizationID?: string
+  orgID?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -323,7 +323,7 @@ export const createTelegraf = (
       description,
       agent: {collectionInterval: 10000},
       plugins: [],
-      organizationID,
+      orgID,
     },
   })
 }
