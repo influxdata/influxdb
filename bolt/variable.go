@@ -222,6 +222,10 @@ func (c *Client) CreateVariable(ctx context.Context, variable *platform.Variable
 			return err
 		}
 
+		now := c.Now()
+		variable.CreatedAt = now
+		variable.UpdatedAt = now
+
 		if pe := c.putVariable(ctx, tx, variable); pe != nil {
 			return &platform.Error{
 				Op:  op,

@@ -21,7 +21,7 @@ const (
 
 var oldFakeDate = time.Date(2002, 8, 5, 2, 2, 3, 0, time.UTC)
 var fakeDate = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
-var fakeGenerator = mock.TimeGenerator{FakeValue: fakeDate}
+var fakeGenerator = mock.TimeGenerator{FakeValue:fakeDate}
 
 var variableCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
@@ -167,10 +167,6 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 							Type:   "constant",
 							Values: platform.VariableConstantValues{"b"},
 						},
-						CRUDLog: platform.CRUDLog{
-							CreatedAt: fakeDate,
-							UpdatedAt: fakeDate,
-						},
 					},
 				},
 			},
@@ -270,10 +266,10 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
 						},
-						CRUDLog: platform.CRUDLog{
-							CreatedAt: fakeDate,
-							UpdatedAt: fakeDate,
-						},
+						//CRUDLog: platform.CRUDLog{
+						//	CreatedAt: fakeDate,
+						//	UpdatedAt: fakeDate,
+						//},
 					},
 					{
 						ID:             MustIDBase16(idB),
@@ -582,7 +578,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						},
 						CRUDLog: platform.CRUDLog{
 							CreatedAt: oldFakeDate,
-							UpdatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 					{
@@ -595,7 +591,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						},
 						CRUDLog: platform.CRUDLog{
 							CreatedAt: oldFakeDate,
-							UpdatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 				},
@@ -619,7 +615,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						},
 						CRUDLog: platform.CRUDLog{
 							CreatedAt: oldFakeDate,
-							UpdatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 					{
@@ -765,6 +761,10 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: oldFakeDate,
 						},
 					},
 				},

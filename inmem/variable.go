@@ -103,6 +103,9 @@ func (s *Service) CreateVariable(ctx context.Context, m *platform.Variable) erro
 			Err: err,
 		}
 	}
+	now := s.Now()
+	m.CreatedAt = now
+	m.UpdatedAt = now
 
 	return nil
 }
