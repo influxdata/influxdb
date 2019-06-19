@@ -13,6 +13,7 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -59,10 +60,13 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
+	// Limit concurrent series file compactions
+	compactionLimiter := limiter.NewFixed(1)
+
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
-		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
+		p := NewSeriesPartition(i, f.SeriesPartitionPath(i), compactionLimiter)
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {
 			f.Logger.Error("Unable to open series file",

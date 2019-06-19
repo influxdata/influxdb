@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/rhh"
 	"go.uber.org/zap"
 )
@@ -40,6 +41,7 @@ type SeriesPartition struct {
 	seq      uint64 // series id sequence
 
 	compacting          bool
+	compactionLimiter   limiter.Fixed
 	compactionsDisabled int
 
 	CompactThreshold int
@@ -48,14 +50,15 @@ type SeriesPartition struct {
 }
 
 // NewSeriesPartition returns a new instance of SeriesPartition.
-func NewSeriesPartition(id int, path string) *SeriesPartition {
+func NewSeriesPartition(id int, path string, compactionLimiter limiter.Fixed) *SeriesPartition {
 	return &SeriesPartition{
-		id:               id,
-		path:             path,
-		closing:          make(chan struct{}),
-		CompactThreshold: DefaultSeriesPartitionCompactThreshold,
-		Logger:           zap.NewNop(),
-		seq:              uint64(id) + 1,
+		id:                id,
+		path:              path,
+		closing:           make(chan struct{}),
+		compactionLimiter: compactionLimiter,
+		CompactThreshold:  DefaultSeriesPartitionCompactThreshold,
+		Logger:            zap.NewNop(),
+		seq:               uint64(id) + 1,
 	}
 }
 
@@ -255,13 +258,16 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	}
 
 	// Check if we've crossed the compaction threshold.
-	if p.compactionsEnabled() && !p.compacting && p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) {
+	if p.compactionsEnabled() && !p.compacting &&
+		p.CompactThreshold != 0 && p.index.InMemCount() >= uint64(p.CompactThreshold) &&
+		p.compactionLimiter.TryTake() {
 		p.compacting = true
 		log, logEnd := logger.NewOperation(p.Logger, "Series partition compaction", "series_partition_compaction", zap.String("path", p.path))
 
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
+			defer p.compactionLimiter.Release()
 
 			compactor := NewSeriesPartitionCompactor()
 			compactor.cancel = p.closing
