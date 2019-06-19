@@ -2,7 +2,7 @@
 import {get} from 'lodash'
 
 // APIs
-import {runQuery, ExecuteFluxQueryResult} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Utils
@@ -122,11 +122,8 @@ export function findValues({
   }
 }
 
-export function extractCol(
-  resp: ExecuteFluxQueryResult,
-  colName: string
-): string[] {
-  const tables = parseResponse(resp.csv)
+export function extractCol(resp: string, colName: string): string[] {
+  const tables = parseResponse(resp)
   const data = get(tables, '0.data', [])
 
   if (!data.length) {

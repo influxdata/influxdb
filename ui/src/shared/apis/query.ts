@@ -1,68 +1,36 @@
-import Deferred from 'src/utils/Deferred'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 import {client} from 'src/utils/api'
 
-import {File} from '@influxdata/influx'
+import {
+  File,
+  CancellationError as ClientCancellationError,
+} from '@influxdata/influx'
 
 // Types
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
-const MAX_ROWS = 50000
-
-export interface ExecuteFluxQueryResult {
-  csv: string
-  didTruncate: boolean
-  rowCount: number
-}
+const MAX_RESPONSE_CHARS = 50000 * 160
 
 export const runQuery = (
   orgID: string,
   query: string,
   extern?: File
-): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
-  const deferred = new Deferred()
-
-  const conn = client.queries.execute(orgID, query, extern)
-
-  let didTruncate = false
-  let rowCount = 0
-  let csv = ''
-
-  conn.stream.on('data', d => {
-    rowCount++
-    csv += d
-
-    if (rowCount < MAX_ROWS) {
-      return
-    }
-
-    didTruncate = true
-    conn.cancel()
+): WrappedCancelablePromise<string> => {
+  const {promise, cancel} = client.queries.execute(orgID, query, {
+    extern,
+    limitChars: MAX_RESPONSE_CHARS,
   })
 
-  conn.stream.on('end', () => {
-    const result: ExecuteFluxQueryResult = {
-      csv,
-      didTruncate,
-      rowCount,
-    }
+  // Convert the client `CancellationError` to a UI `CancellationError`
+  const wrappedPromise = promise.catch(error =>
+    error instanceof ClientCancellationError
+      ? Promise.reject(CancellationError)
+      : Promise.reject(error)
+  )
 
-    deferred.resolve(result)
-  })
-
-  conn.stream.on('error', err => {
-    deferred.reject(err)
-  })
-
-  return {
-    promise: deferred.promise,
-    cancel: () => {
-      conn.cancel()
-      deferred.reject(new CancellationError())
-    },
-  }
+  return {promise: wrappedPromise, cancel}
 }
 
 /*
@@ -86,7 +54,7 @@ export const executeQueryWithVars = (
   orgID: string,
   query: string,
   variables?: VariableAssignment[]
-): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
+): WrappedCancelablePromise<string> => {
   let isCancelled = false
   let cancelExecution
 
