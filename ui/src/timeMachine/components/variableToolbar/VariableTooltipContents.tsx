@@ -5,7 +5,7 @@ import {get} from 'lodash'
 
 // Components
 import {Form} from '@influxdata/clockface'
-import {Dropdown} from 'src/clockface'
+import {Dropdown, DropdownMenuPosition} from 'src/clockface'
 
 // Actions
 import {
@@ -66,6 +66,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
           status={toComponentStatus(valuesStatus)}
           titleText={values ? 'No Results' : 'None Selected'}
           widthPixels={200}
+          menuPosition={DropdownMenuPosition.Above}
           onChange={value => onSelectVariableValue(variableID, value)}
         >
           {dropdownItems.map(value => (

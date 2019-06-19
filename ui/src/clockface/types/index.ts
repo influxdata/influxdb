@@ -30,6 +30,11 @@ export enum DropdownMenuColors {
   Onyx = 'onyx',
 }
 
+export enum DropdownMenuPosition {
+  Above = 'above',
+  Below = 'below',
+}
+
 export type DropdownChild =
   | Array<string | JSX.Element | Element>
   | string
