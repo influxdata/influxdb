@@ -84,4 +84,6 @@ var FluxEndToEndSkipList = map[string]string{
 
 	"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
 	"dynamic_query": "panic when executing",
+
+	"regexp_replaceAllString": "Reason TBD",
 }
