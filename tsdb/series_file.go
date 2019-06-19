@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 
@@ -36,6 +37,8 @@ type SeriesFile struct {
 	path       string
 	partitions []*SeriesPartition
 
+	maxCompactionConcurrency int
+
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
 	Logger *zap.Logger
@@ -43,10 +46,30 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
-	return &SeriesFile{
-		path:   path,
-		Logger: zap.NewNop(),
+	maxCompactionConcurrency := runtime.GOMAXPROCS(0)
+	if maxCompactionConcurrency < 1 {
+		maxCompactionConcurrency = 1
 	}
+	if maxCompactionConcurrency > SeriesFilePartitionN {
+		maxCompactionConcurrency = SeriesFilePartitionN
+	}
+
+	return &SeriesFile{
+		path:                     path,
+		maxCompactionConcurrency: maxCompactionConcurrency,
+		Logger:                   zap.NewNop(),
+	}
+}
+
+func (f *SeriesFile) WithMaxCompactionConcurrency(maxCompactionConcurrency int) {
+	if maxCompactionConcurrency < 1 {
+		maxCompactionConcurrency = 1
+	}
+	if maxCompactionConcurrency > SeriesFilePartitionN {
+		maxCompactionConcurrency = SeriesFilePartitionN
+	}
+
+	f.maxCompactionConcurrency = maxCompactionConcurrency
 }
 
 // Open memory maps the data file at the file's path.
@@ -61,7 +84,7 @@ func (f *SeriesFile) Open() error {
 	}
 
 	// Limit concurrent series file compactions
-	compactionLimiter := limiter.NewFixed(1)
+	compactionLimiter := limiter.NewFixed(f.maxCompactionConcurrency)
 
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
