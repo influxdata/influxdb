@@ -29,6 +29,11 @@
   z-index: 500;
   border-radius: $radius;
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
+
+  .dropdown--above & {
+    top: 0;
+    transform: translateY(-100%);
+  }
 }
 
 .dropdown--menu {
