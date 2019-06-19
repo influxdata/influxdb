@@ -81,10 +81,11 @@ func (t *floatTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -177,10 +178,11 @@ func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -316,10 +318,11 @@ func (t *integerTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -412,10 +415,11 @@ func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -551,10 +555,11 @@ func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -647,10 +652,11 @@ func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -786,10 +792,11 @@ func (t *stringTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -882,10 +889,11 @@ func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -1021,10 +1029,11 @@ func (t *booleanTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err
@@ -1117,10 +1126,11 @@ func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
 	}()
 
 	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
+		// See https://github.com/influxdata/influxdb/issues/14160
+		//t.err = f(t)
+		//for !t.isCancelled() && t.err == nil && t.advance() {
+		//	t.err = f(t)
+		//}
 	}
 
 	return t.err

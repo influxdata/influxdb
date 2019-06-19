@@ -225,7 +225,8 @@ func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
 	if t.isCancelled() {
 		return nil
 	}
-	t.err = f(t)
+	// See https://github.com/influxdata/influxdb/issues/14160
+	//t.err = f(t)
 	t.closeDone()
 	return t.err
 }
@@ -255,7 +256,8 @@ func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
 	if t.isCancelled() {
 		return nil
 	}
-	t.err = f(t)
+	// See https://github.com/influxdata/influxdb/issues/14160
+	//t.err = f(t)
 	t.closeDone()
 	return t.err
 }
