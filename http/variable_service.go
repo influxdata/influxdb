@@ -5,12 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"path"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
+	"net/http"
+	"path"
 )
 
 const (
@@ -234,25 +233,27 @@ func newVariableResponse(m *platform.Variable, labels []*platform.Label) variabl
 	for _, l := range labels {
 		res.Labels = append(res.Labels, *l)
 	}
-
+	fmt.Print(m)
 	return res
 }
 
 func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	req, err := decodePostVariableRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
+	va := new(platform.Variable)
+	va = req.variable
 
-	err = h.VariableService.CreateVariable(ctx, req.variable)
+	fmt.Println("1-->", va)
+	err = h.VariableService.CreateVariable(ctx, va)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
-
+	fmt.Println("2-->",va)
 	if err := encodeResponse(ctx, w, http.StatusCreated, newVariableResponse(req.variable, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

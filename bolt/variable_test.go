@@ -2,11 +2,10 @@ package bolt_test
 
 import (
 	"context"
-	"testing"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	platformtesting "github.com/influxdata/influxdb/testing"
+	"testing"
 )
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
