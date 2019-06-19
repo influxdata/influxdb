@@ -1,33 +1,26 @@
 package control
 
 import (
-	"github.com/influxdata/flux/control"
+	"context"
+
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb/coordinator"
 	_ "github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	v1 "github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
 type MetaClient = coordinator.MetaClient
 type Authorizer = influxdb.Authorizer
 
-func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *control.Controller {
-	// flux
-	var (
-		concurrencyQuota = 10
-		memoryBytesQuota = 1e6
-	)
+func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *Controller {
 
-	cc := control.Config{
-		ExecutorDependencies: make(execute.Dependencies),
-		ConcurrencyQuota:     concurrencyQuota,
-		MemoryBytesQuota:     int64(memoryBytesQuota),
-		Logger:               logger,
-	}
+	executorDependencies := make(execute.Dependencies)
 
-	if err := influxdb.InjectFromDependencies(cc.ExecutorDependencies, influxdb.Dependencies{
+	if err := influxdb.InjectFromDependencies(executorDependencies, influxdb.Dependencies{
 		Reader:      reader,
 		MetaClient:  mc,
 		Authorizer:  auth,
@@ -36,7 +29,7 @@ func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authE
 		panic(err)
 	}
 
-	if err := v1.InjectDatabaseDependencies(cc.ExecutorDependencies, v1.DatabaseDependencies{
+	if err := v1.InjectDatabaseDependencies(executorDependencies, v1.DatabaseDependencies{
 		MetaClient:  mc,
 		Authorizer:  auth,
 		AuthEnabled: authEnabled,
@@ -44,7 +37,7 @@ func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authE
 		panic(err)
 	}
 
-	if err := influxdb.InjectBucketDependencies(cc.ExecutorDependencies, influxdb.BucketDependencies{
+	if err := influxdb.InjectBucketDependencies(executorDependencies, influxdb.BucketDependencies{
 		MetaClient:  mc,
 		Authorizer:  auth,
 		AuthEnabled: authEnabled,
@@ -52,5 +45,18 @@ func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authE
 		panic(err)
 	}
 
-	return control.New(cc)
+	return &Controller{
+		deps: executorDependencies,
+	}
+}
+
+type Controller struct {
+	deps execute.Dependencies
+}
+
+func (c *Controller) Query(ctx context.Context, compiler flux.Compiler) (flux.Query, error) {
+	return nil, nil
+}
+func (c *Controller) PrometheusCollectors() []prometheus.Collector {
+	return nil
 }
