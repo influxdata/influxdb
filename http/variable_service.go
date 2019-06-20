@@ -244,8 +244,7 @@ func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-	va := new(platform.Variable)
-	va = req.variable
+	va := req.variable
 
 	err = h.VariableService.CreateVariable(ctx, va)
 	if err != nil {

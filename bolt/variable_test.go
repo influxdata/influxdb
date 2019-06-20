@@ -10,7 +10,6 @@ import (
 )
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	//c := kv.NewService(inmem.NewKVStore())
 	c := inmem.NewService()
 
 	if f.TimeGenerator == nil {
