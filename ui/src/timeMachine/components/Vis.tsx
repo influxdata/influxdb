@@ -68,11 +68,11 @@ const TimeMachineVis: SFC<Props> = ({
   return (
     <div className="time-machine--view">
       <EmptyQueryView
-        errorMessage={errorMessage}
-        hasResults={checkResultsLength(giraffeResult)}
         loading={loading}
+        errorMessage={errorMessage}
         isInitialFetch={isInitialFetch}
         queries={viewProperties.queries}
+        hasResults={checkResultsLength(giraffeResult)}
       >
         {isViewingRawData ? (
           <AutoSizer>

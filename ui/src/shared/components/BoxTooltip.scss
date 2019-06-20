@@ -62,6 +62,7 @@ $box-tooltip--caret-size: 6px;
 
 .box-tooltip--caret-container {
   position: absolute;
+  top: 0;
   width: $box-tooltip--caret-size * 2;
   height: 100%;
 }
