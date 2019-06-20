@@ -157,34 +157,24 @@ READ:
 			continue
 		}
 
-		// See https://github.com/influxdata/influxdb/issues/14160
-		//key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
+		key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
-			//table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
+			table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
 		case cursors.FloatArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
-			//table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
-			//table = newFloatTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
+			table = newFloatTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
 		case cursors.UnsignedArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
-			//table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
-			//table = newUnsignedTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
+			table = newUnsignedTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
 		case cursors.BooleanArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
-			//table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
-			//table = newBooleanTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
+			table = newBooleanTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
 		case cursors.StringArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-			//table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
-			//table = newStringTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
+			table = newStringTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -233,12 +223,10 @@ READ:
 			continue
 		}
 
-		// See https://github.com/influxdata/influxdb/issues/14160
-		//key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
+		key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
 		done := make(chan struct{})
-		//cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-		// See https://github.com/influxdata/influxdb/issues/14160
-		//table = newTableNoPoints(done, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+		cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
+		table = newTableNoPoints(done, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
 
 		if err := f(table); err != nil {
 			table.Close()
@@ -295,30 +283,24 @@ READ:
 			continue
 		}
 
-		// See https://github.com/influxdata/influxdb/issues/14160
-		//key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
+		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
-			//table = newIntegerGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
+			table = newIntegerGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
 		case cursors.FloatArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
-			//table = newFloatGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
+			table = newFloatGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
 		case cursors.UnsignedArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
-			//table = newUnsignedGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
+			table = newUnsignedGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
 		case cursors.BooleanArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
-			//table = newBooleanGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
+			table = newBooleanGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
 		case cursors.StringArrayCursor:
-			// See https://github.com/influxdata/influxdb/issues/14160
-			//cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-			//table = newStringGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
+			table = newStringGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -370,12 +352,10 @@ func (bi *tableIterator) handleGroupReadNoPoints(f func(flux.Table) error, rs Gr
 	gc = rs.Next()
 READ:
 	for gc != nil {
-		// See https://github.com/influxdata/influxdb/issues/14160
-		//key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
+		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
 		done := make(chan struct{})
-		// See https://github.com/influxdata/influxdb/issues/14160
-		//cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-		//table = newGroupTableNoPoints(done, bi.bounds, key, cols, defs, bi.alloc)
+		cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
+		table = newGroupTableNoPoints(done, bi.bounds, key, cols, defs, bi.alloc)
 		gc.Close()
 		gc = nil
 
