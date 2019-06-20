@@ -52,12 +52,6 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
             color={ComponentColor.Danger}
           >
             <pre>
-              <span
-                className={`icon ${
-                  IconFont.AlertTriangle
-                } empty-graph-error--icon`}
-              />
-              <code>{message}</code>
               <CopyToClipboard text={message}>
                 <Button
                   size={ComponentSize.ExtraSmall}
@@ -68,6 +62,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
                   className="empty-graph-error--copy"
                 />
               </CopyToClipboard>
+              <code>{message}</code>
             </pre>
           </BoxTooltip>
         )}

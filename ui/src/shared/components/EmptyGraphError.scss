@@ -18,15 +18,3 @@
   display: inline-block;
   margin-right: $ix-marg-b;
 }
-
- .empty-graph-error--copy {
-  position: absolute;
-  top: $ix-marg-b;
-  right: $ix-marg-b;
-  opacity: 0.9;
-  display: none;
-
-   .empty-graph-error:hover & {
-    display: inherit;
-  }
-}

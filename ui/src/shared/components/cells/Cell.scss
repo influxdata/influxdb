@@ -35,6 +35,11 @@ $cell--header-size: 36px;
   }
 }
 
+.empty-graph-error--copy {
+  z-index: 1;
+  float: right;
+}
+
 .cell--view-empty {
   width: 100%;
   height: 100%;
@@ -47,11 +52,8 @@ $cell--header-size: 36px;
   padding: 0 $ix-marg-d $ix-marg-d $ix-marg-d;
   overflow: hidden;
 
-  .empty-graph-error--copy {
-    z-index: 1;
-  }
-
   &.error {
+    font-size: 40px;
     color: $c-dreamsicle;
   }
 }
