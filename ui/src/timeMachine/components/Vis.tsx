@@ -5,7 +5,7 @@ import {FromFluxResult} from '@influxdata/giraffe'
 import {AutoSizer} from 'react-virtualized'
 
 // Components
-import EmptyQueryView from 'src/shared/components/EmptyQueryView'
+import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
 
@@ -69,6 +69,7 @@ const TimeMachineVis: SFC<Props> = ({
     <div className="time-machine--view">
       <EmptyQueryView
         loading={loading}
+        errorFormat={ErrorFormat.Scroll}
         errorMessage={errorMessage}
         isInitialFetch={isInitialFetch}
         queries={viewProperties.queries}
