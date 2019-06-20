@@ -247,13 +247,11 @@ func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Requ
 	va := new(platform.Variable)
 	va = req.variable
 
-	fmt.Println("1-->", va)
 	err = h.VariableService.CreateVariable(ctx, va)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
 	}
-	fmt.Println("2-->",va)
 	if err := encodeResponse(ctx, w, http.StatusCreated, newVariableResponse(req.variable, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

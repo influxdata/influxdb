@@ -21,7 +21,7 @@ const (
 
 var oldFakeDate = time.Date(2002, 8, 5, 2, 2, 3, 0, time.UTC)
 var fakeDate = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
-var fakeGenerator = mock.TimeGenerator{FakeValue:fakeDate}
+var fakeGenerator = mock.TimeGenerator{FakeValue: fakeDate}
 
 var variableCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
@@ -56,22 +56,22 @@ func VariableService(
 			name: "CreateVariable",
 			fn:   CreateVariable,
 		},
-		//{
-		//	name: "FindVariableByID",
-		//	fn:   FindVariableByID,
-		//},
-		//{
-		//	name: "FindVariables",
-		//	fn:   FindVariables,
-		//},
-		//{
-		//	name: "UpdateVariable",
-		//	fn:   UpdateVariable,
-		//},
-		//{
-		//	name: "DeleteVariable",
-		//	fn:   DeleteVariable,
-		//},
+		{
+			name: "FindVariableByID",
+			fn:   FindVariableByID,
+		},
+		{
+			name: "FindVariables",
+			fn:   FindVariables,
+		},
+		{
+			name: "UpdateVariable",
+			fn:   UpdateVariable,
+		},
+		{
+			name: "DeleteVariable",
+			fn:   DeleteVariable,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,74 +148,74 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 				},
 			},
 		},
-		//{
-		//	name: "creating a variable assigns the variable an id and adds it to the store",
-		//	fields: VariableFields{
-		//		IDGenerator: &mock.IDGenerator{
-		//			IDFn: func() platform.ID {
-		//				return MustIDBase16(idA)
-		//			},
-		//		},
-		//		TimeGenerator: fakeGenerator,
-		//		Variables: []*platform.Variable{
-		//			{
-		//				ID:             MustIDBase16(idB),
-		//				OrganizationID: platform.ID(3),
-		//				Name:           "existing-variable",
-		//				Selected:       []string{"b"},
-		//				Arguments: &platform.VariableArguments{
-		//					Type:   "constant",
-		//					Values: platform.VariableConstantValues{"b"},
-		//				},
-		//			},
-		//		},
-		//	},
-		//	args: args{
-		//		variable: &platform.Variable{
-		//			ID:             MustIDBase16(idA),
-		//			OrganizationID: platform.ID(3),
-		//			Name:           "my-variable",
-		//			Selected:       []string{"a"},
-		//			Arguments: &platform.VariableArguments{
-		//				Type:   "constant",
-		//				Values: platform.VariableConstantValues{"a"},
-		//			},
-		//			CRUDLog: platform.CRUDLog{
-		//				CreatedAt: fakeDate,
-		//				UpdatedAt: fakeDate,
-		//			},
-		//		},
-		//	},
-		//	wants: wants{
-		//		err: nil,
-		//		variables: []*platform.Variable{
-		//			{
-		//				ID:             MustIDBase16(idB),
-		//				OrganizationID: platform.ID(3),
-		//				Name:           "existing-variable",
-		//				Selected:       []string{"b"},
-		//				Arguments: &platform.VariableArguments{
-		//					Type:   "constant",
-		//					Values: platform.VariableConstantValues{"b"},
-		//				},
-		//			},
-		//			{
-		//				ID:             MustIDBase16(idA),
-		//				OrganizationID: platform.ID(3),
-		//				Name:           "my-variable",
-		//				Selected:       []string{"a"},
-		//				Arguments: &platform.VariableArguments{
-		//					Type:   "constant",
-		//					Values: platform.VariableConstantValues{"a"},
-		//				},
-		//				CRUDLog: platform.CRUDLog{
-		//					CreatedAt: fakeDate,
-		//					UpdatedAt: fakeDate,
-		//				},
-		//			},
-		//		},
-		//	},
-		//},
+		{
+			name: "creating a variable assigns the variable an id and adds it to the store",
+			fields: VariableFields{
+				IDGenerator: &mock.IDGenerator{
+					IDFn: func() platform.ID {
+						return MustIDBase16(idA)
+					},
+				},
+				TimeGenerator: fakeGenerator,
+				Variables: []*platform.Variable{
+					{
+						ID:             MustIDBase16(idB),
+						OrganizationID: platform.ID(3),
+						Name:           "existing-variable",
+						Selected:       []string{"b"},
+						Arguments: &platform.VariableArguments{
+							Type:   "constant",
+							Values: platform.VariableConstantValues{"b"},
+						},
+					},
+				},
+			},
+			args: args{
+				variable: &platform.Variable{
+					ID:             MustIDBase16(idA),
+					OrganizationID: platform.ID(3),
+					Name:           "my-variable",
+					Selected:       []string{"a"},
+					Arguments: &platform.VariableArguments{
+						Type:   "constant",
+						Values: platform.VariableConstantValues{"a"},
+					},
+					CRUDLog: platform.CRUDLog{
+						CreatedAt: fakeDate,
+						UpdatedAt: fakeDate,
+					},
+				},
+			},
+			wants: wants{
+				err: nil,
+				variables: []*platform.Variable{
+					{
+						ID:             MustIDBase16(idB),
+						OrganizationID: platform.ID(3),
+						Name:           "existing-variable",
+						Selected:       []string{"b"},
+						Arguments: &platform.VariableArguments{
+							Type:   "constant",
+							Values: platform.VariableConstantValues{"b"},
+						},
+					},
+					{
+						ID:             MustIDBase16(idA),
+						OrganizationID: platform.ID(3),
+						Name:           "my-variable",
+						Selected:       []string{"a"},
+						Arguments: &platform.VariableArguments{
+							Type:   "constant",
+							Values: platform.VariableConstantValues{"a"},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
