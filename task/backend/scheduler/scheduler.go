@@ -5,15 +5,20 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	cron "gopkg.in/robfig/cron.v2"
 )
 
-type CompletionStore interface {
-	// SetTime will allow us to set a latest completed time for an id.
-	SetTime(ctx context.Context, id influxdb.ID, lastRun time.Time) error
+// ID
+type ID influxdb.ID
 
-	// Time retrieves the latest completed for this schedulable id.
-	// If GetLatestCompleted is empty scheduler will use "now" as its latest completed
-	Time(ctx context.Context, id influxdb.ID) (time.Time, error)
+// Checkpointer allows us to restart a service from the last time we executed
+type Checkpointer interface {
+
+	// Checkpoint saves the last checkpoint a id has reached.
+	Checkpoint(ctx context.Context, id ID, t time.Time) error
+
+	// Last stored checkpoint.
+	Last(ctx context.Context, id ID) (time.Time, error)
 }
 
 // Executor is a system used by the scheduler to actually execute the scheduleable item.
@@ -24,19 +29,19 @@ type Executor interface {
 	// Errors returned from the execute request imply that this attempt has failed and
 	// should be put back in scheduler and re executed at a alter time. We will add scheduler specific errors
 	// so the time can be configurable.
-	Execute(ctx context.Context, id influxdb.ID, meta interface{}, now time.Time) (Execution, error)
+	Execute(ctx context.Context, id ID, scheduledAt time.Time) (Promise, error)
 
-	// CancelExecution is used to cancel a running execution
-	CancelExecution(ctx context.Context, id, executionID influxdb.ID) error
+	// Cancel is used to cancel a running execution
+	Cancel(ctx context.Context, promiseID ID) error
 }
 
-// Execution is the currently executing element from the a call to Execute.
-type Execution interface {
+// Promise is the currently executing element from the a call to Execute.
+type Promise interface {
 	// ID is a unique ID usable to look up or cancel a run
-	ID() influxdb.ID
+	ID() ID
 
-	// Status can be used to view what the current status of this execution is
-	Status() string
+	// Cancel a promise, identical to calling executor.Cancel()
+	Cancel(ctx context.Context)
 
 	// Done() returns a read only channel that when closed indicates the execution is complete
 	Done() <-chan struct{}
@@ -49,13 +54,30 @@ type Execution interface {
 // Schedulable is a object that can be scheduled by the scheduler.
 type Schedulable interface {
 	// ID a unique ID we can to lookup a scheduler
-	ID() influxdb.ID
+	ID() ID
 
 	// Schedule is the schedule you want execution.
-	Schedule() string // cron or every dx
+	Schedule() Schedule
+}
 
-	// Extra meta data to give to the executor on execution
-	Meta() interface{}
+type Schedule struct {
+	Schedule string
+	Offset   time.Duration
+}
+
+func (s Schedule) Valid() error {
+	_, err := cron.Parse(s.Schedule)
+	return err
+}
+
+// Next returns the next time a a schedule needs to run
+func (s Schedule) Next(checkpoint time.Time) (time.Time, error) {
+	sch, err := cron.Parse(s.Schedule)
+	if err != nil {
+		return time.Time{}, err
+	}
+	nextScheduled := sch.Next(checkpoint)
+	return nextScheduled.Add(s.Offset), nil
 }
 
 // Scheduler is a example interface of a Scheduler.
@@ -77,8 +99,5 @@ type Scheduler interface {
 
 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
 	// and releases any resources related to management of that task.
-	ReleaseTask(taskID influxdb.ID) error
-
-	// Cancel stops an executing run.
-	CancelRun(ctx context.Context, taskID, runID influxdb.ID) error
+	ReleaseTask(taskID ID) error
 }
