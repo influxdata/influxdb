@@ -225,6 +225,24 @@ group:
 			},
 			exp: exp,
 		},
+		{
+			name: "does merge keys",
+			streams: []*sliceStreamReader{
+				newStreamReader(
+					groupByF("_m,tag1", "val00,<nil>", "aaa,tag0=val00", "cpu,tag0=val00,tag1=val11"),
+					groupByF("_m,tag2", "<nil>,val20", "mem,tag1=val10,tag2=val20"),
+					groupByF("_m,tag1,tag2", "<nil>,val21", "mem,tag1=val11,tag2=val21"),
+				),
+				newStreamReader(
+					groupByF("_m,tag0,tag1", "val00,<nil>", "cpu,tag0=val00,tag1=val10", "cpu,tag0=val00,tag1=val12"),
+					groupByF("_m,tag0", "val01,<nil>", "aaa,tag0=val01"),
+				),
+				newStreamReader(
+					groupByF("_m,tag1", "<nil>,val20", "mem,tag1=val11,tag2=val20"),
+				),
+			},
+			exp: exp,
+		},
 	}
 
 	for _, tt := range tests {

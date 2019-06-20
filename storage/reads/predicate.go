@@ -18,6 +18,7 @@ const (
 	fieldKey       = "_field"
 	measurementKey = "_measurement"
 	valueKey       = "_value"
+	fieldRef       = "$"
 )
 
 // NodeVisitor can be called by Walk to traverse the Node hierarchy.
@@ -454,7 +455,7 @@ func (v *nodeToExprVisitor) Visit(n *datatypes.Node) NodeVisitor {
 		return nil
 
 	case datatypes.NodeTypeFieldRef:
-		v.exprs = append(v.exprs, &influxql.VarRef{Val: "$"})
+		v.exprs = append(v.exprs, &influxql.VarRef{Val: fieldRef})
 		return nil
 
 	case datatypes.NodeTypeLiteral:
@@ -533,7 +534,7 @@ func RewriteExprRemoveFieldValue(expr influxql.Expr) influxql.Expr {
 	return influxql.RewriteExpr(expr, func(expr influxql.Expr) influxql.Expr {
 		if be, ok := expr.(*influxql.BinaryExpr); ok {
 			if ref, ok := be.LHS.(*influxql.VarRef); ok {
-				if ref.Val == "$" {
+				if ref.Val == fieldRef {
 					return &influxql.BooleanLiteral{Val: true}
 				}
 			}
@@ -576,7 +577,7 @@ func (v *hasRefs) Visit(node influxql.Node) influxql.Visitor {
 }
 
 func HasFieldValueKey(expr influxql.Expr) bool {
-	refs := hasRefs{refs: []string{valueKey}, found: make([]bool, 1)}
+	refs := hasRefs{refs: []string{fieldRef}, found: make([]bool, 1)}
 	influxql.Walk(&refs, expr)
 	return refs.found[0]
 }
