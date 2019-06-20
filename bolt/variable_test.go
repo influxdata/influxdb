@@ -5,13 +5,13 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kv"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"testing"
 )
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	c := kv.NewService(inmem.NewKVStore())
+	//c := kv.NewService(inmem.NewKVStore())
+	c := inmem.NewService()
 
 	if f.TimeGenerator == nil {
 		c.TimeGenerator = platform.RealTimeGenerator{}
