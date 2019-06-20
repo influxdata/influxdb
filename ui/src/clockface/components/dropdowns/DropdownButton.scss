@@ -32,8 +32,12 @@
   font-size: 0.9em;
   transition: transform 0.25s ease;
 
-  .active & {
+  .dropdown--below .active &, .dropdown--above & {
     transform: translateY(-50%) rotate(-180deg);
+  }
+
+  .dropdown--above .active & {
+    transform: translateY(-50%);
   }
 }
 

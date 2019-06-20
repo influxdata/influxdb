@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
 // Components
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
@@ -26,10 +26,11 @@ interface Props {
   onSave: () => void
 }
 
+const saveButtonClass = 'veo-header--save-cell-button'
+
 class VEOHeader extends PureComponent<Props> {
   public render() {
     const {name, onSetName, onCancel, onSave} = this.props
-
     return (
       <div className="veo-header">
         <Page.Header fullWidth={true}>
@@ -39,6 +40,7 @@ class VEOHeader extends PureComponent<Props> {
               onRename={onSetName}
               placeholder={DEFAULT_CELL_NAME}
               maxLength={CELL_NAME_MAX_LENGTH}
+              onClickOutside={this.handleClickOutsideTitle}
             />
           </Page.Header.Left>
           <Page.Header.Right>
@@ -50,6 +52,7 @@ class VEOHeader extends PureComponent<Props> {
               size={ComponentSize.Small}
             />
             <SquareButton
+              className={saveButtonClass}
               icon={IconFont.Checkmark}
               color={ComponentColor.Success}
               size={ComponentSize.Small}
@@ -60,6 +63,17 @@ class VEOHeader extends PureComponent<Props> {
         </Page.Header>
       </div>
     )
+  }
+
+  private handleClickOutsideTitle = (e: MouseEvent<HTMLElement>) => {
+    const {onSave} = this.props
+    const target = e.target as HTMLButtonElement
+
+    if (!target.className.includes(saveButtonClass)) {
+      return
+    }
+
+    onSave()
   }
 }
 

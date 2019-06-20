@@ -1,10 +1,7 @@
 import {get} from 'lodash'
 
 // API
-import {
-  executeQueryWithVars,
-  ExecuteFluxQueryResult,
-} from 'src/shared/apis/query'
+import {executeQueryWithVars} from 'src/shared/apis/query'
 
 // Actions
 import {refreshVariableValues, selectValue} from 'src/variables/actions'
@@ -85,7 +82,7 @@ export const refreshTimeMachineVariableValues = () => async (
   await dispatch(refreshVariableValues(contextID, variablesToRefresh))
 }
 
-let pendingResults: Array<WrappedCancelablePromise<ExecuteFluxQueryResult>> = []
+let pendingResults: Array<WrappedCancelablePromise<string>> = []
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
   const {view, timeRange} = getActiveTimeMachine(getState())
@@ -115,10 +112,9 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
       executeQueryWithVars(orgID, text, variableAssignments)
     )
 
-    const results = await Promise.all(pendingResults.map(r => r.promise))
+    const files = await Promise.all(pendingResults.map(r => r.promise))
 
     const duration = Date.now() - startTime
-    const files = results.map(r => r.csv)
 
     files.forEach(checkQueryResult)
 

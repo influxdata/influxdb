@@ -17,7 +17,7 @@ import {
   ComponentSize,
   IconFont,
 } from '@influxdata/clockface'
-import {DropdownMenuColors} from 'src/clockface/types'
+import {DropdownMenuColors, DropdownMenuPosition} from 'src/clockface/types'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export enum DropdownMode {
@@ -52,6 +52,7 @@ export interface DefaultProps {
   wrapMenuText?: boolean
   testID?: string
   buttonTestID?: string
+  menuPosition?: DropdownMenuPosition
 }
 
 export type Props = PassedProps & DefaultProps
@@ -73,6 +74,7 @@ class Dropdown extends Component<Props, State> {
     wrapMenuText: false,
     testID: 'dropdown',
     buttonTestID: 'dropdown-button',
+    menuPosition: DropdownMenuPosition.Below,
   }
 
   public static Button = DropdownButton
@@ -119,6 +121,7 @@ class Dropdown extends Component<Props, State> {
       mode,
       wrapMenuText,
       selectedID,
+      menuPosition,
     } = this.props
 
     return classnames(
@@ -130,6 +133,8 @@ class Dropdown extends Component<Props, State> {
         [customClass]: customClass,
         'dropdown--radio': mode === DropdownMode.Radio,
         'dropdown--action': mode === DropdownMode.ActionList && !selectedID,
+        'dropdown--below': menuPosition === DropdownMenuPosition.Below,
+        'dropdown--above': menuPosition === DropdownMenuPosition.Above,
       }
     )
   }

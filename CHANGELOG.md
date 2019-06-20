@@ -1,3 +1,14 @@
+## v2.0.0-alpha.13 [unreleased]
+
+### Features
+
+### Bug Fixes
+
+### UI Improvements
+
+1. [14157](https://github.com/influxdata/influxdb/pull/14157): Remove rendering bottleneck when streaming Flux responses
+1. [14165](https://github.com/influxdata/influxdb/pull/14165): Prevent variable dropdown from clipping
+
 ## v2.0.0-alpha.13 [2019-06-13]
 
 ### Features

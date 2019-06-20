@@ -1,5 +1,10 @@
 // Libraries
-import React, {PureComponent, KeyboardEvent, ChangeEvent} from 'react'
+import React, {
+  PureComponent,
+  KeyboardEvent,
+  ChangeEvent,
+  MouseEvent,
+} from 'react'
 import classnames from 'classnames'
 
 // Components
@@ -12,6 +17,7 @@ import {IconFont} from 'src/clockface'
 
 interface Props {
   onRename: (name: string) => void
+  onClickOutside?: (e: MouseEvent<HTMLElement>) => void
   name: string
   placeholder: string
   maxLength: number
@@ -96,11 +102,15 @@ class RenamablePageTitle extends PureComponent<Props, State> {
     this.setState({isEditing: true})
   }
 
-  private handleStopEditing = async (): Promise<void> => {
+  private handleStopEditing = async (e): Promise<void> => {
     const {workingName} = this.state
-    const {onRename} = this.props
+    const {onRename, onClickOutside} = this.props
 
     await onRename(workingName)
+
+    if (onClickOutside) {
+      onClickOutside(e)
+    }
 
     this.setState({isEditing: false})
   }
