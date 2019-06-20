@@ -50,6 +50,10 @@ $cell--header-size: 36px;
   .empty-graph-error--copy {
     z-index: 1;
   }
+
+  &.error {
+    color: $c-dreamsicle;
+  }
 }
 
 .cell--error-message {

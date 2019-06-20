@@ -37,21 +37,21 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
   }
 
   return (
-    <div className="cell--view-empty" data-testid={testID}>
+    <div className="cell--view-empty error" data-testid={testID}>
       <div
         onMouseEnter={() => setTooltipVisible(true)}
         onMouseLeave={() => setTooltipVisible(false)}
         ref={trigger}
       >
-        Error
+        <span
+          className={`icon ${IconFont.AlertTriangle} empty-graph-error--icon`}
+        />
         {tooltipVisible && (
-          <BoxTooltip triggerRect={triggerRect as DOMRect}>
+          <BoxTooltip
+            triggerRect={triggerRect as DOMRect}
+            color={ComponentColor.Danger}
+          >
             <pre>
-              <span
-                className={`icon ${
-                  IconFont.AlertTriangle
-                } empty-graph-error--icon`}
-              />
               <code>{message}</code>
               <CopyToClipboard text={message}>
                 <Button
