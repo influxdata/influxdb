@@ -4,20 +4,25 @@ import (
 	"context"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
+	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"testing"
 )
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	c, closeFn, err := NewTestClient()
-	if err != nil {
-		t.Fatalf("failed to create new bolt test client: %v", err)
-	}
+	c := kv.NewService(inmem.NewKVStore())
 
+	if f.TimeGenerator == nil {
+		c.TimeGenerator = platform.RealTimeGenerator{}
+	}
 	c.IDGenerator = f.IDGenerator
 	c.TimeGenerator = f.TimeGenerator
-	ctx := context.TODO()
+	if f.TimeGenerator == nil {
+		c.TimeGenerator = platform.RealTimeGenerator{}
+	}
 
+	ctx := context.Background()
 	for _, variable := range f.Variables {
 		if err := c.ReplaceVariable(ctx, variable); err != nil {
 			t.Fatalf("failed to populate test variables: %v", err)
@@ -25,8 +30,6 @@ func initVariableService(f platformtesting.VariableFields, t *testing.T) (platfo
 	}
 
 	done := func() {
-		defer closeFn()
-
 		for _, variable := range f.Variables {
 			if err := c.DeleteVariable(ctx, variable.ID); err != nil {
 				t.Fatalf("failed to clean up variables bolt test: %v", err)

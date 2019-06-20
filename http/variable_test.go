@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/kv"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -885,14 +886,13 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
 	t.Helper()
 
-	svc := inmem.NewService()
+	svc := kv.NewService(inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
-	svc.TimeGenerator = platform.RealTimeGenerator{}
+	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = platform.RealTimeGenerator{}
 	}
 
-	fmt.Println("svc.now", svc.TimeGenerator.Now())
 	ctx := context.Background()
 	for _, variable := range f.Variables {
 		if err := svc.ReplaceVariable(ctx, variable); err != nil {

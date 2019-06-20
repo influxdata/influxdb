@@ -97,6 +97,9 @@ func (s *Service) CreateVariable(ctx context.Context, m *platform.Variable) erro
 	op := OpPrefix + platform.OpCreateVariable
 	m.ID = s.IDGenerator.ID()
 	err := s.ReplaceVariable(ctx, m)
+	now := s.Now()
+	m.CreatedAt = now
+	m.UpdatedAt = now
 	if err != nil {
 		return &platform.Error{
 			Op:  op,
@@ -117,7 +120,8 @@ func (s *Service) UpdateVariable(ctx context.Context, id platform.ID, update *pl
 			Err: err,
 		}
 	}
-
+	now := s.Now()
+	variable.UpdatedAt = now
 	if err := update.Apply(variable); err != nil {
 		return nil, &platform.Error{
 			Op:  op,
@@ -131,7 +135,6 @@ func (s *Service) UpdateVariable(ctx context.Context, id platform.ID, update *pl
 			Err: err,
 		}
 	}
-
 	return variable, nil
 }
 
