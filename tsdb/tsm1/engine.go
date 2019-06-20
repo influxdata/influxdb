@@ -240,6 +240,10 @@ func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 	e.Compactor.WithParseFileNameFunc(parseFileNameFunc)
 }
 
+func (e *Engine) WithCurrentGenerationFunc(fn func() int) {
+	e.Compactor.FileStore.SetCurrentGenerationFunc(fn)
+}
+
 func (e *Engine) WithFileStoreObserver(obs FileStoreObserver) {
 	e.FileStore.WithObserver(obs)
 }

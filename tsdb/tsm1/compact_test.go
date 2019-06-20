@@ -2993,6 +2993,8 @@ func (w *fakeFileStore) NextGeneration() int {
 	return 1
 }
 
+func (w *fakeFileStore) SetCurrentGenerationFunc(fn func() int) {}
+
 func (w *fakeFileStore) LastModified() time.Time {
 	return w.lastModified
 }

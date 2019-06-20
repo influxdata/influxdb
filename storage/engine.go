@@ -63,6 +63,13 @@ func WithTSMFilenameFormatter(fn tsm1.FormatFileNameFunc) Option {
 	}
 }
 
+// WithCurrentGenerationFunc sets a function for obtaining the current generation.
+func WithCurrentGenerationFunc(fn func() int) Option {
+	return func(e *Engine) {
+		e.engine.WithCurrentGenerationFunc(fn)
+	}
+}
+
 // WithEngineID sets an engine id, which can be useful for logging when multiple
 // engines are in use.
 func WithEngineID(id int) Option {
