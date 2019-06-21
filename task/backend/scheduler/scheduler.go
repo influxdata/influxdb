@@ -38,13 +38,13 @@ type Executor interface {
 
 // Promise is the currently executing element from the a call to Execute.
 type Promise interface {
-	// ID is a unique ID usable to look up or cancel a run
+	// ID is a unique ID usable to look up or cancel a run.
 	ID() ID
 
-	// Cancel a promise, identical to calling executor.Cancel()
+	// Cancel a promise, identical to calling executor.Cancel().
 	Cancel(ctx context.Context)
 
-	// Done returns a read only channel that when closed indicates the execution is complete
+	// Done returns a read only channel that when closed indicates the execution is complete.
 	Done() <-chan struct{}
 
 	// Error returns an error only when the execution is complete.
@@ -68,13 +68,13 @@ type Schedule struct {
 }
 
 // Valid check to see if the schedule has a valid schedule string.
-// valid schedule strings are a cron syntax `* * * * *` or `@every 1s`
+// Valid schedule strings are a cron syntax `* * * * *` or `@every 1s`.
 func (s Schedule) Valid() error {
 	_, err := cron.Parse(s.Schedule)
 	return err
 }
 
-// Next returns the next time a a schedule needs to run
+// Next returns the next time a schedule needs to run after checkpoint time.
 func (s Schedule) Next(checkpoint time.Time) (time.Time, error) {
 	sch, err := cron.Parse(s.Schedule)
 	if err != nil {
