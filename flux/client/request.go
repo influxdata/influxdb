@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -110,11 +111,9 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 			Query: r.Query,
 		}
 	} else if r.Spec != nil {
-		// See https://github.com/influxdata/influxdb/issues/14159
-		// We need to update this for Flux 0.33.0
-		//compiler = lang.SpecCompiler{
-		//	Spec: r.Spec,
-		//}
+		compiler = repl.Compiler{
+			Spec: r.Spec,
+		}
 	}
 
 	delimiter, _ := utf8.DecodeRuneInString(r.Dialect.Delimiter)

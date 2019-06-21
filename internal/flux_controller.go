@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/memory"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -14,9 +15,12 @@ type FluxControllerMock struct {
 func NewFluxControllerMock() *FluxControllerMock {
 	return &FluxControllerMock{
 		QueryFn: func(ctx context.Context, compiler flux.Compiler) (query flux.Query, e error) {
-			// See https://github.com/influxdata/influxdb/issues/14161
-			//return NewFluxQueryMock(), nil
-			return nil, nil
+			p, err := compiler.Compile(ctx)
+			if err != nil {
+				return nil, err
+			}
+			alloc := &memory.Allocator{}
+			return p.Start(ctx, alloc)
 		},
 	}
 }

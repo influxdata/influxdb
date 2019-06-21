@@ -97,7 +97,7 @@ func WriteRequestToPoints(req *remote.WriteRequest) ([]models.Point, error) {
 
 // ReadRequestToInfluxStorageRequest converts a Prometheus remote read request into one using the
 // new storage API that IFQL uses.
-func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*datatypes.ReadRequest, error) {
+func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (*datatypes.ReadFilterRequest, error) {
 	if len(req.Queries) != 1 {
 		return nil, errors.New("Prometheus read endpoint currently only supports one query at a time")
 	}
@@ -108,13 +108,12 @@ func ReadRequestToInfluxStorageRequest(req *remote.ReadRequest, db, rp string) (
 		return nil, err
 	}
 
-	sreq := &datatypes.ReadRequest{
+	sreq := &datatypes.ReadFilterRequest{
 		ReadSource: src,
-		TimestampRange: datatypes.TimestampRange{
+		Range: datatypes.TimestampRange{
 			Start: time.Unix(0, q.StartTimestampMs*int64(time.Millisecond)).UnixNano(),
 			End:   time.Unix(0, q.EndTimestampMs*int64(time.Millisecond)).UnixNano(),
 		},
-		PointsLimit: math.MaxInt64,
 	}
 
 	pred, err := predicateFromMatchers(q.Matchers)

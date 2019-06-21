@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	iclient "github.com/influxdata/influxdb/client"
 	"github.com/pkg/errors"
 )
@@ -132,11 +133,9 @@ func QueryRequestFromProxyRequest(req *ProxyRequest) (*QueryRequest, error) {
 	case lang.FluxCompiler:
 		qr.Type = "flux"
 		qr.Query = c.Query
-	// See https://github.com/influxdata/influxdb/issues/14159
-	// We need to update this for the new Flux 0.33.0 changes
-	//case lang.SpecCompiler:
-	//	qr.Type = "flux"
-	//	qr.Spec = c.Spec
+	case repl.Compiler:
+		qr.Type = "flux"
+		qr.Spec = c.Spec
 	default:
 		return nil, fmt.Errorf("unsupported compiler %T", c)
 	}
