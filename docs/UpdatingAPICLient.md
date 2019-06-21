@@ -7,7 +7,7 @@
     * git checkout -b “branch name”
     * open the repo in vs code
     * update the wrapper class with correct api call and return value
-    * run ‘npm run build && npm run lint’ in the influxdb2-js dir
+    * run ‘yarn build && yarn lint’ in the influxdb2-js dir
     * git add the changed files
     * send a pr for the update to brandon?
     * git pull master on influxdb repo

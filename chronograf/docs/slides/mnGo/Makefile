@@ -46,11 +46,11 @@ canned/bin_gen.go: canned/*.json
 	go generate -x ./canned
 
 .jssrc: $(UISOURCES)
-	cd ui && npm run build
+	cd ui && yarn build
 	@touch .jssrc
 
 .dev-jssrc: $(UISOURCES)
-	cd ui && npm run build:dev
+	cd ui && yarn build:dev
 	@touch .dev-jssrc
 
 dep: .jsdep .godep
@@ -67,8 +67,8 @@ endif
 	gdm restore
 	@touch .godep
 
-.jsdep: ui/package-lock.json
-	cd ui && npm i
+.jsdep: ui/yarn.lock
+	cd ui && yarn install
 	@touch .jsdep
 
 gen: bolt/internal/internal.proto
@@ -83,7 +83,7 @@ gotestrace:
 	go test -race ./...
 
 jstest:
-	cd ui && npm test
+	cd ui && yarn test
 
 run: ${BINARY}
 	./chronograf
@@ -93,7 +93,7 @@ run-dev: ${BINARY}
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
-	cd ui && npm run clean
+	cd ui && yarn clean
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata

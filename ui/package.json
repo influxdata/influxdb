@@ -9,15 +9,15 @@
     "url": "github:influxdata/chronograf"
   },
   "engines": {
-    "npm": "~6.8",
-    "node": "~10.5"
+    "node": ">=10.5.0",
+    "yarn": ">=1.16.0"
   },
   "alias": {
     "src": "./src"
   },
   "scripts": {
-    "start": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel watch --no-autoinstall -d build src/index.html",
-    "build": "npm --no-progress i && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --log-level 2 src/index.html",
+    "start": "yarn install && GIT_SHA=$(git rev-parse HEAD) parcel watch --no-autoinstall -d build src/index.html",
+    "build": "yarn install --silent && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
     "test:watch": "jest --watch --verbose false",
@@ -26,8 +26,8 @@
     "test:junit": "cypress run --reporter junit --reporter-options 'mochaFile=junit-results/test-output-[hash].xml'",
     "test:ju:report": "junit-viewer --results=junit-results --save-file=cypress/site/junit-report.html",
     "test:ju:clean": "rm junit-results/*.xml",
-    "test:ju:all": "npm run test:ju:clean && npm run test:junit; npm run test:ju:report;",
-    "lint": "npm run tsc && npm run eslint",
+    "test:ju:all": "yarn test:ju:clean && yarn test:junit; yarn test:ju:report;",
+    "lint": "yarn tsc && yarn eslint",
     "eslint": "eslint '{src,cypress}/**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
