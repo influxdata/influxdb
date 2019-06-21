@@ -9,8 +9,8 @@
     "url": "github:influxdata/chronograf"
   },
   "engines": {
-    "node": "^10.5.0",
-    "yarn": "^1.16.0"
+    "node": ">=10.5.0",
+    "yarn": ">=1.16.0"
   },
   "alias": {
     "src": "./src"
