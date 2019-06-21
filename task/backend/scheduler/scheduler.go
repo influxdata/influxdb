@@ -8,12 +8,13 @@ import (
 	cron "gopkg.in/robfig/cron.v2"
 )
 
-// ID
+// ID duplicates the influxdb ID so users of the scheduler don't have to
+// import influxdb for the id.
+// TODO(lh): maybe make this its own thing sometime in the future.
 type ID influxdb.ID
 
-// Checkpointer allows us to restart a service from the last time we executed
+// Checkpointer allows us to restart a service from the last time we executed.
 type Checkpointer interface {
-
 	// Checkpoint saves the last checkpoint a id has reached.
 	Checkpoint(ctx context.Context, id ID, t time.Time) error
 
@@ -43,7 +44,7 @@ type Promise interface {
 	// Cancel a promise, identical to calling executor.Cancel()
 	Cancel(ctx context.Context)
 
-	// Done() returns a read only channel that when closed indicates the execution is complete
+	// Done returns a read only channel that when closed indicates the execution is complete
 	Done() <-chan struct{}
 
 	// Error returns an error only when the execution is complete.
@@ -60,11 +61,14 @@ type Schedulable interface {
 	Schedule() Schedule
 }
 
+// Schedule is a timing mechanism that helps us know when the next schedulable is due.
 type Schedule struct {
 	Schedule string
 	Offset   time.Duration
 }
 
+// Valid check to see if the schedule has a valid schedule string.
+// valid schedule strings are a cron syntax `* * * * *` or `@every 1s`
 func (s Schedule) Valid() error {
 	_, err := cron.Parse(s.Schedule)
 	return err
@@ -81,23 +85,23 @@ func (s Schedule) Next(checkpoint time.Time) (time.Time, error) {
 }
 
 // Scheduler is a example interface of a Scheduler.
-// todo(lh): this probably wont be defined here but defined in the system that requires it.
-type Scheduler interface {
-	// Start allows the scheduler to Tick. A scheduler without start will do nothing
-	Start(ctx context.Context)
+// // todo(lh): remove this once we start building the actual scheduler
+// type Scheduler interface {
+// 	// Start allows the scheduler to Tick. A scheduler without start will do nothing
+// 	Start(ctx context.Context)
 
-	// Stop a scheduler from ticking.
-	Stop()
+// 	// Stop a scheduler from ticking.
+// 	Stop()
 
-	Now() time.Time
+// 	Now() time.Time
 
-	// ClaimTask begins control of task execution in this scheduler.
-	ClaimTask(authCtx context.Context, task Schedulable) error
+// 	// ClaimTask begins control of task execution in this scheduler.
+// 	ClaimTask(authCtx context.Context, task Schedulable) error
 
-	// UpdateTask will update the concurrency and the runners for a task
-	UpdateTask(authCtx context.Context, task Schedulable) error
+// 	// UpdateTask will update the concurrency and the runners for a task
+// 	UpdateTask(authCtx context.Context, task Schedulable) error
 
-	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
-	// and releases any resources related to management of that task.
-	ReleaseTask(taskID ID) error
-}
+// 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
+// 	// and releases any resources related to management of that task.
+// 	ReleaseTask(taskID ID) error
+// }
