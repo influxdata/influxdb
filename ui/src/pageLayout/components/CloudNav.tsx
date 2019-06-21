@@ -25,7 +25,7 @@ export default class CloudNav extends PureComponent {
             </a>
           )}
         >
-          <FeatureFlag name="cloudSubNav">
+          <FeatureFlag name="cloudBilling">
             <NavMenu.SubItem
               active={false}
               titleLink={className => (
