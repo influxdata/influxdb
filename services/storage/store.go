@@ -194,6 +194,6 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	return nil, errors.New("implement me")
 }
 
-func (s *Store) GetSource(db, rp string) (proto.Message, error) {
-	return &ReadSource{Database: db, RetentionPolicy: rp}, nil
+func (s *Store) GetSource(db, rp string) proto.Message {
+	return &ReadSource{Database: db, RetentionPolicy: rp}
 }
