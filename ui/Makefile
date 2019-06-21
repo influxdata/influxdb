@@ -3,7 +3,7 @@ UISOURCES := $(shell find . -type f -not \( -path ./build/\* -o -path ./node_mod
 all: build
 
 node_modules:
-	npm i
+	yarn install
 
  e2e: node_modules
 	yarn test:junit
@@ -15,12 +15,12 @@ lint: node_modules $(UISOURCES)
 	yarn lint
 
 test:
-	npm test
+	yarn test
 
 clean:
 	yarn clean
 
 run:
-	npm start
+	yarn start
 
 .PHONY: all clean test run lint junit

@@ -67,8 +67,8 @@ endif
 	gdm restore
 	@touch .godep
 
-.jsdep: ui/package-lock.json
-	cd ui && npm i
+.jsdep: ui/yarn.lock
+	cd ui && yarn install
 	@touch .jsdep
 
 gen: bolt/internal/internal.proto
@@ -83,7 +83,7 @@ gotestrace:
 	go test -race ./...
 
 jstest:
-	cd ui && npm test
+	cd ui && yarn test
 
 run: ${BINARY}
 	./chronograf
