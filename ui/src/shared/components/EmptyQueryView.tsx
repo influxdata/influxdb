@@ -3,6 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
+import EmptyGraphErrorTooltip from 'src/shared/components/EmptyGraphErrorTooltip'
 import EmptyGraphError from 'src/shared/components/EmptyGraphError'
 import Markdown from 'src/shared/components/views/Markdown'
 
@@ -13,8 +14,14 @@ import {emptyGraphCopy} from 'src/shared/copy/cell'
 import {RemoteDataState} from 'src/types'
 import {DashboardQuery} from 'src/types'
 
+export enum ErrorFormat {
+  Tooltip = 'tooltip',
+  Scroll = 'scroll',
+}
+
 interface Props {
   errorMessage: string
+  errorFormat: ErrorFormat
   isInitialFetch: boolean
   loading: RemoteDataState
   hasResults: boolean
@@ -31,6 +38,7 @@ export default class EmptyQueryView extends PureComponent<Props> {
       queries,
       fallbackNote,
       hasResults,
+      errorFormat,
     } = this.props
 
     if (loading === RemoteDataState.NotStarted || !queries.length) {
@@ -43,9 +51,18 @@ export default class EmptyQueryView extends PureComponent<Props> {
     }
 
     if (errorMessage) {
-      return (
-        <EmptyGraphError message={errorMessage} testID="empty-graph--error" />
-      )
+      if (errorFormat === ErrorFormat.Tooltip)
+        return (
+          <EmptyGraphErrorTooltip
+            message={errorMessage}
+            testID="empty-graph--error"
+          />
+        )
+
+      if (errorFormat === ErrorFormat.Scroll)
+        return (
+          <EmptyGraphError message={errorMessage} testID="empty-graph--error" />
+        )
     }
 
     if (

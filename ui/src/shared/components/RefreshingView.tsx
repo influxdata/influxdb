@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import TimeSeries from 'src/shared/components/TimeSeries'
-import EmptyQueryView from 'src/shared/components/EmptyQueryView'
+import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 
 // Utils
@@ -73,6 +73,7 @@ class RefreshingView extends PureComponent<Props, State> {
         {({giraffeResult, files, loading, errorMessage, isInitialFetch}) => {
           return (
             <EmptyQueryView
+              errorFormat={ErrorFormat.Tooltip}
               errorMessage={errorMessage}
               hasResults={checkResultsLength(giraffeResult)}
               loading={loading}

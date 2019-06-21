@@ -5,12 +5,22 @@ import {createPortal} from 'react-dom'
 // Constants
 import {TOOLTIP_PORTAL_ID} from 'src/portals/TooltipPortal'
 
+// Types
+import {ComponentColor} from '@influxdata/clockface'
+
 interface Props {
   triggerRect: DOMRect
   children: JSX.Element
+  maxWidth?: number
+  color?: ComponentColor
 }
 
-const BoxTooltip: FunctionComponent<Props> = ({triggerRect, children}) => {
+const BoxTooltip: FunctionComponent<Props> = ({
+  triggerRect,
+  children,
+  maxWidth = 300,
+  color = ComponentColor.Primary,
+}) => {
   const ref = useRef<HTMLDivElement>(null)
 
   // Position the tooltip after it has rendered, taking into account its size
@@ -23,8 +33,15 @@ const BoxTooltip: FunctionComponent<Props> = ({triggerRect, children}) => {
 
     const rect = el.getBoundingClientRect()
 
-    // Always position the tooltip to the left of the trigger position
-    const left = triggerRect.left - rect.width
+    let left = triggerRect.left - rect.width
+    let caretClassName = 'left'
+
+    // If the width of the tooltip causes it to overflow left
+    // position it to the right of the trigger element
+    if (left < 0) {
+      left = triggerRect.left + triggerRect.width
+      caretClassName = 'right'
+    }
 
     // Attempt to position the vertical midpoint of tooltip next to the
     // vertical midpoint of the trigger rectangle
@@ -44,7 +61,7 @@ const BoxTooltip: FunctionComponent<Props> = ({triggerRect, children}) => {
 
     el.setAttribute(
       'style',
-      `visibility: visible; top: ${top}px; left: ${left}px;`
+      `visibility: visible; top: ${top}px; left: ${left}px; max-width: ${maxWidth}px;`
     )
 
     // Position the caret (little arrow on the side of the tooltip) so that it
@@ -55,12 +72,20 @@ const BoxTooltip: FunctionComponent<Props> = ({triggerRect, children}) => {
       'style',
       `top: ${caretTop}px;`
     )
+
+    el.className = `box-tooltip  box-tooltip__${color} ${caretClassName}`
   })
 
   return createPortal(
-    <div className="box-tooltip left" ref={ref}>
+    <div
+      className={`box-tooltip box-tooltip__${color}`}
+      ref={ref}
+      style={{maxWidth}}
+    >
       {children}
-      <div className="box-tooltip--caret" />
+      <div className="box-tooltip--caret-container">
+        <div className="box-tooltip--caret" />
+      </div>
     </div>,
     document.querySelector(`#${TOOLTIP_PORTAL_ID}`)
   )
