@@ -33,7 +33,6 @@ const BoxTooltip: FunctionComponent<Props> = ({
 
     const rect = el.getBoundingClientRect()
 
-    // Always position the tooltip to the left of the trigger position
     let left = triggerRect.left - rect.width
     let caretClassName = 'left'
 
