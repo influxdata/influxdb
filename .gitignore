@@ -27,7 +27,6 @@ influxd.bolt
 
 ui/node_modules
 ui/npm-error.log
-ui/yarn.lock
 ui/build
 ui/.cache
 
