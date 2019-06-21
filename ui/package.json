@@ -16,7 +16,7 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "yarn install --silent && GIT_SHA=$(git rev-parse HEAD) parcel watch --no-autoinstall -d build src/index.html",
+    "start": "yarn install && GIT_SHA=$(git rev-parse HEAD) parcel watch --no-autoinstall -d build src/index.html",
     "build": "yarn install --silent && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --log-level 2 src/index.html",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
