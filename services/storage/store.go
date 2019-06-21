@@ -3,18 +3,17 @@ package storage
 import (
 	"context"
 	"errors"
-	"math"
 	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/cursors"
 	"go.uber.org/zap"
 )
 
@@ -24,13 +23,9 @@ var (
 
 // GetReadSource will attempt to unmarshal a ReadSource from the ReadRequest or
 // return an error if no valid resource is present.
-func GetReadSource(req *datatypes.ReadRequest) (*ReadSource, error) {
-	if req.ReadSource == nil {
-		return nil, ErrMissingReadSource
-	}
-
+func GetReadSource(any types.Any) (*ReadSource, error) {
 	var source ReadSource
-	if err := types.UnmarshalAny(req.ReadSource, &source); err != nil {
+	if err := types.UnmarshalAny(&any, &source); err != nil {
 		return nil, err
 	}
 	return &source, nil
@@ -109,30 +104,22 @@ func (s *Store) validateArgs(database, rp string, start, end int64) (string, str
 	return database, rp, start, end, nil
 }
 
-func (s *Store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error) {
-	if len(req.GroupKeys) > 0 {
-		panic("Read: len(Grouping) > 0")
+func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
 	}
 
-	if req.Hints.NoPoints() {
-		req.PointsLimit = -1
-	}
-
-	if req.PointsLimit == 0 {
-		req.PointsLimit = math.MaxInt64
-	}
-
-	source, err := GetReadSource(req)
+	source, err := GetReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.TimestampRange.Start, req.TimestampRange.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, req.Descending, start, end)
+	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -149,40 +136,28 @@ func (s *Store) Read(ctx context.Context, req *datatypes.ReadRequest) (reads.Res
 		cur = ic
 	}
 
-	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		cur = reads.NewLimitSeriesCursor(ctx, cur, req.SeriesLimit, req.SeriesOffset)
-	}
+	req.Range.Start = start
+	req.Range.End = end
 
-	req.TimestampRange.Start = start
-	req.TimestampRange.End = end
-
-	return reads.NewResultSet(ctx, req, cur), nil
+	return reads.NewFilteredResultSet(ctx, req, cur), nil
 }
 
-func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (reads.GroupResultSet, error) {
-	if req.SeriesLimit > 0 || req.SeriesOffset > 0 {
-		return nil, errors.New("GroupRead: SeriesLimit and SeriesOffset not supported when Grouping")
+func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
 	}
 
-	if req.Hints.NoPoints() {
-		req.PointsLimit = -1
-	}
-
-	if req.PointsLimit == 0 {
-		req.PointsLimit = math.MaxInt64
-	}
-
-	source, err := GetReadSource(req)
+	source, err := GetReadSource(*req.ReadSource)
 	if err != nil {
 		return nil, err
 	}
 
-	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.TimestampRange.Start, req.TimestampRange.End)
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
 	if err != nil {
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, req.Descending, start, end)
+	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +167,8 @@ func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 
 	shards := s.TSDBStore.Shards(shardIDs)
 
-	req.TimestampRange.Start = start
-	req.TimestampRange.End = end
+	req.Range.Start = start
+	req.Range.End = end
 
 	newCursor := func() (reads.SeriesCursor, error) {
 		cur, err := newIndexSeriesCursor(ctx, req.Predicate, shards)
@@ -211,6 +186,14 @@ func (s *Store) GroupRead(ctx context.Context, req *datatypes.ReadRequest) (read
 	return rs, nil
 }
 
-func (s *Store) GetSource(rs influxdb.ReadSpec) (proto.Message, error) {
-	return &ReadSource{Database: rs.Database, RetentionPolicy: rs.RetentionPolicy}, nil
+func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
+	return nil, errors.New("implement me")
+}
+
+func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
+	return nil, errors.New("implement me")
+}
+
+func (s *Store) GetSource(db, rp string) (proto.Message, error) {
+	return &ReadSource{Database: db, RetentionPolicy: rp}, nil
 }

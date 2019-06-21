@@ -394,7 +394,7 @@ func BenchmarkNewGroupResultSet_GroupBy(b *testing.B) {
 		vals[i] = gen.NewCounterByteSequenceCount(card[i])
 	}
 
-	tags := gen.NewTagsValuesSequenceValues("m0", "f0", "tag", vals)
+	tags := gen.NewTagsValuesSequenceValues("tag", vals)
 	rows := make([]reads.SeriesRow, tags.Count())
 	for i := range rows {
 		tags.Next()

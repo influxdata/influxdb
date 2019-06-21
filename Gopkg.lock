@@ -328,7 +328,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:61a42150c707c05766ba542930c791bd99667f9b3a81d80c54d7c1ff88a0a3e3"
+  digest = "1:aa2134d82aac3421ae236540588d941da9ffde4b64162e79aa799e2d67e01596"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -350,8 +350,10 @@
     "memory",
     "parser",
     "plan",
+    "plan/plantest",
     "repl",
     "semantic",
+    "semantic/semantictest",
     "stdlib",
     "stdlib/csv",
     "stdlib/generate",
@@ -974,6 +976,7 @@
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/memory",
     "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/plan/plantest",
     "github.com/influxdata/flux/repl",
     "github.com/influxdata/flux/semantic",
     "github.com/influxdata/flux/stdlib",
@@ -1003,7 +1006,6 @@
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh/terminal",
-    "golang.org/x/net/context",
     "golang.org/x/sync/errgroup",
     "golang.org/x/sys/unix",
     "golang.org/x/text/encoding/unicode",
