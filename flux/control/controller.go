@@ -5,6 +5,8 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/coordinator"
 	_ "github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
@@ -46,16 +48,29 @@ func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authE
 	}
 
 	return &Controller{
-		deps: executorDependencies,
+		deps:   executorDependencies,
+		logger: logger,
 	}
 }
 
 type Controller struct {
-	deps execute.Dependencies
+	deps   execute.Dependencies
+	logger *zap.Logger
 }
 
 func (c *Controller) Query(ctx context.Context, compiler flux.Compiler) (flux.Query, error) {
-	return nil, nil
+	p, err := compiler.Compile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if p, ok := p.(lang.DependenciesAwareProgram); ok {
+		p.SetExecutorDependencies(c.deps)
+		p.SetLogger(c.logger)
+	}
+
+	alloc := &memory.Allocator{}
+	return p.Start(ctx, alloc)
 }
 func (c *Controller) PrometheusCollectors() []prometheus.Collector {
 	return nil
