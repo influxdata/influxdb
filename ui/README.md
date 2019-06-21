@@ -4,13 +4,13 @@
 To add a new package, run
 
 ```sh
-yarn install packageName
+yarn add packageName
 ```
 
 ### Adding devDependency
 
 ```sh
-yarn install packageName -D
+yarn add packageName --dev
 ```
 
 ### Updating a package
