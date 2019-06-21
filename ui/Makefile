@@ -6,19 +6,19 @@ node_modules:
 	npm i
 
  e2e: node_modules
-	npm run test:junit
+	yarn test:junit
 
 build: node_modules $(UISOURCES)
-	npm run build
+	yarn build
 
 lint: node_modules $(UISOURCES)
-	npm run lint
+	yarn lint
 
 test:
 	npm test
 
 clean:
-	npm run clean
+	yarn clean
 
 run:
 	npm start
