@@ -233,7 +233,6 @@ func newVariableResponse(m *platform.Variable, labels []*platform.Label) variabl
 	for _, l := range labels {
 		res.Labels = append(res.Labels, *l)
 	}
-	fmt.Print(m)
 	return res
 }
 
@@ -244,9 +243,8 @@ func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-	va := req.variable
 
-	err = h.VariableService.CreateVariable(ctx, va)
+	err = h.VariableService.CreateVariable(ctx, req.variable)
 	if err != nil {
 		EncodeError(ctx, err, w)
 		return
