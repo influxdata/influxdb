@@ -51,19 +51,21 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
             triggerRect={triggerRect as DOMRect}
             color={ComponentColor.Danger}
           >
-            <pre>
-              <CopyToClipboard text={message}>
-                <Button
-                  size={ComponentSize.ExtraSmall}
-                  color={buttonColor}
-                  titleText={buttonText}
-                  text={buttonText}
-                  onClick={onClick}
-                  className="empty-graph-error--copy"
-                />
-              </CopyToClipboard>
-              <code>{message}</code>
-            </pre>
+            <div className="box-tooltip--contents">
+              <pre>
+                <CopyToClipboard text={message}>
+                  <Button
+                    size={ComponentSize.ExtraSmall}
+                    color={buttonColor}
+                    titleText={buttonText}
+                    text={buttonText}
+                    onClick={onClick}
+                    className="empty-graph-error--copy"
+                  />
+                </CopyToClipboard>
+                <code>{message}</code>
+              </pre>
+            </div>
           </BoxTooltip>
         )}
       </div>
