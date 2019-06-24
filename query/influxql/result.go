@@ -27,7 +27,7 @@ type MultiResultEncoder struct{}
 //  4.  All other columns are fields and will be output in the order they are found.
 //      TODO(jsternberg): This function currently requires the first column to be a time field, but this isn't
 //      a strict requirement and will be lifted when we begin to work on transpiling meta queries.
-func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (int64, error) {
+func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (flux.EncoderResult, error) {
 	resp := Response{}
 	wc := &iocounter.Writer{Writer: w}
 
@@ -183,8 +183,17 @@ func (e *MultiResultEncoder) Encode(w io.Writer, results flux.ResultIterator) (i
 	}
 
 	err := json.NewEncoder(wc).Encode(resp)
-	return wc.Count(), err
+	return flux.EncoderResult{BytesWritten: wc.Count()}, err
 }
+
+func (e *MultiResultEncoder) EncodeErrors(w io.Writer, er flux.EncoderResult) (flux.EncoderResult, error) {
+	if len(er.Errs) > 0 {
+		// InfluxQL encoder should never have errors in its EncoderResult
+		panic(fmt.Sprintf("unexpected unencoded errors: %v", er.Errs))
+	}
+	return er, nil
+}
+
 func NewMultiResultEncoder() *MultiResultEncoder {
 	return new(MultiResultEncoder)
 }

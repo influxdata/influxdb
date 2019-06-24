@@ -263,7 +263,7 @@ func TestResponse_ResultIterator(t *testing.T) {
 			encoderConfig := csv.DefaultEncoderConfig()
 			encoder := csv.NewMultiResultEncoder(encoderConfig)
 			var got bytes.Buffer
-			n, err := encoder.Encode(&got, influxql.NewResponseIterator(tt.response))
+			er, err := encoder.Encode(&got, influxql.NewResponseIterator(tt.response))
 			if err != nil && tt.err != nil {
 				if err.Error() != tt.err.Error() {
 					t.Errorf("unexpected error want: %s\n got: %s\n", tt.err.Error(), err.Error())
@@ -277,7 +277,7 @@ func TestResponse_ResultIterator(t *testing.T) {
 			if g, w := got.String(), string(tt.encoded); g != w {
 				t.Errorf("unexpected encoding -want/+got:\n%s", diff.LineDiff(w, g))
 			}
-			if g, w := n, int64(len(tt.encoded)); g != w {
+			if g, w := er.BytesWritten, int64(len(tt.encoded)); g != w {
 				t.Errorf("unexpected encoding count -want/+got:\n%s", cmp.Diff(w, g))
 			}
 		})

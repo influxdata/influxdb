@@ -100,13 +100,26 @@ func (b ProxyQueryServiceAsyncBridge) Query(ctx context.Context, w io.Writer, re
 	defer results.Release()
 
 	encoder := req.Dialect.Encoder()
-	_, err = encoder.Encode(w, results)
-	// Release the results and collect the statistics regardless of the error.
+	er, err := encoder.Encode(w, results)
 	results.Release()
 	stats := results.Statistics()
 	if err != nil {
 		return stats, tracing.LogError(span, err)
 	}
+	if len(er.Errs) > 0 {
+		if er.BytesWritten == 0 {
+			// Just return the error from Flux execution.
+			// There may have been more than one error, but just return the first for now.
+			return stats, tracing.LogError(span, er.Errs[0])
+		}
+
+		// We already wrote some data to the writer, so serialize the errors too
+		_, err := encoder.EncodeErrors(w, er)
+		if err != nil {
+			return stats, tracing.LogError(span, err)
+		}
+	}
+
 	return stats, nil
 }
 

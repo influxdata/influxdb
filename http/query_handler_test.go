@@ -207,12 +207,12 @@ func TestFluxQueryService_Query(t *testing.T) {
 				Delimiter: ',',
 			})
 			b := bytes.Buffer{}
-			n, err := enc.Encode(&b, res)
+			er, err := enc.Encode(&b, res)
 			if err != nil {
 				t.Errorf("FluxQueryService.Query() encode error = %v", err)
 				return
 			}
-			if n != int64(len(tt.want)) {
+			if n := er.BytesWritten; n != int64(len(tt.want)) {
 				t.Errorf("FluxQueryService.Query() encode result = %d, want %d", n, len(tt.want))
 			}
 			if orgIDStr == "" {
@@ -421,8 +421,8 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !strings.Contains(ierr.Msg, "failed to execute query") {
-			t.Fatalf("expected error to mention failure to execute query, got %s", ierr.Msg)
+		if !strings.Contains(ierr.Msg, "some query error") {
+			t.Fatalf(`expected error to mention "some query error", got %s`, ierr.Msg)
 		}
 		if ierr.Err.Error() != "some query error" {
 			t.Fatalf("expected wrapped error to be the query service error, got %s", ierr.Err.Error())

@@ -80,7 +80,7 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 		},
 		{
 			name: "Error",
-			in:   &resultErrorIterator{Error: "expected"},
+			in:   &executetest.ErrorResultIterator{ResErr: errors.New("expected")},
 			out:  `{"error":"expected"}`,
 		},
 	} {
@@ -91,35 +91,22 @@ func TestMultiResultEncoder_Encode(t *testing.T) {
 
 			var buf bytes.Buffer
 			enc := influxql.NewMultiResultEncoder()
-			n, err := enc.Encode(&buf, tt.in)
+			er, err := enc.Encode(&buf, tt.in)
 			if err != nil {
 				t.Fatalf("unexpected error: %s", err)
+			}
+			if len(er.Errs) > 0 {
+				t.Fatalf("unexpected errors in encoder result: %v", er.Errs)
 			}
 
 			if got, exp := buf.String(), tt.out; got != exp {
 				t.Fatalf("unexpected output:\nexp=%s\ngot=%s", exp, got)
 			}
-			if g, w := n, int64(len(tt.out)); g != w {
+			if g, w := er.BytesWritten, int64(len(tt.out)); g != w {
 				t.Errorf("unexpected encoding count -want/+got:\n%s", cmp.Diff(w, g))
 			}
 		})
 	}
-}
-
-type resultErrorIterator struct {
-	Error string
-}
-
-func (*resultErrorIterator) Statistics() flux.Statistics {
-	return flux.Statistics{}
-}
-
-func (*resultErrorIterator) Release()          {}
-func (*resultErrorIterator) More() bool        { return false }
-func (*resultErrorIterator) Next() flux.Result { panic("no results") }
-
-func (ri *resultErrorIterator) Err() error {
-	return errors.New(ri.Error)
 }
 
 func mustParseTime(s string) time.Time {
