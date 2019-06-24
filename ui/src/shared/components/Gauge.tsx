@@ -62,21 +62,16 @@ class Gauge extends Component<Props> {
     )
   }
 
-  private resetCanvas = (canvas, context) => {
-    context.setTransform(1, 0, 0, 1, 0, 0)
-    context.clearRect(0, 0, canvas.width, canvas.height)
-  }
-
   private updateCanvas = () => {
+    this.resetCanvas()
+
     const canvas = this.canvasRef.current
-    canvas.width = canvas.height * (canvas.clientWidth / canvas.clientHeight)
     const ctx = canvas.getContext('2d')
+    const {width, height} = this.props
 
-    this.resetCanvas(canvas, ctx)
-
-    const centerX = canvas.width / 2
-    const centerY = (canvas.height / 2) * 1.13
-    const radius = (Math.min(canvas.width, canvas.height) / 2) * 0.5
+    const centerX = width / 2
+    const centerY = (height / 2) * 1.13
+    const radius = (Math.min(width, height) / 2) * 0.5
 
     const {minLineWidth, minFontSize} = GAUGE_SPECS
     const gradientThickness = Math.max(minLineWidth, radius / 4)
@@ -121,6 +116,23 @@ class Gauge extends Component<Props> {
     this.drawGaugeLabels(ctx, radius, gradientThickness, minValue, maxValue)
     this.drawGaugeValue(ctx, radius, labelValueFontSize)
     this.drawNeedle(ctx, radius, minValue, maxValue)
+  }
+
+  private resetCanvas = () => {
+    const canvas = this.canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const {width, height} = this.props
+    const dpRatio = window.devicePixelRatio || 1
+
+    // Set up canvas to draw on HiDPI / Retina screens correctly
+    canvas.width = width * dpRatio
+    canvas.height = height * dpRatio
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    ctx.scale(dpRatio, dpRatio)
+
+    // Clear the canvas
+    ctx.clearRect(0, 0, width, height)
   }
 
   private drawGradientGauge = (ctx, xc, yc, r, gradientThickness) => {
