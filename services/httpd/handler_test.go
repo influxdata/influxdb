@@ -1101,37 +1101,6 @@ func TestHandler_Flux_QueryJSON(t *testing.T) {
 	}
 }
 
-func TestHandler_Flux_SpecJSON(t *testing.T) {
-	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
-	called := false
-	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
-		if exp := flux.CompilerType(lang.SpecCompilerType); compiler.CompilerType() != exp {
-			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
-		}
-		called = true
-		return internal.NewFluxQueryMock(), nil
-	}
-
-	q := client.QueryRequest{Spec: &flux.Spec{}}
-	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(q); err != nil {
-		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
-	}
-
-	req := MustNewRequest("POST", "/api/v2/query", &body)
-	req.Header.Add("content-type", "application/json")
-
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
-		t.Fatalf("unexpected status: %d", got)
-	}
-
-	if !called {
-		t.Fatalf("expected QueryFn to be called")
-	}
-}
-
 func TestHandler_Flux_QueryText(t *testing.T) {
 	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
 	called := false

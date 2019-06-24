@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,9 +13,12 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/flux/control"
+	fluxinfluxdb "github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -34,7 +38,7 @@ import (
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
-	client "github.com/influxdata/usage-client/v1"
+	"github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
 
 	// Initialize the engine package
@@ -291,7 +295,54 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.BuildType = "OSS"
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
-	srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.Logger)
+
+	// TODO(cwolff): Figure out a good default per-query memory limit:
+	//   https://github.com/influxdata/influxdb/issues/13642
+	const (
+		concurrencyQuota         = 10
+		memoryBytesQuotaPerQuery = math.MaxInt64
+		QueueSize                = 10
+	)
+
+	cc := control.Config{
+		ExecutorDependencies:     make(execute.Dependencies),
+		ConcurrencyQuota:         concurrencyQuota,
+		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+		QueueSize:                QueueSize,
+		Logger:                   s.Logger.With(zap.String("service", "storage-reads")),
+	}
+
+	if err := fluxinfluxdb.InjectFromDependencies(cc.ExecutorDependencies, fluxinfluxdb.Dependencies{
+		Reader:      reads.NewReader(ss),
+		MetaClient:  s.MetaClient,
+		Authorizer:  authorizer,
+		AuthEnabled: c.AuthEnabled,
+	}); err != nil {
+		panic(err)
+	}
+
+	if err := v1.InjectDatabaseDependencies(cc.ExecutorDependencies, v1.DatabaseDependencies{
+		MetaClient:  s.MetaClient,
+		Authorizer:  authorizer,
+		AuthEnabled: c.AuthEnabled,
+	}); err != nil {
+		panic(err)
+	}
+
+	if err := fluxinfluxdb.InjectBucketDependencies(cc.ExecutorDependencies, fluxinfluxdb.BucketDependencies{
+		MetaClient:  s.MetaClient,
+		Authorizer:  authorizer,
+		AuthEnabled: c.AuthEnabled,
+	}); err != nil {
+		panic(err)
+	}
+
+	ctrl, err := control.New(cc)
+	if err != nil {
+		panic(err)
+	}
+
+	srv.Handler.Controller = ctrl
 
 	s.Services = append(s.Services, srv)
 }

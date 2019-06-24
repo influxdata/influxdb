@@ -328,15 +328,17 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:61a42150c707c05766ba542930c791bd99667f9b3a81d80c54d7c1ff88a0a3e3"
+  digest = "1:5eafd60ee009d8eb629ad362982f6109aea0e4983449e9c67977420d2ff2a181"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
     "arrow",
     "ast",
+    "builtin",
     "compiler",
     "csv",
     "execute",
+    "execute/executetest",
     "influxql",
     "internal/parser",
     "internal/pkg/syncutil",
@@ -348,10 +350,13 @@
     "lang",
     "line",
     "memory",
+    "mock",
     "parser",
     "plan",
+    "plan/plantest",
     "repl",
     "semantic",
+    "semantic/semantictest",
     "stdlib",
     "stdlib/csv",
     "stdlib/generate",
@@ -732,7 +737,7 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:6547e315913965ebfc497191bee6b85d8b168f8d98150a77a6be526dc905973a"
+  digest = "1:e5ce08cf673db51eb256b85abf819826280237fd168362c46a7acf4ec6b9079e"
   name = "go.uber.org/zap"
   packages = [
     ".",
@@ -740,7 +745,9 @@
     "internal/bufferpool",
     "internal/color",
     "internal/exit",
+    "internal/ztest",
     "zapcore",
+    "zaptest",
     "zaptest/observer",
   ]
   pruneopts = "UT"
@@ -858,6 +865,17 @@
   revision = "45ff765b4815d34d8b80220fd05c79063b185ce1"
 
 [[projects]]
+  branch = "master"
+  digest = "1:11ebff799017a82b8b9d78714f268001a2c9988e2492344b030eb68bc24ca03a"
+  name = "gonum.org/v1/gonum"
+  packages = [
+    "floats",
+    "internal/asm/f64",
+  ]
+  pruneopts = "UT"
+  revision = "90b7154515874cee6c33cf56b29e257403a09a69"
+
+[[projects]]
   digest = "1:4b8f3d164fcba1aed1e5ec63edb518b7d436b001f01e06c7f9c2335498b4c5a3"
   name = "google.golang.org/appengine"
   packages = [
@@ -969,11 +987,15 @@
     "github.com/influxdata/flux",
     "github.com/influxdata/flux/arrow",
     "github.com/influxdata/flux/ast",
+    "github.com/influxdata/flux/builtin",
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
+    "github.com/influxdata/flux/execute/executetest",
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/memory",
+    "github.com/influxdata/flux/mock",
     "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/plan/plantest",
     "github.com/influxdata/flux/repl",
     "github.com/influxdata/flux/semantic",
     "github.com/influxdata/flux/stdlib",
@@ -994,12 +1016,14 @@
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
+    "github.com/prometheus/client_model/go",
     "github.com/retailnext/hllpp",
     "github.com/spf13/cast",
     "github.com/tinylib/msgp/msgp",
     "github.com/xlab/treeprint",
     "go.uber.org/zap",
     "go.uber.org/zap/zapcore",
+    "go.uber.org/zap/zaptest",
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh/terminal",
