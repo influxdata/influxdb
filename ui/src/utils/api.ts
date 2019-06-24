@@ -1,5 +1,5 @@
 // Libraries
-import Client from '@influxdata/influx'
+import {Client} from '@influxdata/influx'
 import {get} from 'lodash'
 
 const basePath = '/api/v2'
