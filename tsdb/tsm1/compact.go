@@ -690,6 +690,7 @@ type Compactor struct {
 	Size int
 
 	FileStore interface {
+		SetCurrentGenerationFunc(func() int)
 		NextGeneration() int
 		TSMReader(path string) *TSMReader
 	}

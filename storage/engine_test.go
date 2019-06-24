@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestEngine_WriteAndIndex(t *testing.T) {
@@ -359,6 +361,33 @@ func TestEngine_OpenClose(t *testing.T) {
 
 	if err := engine.Open(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEngine_InitializeMetrics(t *testing.T) {
+	engine := NewDefaultEngine()
+
+	engine.MustOpen()
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(engine.PrometheusCollectors()...)
+
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	files := promtest.MustFindMetric(t, mfs, "storage_tsm_files_total", prometheus.Labels{"level": "0"})
+	if m, got, exp := files, files.GetGauge().GetValue(), 0.0; got != exp {
+		t.Errorf("[%s] got %v, expected %v", m, got, exp)
+	}
+
+	bytes := promtest.MustFindMetric(t, mfs, "storage_tsm_files_disk_bytes", prometheus.Labels{"level": "0"})
+	if m, got, exp := bytes, bytes.GetGauge().GetValue(), 0.0; got != exp {
+		t.Errorf("[%s] got %v, expected %v", m, got, exp)
 	}
 
 	if err := engine.Close(); err != nil {

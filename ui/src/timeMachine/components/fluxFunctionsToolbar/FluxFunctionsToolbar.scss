@@ -19,7 +19,7 @@
     align-items: center;
     padding-left: 10px;
   }
-  
+
   dt {
     background-color: $g6-smoke;
     font-weight: 600;
@@ -44,17 +44,6 @@
 .flux-functions-toolbar--helper {
   color: $g10-wolf;
   padding: 15px;
-}
-
-.flux-functions-toolbar--tooltip-contents {
-  width: 100%;
-  max-width: 600px;
-  display: inline-flex;
-  align-items: center;
-
-  article {
-    margin-bottom: $ix-marg-c;
-  }
 }
 
 .flux-functions-toolbar--heading {

@@ -27,9 +27,9 @@ influxd.bolt
 
 ui/node_modules
 ui/npm-error.log
-ui/yarn.lock
 ui/build
 ui/.cache
+ui/package-lock.json
 
 # e2e test artifacts
 ui/cypress/screenshots

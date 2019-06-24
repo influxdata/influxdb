@@ -1,5 +1,5 @@
 import {FunctionComponent} from 'react'
-import {CLOUD} from 'src/shared/constants'
+import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
 
 const OSS_FLAGS = {
   heatmap: true,
@@ -11,6 +11,7 @@ const CLOUD_FLAGS = {
   heatmap: false, // We need to ensure the API updates have been deployed before enabling
   scatter: false, // ditto ^^
   lineGraphShading: false, // ditto! ^^
+  cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
 }
 
 export const isFlagEnabled = (flagName: string) => {

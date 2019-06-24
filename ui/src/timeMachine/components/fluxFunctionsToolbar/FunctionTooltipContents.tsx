@@ -21,7 +21,7 @@ const FunctionTooltipContents: FunctionComponent<Props> = ({
   func: {desc, args, example, link},
 }) => {
   return (
-    <div className="flux-functions-toolbar--tooltip-contents">
+    <div className="box-tooltip--contents">
       <FancyScrollbar autoHeight={true} maxHeight={MAX_HEIGHT} autoHide={false}>
         <TooltipDescription description={desc} />
         <TooltipArguments argsList={args} />

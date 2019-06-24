@@ -47,6 +47,8 @@ export const GIT_SHA = process.env.GIT_SHA
 export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
 export const CLOUD_SIGNOUT_URL = process.env.CLOUD_LOGOUT_URL
+export const CLOUD_BILLING_VISIBLE =
+  CLOUD && process.env.CLOUD_BILLING_VISIBLE === 'true'
 
 export const VIS_THEME: Partial<Config> = {
   axisColor: '#31313d',

@@ -35,6 +35,11 @@ $cell--header-size: 36px;
   }
 }
 
+.empty-graph-error--copy {
+  z-index: 1;
+  float: right;
+}
+
 .cell--view-empty {
   width: 100%;
   height: 100%;
@@ -46,22 +51,10 @@ $cell--header-size: 36px;
   @extend %no-user-select;
   padding: 0 $ix-marg-d $ix-marg-d $ix-marg-d;
   overflow: hidden;
-  
-  .empty-graph-error {
-    position: absolute;
-    top: $ix-marg-c;
-    right: $ix-marg-c;
-    bottom: $ix-marg-c;
-    left: $ix-marg-c;
-  }
 
-  .empty-graph-error--scroll {
-    z-index: 0;
-    position: absolute;
-  }
-
-  .empty-graph-error--copy {
-    z-index: 1;
+  &.error {
+    font-size: 40px;
+    color: $c-dreamsicle;
   }
 }
 
@@ -108,7 +101,7 @@ $cell--header-size: 36px;
   transform: translateY(-50%);
   width: 100%;
   pointer-events: none;
-  
+
   .cell--header-note & {
     padding-left: $cell--header-size;
   }
