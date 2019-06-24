@@ -13,7 +13,9 @@ import {
   setTaskOption,
   clearTask,
   setNewScript,
+  setTaskToken,
 } from 'src/tasks/actions'
+import {getAuthorizations} from 'src/authorizations/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -26,13 +28,15 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, TimeRange} from 'src/types'
+import {AppState, TimeRange, RemoteDataState} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
 } from 'src/utils/taskOptionsToFluxScript'
 import {DashboardDraftQuery} from 'src/types/dashboards'
+import {Authorization} from '@influxdata/influx'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   dismiss: () => void
@@ -43,6 +47,8 @@ interface DispatchProps {
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
   setNewScript: typeof setNewScript
+  getTokens: typeof getAuthorizations
+  setTaskToken: typeof setTaskToken
 }
 
 interface StateProps {
@@ -51,12 +57,15 @@ interface StateProps {
   activeQueryIndex: number
   newScript: string
   timeRange: TimeRange
+  tokens: Authorization[]
+  tokenStatus: RemoteDataState
+  selectedToken: Authorization
 }
 
 type Props = StateProps & OwnProps & DispatchProps
 
 class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
-  public componentDidMount() {
+  public async componentDidMount() {
     const {setTaskOption, setNewScript} = this.props
 
     setTaskOption({
@@ -65,6 +74,8 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     })
 
     setNewScript(this.activeScript)
+    await this.props.getTokens()
+    this.props.setTaskToken(this.props.tokens[0])
   }
 
   public componentWillUnmount() {
@@ -74,19 +85,33 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
-    const {taskOptions, dismiss} = this.props
+    const {
+      taskOptions,
+      dismiss,
+      tokens,
+      tokenStatus,
+      selectedToken,
+    } = this.props
 
     return (
-      <TaskForm
-        taskOptions={taskOptions}
-        onChangeScheduleType={this.handleChangeScheduleType}
-        onChangeInput={this.handleChangeInput}
-        onChangeToBucketName={this.handleChangeToBucketName}
-        isInOverlay={true}
-        onSubmit={this.handleSubmit}
-        canSubmit={this.isFormValid}
-        dismiss={dismiss}
-      />
+      <SpinnerContainer
+        loading={tokenStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <TaskForm
+          taskOptions={taskOptions}
+          onChangeScheduleType={this.handleChangeScheduleType}
+          onChangeInput={this.handleChangeInput}
+          onChangeToBucketName={this.handleChangeToBucketName}
+          isInOverlay={true}
+          onSubmit={this.handleSubmit}
+          canSubmit={this.isFormValid}
+          dismiss={dismiss}
+          tokens={tokens}
+          selectedToken={selectedToken}
+          onTokenChange={this.handleTokenChange}
+        />
+      </SpinnerContainer>
     )
   }
 
@@ -106,7 +131,13 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleSubmit = async () => {
-    const {saveNewScript, newScript, taskOptions, timeRange} = this.props
+    const {
+      saveNewScript,
+      newScript,
+      taskOptions,
+      timeRange,
+      selectedToken,
+    } = this.props
 
     // When a task runs, it does not have access to variables that we typically
     // inject into the script via the front end. So any variables that are used
@@ -127,7 +158,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     const preamble = `${varOption}\n\n${taskOption}`
     const script = addDestinationToFluxScript(newScript, taskOptions)
 
-    saveNewScript(script, preamble)
+    saveNewScript(script, preamble, selectedToken.token)
   }
 
   private handleChangeToBucketName = (bucketName: string) => {
@@ -150,11 +181,16 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 
     setTaskOption({key, value})
   }
+
+  private handleTokenChange = (selectedToken: Authorization) => {
+    this.props.setTaskToken(selectedToken)
+  }
 }
 
 const mstp = (state: AppState): StateProps => {
   const {
-    tasks: {newScript, taskOptions},
+    tasks: {newScript, taskOptions, taskToken},
+    tokens,
     orgs: {org},
   } = state
 
@@ -168,6 +204,9 @@ const mstp = (state: AppState): StateProps => {
     timeRange,
     draftQueries,
     activeQueryIndex,
+    tokens: tokens.list,
+    tokenStatus: tokens.status,
+    selectedToken: taskToken,
   }
 }
 
@@ -176,6 +215,8 @@ const mdtp: DispatchProps = {
   setTaskOption,
   clearTask,
   setNewScript,
+  getTokens: getAuthorizations,
+  setTaskToken,
 }
 
 export default connect<StateProps, DispatchProps>(

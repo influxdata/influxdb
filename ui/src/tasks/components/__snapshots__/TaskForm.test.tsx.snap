@@ -89,6 +89,30 @@ exports[`TaskForm rendering renders 1`] = `
       <TaskScheduleFormFields
         onChangeInput={[MockFunction]}
       />
+      <t
+        testID="grid--column"
+        widthXS={12}
+      >
+        <t
+          label="Token"
+          testID="form--element"
+        >
+          <Dropdown
+            buttonColor="primary"
+            buttonSize="sm"
+            buttonTestID="dropdown-button"
+            maxMenuHeight={250}
+            menuColor="sapphire"
+            menuPosition="below"
+            mode="radio"
+            onChange={[MockFunction]}
+            status="default"
+            testID="dropdown"
+            titleText=""
+            wrapMenuText={false}
+          />
+        </t>
+      </t>
     </t>
   </t>
 </t>

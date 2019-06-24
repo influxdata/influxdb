@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {LogEvent, ITask as Task} from '@influxdata/influx'
+import {LogEvent, ITask as Task, Authorization} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -12,8 +12,6 @@ import {
   taskDeleteFailed,
   taskNotFound,
   taskUpdateFailed,
-  taskImportFailed,
-  taskImportSuccess,
   taskUpdateSuccess,
   taskCreatedSuccess,
   taskDeleteSuccess,
@@ -46,6 +44,7 @@ import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
+import {getAuthorization} from 'src/authorizations/actions'
 
 export type Action =
   | SetNewScript
@@ -63,6 +62,7 @@ export type Action =
   | SetLogs
   | UpdateTask
   | SetTaskStatus
+  | SetTaskToken
 
 type GetStateFunc = () => AppState
 
@@ -163,6 +163,12 @@ export interface UpdateTask {
     task: Task
   }
 }
+export interface SetTaskToken {
+  type: 'SET_TASK_TOKEN'
+  payload: {
+    token: Authorization
+  }
+}
 
 export const setTaskOption = (taskOption: {
   key: TaskOptionKeys
@@ -229,6 +235,11 @@ export const setLogs = (logs: LogEvent[]): SetLogs => ({
 export const updateTask = (task: Task): UpdateTask => ({
   type: 'UPDATE_TASK',
   payload: {task},
+})
+
+export const setTaskToken = (token: Authorization): SetTaskToken => ({
+  type: 'SET_TASK_TOKEN',
+  payload: {token},
 })
 
 // Thunks
@@ -345,7 +356,8 @@ export const selectTaskByID = (id: string) => async (
 ): Promise<void> => {
   try {
     const task = await client.tasks.get(id)
-
+    const token = await getAuthorization(task.authorizationID)
+    dispatch(setTaskToken(token))
     dispatch(setCurrentTask(task))
   } catch (e) {
     console.error(e)
@@ -411,18 +423,18 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   }
 }
 
-export const saveNewScript = (script: string, preamble: string) => async (
-  dispatch,
-  getState: GetStateFunc
-): Promise<void> => {
+export const saveNewScript = (
+  script: string,
+  preamble: string,
+  token: string
+) => async (dispatch, getState: GetStateFunc): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
 
     const {
       orgs: {org},
     } = getState()
-
-    await client.tasks.createByOrgID(org.id, fluxScript, null)
+    await client.tasks.createByOrgID(org.id, fluxScript, token)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -438,32 +450,6 @@ export const saveNewScript = (script: string, preamble: string) => async (
       const message = getErrorMessage(error)
       dispatch(notify(taskNotCreated(message)))
     }
-  }
-}
-
-export const importTask = (script: string) => async (
-  dispatch,
-  getState: GetStateFunc
-): Promise<void> => {
-  try {
-    if (_.isEmpty(script)) {
-      dispatch(notify(taskImportFailed('File is empty')))
-      return
-    }
-
-    const {
-      orgs: {org},
-    } = await getState()
-
-    await client.tasks.createByOrgID(org.id, script, null)
-
-    dispatch(getTasks())
-
-    dispatch(notify(taskImportSuccess()))
-  } catch (error) {
-    console.error(error)
-    const message = getErrorMessage(error)
-    dispatch(notify(taskImportFailed(message)))
   }
 }
 

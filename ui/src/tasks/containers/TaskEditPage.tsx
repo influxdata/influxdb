@@ -19,6 +19,7 @@ import {
   setTaskOption,
   clearTask,
   setAllTaskOptions,
+  setTaskToken,
 } from 'src/tasks/actions'
 
 // Types
@@ -27,7 +28,10 @@ import {
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {AppState, Task} from 'src/types'
+import {AppState, Task, RemoteDataState} from 'src/types'
+import {Authorization} from '@influxdata/influx'
+import {getAuthorizations} from 'src/authorizations/actions'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -38,6 +42,9 @@ interface ConnectStateProps {
   taskOptions: TaskOptions
   currentTask: Task
   currentScript: string
+  tokens: Authorization[]
+  tokenStatus: RemoteDataState
+  selectedToken: Authorization
 }
 
 interface ConnectDispatchProps {
@@ -48,6 +55,8 @@ interface ConnectDispatchProps {
   selectTaskByID: typeof selectTaskByID
   clearTask: typeof clearTask
   setAllTaskOptions: typeof setAllTaskOptions
+  getTokens: typeof getAuthorizations
+  setTaskToken: typeof setTaskToken
 }
 
 class TaskEditPage extends PureComponent<
@@ -66,6 +75,10 @@ class TaskEditPage extends PureComponent<
     const {currentTask} = this.props
 
     this.props.setAllTaskOptions(currentTask)
+
+    const {selectedToken, getTokens} = this.props
+    this.props.setTaskToken(selectedToken)
+    await getTokens()
   }
 
   public componentWillUnmount() {
@@ -73,7 +86,13 @@ class TaskEditPage extends PureComponent<
   }
 
   public render(): JSX.Element {
-    const {currentScript, taskOptions} = this.props
+    const {
+      currentScript,
+      taskOptions,
+      tokens,
+      tokenStatus,
+      selectedToken,
+    } = this.props
 
     return (
       <Page titleTag={`Edit ${taskOptions.name}`}>
@@ -86,12 +105,20 @@ class TaskEditPage extends PureComponent<
         <Page.Contents fullWidth={true} scrollable={false}>
           <div className="task-form">
             <div className="task-form--options">
-              <TaskForm
-                canSubmit={this.isFormValid}
-                taskOptions={taskOptions}
-                onChangeInput={this.handleChangeInput}
-                onChangeScheduleType={this.handleChangeScheduleType}
-              />
+              <SpinnerContainer
+                loading={tokenStatus}
+                spinnerComponent={<TechnoSpinner />}
+              >
+                <TaskForm
+                  canSubmit={this.isFormValid}
+                  taskOptions={taskOptions}
+                  onChangeInput={this.handleChangeInput}
+                  onChangeScheduleType={this.handleChangeScheduleType}
+                  tokens={tokens}
+                  selectedToken={selectedToken}
+                  onTokenChange={this.handleTokenChange}
+                />
+              </SpinnerContainer>
             </div>
             <div className="task-form--editor">
               <FluxEditor
@@ -139,13 +166,19 @@ class TaskEditPage extends PureComponent<
 
     this.props.setTaskOption({key, value})
   }
+  private handleTokenChange = (selectedToken: Authorization) => {
+    this.props.setTaskToken(selectedToken)
+  }
 }
 
-const mstp = ({tasks}: AppState): ConnectStateProps => {
+const mstp = ({tasks, tokens}: AppState): ConnectStateProps => {
   return {
     taskOptions: tasks.taskOptions,
     currentScript: tasks.currentScript,
     currentTask: tasks.currentTask,
+    tokens: tokens.list,
+    tokenStatus: tokens.status,
+    selectedToken: tasks.taskToken,
   }
 }
 
@@ -157,6 +190,8 @@ const mdtp: ConnectDispatchProps = {
   selectTaskByID,
   setAllTaskOptions,
   clearTask,
+  getTokens: getAuthorizations,
+  setTaskToken,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
