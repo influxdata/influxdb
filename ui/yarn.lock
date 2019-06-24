@@ -748,10 +748,10 @@
     react-scrollbars-custom "^4.0.0-alpha.10"
     storybook-addon-jsx "^7.1.0"
 
-"@influxdata/giraffe@0.12.1":
-  version "0.12.1"
-  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.12.1.tgz#3c6af1d09e1a2b8bfceb1f9ee5c1e963bfc907bc"
-  integrity sha512-RyNMy5zg6vGYcPrNCZs4B75lvFxUG86goXDGyDinIwjGYIpnCcbCEim9pbxjFcz2U6EqLHnAq5un66Ji+boyXQ==
+"@influxdata/giraffe@0.12.2":
+  version "0.12.2"
+  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.12.2.tgz#e5b14f4d3448a7ea0c41e6d604c5cc264a6daeb8"
+  integrity sha512-gZeHNefuc5dkkzwGHnFBfxkexKJbt3dMqReIjwoR037cv2K9t/eF7jmuZaLvgEdD4+AQLXWtrAKyftJ3q+vHDg==
   dependencies:
     d3-array "^2.0.3"
     d3-color "^1.2.3"
@@ -763,14 +763,14 @@
     memoize-one "^5.0.2"
     react-virtualized-auto-sizer "^1.0.2"
 
-"@influxdata/influx@0.3.5":
-  version "0.3.5"
-  resolved "https://registry.yarnpkg.com/@influxdata/influx/-/influx-0.3.5.tgz#1eaf63d660a27968422dde29168b2fa98be158aa"
-  integrity sha512-D2sCbBBGAkEtWyOibfiCCLT2qnmUoeME7GSrMJ3yyuxM/YtY+/gGmDZGIih3OTQld+VvDMgD78yWb66nk4GPVA==
+"@influxdata/influx@0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/influx/-/influx-0.4.0.tgz#8ca2a8696134d2a9c326b600dcebfacc95c63473"
+  integrity sha512-zNtqrjP/FmtrzxUPC3erRtIxJjuQPLhEc1w/dVKsgL4nkS+NsfEnZ1M2dMDWp0qrirS1JZir0ejFod1MuwenbA==
   dependencies:
     axios "^0.19.0"
 
-"@influxdata/influxdb-templates@influxdata/influxdb-templates":
+"@influxdata/influxdb-templates@0.2.0":
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.2.0.tgz#80218a8ee74bf125add8cea87a89e6638346102b"
   integrity sha512-+9II5hrL3vjv0XCEmR2YdqZXYP8q7klnIqF+vHkWdS2ns9V1yC8e2tNAuXnbhYN4AtO7kYJx27yifzCvlfMzKw==

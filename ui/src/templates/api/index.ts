@@ -240,7 +240,7 @@ export const createTaskFromTemplate = async (
 
   const flux = content.data.attributes.flux
 
-  const createdTask = await client.tasks.createByOrgID(orgID, flux)
+  const createdTask = await client.tasks.createByOrgID(orgID, flux, null)
 
   if (!createdTask || !createdTask.id) {
     throw new Error('Could not create task')

@@ -422,7 +422,7 @@ export const saveNewScript = (script: string, preamble: string) => async (
       orgs: {org},
     } = getState()
 
-    await client.tasks.createByOrgID(org.id, fluxScript)
+    await client.tasks.createByOrgID(org.id, fluxScript, null)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())
@@ -455,7 +455,7 @@ export const importTask = (script: string) => async (
       orgs: {org},
     } = await getState()
 
-    await client.tasks.createByOrgID(org.id, script)
+    await client.tasks.createByOrgID(org.id, script, null)
 
     dispatch(getTasks())
 
