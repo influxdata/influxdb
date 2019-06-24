@@ -13,8 +13,8 @@ import {
   geomToInterpolation,
   filterNoisyColumns,
   parseBounds,
-  chooseXColumn,
-  chooseYColumn,
+  defaultXColumn,
+  defaultYColumn,
 } from 'src/shared/utils/vis'
 
 // Constants
@@ -59,8 +59,8 @@ const XYContainer: FunctionComponent<Props> = ({
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
   const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
 
-  const xColumn = storedXColumn || chooseXColumn(table)
-  const yColumn = storedYColumn || chooseYColumn(table)
+  const xColumn = storedXColumn || defaultXColumn(table)
+  const yColumn = storedYColumn || defaultYColumn(table)
 
   const columnKeys = table.columnKeys
 

@@ -8,7 +8,11 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 
 // Utils
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
-import {getFormatter, chooseXColumn, chooseYColumn} from 'src/shared/utils/vis'
+import {
+  getFormatter,
+  defaultXColumn,
+  defaultYColumn,
+} from 'src/shared/utils/vis'
 
 // Constants
 import {VIS_THEME} from 'src/shared/constants'
@@ -47,8 +51,8 @@ const ScatterContainer: FunctionComponent<Props> = ({
   const fillColumns = storedFill || []
   const symbolColumns = storedSymbol || []
 
-  const xColumn = storedXColumn || chooseXColumn(table)
-  const yColumn = storedYColumn || chooseYColumn(table)
+  const xColumn = storedXColumn || defaultXColumn(table)
+  const yColumn = storedYColumn || defaultYColumn(table)
 
   const columnKeys = table.columnKeys
 
