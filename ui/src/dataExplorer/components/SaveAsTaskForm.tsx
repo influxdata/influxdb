@@ -75,7 +75,9 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 
     setNewScript(this.activeScript)
     await this.props.getTokens()
-    this.props.setTaskToken(this.props.tokens[0])
+    if (this.props.tokens.length > 0) {
+      this.props.setTaskToken(this.props.tokens[0])
+    }
   }
 
   public componentWillUnmount() {

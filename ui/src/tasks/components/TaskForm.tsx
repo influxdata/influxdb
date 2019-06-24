@@ -28,7 +28,7 @@ import {
 } from '@influxdata/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {Authorization} from '@influxdata/influx'
-import {Dropdown} from 'src/clockface'
+import TaskTokenDropdown from './TaskTokenDropdown'
 
 interface Props {
   taskOptions: TaskOptions
@@ -78,6 +78,9 @@ export default class TaskForm extends PureComponent<Props, State> {
         toBucketName,
       },
       isInOverlay,
+      tokens,
+      onTokenChange,
+      selectedToken,
     } = this.props
 
     return (
@@ -133,7 +136,13 @@ export default class TaskForm extends PureComponent<Props, State> {
               cron={cron}
             />
             <Grid.Column widthXS={Columns.Twelve}>
-              <Form.Element label="Token">{this.tokenDropdown}</Form.Element>
+              <Form.Element label="Token">
+                <TaskTokenDropdown
+                  tokens={tokens}
+                  onTokenChange={onTokenChange}
+                  selectedToken={selectedToken}
+                />
+              </Form.Element>
             </Grid.Column>
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Six}>
@@ -151,24 +160,6 @@ export default class TaskForm extends PureComponent<Props, State> {
           </Grid.Row>
         </Grid>
       </Form>
-    )
-  }
-  private get tokenDropdown(): JSX.Element {
-    const {tokens, selectedToken, onTokenChange} = this.props
-
-    return (
-      <Dropdown
-        selectedID={selectedToken.id}
-        buttonColor={ComponentColor.Primary}
-        buttonSize={ComponentSize.Small}
-        onChange={onTokenChange}
-      >
-        {tokens.map(t => (
-          <Dropdown.Item id={t.id} key={t.id} value={t}>
-            {t.description}
-          </Dropdown.Item>
-        ))}
-      </Dropdown>
     )
   }
 
