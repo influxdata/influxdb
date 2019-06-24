@@ -9,11 +9,13 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
+	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
 )
 
@@ -187,7 +189,67 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 }
 
 func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
-	return nil, errors.New("implement me")
+	if req.TagsSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := GetReadSource(*req.TagsSource)
+	if err != nil {
+		return nil, err
+	}
+
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	if err != nil {
+		return nil, err
+	}
+
+	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
+		return nil, nil
+	}
+
+	var expr influxql.Expr
+	if root := req.Predicate.GetRoot(); root != nil {
+		var err error
+		expr, err = reads.NodeToExpr(root, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(expr); found {
+			return nil, errors.New("field values unsupported")
+		}
+		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		if reads.IsTrueBooleanLiteral(expr) {
+			expr = nil
+		}
+	}
+
+	auth := query.OpenAuthorizer
+	keys, err := s.TSDBStore.TagKeys(auth, shardIDs, expr)
+	if err != nil {
+		return nil, err
+	}
+
+	m := map[string]bool{
+		"_measurement": true,
+		"_field":       true,
+	}
+	for _, ks := range keys {
+		for _, k := range ks.Keys {
+			m[k] = true
+		}
+	}
+
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return cursors.NewStringSliceIterator(names), nil
 }
 
 func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
