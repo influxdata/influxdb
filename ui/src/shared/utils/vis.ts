@@ -105,32 +105,94 @@ export const extent = (xs: number[]): [number, number] | null => {
   return [low, high]
 }
 
-export const chooseXColumn = (table: Table): string | null => {
-  const columnKeys = new Set(table.columnKeys)
+export const checkResultsLength = (giraffeResult: FromFluxResult): boolean => {
+  return get(giraffeResult, 'table.length', 0) > 0
+}
 
-  if (columnKeys.has('_time')) {
-    return '_time'
+export const getNumericColumns = (table: Table): string[] => {
+  const numericColumnKeys = table.columnKeys.filter(k => {
+    if (k === 'result' || k === 'table') {
+      return false
+    }
+
+    const columnType = table.getColumnType(k)
+
+    return columnType === 'time' || columnType === 'number'
+  })
+
+  return numericColumnKeys
+}
+
+export const getGroupableColumns = (table: Table): string[] => {
+  const invalidGroupColumns = new Set(['_value', '_time', 'table'])
+  const groupableColumns = table.columnKeys.filter(
+    name => !invalidGroupColumns.has(name)
+  )
+
+  return groupableColumns
+}
+
+/*
+  Previously we would automatically select an x and y column setting for an
+  `XYView` based on the current Flux response.  We then added support for an
+  explicit x and y column setting by adding `xColumn` and `yColumn` fields to
+  the `XYView`.
+  
+  We did not migrate existing views when adding the fields, so the fields are
+  considered optional. Thus to resolve the correct x and y column selections
+  for an `XYView`, we need to:
+
+  1. Use the `xColumn` and `yColumn` fields if they exist
+  2. Fall back to automatically selecting and x and y column if not
+
+  A `null` result from this function indicates that no valid selection could be
+  made.
+*/
+export const defaultXColumn = (
+  table: Table,
+  preferredColumnKey?: string
+): string | null => {
+  const validColumnKeys = getNumericColumns(table)
+
+  if (validColumnKeys.includes(preferredColumnKey)) {
+    return preferredColumnKey
   }
 
-  if (columnKeys.has('_stop')) {
-    return '_stop'
+  for (const key of ['_time', '_stop', '_start']) {
+    if (validColumnKeys.includes(key)) {
+      return key
+    }
   }
 
-  if (columnKeys.has('_start')) {
-    return '_start'
+  if (validColumnKeys.length) {
+    return validColumnKeys[0]
   }
 
   return null
 }
 
-export const chooseYColumn = (table: Table): string | null => {
-  return table.columnKeys.find(
-    k =>
-      k.startsWith('_value') &&
-      (table.getColumnType(k) === 'number' || table.getColumnType(k) === 'time')
-  )
-}
+/*
+  See `defaultXColumn`.
+*/
+export const defaultYColumn = (
+  table: Table,
+  preferredColumnKey?: string
+): string | null => {
+  const validColumnKeys = getNumericColumns(table)
 
-export const checkResultsLength = (giraffeResult: FromFluxResult): boolean => {
-  return get(giraffeResult, 'table.length', 0) > 0
+  if (validColumnKeys.includes(preferredColumnKey)) {
+    return preferredColumnKey
+  }
+
+  for (const key of validColumnKeys) {
+    if (key.startsWith('_value')) {
+      return key
+    }
+  }
+
+  if (validColumnKeys.length) {
+    return validColumnKeys[0]
+  }
+
+  return null
 }

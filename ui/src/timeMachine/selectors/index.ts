@@ -5,7 +5,12 @@ import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
-import {chooseYColumn, chooseXColumn} from 'src/shared/utils/vis'
+import {
+  defaultXColumn,
+  defaultYColumn,
+  getNumericColumns as getNumericColumnsUtil,
+  getGroupableColumns as getGroupableColumnsUtil,
+} from 'src/shared/utils/vis'
 
 // Types
 import {
@@ -47,23 +52,7 @@ export const getVisTable = (
   return {table, fluxGroupKeyUnion}
 }
 
-const getNumericColumnsMemoized = memoizeOne(
-  (table: Table): string[] => {
-    const columnKeys = table.columnKeys
-    return columnKeys.reduce((numericColumns, key) => {
-      const columnType = table.getColumnType(key)
-      const columnName = table.getColumnName(key)
-      if (
-        (columnType === 'number' || columnType === 'time') &&
-        columnName !== 'result' &&
-        columnName !== 'table'
-      ) {
-        numericColumns.push(columnName)
-      }
-      return numericColumns
-    }, [])
-  }
-)
+const getNumericColumnsMemoized = memoizeOne(getNumericColumnsUtil)
 
 export const getNumericColumns = (state: AppState): string[] => {
   const {table} = getVisTable(state)
@@ -71,16 +60,7 @@ export const getNumericColumns = (state: AppState): string[] => {
   return getNumericColumnsMemoized(table)
 }
 
-const getGroupableColumnsMemoized = memoizeOne(
-  (table: Table): string[] => {
-    const invalidGroupColumns = new Set(['_value', '_time', 'table'])
-    const groupableColumns = table.columnKeys.filter(
-      name => !invalidGroupColumns.has(name)
-    )
-
-    return groupableColumns
-  }
-)
+const getGroupableColumnsMemoized = memoizeOne(getGroupableColumnsUtil)
 
 export const getGroupableColumns = (state: AppState): string[] => {
   const {table} = getVisTable(state)
@@ -88,51 +68,24 @@ export const getGroupableColumns = (state: AppState): string[] => {
   return getGroupableColumnsMemoized(table)
 }
 
-const selectXYColumn = (
-  validColumns: string[],
-  preference: string,
-  defaultSelection: string
-): string => {
-  if (preference && validColumns.includes(preference)) {
-    return preference
-  }
-
-  return defaultSelection
-}
-
-const getXColumnSelectionMemoized = memoizeOne(selectXYColumn)
-
-const getYColumnSelectionMemoized = memoizeOne(selectXYColumn)
-
 export const getXColumnSelection = (state: AppState): string => {
-  const validXColumns = getNumericColumns(state)
-
-  const preference = get(getActiveTimeMachine(state), 'view.properties.xColumn')
-
   const {table} = getVisTable(state)
-  const defaultSelection = chooseXColumn(table)
-
-  return getXColumnSelectionMemoized(
-    validXColumns,
-    preference,
-    defaultSelection
+  const preferredXColumnKey = get(
+    getActiveTimeMachine(state),
+    'view.properties.xColumn'
   )
+
+  return defaultXColumn(table, preferredXColumnKey)
 }
 
 export const getYColumnSelection = (state: AppState): string => {
-  const validYColumns = getNumericColumns(state)
-
-  const preference = get(getActiveTimeMachine(state), 'view.properties.yColumn')
-
   const {table} = getVisTable(state)
-
-  const defaultSelection = chooseYColumn(table)
-
-  return getYColumnSelectionMemoized(
-    validYColumns,
-    preference,
-    defaultSelection
+  const preferredYColumnKey = get(
+    getActiveTimeMachine(state),
+    'view.properties.yColumn'
   )
+
+  return defaultYColumn(table, preferredYColumnKey)
 }
 
 const getGroupableColumnSelection = (
