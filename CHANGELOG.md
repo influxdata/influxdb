@@ -14,6 +14,7 @@
 ### Features
 
 1. [14130](https://github.com/influxdata/influxdb/pull/14130): Add static templates for system, docker, redis, kubernetes
+1. [14189] (https://github.com/influxdata/influxdb/pull/14189): Add option to select a token when creating a task
 
 ## v2.0.0-alpha.12 [2019-06-13]
 

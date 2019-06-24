@@ -97,19 +97,10 @@ exports[`TaskForm rendering renders 1`] = `
           label="Token"
           testID="form--element"
         >
-          <Dropdown
-            buttonColor="primary"
-            buttonSize="sm"
-            buttonTestID="dropdown-button"
-            maxMenuHeight={250}
-            menuColor="sapphire"
-            menuPosition="below"
-            mode="radio"
-            onChange={[MockFunction]}
-            status="default"
-            testID="dropdown"
-            titleText=""
-            wrapMenuText={false}
+          <TaskTokenDropdown
+            onTokenChange={[MockFunction]}
+            selectedToken=""
+            tokens={Array []}
           />
         </t>
       </t>
