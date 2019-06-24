@@ -228,6 +228,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 		}
 	}
 
+	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
 	keys, err := s.TSDBStore.TagKeys(auth, shardIDs, expr)
 	if err != nil {
@@ -253,7 +254,86 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 }
 
 func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
-	return nil, errors.New("implement me")
+	if req.TagsSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := GetReadSource(*req.TagsSource)
+	if err != nil {
+		return nil, err
+	}
+
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	if err != nil {
+		return nil, err
+	}
+
+	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
+		return nil, nil
+	}
+
+	var expr influxql.Expr
+	if root := req.Predicate.GetRoot(); root != nil {
+		var err error
+		expr, err = reads.NodeToExpr(root, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(expr); found {
+			return nil, errors.New("field values unsupported")
+		}
+		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		if reads.IsTrueBooleanLiteral(expr) {
+			expr = nil
+		}
+	}
+
+	tagKeyExpr := &influxql.BinaryExpr{
+		Op: influxql.EQ,
+		LHS: &influxql.VarRef{
+			Val: "_tagKey",
+		},
+		RHS: &influxql.StringLiteral{
+			Val: req.TagKey,
+		},
+	}
+	if expr != nil {
+		expr = &influxql.BinaryExpr{
+			Op:  influxql.AND,
+			LHS: tagKeyExpr,
+			RHS: &influxql.ParenExpr{
+				Expr: expr,
+			},
+		}
+	} else {
+		expr = tagKeyExpr
+	}
+
+	// TODO(jsternberg): Use a real authorizer.
+	auth := query.OpenAuthorizer
+	values, err := s.TSDBStore.TagValues(auth, shardIDs, expr)
+	if err != nil {
+		return nil, err
+	}
+
+	m := make(map[string]struct{})
+	for _, kvs := range values {
+		for _, kv := range kvs.Values {
+			m[kv.Value] = struct{}{}
+		}
+	}
+
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return cursors.NewStringSliceIterator(names), nil
 }
 
 func (s *Store) GetSource(db, rp string) proto.Message {
