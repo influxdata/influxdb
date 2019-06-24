@@ -12,8 +12,8 @@ interface Props {
   suffix: string
   onUpdatePrefix: (prefix: string) => void
   onUpdateSuffix: (suffix: string) => void
-  testIDsuffix?: string,
-  testIDprefix?: string,
+  testIDsuffix?: string
+  testIDprefix?: string
 }
 
 class Affixes extends PureComponent<Props> {
@@ -28,7 +28,7 @@ class Affixes extends PureComponent<Props> {
               value={prefix}
               onChange={this.handleUpdatePrefix}
               placeholder="%, MPH, etc."
-              testID={testIDprefix || "input--prefix"}
+              testID={testIDprefix || 'input--prefix'}
             />
           </Form.Element>
         </Grid.Column>
@@ -38,7 +38,7 @@ class Affixes extends PureComponent<Props> {
               value={suffix}
               onChange={this.handleUpdateSuffix}
               placeholder="%, MPH, etc."
-              testID={testIDsuffix || "input--suffix"}
+              testID={testIDsuffix || 'input--suffix'}
             />
           </Form.Element>
         </Grid.Column>

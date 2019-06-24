@@ -57,7 +57,7 @@ class ThresholdColoring extends PureComponent<Props> {
             active={this.activeSetting === ThresholdColoringSetting.Text}
             onClick={this.handleClick}
             value={ThresholdColoringSetting.Text}
-            testID={"radio--threshold-color-text"}
+            testID="radio--threshold-color-text"
           >
             Text
           </Radio.Button>

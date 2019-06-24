@@ -81,7 +81,6 @@ class Threshold extends PureComponent<Props, State> {
           disabled={disableColor}
           stretchToFit={isBase}
           widthPixels={this.dropdownWidthPixels}
-
         />
         {isDeletable && !isBase && (
           <SquareButton

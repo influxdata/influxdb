@@ -93,7 +93,7 @@ export default class AutoInput extends Component<Props, State> {
             onKeyPress={this.handleInputKeyPress}
             onBlur={this.emitValue}
             autoFocus={true}
-            testID={inputTestID || "autoinput-text"}
+            testID={inputTestID || 'autoinput-text'}
           />
         </div>
       )
