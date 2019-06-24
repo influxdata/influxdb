@@ -282,15 +282,14 @@ class Gauge extends Component<Props> {
     const {prefix, suffix, decimalPlaces} = this.props
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
-    const incrementValue = (maxValue - minValue) / lineCount
+    const tickValues = [
+      ..._.range(minValue, maxValue, Math.abs(maxValue - minValue) / lineCount),
+      maxValue,
+    ]
 
-    const labels = []
-    for (let g = minValue; g < maxValue; g += incrementValue) {
-      const valueString = formatStatValue(g, {decimalPlaces, prefix, suffix})
-      labels.push(valueString)
-    }
-
-    labels.push(formatStatValue(maxValue, {decimalPlaces, prefix, suffix}))
+    const labels = tickValues.map(tick =>
+      formatStatValue(tick, {decimalPlaces, prefix, suffix})
+    )
 
     const startDegree = degree * 135
     const arcLength = Math.PI * 1.5
@@ -349,10 +348,18 @@ class Gauge extends Component<Props> {
 
   private drawNeedle = (ctx, radius, minValue, maxValue) => {
     const {gaugePosition} = this.props
-    const {degree, needleColor0, needleColor1} = GAUGE_SPECS
+    const {degree, needleColor0, needleColor1, overflowDelta} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
-    const needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    let needleRotation: number
+
+    if (gaugePosition <= minValue) {
+      needleRotation = 0 - overflowDelta
+    } else if (gaugePosition >= maxValue) {
+      needleRotation = 1 + overflowDelta
+    } else {
+      needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    }
 
     const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
     needleGradient.addColorStop(0, needleColor0)
