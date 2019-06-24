@@ -1,5 +1,5 @@
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {LogEvent} from '@influxdata/influx'
+import {LogEvent, Authorization} from '@influxdata/influx'
 
 //Types
 import {Action} from 'src/tasks/actions'
@@ -19,6 +19,7 @@ export interface TasksState {
   runs: Run[]
   runStatus: RemoteDataState
   logs: LogEvent[]
+  taskToken: Authorization
 }
 
 export const defaultTaskOptions: TaskOptions = {
@@ -44,6 +45,7 @@ export const defaultState: TasksState = {
   runs: [],
   runStatus: RemoteDataState.NotStarted,
   logs: [],
+  taskToken: {},
 }
 
 export default (
@@ -121,7 +123,6 @@ export default (
         currentScript = task.flux
       }
       return {...state, currentScript, currentTask: task}
-
     case 'SET_SEARCH_TERM':
       const {searchTerm} = action.payload
       return {...state, searchTerm}
@@ -139,6 +140,9 @@ export default (
     case 'SET_LOGS':
       const {logs} = action.payload
       return {...state, logs}
+    case 'SET_TASK_TOKEN':
+      const {token} = action.payload
+      return {...state, taskToken: token}
     default:
       return state
   }

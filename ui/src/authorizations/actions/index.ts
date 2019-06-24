@@ -107,6 +107,15 @@ export const getAuthorizations = () => async (
   }
 }
 
+export const getAuthorization = async (authorizationID: string) => {
+  try {
+    const authorization = await client.authorizations.get(authorizationID)
+    return authorization
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 export const createAuthorization = (auth: Authorization) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {

@@ -16,6 +16,9 @@ const setup = (override?) => {
     onChangeScheduleType: jest.fn(),
     onChangeInput: jest.fn(),
     onChangeTaskOrgID: jest.fn(),
+    tokens: [],
+    selectedToken: '',
+    onTokenChange: jest.fn(),
     ...override,
   }
 
