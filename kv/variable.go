@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 )
 
 var (
@@ -242,7 +242,9 @@ func (s *Service) CreateVariable(ctx context.Context, variable *influxdb.Variabl
 		if err := s.putVariableOrgsIndex(ctx, tx, variable); err != nil {
 			return err
 		}
-
+		now := s.Now()
+		variable.CreatedAt = now
+		variable.UpdatedAt = now
 		if pe := s.putVariable(ctx, tx, variable); pe != nil {
 			return &influxdb.Error{
 				Err: pe,
@@ -367,7 +369,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 				Err: pe,
 			}
 		}
-
+		m.UpdatedAt = s.Now()
 		if err := update.Apply(m); err != nil {
 			return &influxdb.Error{
 				Err: err,

@@ -5,12 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"path"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
+	"net/http"
+	"path"
 )
 
 const (
@@ -234,13 +233,11 @@ func newVariableResponse(m *platform.Variable, labels []*platform.Label) variabl
 	for _, l := range labels {
 		res.Labels = append(res.Labels, *l)
 	}
-
 	return res
 }
 
 func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
 	req, err := decodePostVariableRequest(ctx, r)
 	if err != nil {
 		EncodeError(ctx, err, w)
@@ -252,7 +249,6 @@ func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Requ
 		EncodeError(ctx, err, w)
 		return
 	}
-
 	if err := encodeResponse(ctx, w, http.StatusCreated, newVariableResponse(req.variable, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

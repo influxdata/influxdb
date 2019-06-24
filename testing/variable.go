@@ -5,6 +5,7 @@ import (
 	"context"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
@@ -17,6 +18,10 @@ const (
 	idC = "020f755c3c082002"
 	idD = "020f755c3c082003"
 )
+
+var oldFakeDate = time.Date(2002, 8, 5, 2, 2, 3, 0, time.UTC)
+var fakeDate = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
+var fakeGenerator = mock.TimeGenerator{FakeValue: fakeDate}
 
 var variableCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
@@ -33,8 +38,9 @@ var variableCmpOptions = cmp.Options{
 
 // VariableFields defines fields for a variable test
 type VariableFields struct {
-	Variables   []*platform.Variable
-	IDGenerator platform.IDGenerator
+	Variables     []*platform.Variable
+	IDGenerator   platform.IDGenerator
+	TimeGenerator platform.TimeGenerator
 }
 
 // VariableService tests all the service functions.
@@ -98,6 +104,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						return MustIDBase16(idD)
 					},
 				},
+				TimeGenerator: fakeGenerator,
 				Variables: []*platform.Variable{
 					{
 						ID:             MustIDBase16(idA),
@@ -133,6 +140,10 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 							Type:   "constant",
 							Values: platform.VariableConstantValues{"a"},
 						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 				},
 			},
@@ -145,6 +156,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						return MustIDBase16(idA)
 					},
 				},
+				TimeGenerator: fakeGenerator,
 				Variables: []*platform.Variable{
 					{
 						ID:             MustIDBase16(idB),
@@ -167,6 +179,10 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 					Arguments: &platform.VariableArguments{
 						Type:   "constant",
 						Values: platform.VariableConstantValues{"a"},
+					},
+					CRUDLog: platform.CRUDLog{
+						CreatedAt: fakeDate,
+						UpdatedAt: fakeDate,
 					},
 				},
 			},
@@ -191,6 +207,10 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
 							Values: platform.VariableConstantValues{"a"},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 				},
@@ -246,6 +266,10 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
 						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
@@ -254,6 +278,10 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 				},
@@ -270,6 +298,10 @@ func FindVariableByID(init func(VariableFields, *testing.T) (platform.VariableSe
 					Arguments: &platform.VariableArguments{
 						Type:   "constant",
 						Values: platform.VariableConstantValues{},
+					},
+					CRUDLog: platform.CRUDLog{
+						CreatedAt: fakeDate,
+						UpdatedAt: fakeDate,
 					},
 				},
 			},
@@ -348,11 +380,19 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 						ID:             MustIDBase16(idA),
 						OrganizationID: platform.ID(22),
 						Name:           "a",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
 						OrganizationID: platform.ID(22),
 						Name:           "b",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 				},
 			},
@@ -365,11 +405,19 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 						ID:             MustIDBase16(idA),
 						OrganizationID: platform.ID(22),
 						Name:           "a",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
 						OrganizationID: platform.ID(22),
 						Name:           "b",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 				},
 			},
@@ -382,11 +430,19 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 						ID:             MustIDBase16(idA),
 						OrganizationID: platform.ID(22),
 						Name:           "a",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
 						OrganizationID: platform.ID(22),
 						Name:           "b",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 				},
 			},
@@ -406,21 +462,37 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 						ID:             MustIDBase16(idA),
 						OrganizationID: platform.ID(1),
 						Name:           "a",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
 						OrganizationID: platform.ID(22),
 						Name:           "b",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idC),
 						OrganizationID: platform.ID(2),
 						Name:           "c",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idD),
 						OrganizationID: platform.ID(22),
 						Name:           "d",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 				},
 			},
@@ -434,11 +506,19 @@ func FindVariables(init func(VariableFields, *testing.T) (platform.VariableServi
 						ID:             MustIDBase16(idB),
 						OrganizationID: platform.ID(22),
 						Name:           "b",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idD),
 						OrganizationID: platform.ID(22),
 						Name:           "d",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: fakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 				},
 			},
@@ -486,6 +566,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 		{
 			name: "updating a variable's name",
 			fields: VariableFields{
+				TimeGenerator: fakeGenerator,
 				Variables: []*platform.Variable{
 					{
 						ID:             MustIDBase16(idA),
@@ -495,6 +576,10 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
 						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
@@ -503,6 +588,10 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 				},
@@ -524,6 +613,10 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
 						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
+						},
 					},
 					{
 						ID:             MustIDBase16(idB),
@@ -532,6 +625,10 @@ func UpdateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: fakeDate,
 						},
 					},
 				},
@@ -613,6 +710,10 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
 						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: oldFakeDate,
+						},
 					},
 				},
 			},
@@ -636,6 +737,10 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
 						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: oldFakeDate,
+						},
 					},
 				},
 			},
@@ -656,6 +761,10 @@ func DeleteVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 						Arguments: &platform.VariableArguments{
 							Type:   "constant",
 							Values: platform.VariableConstantValues{},
+						},
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: oldFakeDate,
+							UpdatedAt: oldFakeDate,
 						},
 					},
 				},

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -18,6 +19,8 @@ import (
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
 )
+
+var faketime = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
 
 // NewMockVariableBackend returns a VariableBackend with mock services.
 func NewMockVariableBackend() *VariableBackend {
@@ -63,6 +66,10 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 									Type:   "constant",
 									Values: platform.VariableConstantValues{"a", "b"},
 								},
+								CRUDLog: platform.CRUDLog{
+									CreatedAt: faketime,
+									UpdatedAt: faketime,
+								},
 							},
 							{
 								ID:             platformtesting.MustIDBase16("61726920617a696f"),
@@ -72,6 +79,10 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 								Arguments: &platform.VariableArguments{
 									Type:   "map",
 									Values: platform.VariableMapValues{"a": "b", "c": "d"},
+								},
+								CRUDLog: platform.CRUDLog{
+									CreatedAt: faketime,
+									UpdatedAt: faketime,
 								},
 							},
 						}, nil
@@ -108,6 +119,8 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 								"b"
 							 ]
 						  },
+              "createdAt": "2006-05-04T01:02:03Z",
+							"updatedAt": "2006-05-04T01:02:03Z",
 						  "description":"",
 						  "id":"6162207574726f71",
 						  "labels":[
@@ -138,6 +151,8 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 								"c":"d"
 							 }
 						  },
+              "createdAt": "2006-05-04T01:02:03Z",
+							"updatedAt": "2006-05-04T01:02:03Z",
 						  "description":"",
 						  "id":"61726920617a696f",
 						  "labels":[
@@ -204,6 +219,10 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 									Type:   "constant",
 									Values: platform.VariableConstantValues{"a", "b"},
 								},
+								CRUDLog: platform.CRUDLog{
+									CreatedAt: faketime,
+									UpdatedAt: faketime,
+								},
 							},
 						}, nil
 					},
@@ -244,7 +263,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 							"b"
 						  ]
 						},
-				        "description": "",
+		        "description": "",
 						"id": "6162207574726f71",
 						"labels": [
 						  {
@@ -264,7 +283,9 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 						"orgID": "0000000000000001",
 						"selected": [
 						  "b"
-						]
+						],
+						"createdAt": "2006-05-04T01:02:03Z",
+						"updatedAt": "2006-05-04T01:02:03Z"
 					  }
 					]
 				  }`,
@@ -348,6 +369,10 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 								Type:   "constant",
 								Values: platform.VariableConstantValues{"a", "b"},
 							},
+							CRUDLog: platform.CRUDLog{
+								CreatedAt: faketime,
+								UpdatedAt: faketime,
+							},
 						}, nil
 					},
 				},
@@ -355,8 +380,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","description":"","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
-`,
+				body:        `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"variable-a","description":"","selected":["b"],"arguments":{"type":"constant","values":["a","b"]},"createdAt":"2006-05-04T01:02:03Z","updatedAt":"2006-05-04T01:02:03Z","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}`,
 			},
 		},
 		{
@@ -430,8 +454,10 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			if contentType != tt.wants.contentType {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
-			if body != tt.wants.body {
-				t.Errorf("got = %v, want %v", body, tt.wants.body)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -463,6 +489,8 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 					CreateVariableF: func(ctx context.Context, m *platform.Variable) error {
 						m.ID = platformtesting.MustIDBase16("75650d0a636f6d70")
 						m.OrganizationID = platform.ID(1)
+						m.UpdatedAt = faketime
+						m.CreatedAt = faketime
 						return nil
 					},
 				},
@@ -481,14 +509,16 @@ func TestVariableService_handlePostVariable(t *testing.T) {
   },
   "selected": [
     "'foo'"
-  ]
+  ],
+	"createdAt": "2006-05-04T01:02:03Z",
+	"updatedAt": "2006-05-04T01:02:03Z"
 }
 `,
 			},
 			wants: wants{
 				statusCode:  201,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","description":"","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
+				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000001","name":"my-great-variable","description":"","selected":["'foo'"],"arguments":{"type":"constant","values":["bar","foo"]},"createdAt":"2006-05-04T01:02:03Z","updatedAt":"2006-05-04T01:02:03Z","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000001"}}
 `,
 			},
 		},
@@ -553,8 +583,10 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 			if contentType != tt.wants.contentType {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
-			if body != tt.wants.body {
-				t.Errorf("got = %v, want %v", body, tt.wants.body)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -594,6 +626,10 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 								Values: platform.VariableConstantValues{},
 							},
 							Selected: []string{},
+							CRUDLog: platform.CRUDLog{
+								CreatedAt: faketime,
+								UpdatedAt: faketime,
+							},
 						}, nil
 					},
 				},
@@ -605,8 +641,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			wants: wants{
 				statusCode:  200,
 				contentType: "application/json; charset=utf-8",
-				body: `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","description":"","selected":[],"arguments":{"type":"constant","values":[]},"labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000002"}}
-`,
+				body:        `{"id":"75650d0a636f6d70","orgID":"0000000000000002","name":"new-name","description":"","selected":[],"arguments":{"type":"constant","values":[]},"createdAt":"2006-05-04T01:02:03Z","updatedAt": "2006-05-04T01:02:03Z","labels":[],"links":{"self":"/api/v2/variables/75650d0a636f6d70","labels":"/api/v2/variables/75650d0a636f6d70/labels","org":"/api/v2/orgs/0000000000000002"}}`,
 			},
 		},
 		{
@@ -656,8 +691,10 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			if contentType != tt.wants.contentType {
 				t.Errorf("got = %v, want %v", contentType, tt.wants.contentType)
 			}
-			if body != tt.wants.body {
-				t.Errorf("got = %v, want %v", body, tt.wants.body)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
 		})
 	}
@@ -847,8 +884,13 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 
 func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
 	t.Helper()
+
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
+	svc.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		svc.TimeGenerator = platform.RealTimeGenerator{}
+	}
 
 	ctx := context.Background()
 	for _, variable := range f.Variables {
