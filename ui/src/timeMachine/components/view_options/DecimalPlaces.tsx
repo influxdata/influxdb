@@ -10,7 +10,6 @@ import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
 
 // Types
 import {DecimalPlaces} from 'src/types'
-import {Columns} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -27,7 +26,7 @@ class DecimalPlacesOption extends PureComponent<Props> {
 
   public render() {
     return (
-      <Grid.Column widthXS={Columns.Six}>
+      <Grid.Column>
         <Form.Element label="Decimal Places">
           <AutoInput
             name="decimal-places"

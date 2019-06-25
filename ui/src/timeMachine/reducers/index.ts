@@ -13,6 +13,10 @@ import {
   DE_TIME_MACHINE_ID,
 } from 'src/timeMachine/constants'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import {
+  THRESHOLD_TYPE_TEXT,
+  THRESHOLD_TYPE_BG,
+} from 'src/shared/constants/thresholds'
 
 // Types
 import {TimeRange, View, AutoRefresh} from 'src/types'
@@ -451,7 +455,7 @@ export const timeMachineReducer = (
         if (color.type !== 'scale') {
           return {
             ...color,
-            type: 'background',
+            type: THRESHOLD_TYPE_BG,
           }
         }
 
@@ -468,7 +472,7 @@ export const timeMachineReducer = (
         if (color.type !== 'scale') {
           return {
             ...color,
-            type: 'text',
+            type: THRESHOLD_TYPE_TEXT,
           }
         }
         return color
