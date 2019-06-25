@@ -1082,7 +1082,7 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 	}
 
 	ctx := context.Background()
-	rs, err := h.Store.Read(ctx, readRequest)
+	rs, err := h.Store.ReadFilter(ctx, readRequest)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -1244,8 +1244,8 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
 	var q string
 	switch c := compiler.(type) {
-	case lang.SpecCompiler:
-		q = fmt.Sprint(flux.Formatted(c.Spec))
+	//case lang.SpecCompiler:
+	//	q = fmt.Sprint(flux.Formatted(c.Spec))
 	case lang.FluxCompiler:
 		q = c.Query
 	}
@@ -1796,7 +1796,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
-	Read(ctx context.Context, req *datatypes.ReadRequest) (reads.ResultSet, error)
+	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
 }
 
 // Response represents a list of statement results.
