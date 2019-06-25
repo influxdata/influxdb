@@ -328,7 +328,7 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:aa2134d82aac3421ae236540588d941da9ffde4b64162e79aa799e2d67e01596"
+  digest = "1:1271da0466e1fbeed16f7498b9f4c5855ae0bbaafea885e5307406b0edfafdcd"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
@@ -348,6 +348,7 @@
     "lang",
     "line",
     "memory",
+    "mock",
     "parser",
     "plan",
     "plan/plantest",
@@ -376,8 +377,8 @@
     "values/objects",
   ]
   pruneopts = "UT"
-  revision = "f3e351c8944d055ab7518f35616d4e1960355dae"
-  version = "v0.33.0"
+  revision = "6982ed0a676ffeb5fc78b710140764e66b679e31"
+  version = "v0.33.2"
 
 [[projects]]
   digest = "1:488639be850ddc33969609e08f783d3e9d129c7a0f6f2c4186b11475bb94c29d"
@@ -975,6 +976,7 @@
     "github.com/influxdata/flux/execute",
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/memory",
+    "github.com/influxdata/flux/mock",
     "github.com/influxdata/flux/plan",
     "github.com/influxdata/flux/plan/plantest",
     "github.com/influxdata/flux/repl",
