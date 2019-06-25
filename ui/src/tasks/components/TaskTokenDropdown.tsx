@@ -26,7 +26,7 @@ export default class TaskTokenDropdown extends PureComponent<Props> {
       >
         {tokens.map(t => (
           <Dropdown.Item id={t.id} key={t.id} value={t}>
-            {t.description}
+            {t.description || 'Name this token'}
           </Dropdown.Item>
         ))}
       </Dropdown>
