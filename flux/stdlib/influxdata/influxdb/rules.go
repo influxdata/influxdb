@@ -190,6 +190,12 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
 	// constructing our own replacement. We do not care about it
 	// at the moment though which is why it is not in the pattern.
 
+	// The tag keys mechanism doesn't know about fields so we cannot
+	// push down _field comparisons in 1.x.
+	if hasFieldExpr(fromSpec.Filter) {
+		return pn, false, nil
+	}
+
 	// The schema mutator needs to correspond to a keep call
 	// on the column specified by the keys procedure.
 	if len(keepSpec.Mutations) != 1 {
@@ -217,6 +223,20 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
 	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
+}
+
+func hasFieldExpr(expr semantic.Expression) bool {
+	hasField := false
+	v := semantic.CreateVisitor(func(node semantic.Node) {
+		switch n := node.(type) {
+		case *semantic.MemberExpression:
+			if n.Property == "_field" {
+				hasField = true
+			}
+		}
+	})
+	semantic.Walk(v, expr)
+	return hasField
 }
 
 // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
@@ -296,6 +316,9 @@ var invalidTagKeysForTagValues = []string{
 	execute.DefaultValueColLabel,
 	execute.DefaultStartColLabel,
 	execute.DefaultStopColLabel,
+	// TODO(jsternberg): There just doesn't seem to be a good way to do this
+	// in the 1.x line of the release.
+	"_field",
 }
 
 // isValidTagKeyForTagValues returns true if the given key can

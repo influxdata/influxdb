@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -214,7 +215,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	var expr influxql.Expr
 	if root := req.Predicate.GetRoot(); root != nil {
 		var err error
-		expr, err = reads.NodeToExpr(root, nil)
+		expr, err = reads.NodeToExpr(root, measurementRemap)
 		if err != nil {
 			return nil, err
 		}
@@ -236,8 +237,8 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 	}
 
 	m := map[string]bool{
-		"_measurement": true,
-		"_field":       true,
+		measurementKey: true,
+		fieldKey:       true,
 	}
 	for _, ks := range keys {
 		for _, k := range ks.Keys {
@@ -254,6 +255,16 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 }
 
 func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
+	if tagKey, ok := measurementRemap[req.TagKey]; ok {
+		switch tagKey {
+		case "_name":
+			return s.MeasurementNames(ctx, &MeasurementNamesRequest{
+				MeasurementsSource: req.TagsSource,
+				Predicate:          req.Predicate,
+			})
+		}
+	}
+
 	if req.TagsSource == nil {
 		return nil, errors.New("missing read source")
 	}
@@ -279,7 +290,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	var expr influxql.Expr
 	if root := req.Predicate.GetRoot(); root != nil {
 		var err error
-		expr, err = reads.NodeToExpr(root, nil)
+		expr, err = reads.NodeToExpr(root, measurementRemap)
 		if err != nil {
 			return nil, err
 		}
@@ -326,6 +337,64 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		for _, kv := range kvs.Values {
 			m[kv.Value] = struct{}{}
 		}
+	}
+
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return cursors.NewStringSliceIterator(names), nil
+}
+
+type MeasurementNamesRequest struct {
+	MeasurementsSource *types.Any
+	Predicate          *datatypes.Predicate
+}
+
+func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesRequest) (cursors.StringIterator, error) {
+	if req.MeasurementsSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := GetReadSource(*req.MeasurementsSource)
+	if err != nil {
+		return nil, err
+	}
+
+	database, _, _, _, err := s.validateArgs(source.Database, source.RetentionPolicy, -1, -1)
+	if err != nil {
+		return nil, err
+	}
+
+	var expr influxql.Expr
+	if root := req.Predicate.GetRoot(); root != nil {
+		var err error
+		expr, err = reads.NodeToExpr(root, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		if found := reads.HasFieldValueKey(expr); found {
+			return nil, errors.New("field values unsupported")
+		}
+		expr = influxql.Reduce(influxql.CloneExpr(expr), nil)
+		if reads.IsTrueBooleanLiteral(expr) {
+			expr = nil
+		}
+	}
+
+	// TODO(jsternberg): Use a real authorizer.
+	auth := query.OpenAuthorizer
+	values, err := s.TSDBStore.MeasurementNames(auth, database, expr)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(database, expr, values)
+
+	m := make(map[string]struct{})
+	for _, name := range values {
+		m[string(name)] = struct{}{}
 	}
 
 	names := make([]string, 0, len(m))
