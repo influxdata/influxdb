@@ -195,8 +195,7 @@ func (idx *SeriesIndex) Insert(key []byte, id tsdb.SeriesIDTyped, offset int64) 
 
 // Delete marks the series id as deleted.
 func (idx *SeriesIndex) Delete(id tsdb.SeriesID) {
-	// NOTE: WithType(0) kinda sucks here, but we know it will be masked off.
-	idx.execEntry(SeriesEntryTombstoneFlag, id.WithType(0), 0, nil)
+	idx.execEntry(SeriesEntryTombstoneFlag, id.WithType(models.Empty), 0, nil)
 }
 
 // IsDeleted returns true if series id has been deleted.
