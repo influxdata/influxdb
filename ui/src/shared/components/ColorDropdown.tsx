@@ -38,6 +38,7 @@ const ColorDropdown: SFC<Props> = props => {
 
   return (
     <Dropdown
+      customClass="color-dropdown"
       selectedID={selected.name}
       onChange={onChoose}
       status={status}
