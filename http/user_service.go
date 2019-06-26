@@ -188,17 +188,9 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch s := a.(type) {
-	case *influxdb.Session:
-		if err := encodeResponse(ctx, w, http.StatusOK, newUserResponseFromSession(user, s)); err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
-	case *influxdb.Authorization:
-		if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(user)); err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
+	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(user)); err != nil {
+		EncodeError(ctx, err, w)
+		return
 	}
 }
 
@@ -330,18 +322,6 @@ func newUserResponse(u *influxdb.User) *userResponse {
 			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
 		},
 		User: *u,
-	}
-}
-
-type userResponseFromSession struct {
-	*userResponse
-	OAuthID string `json:"oauthID,omitempty"`
-}
-
-func newUserResponseFromSession(u *influxdb.User, s *influxdb.Session) *userResponseFromSession {
-	return &userResponseFromSession{
-		userResponse: newUserResponse(u),
-		OAuthID:      s.OAuthID,
 	}
 }
 
