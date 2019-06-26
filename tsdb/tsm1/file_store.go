@@ -1438,6 +1438,11 @@ func (c *KeyCursor) seekDescending(t int64) {
 	}
 }
 
+// seekN returns the number of seek locations.
+func (c *KeyCursor) seekN() int {
+	return len(c.seeks)
+}
+
 // Next moves the cursor to the next position.
 // Data should be read by the ReadBlock functions.
 func (c *KeyCursor) Next() {

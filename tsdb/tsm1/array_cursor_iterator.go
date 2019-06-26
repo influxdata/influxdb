@@ -39,6 +39,8 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 		return nil, nil
 	}
 
+	q.e.readTracker.AddCursors(1)
+
 	if grp := metrics.GroupFromContext(ctx); grp != nil {
 		grp.GetCounter(numberOfRefCursorsCounter).Add(1)
 	}

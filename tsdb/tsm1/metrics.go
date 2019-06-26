@@ -35,6 +35,7 @@ const namespace = "storage"
 const compactionSubsystem = "compactions" // sub-system associated with metrics for compactions.
 const fileStoreSubsystem = "tsm_files"    // sub-system associated with metrics for TSM files.
 const cacheSubsystem = "cache"            // sub-system associated with metrics for the cache.
+const readSubsystem = "reads"             // sub-system associated with metrics for reads.
 
 // blockMetrics are a set of metrics concerned with tracking data about block storage.
 type blockMetrics struct {
@@ -42,6 +43,7 @@ type blockMetrics struct {
 	*compactionMetrics
 	*fileMetrics
 	*cacheMetrics
+	*readMetrics
 }
 
 // newBlockMetrics initialises the prometheus metrics for the block subsystem.
@@ -51,6 +53,7 @@ func newBlockMetrics(labels prometheus.Labels) *blockMetrics {
 		compactionMetrics: newCompactionMetrics(labels),
 		fileMetrics:       newFileMetrics(labels),
 		cacheMetrics:      newCacheMetrics(labels),
+		readMetrics:       newReadMetrics(labels),
 	}
 }
 
@@ -60,6 +63,7 @@ func (m *blockMetrics) PrometheusCollectors() []prometheus.Collector {
 	metrics = append(metrics, m.compactionMetrics.PrometheusCollectors()...)
 	metrics = append(metrics, m.fileMetrics.PrometheusCollectors()...)
 	metrics = append(metrics, m.cacheMetrics.PrometheusCollectors()...)
+	metrics = append(metrics, m.readMetrics.PrometheusCollectors()...)
 	return metrics
 }
 
@@ -243,5 +247,43 @@ func (m *cacheMetrics) PrometheusCollectors() []prometheus.Collector {
 		m.SnapshottedBytes,
 		m.WrittenBytes,
 		m.Writes,
+	}
+}
+
+// readMetrics are a set of metrics concerned with tracking data engine reads.
+type readMetrics struct {
+	Cursors *prometheus.CounterVec
+	Seeks   *prometheus.CounterVec
+}
+
+// newReadMetrics initialises the prometheus metrics for tracking reads.
+func newReadMetrics(labels prometheus.Labels) *readMetrics {
+	var names []string
+	for k := range labels {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+
+	return &readMetrics{
+		Cursors: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: readSubsystem,
+			Name:      "cursors",
+			Help:      "Number of cursors created.",
+		}, names),
+		Seeks: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: readSubsystem,
+			Name:      "seek_locations",
+			Help:      "Number of tsm locations searched.",
+		}, names),
+	}
+}
+
+// PrometheusCollectors satisfies the prom.PrometheusCollector interface.
+func (m *readMetrics) PrometheusCollectors() []prometheus.Collector {
+	return []prometheus.Collector{
+		m.Cursors,
+		m.Seeks,
 	}
 }
