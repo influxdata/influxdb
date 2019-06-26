@@ -3,6 +3,8 @@ package http
 import (
 	"net/http"
 	"net/url"
+
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // Service connects to an InfluxDB via HTTP.
@@ -52,7 +54,6 @@ func NewService(addr, token string) *Service {
 	}
 }
 
-// NewURL concats addr and path.
 func NewURL(addr, path string) (*url.URL, error) {
 	u, err := url.Parse(addr)
 	if err != nil {
@@ -62,14 +63,27 @@ func NewURL(addr, path string) (*url.URL, error) {
 	return u, nil
 }
 
-// NewClient returns a pooling http.Client.
-func NewClient(scheme string, insecure bool) *http.Client {
-	hc := &http.Client{
-		Transport: defaultTransport,
+func NewClient(scheme string, insecure bool) *traceClient {
+	hc := &traceClient{
+		Client: http.Client{
+			Transport: defaultTransport,
+		},
 	}
 	if scheme == "https" && insecure {
 		hc.Transport = skipVerifyTransport
 	}
 
 	return hc
+}
+
+// traceClient always injects any opentracing trace into the client requests.
+type traceClient struct {
+	http.Client
+}
+
+// Do injects the trace and then performs the request.
+func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
+	span, _ := tracing.StartSpanFromContext(r.Context())
+	tracing.InjectToHTTPRequest(span, r)
+	return c.Client.Do(r)
 }
