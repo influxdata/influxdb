@@ -6088,6 +6088,8 @@ components:
         id:
           readOnly: true
           type: string
+        oauthID:
+          type: string
         name:
           type: string
         status:
