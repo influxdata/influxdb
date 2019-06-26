@@ -6089,7 +6089,6 @@ components:
           readOnly: true
           type: string
         oauthID:
-          readOnly: true
           type: string
         name:
           type: string
