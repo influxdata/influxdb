@@ -155,6 +155,7 @@ type Engine struct {
 	enableCompactionsOnOpen bool
 
 	compactionTracker   *compactionTracker // Used to track state of compactions.
+	readTracker         *readTracker       // Used to track number of reads.
 	defaultMetricLabels prometheus.Labels  // N.B this must not be mutated after Open is called.
 
 	// Limiter for concurrent compactions.
@@ -494,6 +495,7 @@ func (e *Engine) initTrackers() {
 	e.compactionTracker = newCompactionTracker(bms.compactionMetrics, e.defaultMetricLabels)
 	e.FileStore.tracker = newFileTracker(bms.fileMetrics, e.defaultMetricLabels)
 	e.Cache.tracker = newCacheTracker(bms.cacheMetrics, e.defaultMetricLabels)
+	e.readTracker = newReadTracker(bms.readMetrics, e.defaultMetricLabels)
 
 	e.scheduler.setCompactionTracker(e.compactionTracker)
 }
@@ -1373,4 +1375,38 @@ func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, []byte) {
 		return key, nil
 	}
 	return key[:sep], key[sep+len(keyFieldSeparator):]
+}
+
+// readTracker tracks reads from the engine.
+type readTracker struct {
+	metrics *readMetrics
+	labels  prometheus.Labels
+	cursors uint64
+	seeks   uint64
+}
+
+func newReadTracker(metrics *readMetrics, defaultLabels prometheus.Labels) *readTracker {
+	return &readTracker{metrics: metrics, labels: defaultLabels}
+}
+
+// Labels returns a copy of the default labels used by the tracker's metrics.
+// The returned map is safe for modification.
+func (t *readTracker) Labels() prometheus.Labels {
+	labels := make(prometheus.Labels, len(t.labels))
+	for k, v := range t.labels {
+		labels[k] = v
+	}
+	return labels
+}
+
+// AddCursors increases the number of cursors.
+func (t *readTracker) AddCursors(n uint64) {
+	atomic.AddUint64(&t.cursors, n)
+	t.metrics.Cursors.With(t.labels).Add(float64(n))
+}
+
+// AddSeeks increases the number of location seeks.
+func (t *readTracker) AddSeeks(n uint64) {
+	atomic.AddUint64(&t.seeks, n)
+	t.metrics.Seeks.With(t.labels).Add(float64(n))
 }
