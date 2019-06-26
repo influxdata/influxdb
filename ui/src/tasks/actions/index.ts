@@ -394,13 +394,18 @@ export const cancel = () => async dispatch => {
 export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
-      tasks: {currentScript: script, currentTask: task, taskOptions},
+      tasks: {currentScript: script, currentTask: task, taskOptions, taskToken},
     } = getState()
 
-    const updatedTask: Partial<Task> & {name: string; flux: string} = {
+    const updatedTask: Partial<Task> & {
+      name: string
+      flux: string
+      token: string
+    } = {
       flux: script,
       name: taskOptions.name,
       offset: taskOptions.offset,
+      token: taskToken.token,
     }
 
     if (taskOptions.taskScheduleType === TaskSchedule.interval) {
