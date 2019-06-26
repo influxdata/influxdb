@@ -54,7 +54,6 @@ func (s *SourceProxyQueryService) queryFlux(ctx context.Context, w io.Writer, re
 	hreq.Header.Set("Authorization", fmt.Sprintf("Token %s", s.Token))
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq = hreq.WithContext(ctx)
-	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)

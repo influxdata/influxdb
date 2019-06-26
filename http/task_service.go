@@ -1373,7 +1373,6 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*platfor
 		return nil, err
 	}
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -1435,7 +1434,6 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 		return nil, 0, err
 	}
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -1482,7 +1480,6 @@ func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*p
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1525,7 +1522,6 @@ func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd platfor
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1564,7 +1560,6 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1603,7 +1598,6 @@ func (t TaskService) FindLogs(ctx context.Context, filter platform.LogFilter) ([
 		return nil, 0, err
 	}
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1657,7 +1651,6 @@ func (t TaskService) FindRuns(ctx context.Context, filter platform.RunFilter) ([
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1700,7 +1693,6 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 	}
 
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1744,7 +1736,6 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	}
 
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1792,7 +1783,6 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 	}
 
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
@@ -1843,7 +1833,6 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) e
 	}
 
 	SetToken(t.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, t.InsecureSkipVerify)
 
