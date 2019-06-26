@@ -1,14 +1,17 @@
-v1.7.7 [unreleased]
+v1.7.7 [2019-06-26]
 -------------------
 
 ### Bugfixes
 
 -	[#13441](https://github.com/influxdata/influxdb/pull/13441): Fix the sort order for aggregates so that they are sorted by tag and then time.
+-	[#13459](https://github.com/influxdata/influxdb/pull/13459): Fill resets the previous value when a new series or window is encountered.
 -	[#13463](https://github.com/influxdata/influxdb/pull/13463): Use the timezone when evaluating time literals in subqueries.
 -	[#13566](https://github.com/influxdata/influxdb/pull/13566): Fix csv decoder bug where empty tag values cause an array index panic.
+-	[#13697](https://github.com/influxdata/influxdb/pull/13697): Remove query language from version command.
 -	[#13837](https://github.com/influxdata/influxdb/pull/13837): Fix open/close race in SeriesFile.
--	[#13860](https://github.com/influxdata/influxdb/pull/13860): Sync series segment after truncate.
 -	[#13854](https://github.com/influxdata/influxdb/pull/13854): Fix the ordering for selectors within a subquery with different outer tags.
+-	[#13860](https://github.com/influxdata/influxdb/pull/13860): Sync series segment after truncate.
+-	[#14083](https://github.com/influxdata/influxdb/pull/14083): Don't panic when length of source slice is too large.
 
 v1.7.6 [2019-04-16]
 -------------------
