@@ -1263,6 +1263,51 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	}, nil
 }
 
+// CreateRun creates a run with a scheduledFor time as now.
+func (s *Service) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
+	var r *influxdb.Run
+	err := s.kv.Update(ctx, func(tx Tx) error {
+		run, err := s.createRun(ctx, tx, taskID, scheduledFor)
+		if err != nil {
+			return err
+		}
+		r = run
+		return nil
+	})
+	return r, err
+}
+func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
+	id := s.IDGenerator.ID()
+
+	run := influxdb.Run{
+		ID:           id,
+		TaskID:       taskID,
+		ScheduledFor: scheduledFor.Format(time.RFC3339),
+		Status:       backend.RunScheduled.String(),
+		Log:          []influxdb.Log{},
+	}
+
+	b, err := tx.Bucket(taskRunBucket)
+	if err != nil {
+		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	runBytes, err := json.Marshal(run)
+	if err != nil {
+		return nil, influxdb.ErrInternalTaskServiceError(err)
+	}
+
+	runKey, err := taskRunKey(taskID, run.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.Put(runKey, runBytes); err != nil {
+		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	return &run, nil
+}
+
 func (s *Service) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
 	var runs []*influxdb.Run
 	err := s.kv.View(ctx, func(tx Tx) error {
@@ -1359,8 +1404,80 @@ func (s *Service) manualRuns(ctx context.Context, tx Tx, taskID influxdb.ID) ([]
 	if err := json.Unmarshal(val, &runs); err != nil {
 		return nil, influxdb.ErrInternalTaskServiceError(err)
 	}
-
 	return runs, nil
+}
+
+func (s *Service) StartManualRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+	var r *influxdb.Run
+	err := s.kv.Update(ctx, func(tx Tx) error {
+		run, err := s.startManualRun(ctx, tx, taskID, runID)
+		if err != nil {
+			return err
+		}
+		r = run
+		return nil
+	})
+	return r, err
+}
+
+func (s *Service) startManualRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+
+	mRuns, err := s.manualRuns(ctx, tx, taskID)
+	if err != nil {
+		return nil, &influxdb.ErrRunNotFound
+	}
+
+	if len(mRuns) < 1 {
+		return nil, &influxdb.ErrRunNotFound
+	}
+
+	var run *influxdb.Run
+	for i, r := range mRuns {
+		if r.ID == runID {
+			run = r
+			mRuns = append(mRuns[:i], mRuns[i+1:]...)
+		}
+	}
+	if run == nil {
+		return nil, &influxdb.ErrRunNotFound
+	}
+
+	// save manual runs
+	mRunsBytes, err := json.Marshal(mRuns)
+	if err != nil {
+		return nil, influxdb.ErrInternalTaskServiceError(err)
+	}
+
+	runsKey, err := taskManualRunKey(taskID)
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := tx.Bucket(taskRunBucket)
+	if err != nil {
+		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	if err := b.Put(runsKey, mRunsBytes); err != nil {
+		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	// add mRun to the list of currently running
+	mRunBytes, err := json.Marshal(run)
+	if err != nil {
+		return nil, influxdb.ErrInternalTaskServiceError(err)
+	}
+
+	runKey, err := taskRunKey(taskID, run.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := b.Put(runKey, mRunBytes); err != nil {
+		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
+	}
+
+	return run, nil
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.

@@ -96,8 +96,15 @@ func (s *fakeQueryService) SucceedQuery(script string) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeASTString(makeAST(script))
-	close(s.queries[spec].wait)
+	ast := makeAST(script)
+	spec := makeASTString(ast)
+	fq, ok := s.queries[spec]
+	if !ok {
+		ast.Now = ast.Now.UTC()
+		spec = makeASTString(ast)
+		fq = s.queries[spec]
+	}
+	close(fq.wait)
 	delete(s.queries, spec)
 }
 
@@ -107,9 +114,16 @@ func (s *fakeQueryService) FailQuery(script string, forced error) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeASTString(makeAST(script))
-	s.queries[spec].forcedError = forced
-	close(s.queries[spec].wait)
+	ast := makeAST(script)
+	spec := makeASTString(ast)
+	fq, ok := s.queries[spec]
+	if !ok {
+		ast.Now = ast.Now.UTC()
+		spec = makeASTString(ast)
+		fq = s.queries[spec]
+	}
+	fq.forcedError = forced
+	close(fq.wait)
 	delete(s.queries, spec)
 }
 
@@ -125,7 +139,11 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
 	const attempts = 10
-	spec := makeASTString(makeAST(script))
+	ast := makeAST(script)
+	astUTC := makeAST(script)
+	astUTC.Now = ast.Now.UTC()
+	spec := makeASTString(ast)
+	specUTC := makeASTString(astUTC)
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
 			time.Sleep(5 * time.Millisecond)
@@ -137,6 +155,13 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 		if ok {
 			return
 		}
+		s.mu.Lock()
+		_, ok = s.queries[specUTC]
+		s.mu.Unlock()
+		if ok {
+			return
+		}
+
 	}
 
 	t.Fatalf("Did not see live query %q in time", script)
