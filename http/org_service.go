@@ -656,7 +656,6 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	if err != nil {
 		return nil, 0, tracing.LogError(span, err)
 	}
-	tracing.InjectToHTTPRequest(span, req)
 
 	SetToken(s.Token, req)
 	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
@@ -707,7 +706,6 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, o *influxd
 	if err != nil {
 		return tracing.LogError(span, err)
 	}
-	tracing.InjectToHTTPRequest(span, req)
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
@@ -754,7 +752,6 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, id influxd
 	if err != nil {
 		return nil, tracing.LogError(span, err)
 	}
-	tracing.InjectToHTTPRequest(span, req)
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
@@ -793,7 +790,6 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, id influxd
 	if err != nil {
 		return tracing.LogError(span, err)
 	}
-	tracing.InjectToHTTPRequest(span, req)
 
 	SetToken(s.Token, req)
 

@@ -605,7 +605,6 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 		return nil, err
 	}
 	SetToken(s.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -692,7 +691,6 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 
 	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
@@ -745,7 +743,6 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
-	tracing.InjectToHTTPRequest(span, req)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 

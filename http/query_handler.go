@@ -370,7 +370,6 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
 	hreq = hreq.WithContext(ctx)
-	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
@@ -438,7 +437,6 @@ func (s *FluxQueryService) Query(ctx context.Context, r *query.Request) (flux.Re
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
 	hreq = hreq.WithContext(ctx)
-	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)

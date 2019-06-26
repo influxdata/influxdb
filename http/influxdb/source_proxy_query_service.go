@@ -92,7 +92,6 @@ func (s *SourceProxyQueryService) fluxQuery(ctx context.Context, w io.Writer, re
 	hreq.Header.Set("Authorization", s.Token)
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq = hreq.WithContext(ctx)
-	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newTraceClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)
@@ -140,7 +139,6 @@ func (s *SourceProxyQueryService) influxQuery(ctx context.Context, w io.Writer, 
 	params.Set("rp", compiler.RP)
 
 	hreq.URL.RawQuery = params.Encode()
-	tracing.InjectToHTTPRequest(span, hreq)
 
 	hc := newTraceClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(hreq)

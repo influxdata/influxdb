@@ -80,6 +80,7 @@ type traceClient struct {
 // Do injects the trace and then performs the request.
 func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
 	span, _ := tracing.StartSpanFromContext(r.Context())
+	defer span.Finish()
 	tracing.InjectToHTTPRequest(span, r)
 	return c.Client.Do(r)
 }
