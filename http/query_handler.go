@@ -350,6 +350,9 @@ func (s *FluxService) Query(ctx context.Context, w io.Writer, r *query.ProxyRequ
 	if err != nil {
 		return flux.Statistics{}, tracing.LogError(span, err)
 	}
+	params := url.Values{}
+	params.Set(OrgID, r.Request.OrganizationID.String())
+	u.RawQuery = params.Encode()
 
 	qreq, err := QueryRequestFromProxyRequest(r)
 	if err != nil {

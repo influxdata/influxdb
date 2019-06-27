@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
@@ -31,6 +31,10 @@ import (
 )
 
 func TestFluxService_Query(t *testing.T) {
+	orgID, err := influxdb.IDFromString("abcdabcdabcdabcd")
+	if err != nil {
+		t.Fatal(err)
+	}
 	tests := []struct {
 		name    string
 		token   string
@@ -47,6 +51,7 @@ func TestFluxService_Query(t *testing.T) {
 			token: "mytoken",
 			r: &query.ProxyRequest{
 				Request: query.Request{
+					OrganizationID: *orgID,
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
 					},
@@ -58,11 +63,26 @@ func TestFluxService_Query(t *testing.T) {
 			wantW:  "howdy\n",
 		},
 		{
+			name:  "missing org id",
+			ctx:   context.Background(),
+			token: "mytoken",
+			r: &query.ProxyRequest{
+				Request: query.Request{
+					Compiler: lang.FluxCompiler{
+						Query: "from()",
+					},
+				},
+				Dialect: csv.DefaultDialect(),
+			},
+			wantErr: true,
+		},
+		{
 			name:  "error status",
 			token: "mytoken",
 			ctx:   context.Background(),
 			r: &query.ProxyRequest{
 				Request: query.Request{
+					OrganizationID: *orgID,
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
 					},
@@ -76,8 +96,15 @@ func TestFluxService_Query(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if reqID := r.URL.Query().Get(OrgID); reqID == "" {
+					if name := r.URL.Query().Get(OrgName); name == "" {
+						// Request must have org or orgID.
+						EncodeError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
+						return
+					}
+				}
 				w.WriteHeader(tt.status)
-				fmt.Fprintln(w, "howdy")
+				_, _ = fmt.Fprintln(w, "howdy")
 			}))
 			defer ts.Close()
 			s := &FluxService{
