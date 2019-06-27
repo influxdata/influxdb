@@ -103,7 +103,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
           onSubmit={this.handleSubmit}
           canSubmit={this.isFormValid}
           dismiss={dismiss}
-          tokens={this.getRelevantTokens()}
+          tokens={this.getRelevantTokens}
           selectedToken={selectedToken}
           onTokenChange={this.handleTokenChange}
         />
@@ -111,40 +111,9 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private getRelevantTokens() {
-    const authorizations = this.props.tokens
-
-    const {draftQueries, activeQueryIndex} = this.props
-    let readBucketName = ''
-    if (draftQueries[activeQueryIndex].editMode === 'builder') {
-      readBucketName = draftQueries[activeQueryIndex].builderConfig.buckets[0]
-    } else {
-      const text = draftQueries[activeQueryIndex].text
-      const splitBucket = text.split('bucket:')
-      const splitQuotes = splitBucket[1].split('"')
-      readBucketName = splitQuotes[1]
-    }
-    const writeBucketName = this.props.taskOptions.toBucketName
-
-    const readAuthorizations = authorizations.filter(auth =>
-      auth.permissions.some(
-        permission =>
-          permission.action === 'read' &&
-          permission.resource.type === 'buckets' &&
-          (!permission.resource.name ||
-            permission.resource.name === readBucketName)
-      )
-    )
-
-    const writeAuthorizations = authorizations.filter(auth =>
-      auth.permissions.some(
-        permission =>
-          permission.action === 'write' &&
-          permission.resource.type === 'buckets' &&
-          (!permission.resource.name ||
-            permission.resource.name === writeBucketName)
-      )
-    )
+  private get getRelevantTokens() {
+    const readAuthorizations = this.getReadAuthorizations
+    const writeAuthorizations = this.getWriteAuthorizations
 
     const relevantAuthorizations = _.intersectionBy(
       readAuthorizations,
@@ -153,6 +122,56 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     )
 
     return relevantAuthorizations
+  }
+
+  private get readBucketName() {
+    const {draftQueries, activeQueryIndex} = this.props
+
+    const query = draftQueries[activeQueryIndex]
+
+    let readBucketName = ''
+    if (query.editMode === 'builder') {
+      readBucketName = query.builderConfig.buckets[0] || ''
+    } else {
+      const text = query.text
+      const splitBucket = text.split('bucket:')
+      const splitQuotes = splitBucket[1].split('"')
+      readBucketName = splitQuotes[1]
+    }
+
+    return readBucketName
+  }
+
+  private get getReadAuthorizations() {
+    const authorizations = this.props.tokens
+    const readBucketName = this.readBucketName
+
+    return authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'read' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === readBucketName)
+      )
+    )
+  }
+
+  private get getWriteAuthorizations() {
+    const authorizations = this.props.tokens
+    const {
+      taskOptions: {toBucketName},
+    } = this.props
+
+    return authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'write' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === toBucketName)
+      )
+    )
   }
 
   private get isFormValid(): boolean {

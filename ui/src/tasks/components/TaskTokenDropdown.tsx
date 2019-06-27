@@ -30,7 +30,7 @@ export default class TaskTokenDropdown extends PureComponent<Props> {
   }
   private get dropdownTokens(): JSX.Element[] {
     const {tokens} = this.props
-    if (tokens.length > 0) {
+    if (tokens.length) {
       return tokens.map(t => (
         <Dropdown.Item id={t.id} key={t.id} value={t}>
           {t.description || 'Name this token'}
@@ -39,7 +39,7 @@ export default class TaskTokenDropdown extends PureComponent<Props> {
     }
     return [
       <Dropdown.Item id="no-tokens" key="no-tokens" value="no-tokens">
-        {'You don’t have any tokens with appropriate permissions for this use'}
+        You don’t have any tokens with appropriate permissions for this use
       </Dropdown.Item>,
     ]
   }
@@ -47,10 +47,8 @@ export default class TaskTokenDropdown extends PureComponent<Props> {
   private get selectedID(): string {
     const {selectedToken, tokens} = this.props
 
-    if (tokens.length > 0) {
-      if (selectedToken) {
-        return selectedToken.id
-      }
+    if (tokens.length && selectedToken) {
+      return selectedToken.id
     }
     return 'no-tokens'
   }
