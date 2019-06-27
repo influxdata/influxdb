@@ -336,6 +336,7 @@ func (t *fileTracker) SetBytes(bytes map[int]uint64) {
 	for k, v := range bytes {
 		label := formatLevel(uint64(k))
 		sizes[label] += v
+		total += v
 	}
 	for k, v := range sizes {
 		labels["level"] = k
