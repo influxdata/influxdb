@@ -15,21 +15,43 @@ interface Props {
 
 export default class TaskTokenDropdown extends PureComponent<Props> {
   public render() {
-    const {tokens, selectedToken, onTokenChange} = this.props
+    const {onTokenChange} = this.props
 
     return (
       <Dropdown
-        selectedID={selectedToken.id}
+        selectedID={this.selectedID}
         buttonColor={ComponentColor.Primary}
         buttonSize={ComponentSize.Small}
         onChange={onTokenChange}
       >
-        {tokens.map(t => (
-          <Dropdown.Item id={t.id} key={t.id} value={t}>
-            {t.description || 'Name this token'}
-          </Dropdown.Item>
-        ))}
+        {this.dropdownTokens}
       </Dropdown>
     )
+  }
+  private get dropdownTokens(): JSX.Element[] {
+    const {tokens} = this.props
+    if (tokens.length > 0) {
+      return tokens.map(t => (
+        <Dropdown.Item id={t.id} key={t.id} value={t}>
+          {t.description || 'Name this token'}
+        </Dropdown.Item>
+      ))
+    }
+    return [
+      <Dropdown.Item id="no-tokens" key="no-tokens" value="no-tokens">
+        {'You don’t have any tokens with appropriate permissions for this use'}
+      </Dropdown.Item>,
+    ]
+  }
+
+  private get selectedID(): string {
+    const {selectedToken, tokens} = this.props
+
+    if (tokens.length > 0) {
+      if (selectedToken) {
+        return selectedToken.id
+      }
+    }
+    return 'no-tokens'
   }
 }

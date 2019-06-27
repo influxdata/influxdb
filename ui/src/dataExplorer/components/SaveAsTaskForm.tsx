@@ -87,13 +87,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
-    const {
-      taskOptions,
-      dismiss,
-      tokens,
-      tokenStatus,
-      selectedToken,
-    } = this.props
+    const {taskOptions, dismiss, tokenStatus, selectedToken} = this.props
 
     return (
       <SpinnerContainer
@@ -109,12 +103,55 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
           onSubmit={this.handleSubmit}
           canSubmit={this.isFormValid}
           dismiss={dismiss}
-          tokens={tokens}
+          tokens={this.getRelevantTokens()}
           selectedToken={selectedToken}
           onTokenChange={this.handleTokenChange}
         />
       </SpinnerContainer>
     )
+  }
+
+  private getRelevantTokens() {
+    const authorizations = this.props.tokens
+
+    const {draftQueries, activeQueryIndex} = this.props
+    let readBucketName = ''
+    if (draftQueries[activeQueryIndex].editMode === 'builder') {
+      readBucketName = draftQueries[activeQueryIndex].builderConfig.buckets[0]
+    } else {
+      const text = draftQueries[activeQueryIndex].text
+      const res = text.split('bucket:')
+      readBucketName = res[1].slice(2, 3)
+    }
+    const writeBucketName = this.props.taskOptions.toBucketName
+
+    const readAuthorizations = authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'read' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === readBucketName)
+      )
+    )
+
+    const writeAuthorizations = authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'write' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === writeBucketName)
+      )
+    )
+
+    const relevantAuthorizations = _.intersectionBy(
+      readAuthorizations,
+      writeAuthorizations,
+      'id'
+    )
+
+    return relevantAuthorizations
   }
 
   private get isFormValid(): boolean {
