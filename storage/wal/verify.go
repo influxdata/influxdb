@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"text/tabwriter"
 	"time"
 )
@@ -57,10 +56,10 @@ func (v *Verifier) Run(print bool) (*VerificationSummary, error) {
 	var corruptFiles []string
 	var entriesScanned int
 
-	for _, file := range files {
-		f, err := os.OpenFile(file, os.O_RDONLY, 0600)
+	for _, fpath := range files {
+		f, err := os.OpenFile(fpath, os.O_RDONLY, 0600)
 		if err != nil {
-			fmt.Fprintf(v.Stderr, "error %s: %v. Exiting", file, err)
+			fmt.Fprintf(v.Stderr, "error opening file %s: %v. Exiting",fpath, err)
 		}
 
 		clean := true
@@ -70,26 +69,31 @@ func (v *Verifier) Run(print bool) (*VerificationSummary, error) {
 			_, err := reader.Read()
 			if err != nil {
 				clean = false
-				fmt.Fprintf(tw,"%s: corrupt entry found at position %d\n", file, reader.Count())
+				fmt.Fprintf(tw,"%s: corrupt entry found at position %d\n", fpath, reader.Count())
+				corruptFiles = append(corruptFiles, fpath)
 				break
 			}
 
 		}
 
 		if clean {
-			fmt.Fprintf(tw, "%s: clean\n", file)
-		}
-
-		if !clean {
-			corruptFiles = append(corruptFiles, file)
+			fmt.Fprintf(tw, "%s: clean\n", fpath)
 		}
 	}
 
-	fmt.Fprintf(tw, "Statistics:\n")
-	fmt.Fprintf(tw, "Files checked: %d\n", len(files))
-	fmt.Fprintf(tw, "Corrupt files found: %s\n", strings.Join(corruptFiles, ","))
-	fmt.Fprintf(tw, "Total entries checked: %d\n", entriesScanned);
-	fmt.Fprintf(tw, "Time Elapsed %v\n", time.Since(start))
+	fmt.Fprintf(tw, "Results:\n")
+	fmt.Fprintf(tw, "  Files checked: %d\n", len(files))
+	fmt.Fprintf(tw, "  Total entries checked: %d\n", entriesScanned)
+	fmt.Fprintf(tw, "  Corrupt files found: ")
+	if len(corruptFiles) == 0 {
+		fmt.Fprintf(tw,"None")
+	} else {
+		for _, name := range corruptFiles {
+			fmt.Fprintf(tw, "\n    %s", name)
+		}
+	}
+
+	fmt.Fprintf(tw, "\nCompleted in %v\n", time.Since(start))
 
 	summary := &VerificationSummary{
 		EntryCount: entriesScanned,

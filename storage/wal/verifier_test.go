@@ -3,6 +3,7 @@ package wal
 import (
 	"context"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/tsdb/value"
 	"io/ioutil"
@@ -13,13 +14,13 @@ import (
 
 type Test struct {
 	dir string
-	files []string
+	corruptFiles []string
 }
 
 func TestVerifyWALL_CleanFile(t *testing.T) {
 	numTestEntries := 100
 	test := CreateTest(t, func() (string, []string, error) {
-		dir := mustCreateTempDir(t)
+		dir := MustTempDir()
 
 		w := NewWAL(dir)
 		if err := w.Open(context.Background()); err != nil {
@@ -39,7 +40,7 @@ func TestVerifyWALL_CleanFile(t *testing.T) {
 	defer test.Close()
 
 	verifier := &Verifier{Dir: test.dir}
-	summary, err := verifier.Run(true)
+	summary, err := verifier.Run(false)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
@@ -57,7 +58,7 @@ func TestVerifyWALL_CleanFile(t *testing.T) {
 func CreateTest(t *testing.T, createFiles func() (string, []string, error)) *Test {
 	t.Helper()
 
-	dir, files, err := createFiles()
+	dir, corruptFiles, err := createFiles()
 
 	if err != nil {
 		t.Fatal(err)
@@ -65,14 +66,14 @@ func CreateTest(t *testing.T, createFiles func() (string, []string, error)) *Tes
 
 	return &Test{
 		dir: dir,
-		files: files,
+		corruptFiles: corruptFiles,
 	}
 }
 
 func TestVerifyWALL_CorruptFile(t *testing.T) {
 	test := CreateTest(t, func() (string, []string, error) {
-		dir := mustCreateTempDir(t)
-		f := mustCreateTempFile(t, dir)
+		dir := MustTempDir()
+		f := mustTempWalFile(t, dir)
 		writeCorruptEntries(f, t, 1)
 
 		path := f.Name()
@@ -82,10 +83,9 @@ func TestVerifyWALL_CorruptFile(t *testing.T) {
 	defer test.Close()
 
 	verifier := &Verifier{Dir: test.dir}
-	expectedEntries := 1
-	expectedErrors := 1
+	expectedEntries := 2 // 1 valid entry + 1 corrupt entry
 
-	summary, err := verifier.Run(true)
+	summary, err := verifier.Run(false)
 	if err != nil {
 		t.Fatalf("Unexpected error when running wal verification: %v", err)
 	}
@@ -94,17 +94,11 @@ func TestVerifyWALL_CorruptFile(t *testing.T) {
 		t.Fatalf("Error: expected %d entries, found %d entries", expectedEntries, summary.EntryCount)
 	}
 
-	if len(summary.CorruptFiles) != expectedErrors {
-		t.Fatalf("Error: expected %d corrupt entries, found %d corrupt entries", expectedErrors, len(summary.CorruptFiles))
-	}
-
-	want := test.files
+	want := test.corruptFiles
 	got := summary.CorruptFiles
-	t.Log("got: ", summary.CorruptFiles)
-	t.Log("want: ", want)
-	t.Log(cmp.Diff(got, want))
+	lessFunc := func(a, b string) bool {return a < b}
 
-	if !cmp.Equal(summary.CorruptFiles, want) {
+	if !cmp.Equal(summary.CorruptFiles, want, cmpopts.SortSlices(lessFunc)) {
 		t.Fatalf("Error: unexpected list of corrupt files %v", cmp.Diff(got, want))
 	}
 }
@@ -119,34 +113,44 @@ func writeRandomEntry(w *WAL, t *testing.T) {
 	}
 }
 
-func writeRandomEntryRaw(w *WALSegmentWriter, t *testing.T) {
-	values := map[string][]value.Value{
-		"cpu,host=A#!~#value":    {value.NewValue(rand.Int63(), rand.Float64())},
-	}
-
-	entry := &WriteWALEntry{
-		Values: values,
-	}
-
-
-	if err := w.Write(mustMarshalEntry(entry)); err != nil {
-		t.Fatalf("error writing entry: %v", err)
-	}
-}
-
 func writeCorruptEntries(file *os.File, t *testing.T, n int) {
+	w := NewWALSegmentWriter(file)
+
 	// random byte sequence
-	corrupt := []byte{1, 255, 0, 3, 45, 26, 110}
+	corruption := []byte{1, 4, 0, 0, 0}
+
+	p1 := value.NewValue(1, 1.1)
+	values := map[string][]value.Value{
+		"cpu,host=A#!~#float": {p1},
+	}
 
 	for i := 0; i < n; i++ {
-		wrote, err := file.Write(corrupt)
-		if err != nil {
-			t.Fatal(err)
-		} else if wrote != len(corrupt) {
-			t.Fatal("Error writing corrupt data to file")
+		entry := &WriteWALEntry{
+			Values: values,
+		}
+
+		if err := w.Write(mustMarshalEntry(entry)); err != nil {
+			fatal(t, "write points", err)
+		}
+
+		if err := w.Flush(); err != nil {
+			fatal(t, "flush", err)
 		}
 	}
 
+
+	// Write some random bytes to the file to simulate corruption.
+	if _, err := file.Write(corruption); err != nil {
+		fatal(t, "corrupt WAL segment", err)
+	}
+	corrupt := []byte{1, 255, 0, 3, 45, 26, 110}
+
+	wrote, err := file.Write(corrupt)
+	if err != nil {
+		t.Fatal(err)
+	} else if wrote != len(corrupt) {
+		t.Fatal("Error writing corrupt data to file")
+	}
 
 	if err := file.Close(); err != nil {
 		t.Fatalf("Error: filed to close file: %v\n", err)
@@ -160,16 +164,7 @@ func (t *Test) Close() {
 	}
 }
 
-func mustCreateTempDir(t *testing.T) string {
-	name, err := ioutil.TempDir(".", "wal-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return name
-}
-
-func mustCreateTempFile(t *testing.T, dir string) *os.File {
+func mustTempWalFile(t *testing.T, dir string) *os.File {
 	file, err := ioutil.TempFile(dir, "corrupt*.wal")
 	if err != nil {
 		t.Fatal(err)

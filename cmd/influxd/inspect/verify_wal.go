@@ -21,12 +21,13 @@ of entries in the scanned WAL files, in case this is of interest.
 
 For each file, the following is output:
 	* The file name;
-	* If the file is clean ("clean" will be printed);
-	* The first position any corruption is found (if the file is corrupt)
+	* "clean" (if the file is clean) OR 
+      The first position of any corruption that is found
 In the summary section, the following is printed:
+	* The number of WAL files scanned;
 	* The number of WAL entries scanned;
 	* A list of files found to be corrupt`,
-	RunE: inspectVerifyWAL,
+		RunE: inspectVerifyWAL,
 	}
 
 	dir, err := fs.InfluxDir()
@@ -34,7 +35,7 @@ In the summary section, the following is printed:
 		panic(err)
 	}
 	dir = filepath.Join(dir, "engine/wal")
-	verifyWALCommand.Flags().StringVarP(&reportTSMFlags.dataDir, "data-dir", "", dir, fmt.Sprintf("use provided data directory (defaults to %s).", dir))
+	verifyWALCommand.Flags().StringVarP(&verifyWALFlags.dataDir, "data-dir", "", dir, fmt.Sprintf("use provided data directory (defaults to %s).", dir))
 
 	return verifyWALCommand
 }
