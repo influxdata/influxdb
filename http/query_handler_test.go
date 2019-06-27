@@ -99,7 +99,7 @@ func TestFluxService_Query(t *testing.T) {
 				if reqID := r.URL.Query().Get(OrgID); reqID == "" {
 					if name := r.URL.Query().Get(OrgName); name == "" {
 						// Request must have org or orgID.
-						EncodeError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
+						ErrorHandler(0).HandleHTTPError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
 						return
 					}
 				}
