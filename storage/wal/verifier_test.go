@@ -138,22 +138,13 @@ func writeCorruptEntries(file *os.File, t *testing.T, n int) {
 		}
 	}
 
-
 	// Write some random bytes to the file to simulate corruption.
 	if _, err := file.Write(corruption); err != nil {
 		fatal(t, "corrupt WAL segment", err)
 	}
-	corrupt := []byte{1, 255, 0, 3, 45, 26, 110}
-
-	wrote, err := file.Write(corrupt)
-	if err != nil {
-		t.Fatal(err)
-	} else if wrote != len(corrupt) {
-		t.Fatal("Error writing corrupt data to file")
-	}
 
 	if err := file.Close(); err != nil {
-		t.Fatalf("Error: filed to close file: %v\n", err)
+		t.Fatalf("Error: failed to close file: %v\n", err)
 	}
 }
 
