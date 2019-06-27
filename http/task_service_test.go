@@ -391,6 +391,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)
+			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			taskBackend.LabelService = tt.fields.labelService
 			h := NewTaskHandler(taskBackend)
@@ -502,6 +503,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			taskBackend := NewMockTaskBackend(t)
+			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(taskBackend)
 			h.handlePostTask(w, r)
@@ -611,6 +613,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &platform.Authorization{Permissions: platform.OperPermissions()}))
 			w := httptest.NewRecorder()
 			taskBackend := NewMockTaskBackend(t)
+			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(taskBackend)
 			h.handleGetRun(w, r)
@@ -724,6 +727,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &platform.Authorization{Permissions: platform.OperPermissions()}))
 			w := httptest.NewRecorder()
 			taskBackend := NewMockTaskBackend(t)
+			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			h := NewTaskHandler(taskBackend)
 			h.handleGetRuns(w, r)
@@ -754,6 +758,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 
 	im := inmem.NewService()
 	taskBackend := NewMockTaskBackend(t)
+	taskBackend.HTTPErrorHandler = ErrorHandler(0)
 	h := NewTaskHandler(taskBackend)
 	h.UserResourceMappingService = im
 	h.LabelService = im
@@ -1283,7 +1288,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 
 	newHandler := func(t *testing.T, ts *mock.TaskService) *TaskHandler {
 		return NewTaskHandler(&TaskBackend{
-			Logger: zaptest.NewLogger(t),
+			HTTPErrorHandler: ErrorHandler(0),
+			Logger:           zaptest.NewLogger(t),
 
 			TaskService:                ts,
 			AuthorizationService:       i,

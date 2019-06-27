@@ -20,6 +20,7 @@ import (
 // the BucketHandler.
 type BucketBackend struct {
 	Logger *zap.Logger
+	influxdb.HTTPErrorHandler
 
 	BucketService              influxdb.BucketService
 	BucketOperationLogService  influxdb.BucketOperationLogService
@@ -32,7 +33,8 @@ type BucketBackend struct {
 // NewBucketBackend returns a new instance of BucketBackend.
 func NewBucketBackend(b *APIBackend) *BucketBackend {
 	return &BucketBackend{
-		Logger: b.Logger.With(zap.String("handler", "bucket")),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger.With(zap.String("handler", "bucket")),
 
 		BucketService:              b.BucketService,
 		BucketOperationLogService:  b.BucketOperationLogService,
@@ -46,7 +48,7 @@ func NewBucketBackend(b *APIBackend) *BucketBackend {
 // BucketHandler represents an HTTP API handler for buckets.
 type BucketHandler struct {
 	*httprouter.Router
-
+	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
 	BucketService              influxdb.BucketService
@@ -72,8 +74,9 @@ const (
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h := &BucketHandler{
-		Router: NewRouter(),
-		Logger: b.Logger,
+		Router:           NewRouter(b.HTTPErrorHandler),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger,
 
 		BucketService:              b.BucketService,
 		BucketOperationLogService:  b.BucketOperationLogService,
@@ -91,6 +94,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
 
 	memberBackend := MemberBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.BucketsResourceType,
 		UserType:                   influxdb.Member,
@@ -102,6 +106,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.BucketsResourceType,
 		UserType:                   influxdb.Owner,
@@ -113,9 +118,10 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
-		Logger:       b.Logger.With(zap.String("handler", "label")),
-		LabelService: b.LabelService,
-		ResourceType: influxdb.BucketsResourceType,
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger.With(zap.String("handler", "label")),
+		LabelService:     b.LabelService,
+		ResourceType:     influxdb.BucketsResourceType,
 	}
 	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -298,12 +304,12 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodePostBucketRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -348,19 +354,19 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 	req, err := decodeGetBucketRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -401,12 +407,12 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 
 	req, err := decodeDeleteBucketRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.BucketService.DeleteBucket(ctx, req.BucketID); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -447,13 +453,13 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodeGetBucketsRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	bs, _, err := h.BucketService.FindBuckets(ctx, req.filter, req.opts)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -512,19 +518,19 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 
 	req, err := decodePatchBucketRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	b, err := h.BucketService.UpdateBucket(ctx, req.BucketID, req.Update)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -844,13 +850,13 @@ func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Reques
 
 	req, err := decodeGetBucketLogRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	log, _, err := h.BucketOperationLogService.GetBucketOperationLog(ctx, req.BucketID, req.opts)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 

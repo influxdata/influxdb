@@ -18,6 +18,7 @@ import (
 // OrgBackend is all services and associated parameters required to construct
 // the OrgHandler.
 type OrgBackend struct {
+	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
@@ -31,7 +32,8 @@ type OrgBackend struct {
 // NewOrgBackend is a datasource used by the org handler.
 func NewOrgBackend(b *APIBackend) *OrgBackend {
 	return &OrgBackend{
-		Logger: b.Logger.With(zap.String("handler", "org")),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger.With(zap.String("handler", "org")),
 
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
@@ -45,7 +47,7 @@ func NewOrgBackend(b *APIBackend) *OrgBackend {
 // OrgHandler represents an HTTP API handler for orgs.
 type OrgHandler struct {
 	*httprouter.Router
-
+	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
@@ -74,8 +76,9 @@ const (
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
-		Router: NewRouter(),
-		Logger: zap.NewNop(),
+		Router:           NewRouter(b.HTTPErrorHandler),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           zap.NewNop(),
 
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
@@ -93,6 +96,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
 	memberBackend := MemberBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Member,
@@ -104,6 +108,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Owner,
@@ -120,9 +125,10 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("POST", organizationsIDSecretsDeletePath, h.handleDeleteSecrets)
 
 	labelBackend := &LabelBackend{
-		Logger:       b.Logger.With(zap.String("handler", "label")),
-		LabelService: b.LabelService,
-		ResourceType: influxdb.OrgsResourceType,
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger.With(zap.String("handler", "label")),
+		LabelService:     b.LabelService,
+		ResourceType:     influxdb.OrgsResourceType,
 	}
 	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -200,12 +206,12 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePostOrgRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.OrganizationService.CreateOrganization(ctx, req.Org); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -236,13 +242,13 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetOrgRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	b, err := h.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -284,13 +290,13 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetOrgsRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	orgs, _, err := h.OrganizationService.FindOrganizations(ctx, req.filter)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -329,12 +335,12 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeDeleteOrganizationRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.OrganizationService.DeleteOrganization(ctx, req.OrganizationID); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -376,13 +382,13 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePatchOrgRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	o, err := h.OrganizationService.UpdateOrganization(ctx, req.OrgID, req.Update)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -429,13 +435,13 @@ func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetSecretsRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	ks, err := h.SecretService.GetSecretKeys(ctx, req.orgID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -475,12 +481,12 @@ func (h *OrgHandler) handlePatchSecrets(w http.ResponseWriter, r *http.Request) 
 
 	req, err := decodePatchSecretsRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.SecretService.PatchSecrets(ctx, req.orgID, req.secrets); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -523,12 +529,12 @@ func (h *OrgHandler) handleDeleteSecrets(w http.ResponseWriter, r *http.Request)
 
 	req, err := decodeDeleteSecretsRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.SecretService.DeleteSecret(ctx, req.orgID, req.Secrets...); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -818,13 +824,13 @@ func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetOrganizationLogRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	log, _, err := h.OrganizationOperationLogService.GetOrganizationOperationLog(ctx, req.OrganizationID, req.opts)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 

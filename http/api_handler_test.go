@@ -49,7 +49,9 @@ func TestAPIHandler_NotFound(t *testing.T) {
 			r := httptest.NewRequest(tt.args.method, tt.args.path, nil)
 			w := httptest.NewRecorder()
 
-			b := &APIBackend{}
+			b := &APIBackend{
+				HTTPErrorHandler: ErrorHandler(0),
+			}
 			b.Logger = zap.NewNop()
 
 			h := NewAPIHandler(b)

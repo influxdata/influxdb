@@ -30,6 +30,7 @@ import (
 // TaskBackend is all services and associated parameters required to construct
 // the TaskHandler.
 type TaskBackend struct {
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	TaskService                platform.TaskService
@@ -44,6 +45,7 @@ type TaskBackend struct {
 // NewTaskBackend returns a new instance of TaskBackend.
 func NewTaskBackend(b *APIBackend) *TaskBackend {
 	return &TaskBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "task")),
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
@@ -58,6 +60,7 @@ func NewTaskBackend(b *APIBackend) *TaskBackend {
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
 	*httprouter.Router
+	platform.HTTPErrorHandler
 	logger *zap.Logger
 
 	TaskService                platform.TaskService
@@ -88,8 +91,9 @@ const (
 // NewTaskHandler returns a new instance of TaskHandler.
 func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h := &TaskHandler{
-		Router: NewRouter(),
-		logger: b.Logger,
+		Router:           NewRouter(b.HTTPErrorHandler),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		logger:           b.Logger,
 
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
@@ -111,6 +115,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
 
 	memberBackend := MemberBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               platform.TasksResourceType,
 		UserType:                   platform.Member,
@@ -122,6 +127,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               platform.TasksResourceType,
 		UserType:                   platform.Owner,
@@ -139,9 +145,10 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
 
 	labelBackend := &LabelBackend{
-		Logger:       b.Logger.With(zap.String("handler", "label")),
-		LabelService: b.LabelService,
-		ResourceType: platform.TasksResourceType,
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger.With(zap.String("handler", "label")),
+		LabelService:     b.LabelService,
+		ResourceType:     platform.TasksResourceType,
 	}
 	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -275,7 +282,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -285,7 +292,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find tasks",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -467,7 +474,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EUnauthorized,
 			Msg:  "failed to get authorizer",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -478,7 +485,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -487,7 +494,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "could not identify organization",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -496,13 +503,13 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "invalid organization id",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	bootstrapAuthz, err := h.createBootstrapTaskAuthorizationIfNotExists(ctx, auth, &req.TaskCreate)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -515,7 +522,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to create task",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -528,7 +535,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 				Msg:  fmt.Sprintf("successfully created task with ID %s, but failed to finalize bootstrap token for task", task.ID.String()),
 				Code: platform.EInternal,
 			}
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 	}
@@ -568,7 +575,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -579,7 +586,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.ENotFound,
 			Msg:  "failed to find task",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -589,7 +596,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find resource labels",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -635,7 +642,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	task, err := h.TaskService.UpdateTask(ctx, req.TaskID, req.Update)
@@ -647,7 +654,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -657,7 +664,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find resource labels",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -712,7 +719,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -724,7 +731,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -765,7 +772,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -776,7 +783,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EUnauthorized,
 			Msg:  "failed to get authorizer",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -784,7 +791,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		// Get the authorization for the task, if allowed.
 		authz, err := h.getAuthorizationForTask(ctx, req.filter.Task)
 		if err != nil {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
@@ -801,7 +808,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrNoRunsFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -857,7 +864,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -868,7 +875,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EUnauthorized,
 			Msg:  "failed to get authorizer",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -876,7 +883,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		// Get the authorization for the task, if allowed.
 		authz, err := h.getAuthorizationForTask(ctx, req.filter.Task)
 		if err != nil {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
@@ -893,7 +900,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrNoRunsFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -984,7 +991,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -997,7 +1004,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
@@ -1060,7 +1067,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -1071,7 +1078,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EUnauthorized,
 			Msg:  "failed to get authorizer",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -1079,7 +1086,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		// Get the authorization for the task, if allowed.
 		authz, err := h.getAuthorizationForTask(ctx, req.TaskID)
 		if err != nil {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
@@ -1096,7 +1103,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrRunNotFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -1189,7 +1196,7 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -1202,7 +1209,7 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &influxdb.ErrRunNotFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 }
@@ -1217,7 +1224,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EInvalid,
 			Msg:  "failed to decode request",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -1228,7 +1235,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 			Code: platform.EUnauthorized,
 			Msg:  "failed to get authorizer",
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -1236,7 +1243,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		// Get the authorization for the task, if allowed.
 		authz, err := h.getAuthorizationForTask(ctx, req.TaskID)
 		if err != nil {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
@@ -1253,7 +1260,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		if err.Err == &influxdb.ErrTaskNotFound || err.Err == &platform.ErrRunNotFound {
 			err.Code = platform.ENotFound
 		}
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
@@ -1325,7 +1332,7 @@ func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *platform.Ta
 // getAuthorizationForTask looks up the authorization associated with taskID,
 // ensuring that the authorizer on ctx is allowed to view the task and the authorization.
 //
-// This method returns a *platform.Error, suitable for directly passing to EncodeError.
+// This method returns a *platform.Error, suitable for directly passing to h.HandleHTTPError.
 func (h *TaskHandler) getAuthorizationForTask(ctx context.Context, taskID platform.ID) (*platform.Authorization, *platform.Error) {
 	// First look up the task, if we're allowed.
 	// This assumes h.TaskService validates access.
