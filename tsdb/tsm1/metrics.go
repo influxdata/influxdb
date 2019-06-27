@@ -25,6 +25,7 @@ func PrometheusCollectors() []prometheus.Collector {
 		collectors = append(collectors, bms.compactionMetrics.PrometheusCollectors()...)
 		collectors = append(collectors, bms.fileMetrics.PrometheusCollectors()...)
 		collectors = append(collectors, bms.cacheMetrics.PrometheusCollectors()...)
+		collectors = append(collectors, bms.readMetrics.PrometheusCollectors()...)
 	}
 	return collectors
 }
@@ -274,8 +275,8 @@ func newReadMetrics(labels prometheus.Labels) *readMetrics {
 		Seeks: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: readSubsystem,
-			Name:      "seek_locations",
-			Help:      "Number of tsm locations searched.",
+			Name:      "seeks",
+			Help:      "Number of tsm locations seeked.",
 		}, names),
 	}
 }
