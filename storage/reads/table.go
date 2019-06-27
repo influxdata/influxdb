@@ -1,9 +1,6 @@
 package reads
 
-//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
-
 import (
-	"fmt"
 	"sync/atomic"
 
 	"github.com/apache/arrow/go/arrow/array"
@@ -12,7 +9,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type table struct {
@@ -27,11 +23,7 @@ type table struct {
 
 	done chan struct{}
 
-	// The current number of records in memory
-	l int
-
-	colBufs []array.Interface
-	timeBuf []int64
+	colBufs *colReader
 
 	err error
 
@@ -48,23 +40,20 @@ func newTable(
 	alloc *memory.Allocator,
 ) table {
 	return table{
-		done:    done,
-		bounds:  bounds,
-		key:     key,
-		tags:    make([][]byte, len(cols)),
-		defs:    defs,
-		colBufs: make([]array.Interface, len(cols)),
-		cols:    cols,
-		alloc:   alloc,
+		done:   done,
+		bounds: bounds,
+		key:    key,
+		tags:   make([][]byte, len(cols)),
+		defs:   defs,
+		cols:   cols,
+		alloc:  alloc,
 	}
 }
 
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
-func (t *table) RefCount(n int)       {}
 func (t *table) Err() error           { return t.err }
-func (t *table) Empty() bool          { return t.l == 0 }
-func (t *table) Len() int             { return t.l }
+func (t *table) Empty() bool          { return false }
 
 func (t *table) Cancel() {
 	atomic.StoreInt32(&t.cancelled, 1)
@@ -74,34 +63,80 @@ func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
 }
 
-func (t *table) Bools(j int) *array.Boolean {
-	execute.CheckColType(t.cols[j], flux.TBool)
-	return t.colBufs[j].(*array.Boolean)
+// getBuffer will retrieve a suitable buffer for the
+// table implementations to use. If the existing buffer
+// is not used anymore, then it may be reused.
+func (t *table) getBuffer(l int) *colReader {
+	if t.colBufs != nil && atomic.LoadInt64(&t.colBufs.refCount) == 0 {
+		t.colBufs.refCount = 1
+		t.colBufs.l = l
+		return t.colBufs
+	}
+
+	// The current buffer is still being used so we should
+	// generate a new one.
+	t.colBufs = &colReader{
+		refCount: 1,
+		key:      t.key,
+		colMeta:  t.cols,
+		cols:     make([]array.Interface, len(t.cols)),
+		l:        l,
+	}
+	return t.colBufs
 }
 
-func (t *table) Ints(j int) *array.Int64 {
-	execute.CheckColType(t.cols[j], flux.TInt)
-	return t.colBufs[j].(*array.Int64)
+type colReader struct {
+	refCount int64
+
+	key     flux.GroupKey
+	colMeta []flux.ColMeta
+	cols    []array.Interface
+	l       int
 }
 
-func (t *table) UInts(j int) *array.Uint64 {
-	execute.CheckColType(t.cols[j], flux.TUInt)
-	return t.colBufs[j].(*array.Uint64)
+func (cr *colReader) Retain() {
+	atomic.AddInt64(&cr.refCount, 1)
+}
+func (cr *colReader) Release() {
+	if atomic.AddInt64(&cr.refCount, -1) == 0 {
+		for _, col := range cr.cols {
+			col.Release()
+		}
+	}
 }
 
-func (t *table) Floats(j int) *array.Float64 {
-	execute.CheckColType(t.cols[j], flux.TFloat)
-	return t.colBufs[j].(*array.Float64)
+func (cr *colReader) Key() flux.GroupKey   { return cr.key }
+func (cr *colReader) Cols() []flux.ColMeta { return cr.colMeta }
+func (cr *colReader) Len() int             { return cr.l }
+
+func (cr *colReader) Bools(j int) *array.Boolean {
+	execute.CheckColType(cr.colMeta[j], flux.TBool)
+	return cr.cols[j].(*array.Boolean)
 }
 
-func (t *table) Strings(j int) *array.Binary {
-	execute.CheckColType(t.cols[j], flux.TString)
-	return t.colBufs[j].(*array.Binary)
+func (cr *colReader) Ints(j int) *array.Int64 {
+	execute.CheckColType(cr.colMeta[j], flux.TInt)
+	return cr.cols[j].(*array.Int64)
 }
 
-func (t *table) Times(j int) *array.Int64 {
-	execute.CheckColType(t.cols[j], flux.TTime)
-	return t.colBufs[j].(*array.Int64)
+func (cr *colReader) UInts(j int) *array.Uint64 {
+	execute.CheckColType(cr.colMeta[j], flux.TUInt)
+	return cr.cols[j].(*array.Uint64)
+}
+
+func (cr *colReader) Floats(j int) *array.Float64 {
+	execute.CheckColType(cr.colMeta[j], flux.TFloat)
+	return cr.cols[j].(*array.Float64)
+}
+
+func (cr *colReader) Strings(j int) *array.Binary {
+	execute.CheckColType(cr.colMeta[j], flux.TString)
+	return cr.cols[j].(*array.Binary)
+}
+
+func (cr *colReader) Times(j int) *array.Int64 {
+	execute.CheckColType(cr.colMeta[j], flux.TTime)
+	return cr.cols[j].(*array.Int64)
 }
 
 // readTags populates b.tags with the provided tags
@@ -121,31 +156,32 @@ func (t *table) readTags(tags models.Tags) {
 }
 
 // appendTags fills the colBufs for the tag columns with the tag value.
-func (t *table) appendTags() {
+func (t *table) appendTags(cr *colReader) {
 	for j := range t.cols {
 		v := t.tags[j]
 		if v != nil {
 			b := arrow.NewStringBuilder(t.alloc)
-			b.Reserve(t.l)
-			for i := 0; i < t.l; i++ {
+			b.Reserve(cr.l)
+			b.ReserveData(cr.l * len(v))
+			for i := 0; i < cr.l; i++ {
 				b.Append(v)
 			}
-			t.colBufs[j] = b.NewArray()
+			cr.cols[j] = b.NewArray()
 			b.Release()
 		}
 	}
 }
 
 // appendBounds fills the colBufs for the time bounds
-func (t *table) appendBounds() {
+func (t *table) appendBounds(cr *colReader) {
 	bounds := []execute.Time{t.bounds.Start, t.bounds.Stop}
 	for j := range []int{startColIdx, stopColIdx} {
 		b := arrow.NewIntBuilder(t.alloc)
-		b.Reserve(t.l)
-		for i := 0; i < t.l; i++ {
+		b.Reserve(cr.l)
+		for i := 0; i < cr.l; i++ {
 			b.UnsafeAppend(int64(bounds[j]))
 		}
-		t.colBufs[j] = b.NewArray()
+		cr.cols[j] = b.NewArray()
 		b.Release()
 	}
 }
@@ -156,111 +192,6 @@ func (t *table) closeDone() {
 		t.done = nil
 	}
 }
-
-// hasPoints returns true if the next block from cur has data. If cur is not
-// nil, it will be closed.
-func hasPoints(cur cursors.Cursor) bool {
-	if cur == nil {
-		return false
-	}
-
-	// TODO(sgc): this is a temporary fix to identify a remote cursor
-	//  which will not stream points causing hasPoints to return false.
-	//  This is the cause of https://github.com/influxdata/idpe/issues/2774
-	if _, ok := cur.(streamCursor); ok {
-		cur.Close()
-		return true
-	}
-
-	res := false
-	switch cur := cur.(type) {
-	case cursors.IntegerArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.FloatArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.UnsignedArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.BooleanArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.StringArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
-	}
-	cur.Close()
-	return res
-}
-
-type tableNoPoints struct {
-	table
-}
-
-func newTableNoPoints(
-	done chan struct{},
-	bounds execute.Bounds,
-	key flux.GroupKey,
-	cols []flux.ColMeta,
-	tags models.Tags,
-	defs [][]byte,
-	alloc *memory.Allocator,
-) *tableNoPoints {
-	t := &tableNoPoints{
-		table: newTable(done, bounds, key, cols, defs, alloc),
-	}
-	t.readTags(tags)
-
-	return t
-}
-
-func (t *tableNoPoints) Close() {}
-
-func (t *tableNoPoints) Statistics() cursors.CursorStats { return cursors.CursorStats{} }
-
-func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
-	if t.isCancelled() {
-		return nil
-	}
-	t.err = f(t)
-	t.closeDone()
-	return t.err
-}
-
-type groupTableNoPoints struct {
-	table
-}
-
-func newGroupTableNoPoints(
-	done chan struct{},
-	bounds execute.Bounds,
-	key flux.GroupKey,
-	cols []flux.ColMeta,
-	defs [][]byte,
-	alloc *memory.Allocator,
-) *groupTableNoPoints {
-	t := &groupTableNoPoints{
-		table: newTable(done, bounds, key, cols, defs, alloc),
-	}
-
-	return t
-}
-
-func (t *groupTableNoPoints) Close() {}
-
-func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
-	if t.isCancelled() {
-		return nil
-	}
-	t.err = f(t)
-	t.closeDone()
-	return t.err
-}
-
-func (t *groupTableNoPoints) Statistics() cursors.CursorStats { return cursors.CursorStats{} }
 
 func (t *floatTable) toArrowBuffer(vs []float64) *array.Float64 {
 	return arrow.NewFloat(vs, t.alloc)

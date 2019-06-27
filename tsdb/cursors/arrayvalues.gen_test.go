@@ -122,6 +122,50 @@ func TestIntegerArray_Include(t *testing.T) {
 	}
 }
 
+func makeTimestampArray(count int, min, max int64) *TimestampArray {
+	vals := NewTimestampArrayLen(count)
+
+	ts := min
+	inc := (max - min) / int64(count)
+
+	for i := 0; i < count; i++ {
+		vals.Timestamps[i] = ts
+		ts += inc
+	}
+
+	return vals
+}
+
+func TestTimestampArray_Contains(t *testing.T) {
+	cases := []struct {
+		n        string
+		min, max int64
+		exp      bool
+	}{
+		{"no/lo", 0, 9, false},
+		{"no/hi", 19, 30, false},
+		{"no/middle", 13, 13, false},
+
+		{"yes/first", 0, 10, true},
+		{"yes/first-eq", 10, 10, true},
+		{"yes/last", 18, 20, true},
+		{"yes/last-eq", 18, 18, true},
+		{"yes/all but first and last", 12, 16, true},
+		{"yes/middle-eq", 14, 14, true},
+		{"yes/middle-overlap", 13, 15, true},
+		{"yes/covers", 8, 22, true},
+	}
+
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("%s[%d,%d]", tc.n, tc.min, tc.max), func(t *testing.T) {
+			vals := makeTimestampArray(5, 10, 20)
+			if got := vals.Contains(tc.min, tc.max); got != tc.exp {
+				t.Errorf("Contains -got/+exp\n%s", cmp.Diff(got, tc.exp))
+			}
+		})
+	}
+}
+
 func benchExclude(b *testing.B, vals *IntegerArray, min, max int64) {
 	b.ResetTimer()
 
