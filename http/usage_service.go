@@ -14,16 +14,16 @@ import (
 // UsageHandler represents an HTTP API handler for usages.
 type UsageHandler struct {
 	*httprouter.Router
-
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	UsageService platform.UsageService
 }
 
 // NewUsageHandler returns a new instance of UsageHandler.
-func NewUsageHandler() *UsageHandler {
+func NewUsageHandler(he platform.HTTPErrorHandler) *UsageHandler {
 	h := &UsageHandler{
-		Router: NewRouter(),
+		Router: NewRouter(he),
 		Logger: zap.NewNop(),
 	}
 
@@ -37,13 +37,13 @@ func (h *UsageHandler) handleGetUsage(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodeGetUsageRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	b, err := h.UsageService.GetUsage(ctx, req.filter)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 

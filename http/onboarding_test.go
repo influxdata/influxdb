@@ -37,6 +37,7 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	}
 
 	setupBackend := NewMockSetupBackend()
+	setupBackend.HTTPErrorHandler = ErrorHandler(0)
 	setupBackend.OnboardingService = svc
 	handler := NewSetupHandler(setupBackend)
 	server := httptest.NewServer(handler)
