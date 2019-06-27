@@ -2,6 +2,7 @@ package reads
 
 import (
 	"context"
+	"math"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -21,12 +22,11 @@ type resultSet struct {
 	mb  multiShardCursors
 }
 
-func NewResultSet(ctx context.Context, req *datatypes.ReadRequest, cur SeriesCursor) ResultSet {
+func NewFilteredResultSet(ctx context.Context, req *datatypes.ReadFilterRequest, cur SeriesCursor) ResultSet {
 	return &resultSet{
 		ctx: ctx,
-		agg: req.Aggregate,
 		cur: cur,
-		mb:  newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit),
+		mb:  newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64),
 	}
 }
 

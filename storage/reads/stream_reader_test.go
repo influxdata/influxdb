@@ -218,20 +218,6 @@ series: _m=cpu,tag0=unsigned
 		},
 
 		{
-			name: "invalid series key order",
-			stream: newStreamReader(
-				response(
-					seriesF(Float, "cpu,tag0=val1"),
-					seriesF(Float, "cpu,tag0=val0"),
-				),
-			),
-			exp: `series: _m=cpu,tag0=val1
-  cursor:Float
-`,
-			expErr: reads.ErrSeriesKeyOrder,
-		},
-
-		{
 			name: "some empty frames",
 			stream: newStreamReader(
 				response(

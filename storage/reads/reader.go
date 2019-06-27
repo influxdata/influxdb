@@ -1,7 +1,6 @@
 package reads
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -32,21 +31,59 @@ func NewReader(s Store) influxdb.Reader {
 	return &storeReader{s: s}
 }
 
-func (r *storeReader) Read(ctx context.Context, rs influxdb.ReadSpec, start, stop execute.Time, alloc *memory.Allocator) (flux.TableIterator, error) {
+func (r *storeReader) ReadFilter(ctx context.Context, spec influxdb.ReadFilterSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	return &filterIterator{
+		ctx:   ctx,
+		s:     r.s,
+		spec:  spec,
+		alloc: alloc,
+	}, nil
+}
+
+func (r *storeReader) ReadGroup(ctx context.Context, spec influxdb.ReadGroupSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	return &groupIterator{
+		ctx:   ctx,
+		s:     r.s,
+		spec:  spec,
+		alloc: alloc,
+	}, nil
+}
+
+func (r *storeReader) ReadTagKeys(ctx context.Context, spec influxdb.ReadTagKeysSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
 	var predicate *datatypes.Predicate
-	if rs.Predicate != nil {
-		p, err := toStoragePredicate(rs.Predicate)
+	if spec.Predicate != nil {
+		p, err := toStoragePredicate(spec.Predicate)
 		if err != nil {
 			return nil, err
 		}
 		predicate = p
 	}
 
-	return &tableIterator{
+	return &tagKeysIterator{
 		ctx:       ctx,
-		bounds:    execute.Bounds{Start: start, Stop: stop},
+		bounds:    spec.Bounds,
 		s:         r.s,
-		readSpec:  rs,
+		readSpec:  spec,
+		predicate: predicate,
+		alloc:     alloc,
+	}, nil
+}
+
+func (r *storeReader) ReadTagValues(ctx context.Context, spec influxdb.ReadTagValuesSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	var predicate *datatypes.Predicate
+	if spec.Predicate != nil {
+		p, err := toStoragePredicate(spec.Predicate)
+		if err != nil {
+			return nil, err
+		}
+		predicate = p
+	}
+
+	return &tagValuesIterator{
+		ctx:       ctx,
+		bounds:    spec.Bounds,
+		s:         r.s,
+		readSpec:  spec,
 		predicate: predicate,
 		alloc:     alloc,
 	}, nil
@@ -54,85 +91,56 @@ func (r *storeReader) Read(ctx context.Context, rs influxdb.ReadSpec, start, sto
 
 func (r *storeReader) Close() {}
 
-type tableIterator struct {
-	ctx       context.Context
-	bounds    execute.Bounds
-	s         Store
-	readSpec  influxdb.ReadSpec
-	predicate *datatypes.Predicate
-	stats     cursors.CursorStats
-	alloc     *memory.Allocator
+type filterIterator struct {
+	ctx   context.Context
+	s     Store
+	spec  influxdb.ReadFilterSpec
+	stats cursors.CursorStats
+	alloc *memory.Allocator
 }
 
-func (bi *tableIterator) Statistics() cursors.CursorStats { return bi.stats }
+func (fi *filterIterator) Statistics() cursors.CursorStats { return fi.stats }
 
-func (bi *tableIterator) Do(f func(flux.Table) error) error {
-	src, err := bi.s.GetSource(bi.readSpec)
+func (fi *filterIterator) Do(f func(flux.Table) error) error {
+	src := fi.s.GetSource(
+		fi.spec.Database,
+		fi.spec.RetentionPolicy,
+	)
+
+	// Setup read request
+	any, err := types.MarshalAny(src)
 	if err != nil {
 		return err
 	}
 
-	// Setup read request
-	var req datatypes.ReadRequest
-	if any, err := types.MarshalAny(src); err != nil {
-		return err
-	} else {
-		req.ReadSource = any
-	}
-	req.Predicate = bi.predicate
-	req.Descending = bi.readSpec.Descending
-	req.TimestampRange.Start = int64(bi.bounds.Start)
-	req.TimestampRange.End = int64(bi.bounds.Stop)
-	req.Group = convertGroupMode(bi.readSpec.GroupMode)
-	req.GroupKeys = bi.readSpec.GroupKeys
-	req.SeriesLimit = bi.readSpec.SeriesLimit
-	req.PointsLimit = bi.readSpec.PointsLimit
-	req.SeriesOffset = bi.readSpec.SeriesOffset
-
-	if req.PointsLimit == -1 {
-		req.Hints.SetNoPoints()
-	}
-
-	if agg, err := determineAggregateMethod(bi.readSpec.AggregateMethod); err != nil {
-		return err
-	} else if agg != datatypes.AggregateTypeNone {
-		req.Aggregate = &datatypes.Aggregate{Type: agg}
-	}
-
-	switch {
-	case req.Group != datatypes.GroupAll:
-		rs, err := bi.s.GroupRead(bi.ctx, &req)
+	var predicate *datatypes.Predicate
+	if fi.spec.Predicate != nil {
+		p, err := toStoragePredicate(fi.spec.Predicate)
 		if err != nil {
 			return err
 		}
-
-		if rs == nil {
-			return nil
-		}
-
-		if req.Hints.NoPoints() {
-			return bi.handleGroupReadNoPoints(f, rs)
-		}
-		return bi.handleGroupRead(f, rs)
-
-	default:
-		rs, err := bi.s.Read(bi.ctx, &req)
-		if err != nil {
-			return err
-		}
-
-		if rs == nil {
-			return nil
-		}
-
-		if req.Hints.NoPoints() {
-			return bi.handleReadNoPoints(f, rs)
-		}
-		return bi.handleRead(f, rs)
+		predicate = p
 	}
+
+	var req datatypes.ReadFilterRequest
+	req.ReadSource = any
+	req.Predicate = predicate
+	req.Range.Start = int64(fi.spec.Bounds.Start)
+	req.Range.End = int64(fi.spec.Bounds.Stop)
+
+	rs, err := fi.s.ReadFilter(fi.ctx, &req)
+	if err != nil {
+		return err
+	}
+
+	if rs == nil {
+		return nil
+	}
+
+	return fi.handleRead(f, rs)
 }
 
-func (bi *tableIterator) handleRead(f func(flux.Table) error, rs ResultSet) error {
+func (fi *filterIterator) handleRead(f func(flux.Table) error, rs ResultSet) error {
 	// these resources must be closed if not nil on return
 	var (
 		cur   cursors.Cursor
@@ -157,24 +165,25 @@ READ:
 			continue
 		}
 
-		key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
+		bnds := fi.spec.Bounds
+		key := defaultGroupKeyForSeries(rs.Tags(), bnds)
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TInt)
-			table = newIntegerTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			table = newIntegerTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.alloc)
 		case cursors.FloatArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TFloat)
-			table = newFloatTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			table = newFloatTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.alloc)
 		case cursors.UnsignedArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TUInt)
-			table = newUnsignedTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			table = newUnsignedTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.alloc)
 		case cursors.BooleanArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TBool)
-			table = newBooleanTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			table = newBooleanTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.alloc)
 		case cursors.StringArrayCursor:
 			cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-			table = newStringTable(done, typedCur, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+			table = newStringTable(done, typedCur, bnds, key, cols, rs.Tags(), defs, fi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -189,64 +198,79 @@ READ:
 			}
 			select {
 			case <-done:
-			case <-bi.ctx.Done():
+			case <-fi.ctx.Done():
 				table.Cancel()
 				break READ
 			}
 		}
 
 		stats := table.Statistics()
-		bi.stats.ScannedValues += stats.ScannedValues
-		bi.stats.ScannedBytes += stats.ScannedBytes
+		fi.stats.ScannedValues += stats.ScannedValues
+		fi.stats.ScannedBytes += stats.ScannedBytes
 		table.Close()
 		table = nil
 	}
 	return rs.Err()
 }
 
-func (bi *tableIterator) handleReadNoPoints(f func(flux.Table) error, rs ResultSet) error {
-	// these resources must be closed if not nil on return
-	var table storageTable
+type groupIterator struct {
+	ctx   context.Context
+	s     Store
+	spec  influxdb.ReadGroupSpec
+	stats cursors.CursorStats
+	alloc *memory.Allocator
+}
 
-	defer func() {
-		if table != nil {
-			table.Close()
-		}
-		rs.Close()
-	}()
+func (gi *groupIterator) Statistics() cursors.CursorStats { return gi.stats }
 
-READ:
-	for rs.Next() {
-		cur := rs.Cursor()
-		if !hasPoints(cur) {
-			// no data for series key + field combination
-			continue
-		}
+func (gi *groupIterator) Do(f func(flux.Table) error) error {
+	src := gi.s.GetSource(
+		gi.spec.Database,
+		gi.spec.RetentionPolicy,
+	)
 
-		key := groupKeyForSeries(rs.Tags(), &bi.readSpec, bi.bounds)
-		done := make(chan struct{})
-		cols, defs := determineTableColsForSeries(rs.Tags(), flux.TString)
-		table = newTableNoPoints(done, bi.bounds, key, cols, rs.Tags(), defs, bi.alloc)
+	// Setup read request
+	any, err := types.MarshalAny(src)
+	if err != nil {
+		return err
+	}
 
-		if err := f(table); err != nil {
-			table.Close()
-			table = nil
+	var predicate *datatypes.Predicate
+	if gi.spec.Predicate != nil {
+		p, err := toStoragePredicate(gi.spec.Predicate)
+		if err != nil {
 			return err
 		}
-		select {
-		case <-done:
-		case <-bi.ctx.Done():
-			table.Cancel()
-			break READ
-		}
-
-		table.Close()
-		table = nil
+		predicate = p
 	}
-	return rs.Err()
+
+	var req datatypes.ReadGroupRequest
+	req.ReadSource = any
+	req.Predicate = predicate
+	req.Range.Start = int64(gi.spec.Bounds.Start)
+	req.Range.End = int64(gi.spec.Bounds.Stop)
+
+	req.Group = convertGroupMode(gi.spec.GroupMode)
+	req.GroupKeys = gi.spec.GroupKeys
+
+	if agg, err := determineAggregateMethod(gi.spec.AggregateMethod); err != nil {
+		return err
+	} else if agg != datatypes.AggregateTypeNone {
+		req.Aggregate = &datatypes.Aggregate{Type: agg}
+	}
+
+	rs, err := gi.s.ReadGroup(gi.ctx, &req)
+	if err != nil {
+		return err
+	}
+
+	if rs == nil {
+		return nil
+	}
+	return gi.handleRead(f, rs)
 }
 
-func (bi *tableIterator) handleGroupRead(f func(flux.Table) error, rs GroupResultSet) error {
+func (gi *groupIterator) handleRead(f func(flux.Table) error, rs GroupResultSet) error {
 	// these resources must be closed if not nil on return
 	var (
 		gc    GroupCursor
@@ -283,24 +307,25 @@ READ:
 			continue
 		}
 
-		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
+		bnds := gi.spec.Bounds
+		key := groupKeyForGroup(gc.PartitionKeyVals(), &gi.spec, bnds)
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
-			table = newIntegerGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			table = newIntegerGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.alloc)
 		case cursors.FloatArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
-			table = newFloatGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			table = newFloatGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.alloc)
 		case cursors.UnsignedArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
-			table = newUnsignedGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			table = newUnsignedGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.alloc)
 		case cursors.BooleanArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
-			table = newBooleanGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			table = newBooleanGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.alloc)
 		case cursors.StringArrayCursor:
 			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-			table = newStringGroupTable(done, gc, typedCur, bi.bounds, key, cols, gc.Tags(), defs, bi.alloc)
+			table = newStringGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
 		}
@@ -316,61 +341,14 @@ READ:
 		}
 		select {
 		case <-done:
-		case <-bi.ctx.Done():
+		case <-gi.ctx.Done():
 			table.Cancel()
 			break READ
 		}
 
 		stats := table.Statistics()
-		bi.stats.ScannedValues += stats.ScannedValues
-		bi.stats.ScannedBytes += stats.ScannedBytes
-		table.Close()
-		table = nil
-
-		gc = rs.Next()
-	}
-	return rs.Err()
-}
-
-func (bi *tableIterator) handleGroupReadNoPoints(f func(flux.Table) error, rs GroupResultSet) error {
-	// these resources must be closed if not nil on return
-	var (
-		gc    GroupCursor
-		table storageTable
-	)
-
-	defer func() {
-		if table != nil {
-			table.Close()
-		}
-		if gc != nil {
-			gc.Close()
-		}
-		rs.Close()
-	}()
-
-	gc = rs.Next()
-READ:
-	for gc != nil {
-		key := groupKeyForGroup(gc.PartitionKeyVals(), &bi.readSpec, bi.bounds)
-		done := make(chan struct{})
-		cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
-		table = newGroupTableNoPoints(done, bi.bounds, key, cols, defs, bi.alloc)
-		gc.Close()
-		gc = nil
-
-		if err := f(table); err != nil {
-			table.Close()
-			table = nil
-			return err
-		}
-		select {
-		case <-done:
-		case <-bi.ctx.Done():
-			table.Cancel()
-			break READ
-		}
-
+		gi.stats.ScannedValues += stats.ScannedValues
+		gi.stats.ScannedBytes += stats.ScannedBytes
 		table.Close()
 		table = nil
 
@@ -390,20 +368,14 @@ func determineAggregateMethod(agg string) (datatypes.Aggregate_AggregateType, er
 	return 0, fmt.Errorf("unknown aggregate type %q", agg)
 }
 
-func convertGroupMode(m influxdb.GroupMode) datatypes.ReadRequest_Group {
+func convertGroupMode(m influxdb.GroupMode) datatypes.ReadGroupRequest_Group {
 	switch m {
 	case influxdb.GroupModeNone:
 		return datatypes.GroupNone
 	case influxdb.GroupModeBy:
 		return datatypes.GroupBy
-	case influxdb.GroupModeExcept:
-		return datatypes.GroupExcept
-
-	case influxdb.GroupModeDefault, influxdb.GroupModeAll:
-		fallthrough
-	default:
-		return datatypes.GroupAll
 	}
+	panic(fmt.Sprint("invalid group mode: ", m))
 }
 
 const (
@@ -442,7 +414,7 @@ func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.Col
 	return cols, defs
 }
 
-func groupKeyForSeries(tags models.Tags, readSpec *influxdb.ReadSpec, bnds execute.Bounds) flux.GroupKey {
+func defaultGroupKeyForSeries(tags models.Tags, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(tags))
 	vs := make([]values.Value, 2, len(tags))
 	cols[0] = flux.ColMeta{
@@ -455,32 +427,12 @@ func groupKeyForSeries(tags models.Tags, readSpec *influxdb.ReadSpec, bnds execu
 		Type:  flux.TTime,
 	}
 	vs[1] = values.NewTime(bnds.Stop)
-	switch readSpec.GroupMode {
-	case influxdb.GroupModeBy:
-		// group key in GroupKeys order, including tags in the GroupKeys slice
-		for _, k := range readSpec.GroupKeys {
-			bk := []byte(k)
-			for _, t := range tags {
-				if bytes.Equal(t.Key, bk) && len(t.Value) > 0 {
-					cols = append(cols, flux.ColMeta{
-						Label: k,
-						Type:  flux.TString,
-					})
-					vs = append(vs, values.NewString(string(t.Value)))
-				}
-			}
-		}
-	case influxdb.GroupModeExcept:
-		// group key in GroupKeys order, skipping tags in the GroupKeys slice
-		panic("not implemented")
-	case influxdb.GroupModeDefault, influxdb.GroupModeAll:
-		for i := range tags {
-			cols = append(cols, flux.ColMeta{
-				Label: string(tags[i].Key),
-				Type:  flux.TString,
-			})
-			vs = append(vs, values.NewString(string(tags[i].Value)))
-		}
+	for i := range tags {
+		cols = append(cols, flux.ColMeta{
+			Label: string(tags[i].Key),
+			Type:  flux.TString,
+		})
+		vs = append(vs, values.NewString(string(tags[i].Value)))
 	}
 	return execute.NewGroupKey(cols, vs)
 }
@@ -515,9 +467,9 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColM
 	return cols, defs
 }
 
-func groupKeyForGroup(kv [][]byte, readSpec *influxdb.ReadSpec, bnds execute.Bounds) flux.GroupKey {
-	cols := make([]flux.ColMeta, 2, len(readSpec.GroupKeys)+2)
-	vs := make([]values.Value, 2, len(readSpec.GroupKeys)+2)
+func groupKeyForGroup(kv [][]byte, spec *influxdb.ReadGroupSpec, bnds execute.Bounds) flux.GroupKey {
+	cols := make([]flux.ColMeta, 2, len(spec.GroupKeys)+2)
+	vs := make([]values.Value, 2, len(spec.GroupKeys)+2)
 	cols[0] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
@@ -528,15 +480,171 @@ func groupKeyForGroup(kv [][]byte, readSpec *influxdb.ReadSpec, bnds execute.Bou
 		Type:  flux.TTime,
 	}
 	vs[1] = values.NewTime(bnds.Stop)
-	for i := range readSpec.GroupKeys {
-		if readSpec.GroupKeys[i] == execute.DefaultStartColLabel || readSpec.GroupKeys[i] == execute.DefaultStopColLabel {
+	for i := range spec.GroupKeys {
+		if spec.GroupKeys[i] == execute.DefaultStartColLabel || spec.GroupKeys[i] == execute.DefaultStopColLabel {
 			continue
 		}
 		cols = append(cols, flux.ColMeta{
-			Label: readSpec.GroupKeys[i],
+			Label: spec.GroupKeys[i],
 			Type:  flux.TString,
 		})
 		vs = append(vs, values.NewString(string(kv[i])))
 	}
 	return execute.NewGroupKey(cols, vs)
+}
+
+type tagKeysIterator struct {
+	ctx       context.Context
+	bounds    execute.Bounds
+	s         Store
+	readSpec  influxdb.ReadTagKeysSpec
+	predicate *datatypes.Predicate
+	alloc     *memory.Allocator
+}
+
+func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
+	src := ti.s.GetSource(
+		ti.readSpec.Database,
+		ti.readSpec.RetentionPolicy,
+	)
+
+	var req datatypes.TagKeysRequest
+	if any, err := types.MarshalAny(src); err != nil {
+		return err
+	} else {
+		req.TagsSource = any
+	}
+	req.Predicate = ti.predicate
+	req.Range.Start = int64(ti.bounds.Start)
+	req.Range.End = int64(ti.bounds.Stop)
+
+	rs, err := ti.s.TagKeys(ti.ctx, &req)
+	if err != nil {
+		return err
+	}
+	return ti.handleRead(f, rs)
+}
+
+func (ti *tagKeysIterator) handleRead(f func(flux.Table) error, rs cursors.StringIterator) error {
+	key := execute.NewGroupKey(nil, nil)
+	builder := execute.NewColListTableBuilder(key, ti.alloc)
+	valueIdx, err := builder.AddCol(flux.ColMeta{
+		Label: execute.DefaultValueColLabel,
+		Type:  flux.TString,
+	})
+	if err != nil {
+		return err
+	}
+	defer builder.ClearData()
+
+	// Add the _start and _stop columns that come from storage.
+	if err := builder.AppendString(valueIdx, "_start"); err != nil {
+		return err
+	}
+	if err := builder.AppendString(valueIdx, "_stop"); err != nil {
+		return err
+	}
+
+	for rs.Next() {
+		v := rs.Value()
+		switch v {
+		case models.MeasurementTagKey:
+			v = "_measurement"
+		case models.FieldKeyTagKey:
+			v = "_field"
+		}
+
+		if err := builder.AppendString(valueIdx, v); err != nil {
+			return err
+		}
+	}
+
+	// Construct the table and add to the reference count
+	// so we can free the table later.
+	tbl, err := builder.Table()
+	if err != nil {
+		return err
+	}
+
+	// Release the references to the arrays held by the builder.
+	builder.ClearData()
+	return f(tbl)
+}
+
+func (ti *tagKeysIterator) Statistics() cursors.CursorStats {
+	return cursors.CursorStats{}
+}
+
+type tagValuesIterator struct {
+	ctx       context.Context
+	bounds    execute.Bounds
+	s         Store
+	readSpec  influxdb.ReadTagValuesSpec
+	predicate *datatypes.Predicate
+	alloc     *memory.Allocator
+}
+
+func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
+	src := ti.s.GetSource(
+		ti.readSpec.Database,
+		ti.readSpec.RetentionPolicy,
+	)
+
+	var req datatypes.TagValuesRequest
+	if any, err := types.MarshalAny(src); err != nil {
+		return err
+	} else {
+		req.TagsSource = any
+	}
+	switch ti.readSpec.TagKey {
+	case "_measurement":
+		req.TagKey = models.MeasurementTagKey
+	case "_field":
+		req.TagKey = models.FieldKeyTagKey
+	default:
+		req.TagKey = ti.readSpec.TagKey
+	}
+	req.Predicate = ti.predicate
+	req.Range.Start = int64(ti.bounds.Start)
+	req.Range.End = int64(ti.bounds.Stop)
+
+	rs, err := ti.s.TagValues(ti.ctx, &req)
+	if err != nil {
+		return err
+	}
+	return ti.handleRead(f, rs)
+}
+
+func (ti *tagValuesIterator) handleRead(f func(flux.Table) error, rs cursors.StringIterator) error {
+	key := execute.NewGroupKey(nil, nil)
+	builder := execute.NewColListTableBuilder(key, ti.alloc)
+	valueIdx, err := builder.AddCol(flux.ColMeta{
+		Label: execute.DefaultValueColLabel,
+		Type:  flux.TString,
+	})
+	if err != nil {
+		return err
+	}
+	defer builder.ClearData()
+
+	for rs.Next() {
+		if err := builder.AppendString(valueIdx, rs.Value()); err != nil {
+			return err
+		}
+	}
+
+	// Construct the table and add to the reference count
+	// so we can free the table later.
+	tbl, err := builder.Table()
+	if err != nil {
+		return err
+	}
+
+	// Release the references to the arrays held by the builder.
+	builder.ClearData()
+	return f(tbl)
+}
+
+func (ti *tagValuesIterator) Statistics() cursors.CursorStats {
+	return cursors.CursorStats{}
 }
