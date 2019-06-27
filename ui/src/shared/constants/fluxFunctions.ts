@@ -2405,14 +2405,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'v',
-        desc:
-          'The string value to search.',
+        desc: 'The string value to search.',
         type: 'String',
       },
     ],
     package: 'regexp',
-    desc:
-      'Returns the left-most regular expression match in a string.',
+    desc: 'Returns the left-most regular expression match in a string.',
     example: 'regexp.findString(r: /foo.?/, v: "seafood fool")',
     category: 'Transformations',
     link:
@@ -2428,8 +2426,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'v',
-        desc:
-          'The string value to search.',
+        desc: 'The string value to search.',
         type: 'String',
       },
     ],
