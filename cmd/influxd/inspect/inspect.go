@@ -24,7 +24,3 @@ func NewCommand() *cobra.Command {
 
 	return base
 }
-
-
-
-

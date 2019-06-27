@@ -11,7 +11,7 @@ import (
 
 func NewVerifyWALCommand() *cobra.Command {
 	verifyWALCommand := &cobra.Command{
-		Use: `verify-wal`,
+		Use:   `verify-wal`,
 		Short: "Check for WAL corruption",
 		Long: `
 This command will analyze the WAL (Write-Ahead Log) in a storage directory to 
@@ -47,9 +47,9 @@ var verifyWALFlags = struct {
 // inspectReportTSMF runs the report-tsm tool.
 func inspectVerifyWAL(cmd *cobra.Command, args []string) error {
 	report := &wal.Verifier{
-		Stderr:   os.Stderr,
-		Stdout:   os.Stdout,
-		Dir:      verifyWALFlags.dataDir,
+		Stderr: os.Stderr,
+		Stdout: os.Stdout,
+		Dir:    verifyWALFlags.dataDir,
 	}
 
 	_, err := report.Run(true)
