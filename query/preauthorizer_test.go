@@ -2,13 +2,13 @@ package query_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
-	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
