@@ -1386,7 +1386,10 @@ type readTracker struct {
 }
 
 func newReadTracker(metrics *readMetrics, defaultLabels prometheus.Labels) *readTracker {
-	return &readTracker{metrics: metrics, labels: defaultLabels}
+	t := &readTracker{metrics: metrics, labels: defaultLabels}
+	t.AddCursors(0)
+	t.AddSeeks(0)
+	return t
 }
 
 // Labels returns a copy of the default labels used by the tracker's metrics.
