@@ -2379,6 +2379,189 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/reduce/',
   },
   {
+    name: 'regexp.compile',
+    args: [
+      {
+        name: 'v',
+        desc:
+          'The string value to parse into a regular expression.',
+        type: 'String',
+      },
+    ],
+    package: 'regexp',
+    desc:
+      'Parses a string into a regular expression and returns a regexp object.',
+    example: 'regexp.compile(v: "[a-zA-Z]")',
+    category: 'Type Conversions',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/compile/',
+  },
+  {
+    name: 'regexp.findString',
+    args: [
+      {
+        name: 'r',
+        desc:
+          'The regular expression used to search `v`',
+        type: 'Regexp',
+      },
+      {
+        name: 'v',
+        desc:
+          'The string value to search.',
+        type: 'String',
+      },
+    ],
+    package: 'regexp',
+    desc:
+      'Returns the left-most regular expression match in a string.',
+    example: 'regexp.findString(r: /foo.?/, v: "seafood fool")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/findstring/',
+  },
+  {
+    name: 'regexp.findStringIndex',
+    args: [
+      {
+        name: 'r',
+        desc:
+          'The regular expression used to search `v`',
+        type: 'Regexp',
+      },
+      {
+        name: 'v',
+        desc:
+          'The string value to search.',
+        type: 'String',
+      },
+    ],
+    package: 'regexp',
+    desc:
+      'Returns a two-element array of integers defining the beginning and ending indexes of the left-most regular expression match in a string.',
+    example: 'regexp.findStringIndex(r: /ab?/, v: "tablet")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/findstringindex/',
+  },
+  {
+    name: 'regexp.getString',
+    args: [
+      {
+        name: 'r',
+        desc:
+          'The regular expression object to convert to a string.',
+        type: 'Regexp',
+      },
+    ],
+    package: 'regexp',
+    desc: 'Returns the source string used to compile a regular expression.',
+    example: 'regexp.getString(r: /[a-zA-Z]/)',
+    category: 'Type Conversions',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/getstring/',
+  },
+  {
+    name: 'regexp.matchRegexpString',
+    args: [
+      {
+        name: 'r',
+        desc:
+          'The regular expression used to search `v`',
+        type: 'Regexp',
+      },
+      {
+        name: 'v',
+        desc:
+          'The string value to search.',
+        type: 'String',
+      },
+    ],
+    package: 'regexp',
+    desc: 'Tests if a string contains any match to a regular expression.',
+    example: 'regexp.matchRegexpString(r: /(go){2}/, v: "gogogopher")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/matchregexpstring/',
+  },
+  {
+    name: 'regexp.quoteMeta',
+    args: [
+      {
+        name: 'v',
+        desc:
+          'String value containing regular expression metacharacters to escape.',
+        type: 'String',
+      },
+    ],
+    package: 'regexp',
+    desc: 'Escapes all regular expression metacharacters inside of a string.',
+    example: 'regexp.quoteMeta(v: ".+*?()|[]{}^$")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/quotemeta/',
+  },
+  {
+    name: 'regexp.replaceAllString',
+    args: [
+      {
+        name: 'r',
+        desc:
+          'The regular expression used to search `v`',
+        type: 'Regexp',
+      },
+      {
+        name: 'v',
+        desc:
+          'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc:
+          'The replacement for matches to `r`',
+        type: 'String',
+      },
+    ],
+    package: 'regexp',
+    desc:
+      'Replaces all regular expression matches in a string with a specified replacement.',
+    example: 'regexp.replaceAllString(r: /a(x*)b/, v: "-ab-axxb-", t: "T")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/replaceallstring/',
+  },
+  {
+    name: 'regexp.splitRegexp',
+    args: [
+      {
+        name: 'r',
+        desc:
+          'The regular expression used to search `v`',
+        type: 'Regexp',
+      },
+      {
+        name: 'v',
+        desc:
+          'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'i',
+        desc:
+          'The number of substrings to return.',
+        type: 'Integer',
+      },
+    ],
+    package: 'regexp',
+    desc:
+      'Splits a string into substrings separated by regular expression matches and returns an array of `i` substrings between matches.',
+    example: 'regexp.splitRegexp(r: /a*/, v: "abaabaccadaaae", i: 5)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/splitregexp/',
+  },
+  {
     name: 'rename',
     args: [
       {
@@ -2503,6 +2686,34 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/spread/',
   },
   {
+    name: 'sql.from',
+    args: [
+      {
+        name: 'driverName',
+        desc: 'The driver used to connect to the SQL database.',
+        type: 'String',
+      },
+      {
+        name: 'dataSourceName',
+        desc:
+          'The connection string used to connect to the SQL database. The string’s form and structure depend on the driver.',
+        type: 'String',
+      },
+      {
+        name: 'query',
+        desc: 'The query to run against the SQL database.',
+        type: 'String',
+      },
+    ],
+    package: 'sql',
+    desc: 'Retrieves data from a SQL data source.',
+    example:
+      'sql.from(driverName: "postgres", dataSourceName: "postgresql://user:password@localhost", query:"SELECT * FROM ExampleTable")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/sql/from/',
+  },
+  {
     name: 'stateCount',
     args: [
       {
@@ -2595,6 +2806,506 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/string/',
   },
+  {
+    name: 'strings.compare',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to compare.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The string value to compare against.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Compares the lexicographical order of two strings.',
+    example: 'strings.compare(v: "a", t: "b")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/compare/',
+  },
+  {
+    name: 'strings.containsAny',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'chars',
+        desc: 'Characters to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Reports whether a specified string contains characters from another string.',
+    example: 'strings.containsAny(v: "abc", chars: "and")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/containsany/',
+  },
+  {
+    name: 'strings.containsStr',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'substr',
+        desc: 'The substring to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Reports whether a string contains a specified substring.',
+    example: 'strings.containsStr(v: "This and that", substr: "and")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/containsstr/',
+  },
+  {
+    name: 'strings.countStr',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'substr',
+        desc: 'The substring count.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Counts the number of non-overlapping instances of a substring appears in a string.',
+    example: 'strings.countStr(v: "Hello mellow fellow", substr: "ello")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/countstr/',
+  },
+  {
+    name: 'strings.equalFold',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to compare.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The string value to compare against.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Reports whether two UTF-8 strings are equal under Unicode case-folding.',
+    example: 'strings.equalFold(v: "Go", t: "go")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/equalfold/',
+  },
+  {
+    name: 'strings.hasPrefix',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The prefix to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Indicates if a string begins with a specified prefix.',
+    example: 'strings.hasPrefix(v: "go gopher", t: "go")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/hasprefix/',
+  },
+  {
+    name: 'strings.hasSuffix',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The suffix to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Indicates if a string ends with a specified suffix.',
+    example: 'strings.hasPrefix(v: "gopher go", t: "go")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/hassuffix/',
+  },
+  {
+    name: 'strings.index',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'substr',
+        desc: 'The substring to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Returns the index of the first instance of a substring in a string. If the substring is not present, it returns `-1`.',
+    example: 'strings.index(v: "go gopher", substr: "go")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/index-func/',
+  },
+  {
+    name: 'strings.indexAny',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'chars',
+        desc: 'Characters to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Returns the index of the first instance of specified characters in a string. If none of the specified characters are present, it returns -1.',
+    example: 'strings.indexAny(v: "chicken", chars: "aeiouy")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/indexany/',
+  },
+  {
+    name: 'strings.isDigit',
+    args: [
+      {
+        name: 'v',
+        desc: 'The single-character string to test.',
+        type: 'String',
+      }
+    ],
+    package: 'strings',
+    desc: 'Tests if a single-character string is a digit (0-9).',
+    example: 'strings.isDigit(v: "7")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/isdigit/',
+  },
+  {
+    name: 'strings.isLetter',
+    args: [
+      {
+        name: 'v',
+        desc: 'The single-character string to test.',
+        type: 'String',
+      }
+    ],
+    package: 'strings',
+    desc: 'Tests if a single-character string is a letter (a-z, A-Z).',
+    example: 'strings.isLetter(v: "A")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/isletter/',
+  },
+  {
+    name: 'strings.isLower',
+    args: [
+      {
+        name: 'v',
+        desc: 'The single-character string to test.',
+        type: 'String',
+      }
+    ],
+    package: 'strings',
+    desc: 'Tests if a single-character string is lowercase.',
+    example: 'strings.isLower(v: "a")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/islower/',
+  },
+  {
+    name: 'strings.isUpper',
+    args: [
+      {
+        name: 'v',
+        desc: 'The single-character string to test.',
+        type: 'String',
+      }
+    ],
+    package: 'strings',
+    desc: 'Tests if a single-character string is uppercase.',
+    example: 'strings.isUpper(v: "A")',
+    category: 'Tests',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/isupper/',
+  },
+  {
+    name: 'strings.joinStr',
+    args: [
+      {
+        name: 'arr',
+        desc: 'The array of strings to concatenate.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'v',
+        desc: 'The separator to use in the concatenated value.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Concatenates elements of a string array into a single string using a specified separator.',
+    example: 'strings.joinStr(arr: ["a", "b", "c"], v: ",")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/joinstr/',
+  },
+  {
+    name: 'strings.lastIndex',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'substr',
+        desc: 'The substring to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Returns the index of the last instance of a substring in a string. If the substring is not present, the function returns -1.',
+    example: 'strings.lastIndex(v: "go gopher", t: "go")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/lastindex/',
+  },
+  {
+    name: 'strings.lastIndexAny',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'chars',
+        desc: 'Characters to search for.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Returns the index of the last instance of any specified characters in a string. If none of the specified characters are present, the function returns -1.',
+    example: 'strings.lastIndexAny(v: "chicken", chars: "aeiouy")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/lastindexany/',
+  },
+  {
+    name: 'strings.repeat',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to repeat.',
+        type: 'String',
+      },
+      {
+        name: 'i',
+        desc: 'The number of times to repeat `v`.',
+        type: 'Integer',
+      },
+    ],
+    package: 'strings',
+    desc: 'Returns a string consisting of `i` copies of a specified string.',
+    example: 'strings.repeat(v: "ha", i: 3)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/repeat/',
+  },
+  {
+    name: 'strings.replace',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The substring to replace.',
+        type: 'String',
+      },
+      {
+        name: 'u',
+        desc: 'The replacement for `i` instances of `t`.',
+        type: 'String',
+      },
+      {
+        name: 'i',
+        desc: 'The number of non-overlapping `t` matches to replace.',
+        type: 'Integer',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Replaces the first `i` non-overlapping instances of a substring with a specified replacement.',
+    example: 'strings.replace(v: "oink oink oink", t: "oink", u: "moo", i: 2)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/replace/',
+  },
+  {
+    name: 'strings.replaceAll',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The substring to replace.',
+        type: 'String',
+      },
+      {
+        name: 'u',
+        desc: 'The replacement for all instances of `t`.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Replaces all non-overlapping instances of a substring with a specified replacement.',
+    example: 'strings.replaceAll(v: "oink oink oink", t: "oink", u: "moo")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/replaceall/',
+  },
+  {
+    name: 'strings.split',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to split.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The string value that acts as the separator.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Splits a string on a specified separator and returns an array of substrings.',
+    example: 'strings.split(v: "a flux of foxes", t: " ")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/split/',
+  },
+  {
+    name: 'strings.splitAfter',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to split.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The string value that acts as the separator.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Splits a string after a specified separator and returns an array of substrings.',
+    example: 'strings.splitAfter(v: "a flux of foxes", t: " ")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/splitafter/',
+  },
+  {
+    name: 'strings.splitAfterN',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to split.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The string value that acts as the separator.',
+        type: 'String',
+      },
+      {
+        name: 'i',
+        desc: 'The number of substrings to return.',
+        type: 'Integer',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Splits a string after a specified separator and returns an array of `i` substrings.',
+    example: 'strings.splitAfterN(v: "a flux of foxes", t: " ", i: 2)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/splitaftern/',
+  },
+  {
+    name: 'strings.splitN',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to split.',
+        type: 'String',
+      },
+      {
+        name: 't',
+        desc: 'The string value that acts as the separator.',
+        type: 'String',
+      },
+      {
+        name: 'i',
+        desc: 'The number of substrings to return.',
+        type: 'Integer',
+      },
+    ],
+    package: 'strings',
+    desc:
+      'Splits a string on a specified separator and returns an array of `i` substrings.',
+    example: 'strings.splitN(v: "a flux of foxes", t: " ", i: 2)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/splitn/',
+  },
   STRINGS_TITLE,
   {
     name: 'strings.toLower',
@@ -2613,6 +3324,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/tolower/',
   },
   {
+    name: 'strings.toTitle',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to convert.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Converts all characters in a string to title case.',
+    example: 'strings.toTitle(v: "a flux of foxes")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/totitle/',
+  },
+  {
     name: 'strings.toUpper',
     args: [
       {
@@ -2629,6 +3356,27 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/toupper/',
   },
   STRINGS_TRIM,
+  {
+    name: 'strings.trimLeft',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string to remove characters from.',
+        type: 'String',
+      },
+      {
+        name: 'cutset',
+        desc: 'The leading characters to remove from the string.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Removes specified leading characters from a string.',
+    example: 'strings.trimLeft(v: ".abc", cutset: ".")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/trimleft/',
+  },
   {
     name: 'strings.trimPrefix',
     args: [
@@ -2650,6 +3398,27 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/trimprefix/',
+  },
+  {
+    name: 'strings.trimRight',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string to remove characters from.',
+        type: 'String',
+      },
+      {
+        name: 'cutset',
+        desc: 'The trailing characters to remove from the string.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Removes specified trailing characters from a string.',
+    example: 'strings.trimRight(v: "abc.", cutset: ".")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/trimright/',
   },
   {
     name: 'strings.trimSpace',
