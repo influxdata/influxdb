@@ -2383,8 +2383,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'v',
-        desc:
-          'The string value to parse into a regular expression.',
+        desc: 'The string value to parse into a regular expression.',
         type: 'String',
       },
     ],
@@ -2401,8 +2400,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'r',
-        desc:
-          'The regular expression used to search `v`',
+        desc: 'The regular expression used to search `v`',
         type: 'Regexp',
       },
       {
@@ -2425,8 +2423,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'r',
-        desc:
-          'The regular expression used to search `v`',
+        desc: 'The regular expression used to search `v`',
         type: 'Regexp',
       },
       {
@@ -2449,8 +2446,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'r',
-        desc:
-          'The regular expression object to convert to a string.',
+        desc: 'The regular expression object to convert to a string.',
         type: 'Regexp',
       },
     ],
@@ -2466,14 +2462,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'r',
-        desc:
-          'The regular expression used to search `v`',
+        desc: 'The regular expression used to search `v`',
         type: 'Regexp',
       },
       {
         name: 'v',
-        desc:
-          'The string value to search.',
+        desc: 'The string value to search.',
         type: 'String',
       },
     ],
@@ -2506,20 +2500,17 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'r',
-        desc:
-          'The regular expression used to search `v`',
+        desc: 'The regular expression used to search `v`',
         type: 'Regexp',
       },
       {
         name: 'v',
-        desc:
-          'The string value to search.',
+        desc: 'The string value to search.',
         type: 'String',
       },
       {
         name: 't',
-        desc:
-          'The replacement for matches to `r`',
+        desc: 'The replacement for matches to `r`',
         type: 'String',
       },
     ],
@@ -2536,20 +2527,17 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'r',
-        desc:
-          'The regular expression used to search `v`',
+        desc: 'The regular expression used to search `v`',
         type: 'Regexp',
       },
       {
         name: 'v',
-        desc:
-          'The string value to search.',
+        desc: 'The string value to search.',
         type: 'String',
       },
       {
         name: 'i',
-        desc:
-          'The number of substrings to return.',
+        desc: 'The number of substrings to return.',
         type: 'Integer',
       },
     ],
@@ -2885,7 +2873,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'strings',
-    desc: 'Counts the number of non-overlapping instances of a substring appears in a string.',
+    desc:
+      'Counts the number of non-overlapping instances of a substring appears in a string.',
     example: 'strings.countStr(v: "Hello mellow fellow", substr: "ello")',
     category: 'Transformations',
     link:
@@ -2906,7 +2895,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'strings',
-    desc: 'Reports whether two UTF-8 strings are equal under Unicode case-folding.',
+    desc:
+      'Reports whether two UTF-8 strings are equal under Unicode case-folding.',
     example: 'strings.equalFold(v: "Go", t: "go")',
     category: 'Tests',
     link:
@@ -3005,7 +2995,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'v',
         desc: 'The single-character string to test.',
         type: 'String',
-      }
+      },
     ],
     package: 'strings',
     desc: 'Tests if a single-character string is a digit (0-9).',
@@ -3021,7 +3011,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'v',
         desc: 'The single-character string to test.',
         type: 'String',
-      }
+      },
     ],
     package: 'strings',
     desc: 'Tests if a single-character string is a letter (a-z, A-Z).',
@@ -3037,7 +3027,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'v',
         desc: 'The single-character string to test.',
         type: 'String',
-      }
+      },
     ],
     package: 'strings',
     desc: 'Tests if a single-character string is lowercase.',
@@ -3053,7 +3043,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'v',
         desc: 'The single-character string to test.',
         type: 'String',
-      }
+      },
     ],
     package: 'strings',
     desc: 'Tests if a single-character string is uppercase.',
