@@ -120,8 +120,9 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
       readBucketName = draftQueries[activeQueryIndex].builderConfig.buckets[0]
     } else {
       const text = draftQueries[activeQueryIndex].text
-      const res = text.split('bucket:')
-      readBucketName = res[1].slice(2, 3)
+      const splitBucket = text.split('bucket:')
+      const splitQuotes = splitBucket[1].split('"')
+      readBucketName = splitQuotes[1]
     }
     const writeBucketName = this.props.taskOptions.toBucketName
 
