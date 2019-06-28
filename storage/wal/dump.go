@@ -21,7 +21,7 @@ type Dump struct {
 	Stdout io.Writer
 
 	// A list of files to dump
-	Files  []string
+	Files []string
 
 	// Whether or not to check for duplicate/out of order entries
 	FindDuplicates bool

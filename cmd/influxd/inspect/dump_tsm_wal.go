@@ -35,9 +35,9 @@ be printed.
 
 func inspectDumpTSMWAL(cmd *cobra.Command, args []string) error {
 	dumper := &wal.Dump{
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
-		Files:  args,
+		Stdout:         os.Stdout,
+		Stderr:         os.Stderr,
+		Files:          args,
 		FindDuplicates: dumpTSMWALFlags.findDuplicates,
 	}
 
