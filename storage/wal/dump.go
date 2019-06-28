@@ -110,7 +110,7 @@ func (w *Dump) process(out io.Writer, path string) ([]string, error) {
 				fmtKey, err := formatKeyOrgBucket(k)
 				// if key cannot be properly formatted with org and bucket, skip printing
 				if err != nil {
-					fmt.Fprintf(out, err.Error())
+					fmt.Fprintf(out, "Error: %v\n", err)
 					continue
 				}
 				for _, v := range entry.Values[k] {
@@ -165,7 +165,7 @@ func (w *Dump) process(out io.Writer, path string) ([]string, error) {
 			fmtKey, err := formatKeyOrgBucket(k)
 			// don't print keys that cannot be formatted with org/bucket
 			if err != nil {
-				fmt.Fprintf(out, err.Error())
+				fmt.Fprintf(out, "Error: %v\n", err)
 				continue
 			}
 			fmt.Fprintf(out, "  %s\n", fmtKey)
