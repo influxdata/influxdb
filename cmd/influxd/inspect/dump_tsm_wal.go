@@ -22,13 +22,13 @@ the tool will parse and print out the entries in each file. For each file, the f
 	* for each entry,
 		* The type of the entry (either [write] or [delete-bucket-range]);
 		* The formatted entry contents
-If the tool is run with --duplicates=true,
-A list of all keys with equal or out of order timestamps will be printed
+If the tool is run with --find-duplicates=true, A list of all keys with duplicate or out of order timestamps will 
+be printed.
 `,
 		RunE: inspectDumpTSMWAL,
 	}
 
-	dumpTSMWALCommand.Flags().BoolVarP(&dumpTSMWALFlags.findDuplicates, "duplicates", "", false, "report keys with out of order points")
+	dumpTSMWALCommand.Flags().BoolVarP(&dumpTSMWALFlags.findDuplicates, "find-duplicates", "", false, "report keys with out of order points")
 
 	return dumpTSMWALCommand
 }
