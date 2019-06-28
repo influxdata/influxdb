@@ -332,8 +332,14 @@ func (t *fileTracker) Bytes() uint64 { return atomic.LoadUint64(&t.diskBytes) }
 func (t *fileTracker) SetBytes(bytes map[int]uint64) {
 	total := uint64(0)
 	labels := t.Labels()
+	sizes := make(map[string]uint64)
 	for k, v := range bytes {
-		labels["level"] = formatLevel(uint64(k))
+		label := formatLevel(uint64(k))
+		sizes[label] += v
+		total += v
+	}
+	for k, v := range sizes {
+		labels["level"] = k
 		t.metrics.DiskSize.With(labels).Set(float64(v))
 	}
 	atomic.StoreUint64(&t.diskBytes, total)
@@ -351,8 +357,13 @@ func (t *fileTracker) AddBytes(bytes uint64, level int) {
 // SetFileCount sets the number of files in the FileStore.
 func (t *fileTracker) SetFileCount(files map[int]uint64) {
 	labels := t.Labels()
+	counts := make(map[string]uint64)
 	for k, v := range files {
-		labels["level"] = formatLevel(uint64(k))
+		label := formatLevel(uint64(k))
+		counts[label] += v
+	}
+	for k, v := range counts {
+		labels["level"] = k
 		t.metrics.Files.With(labels).Set(float64(v))
 	}
 }
