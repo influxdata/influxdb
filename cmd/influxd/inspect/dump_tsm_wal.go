@@ -16,7 +16,15 @@ func NewDumpTSMWALCommand() *cobra.Command {
 		Use:   "dumptsmwal",
 		Short: "Dump TSM data from WAL files",
 		Long: `
-update....`,
+This tool dumps data from WAL files for debugging purposes. Given a list of .wal files,
+the tool will parse and print out the entries in each file. For each file, the following is printed:
+	* The file name
+	* for each entry,
+		* The type of the entry (either [write] or [delete-bucket-range]);
+		* The formatted entry contents
+If the tool is run with --duplicates=true,
+A list of all keys with equal or out of order timestamps will be printed
+`,
 		RunE: inspectDumpTSMWAL,
 	}
 
@@ -30,6 +38,7 @@ func inspectDumpTSMWAL(cmd *cobra.Command, args []string) error {
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Files:  args,
+		FindDuplicates: dumpTSMWALFlags.findDuplicates,
 	}
 
 	if len(args) == 0 {
