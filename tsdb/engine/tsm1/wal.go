@@ -222,8 +222,9 @@ func (l *WAL) Open() error {
 			}
 			l.currentSegmentWriter = NewWALSegmentWriter(fd)
 
-			// Reset the current segment size stat
+			// Set the correct size on the segment writer
 			atomic.StoreInt64(&l.stats.CurrentBytes, stat.Size())
+			l.currentSegmentWriter.size = int(stat.Size())
 		}
 	}
 
