@@ -1,13 +1,17 @@
-## v2.0.0-alpha.13 [unreleased]
+## v2.0.0-alpha.14 [2019-06-28]
 
 ### Features
 
 1. [14221](https://github.com/influxdata/influxdb/pull/14221): Add influxd inspect verify-wal tool
-
-### Bug Fixes
+1. [14218](https://github.com/influxdata/influxdb/commit/4faf2a24def4f351aef5b3c0f2907c385f82fdb9): Move to Flux .34.2 - which includes new string functions and initial multi-datasource support with Sql.from()
+1. [14164](https://github.com/influxdata/influxdb/pull/14164): Only click save once to save cell
+1. [14188](https://github.com/influxdata/influxdb/pull/14188): Enable selecting more columns for line visualizations
 
 ### UI Improvements
 
+1. [14194](https://github.com/influxdata/influxdb/pull/14194): Draw gauges correctly on HiDPI displays
+1. [14194](https://github.com/influxdata/influxdb/pull/14194): Clamp gauge position to gauge domain
+1. [14168](https://github.com/influxdata/influxdb/pull/14168): Improve display of error messages
 1. [14157](https://github.com/influxdata/influxdb/pull/14157): Remove rendering bottleneck when streaming Flux responses
 1. [14165](https://github.com/influxdata/influxdb/pull/14165): Prevent variable dropdown from clipping
 
