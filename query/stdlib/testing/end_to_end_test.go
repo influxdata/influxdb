@@ -31,9 +31,11 @@ func init() {
 }
 
 func TestFluxEndToEnd(t *testing.T) {
+	t.Skip("flaky test: https://github.com/influxdata/influxdb/issues/14193")
 	runEndToEnd(t, stdlib.FluxTestPackages)
 }
 func BenchmarkFluxEndToEnd(b *testing.B) {
+	b.Skip("flaky test: https://github.com/influxdata/influxdb/issues/14193")
 	benchEndToEnd(b, stdlib.FluxTestPackages)
 }
 
