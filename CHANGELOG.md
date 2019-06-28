@@ -4,6 +4,8 @@
 
 1. [14221](https://github.com/influxdata/influxdb/pull/14221): Add influxd inspect verify-wal tool
 1. [14218](https://github.com/influxdata/influxdb/commit/4faf2a24def4f351aef5b3c0f2907c385f82fdb9): Move to Flux .34.2 - which includes new string functions and initial multi-datasource support with Sql.from()
+1. [14164](https://github.com/influxdata/influxdb/pull/14164): Only click save once to save cell
+1. [14188](https://github.com/influxdata/influxdb/pull/14188): Enable selecting more columns for line visualizations
 
 ### UI Improvements
 
