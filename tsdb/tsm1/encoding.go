@@ -840,3 +840,21 @@ func getBooleanEncoder(sz int) BooleanEncoder {
 	return x
 }
 func putBooleanEncoder(enc BooleanEncoder) { booleanEncoderPool.Put(enc) }
+
+// BlockTypeName returns a string name for the block type.
+func BlockTypeName(typ byte) string {
+	switch typ {
+	case BlockFloat64:
+		return "float64"
+	case BlockInteger:
+		return "integer"
+	case BlockBoolean:
+		return "boolean"
+	case BlockString:
+		return "string"
+	case BlockUnsigned:
+		return "unsigned"
+	default:
+		return fmt.Sprintf("unknown(%d)", typ)
+	}
+}
