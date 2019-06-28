@@ -7,6 +7,9 @@
 
 ### UI Improvements
 
+1. [14194](https://github.com/influxdata/influxdb/pull/14194): Draw gauges correctly on HiDPI displays
+1. [14194](https://github.com/influxdata/influxdb/pull/14194): Clamp gauge position to gauge domain
+1. [14168](https://github.com/influxdata/influxdb/pull/14168): Improve display of error messages
 1. [14157](https://github.com/influxdata/influxdb/pull/14157): Remove rendering bottleneck when streaming Flux responses
 1. [14165](https://github.com/influxdata/influxdb/pull/14165): Prevent variable dropdown from clipping
 
