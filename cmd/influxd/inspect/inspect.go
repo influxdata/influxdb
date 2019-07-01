@@ -14,6 +14,7 @@ func NewCommand() *cobra.Command {
 	// List of available sub-commands
 	// If a new sub-command is created, it must be added here
 	subCommands := []*cobra.Command{
+		NewExportBlocksCommand(),
 		NewReportTSMCommand(),
 		NewVerifyWALCommand(),
 	}
