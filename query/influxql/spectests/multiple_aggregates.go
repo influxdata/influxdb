@@ -20,7 +20,7 @@ t1 = from(bucketID: "")
 	|> drop(columns: ["_time"])
 	|> duplicate(column: "_start", as: "_time")
 join(tables: {t0: t0, t1: t1}, on: ["_time", "_measurement"])
-	|> map(fn: (r) => ({_time: r._time, mean: r["t0__value"], max: r["t1__value"]}))
+	|> map(fn: (r) => ({_time: r._time, mean: r["t0__value"], max: r["t1__value"]}), mergeKey: true)
 	|> yield(name: "0")
 `,
 		),
