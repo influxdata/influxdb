@@ -1,4 +1,4 @@
-package executor_test
+package executor
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/executor"
 	"go.uber.org/zap"
 )
 
@@ -278,7 +277,7 @@ func createAsyncSystem() *system {
 		name: "AsyncExecutor",
 		svc:  svc,
 		ts:   i,
-		ex:   executor.NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
+		ex:   NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
 		i:    i,
 	}
 }
@@ -294,7 +293,7 @@ func createSyncSystem() *system {
 		name: "SynchronousExecutor",
 		svc:  svc,
 		ts:   i,
-		ex: executor.NewQueryServiceExecutor(
+		ex: NewQueryServiceExecutor(
 			zap.NewNop(),
 			query.QueryServiceBridge{
 				AsyncQueryService: svc,
