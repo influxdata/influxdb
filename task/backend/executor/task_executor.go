@@ -32,8 +32,13 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 // LimitFunc is a function the executor will use to
 type LimitFunc func(*influxdb.Run) error
 
+type Metrics interface {
+	StartRun(influxdb.ID, time.Duration)
+	FinishRun(influxdb.ID, backend.RunStatus)
+}
+
 // NewExecutor creates a new task executor
-func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService) *TaskExecutor {
+func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, metrics Metrics) *TaskExecutor {
 	te := &TaskExecutor{
 		logger: logger,
 		ts:     ts,
@@ -41,6 +46,7 @@ func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.Authoriz
 		qs:     qs,
 		as:     as,
 
+		metrics:         metrics,
 		currentPromises: sync.Map{},
 		promiseQueue:    make(chan *Promise, 1000), //TODO(lh): make this configurable
 		workerLimit:     make(chan struct{}, 100),  //TODO(lh): make this configurable
@@ -63,6 +69,8 @@ type TaskExecutor struct {
 
 	qs query.QueryService
 	as influxdb.AuthorizationService
+
+	metrics Metrics
 
 	// currentPromises are all the promises we are made that have not been fulfilled
 	currentPromises sync.Map
@@ -302,6 +310,11 @@ func (w *worker) start(p *Promise) {
 	w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
 	// update run status
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), backend.RunStarted)
+
+	// add to metrics
+	s, _ := p.run.ScheduledForTime()
+	w.te.metrics.StartRun(p.task.ID, time.Since(s))
+
 }
 
 func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
@@ -313,6 +326,9 @@ func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
 	w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Completed(%s)", rs.String()))
 	// update run status
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
+
+	// add to metrics
+	w.te.metrics.FinishRun(p.task.ID, rs)
 
 	// log error
 	if err != nil {
