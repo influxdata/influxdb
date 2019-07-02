@@ -3,6 +3,7 @@ package reads
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
 
 import (
+	"errors"
 	"sync/atomic"
 
 	"github.com/apache/arrow/go/arrow/array"
@@ -29,8 +30,8 @@ type table struct {
 
 	err error
 
-	cancelled int32
-	alloc     *memory.Allocator
+	cancelled, used int32
+	alloc           *memory.Allocator
 }
 
 func newTable(
@@ -55,7 +56,7 @@ func newTable(
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
 func (t *table) Err() error           { return t.err }
-func (t *table) Empty() bool          { return false }
+func (t *table) Empty() bool          { return t.colBufs == nil || t.colBufs.l == 0 }
 
 func (t *table) Cancel() {
 	atomic.StoreInt32(&t.cancelled, 1)
@@ -65,25 +66,59 @@ func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
 }
 
-// getBuffer will retrieve a suitable buffer for the
-// table implementations to use. If the existing buffer
-// is not used anymore, then it may be reused.
-func (t *table) getBuffer(l int) *colReader {
-	if t.colBufs != nil && atomic.LoadInt64(&t.colBufs.refCount) == 0 {
-		t.colBufs.refCount = 1
-		t.colBufs.l = l
-		return t.colBufs
+func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
+	// Mark this table as having been used. If this doesn't
+	// succeed, then this has already been invoked somewhere else.
+	if !atomic.CompareAndSwapInt32(&t.used, 0, 1) {
+		return errors.New("table already used")
+	}
+	defer t.closeDone()
+
+	if !t.Empty() {
+		t.err = f(t.colBufs)
+		t.colBufs.Release()
+
+		for !t.isCancelled() && t.err == nil && advance() {
+			t.err = f(t.colBufs)
+			t.colBufs.Release()
+		}
+		t.colBufs = nil
 	}
 
-	// The current buffer is still being used so we should
-	// generate a new one.
-	t.colBufs = &colReader{
-		refCount: 1,
-		key:      t.key,
-		colMeta:  t.cols,
-		cols:     make([]array.Interface, len(t.cols)),
-		l:        l,
+	return t.err
+}
+
+func (t *table) Done() {
+	// Mark the table as having been used. If this has already
+	// been done, then nothing needs to be done.
+	if atomic.CompareAndSwapInt32(&t.used, 0, 1) {
+		defer t.closeDone()
 	}
+
+	if t.colBufs != nil {
+		t.colBufs.Release()
+		t.colBufs = nil
+	}
+}
+
+// allocateBuffer will allocate a suitable buffer for the
+// table implementations to use. If the existing buffer
+// is not used anymore, then it may be reused.
+//
+// The allocated buffer can be accessed at colBufs or
+// through the returned colReader.
+func (t *table) allocateBuffer(l int) *colReader {
+	if t.colBufs == nil || atomic.LoadInt64(&t.colBufs.refCount) > 0 {
+		// The current buffer is still being used so we should
+		// generate a new one.
+		t.colBufs = &colReader{
+			key:     t.key,
+			colMeta: t.cols,
+			cols:    make([]array.Interface, len(t.cols)),
+		}
+	}
+	t.colBufs.refCount = 1
+	t.colBufs.l = l
 	return t.colBufs
 }
 
