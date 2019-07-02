@@ -50,6 +50,7 @@ func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.Authoriz
 		currentPromises: sync.Map{},
 		promiseQueue:    make(chan *Promise, 1000), //TODO(lh): make this configurable
 		workerLimit:     make(chan struct{}, 100),  //TODO(lh): make this configurable
+		limitFunc: func(*influxdb.Run) error { return nil }, // noop
 	}
 
 	wm := &workerMaker{
@@ -171,6 +172,10 @@ func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledA
 	for _, run := range cr {
 		sa, err := run.ScheduledForTime()
 		if err == nil && sa.UTC() == scheduledAt.UTC() {
+			if currentPromise, ok :=  e.currentPromises.Load(run.ID); ok {
+				// if we already have a promise we should just return that
+				return currentPromise.(*Promise), nil
+			}
 			return e.createPromise(ctx, run)
 		}
 	}
@@ -263,7 +268,6 @@ func (w *worker) work() {
 		}
 
 		// check to make sure we are below the limits.
-		if w.te.limitFunc != nil {
 			for {
 				err := w.te.limitFunc(prom.run)
 				if err == nil {
@@ -285,7 +289,6 @@ func (w *worker) work() {
 				case <-time.After(time.Second):
 				}
 			}
-		}
 
 		// execute the promise
 		w.executeQuery(prom)
@@ -412,9 +415,10 @@ func (p *Promise) ID() scheduler.ID {
 func (p *Promise) Cancel(ctx context.Context) {
 	// call cancelfunc
 	p.cancelFunc()
-	// wait for ctx.Done or p.ctx.Done
+
+	// wait for ctx.Done or p.Done
 	select {
-	case <-p.ctx.Done():
+	case <-p.Done():
 	case <-ctx.Done():
 	}
 }
