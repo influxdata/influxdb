@@ -207,6 +207,9 @@ func (e *TaskExecutor) Cancel(ctx context.Context, promiseID scheduler.ID) error
 }
 
 func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*Promise, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	t, err := e.ts.FindTaskByID(ctx, run.TaskID)
 	if err != nil {
 		return nil, err
@@ -217,7 +220,7 @@ func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*P
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	// create promise
 	p := &Promise{
 		run:        run,
@@ -314,7 +317,6 @@ func (w *worker) start(p *Promise) {
 	// add to metrics
 	s, _ := p.run.ScheduledForTime()
 	w.te.metrics.StartRun(p.task.ID, time.Since(s))
-
 }
 
 func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
@@ -367,7 +369,7 @@ func (w *worker) executeQuery(p *Promise) {
 		},
 	}
 
-	it, err := w.te.qs.Query(p.ctx, req)
+	it, err := w.te.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
 		w.finish(p, backend.RunFail, err)
