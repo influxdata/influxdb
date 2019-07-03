@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/NYTimes/gziphandler"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/julienschmidt/httprouter"
 )
@@ -15,9 +16,9 @@ type ChronografHandler struct {
 }
 
 // NewChronografHandler is the constructor an chronograf handler.
-func NewChronografHandler(s *server.Service) *ChronografHandler {
+func NewChronografHandler(s *server.Service, he influxdb.HTTPErrorHandler) *ChronografHandler {
 	h := &ChronografHandler{
-		Router:  NewRouter(),
+		Router:  NewRouter(he),
 		Service: s,
 	}
 	/* API */

@@ -14,6 +14,7 @@ import (
 // SetupBackend is all services and associated parameters required to construct
 // the SetupHandler.
 type SetupBackend struct {
+	platform.HTTPErrorHandler
 	Logger            *zap.Logger
 	OnboardingService platform.OnboardingService
 }
@@ -21,6 +22,7 @@ type SetupBackend struct {
 // NewSetupBackend returns a new instance of SetupBackend.
 func NewSetupBackend(b *APIBackend) *SetupBackend {
 	return &SetupBackend{
+		HTTPErrorHandler:  b.HTTPErrorHandler,
 		Logger:            b.Logger.With(zap.String("handler", "setup")),
 		OnboardingService: b.OnboardingService,
 	}
@@ -29,7 +31,7 @@ func NewSetupBackend(b *APIBackend) *SetupBackend {
 // SetupHandler represents an HTTP API handler for onboarding setup.
 type SetupHandler struct {
 	*httprouter.Router
-
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	OnboardingService platform.OnboardingService
@@ -42,7 +44,8 @@ const (
 // NewSetupHandler returns a new instance of SetupHandler.
 func NewSetupHandler(b *SetupBackend) *SetupHandler {
 	h := &SetupHandler{
-		Router:            NewRouter(),
+		Router:            NewRouter(b.HTTPErrorHandler),
+		HTTPErrorHandler:  b.HTTPErrorHandler,
 		Logger:            b.Logger,
 		OnboardingService: b.OnboardingService,
 	}
@@ -60,7 +63,7 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	result, err := h.OnboardingService.IsOnboarding(ctx)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, isOnboardingResponse{result}); err != nil {
@@ -75,12 +78,12 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 
 	req, err := decodePostSetupRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	results, err := h.OnboardingService.Generate(ctx, req)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOnboardingResponse(results)); err != nil {

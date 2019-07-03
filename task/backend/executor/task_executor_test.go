@@ -49,8 +49,6 @@ func taskExecutorSystem(t *testing.T) tes {
 	}
 }
 
-// test task executor metrics
-
 func TestTaskExecutor(t *testing.T) {
 	t.Run("QuerySuccess", testQuerySuccess)
 	t.Run("QueryFailure", testQueryFailure)

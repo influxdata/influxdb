@@ -108,7 +108,7 @@ func TestService_handleGetLabels(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(tt.fields.LabelService)
+			h := NewLabelHandler(tt.fields.LabelService, ErrorHandler(0))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -216,7 +216,7 @@ func TestService_handleGetLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(tt.fields.LabelService)
+			h := NewLabelHandler(tt.fields.LabelService, ErrorHandler(0))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -311,7 +311,7 @@ func TestService_handlePostLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(tt.fields.LabelService)
+			h := NewLabelHandler(tt.fields.LabelService, ErrorHandler(0))
 
 			l, err := json.Marshal(tt.args.label)
 			if err != nil {
@@ -402,7 +402,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(tt.fields.LabelService)
+			h := NewLabelHandler(tt.fields.LabelService, ErrorHandler(0))
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -541,7 +541,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := NewLabelHandler(tt.fields.LabelService)
+			h := NewLabelHandler(tt.fields.LabelService, ErrorHandler(0))
 
 			upd := platform.LabelUpdate{}
 			if len(tt.args.properties) > 0 {

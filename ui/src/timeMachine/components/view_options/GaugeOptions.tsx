@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Grid} from '@influxdata/clockface'
 import Affixes from 'src/timeMachine/components/view_options/Affixes'
 import DecimalPlacesOption from 'src/timeMachine/components/view_options/DecimalPlaces'
-import ThresholdList from 'src/timeMachine/components/view_options/ThresholdList'
+import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
 
 // Actions
 import {
@@ -19,7 +19,7 @@ import {
 // Types
 import {ViewType} from 'src/types'
 import {DecimalPlaces} from 'src/types/dashboards'
-import {Color, ThresholdConfig} from 'src/types/colors'
+import {Color} from 'src/types/colors'
 
 interface OwnProps {
   type: ViewType
@@ -63,11 +63,12 @@ class GaugeOptions extends PureComponent<Props> {
         <Grid.Column>
           <h4 className="view-options--header">Colorized Thresholds</h4>
         </Grid.Column>
-        <ThresholdList
-          colorConfigs={this.colorConfigs}
-          onUpdateColors={onUpdateColors}
-          onValidateNewColor={this.handleValidateNewColor}
-        />
+        <Grid.Column>
+          <ThresholdsSettings
+            thresholds={this.props.colors}
+            onSetThresholds={onUpdateColors}
+          />
+        </Grid.Column>
       </>
     )
   }
@@ -86,80 +87,6 @@ class GaugeOptions extends PureComponent<Props> {
         onDecimalPlacesChange={onUpdateDecimalPlaces}
       />
     )
-  }
-
-  private get colorConfigs(): ThresholdConfig[] {
-    const {maxColor, minColor} = this.extents
-    const {colors} = this.props
-
-    return colors.map(color => {
-      switch (color.id) {
-        case minColor.id:
-          return {
-            color,
-            isDeletable: false,
-            disableColor: false,
-            label: 'Minimum',
-          }
-        case maxColor.id:
-          return {
-            color,
-            isDeletable: false,
-            disableColor: colors.length > 2,
-            label: 'Maximum',
-          }
-        default:
-          return {color}
-      }
-    })
-  }
-
-  private get extents(): {minColor: Color; maxColor: Color} {
-    const first = this.props.colors[0]
-
-    const defaults = {minColor: first, maxColor: first}
-
-    return this.props.colors.reduce((extents, color) => {
-      if (!extents.minColor || extents.minColor.value > color.value) {
-        return {...extents, minColor: color}
-      } else if (!extents.minColor || extents.maxColor.value < color.value) {
-        return {...extents, maxColor: color}
-      }
-
-      return extents
-    }, defaults)
-  }
-
-  private handleValidateNewColor = (sortedColors: Color[], newColor: Color) => {
-    const newColorValue = newColor.value
-    let allowedToUpdate = false
-
-    const minValue = sortedColors[0].value
-    const maxValue = sortedColors[sortedColors.length - 1].value
-
-    if (newColorValue === minValue) {
-      const nextValue = sortedColors[1].value
-      allowedToUpdate = newColorValue < nextValue
-    } else if (newColorValue === maxValue) {
-      const previousValue = sortedColors[sortedColors.length - 2].value
-      allowedToUpdate = previousValue < newColorValue
-    } else {
-      const greaterThanMin = newColorValue > minValue
-      const lessThanMax = newColorValue < maxValue
-
-      const colorsWithoutMinOrMax = sortedColors.slice(
-        1,
-        sortedColors.length - 1
-      )
-
-      const isUnique = !colorsWithoutMinOrMax.some(
-        color => color.value === newColorValue && color.id !== newColor.id
-      )
-
-      allowedToUpdate = greaterThanMin && lessThanMax && isUnique
-    }
-
-    return allowedToUpdate
   }
 }
 

@@ -1,0 +1,50 @@
+.threshold-setting {
+  margin: $ix-marg-b 0;
+}
+
+.threshold-setting--controls {
+  display: flex;
+  justify-content: stretch;
+
+  > * {
+    margin-right: $ix-marg-a;
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+}
+
+.threshold-setting--label,
+.threshold-setting--error {
+  font-weight: 600;
+  font-size: $form-xs-font;
+}
+
+.threshold-setting--label {
+  flex: 0 0 70px;
+  display: flex;
+  align-items: center;
+  height: $form-sm-height;
+  justify-content: flex-end;
+  padding: 0 $ix-marg-b;
+  border-radius: $radius;
+  @include no-user-select();
+  background-color: $g4-onyx;
+  color: $g13-mist;
+}
+
+.threshold-setting--error {
+  grid-column: 1 / 4;
+  align-self: center;
+  color: $c-curacao;
+  margin: $ix-marg-b 0;
+}
+
+.threshold-setting--value {
+  flex: 1 0 110px;
+}
+
+.threshold-setting--remove {
+  flex: 0 0 auto;
+}

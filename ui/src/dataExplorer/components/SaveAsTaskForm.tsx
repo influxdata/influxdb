@@ -87,13 +87,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
-    const {
-      taskOptions,
-      dismiss,
-      tokens,
-      tokenStatus,
-      selectedToken,
-    } = this.props
+    const {taskOptions, dismiss, tokenStatus, selectedToken} = this.props
 
     return (
       <SpinnerContainer
@@ -109,11 +103,74 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
           onSubmit={this.handleSubmit}
           canSubmit={this.isFormValid}
           dismiss={dismiss}
-          tokens={tokens}
+          tokens={this.getRelevantTokens}
           selectedToken={selectedToken}
           onTokenChange={this.handleTokenChange}
         />
       </SpinnerContainer>
+    )
+  }
+
+  private get getRelevantTokens() {
+    const readAuthorizations = this.getReadAuthorizations
+    const writeAuthorizations = this.getWriteAuthorizations
+
+    const relevantAuthorizations = _.intersectionBy(
+      readAuthorizations,
+      writeAuthorizations,
+      'id'
+    )
+
+    return relevantAuthorizations
+  }
+
+  private get readBucketName() {
+    const {draftQueries, activeQueryIndex} = this.props
+
+    const query = draftQueries[activeQueryIndex]
+
+    let readBucketName = ''
+    if (query.editMode === 'builder') {
+      readBucketName = query.builderConfig.buckets[0] || ''
+    } else {
+      const text = query.text
+      const splitBucket = text.split('bucket:')
+      const splitQuotes = splitBucket[1].split('"')
+      readBucketName = splitQuotes[1]
+    }
+
+    return readBucketName
+  }
+
+  private get getReadAuthorizations() {
+    const authorizations = this.props.tokens
+    const readBucketName = this.readBucketName
+
+    return authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'read' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === readBucketName)
+      )
+    )
+  }
+
+  private get getWriteAuthorizations() {
+    const authorizations = this.props.tokens
+    const {
+      taskOptions: {toBucketName},
+    } = this.props
+
+    return authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'write' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === toBucketName)
+      )
     )
   }
 

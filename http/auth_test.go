@@ -323,6 +323,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -505,6 +506,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -682,6 +684,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -795,6 +798,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			authorizationBackend := NewMockAuthorizationBackend()
+			authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
@@ -881,6 +885,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	authorizationBackend := NewMockAuthorizationBackend()
+	authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 	authorizationBackend.AuthorizationService = svc
 	authorizationBackend.UserService = svc
 	authorizationBackend.OrganizationService = svc
@@ -897,7 +902,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	authZ := NewAuthorizationHandler(authorizationBackend)
-	authN := NewAuthenticationHandler()
+	authN := NewAuthenticationHandler(ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ
 

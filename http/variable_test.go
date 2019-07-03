@@ -296,6 +296,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.LabelService = tt.fields.LabelService
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(variableBackend)
@@ -427,6 +428,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
@@ -565,6 +567,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.variable)))
@@ -664,6 +667,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.update)))
@@ -757,6 +761,7 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
 			h := NewVariableHandler(variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
@@ -849,6 +854,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
+			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.LabelService = tt.fields.LabelService
 			h := NewVariableHandler(variableBackend)
 
@@ -900,6 +906,7 @@ func initVariableService(f platformtesting.VariableFields, t *testing.T) (platfo
 	}
 
 	variableBackend := NewMockVariableBackend()
+	variableBackend.HTTPErrorHandler = ErrorHandler(0)
 	variableBackend.VariableService = svc
 	handler := NewVariableHandler(variableBackend)
 	server := httptest.NewServer(handler)

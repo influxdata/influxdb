@@ -35,6 +35,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	}
 
 	userBackend := NewMockUserBackend()
+	userBackend.HTTPErrorHandler = ErrorHandler(0)
 	userBackend.UserService = svc
 	handler := NewUserHandler(userBackend)
 	server := httptest.NewServer(handler)
