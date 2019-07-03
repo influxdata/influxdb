@@ -8,16 +8,11 @@ import (
 	"testing"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber/jaeger-client-go"
+	"github.com/opentracing/opentracing-go/mocktracer"
 )
 
 func TestInjectAndExtractHTTPRequest(t *testing.T) {
-	// Use Jaeger tracer simply to avoid using a noop tracer implementation.
-
-	sampler := jaeger.NewConstSampler(true)
-	reporter := jaeger.NewInMemoryReporter()
-	tracer, closer := jaeger.NewTracer("service name", sampler, reporter)
-	defer closer.Close()
+	tracer := mocktracer.New()
 
 	oldTracer := opentracing.GlobalTracer()
 	opentracing.SetGlobalTracer(tracer)
@@ -33,22 +28,17 @@ func TestInjectAndExtractHTTPRequest(t *testing.T) {
 	InjectToHTTPRequest(span, request)
 	gotSpan, _ := ExtractFromHTTPRequest(request, "MyStruct")
 
-	if span.Context().(jaeger.SpanContext).TraceID().String() != gotSpan.Context().(jaeger.SpanContext).TraceID().String() {
+	if span.(*mocktracer.MockSpan).SpanContext.TraceID != gotSpan.(*mocktracer.MockSpan).SpanContext.TraceID {
 		t.Error("injected and extracted traceIDs not equal")
 	}
 
-	if span.Context().(jaeger.SpanContext).SpanID() != gotSpan.Context().(jaeger.SpanContext).ParentID() {
-		t.Error("injected and extracted spanIDs not equal")
+	if span.(*mocktracer.MockSpan).SpanContext.SpanID != gotSpan.(*mocktracer.MockSpan).ParentID {
+		t.Error("injected span ID does not match extracted span parent ID")
 	}
 }
 
 func TestStartSpanFromContext(t *testing.T) {
-	// Use Jaeger tracer simply to avoid using a noop tracer implementation.
-
-	sampler := jaeger.NewConstSampler(true)
-	reporter := jaeger.NewInMemoryReporter()
-	tracer, closer := jaeger.NewTracer("service name", sampler, reporter)
-	defer closer.Close()
+	tracer := mocktracer.New()
 
 	oldTracer := opentracing.GlobalTracer()
 	opentracing.SetGlobalTracer(tracer)
@@ -108,7 +98,7 @@ func TestStartSpanFromContext(t *testing.T) {
 			if span == nil {
 				t.Error("never expect non-nil Span")
 			}
-			foundParent := span.Context().(jaeger.SpanContext).ParentID() != 0
+			foundParent := span.(*mocktracer.MockSpan).ParentID != 0
 			if tc.expectParent != foundParent {
 				t.Errorf("parent: expect %v got %v", tc.expectParent, foundParent)
 			}
@@ -116,6 +106,21 @@ func TestStartSpanFromContext(t *testing.T) {
 				t.Errorf("always expect fresh context")
 			}
 		})
+	}
+}
+
+func TestLogErrorNil(t *testing.T) {
+	tracer := mocktracer.New()
+	span := tracer.StartSpan("test").(*mocktracer.MockSpan)
+
+	var err error
+	if err2 := LogError(span, err); err2 != nil {
+		t.Errorf("expected nil err, got '%s'", err2.Error())
+	}
+
+	if len(span.Logs()) > 0 {
+		t.Errorf("expected zero new span logs, got %d", len(span.Logs()))
+		println(span.Logs()[0].Fields[0].Key)
 	}
 }
 
