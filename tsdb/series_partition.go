@@ -728,7 +728,7 @@ func (c *SeriesPartitionCompactor) Compact(p *SeriesPartition) (time.Duration, e
 		// Reopen index with new file.
 		if err := p.index.Close(); err != nil {
 			return err
-		} else if err := fs.RenameFile(indexPath, index.path); err != nil {
+		} else if err := fs.RenameFileWithReplacement(indexPath, index.path); err != nil {
 			return err
 		} else if err := p.index.Open(); err != nil {
 			return err
