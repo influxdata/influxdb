@@ -21,6 +21,7 @@ import {
   XYView,
   XYViewGeom,
   RemoteDataState,
+  TimeZone,
 } from 'src/types'
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
   files: string[]
   loading: RemoteDataState
   properties: QueryViewProperties
+  timeZone: TimeZone
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
@@ -35,6 +37,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   loading,
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
+  timeZone,
 }) => {
   switch (properties.type) {
     case ViewType.SingleStat:
@@ -49,7 +52,13 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case ViewType.Table:
       return (
         <FluxTablesTransform files={files}>
-          {tables => <TableGraphs tables={tables} properties={properties} />}
+          {tables => (
+            <TableGraphs
+              tables={tables}
+              properties={properties}
+              timeZone={timeZone}
+            />
+          )}
         </FluxTablesTransform>
       )
 
@@ -69,6 +78,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           fluxGroupKeyUnion={fluxGroupKeyUnion}
           viewProperties={properties}
           loading={loading}
+          timeZone={timeZone}
         >
           {config => <Plot config={config} />}
         </XYContainer>
@@ -94,6 +104,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           fluxGroupKeyUnion={fluxGroupKeyUnion}
           viewProperties={xyProperties}
           loading={loading}
+          timeZone={timeZone}
         >
           {config => (
             <Plot config={config}>
@@ -115,6 +126,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         <HistogramContainer
           table={table}
           loading={loading}
+          timeZone={timeZone}
           viewProperties={properties}
         >
           {config => <Plot config={config} />}
@@ -126,6 +138,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         <HeatmapContainer
           table={table}
           loading={loading}
+          timeZone={timeZone}
           viewProperties={properties}
         >
           {config => <Plot config={config} />}
@@ -138,6 +151,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           table={table}
           loading={loading}
           viewProperties={properties}
+          timeZone={timeZone}
         >
           {config => <Plot config={config} />}
         </ScatterContainer>

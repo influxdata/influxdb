@@ -8,7 +8,7 @@ import ColumnOptions from 'src/shared/components/columns_options/ColumnsOptions'
 import FixFirstColumn from 'src/timeMachine/components/view_options/FixFirstColumn'
 import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 import SortBy from 'src/timeMachine/components/view_options/SortBy'
-import {Grid} from '@influxdata/clockface'
+import {Grid, Form} from '@influxdata/clockface'
 import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
 
 // Constants
@@ -94,10 +94,14 @@ export class TableOptions extends Component<Props, {}> {
             onChange={this.handleChangeSortBy}
           />
         )}
-        <TimeFormat
-          timeFormat={timeFormat}
-          onTimeFormatChange={onSetTimeFormat}
-        />
+        <Grid.Column>
+          <Form.Element label="Time Format">
+            <TimeFormat
+              timeFormat={timeFormat}
+              onTimeFormatChange={onSetTimeFormat}
+            />
+          </Form.Element>
+        </Grid.Column>
         {decimalPlaces && (
           <DecimalPlacesOption
             digits={decimalPlaces.digits}
