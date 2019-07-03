@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
@@ -75,7 +76,7 @@ func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 	}
 
 	// Swap with target path.
-	if err := os.Rename(f.Name(), path); err != nil {
+	if err := fs.RenameFile(f.Name(), path); err != nil {
 		return nil, err
 	}
 

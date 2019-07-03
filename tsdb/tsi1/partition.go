@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1285,7 +1286,7 @@ func (p *Partition) writeStatsFile() error {
 
 	if err := f.Close(); err != nil {
 		return err
-	} else if err := os.Rename(tmpPath, p.StatsPath()); err != nil {
+	} else if err := fs.RenameFile(tmpPath, p.StatsPath()); err != nil {
 		return err
 	}
 

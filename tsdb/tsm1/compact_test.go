@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
@@ -2916,7 +2917,7 @@ func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 	}
 
 	newName := filepath.Join(filepath.Dir(oldName), tsm1.DefaultFormatFileName(gen, 1)+".tsm")
-	if err := os.Rename(oldName, newName); err != nil {
+	if err := fs.RenameFile(oldName, newName); err != nil {
 		panic(fmt.Sprintf("create tsm file: %v", err))
 	}
 

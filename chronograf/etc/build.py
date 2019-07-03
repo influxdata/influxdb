@@ -11,6 +11,7 @@ import re
 import logging
 import argparse
 import json
+import fs
 
 ################
 #### Chronograf Variables
@@ -697,7 +698,7 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                                 #     logging.debug("Changing package output version from {} to {} for RPM.".format(version, package_version))
                                 # Strip nightly version from package name
                                 new_outfile = outfile.replace("{}-{}".format(package_version, package_iteration), "nightly")
-                                os.rename(outfile, new_outfile)
+                                fs.RenameFile(outfile, new_outfile)
                                 outfile = new_outfile
                             else:
                                 if package_type == 'rpm':
@@ -705,7 +706,7 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                                     package_version = package_version.replace("-", "_")
                                     logging.debug("Changing package output version from {} to {} for RPM.".format(version, package_version))
                                 new_outfile = outfile.replace("{}-{}".format(package_version, package_iteration), package_version)
-                                os.rename(outfile, new_outfile)
+                                fs.RenameFile(outfile, new_outfile)
                                 outfile = new_outfile
                             outfiles.append(os.path.join(os.getcwd(), outfile))
         logging.debug("Produced package files: {}".format(outfiles))
