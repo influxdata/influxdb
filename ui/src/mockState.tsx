@@ -6,14 +6,18 @@ import {render} from 'react-testing-library'
 import {initialState as initialVariablesState} from 'src/variables/reducers'
 import {initialState as initialUserSettingsState} from 'src/userSettings/reducers'
 import configureStore from 'src/store/configureStore'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, TimeZone} from 'src/types'
 
 const localState = {
   app: {
     ephemeral: {
       inPresentationMode: false,
     },
-    persisted: {autoRefresh: 0, showTemplateControlBar: false},
+    persisted: {
+      autoRefresh: 0,
+      showTemplateControlBar: false,
+      timeZone: 'Local' as TimeZone,
+    },
   },
   orgs: {
     items: [{name: 'org', orgID: 'orgid'}],

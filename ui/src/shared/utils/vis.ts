@@ -1,17 +1,19 @@
 // Libraries
 import {get} from 'lodash'
 import {
+  binaryPrefixFormatter,
+  timeFormatter,
+  siPrefixFormatter,
   Table,
   ColumnType,
   LineInterpolation,
   FromFluxResult,
 } from '@influxdata/giraffe'
 
-// Utils
-import {formatNumber} from 'src/shared/utils/formatNumber'
+import {VIS_SIG_DIGITS} from 'src/shared/constants'
 
 // Types
-import {XYViewGeom, Axis, Base} from 'src/types'
+import {XYViewGeom, Axis, Base, TimeZone} from 'src/types'
 
 /*
   A geom may be stored as "line", "step", "monotoneX", "bar", or "stacked", but
@@ -38,15 +40,40 @@ export const geomToInterpolation = (geom: XYViewGeom): LineInterpolation => {
   }
 }
 
+interface GetFormatterOptions {
+  prefix?: string
+  suffix?: string
+  base?: Base
+  timeZone?: TimeZone
+}
+
 export const getFormatter = (
   columnType: ColumnType,
-  prefix: string = '',
-  suffix: string = '',
-  base: Base = ''
+  {prefix, suffix, base, timeZone}: GetFormatterOptions = {}
 ): null | ((x: any) => string) => {
-  return columnType === 'number'
-    ? x => `${prefix}${formatNumber(x, base)}${suffix}`
-    : null
+  if (columnType === 'number' && base === '2') {
+    return binaryPrefixFormatter({
+      prefix,
+      suffix,
+      significantDigits: VIS_SIG_DIGITS,
+    })
+  }
+
+  if (columnType === 'number') {
+    return siPrefixFormatter({
+      prefix,
+      suffix,
+      significantDigits: VIS_SIG_DIGITS,
+    })
+  }
+
+  if (columnType === 'time') {
+    return timeFormatter({
+      timeZone: timeZone === 'Local' ? undefined : timeZone,
+    })
+  }
+
+  return null
 }
 
 const NOISY_LEGEND_COLUMNS = new Set(['_start', '_stop', 'result'])

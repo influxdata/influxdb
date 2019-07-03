@@ -21,7 +21,12 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {RemoteDataState, AppState, QueryViewProperties} from 'src/types'
+import {
+  RemoteDataState,
+  AppState,
+  QueryViewProperties,
+  TimeZone,
+} from 'src/types'
 
 interface StateProps {
   loading: RemoteDataState
@@ -35,6 +40,7 @@ interface StateProps {
   yColumn: string
   fillColumns: string[]
   symbolColumns: string[]
+  timeZone: TimeZone
 }
 
 type Props = StateProps
@@ -51,6 +57,7 @@ const TimeMachineVis: SFC<Props> = ({
   yColumn,
   fillColumns,
   symbolColumns,
+  timeZone,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -90,6 +97,7 @@ const TimeMachineVis: SFC<Props> = ({
             files={files}
             loading={loading}
             properties={resolvedViewProperties}
+            timeZone={timeZone}
           />
         )}
       </EmptyQueryView>
@@ -110,6 +118,8 @@ const mstp = (state: AppState): StateProps => {
   const fillColumns = getFillColumnsSelection(state)
   const symbolColumns = getSymbolColumnsSelection(state)
 
+  const timeZone = state.app.persisted.timeZone
+
   return {
     loading,
     errorMessage,
@@ -122,6 +132,7 @@ const mstp = (state: AppState): StateProps => {
     yColumn,
     fillColumns,
     symbolColumns,
+    timeZone,
   }
 }
 

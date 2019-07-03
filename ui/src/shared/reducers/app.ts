@@ -2,6 +2,7 @@ import {combineReducers} from 'redux'
 
 import {AUTOREFRESH_DEFAULT_INTERVAL} from 'src/shared/constants'
 import {ActionTypes, Action} from 'src/types/actions/app'
+import {TimeZone} from 'src/types'
 
 export interface AppState {
   ephemeral: {
@@ -10,6 +11,7 @@ export interface AppState {
   persisted: {
     autoRefresh: number
     showTemplateControlBar: boolean
+    timeZone: TimeZone
   }
 }
 
@@ -20,6 +22,7 @@ const initialState: AppState = {
   persisted: {
     autoRefresh: AUTOREFRESH_DEFAULT_INTERVAL,
     showTemplateControlBar: false,
+    timeZone: 'Local',
   },
 }
 
@@ -68,6 +71,12 @@ const appPersistedReducer = (
       const {showTemplateControlBar} = state
 
       return {...state, showTemplateControlBar: !showTemplateControlBar}
+    }
+
+    case ActionTypes.SetTimeZone: {
+      const {timeZone} = action.payload
+
+      return {...state, timeZone}
     }
 
     default:

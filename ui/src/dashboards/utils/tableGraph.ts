@@ -2,7 +2,7 @@ import _ from 'lodash'
 import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
-import {DEFAULT_TIME_FIELD} from 'src/dashboards/constants'
+import {DEFAULT_TIME_FIELD, FORMAT_OPTIONS} from 'src/dashboards/constants'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 import {
@@ -343,4 +343,12 @@ export const findTableNameHeaders = (tables: FluxTable[], name: string) => {
   const foundTable = tables.find(t => t.name === name)
 
   return _.get(foundTable, 'data.0', [])
+}
+
+export const resolveTimeFormat = (timeFormat: string) => {
+  if (FORMAT_OPTIONS.find(d => d.text === timeFormat)) {
+    return timeFormat
+  }
+
+  return DEFAULT_TIME_FORMAT
 }

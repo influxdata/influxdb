@@ -16,19 +16,21 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HistogramView} from 'src/types'
+import {RemoteDataState, HistogramView, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
   loading: RemoteDataState
   viewProperties: HistogramView
   children: (config: Config) => JSX.Element
+  timeZone: TimeZone
 }
 
 const HistogramContainer: FunctionComponent<Props> = ({
   table,
   loading,
   children,
+  timeZone,
   viewProperties: {
     xColumn,
     fillColumns,
@@ -60,7 +62,7 @@ const HistogramContainer: FunctionComponent<Props> = ({
       ? colors.map(c => c.hex)
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(table.getColumnType(xColumn))
+  const xFormatter = getFormatter(table.getColumnType(xColumn), {timeZone})
 
   const config: Config = {
     ...VIS_THEME,
