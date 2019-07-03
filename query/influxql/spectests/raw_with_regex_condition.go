@@ -11,7 +11,7 @@ from(bucketID: "")
 	|> filter(fn: (r) => r._measurement == "cpu" and r._field == "value")
 	|> filter(fn: (r) => r["host"] =~ /.*er01/)
 	|> group(columns: ["_measurement", "_start"], mode: "by")
-	|> map(fn: (r) => ({_time: r._time, value: r._value}))
+	|> map(fn: (r) => ({_time: r._time, value: r._value}), mergeKey: true)
 	|> yield(name: "0")
 `,
 		),

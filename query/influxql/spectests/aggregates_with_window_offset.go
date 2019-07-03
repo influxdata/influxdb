@@ -16,7 +16,7 @@ func init() {
 	|> ` + name + `()
 	|> duplicate(column: "_start", as: "_time")
 	|> window(every: inf)
-	|> map(fn: (r) => ({_time: r._time, ` + name + `: r._value}))
+	|> map(fn: (r) => ({_time: r._time, ` + name + `: r._value}), mergeKey: true)
 	|> yield(name: "0")
 `
 		}),
