@@ -256,10 +256,6 @@ func testWorkerLimit(t *testing.T) {
 	if got := promise.Error(); got == nil {
 		t.Fatal("got no error when I should have")
 	}
-
-	if len(tes.ex.workerLimit) != 0 {
-		t.Fatal("expected worker to be ended and removed")
-	}
 }
 
 func testLimitFunc(t *testing.T) {
