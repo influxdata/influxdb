@@ -10,6 +10,7 @@ import {
   IconFont,
   ComponentColor,
   Alert,
+  JustifyContent,
 } from '@influxdata/clockface'
 
 // Constants
@@ -17,6 +18,7 @@ import {CLOUD} from 'src/shared/constants'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
+import CheckoutButton from 'src/cloud/components/CheckoutButton'
 
 interface Props {
   resourceName: string
@@ -34,13 +36,19 @@ export default class AssetLimitAlert extends PureComponent<Props> {
           margin={ComponentSize.Large}
         >
           <Alert icon={IconFont.Cloud} color={ComponentColor.Primary}>
-            <p>
-              {`Hey there, looks like you have reached the maximum number of
+            <ComponentSpacer
+              alignItems={AlignItems.Center}
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.SpaceBetween}
+              margin={ComponentSize.Medium}
+            >
+              <div>
+                {`Hey there, looks like you have reached the maximum number of
               ${resourceName} you can create as part of your plan.`}
-              <br />
-              Want to remove these restrictions? Upgrade any time by sending an
-              email to <a href="#">cloudbeta@influxdata.com</a>
-            </p>
+                <br />
+              </div>
+              <CheckoutButton />
+            </ComponentSpacer>
           </Alert>
           {this.props.children}
         </ComponentSpacer>
