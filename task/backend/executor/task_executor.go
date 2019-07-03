@@ -48,9 +48,9 @@ func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.Authoriz
 
 		metrics:         metrics,
 		currentPromises: sync.Map{},
-		promiseQueue:    make(chan *Promise, 1000), //TODO(lh): make this configurable
-		workerLimit:     make(chan struct{}, 100),  //TODO(lh): make this configurable
-		limitFunc: func(*influxdb.Run) error { return nil }, // noop
+		promiseQueue:    make(chan *Promise, 1000),                //TODO(lh): make this configurable
+		workerLimit:     make(chan struct{}, 100),                 //TODO(lh): make this configurable
+		limitFunc:       func(*influxdb.Run) error { return nil }, // noop
 	}
 
 	wm := &workerMaker{
@@ -172,7 +172,7 @@ func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledA
 	for _, run := range cr {
 		sa, err := run.ScheduledForTime()
 		if err == nil && sa.UTC() == scheduledAt.UTC() {
-			if currentPromise, ok :=  e.currentPromises.Load(run.ID); ok {
+			if currentPromise, ok := e.currentPromises.Load(run.ID); ok {
 				// if we already have a promise we should just return that
 				return currentPromise.(*Promise), nil
 			}
@@ -268,27 +268,27 @@ func (w *worker) work() {
 		}
 
 		// check to make sure we are below the limits.
-			for {
-				err := w.te.limitFunc(prom.run)
-				if err == nil {
-					break
-				}
-
-				// add to the run log
-				w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), fmt.Sprintf("Task limit reached: %s", err.Error()))
-
-				// sleep
-				select {
-				// If done the promise was canceled
-				case <-prom.ctx.Done():
-					w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), "Run canceled")
-					w.te.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), backend.RunCanceled)
-					prom.err = &influxdb.ErrRunCanceled
-					close(prom.done)
-					return
-				case <-time.After(time.Second):
-				}
+		for {
+			err := w.te.limitFunc(prom.run)
+			if err == nil {
+				break
 			}
+
+			// add to the run log
+			w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), fmt.Sprintf("Task limit reached: %s", err.Error()))
+
+			// sleep
+			select {
+			// If done the promise was canceled
+			case <-prom.ctx.Done():
+				w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), "Run canceled")
+				w.te.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), backend.RunCanceled)
+				prom.err = &influxdb.ErrRunCanceled
+				close(prom.done)
+				return
+			case <-time.After(time.Second):
+			}
+		}
 
 		// execute the promise
 		w.executeQuery(prom)
@@ -340,6 +340,9 @@ func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
 }
 
 func (w *worker) executeQuery(p *Promise) {
+	span, ctx := tracing.StartSpanFromContext(p.ctx)
+	defer span.Finish()
+
 	// start
 	w.start(p)
 
