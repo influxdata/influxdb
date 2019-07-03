@@ -110,7 +110,7 @@ func (r *Report) Run(print bool) (*ReportSummary, error) {
 
 	var tagBuf models.Tags // Buffer that can be re-used when parsing keys.
 	for _, path := range files {
-		if r.Pattern != "" && strings.Contains(path, r.Pattern) {
+		if r.Pattern != "" && !strings.Contains(path, r.Pattern) {
 			continue
 		}
 
