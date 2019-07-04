@@ -133,9 +133,9 @@ func (c *floatArrayAscendingCursor) Next() *tsdb.FloatArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] > c.end {
+		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
 			pos--
 		}
 		pos++
@@ -292,9 +292,9 @@ func (c *floatArrayDescendingCursor) Next() *tsdb.FloatArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] < c.end {
+		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
 			pos--
 		}
 		pos++
@@ -441,9 +441,9 @@ func (c *integerArrayAscendingCursor) Next() *tsdb.IntegerArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] > c.end {
+		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
 			pos--
 		}
 		pos++
@@ -600,9 +600,9 @@ func (c *integerArrayDescendingCursor) Next() *tsdb.IntegerArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] < c.end {
+		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
 			pos--
 		}
 		pos++
@@ -749,9 +749,9 @@ func (c *unsignedArrayAscendingCursor) Next() *tsdb.UnsignedArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] > c.end {
+		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
 			pos--
 		}
 		pos++
@@ -908,9 +908,9 @@ func (c *unsignedArrayDescendingCursor) Next() *tsdb.UnsignedArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] < c.end {
+		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
 			pos--
 		}
 		pos++
@@ -1057,9 +1057,9 @@ func (c *stringArrayAscendingCursor) Next() *tsdb.StringArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] > c.end {
+		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
 			pos--
 		}
 		pos++
@@ -1218,9 +1218,9 @@ func (c *stringArrayDescendingCursor) Next() *tsdb.StringArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] < c.end {
+		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
 			pos--
 		}
 		pos++
@@ -1369,9 +1369,9 @@ func (c *booleanArrayAscendingCursor) Next() *tsdb.BooleanArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] > c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] >= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] > c.end {
+		for pos >= 0 && c.res.Timestamps[pos] >= c.end {
 			pos--
 		}
 		pos++
@@ -1528,9 +1528,9 @@ func (c *booleanArrayDescendingCursor) Next() *tsdb.BooleanArray {
 		}
 	}
 
-	if pos > 0 && c.res.Timestamps[pos-1] < c.end {
+	if pos > 0 && c.res.Timestamps[pos-1] <= c.end {
 		pos -= 2
-		for pos >= 0 && c.res.Timestamps[pos] < c.end {
+		for pos >= 0 && c.res.Timestamps[pos] <= c.end {
 			pos--
 		}
 		pos++
