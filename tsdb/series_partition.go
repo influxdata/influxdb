@@ -223,6 +223,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 	}
 
 	type keyRange struct {
+		key    []byte
 		id     SeriesIDTyped
 		offset int64
 	}
@@ -287,7 +288,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 		// Append new key to be added to hash map after flush.
 		collection.SeriesIDs[index] = id.SeriesID()
 		newIDs[string(key)] = id
-		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
+		newKeyRanges = append(newKeyRanges, keyRange{key, id, offset})
 	}
 
 	// Flush active segment writes so we can access data in mmap.
@@ -299,7 +300,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 
 	// Add keys to hash map(s).
 	for _, keyRange := range newKeyRanges {
-		p.index.Insert(p.seriesKeyByOffset(keyRange.offset), keyRange.id, keyRange.offset)
+		p.index.Insert(keyRange.key, keyRange.id, keyRange.offset)
 	}
 	p.tracker.AddSeriesCreated(uint64(len(newKeyRanges))) // Track new series in metric.
 	p.tracker.AddSeries(uint64(len(newKeyRanges)))
