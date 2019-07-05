@@ -266,7 +266,10 @@ func (i *Index) CreateSeriesListIfNotExists(seriesIDSet *tsdb.SeriesIDSet, measu
 	}
 
 	for j, key := range keys {
-		if seriesList[j] != nil {
+		// Note, keys may contain duplicates (e.g., because of points for the same series
+		// in the same batch). If the duplicate series are new, the index must
+		// be rechecked on each iteration.
+		if seriesList[j] != nil || i.series[string(key)] != nil {
 			continue
 		}
 
