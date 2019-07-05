@@ -1,3 +1,10 @@
+v1.7.8 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#14264](https://github.com/influxdata/influxdb/pull/14264): Fix Prometheus read panic.
+
 v1.7.7 [2019-06-26]
 -------------------
 
