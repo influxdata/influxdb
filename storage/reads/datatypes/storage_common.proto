@@ -173,7 +173,7 @@ message TimestampRange {
   // Start defines the inclusive lower bound.
   int64 start = 1;
 
-  // End defines the inclusive upper bound.
+  // End defines the exclusive upper bound.
   int64 end = 2;
 }
 
