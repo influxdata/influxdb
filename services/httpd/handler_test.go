@@ -20,12 +20,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/mock"
+	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
@@ -1016,7 +1018,9 @@ func TestHandler_Flux_QueryJSON(t *testing.T) {
 			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
 		}
 		called = true
-		return internal.NewFluxQueryMock(), nil
+
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
 	}
 
 	q := client.QueryRequest{Query: qry}
@@ -1039,15 +1043,17 @@ func TestHandler_Flux_QueryJSON(t *testing.T) {
 	}
 }
 
-func TestHandler_Flux_SpecJSON(t *testing.T) {
+func TestHandler_Flux_REPL(t *testing.T) {
 	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
 	called := false
 	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
-		if exp := flux.CompilerType(lang.SpecCompilerType); compiler.CompilerType() != exp {
+		if exp := flux.CompilerType(repl.CompilerType); compiler.CompilerType() != exp {
 			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
 		}
 		called = true
-		return internal.NewFluxQueryMock(), nil
+
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
 	}
 
 	q := client.QueryRequest{Spec: &flux.Spec{}}
@@ -1084,7 +1090,9 @@ func TestHandler_Flux_QueryText(t *testing.T) {
 			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
 		}
 		called = true
-		return internal.NewFluxQueryMock(), nil
+
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
 	}
 
 	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString(qry))
@@ -1139,6 +1147,10 @@ func TestHandler_Flux(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+			h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+				p := &mock.Program{}
+				return p.Start(ctx, nil)
+			}
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, test.reqFn())
 			if got := w.Code; !cmp.Equal(got, test.expCode) {
@@ -1178,7 +1190,8 @@ func TestHandler_Flux_Auth(t *testing.T) {
 	}
 
 	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
-		return internal.NewFluxQueryMock(), nil
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
 	}
 
 	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString("bar"))

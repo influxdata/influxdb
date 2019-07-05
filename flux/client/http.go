@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/repl"
 	iclient "github.com/influxdata/influxdb/client"
 	"github.com/pkg/errors"
 )
@@ -132,7 +133,7 @@ func QueryRequestFromProxyRequest(req *ProxyRequest) (*QueryRequest, error) {
 	case lang.FluxCompiler:
 		qr.Type = "flux"
 		qr.Query = c.Query
-	case lang.SpecCompiler:
+	case repl.Compiler:
 		qr.Type = "flux"
 		qr.Spec = c.Spec
 	default:

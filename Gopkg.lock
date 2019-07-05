@@ -22,14 +22,6 @@
   revision = "a368813c5e648fee92e5f6c30e3944ff9d5e8895"
 
 [[projects]]
-  digest = "1:55388fd080150b9a072912f97b1f5891eb0b50df43401f8b75fb4273d3fec9fc"
-  name = "github.com/Masterminds/semver"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "c7af12943936e8c39859482e61f0574c2fd7fc75"
-  version = "v1.4.2"
-
-[[projects]]
   digest = "1:c06d9e11d955af78ac3bbb26bd02e01d2f61f689e1a3bce2ef6fb683ef8a7f2d"
   name = "github.com/alecthomas/kingpin"
   packages = ["."]
@@ -57,8 +49,7 @@
   revision = "2efee857e7cfd4f3d0138cc3cbb1b4966962b93a"
 
 [[projects]]
-  branch = "master"
-  digest = "1:4c65d504ca4d20db4c77d05b3abd25f30d0536114417eac172ad470e5581617e"
+  digest = "1:8351fe2c28d2476ebfb708202bbf746246264d23c492c9bbb4bb3f579ad04477"
   name = "github.com/apache/arrow"
   packages = [
     "go/arrow",
@@ -70,7 +61,7 @@
     "go/arrow/memory",
   ]
   pruneopts = "UT"
-  revision = "f5df77359953ed06e1dce47edffc03340e2ff3ea"
+  revision = "338c62a2a20574072fde5c478fcd42bf27a2d4b6"
 
 [[projects]]
   branch = "master"
@@ -82,47 +73,6 @@
   ]
   pruneopts = "UT"
   revision = "941dea75d3ebfbdd905a5d8b7b232965c5e5c684"
-
-[[projects]]
-  digest = "1:0dc362730c276c0a3c975349ef5f27e621930e4cf189e687fd8bd51aa926b3e7"
-  name = "github.com/aws/aws-sdk-go"
-  packages = [
-    "aws",
-    "aws/awserr",
-    "aws/awsutil",
-    "aws/client",
-    "aws/client/metadata",
-    "aws/corehandlers",
-    "aws/credentials",
-    "aws/credentials/ec2rolecreds",
-    "aws/credentials/endpointcreds",
-    "aws/credentials/stscreds",
-    "aws/csm",
-    "aws/defaults",
-    "aws/ec2metadata",
-    "aws/endpoints",
-    "aws/request",
-    "aws/session",
-    "aws/signer/v4",
-    "internal/s3err",
-    "internal/sdkio",
-    "internal/sdkrand",
-    "internal/sdkuri",
-    "internal/shareddefaults",
-    "private/protocol",
-    "private/protocol/eventstream",
-    "private/protocol/eventstream/eventstreamapi",
-    "private/protocol/query",
-    "private/protocol/query/queryutil",
-    "private/protocol/rest",
-    "private/protocol/restxml",
-    "private/protocol/xml/xmlutil",
-    "service/s3",
-    "service/sts",
-  ]
-  pruneopts = "UT"
-  revision = "dd947f47decb37a7c3bee72501bfc790701ab5ad"
-  version = "v1.15.50"
 
 [[projects]]
   branch = "master"
@@ -229,14 +179,6 @@
   revision = "9f0cb55181dd3a0a4c168d3dbc72d4aca4853126"
 
 [[projects]]
-  digest = "1:b98e7574fc27ec166fb31195ec72c3bd0bffd73926d3612eb4c929bc5236f75b"
-  name = "github.com/go-ini/ini"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "7b294651033cd7d9e7f0d9ffa1b75ed1e198e737"
-  version = "v1.38.3"
-
-[[projects]]
   digest = "1:ec6f9bf5e274c833c911923c9193867f3f18788c461f76f05f62bb1510e0ae65"
   name = "github.com/go-sql-driver/mysql"
   packages = ["."]
@@ -310,56 +252,62 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:29ba6e0336e901bc07d5f2359efc53700ab4c8c44ad7baa3a7193426c462bab8"
+  digest = "1:1df974d36df3c0e8babb751568bbd050954180ed40fc3e3f304222e2d9c7c932"
+  name = "github.com/goreleaser/archive"
+  packages = [
+    ".",
+    "tar",
+    "zip",
+  ]
+  pruneopts = "UT"
+  revision = "9c6b0c177751034bab579499b81c69993ddfe563"
+  version = "v1.1.3"
+
+[[projects]]
+  digest = "1:a1e6199307074510caebf310d3264fd52acfb7536fd858e86c914f49588dee1d"
   name = "github.com/goreleaser/goreleaser"
   packages = [
     ".",
+    "build",
+    "checksum",
+    "config",
+    "context",
     "internal/artifact",
     "internal/builders/golang",
     "internal/client",
     "internal/deprecate",
+    "internal/filenametemplate",
     "internal/git",
-    "internal/http",
     "internal/linux",
-    "internal/pipe",
-    "internal/pipe/archive",
-    "internal/pipe/artifactory",
-    "internal/pipe/before",
-    "internal/pipe/brew",
-    "internal/pipe/build",
-    "internal/pipe/changelog",
-    "internal/pipe/checksums",
-    "internal/pipe/defaults",
-    "internal/pipe/dist",
-    "internal/pipe/docker",
-    "internal/pipe/effectiveconfig",
-    "internal/pipe/env",
-    "internal/pipe/git",
-    "internal/pipe/nfpm",
-    "internal/pipe/project",
-    "internal/pipe/put",
-    "internal/pipe/release",
-    "internal/pipe/s3",
-    "internal/pipe/scoop",
-    "internal/pipe/sign",
-    "internal/pipe/snapcraft",
-    "internal/pipe/snapshot",
-    "internal/pipeline",
-    "internal/semerrgroup",
-    "internal/tmpl",
-    "pkg/archive",
-    "pkg/archive/tar",
-    "pkg/archive/zip",
-    "pkg/build",
-    "pkg/config",
-    "pkg/context",
+    "pipeline",
+    "pipeline/archive",
+    "pipeline/artifactory",
+    "pipeline/before",
+    "pipeline/brew",
+    "pipeline/build",
+    "pipeline/changelog",
+    "pipeline/checksums",
+    "pipeline/defaults",
+    "pipeline/dist",
+    "pipeline/docker",
+    "pipeline/effectiveconfig",
+    "pipeline/env",
+    "pipeline/fpm",
+    "pipeline/git",
+    "pipeline/nfpm",
+    "pipeline/project",
+    "pipeline/release",
+    "pipeline/scoop",
+    "pipeline/sign",
+    "pipeline/snapcraft",
+    "pipeline/snapshot",
   ]
   pruneopts = "UT"
-  revision = "f99940ff5397b099bf606cf1323c00c63afcd153"
-  version = "v0.88.0"
+  revision = "ad118b0f7c64c46265a3a05737c3e0d4d6d1c2be"
+  version = "v0.72.0"
 
 [[projects]]
-  digest = "1:49284955a972660c65ea8b98f1eeaee05e7538315fd3c889fde678b50abe7da3"
+  digest = "1:668fc13808c0d4d850ae04cc58709c9c8025e81d08866d4fb0656cc12aeebfbc"
   name = "github.com/goreleaser/nfpm"
   packages = [
     ".",
@@ -368,8 +316,8 @@
     "rpm",
   ]
   pruneopts = "UT"
-  revision = "de75d679901371e3ed0c0a606e160539d5a4b45e"
-  version = "v0.9.5"
+  revision = "8faa8e2e621115b3b560688a72d9c37bff4acb9f"
+  version = "v0.8.2"
 
 [[projects]]
   digest = "1:8eb1de8112c9924d59bf1d3e5c26f5eaa2bfc2a5fcbb92dc1c2e4546d695f277"
@@ -380,50 +328,57 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:0e29c493c2538a653b6c8787312ba93884f654415d782c85e51d07772baec1de"
+  digest = "1:1271da0466e1fbeed16f7498b9f4c5855ae0bbaafea885e5307406b0edfafdcd"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
     "arrow",
     "ast",
     "compiler",
-    "control",
     "csv",
     "execute",
     "influxql",
     "internal/parser",
     "internal/pkg/syncutil",
     "internal/scanner",
+    "internal/spec",
     "internal/token",
     "interpreter",
     "iocounter",
     "lang",
     "line",
     "memory",
+    "mock",
     "parser",
     "plan",
+    "plan/plantest",
     "repl",
     "semantic",
+    "semantic/semantictest",
     "stdlib",
     "stdlib/csv",
     "stdlib/generate",
     "stdlib/http",
     "stdlib/influxdata/influxdb",
     "stdlib/influxdata/influxdb/v1",
+    "stdlib/influxdata/influxdb/v1/fluxtests",
     "stdlib/kafka",
     "stdlib/math",
+    "stdlib/regexp",
     "stdlib/socket",
     "stdlib/sql",
     "stdlib/strings",
     "stdlib/system",
     "stdlib/testing",
+    "stdlib/testing/chronograf",
     "stdlib/testing/testdata",
     "stdlib/universe",
     "values",
+    "values/objects",
   ]
   pruneopts = "UT"
-  revision = "bcfc535fb7443776501797df4ba596483c50c7fe"
-  version = "v0.24.0"
+  revision = "6982ed0a676ffeb5fc78b710140764e66b679e31"
+  version = "v0.33.2"
 
 [[projects]]
   digest = "1:488639be850ddc33969609e08f783d3e9d129c7a0f6f2c4186b11475bb94c29d"
@@ -467,13 +422,6 @@
   packages = ["v1"]
   pruneopts = "UT"
   revision = "6d3895376368aa52a3a81d2a16e90f0f52371967"
-
-[[projects]]
-  digest = "1:e22af8c7518e1eab6f2eab2b7d7558927f816262586cd6ed9f349c97a6c285c4"
-  name = "github.com/jmespath/go-jmespath"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "0b12d6b5"
 
 [[projects]]
   digest = "1:78867fbb25230fd7dacdc62eab84f78593d74adee03ce974038cfd8299615167"
@@ -544,6 +492,14 @@
   pruneopts = "UT"
   revision = "4ded0e9383f75c197b3a2aaa6d590ac52df6fd79"
   version = "v1.0.0"
+
+[[projects]]
+  digest = "1:55388fd080150b9a072912f97b1f5891eb0b50df43401f8b75fb4273d3fec9fc"
+  name = "github.com/masterminds/semver"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "c7af12943936e8c39859482e61f0574c2fd7fc75"
+  version = "v1.4.2"
 
 [[projects]]
   digest = "1:c658e84ad3916da105a761660dcaeb01e63416c8ec7bc62256a9b411a05fcd67"
@@ -1016,12 +972,13 @@
     "github.com/influxdata/flux",
     "github.com/influxdata/flux/arrow",
     "github.com/influxdata/flux/ast",
-    "github.com/influxdata/flux/control",
     "github.com/influxdata/flux/csv",
     "github.com/influxdata/flux/execute",
     "github.com/influxdata/flux/lang",
     "github.com/influxdata/flux/memory",
+    "github.com/influxdata/flux/mock",
     "github.com/influxdata/flux/plan",
+    "github.com/influxdata/flux/plan/plantest",
     "github.com/influxdata/flux/repl",
     "github.com/influxdata/flux/semantic",
     "github.com/influxdata/flux/stdlib",
@@ -1051,7 +1008,6 @@
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/crypto/bcrypt",
     "golang.org/x/crypto/ssh/terminal",
-    "golang.org/x/net/context",
     "golang.org/x/sync/errgroup",
     "golang.org/x/sys/unix",
     "golang.org/x/text/encoding/unicode",

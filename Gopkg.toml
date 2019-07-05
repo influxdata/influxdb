@@ -71,12 +71,16 @@
   unused-packages = true
 
 [[constraint]]
-  name = "github.com/influxdata/influxql"
-  version = "1.0.0"
+  name = "github.com/influxdata/flux"
+  version = "~ 0.33.2"
 
 [[constraint]]
-  name = "github.com/influxdata/flux"
-  version = "= 0.24.0"
+  name = "github.com/apache/arrow"
+  revision = "338c62a2a20574072fde5c478fcd42bf27a2d4b6"
+
+[[constraint]]
+  name = "github.com/influxdata/influxql"
+  version = "1.0.0"
 
 [[constraint]]
   name = "github.com/spf13/cast"
