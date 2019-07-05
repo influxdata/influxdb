@@ -319,7 +319,6 @@ func TestServer_Insert_Delete_10052(t *testing.T) {
 }
 
 func mustGetSeries(s Server) []string {
-	// Compare series left in index.
 	result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
 	if err != nil {
 		panic(err)
@@ -333,7 +332,6 @@ func mustGetSeries(s Server) []string {
 }
 
 func mustGetFieldKeys(s Server) []string {
-	// Compare series left in index.
 	result, err := s.QueryWithParams("SHOW FIELD KEYS", url.Values{"db": []string{"db0"}})
 	if err != nil {
 		panic(err)
