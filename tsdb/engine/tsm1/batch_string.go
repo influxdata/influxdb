@@ -38,7 +38,6 @@ func StringArrayEncodeAll(src []string, b []byte) ([]byte, error) {
 
 	// determine the maximum possible length needed for the buffer, which
 	// includes the compressed size
-	fmt.Println(srcSz64, srcSz)
 	var compressedSz = 0
 	if len(src) > 0 {
 		mle := snappy.MaxEncodedLen(srcSz)
