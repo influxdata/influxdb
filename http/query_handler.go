@@ -165,10 +165,9 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
 			err := &influxdb.Error{
-				Code: influxdb.EInternal,
-				Msg:  "failed to execute query against proxy service",
-				Op:   op,
-				Err:  err,
+				Msg: "failed to execute query against proxy service",
+				Op:  op,
+				Err: err,
 			}
 			h.HandleHTTPError(ctx, err, w)
 			return
