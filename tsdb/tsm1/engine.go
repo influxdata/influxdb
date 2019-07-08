@@ -1174,7 +1174,7 @@ func (s *compactionStrategy) compactGroup(ctx context.Context) {
 		// Remove the new snapshot files. We will try again.
 		for _, file := range files {
 			if err := os.Remove(file); err != nil {
-				log.Info("Unable to remove file", zap.String("path", file), zap.Error(err))
+				log.Error("Unable to remove file", zap.String("path", file), zap.Error(err))
 			}
 		}
 
