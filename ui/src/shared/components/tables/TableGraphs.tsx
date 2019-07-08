@@ -17,8 +17,7 @@ import {getDeep} from 'src/utils/wrappers'
 import {findTableNameHeaders} from 'src/dashboards/utils/tableGraph'
 
 // Types
-import {TableView, FieldOption} from 'src/types/v2/dashboards'
-import {FluxTable} from 'src/types'
+import {TableView, FieldOption, FluxTable} from 'src/types'
 
 interface PassedProps {
   tables: FluxTable[]
@@ -80,7 +79,7 @@ class TableGraphs extends PureComponent<Props, State> {
           />
         )}
         {!this.hasData && (
-          <EmptyGraphMessage message={'This table has no data'} />
+          <EmptyGraphMessage message="This table has no data" />
         )}
       </div>
     )

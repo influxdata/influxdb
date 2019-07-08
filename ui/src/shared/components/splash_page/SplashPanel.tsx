@@ -5,7 +5,7 @@ interface Props {
 }
 
 const SplashPanel: SFC<Props> = ({children}) => (
-  <div className="auth-panel">{children}</div>
+  <div className="splash-page--panel">{children}</div>
 )
 
 export default SplashPanel

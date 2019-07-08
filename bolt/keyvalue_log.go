@@ -9,13 +9,15 @@ import (
 	"fmt"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
+	"github.com/coreos/bbolt"
+
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var (
-	keyValueLogBucket = []byte("keyvaluelog/v1")
-	keyValueLogIndex  = []byte("keyvaluelogindex/v1")
+	keyValueLogBucket = []byte("keyvaluelogv1")
+	keyValueLogIndex  = []byte("keyvaluelogindexv1")
 )
 
 var _ platform.KeyValueLog = (*Client)(nil)
@@ -112,6 +114,9 @@ func (c *Client) initializeKeyValueLog(ctx context.Context, tx *bolt.Tx) error {
 var errKeyValueLogBoundsNotFound = fmt.Errorf("oplog not found")
 
 func (c *Client) getKeyValueLogBounds(ctx context.Context, tx *bolt.Tx, key []byte) (*keyValueLogBounds, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	k := encodeKeyValueIndexKey(key)
 
 	v := tx.Bucket(keyValueLogIndex).Get(k)
@@ -144,6 +149,9 @@ func (c *Client) putKeyValueLogBounds(ctx context.Context, tx *bolt.Tx, key []by
 }
 
 func (c *Client) updateKeyValueLogBounds(ctx context.Context, tx *bolt.Tx, k []byte, t time.Time) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	// retrieve the keyValue log boundaries
 	bounds, err := c.getKeyValueLogBounds(ctx, tx, k)
 	if err != nil && err != errKeyValueLogBoundsNotFound {

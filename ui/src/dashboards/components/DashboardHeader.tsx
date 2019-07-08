@@ -1,14 +1,21 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import {Page} from 'src/pageLayout'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
-import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
+import TimeRangeDropdown, {
+  RangeType,
+} from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
-import {Button, ButtonShape, ComponentColor, IconFont} from 'src/clockface'
+import {
+  SquareButton,
+  Button,
+  IconFont,
+  ComponentColor,
+} from '@influxdata/clockface'
 
 // Constants
 import {
@@ -16,38 +23,34 @@ import {
   DASHBOARD_NAME_MAX_LENGTH,
 } from 'src/dashboards/constants/index'
 
-// Actions
-import {addNote} from 'src/dashboards/actions/v2/notes'
-
 // Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
-import {Dashboard} from '@influxdata/influx'
+import {Dashboard, Organization} from '@influxdata/influx'
+import {AutoRefresh, AutoRefreshStatus} from 'src/types'
 
-interface OwnProps {
+interface Props {
+  org: Organization
   activeDashboard: string
   dashboard: Dashboard
   timeRange: QueriesModels.TimeRange
-  autoRefresh: number
+  autoRefresh: AutoRefresh
   handleChooseTimeRange: (timeRange: QueriesModels.TimeRange) => void
-  handleChooseAutoRefresh: AppActions.SetAutoRefreshActionCreator
+  handleChooseAutoRefresh: (autoRefreshInterval: number) => void
+  onSetAutoRefreshStatus: (status: AutoRefreshStatus) => void
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
-  showTemplateControlBar: boolean
-  zoomedTimeRange: QueriesModels.TimeRange
   onRenameDashboard: (name: string) => Promise<void>
+  toggleVariablesControlBar: () => void
+  isShowingVariablesControlBar: boolean
   isHidden: boolean
+  onAddNote: () => void
+  zoomedTimeRange: QueriesModels.TimeRange
 }
 
-interface DispatchProps {
-  onAddNote: typeof addNote
-}
-
-type Props = OwnProps & DispatchProps
-
-class DashboardHeader extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+export default class DashboardHeader extends Component<Props> {
+  public static defaultProps = {
     zoomedTimeRange: {
       upper: null,
       lower: null,
@@ -56,26 +59,45 @@ class DashboardHeader extends Component<Props> {
 
   public render() {
     const {
+      org,
       handleChooseAutoRefresh,
       onManualRefresh,
-      autoRefresh,
-      handleChooseTimeRange,
+      timeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       isHidden,
-      onAddNote,
+      toggleVariablesControlBar,
+      isShowingVariablesControlBar,
+      onAddCell,
+      onRenameDashboard,
+      activeDashboard,
+      autoRefresh,
     } = this.props
 
     return (
       <Page.Header fullWidth={true} inPresentationMode={isHidden}>
-        <Page.Header.Left>{this.dashboardTitle}</Page.Header.Left>
+        <Page.Header.Left>
+          <RenamablePageTitle
+            prefix={_.get(org, 'name', '')}
+            maxLength={DASHBOARD_NAME_MAX_LENGTH}
+            onRename={onRenameDashboard}
+            name={activeDashboard}
+            placeholder={DEFAULT_DASHBOARD_NAME}
+          />
+        </Page.Header.Left>
         <Page.Header.Right>
           <GraphTips />
-          {this.addCellButton}
+          <Button
+            icon={IconFont.AddCell}
+            color={ComponentColor.Primary}
+            onClick={onAddCell}
+            text="Add Cell"
+            titleText="Add cell to dashboard"
+          />
           <Button
             icon={IconFont.TextBlock}
             text="Add Note"
-            onClick={onAddNote}
+            onClick={this.handleAddNote}
           />
           <AutoRefreshDropdown
             onChoose={handleChooseAutoRefresh}
@@ -83,16 +105,26 @@ class DashboardHeader extends Component<Props> {
             selected={autoRefresh}
           />
           <TimeRangeDropdown
-            onSetTimeRange={handleChooseTimeRange}
+            onSetTimeRange={this.handleChooseTimeRange}
             timeRange={{
+              ...timeRange,
               upper: zoomedUpper || upper,
               lower: zoomedLower || lower,
             }}
           />
           <Button
+            icon={IconFont.Cube}
+            text="Variables"
+            onClick={toggleVariablesControlBar}
+            color={
+              isShowingVariablesControlBar
+                ? ComponentColor.Secondary
+                : ComponentColor.Default
+            }
+          />
+          <SquareButton
             icon={IconFont.ExpandA}
             titleText="Enter Presentation Mode"
-            shape={ButtonShape.Square}
             onClick={this.handleClickPresentationButton}
           />
         </Page.Header.Right>
@@ -100,49 +132,38 @@ class DashboardHeader extends Component<Props> {
     )
   }
 
+  private handleAddNote = () => {
+    this.props.onAddNote()
+  }
+
   private handleClickPresentationButton = (): void => {
     this.props.handleClickPresentationButton()
   }
 
-  private get addCellButton(): JSX.Element {
-    const {dashboard, onAddCell} = this.props
+  private handleChooseTimeRange = (
+    timeRange: QueriesModels.TimeRange,
+    rangeType: RangeType = RangeType.Relative
+  ) => {
+    const {
+      autoRefresh,
+      onSetAutoRefreshStatus,
+      handleChooseTimeRange,
+    } = this.props
 
-    if (dashboard) {
-      return (
-        <Button
-          icon={IconFont.AddCell}
-          color={ComponentColor.Primary}
-          onClick={onAddCell}
-          text="Add Cell"
-          titleText="Add cell to dashboard"
-        />
-      )
-    }
-  }
+    handleChooseTimeRange(timeRange)
 
-  private get dashboardTitle(): JSX.Element {
-    const {dashboard, activeDashboard, onRenameDashboard} = this.props
-
-    if (dashboard) {
-      return (
-        <RenamablePageTitle
-          maxLength={DASHBOARD_NAME_MAX_LENGTH}
-          onRename={onRenameDashboard}
-          name={activeDashboard}
-          placeholder={DEFAULT_DASHBOARD_NAME}
-        />
-      )
+    if (rangeType === RangeType.Absolute) {
+      onSetAutoRefreshStatus(AutoRefreshStatus.Disabled)
+      return
     }
 
-    return <Page.Title title={activeDashboard} />
+    if (autoRefresh.status === AutoRefreshStatus.Disabled) {
+      if (autoRefresh.interval === 0) {
+        onSetAutoRefreshStatus(AutoRefreshStatus.Paused)
+        return
+      }
+
+      onSetAutoRefreshStatus(AutoRefreshStatus.Active)
+    }
   }
 }
-
-const mdtp = {
-  onAddNote: addNote,
-}
-
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
-  mdtp
-)(DashboardHeader)

@@ -19,18 +19,19 @@ import {
   setTaskOption,
   clearTask,
   setAllTaskOptions,
-} from 'src/tasks/actions/v2'
+  setTaskToken,
+} from 'src/tasks/actions'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {Links} from 'src/types/v2/links'
-import {State as TasksState} from 'src/tasks/reducers/v2'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {Task} from 'src/tasks/containers/TasksPage'
+import {AppState, Task, RemoteDataState} from 'src/types'
+import {Authorization} from '@influxdata/influx'
+import {getAuthorizations} from 'src/authorizations/actions'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface PassedInProps {
   router: InjectedRouter
@@ -38,11 +39,12 @@ interface PassedInProps {
 }
 
 interface ConnectStateProps {
-  orgs: Organization[]
   taskOptions: TaskOptions
   currentTask: Task
   currentScript: string
-  tasksLink: string
+  tokens: Authorization[]
+  tokenStatus: RemoteDataState
+  selectedToken: Authorization
 }
 
 interface ConnectDispatchProps {
@@ -53,6 +55,8 @@ interface ConnectDispatchProps {
   selectTaskByID: typeof selectTaskByID
   clearTask: typeof clearTask
   setAllTaskOptions: typeof setAllTaskOptions
+  getTokens: typeof getAuthorizations
+  setTaskToken: typeof setTaskToken
 }
 
 class TaskEditPage extends PureComponent<
@@ -71,6 +75,10 @@ class TaskEditPage extends PureComponent<
     const {currentTask} = this.props
 
     this.props.setAllTaskOptions(currentTask)
+
+    const {selectedToken, getTokens} = this.props
+    this.props.setTaskToken(selectedToken)
+    await getTokens()
   }
 
   public componentWillUnmount() {
@@ -78,7 +86,13 @@ class TaskEditPage extends PureComponent<
   }
 
   public render(): JSX.Element {
-    const {currentScript, taskOptions, orgs} = this.props
+    const {
+      currentScript,
+      taskOptions,
+      tokens,
+      tokenStatus,
+      selectedToken,
+    } = this.props
 
     return (
       <Page titleTag={`Edit ${taskOptions.name}`}>
@@ -91,21 +105,26 @@ class TaskEditPage extends PureComponent<
         <Page.Contents fullWidth={true} scrollable={false}>
           <div className="task-form">
             <div className="task-form--options">
-              <TaskForm
-                orgs={orgs}
-                canSubmit={this.isFormValid}
-                taskOptions={taskOptions}
-                onChangeInput={this.handleChangeInput}
-                onChangeScheduleType={this.handleChangeScheduleType}
-                onChangeTaskOrgID={this.handleChangeTaskOrgID}
-              />
+              <SpinnerContainer
+                loading={tokenStatus}
+                spinnerComponent={<TechnoSpinner />}
+              >
+                <TaskForm
+                  canSubmit={this.isFormValid}
+                  taskOptions={taskOptions}
+                  onChangeInput={this.handleChangeInput}
+                  onChangeScheduleType={this.handleChangeScheduleType}
+                  tokens={tokens}
+                  selectedToken={selectedToken}
+                  onTokenChange={this.handleTokenChange}
+                />
+              </SpinnerContainer>
             </div>
             <div className="task-form--editor">
               <FluxEditor
                 script={currentScript}
                 onChangeScript={this.handleChangeScript}
                 visibility="visible"
-                status={{text: '', type: ''}}
                 suggestions={[]}
               />
             </div>
@@ -147,27 +166,19 @@ class TaskEditPage extends PureComponent<
 
     this.props.setTaskOption({key, value})
   }
-
-  private handleChangeTaskOrgID = (orgID: string) => {
-    this.props.setTaskOption({key: 'orgID', value: orgID})
+  private handleTokenChange = (selectedToken: Authorization) => {
+    this.props.setTaskToken(selectedToken)
   }
 }
 
-const mstp = ({
-  tasks,
-  links,
-  orgs,
-}: {
-  tasks: TasksState
-  links: Links
-  orgs: Organization[]
-}): ConnectStateProps => {
+const mstp = ({tasks, tokens}: AppState): ConnectStateProps => {
   return {
-    orgs,
     taskOptions: tasks.taskOptions,
     currentScript: tasks.currentScript,
-    tasksLink: links.tasks,
     currentTask: tasks.currentTask,
+    tokens: tokens.list,
+    tokenStatus: tokens.status,
+    selectedToken: tasks.taskToken,
   }
 }
 
@@ -179,6 +190,8 @@ const mdtp: ConnectDispatchProps = {
   selectTaskByID,
   setAllTaskOptions,
   clearTask,
+  getTokens: getAuthorizations,
+  setTaskToken,
 }
 
 export default connect<ConnectStateProps, ConnectDispatchProps, {}>(

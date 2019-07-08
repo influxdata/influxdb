@@ -12,20 +12,25 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 import {
   QuickstartScraperCreationSuccess,
   QuickstartScraperCreationError,
+  QuickstartDashboardCreationSuccess,
+  QuickstartDashboardCreationError,
 } from 'src/shared/copy/notifications'
+import {QUICKSTART_DASHBOARD_NAME} from 'src/onboarding/constants'
 
 // APIs
 import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
+import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
 
 // Types
 import {
   Button,
   ComponentColor,
   ComponentSize,
-  Grid,
   Columns,
-} from 'src/clockface'
+  Grid,
+} from '@influxdata/clockface'
+import {DashboardTemplate} from 'src/types'
 import {Organization, Dashboard, ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
@@ -51,7 +56,7 @@ class CompletionStep extends PureComponent<Props> {
     const {onExit} = this.props
 
     return (
-      <div className="onboarding-step buttonless">
+      <div className="onboarding-step">
         <div className="wizard-step--scroll-area">
           <FancyScrollbar autoHide={false}>
             <div className="wizard-step--scroll-content">
@@ -118,6 +123,7 @@ class CompletionStep extends PureComponent<Props> {
                           color={ComponentColor.Success}
                           size={ComponentSize.Large}
                           onClick={onExit}
+                          testID="button--conf-later"
                         />
                         <dt>I've got this...</dt>
                         <dd>
@@ -150,7 +156,28 @@ class CompletionStep extends PureComponent<Props> {
     } catch (err) {
       this.props.notify(QuickstartScraperCreationError)
     }
-
+    try {
+      const templatesEntries = await client.templates.getAll(this.props.orgID)
+      const templatesToGet = templatesEntries.filter(t => {
+        return (
+          t.meta.name.toLowerCase() == QUICKSTART_DASHBOARD_NAME.toLowerCase()
+        )
+      })
+      const pendingTemplates = templatesToGet.map(t =>
+        client.templates.get(t.id)
+      )
+      const templates = await Promise.all(pendingTemplates)
+      const pendingDashboards = templates.map(t =>
+        createDashboardFromTemplateAJAX(
+          t as DashboardTemplate,
+          this.props.orgID
+        )
+      )
+      await Promise.all(pendingDashboards)
+      this.props.notify(QuickstartDashboardCreationSuccess)
+    } catch (err) {
+      this.props.notify(QuickstartDashboardCreationError)
+    }
     this.props.onExit()
   }
 

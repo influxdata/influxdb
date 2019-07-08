@@ -2,15 +2,11 @@
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
-import {
-  getActiveQuerySource,
-  getActiveQuery,
-  getActiveTimeMachine,
-} from 'src/timeMachine/selectors'
+import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {Dispatch} from 'redux-thunk'
-import {GetState} from 'src/types/v2'
+import {GetState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {CancellationError} from 'src/types/promises'
 
@@ -27,8 +23,10 @@ export type Action =
   | AddTagSelectorAction
   | RemoveTagSelectorAction
   | SelectFunctionAction
+  | SelectAggregateWindowAction
   | SetValuesSearchTermAction
   | SetKeysSearchTermAction
+  | SetBuilderTagsStatusAction
 
 interface SetBuilderBucketsStatusAction {
   type: 'SET_BUILDER_BUCKETS_STATUS'
@@ -65,6 +63,18 @@ const setBuilderBucket = (
 ): SetBuilderBucketSelectionAction => ({
   type: 'SET_BUILDER_BUCKET_SELECTION',
   payload: {bucket, resetSelections},
+})
+
+interface SetBuilderTagsStatusAction {
+  type: 'SET_BUILDER_TAGS_STATUS'
+  payload: {status: RemoteDataState}
+}
+
+export const setBuilderTagsStatus = (
+  status: RemoteDataState
+): SetBuilderTagsStatusAction => ({
+  type: 'SET_BUILDER_TAGS_STATUS',
+  payload: {status},
 })
 
 interface SetBuilderTagKeysAction {
@@ -173,6 +183,18 @@ export const selectFunction = (name: string): SelectFunctionAction => ({
   payload: {name},
 })
 
+interface SelectAggregateWindowAction {
+  type: 'SELECT_AGGREGATE_WINDOW'
+  payload: {period: string}
+}
+
+export const selectAggregateWindow = (
+  period: string
+): SelectAggregateWindowAction => ({
+  type: 'SELECT_AGGREGATE_WINDOW',
+  payload: {period},
+})
+
 interface SetValuesSearchTermAction {
   type: 'SET_BUILDER_VALUES_SEARCH_TERM'
   payload: {index: number; searchTerm: string}
@@ -203,11 +225,17 @@ export const loadBuckets = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
+  const queryURL = getState().links.query.self
+  const orgID = getState().orgs.org.id
+
   dispatch(setBuilderBucketsStatus(RemoteDataState.Loading))
 
   try {
-    const queryURL = getActiveQuerySource(getState()).links.query
-    const buckets = await queryBuilderFetcher.findBuckets(queryURL)
+    const buckets = await queryBuilderFetcher.findBuckets({
+      url: queryURL,
+      orgID,
+    })
+
     const selectedBucket = getActiveQuery(getState()).builderConfig.buckets[0]
 
     dispatch(setBuilderBuckets(buckets))
@@ -245,22 +273,25 @@ export const loadTagSelector = (index: number) => async (
     return
   }
 
-  const tagPredicates = tags.slice(0, index)
-  const queryURL = getActiveQuerySource(getState()).links.query
+  const tagsSelections = tags.slice(0, index)
+  const queryURL = getState().links.query.self
+  const orgID = getState().orgs.org.id
 
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   try {
+    const timeRange = getActiveTimeMachine(getState()).timeRange
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .keysSearchTerm
 
-    const keys = await queryBuilderFetcher.findKeys(
-      index,
-      queryURL,
-      buckets[0],
-      tagPredicates,
-      searchTerm
-    )
+    const keys = await queryBuilderFetcher.findKeys(index, {
+      url: queryURL,
+      orgID,
+      bucket: buckets[0],
+      tagsSelections,
+      searchTerm,
+      timeRange,
+    })
 
     const {key} = tags[index]
 
@@ -296,24 +327,29 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const {buckets, tags} = getActiveQuery(getState()).builderConfig
-  const tagPredicates = tags.slice(0, index)
-  const queryURL = getActiveQuerySource(getState()).links.query
+  const state = getState()
+  const {buckets, tags} = getActiveQuery(state).builderConfig
+  const tagsSelections = tags.slice(0, index)
+  const queryURL = state.links.query.self
+  const orgID = getState().orgs.org.id
 
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
+    const timeRange = getActiveTimeMachine(getState()).timeRange
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm
-    const values = await queryBuilderFetcher.findValues(
-      index,
-      queryURL,
-      buckets[0],
-      tagPredicates,
+
+    const values = await queryBuilderFetcher.findValues(index, {
+      url: queryURL,
+      orgID,
+      bucket: buckets[0],
+      tagsSelections,
       key,
-      searchTerm
-    )
+      searchTerm,
+      timeRange,
+    })
 
     const {values: selectedValues} = tags[index]
 
@@ -399,4 +435,9 @@ export const removeTagSelector = (index: number) => async (
 
   dispatch(removeTagSelectorSync(index))
   dispatch(loadTagSelector(index))
+}
+
+export const reloadTagSelectors = () => async (dispatch: Dispatch<Action>) => {
+  dispatch(setBuilderTagsStatus(RemoteDataState.Loading))
+  dispatch(loadTagSelector(0))
 }

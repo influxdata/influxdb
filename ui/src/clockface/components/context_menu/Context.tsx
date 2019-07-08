@@ -9,14 +9,11 @@ import ContextMenuItem from 'src/clockface/components/context_menu/ContextMenuIt
 // Types
 import {Alignment} from 'src/clockface/types'
 
-// Styles
-import './ContextMenu.scss'
-
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element | JSX.Element[]
-  align?: Alignment
+  align: Alignment
   className?: string
 }
 
@@ -26,7 +23,7 @@ interface State {
 
 @ErrorHandling
 class Context extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     align: Alignment.Right,
   }
 
@@ -55,7 +52,7 @@ class Context extends PureComponent<Props, State> {
               />
             )
           } else {
-            throw new Error('Expected children of type <Context.Menu />')
+            return child
           }
         })}
       </div>

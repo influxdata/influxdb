@@ -78,19 +78,27 @@ func (t *transpilerState) mapFields(in cursor) (cursor, error) {
 				},
 				Arguments: []ast.Expression{
 					&ast.ObjectExpression{
-						Properties: []*ast.Property{{
-							Key: &ast.Identifier{
-								Name: "fn",
-							},
-							Value: &ast.FunctionExpression{
-								Params: []*ast.Property{{
-									Key: &ast.Identifier{Name: "r"},
-								}},
-								Body: &ast.ObjectExpression{
-									Properties: properties,
+						Properties: []*ast.Property{
+							{
+								Key: &ast.Identifier{
+									Name: "fn",
+								},
+								Value: &ast.FunctionExpression{
+									Params: []*ast.Property{{
+										Key: &ast.Identifier{Name: "r"},
+									}},
+									Body: &ast.ObjectExpression{
+										Properties: properties,
+									},
 								},
 							},
-						}},
+							{
+								Key: &ast.Identifier{
+									Name: "mergeKey",
+								},
+								Value: &ast.BooleanLiteral{Value: true},
+							},
+						},
 					},
 				},
 			},

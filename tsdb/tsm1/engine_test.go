@@ -1,6 +1,7 @@
 package tsm1_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -58,9 +60,8 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 	}
 
 	// Drop all the series for the gpu measurement and they should no longer
-	// be in the series ID set. This relies on the fact that DeleteBucketRange is really
-	// operating on prefixes.
-	if err := engine.DeleteBucketRange([]byte("gpu"), math.MinInt64, math.MaxInt64); err != nil {
+	// be in the series ID set.
+	if err := engine.DeletePrefixRange([]byte("gpu"), math.MinInt64, math.MaxInt64, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,9 +113,10 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
+	defer e.Close()
 
 	// Make sure Snapshots are disabled.
 	e.SetCompactionsEnabled(false)
@@ -122,7 +124,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 
 	// Writing a snapshot should not fail when the snapshot is empty
 	// even if snapshots are disabled.
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(context.Background()); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 }
@@ -138,33 +140,41 @@ func TestEngine_ShouldCompactCache(t *testing.T) {
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
 	e.SetEnabled(false)
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 	defer e.Close()
 
-	e.CacheFlushMemorySizeThreshold = 1024
-	e.CacheFlushWriteColdDuration = time.Minute
-
-	if e.ShouldCompactCache(nowTime) {
-		t.Fatal("nothing written to cache, so should not compact")
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
 	}
 
-	if err := e.WritePointsString("m,k=v f=3i"); err != nil {
+	if err := e.WritePointsString("mm", "m,k=v f=3i"); err != nil {
 		t.Fatal(err)
 	}
 
-	if e.ShouldCompactCache(nowTime) {
-		t.Fatal("cache size < flush threshold and nothing written to FileStore, so should not compact")
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache size < flush threshold and nothing written to FileStore, so should not compact", got, exp)
 	}
 
-	if !e.ShouldCompactCache(nowTime.Add(time.Hour)) {
-		t.Fatal("last compaction was longer than flush write cold threshold, so should compact")
+	if got, exp := e.ShouldCompactCache(nowTime.Add(time.Hour)), tsm1.CacheStatusColdNoWrites; got != exp {
+		t.Fatalf("got status %v, exp status %v - last compaction was longer than flush write cold threshold, so should compact", got, exp)
 	}
 
 	e.CacheFlushMemorySizeThreshold = 1
-	if !e.ShouldCompactCache(nowTime) {
-		t.Fatal("cache size > flush threshold, so should compact")
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusSizeExceeded; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache size > flush threshold, so should compact", got, exp)
+	}
+
+	e.CacheFlushMemorySizeThreshold = 1024 // Reset.
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusOkay; got != exp {
+		t.Fatalf("got status %v, exp status %v - nothing written to cache, so should not compact", got, exp)
+	}
+
+	e.CacheFlushAgeDurationThreshold = 100 * time.Millisecond
+	time.Sleep(250 * time.Millisecond)
+	if got, exp := e.ShouldCompactCache(nowTime), tsm1.CacheStatusAgeExceeded; got != exp {
+		t.Fatalf("got status %v, exp status %v - cache age > max age threshold, so should compact", got, exp)
 	}
 }
 
@@ -234,7 +244,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 		e := MustOpenEngine()
 		pp := make([]models.Point, 0, sz)
 		for i := 0; i < sz; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i), "mm")
 			pp = append(pp, p)
 		}
 
@@ -259,7 +269,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 		cpus := runtime.GOMAXPROCS(0)
 		pp := make([]models.Point, 0, sz*cpus)
 		for i := 0; i < sz*cpus; i++ {
-			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i), "mm")
 			pp = append(pp, p)
 		}
 
@@ -316,7 +326,7 @@ func NewEngine() (*Engine, error) {
 	// Setup series file.
 	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
 	sfile.Logger = logger.New(os.Stdout)
-	if err = sfile.Open(); err != nil {
+	if err = sfile.Open(context.Background()); err != nil {
 		return nil, err
 	}
 
@@ -343,7 +353,7 @@ func MustOpenEngine() *Engine {
 		panic(err)
 	}
 
-	if err := e.Open(); err != nil {
+	if err := e.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return e
@@ -355,6 +365,11 @@ func (e *Engine) Close() error {
 }
 
 func (e *Engine) close(cleanup bool) error {
+	err := e.Engine.Close()
+	if err != nil {
+		return err
+	}
+
 	if e.index != nil {
 		e.index.Close()
 	}
@@ -363,12 +378,11 @@ func (e *Engine) close(cleanup bool) error {
 		e.sfile.Close()
 	}
 
-	defer func() {
-		if cleanup {
-			os.RemoveAll(e.root)
-		}
-	}()
-	return e.Engine.Close()
+	if cleanup {
+		os.RemoveAll(e.root)
+	}
+
+	return nil
 }
 
 // Reopen closes and reopens the engine.
@@ -380,7 +394,7 @@ func (e *Engine) Reopen() error {
 
 	// Re-open series file. Must create a new series file using the same data.
 	e.sfile = tsdb.NewSeriesFile(e.sfile.Path())
-	if err := e.sfile.Open(); err != nil {
+	if err := e.sfile.Open(context.Background()); err != nil {
 		return err
 	}
 
@@ -393,7 +407,7 @@ func (e *Engine) Reopen() error {
 		tsm1.WithCompactionPlanner(newMockPlanner()))
 
 	// Reopen engine
-	if err := e.Engine.Open(); err != nil {
+	if err := e.Engine.Open(context.Background()); err != nil {
 		return err
 	}
 
@@ -420,8 +434,8 @@ func (e *Engine) AddSeries(name string, tags map[string]string) error {
 
 // WritePointsString calls WritePointsString on the underlying engine, but also
 // adds the associated series to the index.
-func (e *Engine) WritePointsString(ptstr ...string) error {
-	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"))
+func (e *Engine) WritePointsString(mm string, ptstr ...string) error {
+	points, err := models.ParsePointsString(strings.Join(ptstr, "\n"), mm)
 	if err != nil {
 		return err
 	}
@@ -449,14 +463,37 @@ func (e *Engine) MustAddSeries(name string, tags map[string]string) {
 
 // MustWriteSnapshot forces a snapshot of the engine. Panic on error.
 func (e *Engine) MustWriteSnapshot() {
-	if err := e.WriteSnapshot(); err != nil {
+	if err := e.WriteSnapshot(context.Background()); err != nil {
+		panic(err)
+	}
+}
+
+// MustWritePointsString parses and writes the specified points to the
+// provided org and bucket. Panic on error.
+func (e *Engine) MustWritePointsString(org, bucket influxdb.ID, buf string) {
+	err := e.writePoints(MustParseExplodePoints(org, bucket, buf)...)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// MustDeleteBucketRange calls DeletePrefixRange using the org and bucket for
+// the prefix. Panic on error.
+func (e *Engine) MustDeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) {
+	// TODO(edd): we need to clean up how we're encoding the prefix so that we
+	// don't have to remember to get it right everywhere we need to touch TSM data.
+	encoded := tsdb.EncodeName(orgID, bucketID)
+	name := models.EscapeMeasurement(encoded[:])
+
+	err := e.DeletePrefixRange(name, min, max, nil)
+	if err != nil {
 		panic(err)
 	}
 }
 
 func MustOpenIndex(path string, seriesIDSet *tsdb.SeriesIDSet, sfile *tsdb.SeriesFile) *tsi1.Index {
 	idx := tsi1.NewIndex(sfile, tsi1.NewConfig(), tsi1.WithPath(path))
-	if err := idx.Open(); err != nil {
+	if err := idx.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return idx
@@ -479,7 +516,7 @@ func NewSeriesFile() *SeriesFile {
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
 func MustOpenSeriesFile() *SeriesFile {
 	f := NewSeriesFile()
-	if err := f.Open(); err != nil {
+	if err := f.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return f
@@ -494,16 +531,24 @@ func (f *SeriesFile) Close() {
 }
 
 // MustParsePointsString parses points from a string. Panic on error.
-func MustParsePointsString(buf string) []models.Point {
-	a, err := models.ParsePointsString(buf)
+func MustParsePointsString(buf, mm string) []models.Point {
+	a, err := models.ParsePointsString(buf, mm)
 	if err != nil {
 		panic(err)
 	}
 	return a
 }
 
+// MustParseExplodePoints parses points from a string and transforms using
+// ExplodePoints using the provided org and bucket. Panic on error.
+func MustParseExplodePoints(org, bucket influxdb.ID, buf string) []models.Point {
+	encoded := tsdb.EncodeName(org, bucket)
+	name := models.EscapeMeasurement(encoded[:])
+	return MustParsePointsString(buf, string(name))
+}
+
 // MustParsePointString parses the first point from a string. Panic on error.
-func MustParsePointString(buf string) models.Point { return MustParsePointsString(buf)[0] }
+func MustParsePointString(buf, mm string) models.Point { return MustParsePointsString(buf, mm)[0] }
 
 type mockPlanner struct{}
 

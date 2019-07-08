@@ -8,31 +8,28 @@ import {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 
 // Actions
-import {submitScript} from 'src/timeMachine/actions'
+import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 interface StateProps {
   submitButtonDisabled: boolean
-}
-
-interface DispatchProps {
-  onSubmitScript: typeof submitScript
-}
-
-interface OwnProps {
   queryStatus: RemoteDataState
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+interface DispatchProps {
+  onSubmit: typeof saveAndExecuteQueries
+}
+
+type Props = StateProps & DispatchProps
 
 interface State {
   didClick: boolean
@@ -58,6 +55,7 @@ class SubmitQueryButton extends PureComponent<Props, State> {
         status={this.buttonStatus}
         onClick={this.handleClick}
         color={ComponentColor.Primary}
+        testID="time-machine-submit-button"
       />
     )
   }
@@ -79,22 +77,23 @@ class SubmitQueryButton extends PureComponent<Props, State> {
   }
 
   private handleClick = (): void => {
-    this.props.onSubmitScript()
+    this.props.onSubmit()
     this.setState({didClick: true})
   }
 }
 
 const mstp = (state: AppState) => {
   const submitButtonDisabled = getActiveQuery(state).text === ''
+  const queryStatus = getActiveTimeMachine(state).queryResults.status
 
-  return {submitButtonDisabled}
+  return {submitButtonDisabled, queryStatus}
 }
 
 const mdtp = {
-  onSubmitScript: submitScript,
+  onSubmit: saveAndExecuteQueries,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(SubmitQueryButton)

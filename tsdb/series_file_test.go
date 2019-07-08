@@ -2,9 +2,11 @@ package tsdb_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"testing"
 
 	"github.com/influxdata/influxdb/logger"
@@ -46,6 +48,18 @@ func TestParseSeriesKeyInto(t *testing.T) {
 		t.Fatalf("got tags length %d, expected %d", got, exp)
 	} else if got, exp := gotTags, tags; !got.Equal(exp) {
 		t.Fatalf("got tags %v, expected %v", got, exp)
+	}
+}
+
+// Ensure that broken series files are closed
+func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
+	f := NewBrokenSeriesFile([]byte{0, 0, 0, 0, 0})
+	defer f.Close()
+	f.Logger = logger.New(os.Stdout)
+
+	err := f.Open(context.Background())
+	if err == nil {
+		t.Fatalf("should report error")
 	}
 }
 
@@ -130,6 +144,11 @@ func TestSeriesFileCompactor(t *testing.T) {
 			t.Fatalf("series does not exist: %s,%s", iter.Name(), iter.Tags().String())
 		}
 	}
+
+	// Verify total number of series is correct.
+	if got, exp := sfile.SeriesCount(), uint64(len(collection.Names)); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after compaction)", got, exp)
+	}
 }
 
 // Ensures that types are tracked and checked by the series file.
@@ -191,29 +210,64 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 	}
 	id := sfile.SeriesID([]byte("m1"), nil, nil)
 
+	// Verify total number of series is correct.
+	if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (before deleted)", got, exp)
+	}
+
 	// Delete and ensure deletion.
 	if err := sfile.DeleteSeriesID(id); err != nil {
 		t.Fatal(err)
-	} else if err := sfile.CreateSeriesListIfNotExists(&tsdb.SeriesCollection{
-		Names: [][]byte{[]byte("m1")},
-		Tags:  []models.Tags{{}},
-		Types: []models.FieldType{models.String},
-	}); err != nil {
-		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion before compaction")
+	}
+
+	// Verify total number of series is correct.
+	if got, exp := sfile.SeriesCount(), uint64(1); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (before compaction)", got, exp)
 	}
 
 	if err := sfile.ForceCompact(); err != nil {
 		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion after compaction")
+	} else if got, exp := sfile.SeriesCount(), uint64(1); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after compaction)", got, exp)
 	}
 
 	if err := sfile.Reopen(); err != nil {
 		t.Fatal(err)
 	} else if !sfile.IsDeleted(id) {
 		t.Fatal("expected deletion after reopen")
+	} else if got, exp := sfile.SeriesCount(), uint64(1); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after reopen)", got, exp)
+	}
+
+	// Recreate series with new ID.
+	if err := sfile.CreateSeriesListIfNotExists(&tsdb.SeriesCollection{
+		Names: [][]byte{[]byte("m1")},
+		Tags:  []models.Tags{{}},
+		Types: []models.FieldType{models.String},
+	}); err != nil {
+		t.Fatal(err)
+	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after recreate)", got, exp)
+	}
+
+	if err := sfile.ForceCompact(); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(id) {
+		t.Fatal("expected deletion after compaction")
+	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after recreate & compaction)", got, exp)
+	}
+
+	if err := sfile.Reopen(); err != nil {
+		t.Fatal(err)
+	} else if !sfile.IsDeleted(id) {
+		t.Fatal("expected deletion after reopen")
+	} else if got, exp := sfile.SeriesCount(), uint64(2); got != exp {
+		t.Fatalf("SeriesCount()=%d, expected %d (after recreate & compaction)", got, exp)
 	}
 }
 
@@ -239,11 +293,32 @@ func NewSeriesFile() *SeriesFile {
 	return &SeriesFile{SeriesFile: tsdb.NewSeriesFile(dir)}
 }
 
+func NewBrokenSeriesFile(content []byte) *SeriesFile {
+	sFile := NewSeriesFile()
+	fPath := sFile.Path()
+	if err := sFile.Open(context.Background()); err != nil {
+		panic(err)
+	}
+	if err := sFile.SeriesFile.Close(); err != nil {
+		panic(err)
+	}
+
+	segPath := path.Join(fPath, "00", "0000")
+	if _, err := os.Stat(segPath); os.IsNotExist(err) {
+		panic(err)
+	}
+	err := ioutil.WriteFile(segPath, content, 0777)
+	if err != nil {
+		panic(err)
+	}
+	return sFile
+}
+
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
 func MustOpenSeriesFile() *SeriesFile {
 	f := NewSeriesFile()
 	f.Logger = logger.New(os.Stdout)
-	if err := f.Open(); err != nil {
+	if err := f.Open(context.Background()); err != nil {
 		panic(err)
 	}
 	return f
@@ -261,7 +336,7 @@ func (f *SeriesFile) Reopen() error {
 		return err
 	}
 	f.SeriesFile = tsdb.NewSeriesFile(f.SeriesFile.Path())
-	return f.SeriesFile.Open()
+	return f.SeriesFile.Open(context.Background())
 }
 
 // ForceCompact executes an immediate compaction across all partitions.

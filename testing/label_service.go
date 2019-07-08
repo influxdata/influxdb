@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	labelOneID = "41a9f7288d4e2d64"
-	labelTwoID = "b7c5355e1134b11c"
+	labelOneID   = "41a9f7288d4e2d64"
+	labelTwoID   = "b7c5355e1134b11c"
+	labelThreeID = "c8d6466f2245c22d"
 )
 
 var labelCmpOptions = cmp.Options{
@@ -23,7 +24,7 @@ var labelCmpOptions = cmp.Options{
 	cmp.Transformer("Sort", func(in []*influxdb.Label) []*influxdb.Label {
 		out := append([]*influxdb.Label(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
-			return out[i].Name < out[j].Name
+			return out[i].ID.String() > out[j].ID.String()
 		})
 		return out
 	}),
@@ -130,34 +131,6 @@ func CreateLabel(
 				},
 			},
 		},
-		// {
-		// 	name: "duplicate labels fail",
-		// 	fields: LabelFields{
-		// 		IDGenerator: mock.NewIDGenerator(labelTwoID, t),
-		// 		Labels: []*influxdb.Label{
-		// 			{
-		// 				Name: "Tag1",
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		label: &influxdb.Label{
-		// 			Name: "Tag1",
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*influxdb.Label{
-		// 			{
-		// 				Name: "Tag1",
-		// 			},
-		// 		},
-		// 		err: &influxdb.Error{
-		// 			Code: influxdb.EConflict,
-		// 			Op:   influxdb.OpCreateLabel,
-		// 			Msg:  "label Tag1 already exists",
-		// 		},
-		// 	},
-		// },
 	}
 
 	for _, tt := range tests {
@@ -234,25 +207,34 @@ func FindLabels(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:   MustIDBase16(labelTwoID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelTwoID),
+						Name:  "Tag2",
+						OrgID: MustIDBase16(orgOneID),
+					},
+					{
+						ID:    MustIDBase16(labelThreeID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgTwoID),
 					},
 				},
 			},
 			args: args{
 				filter: influxdb.LabelFilter{
-					Name: "Tag1",
+					Name:  "Tag1",
+					OrgID: idPtr(MustIDBase16(orgOneID)),
 				},
 			},
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -328,7 +310,7 @@ func FindLabelByID(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpFindLabelByID,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -369,12 +351,40 @@ func UpdateLabel(
 		wants  wants
 	}{
 		{
+			name: "update label name",
+			fields: LabelFields{
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
+					},
+				},
+			},
+			args: args{
+				labelID: MustIDBase16(labelOneID),
+				update: influxdb.LabelUpdate{
+					Name: "NotTag1",
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "NotTag1",
+					},
+				},
+			},
+		},
+		{
 			name: "update label properties",
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 					},
 				},
 			},
@@ -389,8 +399,9 @@ func UpdateLabel(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 						Properties: map[string]string{
 							"color": "fff000",
 						},
@@ -403,8 +414,9 @@ func UpdateLabel(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 						Properties: map[string]string{
 							"color":       "fff000",
 							"description": "description",
@@ -423,8 +435,9 @@ func UpdateLabel(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 						Properties: map[string]string{
 							"color":       "abc123",
 							"description": "description",
@@ -438,8 +451,9 @@ func UpdateLabel(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 						Properties: map[string]string{
 							"color":       "fff000",
 							"description": "description",
@@ -458,8 +472,9 @@ func UpdateLabel(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 						Properties: map[string]string{
 							"color": "fff000",
 						},
@@ -467,44 +482,6 @@ func UpdateLabel(
 				},
 			},
 		},
-		// {
-		// 	name: "label update proliferation",
-		// 	fields: LabelFields{
-		// 		Labels: []*influxdb.Label{
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketOneID),
-		// 				Name:       "Tag1",
-		// 			},
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketTwoID),
-		// 				Name:       "Tag1",
-		// 			},
-		// 		},
-		// 	},
-		// 	args: args{
-		// 		label: influxdb.Label{
-		// 			ResourceID: MustIDBase16(bucketOneID),
-		// 			Name:       "Tag1",
-		// 		},
-		// 		update: influxdb.LabelUpdate{
-		// 			Color: &validColor,
-		// 		},
-		// 	},
-		// 	wants: wants{
-		// 		labels: []*influxdb.Label{
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketOneID),
-		// 				Name:       "Tag1",
-		// 				Color:      "fff000",
-		// 			},
-		// 			{
-		// 				ResourceID: MustIDBase16(bucketTwoID),
-		// 				Name:       "Tag1",
-		// 				Color:      "fff000",
-		// 			},
-		// 		},
-		// 	},
-		// },
 		{
 			name: "updating a non-existent label",
 			fields: LabelFields{
@@ -523,7 +500,7 @@ func UpdateLabel(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpUpdateLabel,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -571,12 +548,14 @@ func DeleteLabel(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 					},
 					{
-						ID:   MustIDBase16(labelTwoID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag2",
 					},
 				},
 			},
@@ -586,19 +565,21 @@ func DeleteLabel(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelTwoID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag2",
 					},
 				},
 			},
 		},
 		{
-			name: "deleting a non-existant label",
+			name: "deleting a non-existent label",
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 					},
 				},
 			},
@@ -608,14 +589,15 @@ func DeleteLabel(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 					},
 				},
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpDeleteLabel,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},
@@ -703,7 +685,7 @@ func CreateLabelMapping(
 				err: &influxdb.Error{
 					Code: influxdb.ENotFound,
 					Op:   influxdb.OpDeleteLabel,
-					Err:  influxdb.ErrLabelNotFound,
+					Msg:  influxdb.ErrLabelNotFound,
 				},
 			},
 		},

@@ -41,11 +41,6 @@ func (s *TelegrafConfigStore) FindTelegrafConfigByID(ctx context.Context, id pla
 	return s.FindTelegrafConfigByIDF(ctx, id)
 }
 
-// FindTelegrafConfig returns the first telegraf config that matches filter.
-func (s *TelegrafConfigStore) FindTelegrafConfig(ctx context.Context, filter platform.TelegrafConfigFilter) (*platform.TelegrafConfig, error) {
-	return s.FindTelegrafConfigF(ctx, filter)
-}
-
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *TelegrafConfigStore) FindTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {

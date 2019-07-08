@@ -48,8 +48,8 @@ This project requires Go 1.11 and Go module support.
 Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
 
 If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, `brew install bazaar` (on macOS) before continuing.
-This error will also be returned if you have not installed `npm`.
-On macOS, `brew install npm` will install `npm`.
+This error will also be returned if you have not installed `yarn`.
+On macOS, `brew install yarn` will install `yarn`.  As necessary, also install `brew install protobuf`.
 
 For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
 
@@ -225,7 +225,13 @@ This is problematic because it will be erased if the file is re-generated.
 Until a better solution comes about, below is the list of generated files that need an ignores comment.
 If you re-generate a file and find that `staticcheck` has failed, please see this list below for what you need to put back:
 
-| File  | Comment  |
-|:-:|:-:|
-| query/promql/promql.go  | //lint:file-ignore SA6001 Ignore all unused code, it's generated         |
-|    proto/bin_gen.go     | //lint:file-ignore ST1005 Ignore error strings should not be capitalized |
+|          File          |                                 Comment                                  |
+| :--------------------: | :----------------------------------------------------------------------: |
+| query/promql/promql.go |     //lint:file-ignore SA6001 Ignore all unused code, it's generated     |
+
+#### End-to-End Tests
+
+CI also runs end-to-end tests. These test the integration between the influx server the ui. You can run them locally in two steps:
+
+- Start the server in "testing mode" by running `make run-e2e`.
+- Run the tests with `make e2e`.

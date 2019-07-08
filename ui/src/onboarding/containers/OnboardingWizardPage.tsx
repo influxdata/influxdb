@@ -6,26 +6,22 @@ import {withRouter, WithRouterProps} from 'react-router'
 // APIs
 import {client} from 'src/utils/api'
 
-// Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
 // Components
+import {
+  Button,
+  EmptyState,
+  TechnoSpinner,
+  SpinnerContainer,
+} from '@influxdata/clockface'
+import {WizardFullScreen} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import OnboardingWizard from 'src/onboarding/containers/OnboardingWizard'
 import Notifications from 'src/shared/components/notifications/Notifications'
-import {
-  SpinnerContainer,
-  TechnoSpinner,
-  ComponentColor,
-  ComponentSize,
-  WizardFullScreen,
-  Button,
-  EmptyState,
-} from 'src/clockface'
 
 // Types
-import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
-import {Links} from 'src/types/v2/links'
+import {ComponentColor, ComponentSize} from '@influxdata/clockface'
+import {RemoteDataState, AppState} from 'src/types'
+import {Links} from 'src/types/links'
 
 interface State {
   loading: RemoteDataState
@@ -43,14 +39,7 @@ interface ConnectedStateProps {
   links: Links
 }
 
-interface ConnectedDispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
-}
-
-type Props = PassedProps &
-  WithRouterProps &
-  ConnectedStateProps &
-  ConnectedDispatchProps
+type Props = PassedProps & WithRouterProps & ConnectedStateProps
 
 @ErrorHandling
 export class OnboardingWizardPage extends PureComponent<Props, State> {
@@ -96,7 +85,7 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
                     highlightWords={['Initial', 'User']}
                   />
                   <Button
-                    text={'Return to Home Page'}
+                    text="Return to Home Page"
                     onClick={this.redirectToHome}
                     color={ComponentColor.Primary}
                   />
@@ -165,17 +154,9 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({links}) => ({links})
+const mstp = ({links}: AppState) => ({links})
 
-const mdtp = {
-  notify: notifyAction,
-}
-
-export default connect<
-  ConnectedStateProps,
-  ConnectedDispatchProps,
-  PassedProps
->(
+export default connect<ConnectedStateProps, null, PassedProps>(
   mstp,
-  mdtp
+  null
 )(withRouter<Props>(OnboardingWizardPage))

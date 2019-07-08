@@ -15,7 +15,7 @@ func TestEncodeError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	http.EncodeError(ctx, nil, w)
+	http.ErrorHandler(0).HandleHTTPError(ctx, nil, w)
 
 	if w.Code != 200 {
 		t.Errorf("expected status code 200, got: %d", w.Code)
@@ -28,7 +28,7 @@ func TestEncodeErrorWithError(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
-	http.EncodeError(ctx, err, w)
+	http.ErrorHandler(0).HandleHTTPError(ctx, err, w)
 
 	if w.Code != 500 {
 		t.Errorf("expected status code 500, got: %d", w.Code)

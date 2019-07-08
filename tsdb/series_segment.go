@@ -71,6 +71,8 @@ func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 		return nil, err
 	} else if err := f.Truncate(int64(SeriesSegmentSize(id))); err != nil {
 		return nil, err
+	} else if err := f.Sync(); err != nil {
+		return nil, err
 	} else if err := f.Close(); err != nil {
 		return nil, err
 	}
@@ -303,12 +305,12 @@ func SplitSeriesOffset(offset int64) (segmentID uint16, pos uint32) {
 	return uint16((offset >> 32) & 0xFFFF), uint32(offset & 0xFFFFFFFF)
 }
 
-// IsValidSeriesSegmentFilename returns true if filename is a 4-character lowercase hexidecimal number.
+// IsValidSeriesSegmentFilename returns true if filename is a 4-character lowercase hexadecimal number.
 func IsValidSeriesSegmentFilename(filename string) bool {
 	return seriesSegmentFilenameRegex.MatchString(filename)
 }
 
-// ParseSeriesSegmentFilename returns the id represented by the hexidecimal filename.
+// ParseSeriesSegmentFilename returns the id represented by the hexadecimal filename.
 func ParseSeriesSegmentFilename(filename string) (uint16, error) {
 	i, err := strconv.ParseUint(filename, 16, 32)
 	return uint16(i), err

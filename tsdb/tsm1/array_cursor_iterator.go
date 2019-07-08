@@ -39,6 +39,8 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 		return nil, nil
 	}
 
+	q.e.readTracker.AddCursors(1)
+
 	if grp := metrics.GroupFromContext(ctx); grp != nil {
 		grp.GetCounter(numberOfRefCursorsCounter).Add(1)
 	}
@@ -67,7 +69,7 @@ func (q *arrayCursorIterator) Next(ctx context.Context, r *tsdb.CursorRequest) (
 
 func (q *arrayCursorIterator) seriesFieldKeyBytes(name []byte, tags models.Tags, field string) []byte {
 	q.key = models.AppendMakeKey(q.key[:0], name, tags)
-	q.key = append(q.key, keyFieldSeparatorBytes...)
+	q.key = append(q.key, KeyFieldSeparatorBytes...)
 	q.key = append(q.key, field...)
 	return q.key
 }

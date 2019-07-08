@@ -3,8 +3,8 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import {PluginConfigForm} from 'src/dataLoaders/components/collectorsWizard/configure/PluginConfigForm'
-import {Form} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Constants
@@ -64,7 +64,7 @@ describe('DataLoaders.Components.CollectorsWizard.Configure.PluginConfigForm', (
       telegrafPlugin,
     })
 
-    const link = wrapper.find({'data-test': 'docs-link'})
+    const link = wrapper.find({'data-testid': 'docs-link'})
 
     expect(link.exists()).toBe(true)
     expect(link.prop('href')).toContain(telegrafPlugin.name)

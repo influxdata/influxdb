@@ -4,56 +4,65 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime/debug"
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/iocounter"
+	"github.com/influxdata/influxdb/kit/check"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-// LoggingServiceBridge implements ProxyQueryService and logs the queries while consuming a QueryService interface.
-type LoggingServiceBridge struct {
-	QueryService QueryService
-	QueryLogger  Logger
+// LoggingProxyQueryService wraps a ProxyQueryService and logs the queries.
+type LoggingProxyQueryService struct {
+	ProxyQueryService ProxyQueryService
+	QueryLogger       Logger
+	NowFunction       func() time.Time
+	Logger            *zap.Logger
 }
 
 // Query executes and logs the query.
-func (s *LoggingServiceBridge) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (n int64, err error) {
-	var stats flux.Statistics
+func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *ProxyRequest) (stats flux.Statistics, err error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var n int64
 	defer func() {
-		r := recover()
-		if r != nil {
+		if r := recover(); r != nil {
 			err = fmt.Errorf("panic: %v", r)
+			if entry := s.Logger.Check(zapcore.InfoLevel, "QueryLogging panic"); entry != nil {
+				entry.Stack = string(debug.Stack())
+				entry.Write(zap.Error(err))
+			}
+		}
+		var now time.Time
+		if s.NowFunction != nil {
+			now = s.NowFunction()
+		} else {
+			now = time.Now()
 		}
 		log := Log{
 			OrganizationID: req.Request.OrganizationID,
 			ProxyRequest:   req,
 			ResponseSize:   n,
-			Time:           time.Now(),
+			Time:           now,
 			Statistics:     stats,
-		}
-		if err != nil {
-			log.Error = err
+			Error:          err,
 		}
 		s.QueryLogger.Log(log)
 	}()
 
-	results, err := s.QueryService.Query(ctx, &req.Request)
+	wc := &iocounter.Writer{Writer: w}
+	stats, err = s.ProxyQueryService.Query(ctx, wc, req)
 	if err != nil {
-		return 0, err
+		return stats, tracing.LogError(span, err)
 	}
-	// Check if this result iterator reports stats. We call this defer before cancel because
-	// the query needs to be finished before it will have valid statistics.
-	if s, ok := results.(flux.Statisticser); ok {
-		defer func() {
-			stats = s.Statistics()
-		}()
-	}
-	defer results.Release()
+	n = wc.Count()
+	return stats, nil
+}
 
-	encoder := req.Dialect.Encoder()
-	n, err = encoder.Encode(w, results)
-	if err != nil {
-		return n, err
-	}
-	// The results iterator may have had an error independent of encoding errors.
-	return n, results.Err()
+func (s *LoggingProxyQueryService) Check(ctx context.Context) check.Response {
+	return s.ProxyQueryService.Check(ctx)
 }

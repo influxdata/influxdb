@@ -14,6 +14,9 @@ const ErrSessionExpired = "session has expired"
 // RenewSessionTime is the the time to extend session, currently set to 5min.
 var RenewSessionTime = time.Duration(time.Second * 300)
 
+// DefaultSessionLength is the default session length on initial creation.
+var DefaultSessionLength = time.Hour
+
 var (
 	// OpFindSession represents the operation that looks for sessions.
 	OpFindSession = "FindSession"
@@ -24,6 +27,9 @@ var (
 	// OpRenewSession = "RenewSession"
 	OpRenewSession = "RenewSession"
 )
+
+// SessionAuthorizionKind defines the type of authorizer
+const SessionAuthorizionKind = "session"
 
 // Session is a user session.
 type Session struct {
@@ -59,7 +65,7 @@ func (s *Session) Allowed(p Permission) bool {
 }
 
 // Kind returns session and is used for auditing.
-func (s *Session) Kind() string { return "session" }
+func (s *Session) Kind() string { return SessionAuthorizionKind }
 
 // Identifier returns the sessions ID and is used for auditing.
 func (s *Session) Identifier() ID { return s.ID }
@@ -67,6 +73,18 @@ func (s *Session) Identifier() ID { return s.ID }
 // GetUserID returns the user id.
 func (s *Session) GetUserID() ID {
 	return s.UserID
+}
+
+// EphemeralAuth generates an Authorization that is not stored
+// but at the user's max privs.
+func (s *Session) EphemeralAuth(orgID ID) *Authorization {
+	return &Authorization{
+		ID:          s.ID,
+		OrgID:       orgID,
+		Status:      Active,
+		UserID:      s.UserID,
+		Permissions: s.Permissions,
+	}
 }
 
 // SessionService represents a service for managing user sessions.

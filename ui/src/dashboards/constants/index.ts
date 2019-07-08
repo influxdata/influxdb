@@ -2,8 +2,8 @@ import {
   DEFAULT_VERTICAL_TIME_AXIS,
   DEFAULT_FIX_FIRST_COLUMN,
 } from 'src/shared/constants/tableGraph'
-import {Cell, Dashboard} from 'src/types/v2'
-import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {Cell, Dashboard} from 'src/types'
+import {DecimalPlaces} from 'src/types'
 import {DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 export const UNTITLED_GRAPH: string = 'Untitled Graph'
@@ -63,7 +63,7 @@ export type EmptyDefaultDashboard = Pick<
   Dashboard,
   Exclude<
     keyof Dashboard,
-    'templates' | 'links' | 'organization' | 'cells' | 'labels'
+    'templates' | 'links' | 'organization' | 'cells' | 'labels' | 'orgID'
   >
 > & {
   cells: NewDefaultCell[]
@@ -93,6 +93,8 @@ export const DEFAULT_BUCKET_NAME = 'Name this Bucket'
 export const DEFAULT_COLLECTOR_NAME = 'Name this Collector'
 export const DEFAULT_TASK_NAME = 'Name this Task'
 export const DEFAULT_SCRAPER_NAME = 'Name this Scraper'
+export const DEFAULT_TOKEN_DESCRIPTION = 'Describe this Token'
+
 export const NEW_DASHBOARD: NewDefaultDashboard = {
   name: DEFAULT_DASHBOARD_NAME,
   cells: [NEW_DEFAULT_DASHBOARD_CELL],

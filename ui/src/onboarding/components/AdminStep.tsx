@@ -3,35 +3,31 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  ComponentSize,
-  Input,
-  InputType,
-  Form,
-  Columns,
-  IconFont,
-  Grid,
-  ComponentStatus,
-  QuestionMarkTooltip,
-} from 'src/clockface'
+import {Form, Input, Grid} from '@influxdata/clockface'
+import {QuestionMarkTooltip} from 'src/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
 import {setupAdmin} from 'src/onboarding/actions'
 
-// Constants
-import * as copy from 'src/shared/copy/notifications'
-
 // Types
+import {ISetupParams} from '@influxdata/influx'
+import {
+  Columns,
+  IconFont,
+  InputType,
+  ComponentSize,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
-import {ISetupParams} from '@influxdata/influx'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface State extends ISetupParams {
   confirmPassword: string
-  isAlreadySet: boolean
   isPassMismatched: boolean
 }
 
@@ -57,7 +53,6 @@ class AdminStep extends PureComponent<Props, State> {
       confirmPassword,
       org,
       bucket,
-      isAlreadySet: !!username && !!password && !!org && !!bucket,
       isPassMismatched: false,
     }
   }
@@ -79,8 +74,16 @@ class AdminStep extends PureComponent<Props, State> {
           <div className="wizard-step--scroll-area">
             <FancyScrollbar autoHide={false}>
               <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">Setup Initial User</h3>
-                <h5 className="wizard-step--sub-title">
+                <h3
+                  className="wizard-step--title"
+                  data-testid="admin-step--head-main"
+                >
+                  Setup Initial User
+                </h3>
+                <h5
+                  className="wizard-step--sub-title"
+                  data-testid="admin-step--head-sub"
+                >
                   You will be able to create additional Users, Buckets and
                   Organizations later
                 </h5>
@@ -101,6 +104,7 @@ class AdminStep extends PureComponent<Props, State> {
                           status={status}
                           disabledTitleText="Username has been set"
                           autoFocus={true}
+                          testID="input-field--username"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -119,6 +123,7 @@ class AdminStep extends PureComponent<Props, State> {
                           icon={icon}
                           status={status}
                           disabledTitleText="Password has been set"
+                          testID="input-field--password"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -138,6 +143,7 @@ class AdminStep extends PureComponent<Props, State> {
                           icon={icon}
                           status={this.passwordStatus}
                           disabledTitleText="password has been set"
+                          testID="input-field--password-chk"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -149,6 +155,7 @@ class AdminStep extends PureComponent<Props, State> {
                       <Form.Element
                         label="Initial Organization Name"
                         labelAddOn={this.orgTip}
+                        testID="form-elem--orgname"
                       >
                         <Input
                           value={org}
@@ -159,6 +166,7 @@ class AdminStep extends PureComponent<Props, State> {
                           status={ComponentStatus.Default}
                           placeholder="An organization is a workspace for a group of users."
                           disabledTitleText="Initial organization name has been set"
+                          testID="input-field--orgname"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -170,6 +178,7 @@ class AdminStep extends PureComponent<Props, State> {
                       <Form.Element
                         label="Initial Bucket Name"
                         labelAddOn={this.bucketTip}
+                        testID="form-elem--bucketname"
                       >
                         <Input
                           value={bucket}
@@ -180,6 +189,7 @@ class AdminStep extends PureComponent<Props, State> {
                           status={status}
                           placeholder="A bucket is where your time series data is stored with a retention policy."
                           disabledTitleText="Initial bucket name has been set"
+                          testID="input-field--bucketname"
                         />
                       </Form.Element>
                     </Grid.Column>
@@ -195,6 +205,14 @@ class AdminStep extends PureComponent<Props, State> {
         </Form>
       </div>
     )
+  }
+
+  private get isAdminSet(): boolean {
+    const {stepStatuses, currentStepIndex} = this.props
+    if (stepStatuses[currentStepIndex] === StepStatus.Complete) {
+      return true
+    }
+    return false
   }
 
   private handleUsername = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -230,8 +248,8 @@ class AdminStep extends PureComponent<Props, State> {
     return (
       <QuestionMarkTooltip
         tipID="admin_org_tooltip"
-        tipContent={`An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
-        You can create organizations for different functional groups, teams, or projects.`}
+        tipContent="An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
+        You can create organizations for different functional groups, teams, or projects."
       />
     )
   }
@@ -273,8 +291,8 @@ class AdminStep extends PureComponent<Props, State> {
   }
 
   private get passwordStatus(): ComponentStatus {
-    const {isAlreadySet, isPassMismatched} = this.state
-    if (isAlreadySet) {
+    const {isPassMismatched} = this.state
+    if (this.isAdminSet) {
       return ComponentStatus.Disabled
     }
     if (isPassMismatched) {
@@ -284,16 +302,14 @@ class AdminStep extends PureComponent<Props, State> {
   }
 
   private get InputStatus(): ComponentStatus {
-    const {isAlreadySet} = this.state
-    if (isAlreadySet) {
+    if (this.isAdminSet) {
       return ComponentStatus.Disabled
     }
     return ComponentStatus.Default
   }
 
   private get InputIcon(): IconFont {
-    const {isAlreadySet} = this.state
-    if (isAlreadySet) {
+    if (this.isAdminSet) {
       return IconFont.Checkmark
     }
     return null
@@ -301,16 +317,15 @@ class AdminStep extends PureComponent<Props, State> {
 
   private handleNext = async () => {
     const {
-      onSetStepStatus,
-      currentStepIndex,
-      notify,
       onIncrementCurrentStepIndex,
       onSetupAdmin: onSetupAdmin,
+      onSetStepStatus,
+      currentStepIndex,
     } = this.props
 
-    const {username, password, org, bucket, isAlreadySet} = this.state
+    const {username, password, org, bucket} = this.state
 
-    if (isAlreadySet) {
+    if (this.isAdminSet) {
       onSetStepStatus(currentStepIndex, StepStatus.Complete)
       onIncrementCurrentStepIndex()
       return
@@ -323,13 +338,10 @@ class AdminStep extends PureComponent<Props, State> {
       bucket,
     }
 
-    try {
-      await onSetupAdmin(setupParams)
-    } catch (error) {
-      notify(copy.SetupError)
+    const isAdminSet = await onSetupAdmin(setupParams)
+    if (isAdminSet) {
+      onIncrementCurrentStepIndex()
     }
-    onSetStepStatus(currentStepIndex, StepStatus.Complete)
-    onIncrementCurrentStepIndex()
   }
 }
 

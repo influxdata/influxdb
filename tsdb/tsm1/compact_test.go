@@ -2,6 +2,7 @@ package tsm1_test
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"math"
 	"os"
@@ -41,7 +42,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 	compactor.Dir = dir
 	compactor.FileStore = &fakeFileStore{}
 
-	files, err := compactor.WriteSnapshot(c)
+	files, err := compactor.WriteSnapshot(context.Background(), c)
 	if err == nil {
 		t.Fatalf("expected error writing snapshot: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestCompactor_Snapshot(t *testing.T) {
 
 	compactor.Open()
 
-	files, err = compactor.WriteSnapshot(c)
+	files, err = compactor.WriteSnapshot(context.Background(), c)
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -2992,6 +2993,8 @@ func (w *fakeFileStore) Stats() []tsm1.FileStat {
 func (w *fakeFileStore) NextGeneration() int {
 	return 1
 }
+
+func (w *fakeFileStore) SetCurrentGenerationFunc(fn func() int) {}
 
 func (w *fakeFileStore) LastModified() time.Time {
 	return w.lastModified

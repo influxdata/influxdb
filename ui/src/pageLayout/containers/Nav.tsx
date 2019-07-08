@@ -1,123 +1,184 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps, Link} from 'react-router'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
-import NavMenu from 'src/pageLayout/components/NavMenu'
+import {NavMenu, Icon} from '@influxdata/clockface'
+import CloudNav from 'src/pageLayout/components/CloudNav'
+import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
+import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
 // Utils
-import {getSources} from 'src/sources/selectors'
+import {getNavItemActivation} from 'src/pageLayout/utils'
 
 // Types
-import {Source, MeState, AppState} from 'src/types/v2'
-import {IconFont} from 'src/clockface'
+import {AppState} from 'src/types'
+import {IconFont} from '@influxdata/clockface'
+import {Organization} from '@influxdata/influx'
 
-// Styles
-import '../PageLayout.scss'
-
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props extends WithRouterProps {
-  sources: Source[]
+interface StateProps {
   isHidden: boolean
-  me: MeState
+  me: AppState['me']
+  orgs: Organization[]
+  orgName: string
 }
 
+interface State {
+  isShowingOrganizations: boolean
+}
+
+type Props = StateProps & WithRouterProps
+
 @ErrorHandling
-class SideNav extends PureComponent<Props> {
+class SideNav extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
+
+    this.state = {
+      isShowingOrganizations: false,
+    }
   }
 
   public render() {
-    const {isHidden, me} = this.props
-    const {location} = this.props
+    const {
+      isHidden,
+      me,
+      params: {orgID},
+      orgs,
+      orgName,
+    } = this.props
+
     if (isHidden) {
       return null
     }
 
+    const orgPrefix = `/orgs/${orgID}`
+    const dashboardsLink = `${orgPrefix}/dashboards`
+    const dataExplorerLink = `${orgPrefix}/data-explorer`
+    const tasksLink = `${orgPrefix}/tasks`
+    const settingsLink = `${orgPrefix}/settings`
+    const feedbackLink =
+      'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
+
     return (
       <NavMenu>
+        <div onMouseLeave={this.closeOrganizationsView} className="find-me">
+          <NavMenu.Item
+            titleLink={className => (
+              <Link className={className} to={orgPrefix}>
+                <CloudOnly>{me.name}</CloudOnly>
+                <CloudExclude>{`${me.name} (${orgName})`}</CloudExclude>
+              </Link>
+            )}
+            iconLink={className => (
+              <Link to={orgPrefix} className={className}>
+                <Icon glyph={IconFont.CuboNav} />
+              </Link>
+            )}
+            active={getNavItemActivation(['me', 'account'], location.pathname)}
+          >
+            <AccountNavSubItem
+              orgs={orgs}
+              isShowingOrganizations={this.state.isShowingOrganizations}
+              showOrganizationsView={this.showOrganizationsView}
+              closeOrganizationsView={this.closeOrganizationsView}
+            />
+          </NavMenu.Item>
+        </div>
         <NavMenu.Item
-          title={me.name}
-          link="/me"
-          icon={IconFont.CuboNav}
-          location={location.pathname}
-          highlightWhen={['me', 'account']}
-        >
-          <NavMenu.SubItem
-            title="Logout"
-            link={`/logout`}
-            location={location.pathname}
-            highlightWhen={[]}
-          />
-        </NavMenu.Item>
-        <NavMenu.Item
-          title="Data Explorer"
-          link="/data-explorer"
-          icon={IconFont.GraphLine}
-          location={location.pathname}
-          highlightWhen={['data-explorer']}
+          titleLink={className => (
+            <Link className={className} to={dataExplorerLink}>
+              Data Explorer
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={dataExplorerLink} className={className}>
+              <Icon glyph={IconFont.GraphLine} />
+            </Link>
+          )}
+          active={getNavItemActivation(['data-explorer'], location.pathname)}
         />
         <NavMenu.Item
-          title="Dashboards"
-          link="/dashboards"
-          icon={IconFont.Dashboards}
-          location={location.pathname}
-          highlightWhen={['dashboards']}
+          titleLink={className => (
+            <Link className={className} to={dashboardsLink}>
+              Dashboards
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={dashboardsLink} className={className}>
+              <Icon glyph={IconFont.Dashboards} />
+            </Link>
+          )}
+          active={getNavItemActivation(['dashboards'], location.pathname)}
         />
         <NavMenu.Item
-          title="Tasks"
-          link="/tasks"
-          icon={IconFont.Calendar}
-          location={location.pathname}
-          highlightWhen={['tasks']}
+          titleLink={className => (
+            <Link className={className} to={tasksLink}>
+              Tasks
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={tasksLink} className={className}>
+              <Icon glyph={IconFont.Calendar} />
+            </Link>
+          )}
+          active={getNavItemActivation(['tasks'], location.pathname)}
         />
         <NavMenu.Item
-          title="Organizations"
-          link="/organizations"
-          icon={IconFont.UsersDuo}
-          location={location.pathname}
-          highlightWhen={['organizations']}
+          titleLink={className => (
+            <Link className={className} to={settingsLink}>
+              Settings
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={settingsLink} className={className}>
+              <Icon glyph={IconFont.Wrench} />
+            </Link>
+          )}
+          active={getNavItemActivation(['settings'], location.pathname)}
         />
+        <CloudNav />
         <NavMenu.Item
-          title="Configuration"
-          link="/configuration/labels_tab"
-          icon={IconFont.Wrench}
-          location={location.pathname}
-          highlightWhen={['configuration']}
-        >
-          <NavMenu.SubItem
-            title="Labels"
-            link="/configuration/labels_tab"
-            location={location.pathname}
-            highlightWhen={['labels']}
-          />
-          <NavMenu.SubItem
-            title="Profile"
-            link="/configuration/settings_tab"
-            location={location.pathname}
-            highlightWhen={['settings_tab']}
-          />
-          <NavMenu.SubItem
-            title="Tokens"
-            link="/configuration/tokens_tab"
-            location={location.pathname}
-            highlightWhen={['tokens_tab']}
-          />
-        </NavMenu.Item>
+          titleLink={className => (
+            <a className={className} href={feedbackLink} target="_blank">
+              Feedback
+            </a>
+          )}
+          iconLink={className => (
+            <a href={feedbackLink} className={className} target="_blank">
+              <Icon glyph={IconFont.NavChat} />
+            </a>
+          )}
+          active={getNavItemActivation(['feedback'], location.pathname)}
+        />
       </NavMenu>
     )
   }
+
+  private showOrganizationsView = (): void => {
+    this.setState({isShowingOrganizations: true})
+  }
+
+  private closeOrganizationsView = (): void => {
+    this.setState({isShowingOrganizations: false})
+  }
 }
 
-const mstp = (state: AppState) => {
+const mstp = (state: AppState): StateProps => {
   const isHidden = state.app.ephemeral.inPresentationMode
-  const sources = getSources(state)
-  const {me} = state
+  const {
+    me,
+    orgs,
+    orgs: {org},
+  } = state
 
-  return {sources, isHidden, me}
+  return {isHidden, me, orgs: orgs.items, orgName: _.get(org, 'name', '')}
 }
 
-export default connect(mstp)(withRouter(SideNav))
+export default connect<StateProps>(mstp)(withRouter(SideNav))

@@ -72,7 +72,10 @@ func (c *Client) findUserResourceMapping(ctx context.Context, tx *bolt.Tx, filte
 	}
 
 	if len(ms) == 0 {
-		return nil, fmt.Errorf("userResource mapping not found")
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "user to resource mapping not found",
+		}
 	}
 
 	return ms[0], nil
@@ -96,7 +99,10 @@ func (c *Client) createUserResourceMapping(ctx context.Context, tx *bolt.Tx, m *
 	unique := c.uniqueUserResourceMapping(ctx, tx, m)
 
 	if !unique {
-		return fmt.Errorf("mapping for user %s already exists", m.UserID.String())
+		return &platform.Error{
+			Code: platform.EInternal,
+			Msg:  fmt.Sprintf("Unexpected error when assigning user to a resource: mapping for user %s already exists", m.UserID.String()),
+		}
 	}
 
 	v, err := json.Marshal(m)
@@ -214,7 +220,10 @@ func (c *Client) deleteUserResourceMapping(ctx context.Context, tx *bolt.Tx, fil
 		return err
 	}
 	if len(ms) == 0 {
-		return fmt.Errorf("userResource mapping not found")
+		return &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "user to resource mapping not found",
+		}
 	}
 
 	key, err := userResourceKey(ms[0])

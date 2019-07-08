@@ -13,7 +13,7 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all subdirs have the `all` and `clean` targets.
-SUBDIRS := proto http ui chronograf query storage task
+SUBDIRS := http ui chronograf query storage
 GO_ARGS=-tags '$(GO_TAGS)'
 
 # Test vars can be used by all recursive Makefiles
@@ -49,7 +49,11 @@ CMDS := \
 #
 # This target sets up the dependencies to correctly build all go commands.
 # Other targets must depend on this target to correctly builds CMDS.
-all: GO_ARGS=-tags 'assets $(GO_TAGS)'
+ifeq ($(GOARCH), arm64)
+    all: GO_ARGS=-tags ' assets noasm $(GO_TAGS)'
+else
+    all: GO_ARGS=-tags 'assets $(GO_TAGS)'
+endif
 all: subdirs generate $(CMDS)
 
 # Target to build subdirs.
@@ -69,6 +73,13 @@ $(CMDS): $(SOURCES)
 
 node_modules: ui/node_modules
 
+# phony target to wait for server to be alive
+ping:
+	./etc/pinger.sh
+
+e2e: ping
+	make -C ui e2e
+
 chronograf_lint:
 	make -C ui lint
 
@@ -84,6 +95,7 @@ fmt: $(SOURCES_NO_VENDOR)
 
 checkfmt:
 	./etc/checkfmt.sh
+	$(GO_RUN) github.com/editorconfig-checker/editorconfig-checker/cmd/editorconfig-checker
 
 tidy:
 	GO111MODULE=on go mod tidy
@@ -93,6 +105,9 @@ checktidy:
 
 checkgenerate:
 	./etc/checkgenerate.sh
+
+checkcommit:
+	./etc/circle-detect-committed-binaries.sh
 
 generate: subdirs
 
@@ -150,8 +165,16 @@ chronogiraffe: subdirs generate $(CMDS)
 	@echo "$$CHRONOGIRAFFE"
 
 run: chronogiraffe
-	./bin/$(GOOS)/influxd --developer-mode=true
+	./bin/$(GOOS)/influxd --assets-path=ui/build
 
+run-e2e: chronogiraffe
+	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
+
+# assume this is running from circleci
+protoc:
+	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
+	unzip -o -d /go /tmp/protoc.zip
+	chmod +x /go/bin/protoc
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e

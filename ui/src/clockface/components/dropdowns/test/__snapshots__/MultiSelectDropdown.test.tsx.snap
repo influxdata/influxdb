@@ -57,13 +57,15 @@ exports[`MultiSelectDropdown with menu expanded matches snapshot 1`] = `
       <FancyScrollbar
         autoHeight={true}
         autoHide={false}
+        className=""
+        hideTracksWhenNotNeeded={true}
         maxHeight={250}
         setScrollTop={[Function]}
         style={Object {}}
       >
         <div
           className="dropdown--menu"
-          data-test="dropdown-menu"
+          data-testid="dropdown-menu"
         >
           <DropdownItem
             checkbox={true}

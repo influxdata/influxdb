@@ -10,13 +10,11 @@ import {
 
 // Actions
 import {
-  submitScript,
   setActiveTab,
   setActiveTimeMachine,
   setActiveQueryIndexSync,
-  editActiveQueryWithBuilder,
+  editActiveQueryWithBuilderSync,
   editActiveQueryAsFlux,
-  editActiveQueryAsInfluxQL,
   addQuerySync,
   removeQuerySync,
   updateActiveQueryName,
@@ -34,14 +32,13 @@ import {
 } from 'src/timeMachine/constants'
 
 // Types
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/timeMachine'
 import {
   DashboardDraftQuery,
-  DashboardQuery,
   QueryViewProperties,
-  InfluxLanguage,
   QueryEditMode,
-} from 'src/types/v2/dashboards'
+} from 'src/types/dashboards'
+import {selectAggregateWindow} from '../actions/queryBuilder'
 
 describe('timeMachinesReducer', () => {
   test('it directs actions to the currently active timeMachine', () => {
@@ -78,18 +75,26 @@ describe('timeMachinesReducer', () => {
 
     view.properties.queries = [
       {
+        name: '',
         text: 'foo',
-        type: InfluxLanguage.InfluxQL,
-        sourceID: '123',
         editMode: QueryEditMode.Advanced,
-        builderConfig: {buckets: [], tags: [], functions: []},
+        builderConfig: {
+          buckets: [],
+          tags: [],
+          functions: [],
+          aggregateWindow: {period: 'auto'},
+        },
       },
       {
+        name: '',
         text: 'bar',
-        type: InfluxLanguage.Flux,
-        sourceID: '456',
         editMode: QueryEditMode.Builder,
-        builderConfig: {buckets: [], tags: [], functions: []},
+        builderConfig: {
+          buckets: [],
+          tags: [],
+          functions: [],
+          aggregateWindow: {period: 'auto'},
+        },
       },
     ]
 
@@ -112,42 +117,6 @@ describe('timeMachinesReducer', () => {
 })
 
 describe('timeMachineReducer', () => {
-  describe('SUBMIT_SCRIPT', () => {
-    test('replaces each queries text', () => {
-      const state = initialStateHelper()
-
-      const queryA: DashboardDraftQuery = {
-        text: 'foo',
-        type: InfluxLanguage.Flux,
-        sourceID: '123',
-        editMode: QueryEditMode.Builder,
-        builderConfig: {buckets: [], tags: [], functions: []},
-        hidden: false,
-      }
-
-      const queryB: DashboardQuery = {
-        text: 'bar',
-        type: InfluxLanguage.Flux,
-        sourceID: '456',
-        editMode: QueryEditMode.Builder,
-        builderConfig: {buckets: [], tags: [], functions: []},
-      }
-
-      state.view.properties.queries = [queryA, queryB]
-      state.draftQueries = [
-        {...queryA, text: 'baz', hidden: false},
-        {...queryB, text: 'buzz', hidden: false},
-      ]
-
-      const actual = timeMachineReducer(state, submitScript()).view.properties
-        .queries
-
-      const expected = state.draftQueries
-
-      expect(actual).toEqual(expected)
-    })
-  })
-
   describe('EDIT_ACTIVE_QUERY_WITH_BUILDER', () => {
     test('changes the activeQueryEditor and editMode for the currently active query', () => {
       const state = initialStateHelper()
@@ -155,41 +124,60 @@ describe('timeMachineReducer', () => {
       state.activeQueryIndex = 1
       state.draftQueries = [
         {
+          name: '',
           text: 'foo',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: 'bar',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
 
-      const nextState = timeMachineReducer(state, editActiveQueryWithBuilder())
+      const nextState = timeMachineReducer(
+        state,
+        editActiveQueryWithBuilderSync()
+      )
 
       expect(nextState.activeQueryIndex).toEqual(1)
       expect(nextState.draftQueries).toEqual([
         {
+          name: '',
           text: '',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: '',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ])
@@ -203,19 +191,27 @@ describe('timeMachineReducer', () => {
       state.activeQueryIndex = 1
       state.draftQueries = [
         {
+          name: '',
           text: 'foo',
-          type: InfluxLanguage.InfluxQL,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: 'bar',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -225,67 +221,27 @@ describe('timeMachineReducer', () => {
       expect(nextState.activeQueryIndex).toEqual(1)
       expect(nextState.draftQueries).toEqual([
         {
+          name: '',
           text: 'foo',
-          type: InfluxLanguage.InfluxQL,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: 'bar',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
-          hidden: false,
-        },
-      ])
-    })
-  })
-
-  describe('EDIT_ACTIVE_QUERY_AS_INFLUXQL', () => {
-    test('changes the activeQueryEditor and editMode for the currently active query', () => {
-      const state = initialStateHelper()
-
-      state.activeQueryIndex = 1
-      state.draftQueries = [
-        {
-          text: 'foo',
-          type: InfluxLanguage.InfluxQL,
-          sourceID: '',
-          editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
-          hidden: false,
-        },
-        {
-          text: 'bar',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
-          editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
-          hidden: false,
-        },
-      ]
-
-      const nextState = timeMachineReducer(state, editActiveQueryAsInfluxQL())
-
-      expect(nextState.activeQueryIndex).toEqual(1)
-      expect(nextState.draftQueries).toEqual([
-        {
-          text: 'foo',
-          type: InfluxLanguage.InfluxQL,
-          sourceID: '',
-          editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
-          hidden: false,
-        },
-        {
-          text: 'bar',
-          type: InfluxLanguage.InfluxQL,
-          sourceID: '',
-          editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ])
@@ -300,18 +256,26 @@ describe('timeMachineReducer', () => {
         state.activeQueryIndex = 1
         state.view.properties.queries = [
           {
+            name: '',
             text: 'foo',
-            type: InfluxLanguage.Flux,
-            sourceID: '',
             editMode: QueryEditMode.Builder,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
           {
+            name: '',
             text: 'bar',
-            type: InfluxLanguage.Flux,
-            sourceID: '',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
         ]
 
@@ -326,18 +290,26 @@ describe('timeMachineReducer', () => {
         state.activeQueryIndex = 1
         state.view.properties.queries = [
           {
+            name: '',
             text: 'foo',
-            type: InfluxLanguage.InfluxQL,
-            sourceID: '',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
           {
+            name: '',
             text: 'bar',
-            type: InfluxLanguage.Flux,
-            sourceID: '',
             editMode: QueryEditMode.Builder,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
         ]
 
@@ -352,18 +324,26 @@ describe('timeMachineReducer', () => {
         state.activeQueryIndex = 1
         state.view.properties.queries = [
           {
+            name: '',
             text: 'foo',
-            type: InfluxLanguage.Flux,
-            sourceID: '',
             editMode: QueryEditMode.Advanced,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
           {
+            name: '',
             text: 'bar',
-            type: InfluxLanguage.Flux,
-            sourceID: '',
             editMode: QueryEditMode.Builder,
-            builderConfig: {buckets: [], tags: [], functions: []},
+            builderConfig: {
+              buckets: [],
+              tags: [],
+              functions: [],
+              aggregateWindow: {period: 'auto'},
+            },
           },
         ]
 
@@ -381,11 +361,15 @@ describe('timeMachineReducer', () => {
       state.activeQueryIndex = 0
       state.draftQueries = [
         {
+          name: '',
           text: 'a',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -395,22 +379,26 @@ describe('timeMachineReducer', () => {
       expect(nextState.activeQueryIndex).toEqual(1)
       expect(nextState.draftQueries).toEqual([
         {
+          name: '',
           text: 'a',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: '',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig: {
             buckets: [],
             tags: [{key: '_measurement', values: []}],
             functions: [],
+            aggregateWindow: {period: 'auto'},
           },
           hidden: false,
         },
@@ -424,27 +412,39 @@ describe('timeMachineReducer', () => {
     beforeEach(() => {
       queries = [
         {
+          name: '',
           text: 'a',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: 'b',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
         {
+          name: '',
           text: 'c',
-          type: InfluxLanguage.InfluxQL,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
-          builderConfig: {buckets: [], tags: [], functions: []},
+          builderConfig: {
+            buckets: [],
+            tags: [],
+            functions: [],
+            aggregateWindow: {period: 'auto'},
+          },
           hidden: false,
         },
       ]
@@ -482,21 +482,24 @@ describe('timeMachineReducer', () => {
       const state = initialStateHelper()
       state.activeQueryIndex = 1
 
-      const builderConfig = {buckets: [], tags: [], functions: []}
+      const builderConfig = {
+        buckets: [],
+        tags: [],
+        functions: [],
+        aggregateWindow: {period: 'auto'},
+      }
 
       state.draftQueries = [
         {
+          name: '',
           text: 'foo',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig,
           hidden: false,
         },
         {
+          name: '',
           text: 'bar',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
           builderConfig,
           hidden: false,
@@ -510,17 +513,14 @@ describe('timeMachineReducer', () => {
 
       expect(nextState.draftQueries).toEqual([
         {
+          name: '',
           text: 'foo',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Advanced,
           builderConfig,
           hidden: false,
         },
         {
           text: 'bar',
-          type: InfluxLanguage.Flux,
-          sourceID: '',
           editMode: QueryEditMode.Builder,
           name: 'test query',
           builderConfig,
@@ -618,5 +618,47 @@ describe('timeMachineReducer', () => {
 
       expect(actual).toEqual(expected)
     })
+  })
+
+  describe('SET_AGGREGATE_WINDOW', () => {
+    const state = initialStateHelper()
+    state.activeQueryIndex = 1
+
+    const builderConfig = {
+      buckets: [],
+      tags: [],
+      functions: [],
+      aggregateWindow: {period: 'auto'},
+    }
+
+    const dq0 = {
+      name: '',
+      text: '',
+      editMode: QueryEditMode.Advanced,
+      builderConfig,
+      hidden: false,
+    }
+
+    const dq1 = {
+      name: '',
+      text: '',
+      editMode: QueryEditMode.Builder,
+      builderConfig,
+      hidden: false,
+    }
+
+    state.draftQueries = [dq0, dq1]
+
+    const period = '15m'
+    const nextState = timeMachineReducer(state, selectAggregateWindow(period))
+    const updatedConfig = {
+      ...builderConfig,
+      aggregateWindow: {period},
+    }
+
+    expect(nextState.draftQueries).toEqual([
+      dq0,
+      {...dq1, builderConfig: updatedConfig},
+    ])
   })
 })

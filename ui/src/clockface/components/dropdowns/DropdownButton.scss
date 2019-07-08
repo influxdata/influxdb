@@ -30,6 +30,15 @@
 .dropdown--caret {
   margin: 0;
   font-size: 0.9em;
+  transition: transform 0.25s ease;
+
+  .dropdown--below .active &, .dropdown--above & {
+    transform: translateY(-50%) rotate(-180deg);
+  }
+
+  .dropdown--above .active & {
+    transform: translateY(-50%);
+  }
 }
 
 /* Button Size Modifiers */
@@ -48,6 +57,10 @@
   .dropdown--caret {
     right: $padding;
   }
+}
+
+.dropdown--button.button-disabled {
+  font-style: italic;
 }
 
 .dropdown--button.button-xs {

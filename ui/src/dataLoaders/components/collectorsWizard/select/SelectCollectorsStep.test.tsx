@@ -8,7 +8,7 @@ import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/selec
 import {ComponentStatus} from 'src/clockface'
 
 // Types
-import {DataLoaderType} from 'src/types/v2/dataLoaders'
+import {DataLoaderType} from 'src/types/dataLoaders'
 
 // Dummy Data
 import {
@@ -21,7 +21,7 @@ import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 const setup = (override = {}) => {
   const props = {
     ...defaultOnboardingStepProps,
-    bucket: '',
+    bucket: 'b1',
     telegrafPlugins: [],
     pluginBundles: [],
     type: DataLoaderType.Empty,
@@ -51,6 +51,7 @@ describe('DataLoaders.Components.CollectorsWizard.Select.SelectCollectorsStep', 
         currentStepIndex: 0,
         substep: 'streaming',
       })
+
       const streamingSelector = wrapper.find(StreamingSelector)
       const onboardingButtons = wrapper.find(OnboardingButtons)
 

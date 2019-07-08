@@ -78,8 +78,8 @@ func TestClient_Name(t *testing.T) {
 						Name: "o1",
 					})
 					return s.CreateBucket(ctx, &platform.Bucket{
-						Name:           "b1",
-						OrganizationID: testID,
+						Name:  "b1",
+						OrgID: testID,
 					})
 				},
 			},
@@ -180,8 +180,8 @@ func TestClient_Name(t *testing.T) {
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateTelegrafConfig(ctx, &platform.TelegrafConfig{
-						OrganizationID: platformtesting.MustIDBase16("0000000000000009"),
-						Name:           "telegraf1",
+						OrgID: platformtesting.MustIDBase16("0000000000000009"),
+						Name:  "telegraf1",
 					}, testID)
 				},
 			},

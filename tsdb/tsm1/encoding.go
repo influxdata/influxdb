@@ -114,6 +114,29 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 	return nil, fmt.Errorf("unsupported value type %T", a[0])
 }
 
+// Contains returns true if values exist for the time interval [min, max]
+// inclusive. The values must be sorted before calling Contains or the
+// results are undefined.
+func (a Values) Contains(min, max int64) bool {
+	rmin, rmax := a.FindRange(min, max)
+	if rmin == -1 && rmax == -1 {
+		return false
+	}
+
+	// a[rmin].UnixNano() ≥ min
+	// a[rmax].UnixNano() ≥ max
+
+	if a[rmin].UnixNano() == min {
+		return true
+	}
+
+	if rmax < a.Len() && a[rmax].UnixNano() == max {
+		return true
+	}
+
+	return rmax-rmin > 0
+}
+
 // InfluxQLType returns the influxql.DataType the values map to.
 func (a Values) InfluxQLType() (influxql.DataType, error) {
 	if len(a) == 0 {
@@ -817,3 +840,21 @@ func getBooleanEncoder(sz int) BooleanEncoder {
 	return x
 }
 func putBooleanEncoder(enc BooleanEncoder) { booleanEncoderPool.Put(enc) }
+
+// BlockTypeName returns a string name for the block type.
+func BlockTypeName(typ byte) string {
+	switch typ {
+	case BlockFloat64:
+		return "float64"
+	case BlockInteger:
+		return "integer"
+	case BlockBoolean:
+		return "boolean"
+	case BlockString:
+		return "string"
+	case BlockUnsigned:
+		return "unsigned"
+	default:
+		return fmt.Sprintf("unknown(%d)", typ)
+	}
+}

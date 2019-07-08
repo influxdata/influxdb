@@ -24,7 +24,7 @@
   background-position: center center;
   background-repeat: no-repeat;
   width: 100%;
-  flex: .5;
+  flex: 0.5;
 
   &.primary {
     background-image: url('../../assets/images/cubo_doodle.svg');
@@ -61,8 +61,7 @@
   background-color: $g3-castle;
   border-radius: $radius;
   padding: $ix-marg-c;
-  padding-bottom: 0;
-  flex: 1 0 100%;
+  flex: 1 0 0;
 }
 
 .side-bar.show + .wizard-step--container {
@@ -76,38 +75,30 @@
 }
 
 .onboarding-step {
+  flex: 1 0 0;
   min-width: 100%;
-  min-height: 100%;
   text-align: center;
   position: relative;
   display: inline-flex;
   flex-direction: column;
   justify-content: flex-start;
   align-items: center;
-}
 
-.wizard-step--scroll-area {
-  display: block;
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: calc(100% - 102px);
-  border: $ix-border solid $g5-pepper;
-  border-radius: $ix-radius;
-}
-
-
-.buttonless {
-  .wizard-step--scroll-area {
-    height: calc(100% - 16px);
+  .form--wrapper {
+    display: inline-flex;
+    flex-direction: column;
+    flex: 1 0 0;
   }
 }
 
+.wizard-step--scroll-area {
+  flex: 1 0 0;
+  width: 100%;
+}
 
 .wizard-step--scroll-content {
-  width: 100%;
-  max-width: 90%;
-  min-height: 100%;
+  width: 90%;
+  height: 90%;
   margin: 0 auto $ix-marg-d auto;
   display: inline-flex;
   flex-direction: column;
@@ -126,26 +117,6 @@
 }
 
 /* Buttons */
-.wizard--button-container {
-  position: absolute;
-  bottom: $ix-marg-d;
-  left: 0;
-  right: 0;
-  display: inline-flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  
-  .wizard--skip-container {
-    width: 100%;
-    display: inline-flex;
-    justify-content: center;
-      
-    .button {
-      margin: $ix-marg-b 0 0 0;
-    }
-  }
-}
-
 .wizard--button-bar {
   display: inline-flex;
   flex-shrink: 0;
@@ -155,6 +126,7 @@
   height: auto;
   flex-wrap: nowrap;
   flex: 2;
+  margin-top: $ix-marg-b;
 
   .button {
     position: relative;
@@ -184,6 +156,7 @@
     justify-content: left;
     align-items: left;
     text-align: left;
+    margin-bottom: $ix-marg-b;
   }
 }
 
@@ -256,13 +229,25 @@
   font-family: 'RobotoMono', monospace;
 }
 
-.wizard-step--body-copybutton{
+.wizard-step--body-copybutton {
   margin-left: 10px;
 }
 
 /* Line Protocol */
+.wizard-step--lp-sub-title {
+  margin-top: $ix-marg-a;
+  margin-bottom: $ix-marg-b;
+  font-size: 16px;
+  font-weight: 400;
+  color: $g11-sidewalk;
+  @include no-user-select();
+
+  a {
+    color: $c-pool;
+  }
+}
 .wizard-step--lp-body {
-  height: 280px;
+  height: 250px;
   flex-shrink: 1;
   width: 100%;
   margin: $ix-marg-c auto 0 auto;
@@ -285,6 +270,32 @@
   margin-top: 20px;
 }
 
+.wizard-step--lp-precision {
+  display: inline-flex;
+  justify-content: left;
+  align-items: center;
+  border-radius: $radius;
+  height: 50px;
+  width: 100%;
+  margin-top: $ix-marg-a;
+  margin-bottom: $ix-marg-a;
+  background-color: $g6-smoke;
+  text-align: left;
+  z-index: $z--drag-n-drop + 1;
+
+  > label {
+    font-size: medium;
+    color: $g11-sidewalk;
+    margin: 10px;
+  }
+
+  &.dropdown {
+    justify-content: left;
+    align-items: left;
+    text-align: left;
+    margin-bottom: $ix-marg-b;
+  }
+}
 /* Completion */
 
 .wizard-completion--options {
@@ -306,39 +317,14 @@
   }
 }
 
-.wizard--columns {
-  display: flex;
-  align-items: stretch;
-  flex-direction: row;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-}
-
 @media screen and (min-width: $grid--breakpoint-md) {
   .wizard-step--container {
     padding: $ix-marg-d;
-    padding-bottom: 0;
-  }
-
-  .wizard--button-container {
-    .wizard--skip-container {
-      width: auto;
-      flex: 1;
-      justify-content: flex-end;
-      
-      .button {
-        margin: 0 0 0 $ix-marg-a;
-      }
-    }
   }
 
   .onboarding-step {
     max-width: 60vw;
   }
-
 
   .buttonless {
     .wizard-step--scroll-area {

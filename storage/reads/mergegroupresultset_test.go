@@ -2,7 +2,6 @@ package reads_test
 
 import (
 	"errors"
-	"io"
 	"strings"
 	"testing"
 
@@ -125,7 +124,7 @@ func TestGroupNoneMergedGroupResultSet_ErrNoData(t *testing.T) {
 	}
 }
 
-func TestGroupNoneMergedGroupResultSet_ErrUnexpectedEOF(t *testing.T) {
+func TestGroupNoneMergedGroupResultSet_ErrStreamNoData(t *testing.T) {
 	streams := []reads.StreamReader{
 		newGroupNoneStreamSeries("m0,tag2", "m0,tag2=val20"),
 		&emptyStreamReader{},
@@ -141,7 +140,7 @@ func TestGroupNoneMergedGroupResultSet_ErrUnexpectedEOF(t *testing.T) {
 		t.Errorf("expected nil")
 	}
 
-	if got, expErr := grs.Err(), io.ErrUnexpectedEOF; !cmp.Equal(got, expErr, cmp.Comparer(errCmp)) {
+	if got, expErr := grs.Err(), reads.ErrStreamNoData; !cmp.Equal(got, expErr, cmp.Comparer(errCmp)) {
 		t.Errorf("unexpected error; -got/+exp\n%s", cmp.Diff(got, expErr, cmp.Transformer("err", errTr)))
 	}
 }
@@ -222,6 +221,24 @@ group:
 				),
 				newStreamReader(
 					groupByF("_m,tag0,tag1", "val00,<nil>", "aaa,tag0=val00", "cpu,tag0=val00,tag1=val11"),
+				),
+			},
+			exp: exp,
+		},
+		{
+			name: "does merge keys",
+			streams: []*sliceStreamReader{
+				newStreamReader(
+					groupByF("_m,tag1", "val00,<nil>", "aaa,tag0=val00", "cpu,tag0=val00,tag1=val11"),
+					groupByF("_m,tag2", "<nil>,val20", "mem,tag1=val10,tag2=val20"),
+					groupByF("_m,tag1,tag2", "<nil>,val21", "mem,tag1=val11,tag2=val21"),
+				),
+				newStreamReader(
+					groupByF("_m,tag0,tag1", "val00,<nil>", "cpu,tag0=val00,tag1=val10", "cpu,tag0=val00,tag1=val12"),
+					groupByF("_m,tag0", "val01,<nil>", "aaa,tag0=val01"),
+				),
+				newStreamReader(
+					groupByF("_m,tag1", "<nil>,val20", "mem,tag1=val11,tag2=val20"),
 				),
 			},
 			exp: exp,

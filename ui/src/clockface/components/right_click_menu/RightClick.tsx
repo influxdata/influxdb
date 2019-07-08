@@ -105,7 +105,7 @@ class RightClick extends Component<Props, State> {
   private handleRightClick = (e: MouseEvent): void => {
     const domNode = ReactDOM.findDOMNode(this)
 
-    if (!domNode || domNode.contains(e.target)) {
+    if (!domNode || domNode.contains(e.target as Element)) {
       e.preventDefault()
 
       const {pageX: mouseX, pageY: mouseY} = e

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"mime"
 	"net/http"
@@ -16,25 +17,24 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/values"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
 
 // QueryRequest is a flux query request.
 type QueryRequest struct {
+	Extern  *ast.File    `json:"extern,omitempty"`
 	Spec    *flux.Spec   `json:"spec,omitempty"`
 	AST     *ast.Package `json:"ast,omitempty"`
 	Query   string       `json:"query"`
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
 
-	Org *platform.Organization `json:"-"`
+	Org *influxdb.Organization `json:"-"`
 }
 
 // QueryDialect is the formatting options for the query response.
@@ -66,8 +66,17 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
+	// TODO(jsternberg): Remove this, but we are going to not mention
+	// the spec in the error if it is being used.
 	if r.Query == "" && r.Spec == nil && r.AST == nil {
-		return errors.New(`request body requires either query, spec, or AST`)
+		return errors.New(`request body requires either query or AST`)
+	}
+
+	if r.Spec != nil && r.Extern != nil {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "request body cannot specify both a spec and external declarations",
+		}
 	}
 
 	if r.Type != "flux" {
@@ -206,47 +215,6 @@ func columnFromCharacter(q string, char int) int {
 
 var influxqlParseErrorRE = regexp.MustCompile(`^(.+) at line (\d+), char (\d+)$`)
 
-func nowFunc(now time.Time) values.Function {
-	timeVal := values.NewTime(values.ConvertTime(now))
-	ftype := semantic.NewFunctionPolyType(semantic.FunctionPolySignature{
-		Return: semantic.Time,
-	})
-	call := func(args values.Object) (values.Value, error) {
-		return timeVal, nil
-	}
-	sideEffect := false
-	return values.NewFunction("now", ftype, call, sideEffect)
-}
-
-func toSpec(p *ast.Package, now func() time.Time) (*flux.Spec, error) {
-	semProg, err := semantic.New(p)
-	if err != nil {
-		return nil, err
-	}
-
-	scope := flux.Prelude()
-	scope.Set("now", nowFunc(now()))
-
-	itrp := interpreter.NewInterpreter()
-
-	sideEffects, err := itrp.Eval(semProg, scope, flux.StdLib())
-	if err != nil {
-		return nil, err
-	}
-
-	nowOpt, ok := scope.Lookup("now")
-	if !ok {
-		return nil, fmt.Errorf("now option not set")
-	}
-
-	nowTime, err := nowOpt.Function().Call(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return flux.ToSpec(sideEffects, nowTime.Time().Time())
-}
-
 // ProxyRequest returns a request to proxy from the flux.
 func (r QueryRequest) ProxyRequest() (*query.ProxyRequest, error) {
 	return r.proxyRequest(time.Now)
@@ -256,23 +224,25 @@ func (r QueryRequest) proxyRequest(now func() time.Time) (*query.ProxyRequest, e
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
-	// Query is preferred over spec
+	// Query is preferred over AST
 	var compiler flux.Compiler
 	if r.Query != "" {
 		compiler = lang.FluxCompiler{
-			Query: r.Query,
+			Now:    now(),
+			Extern: r.Extern,
+			Query:  r.Query,
 		}
 	} else if r.AST != nil {
-		var err error
-		r.Spec, err = toSpec(r.AST, now)
-		if err != nil {
-			return nil, err
+		c := lang.ASTCompiler{
+			AST: r.AST,
+			Now: now(),
 		}
-		compiler = lang.SpecCompiler{
-			Spec: r.Spec,
+		if r.Extern != nil {
+			c.PrependFile(r.Extern)
 		}
+		compiler = c
 	} else if r.Spec != nil {
-		compiler = lang.SpecCompiler{
+		compiler = repl.Compiler{
 			Spec: r.Spec,
 		}
 	}
@@ -309,9 +279,13 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	case lang.FluxCompiler:
 		qr.Type = "flux"
 		qr.Query = c.Query
-	case lang.SpecCompiler:
+		qr.Extern = c.Extern
+	case repl.Compiler:
 		qr.Type = "flux"
 		qr.Spec = c.Spec
+	case lang.ASTCompiler:
+		qr.Type = "flux"
+		qr.AST = c.AST
 	default:
 		return nil, fmt.Errorf("unsupported compiler %T", c)
 	}
@@ -330,8 +304,9 @@ func QueryRequestFromProxyRequest(req *query.ProxyRequest) (*QueryRequest, error
 	return qr, nil
 }
 
-func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.OrganizationService) (*QueryRequest, error) {
+func decodeQueryRequest(ctx context.Context, r *http.Request, svc influxdb.OrganizationService) (*QueryRequest, int, error) {
 	var req QueryRequest
+	body := &countReader{Reader: r.Body}
 
 	var contentType = "application/json"
 	if ct := r.Header.Get("Content-Type"); ct != "" {
@@ -339,49 +314,64 @@ func decodeQueryRequest(ctx context.Context, r *http.Request, svc platform.Organ
 	}
 	mt, _, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return nil, err
+		return nil, body.bytesRead, err
 	}
 	switch mt {
 	case "application/vnd.flux":
-		body, err := ioutil.ReadAll(r.Body)
+		octets, err := ioutil.ReadAll(body)
 		if err != nil {
-			return nil, err
+			return nil, body.bytesRead, err
 		}
-		req.Query = string(body)
+		req.Query = string(octets)
 	case "application/json":
 		fallthrough
 	default:
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			return nil, err
+		if err := json.NewDecoder(body).Decode(&req); err != nil {
+			return nil, body.bytesRead, err
 		}
 	}
 
 	req = req.WithDefaults()
 	if err := req.Validate(); err != nil {
-		return nil, err
+		return nil, body.bytesRead, err
 	}
 
 	req.Org, err = queryOrganization(ctx, r, svc)
-	return &req, err
+	return &req, body.bytesRead, err
 }
 
-func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth platform.Authorizer, svc platform.OrganizationService) (*query.ProxyRequest, error) {
-	req, err := decodeQueryRequest(ctx, r, svc)
+type countReader struct {
+	bytesRead int
+	io.Reader
+}
+
+func (r *countReader) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+	r.bytesRead += n
+	return n, err
+}
+
+func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth influxdb.Authorizer, svc influxdb.OrganizationService) (*query.ProxyRequest, int, error) {
+	req, n, err := decodeQueryRequest(ctx, r, svc)
 	if err != nil {
-		return nil, err
+		return nil, n, err
 	}
 
 	pr, err := req.ProxyRequest()
 	if err != nil {
-		return nil, err
+		return nil, n, err
 	}
 
-	a, ok := auth.(*platform.Authorization)
-	if !ok {
-		// TODO(desa): this should go away once we're using platform.Authorizers everywhere.
-		return pr, platform.ErrAuthorizerNotSupported
+	var token *influxdb.Authorization
+	switch a := auth.(type) {
+	case *influxdb.Authorization:
+		token = a
+	case *influxdb.Session:
+		token = a.EphemeralAuth(req.Org.ID)
+	default:
+		return pr, n, influxdb.ErrAuthorizerNotSupported
 	}
 
-	pr.Request.Authorization = a
-	return pr, nil
+	pr.Request.Authorization = token
+	return pr, n, nil
 }

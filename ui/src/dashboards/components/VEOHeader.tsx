@@ -1,15 +1,14 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 
 // Components
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
-  ButtonShape,
-  Button,
+  SquareButton,
   ComponentColor,
   ComponentSize,
   IconFont,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 import {Page} from 'src/pageLayout'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
@@ -27,10 +26,11 @@ interface Props {
   onSave: () => void
 }
 
+const saveButtonClass = 'veo-header--save-cell-button'
+
 class VEOHeader extends PureComponent<Props> {
   public render() {
     const {name, onSetName, onCancel, onSave} = this.props
-
     return (
       <div className="veo-header">
         <Page.Header fullWidth={true}>
@@ -40,28 +40,40 @@ class VEOHeader extends PureComponent<Props> {
               onRename={onSetName}
               placeholder={DEFAULT_CELL_NAME}
               maxLength={CELL_NAME_MAX_LENGTH}
+              onClickOutside={this.handleClickOutsideTitle}
             />
           </Page.Header.Left>
           <Page.Header.Right>
             <ViewTypeDropdown />
             <VisOptionsButton />
-            <Button
+            <SquareButton
               icon={IconFont.Remove}
-              shape={ButtonShape.Square}
               onClick={onCancel}
               size={ComponentSize.Small}
             />
-            <Button
+            <SquareButton
+              className={saveButtonClass}
               icon={IconFont.Checkmark}
-              shape={ButtonShape.Square}
               color={ComponentColor.Success}
               size={ComponentSize.Small}
               onClick={onSave}
+              testID="save-cell--button"
             />
           </Page.Header.Right>
         </Page.Header>
       </div>
     )
+  }
+
+  private handleClickOutsideTitle = (e: MouseEvent<HTMLElement>) => {
+    const {onSave} = this.props
+    const target = e.target as HTMLButtonElement
+
+    if (!target.className.includes(saveButtonClass)) {
+      return
+    }
+
+    onSave()
   }
 }
 

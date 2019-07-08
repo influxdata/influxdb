@@ -29,7 +29,7 @@ describe('Account', () => {
     it('displays the users info by default', () => {
       const {wrapper} = setup()
 
-      const nameInput = wrapper.find({'data-test': 'nameInput'})
+      const nameInput = wrapper.find({'data-testid': 'nameInput'})
       expect(nameInput.props().value).toBe(me.name)
     })
   })

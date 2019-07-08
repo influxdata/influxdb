@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/nats"
 	"go.uber.org/zap"
 )
@@ -95,18 +96,27 @@ func (s *Scheduler) run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-s.gather:
-			ctx, cancel := context.WithTimeout(ctx, s.Timeout)
-			defer cancel()
-			targets, err := s.Targets.ListTargets(ctx)
-			if err != nil {
-				s.Logger.Error("cannot list targets", zap.Error(err))
-				continue
-			}
-			for _, target := range targets {
-				if err := requestScrape(target, s.Publisher); err != nil {
-					s.Logger.Error("json encoding error", zap.Error(err))
-				}
-			}
+			s.doGather(ctx)
+		}
+	}
+}
+
+func (s *Scheduler) doGather(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, s.Timeout)
+	defer cancel()
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	targets, err := s.Targets.ListTargets(ctx, influxdb.ScraperTargetFilter{})
+	if err != nil {
+		s.Logger.Error("cannot list targets", zap.Error(err))
+		tracing.LogError(span, err)
+		return
+	}
+	for _, target := range targets {
+		if err := requestScrape(target, s.Publisher); err != nil {
+			s.Logger.Error("json encoding error", zap.Error(err))
+			tracing.LogError(span, err)
 		}
 	}
 }

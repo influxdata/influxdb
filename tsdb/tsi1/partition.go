@@ -1,7 +1,7 @@
 package tsi1
 
 import (
-	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,9 +15,11 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/fs"
+	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
@@ -38,24 +40,29 @@ const (
 const (
 	// ManifestFileName is the name of the index manifest file.
 	ManifestFileName = "MANIFEST"
-
-	// StatsFileName is the name of the file containing cardinality stats.
-	StatsFileName = "STATS"
 )
 
 // Partition represents a collection of layered index files and WAL.
 type Partition struct {
-	mu     sync.RWMutex
-	opened bool
+	// The rule to ensure no deadlocks, no resource leaks, and no use after close
+	// is that if the partition launches a goroutine, it must acquire a reference
+	// to itself first and releases it only after it has done all of its use of mu.
+	mu    sync.RWMutex
+	resmu sync.Mutex // protects res Open and Close
+	res   lifecycle.Resource
 
-	sfile         *tsdb.SeriesFile // series lookup file
-	activeLogFile *LogFile         // current log file
-	fileSet       *FileSet         // current file set
-	seq           int              // file id sequence
+	sfile    *tsdb.SeriesFile     // series lookup file
+	sfileref *lifecycle.Reference // reference to series lookup file
 
-	// Measurement stats
+	activeLogFile *LogFile // current log file
+	fileSet       *FileSet // current file set
+	seq           int      // file id sequence
+
+	// Computed measurements stats since last compaction.
+	// NOTE: Does not include active log file stats.
 	stats MeasurementCardinalityStats
 
+	// Running statistics
 	tracker *partitionTracker
 
 	// Fast series lookup of series IDs in the series file that have been present
@@ -63,13 +70,10 @@ type Partition struct {
 	seriesIDSet *tsdb.SeriesIDSet
 
 	// Compaction management
-	levels          []CompactionLevel // compaction levels
-	levelCompacting []bool            // level compaction status
-
-	// Close management.
-	once    sync.Once
-	closing chan struct{} // closing is used to inform iterators the partition is closing.
-	wg      sync.WaitGroup
+	levels              []CompactionLevel // compaction levels
+	levelCompacting     []bool            // level compaction status
+	compactionsDisabled int               // counter of disables
+	compactionsWG       sync.WaitGroup
 
 	// Directory of the Partition's index files.
 	path string
@@ -80,15 +84,10 @@ type Partition struct {
 	nosync         bool // when true, flushing and syncing of LogFile will be disabled.
 	logbufferSize  int  // the LogFile's buffer is set to this value.
 
-	// Frequency of compaction checks.
-	compactionInterrupt chan struct{}
-	compactionsDisabled int
-
 	logger *zap.Logger
 
-	// Current size of MANIFEST & STATS. Used to determine partition size.
+	// Current size of MANIFEST. Used to determine partition size.
 	manifestSize int64
-	statsSize    int64
 
 	// Index's version.
 	version int
@@ -97,15 +96,11 @@ type Partition struct {
 // NewPartition returns a new instance of Partition.
 func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 	partition := &Partition{
-		closing:     make(chan struct{}),
 		path:        path,
 		sfile:       sfile,
 		seriesIDSet: tsdb.NewSeriesIDSet(),
 
 		MaxLogFileSize: DefaultMaxIndexLogFileSize,
-
-		// compactionEnabled: true,
-		compactionInterrupt: make(chan struct{}),
 
 		logger:  zap.NewNop(),
 		version: Version,
@@ -119,12 +114,17 @@ func NewPartition(sfile *tsdb.SeriesFile, path string) *Partition {
 // bytes estimates the memory footprint of this Partition, in bytes.
 func (p *Partition) bytes() int {
 	var b int
-	b += 24 // mu RWMutex is 24 bytes
-	b += int(unsafe.Sizeof(p.opened))
-	// Do not count SeriesFile because it belongs to the code that constructed this Partition.
+	b += int(unsafe.Sizeof(p.mu))
+	b += int(unsafe.Sizeof(p.resmu))
+	b += int(unsafe.Sizeof(p.res))
+	// Do not count SeriesFile contents because it belongs to the code that constructed this Partition.
+	b += int(unsafe.Sizeof(p.sfile))
+	b += int(unsafe.Sizeof(p.sfileref))
 	b += int(unsafe.Sizeof(p.activeLogFile)) + p.activeLogFile.bytes()
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))
+	b += int(unsafe.Sizeof(p.stats))
+	b += int(unsafe.Sizeof(p.tracker))
 	b += int(unsafe.Sizeof(p.seriesIDSet)) + p.seriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(p.levels))
 	for _, level := range p.levels {
@@ -134,14 +134,12 @@ func (p *Partition) bytes() int {
 	for _, levelCompacting := range p.levelCompacting {
 		b += int(unsafe.Sizeof(levelCompacting))
 	}
-	b += 12 // once sync.Once is 12 bytes
-	b += int(unsafe.Sizeof(p.closing))
-	b += 16 // wg sync.WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(p.compactionsDisabled))
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
 	b += int(unsafe.Sizeof(p.MaxLogFileSize))
-	b += int(unsafe.Sizeof(p.compactionInterrupt))
-	b += int(unsafe.Sizeof(p.compactionsDisabled))
+	b += int(unsafe.Sizeof(p.nosync))
+	b += int(unsafe.Sizeof(p.logbufferSize))
 	b += int(unsafe.Sizeof(p.logger))
 	b += int(unsafe.Sizeof(p.manifestSize))
 	b += int(unsafe.Sizeof(p.version))
@@ -153,20 +151,29 @@ func (p *Partition) bytes() int {
 var ErrIncompatibleVersion = errors.New("incompatible tsi1 index MANIFEST")
 
 // Open opens the partition.
-func (p *Partition) Open() error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (p *Partition) Open() (err error) {
+	p.resmu.Lock()
+	defer p.resmu.Unlock()
 
-	p.closing = make(chan struct{})
-
-	if p.opened {
+	if p.res.Opened() {
 		return errors.New("index partition already open")
 	}
 
+	// Try to acquire a reference to the series file
+	p.sfileref, err = p.sfile.Acquire()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			p.close()
+		}
+	}()
+
 	// Validate path is correct.
 	p.id = filepath.Base(p.path)
-	_, err := strconv.Atoi(p.id)
-	if err != nil {
+	if _, err := strconv.Atoi(p.id); err != nil {
 		return err
 	}
 
@@ -176,9 +183,9 @@ func (p *Partition) Open() error {
 	}
 
 	// Read manifest file.
-	m, manifestSize, err := ReadManifestFile(filepath.Join(p.path, ManifestFileName))
+	m, manifestSize, err := ReadManifestFile(p.manifestPath())
 	if os.IsNotExist(err) {
-		m = NewManifest(p.ManifestPath())
+		m = NewManifest(p.manifestPath())
 	} else if err != nil {
 		return err
 	}
@@ -190,11 +197,6 @@ func (p *Partition) Open() error {
 		return err
 	}
 
-	// Read stats file.
-	if err := p.readStatsFile(); err != nil {
-		return err
-	}
-
 	// Copy compaction levels to the index.
 	p.levels = make([]CompactionLevel, len(m.Levels))
 	copy(p.levels, m.Levels)
@@ -203,35 +205,55 @@ func (p *Partition) Open() error {
 	p.levelCompacting = make([]bool, len(p.levels))
 
 	// Open each file in the manifest.
-	var files []File
-	for _, filename := range m.Files {
-		switch filepath.Ext(filename) {
-		case LogFileExt:
-			f, err := p.openLogFile(filepath.Join(p.path, filename))
+	files, err := func() (files []File, err error) {
+		// Ensure any opened files are closed in the case of an error.
+		defer func() {
 			if err != nil {
-				return err
+				for _, file := range files {
+					file.Close()
+				}
 			}
-			files = append(files, f)
+		}()
 
-			// Make first log file active, if within threshold.
-			sz, _ := f.Stat()
-			if p.activeLogFile == nil && sz < p.MaxLogFileSize {
-				p.activeLogFile = f
-			}
+		// Open all of the files in the manifest.
+		for _, filename := range m.Files {
+			switch filepath.Ext(filename) {
+			case LogFileExt:
+				f, err := p.openLogFile(filepath.Join(p.path, filename))
+				if err != nil {
+					return nil, err
+				}
+				files = append(files, f)
 
-		case IndexFileExt:
-			f, err := p.openIndexFile(filepath.Join(p.path, filename))
-			if err != nil {
-				return err
+				// Make first log file active, if within threshold.
+				sz, _ := f.Stat()
+				if p.activeLogFile == nil && sz < p.MaxLogFileSize {
+					p.activeLogFile = f
+				}
+
+			case IndexFileExt:
+				f, err := p.openIndexFile(filepath.Join(p.path, filename))
+				if err != nil {
+					return nil, err
+				}
+				files = append(files, f)
 			}
-			files = append(files, f)
 		}
-	}
-	fs, err := NewFileSet(p.levels, p.sfile, files)
+
+		return files, nil
+	}()
 	if err != nil {
 		return err
 	}
-	p.fileSet = fs
+
+	// Place the files in a file set.
+	p.fileSet, err = NewFileSet(p.sfile, files)
+	if err != nil {
+		for _, file := range files {
+			file.Close()
+		}
+		return err
+	}
 
 	// Set initial sequence number.
 	p.seq = p.fileSet.MaxID()
@@ -248,7 +270,7 @@ func (p *Partition) Open() error {
 		}
 	}
 
-	// Build series existance set.
+	// Build series existence set.
 	if err := p.buildSeriesSet(); err != nil {
 		return err
 	}
@@ -257,8 +279,11 @@ func (p *Partition) Open() error {
 	p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
 	p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
 
+	// Compute initial stats.
+	p.computeStats()
+
 	// Mark opened.
-	p.opened = true
+	p.res.Open()
 
 	// Send a compaction request on start up.
 	p.compact()
@@ -304,7 +329,7 @@ func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
 	// Loop over all files and remove any not in the manifest.
 	for _, fi := range fis {
 		filename := filepath.Base(fi.Name())
-		if filename == ManifestFileName || filename == StatsFileName || m.HasFile(filename) {
+		if filename == ManifestFileName || m.HasFile(filename) {
 			continue
 		}
 
@@ -317,14 +342,11 @@ func (p *Partition) deleteNonManifestFiles(m *Manifest) error {
 }
 
 func (p *Partition) buildSeriesSet() error {
-	fs := p.retainFileSet()
-	defer fs.Release()
-
 	p.seriesIDSet = tsdb.NewSeriesIDSet()
 
 	// Read series sets from files in reverse.
-	for i := len(fs.files) - 1; i >= 0; i-- {
-		f := fs.files[i]
+	for i := len(p.fileSet.files) - 1; i >= 0; i-- {
+		f := p.fileSet.files[i]
 
 		// Delete anything that's been tombstoned.
 		ts, err := f.TombstoneSeriesIDSet()
@@ -340,49 +362,49 @@ func (p *Partition) buildSeriesSet() error {
 		}
 		p.seriesIDSet.Merge(ss)
 	}
+
 	return nil
 }
 
-// Wait returns once outstanding compactions have finished.
-func (p *Partition) Wait() {
-	p.wg.Wait()
-}
-
-// Close closes the index.
+// Close closes the partition.
 func (p *Partition) Close() error {
-	// Wait for goroutines to finish outstanding compactions.
-	p.once.Do(func() {
-		close(p.closing)
-		close(p.compactionInterrupt)
-	})
-	p.wg.Wait()
+	p.resmu.Lock()
+	defer p.resmu.Unlock()
 
-	// Lock index and close remaining
+	// Close the resource and wait for any outstanding references.
+	p.res.Close()
+	p.compactionsWG.Wait()
+
+	// There are now no internal outstanding callers holding a reference
+	// so we can acquire this mutex to protect against external callers.
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var err error
-
-	// Close log files.
-	for _, f := range p.fileSet.files {
-		if localErr := f.Close(); localErr != nil {
-			err = localErr
-		}
-	}
-	p.fileSet.files = nil
-
-	return err
+	return p.close()
 }
 
-// closing returns true if the partition is currently closing. It does not require
-// a lock so will always return to callers.
-func (p *Partition) isClosing() bool {
-	select {
-	case <-p.closing:
-		return true
-	default:
-		return false
+// close does the work of closing and cleaning up the partition after it
+// has acquired locks and ensured no one is using it.
+func (p *Partition) close() error {
+	// Release series file.
+	if p.sfileref != nil {
+		p.sfileref.Release()
+		p.sfileref = nil
 	}
+
+	// Release the file set and close all of the files.
+	var err error
+	if p.fileSet != nil {
+		p.fileSet.Release()
+		for _, file := range p.fileSet.files {
+			if e := file.Close(); e != nil && err == nil {
+				err = e
+			}
+		}
+		p.fileSet = nil
+	}
+
+	return err
 }
 
 // Path returns the path to the partition.
@@ -403,30 +425,34 @@ func (p *Partition) nextSequence() int {
 	return p.seq
 }
 
-// ManifestPath returns the path to the index's manifest file.
-func (p *Partition) ManifestPath() string {
+// manifestPath returns the path to the index's manifest file.
+func (p *Partition) manifestPath() string {
 	return filepath.Join(p.path, ManifestFileName)
 }
 
-// Manifest returns a manifest for the index.
-func (p *Partition) Manifest() *Manifest {
+// Manifest returns a Manifest for the partition given a file set.
+func (p *Partition) Manifest(fs *FileSet) *Manifest {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.manifest(fs)
+}
+
+// manifest returns a Manifest for the partition given a file set. It
+// requires that at least a read lock is held.
+func (p *Partition) manifest(fs *FileSet) *Manifest {
 	m := &Manifest{
 		Levels:  p.levels,
-		Files:   make([]string, len(p.fileSet.files)),
+		Files:   make([]string, len(fs.files)),
 		Version: p.version,
-		path:    p.ManifestPath(),
+		path:    p.manifestPath(),
 	}
 
-	for j, f := range p.fileSet.files {
+	for j, f := range fs.files {
 		m.Files[j] = filepath.Base(f.Path())
 	}
 
 	return m
-}
-
-// StatsPath returns the path to the partition's stats file.
-func (p *Partition) StatsPath() string {
-	return filepath.Join(p.path, StatsFileName)
 }
 
 // WithLogger sets the logger for the index.
@@ -434,22 +460,20 @@ func (p *Partition) WithLogger(logger *zap.Logger) {
 	p.logger = logger.With(zap.String("index", "tsi"))
 }
 
-// RetainFileSet returns the current fileset and adds a reference count.
-func (p *Partition) RetainFileSet() (*FileSet, error) {
-	select {
-	case <-p.closing:
-		return nil, errors.New("index is closing")
-	default:
-		p.mu.RLock()
-		defer p.mu.RUnlock()
-		return p.retainFileSet(), nil
-	}
+// FileSet returns a copy of the current file set. You must call Release on it when
+// you are finished.
+func (p *Partition) FileSet() (*FileSet, error) {
+	p.mu.RLock()
+	fs, err := p.fileSet.Duplicate()
+	p.mu.RUnlock()
+	return fs, err
 }
 
-func (p *Partition) retainFileSet() *FileSet {
-	fs := p.fileSet
-	fs.Retain()
-	return fs
+// replaceFileSet is a helper to replace the file set of the partition. It releases
+// the resources on the old file set before replacing it with the new one.
+func (p *Partition) replaceFileSet(fs *FileSet) {
+	p.fileSet.Release()
+	p.fileSet = fs
 }
 
 // FileN returns the active files in the file set.
@@ -457,33 +481,35 @@ func (p *Partition) FileN() int { return len(p.fileSet.files) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (p *Partition) prependActiveLogFile() error {
-	// Add active stats to total stats.
-	if p.activeLogFile != nil {
-		p.stats.Add(p.activeLogFile.MeasurementCardinalityStats())
-	}
-
 	// Open file and insert it into the first position.
 	f, err := p.openLogFile(filepath.Join(p.path, FormatLogFileName(p.nextSequence())))
 	if err != nil {
 		return err
 	}
-	p.activeLogFile = f
 
 	// Prepend and generate new fileset.
-	p.fileSet = p.fileSet.PrependLogFile(f)
+	fileSet, err := p.fileSet.PrependLogFile(f)
+	if err != nil {
+		f.Close()
+		return err
+	}
 
 	// Write new manifest.
-	manifestSize, err := p.Manifest().Write()
+	manifestSize, err := p.manifest(fileSet).Write()
 	if err != nil {
 		// TODO: Close index if write fails.
+		fileSet.Release()
+		f.Close()
 		return err
 	}
+
+	// Now that we can no longer error, update the partition state.
+	p.activeLogFile = f
+	p.replaceFileSet(fileSet)
 	p.manifestSize = manifestSize
 
-	// Write new stats.
-	if err := p.writeStatsFile(); err != nil {
-		return err
-	}
+	// Compute new stats after fileset has been replaced.
+	p.computeStats()
 
 	// Set the file metrics again.
 	p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
@@ -494,7 +520,7 @@ func (p *Partition) prependActiveLogFile() error {
 
 // ForEachMeasurementName iterates over all measurement names in the index.
 func (p *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return err
 	}
@@ -516,7 +542,7 @@ func (p *Partition) ForEachMeasurementName(fn func(name []byte) error) error {
 
 // MeasurementHasSeries returns true if a measurement has at least one non-tombstoned series.
 func (p *Partition) MeasurementHasSeries(name []byte) (bool, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return false, err
 	}
@@ -533,31 +559,28 @@ func (p *Partition) MeasurementHasSeries(name []byte) (bool, error) {
 
 // MeasurementIterator returns an iterator over all measurement names.
 func (p *Partition) MeasurementIterator() (tsdb.MeasurementIterator, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return nil, err
 	}
-	itr := fs.MeasurementIterator()
-	if itr == nil {
-		fs.Release()
-		return nil, nil
-	}
-	return newFileSetMeasurementIterator(fs, NewTSDBMeasurementIteratorAdapter(itr)), nil
+	return newFileSetMeasurementIterator(fs,
+		NewTSDBMeasurementIteratorAdapter(fs.MeasurementIterator())), nil
 }
 
 // MeasurementExists returns true if a measurement exists.
 func (p *Partition) MeasurementExists(name []byte) (bool, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return false, err
 	}
 	defer fs.Release()
+
 	m := fs.Measurement(name)
 	return m != nil && !m.Deleted(), nil
 }
 
 func (p *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +602,7 @@ func (p *Partition) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 }
 
 func (p *Partition) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDIterator, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +612,7 @@ func (p *Partition) MeasurementSeriesIDIterator(name []byte) (tsdb.SeriesIDItera
 // DropMeasurement deletes a measurement from the index. DropMeasurement does
 // not remove any series from the index directly.
 func (p *Partition) DropMeasurement(name []byte) error {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return err
 	}
@@ -687,23 +710,28 @@ func (p *Partition) createSeriesListIfNotExists(collection *tsdb.SeriesCollectio
 		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(collection.Names), len(collection.Tags))
 	}
 
-	// Maintain reference count on files in file set.
-	fs, err := p.RetainFileSet()
-	if err != nil {
-		return nil, err
-	}
-	defer fs.Release()
-
 	// Ensure fileset cannot change during insert.
 	now := time.Now()
 	p.mu.RLock()
-	// Insert series into log file.
-	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, collection)
+
+	// Try to acquire a resource on the active log file
+	res, err := p.activeLogFile.Acquire()
 	if err != nil {
 		p.mu.RUnlock()
 		return nil, err
 	}
+
+	// Insert series into log file.
+	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, collection)
+
+	// Release our resources.
+	res.Release()
 	p.mu.RUnlock()
+
+	// Check the error from insert.
+	if err != nil {
+		return nil, err
+	}
 
 	if err := p.CheckLogFile(); err != nil {
 		return nil, err
@@ -752,89 +780,72 @@ func (p *Partition) DropSeries(seriesID tsdb.SeriesID) error {
 
 // HasTagKey returns true if tag key exists.
 func (p *Partition) HasTagKey(name, key []byte) (bool, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return false, err
 	}
 	defer fs.Release()
+
 	return fs.HasTagKey(name, key), nil
 }
 
 // HasTagValue returns true if tag value exists.
 func (p *Partition) HasTagValue(name, key, value []byte) (bool, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return false, err
 	}
 	defer fs.Release()
+
 	return fs.HasTagValue(name, key, value), nil
 }
 
 // TagKeyIterator returns an iterator for all keys across a single measurement.
-func (p *Partition) TagKeyIterator(name []byte) tsdb.TagKeyIterator {
-	fs, err := p.RetainFileSet()
+func (p *Partition) TagKeyIterator(name []byte) (tsdb.TagKeyIterator, error) {
+	fs, err := p.FileSet()
 	if err != nil {
-		return nil // TODO(edd): this should probably return an error.
+		return nil, err
 	}
-
-	itr := fs.TagKeyIterator(name)
-	if itr == nil {
-		fs.Release()
-		return nil
-	}
-	return newFileSetTagKeyIterator(fs, NewTSDBTagKeyIteratorAdapter(itr))
+	return newFileSetTagKeyIterator(fs,
+		NewTSDBTagKeyIteratorAdapter(fs.TagKeyIterator(name))), nil
 }
 
 // TagValueIterator returns an iterator for all values across a single key.
-func (p *Partition) TagValueIterator(name, key []byte) tsdb.TagValueIterator {
-	fs, err := p.RetainFileSet()
+func (p *Partition) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error) {
+	fs, err := p.FileSet()
 	if err != nil {
-		return nil // TODO(edd): this should probably return an error.
+		return nil, err
 	}
-
-	itr := fs.TagValueIterator(name, key)
-	if itr == nil {
-		fs.Release()
-		return nil
-	}
-	return newFileSetTagValueIterator(fs, NewTSDBTagValueIteratorAdapter(itr))
+	return newFileSetTagValueIterator(fs,
+		NewTSDBTagValueIteratorAdapter(fs.TagValueIterator(name, key))), nil
 }
 
 // TagKeySeriesIDIterator returns a series iterator for all values across a single key.
-func (p *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
-	fs, err := p.RetainFileSet()
+func (p *Partition) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
+	fs, err := p.FileSet()
 	if err != nil {
-		return nil // TODO(edd): this should probably return an error.
+		return nil, err
 	}
-
-	itr := fs.TagKeySeriesIDIterator(name, key)
-	if itr == nil {
-		fs.Release()
-		return nil
-	}
-	return newFileSetSeriesIDIterator(fs, itr)
+	return newFileSetSeriesIDIterator(fs, fs.TagKeySeriesIDIterator(name, key)), nil
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single key value.
 func (p *Partition) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return nil, err
 	}
-
 	itr, err := fs.TagValueSeriesIDIterator(name, key, value)
 	if err != nil {
-		return nil, err
-	} else if itr == nil {
 		fs.Release()
-		return nil, nil
+		return nil, err
 	}
 	return newFileSetSeriesIDIterator(fs, itr), nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (p *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return nil, err
 	}
@@ -845,7 +856,7 @@ func (p *Partition) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (m
 
 // ForEachMeasurementTagKey iterates over all tag keys in a measurement.
 func (p *Partition) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
-	fs, err := p.RetainFileSet()
+	fs, err := p.FileSet()
 	if err != nil {
 		return err
 	}
@@ -879,51 +890,42 @@ func (p *Partition) AssignShard(k string, shardID uint64)         {}
 func (p *Partition) Compact() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.compact()
 }
 
+// DisableCompactions stops any compactions from starting until a call to EnableCompactions.
 func (p *Partition) DisableCompactions() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
 	p.compactionsDisabled++
-
-	select {
-	case <-p.closing:
-		return
-	default:
-	}
-
-	if p.compactionsDisabled == 0 {
-		close(p.compactionInterrupt)
-		p.compactionInterrupt = make(chan struct{})
-	}
 }
 
+// EnableCompactions allows compactions to proceed again after a call to DisableCompactions.
 func (p *Partition) EnableCompactions() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Already enabled?
-	if p.compactionsEnabled() {
-		return
-	}
 	p.compactionsDisabled--
 }
 
-func (p *Partition) compactionsEnabled() bool {
-	return p.compactionsDisabled == 0
-}
+// Wait will block until all compactions are finished. Must only be called while they
+// are disabled.
+func (p *Partition) Wait() { p.compactionsWG.Wait() }
 
 // compact compacts continguous groups of files that are not currently compacting.
 func (p *Partition) compact() {
-	if p.isClosing() {
-		return
-	} else if !p.compactionsEnabled() {
+	if p.compactionsDisabled > 0 {
+		p.logger.Error("Cannot start a compaction while disabled")
 		return
 	}
-	interrupt := p.compactionInterrupt
 
-	fs := p.retainFileSet()
+	fs, err := p.fileSet.Duplicate()
+	if err != nil {
+		p.logger.Error("Attempt to compact while partition is closing", zap.Error(err))
+		return
+	}
 	defer fs.Release()
 
 	// Iterate over each level we are going to compact.
@@ -944,37 +946,50 @@ func (p *Partition) compact() {
 			files = files[len(files)-MaxIndexMergeCount:]
 		}
 
-		// Retain files during compaction.
-		IndexFiles(files).Retain()
+		// We intend to do a compaction. Acquire a resource to do so.
+		ref, err := p.res.Acquire()
+		if err != nil {
+			p.logger.Error("Attempt to compact while partition is closing", zap.Error(err))
+			return
+		}
+
+		// Acquire references to the files to keep them alive through compaction.
+		frefs, err := IndexFiles(files).Acquire()
+		if err != nil {
+			p.logger.Error("Attempt to compact a file that is closed", zap.Error(err))
+			continue
+		}
 
 		// Mark the level as compacting.
 		p.levelCompacting[level] = true
 
-		// Execute in closure to save reference to the group within the loop.
-		func(files []*IndexFile, level int) {
-			// Start compacting in a separate goroutine.
-			p.wg.Add(1)
-			go func() {
+		// Start compacting in a separate goroutine.
+		p.compactionsWG.Add(1)
+		go func(level int) {
+			// Compact to a new level.
+			p.compactToLevel(files, frefs, level+1, ref.Closing())
 
-				// Compact to a new level.
-				p.compactToLevel(files, level+1, interrupt)
+			// Ensure compaction lock for the level is released.
+			p.mu.Lock()
+			p.levelCompacting[level] = false
+			p.mu.Unlock()
 
-				// Ensure compaction lock for the level is released.
-				p.mu.Lock()
-				p.levelCompacting[level] = false
-				p.mu.Unlock()
-				p.wg.Done()
+			// Ensure references are released.
+			frefs.Release()
+			ref.Release()
+			p.compactionsWG.Done()
 
-				// Check for new compactions
-				p.Compact()
-			}()
-		}(files, level)
+			// Check for new compactions
+			p.Compact()
+		}(level)
 	}
 }
 
 // compactToLevel compacts a set of files into a new file. Replaces old files with
 // compacted file on successful completion. This runs in a separate goroutine.
-func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-chan struct{}) {
+func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.References,
+	level int, interrupt <-chan struct{}) {
+
 	assert(len(files) >= 2, "at least two index files are required for compaction")
 	assert(level > 0, "cannot compact level zero")
 
@@ -995,8 +1010,11 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		p.tracker.CompactionAttempted(level, success, time.Since(start))
 	}()
 
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
+
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
+	log, logEnd := logger.NewOperation(ctx, p.logger, "TSI level compaction", "tsi1_compact_to_level", zap.Int("tsi1_level", level))
 	defer logEnd()
 
 	// Check for cancellation.
@@ -1006,11 +1024,6 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		return
 	default:
 	}
-
-	// Files have already been retained by caller.
-	// Ensure files are released only once.
-	var once sync.Once
-	defer once.Do(func() { IndexFiles(files).Release() })
 
 	// Track time to compact.
 	start = time.Now()
@@ -1057,23 +1070,26 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		defer p.mu.Unlock()
 
 		// Replace previous files with new index file.
-		p.fileSet = p.fileSet.MustReplace(IndexFiles(files).Files(), file)
+		fileSet, err := p.fileSet.MustReplace(IndexFiles(files).Files(), file)
+		if err != nil {
+			return err
+		}
 
 		// Write new manifest.
-		manifestSize, err := p.Manifest().Write()
+		manifestSize, err := p.manifest(fileSet).Write()
 		if err != nil {
 			// TODO: Close index if write fails.
+			fileSet.Release()
 			return err
 		}
+
+		// Now that we can no longer error, update the local state.
+		p.replaceFileSet(fileSet)
 		p.manifestSize = manifestSize
 
-		// Write new stats file.
-		if err := p.writeStatsFile(); err != nil {
-			return err
-		}
 		return nil
 	}(); err != nil {
-		log.Error("Cannot write manifest or stats", zap.Error(err))
+		log.Error("Cannot write manifest", zap.Error(err))
 		return
 	}
 
@@ -1086,7 +1102,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	)
 
 	// Release old files.
-	once.Do(func() { IndexFiles(files).Release() })
+	frefs.Release()
 
 	// Close and delete all old index files.
 	for _, f := range files {
@@ -1101,8 +1117,6 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 		}
 	}
 }
-
-func (p *Partition) Rebuild() {}
 
 func (p *Partition) CheckLogFile() error {
 	// Check log file size under read lock.
@@ -1121,24 +1135,40 @@ func (p *Partition) CheckLogFile() error {
 }
 
 func (p *Partition) checkLogFile() error {
-	if p.activeLogFile.Size() < p.MaxLogFileSize {
+	if p.compactionsDisabled > 0 {
 		return nil
 	}
+
+	// Acquire a reference to hold the partition open.
+	ref, err := p.res.Acquire()
+	if err != nil {
+		return err
+	}
+
+	if p.activeLogFile.Size() < p.MaxLogFileSize {
+		ref.Release()
+		return nil
+	}
+
+	span, ctx := tracing.StartSpanFromContext(context.Background())
+	defer span.Finish()
 
 	// Swap current log file.
 	logFile := p.activeLogFile
 
 	// Open new log file and insert it into the first position.
 	if err := p.prependActiveLogFile(); err != nil {
+		ref.Release()
 		return err
 	}
 
 	// Begin compacting in a background goroutine.
-	p.wg.Add(1)
+	p.compactionsWG.Add(1)
 	go func() {
-		defer p.wg.Done()
-		p.compactLogFile(logFile)
-		p.Compact() // check for new compactions
+		p.compactLogFile(ctx, logFile, ref.Closing())
+		ref.Release()          // release our reference
+		p.compactionsWG.Done() // compaction is now complete
+		p.Compact()            // check for new compactions
 	}()
 
 	return nil
@@ -1147,11 +1177,7 @@ func (p *Partition) checkLogFile() error {
 // compactLogFile compacts f into a tsi file. The new file will share the
 // same identifier but will have a ".tsi" extension. Once the log file is
 // compacted then the manifest is updated and the log file is discarded.
-func (p *Partition) compactLogFile(logFile *LogFile) {
-	if p.isClosing() {
-		return
-	}
-
+func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interrupt <-chan struct{}) {
 	defer func() {
 		p.mu.RLock()
 		defer p.mu.RUnlock()
@@ -1160,10 +1186,6 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
 	}()
 
-	p.mu.Lock()
-	interrupt := p.compactionInterrupt
-	p.mu.Unlock()
-
 	start := time.Now()
 
 	// Retrieve identifier from current path.
@@ -1171,7 +1193,7 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
 
 	// Build a logger for this compaction.
-	log, logEnd := logger.NewOperation(p.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
+	log, logEnd := logger.NewOperation(ctx, p.logger, "TSI log compaction", "tsi1_compact_log_file", zap.Int("tsi1_log_file_id", id))
 	defer logEnd()
 
 	// Create new index file.
@@ -1211,20 +1233,23 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 		defer p.mu.Unlock()
 
 		// Replace previous log file with index file.
-		p.fileSet = p.fileSet.MustReplace([]File{logFile}, file)
+		fileSet, err := p.fileSet.MustReplace([]File{logFile}, file)
+		if err != nil {
+			return err
+		}
 
 		// Write new manifest.
-		manifestSize, err := p.Manifest().Write()
+		manifestSize, err := p.manifest(fileSet).Write()
 		if err != nil {
 			// TODO: Close index if write fails.
+			fileSet.Release()
 			return err
 		}
+
+		// Now that we can no longer error, update the local state.
+		p.replaceFileSet(fileSet)
 		p.manifestSize = manifestSize
 
-		// Write new stats file.
-		if err := p.writeStatsFile(); err != nil {
-			return err
-		}
 		return nil
 	}(); err != nil {
 		log.Error("Cannot update manifest or stats", zap.Error(err))
@@ -1293,7 +1318,6 @@ func (p *Partition) writeStatsFile() error {
 	p.statsSize = n
 	return nil
 }
-
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
 func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
 	p.mu.RLock()
@@ -1305,6 +1329,30 @@ func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
 		stats.Add(p.activeLogFile.MeasurementCardinalityStats())
 	}
 	return stats
+}
+
+// ComputeMeasurementCardinalityStats computes cardinality stats from raw data.
+func (p *Partition) ComputeMeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	fs, err := p.fileSet.Duplicate()
+	if err != nil {
+		return nil, err
+	}
+	defer fs.Release()
+	return fs.Stats(), nil
+}
+
+// computeStats calculates the measurement stats from all files except the active log.
+// FileSet must already be retained when calling this function.
+func (p *Partition) computeStats() {
+	// Shallow copy the fileset and trim initial active log file.
+	fs := *p.fileSet
+	fs.files = fs.files[1:]
+
+	// Compute stats on the remaining files.
+	p.stats = fs.Stats()
 }
 
 type partitionTracker struct {

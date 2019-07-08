@@ -4,7 +4,7 @@ import {
   TelegrafPluginInfo,
   ConfigFieldType,
   BundleName,
-} from 'src/types/v2/dataLoaders'
+} from 'src/types'
 
 import {
   TelegrafPluginInputCpu,
@@ -29,7 +29,7 @@ import {
   TelegrafPluginInputTail,
 } from '@influxdata/influx'
 
-export const QUICKSTART_SCRAPER_TARGET_URL = 'http://localhost:9999/metrics'
+export const QUICKSTART_SCRAPER_TARGET_URL = `${window.location.origin}/metrics`
 
 interface PluginBundles {
   [bundleName: string]: TelegrafPluginName[]

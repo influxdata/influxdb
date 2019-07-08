@@ -49,7 +49,9 @@ func TestAPIHandler_NotFound(t *testing.T) {
 			r := httptest.NewRequest(tt.args.method, tt.args.path, nil)
 			w := httptest.NewRecorder()
 
-			b := &APIBackend{}
+			b := &APIBackend{
+				HTTPErrorHandler: ErrorHandler(0),
+			}
 			b.Logger = zap.NewNop()
 
 			h := NewAPIHandler(b)
@@ -65,10 +67,11 @@ func TestAPIHandler_NotFound(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. get %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. -got/+want%s", tt.name, diff)
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. ***%s***", tt.name, diff)
 			}
-
 		})
 	}
 }

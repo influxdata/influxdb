@@ -1,5 +1,5 @@
 // Libraries
-import {get, cloneDeep} from 'lodash'
+import {get, cloneDeep, isNumber} from 'lodash'
 import {produce} from 'immer'
 import _ from 'lodash'
 
@@ -12,27 +12,34 @@ import {
   VEO_TIME_MACHINE_ID,
   DE_TIME_MACHINE_ID,
 } from 'src/timeMachine/constants'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
+import {
+  THRESHOLD_TYPE_TEXT,
+  THRESHOLD_TYPE_BG,
+} from 'src/shared/constants/thresholds'
 
 // Types
-import {TimeRange, View} from 'src/types/v2'
+import {TimeRange, View, AutoRefresh} from 'src/types'
 import {
   ViewType,
   DashboardDraftQuery,
   BuilderConfig,
-  InfluxLanguage,
   QueryEditMode,
   QueryView,
   QueryViewProperties,
   ExtractWorkingView,
-} from 'src/types/v2/dashboards'
+  AggregateWindow,
+} from 'src/types/dashboards'
 import {Action} from 'src/timeMachine/actions'
-import {TimeMachineTab} from 'src/types/v2/timeMachine'
+import {TimeMachineTab} from 'src/types/timeMachine'
 import {RemoteDataState} from 'src/types'
 import {Color} from 'src/types/colors'
 
 interface QueryBuilderState {
   buckets: string[]
   bucketsStatus: RemoteDataState
+  functions: Array<[{name: string}]>
+  aggregateWindow: AggregateWindow
   tags: Array<{
     valuesSearchTerm: string
     keysSearchTerm: string
@@ -43,15 +50,24 @@ interface QueryBuilderState {
   }>
 }
 
+interface QueryResultsState {
+  files: string[] | null
+  status: RemoteDataState
+  isInitialFetch: boolean
+  fetchDuration: number
+  errorMessage: string
+}
+
 export interface TimeMachineState {
   view: QueryView
   timeRange: TimeRange
+  autoRefresh: AutoRefresh
   draftQueries: DashboardDraftQuery[]
   isViewingRawData: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
-  submitToken: number
   queryBuilder: QueryBuilderState
+  queryResults: QueryResultsState
 }
 
 export interface TimeMachinesState {
@@ -63,15 +79,18 @@ export interface TimeMachinesState {
 
 export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
+  autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   activeTab: TimeMachineTab.Queries,
   activeQueryIndex: 0,
-  submitToken: 0,
+  queryResults: initialQueryResultsState(),
   queryBuilder: {
     buckets: [],
     bucketsStatus: RemoteDataState.NotStarted,
+    aggregateWindow: {period: 'auto'},
+    functions: [],
     tags: [
       {
         valuesSearchTerm: '',
@@ -106,7 +125,7 @@ export const timeMachinesReducer = (
       hidden: false,
     }))
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
-    const activeQueryIndex = 0
+    const queryResults = initialQueryResultsState()
 
     return {
       ...state,
@@ -117,9 +136,11 @@ export const timeMachinesReducer = (
           ...activeTimeMachine,
           ...initialState,
           activeTab: TimeMachineTab.Queries,
-          activeQueryIndex,
+          isViewingRawData: false,
+          activeQueryIndex: 0,
           draftQueries,
           queryBuilder,
+          queryResults,
         },
       },
     }
@@ -164,7 +185,15 @@ export const timeMachineReducer = (
       return produce(state, draftState => {
         draftState.timeRange = action.payload.timeRange
 
-        buildAndSubmitAllQueries(draftState)
+        buildAllQueries(draftState)
+      })
+    }
+
+    case 'SET_AUTO_REFRESH': {
+      return produce(state, draftState => {
+        draftState.autoRefresh = action.payload.autoRefresh
+
+        buildAllQueries(draftState)
       })
     }
 
@@ -187,9 +216,21 @@ export const timeMachineReducer = (
       return {...state, draftQueries}
     }
 
-    case 'SUBMIT_SCRIPT': {
+    case 'SET_QUERY_RESULTS': {
       return produce(state, draftState => {
-        submitQueries(draftState)
+        const {status, files, fetchDuration, errorMessage} = action.payload
+
+        draftState.queryResults.status = status
+        draftState.queryResults.errorMessage = errorMessage
+
+        if (files) {
+          draftState.queryResults.files = files
+          draftState.queryResults.isInitialFetch = false
+        }
+
+        if (isNumber(fetchDuration)) {
+          draftState.queryResults.fetchDuration = fetchDuration
+        }
       })
     }
 
@@ -216,41 +257,35 @@ export const timeMachineReducer = (
       return setViewProperties(state, {geom})
     }
 
-    case 'SET_Y_AXIS_LABEL': {
-      const {label} = action.payload
-
-      return setYAxis(state, {label})
-    }
-
-    case 'SET_Y_AXIS_MIN_BOUND': {
-      const {min} = action.payload
-
-      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
-
-      bounds[0] = min
+    case 'SET_Y_AXIS_BOUNDS': {
+      const {bounds} = action.payload
 
       return setYAxis(state, {bounds})
     }
 
-    case 'SET_Y_AXIS_MAX_BOUND': {
-      const {max} = action.payload
+    case 'SET_AXIS_PREFIX': {
+      const {prefix, axis} = action.payload
+      const viewType = state.view.properties.type
 
-      const bounds = [...get(state, 'view.properties.axes.y.bounds', [])]
-
-      bounds[1] = max
-
-      return setYAxis(state, {bounds})
-    }
-
-    case 'SET_Y_AXIS_PREFIX': {
-      const {prefix} = action.payload
-
+      if (viewType === ViewType.Heatmap || viewType == ViewType.Scatter) {
+        if (axis === 'x') {
+          return setViewProperties(state, {xPrefix: prefix})
+        }
+        return setViewProperties(state, {yPrefix: prefix})
+      }
       return setYAxis(state, {prefix})
     }
 
-    case 'SET_Y_AXIS_SUFFIX': {
-      const {suffix} = action.payload
+    case 'SET_AXIS_SUFFIX': {
+      const {suffix, axis} = action.payload
+      const viewType = state.view.properties.type
 
+      if (viewType === ViewType.Heatmap || viewType === ViewType.Scatter) {
+        if (axis === 'x') {
+          return setViewProperties(state, {xSuffix: suffix})
+        }
+        return setViewProperties(state, {ySuffix: suffix})
+      }
       return setYAxis(state, {suffix})
     }
 
@@ -266,16 +301,54 @@ export const timeMachineReducer = (
       return setYAxis(state, {scale})
     }
 
-    case 'SET_X': {
-      const {x} = action.payload
+    case 'SET_X_COLUMN': {
+      const {xColumn} = action.payload
 
-      return setViewProperties(state, {x})
+      return setViewProperties(state, {xColumn})
     }
 
-    case 'SET_FILL': {
-      const {fill} = action.payload
+    case 'SET_Y_COLUMN': {
+      const {yColumn} = action.payload
 
-      return setViewProperties(state, {fill})
+      return setViewProperties(state, {yColumn})
+    }
+
+    case 'SET_X_AXIS_LABEL': {
+      const {xAxisLabel} = action.payload
+
+      switch (state.view.properties.type) {
+        case ViewType.Histogram:
+        case ViewType.Heatmap:
+        case ViewType.Scatter:
+          return setViewProperties(state, {xAxisLabel})
+        default:
+          return setYAxis(state, {label: xAxisLabel})
+      }
+    }
+
+    case 'SET_Y_AXIS_LABEL': {
+      const {yAxisLabel} = action.payload
+
+      switch (state.view.properties.type) {
+        case ViewType.Histogram:
+        case ViewType.Heatmap:
+        case ViewType.Scatter:
+          return setViewProperties(state, {yAxisLabel})
+        default:
+          return setYAxis(state, {label: yAxisLabel})
+      }
+    }
+
+    case 'SET_FILL_COLUMNS': {
+      const {fillColumns} = action.payload
+
+      return setViewProperties(state, {fillColumns})
+    }
+
+    case 'SET_SYMBOL_COLUMNS': {
+      const {symbolColumns} = action.payload
+
+      return setViewProperties(state, {symbolColumns})
     }
 
     case 'SET_HISTOGRAM_POSITION': {
@@ -288,6 +361,30 @@ export const timeMachineReducer = (
       const {binCount} = action.payload
 
       return setViewProperties(state, {binCount})
+    }
+
+    case 'SET_BIN_SIZE': {
+      const {binSize} = action.payload
+
+      return setViewProperties(state, {binSize})
+    }
+
+    case 'SET_COLOR_HEXES': {
+      const {colors} = action.payload
+
+      return setViewProperties(state, {colors})
+    }
+
+    case 'SET_VIEW_X_DOMAIN': {
+      const {xDomain} = action.payload
+
+      return setViewProperties(state, {xDomain})
+    }
+
+    case 'SET_VIEW_Y_DOMAIN': {
+      const {yDomain} = action.payload
+
+      return setViewProperties(state, {yDomain})
     }
 
     case 'SET_PREFIX': {
@@ -326,6 +423,7 @@ export const timeMachineReducer = (
       switch (state.view.properties.type) {
         case ViewType.Gauge:
         case ViewType.SingleStat:
+        case ViewType.Scatter:
         case ViewType.XY:
         case ViewType.Histogram:
           return setViewProperties(state, {colors})
@@ -344,12 +442,20 @@ export const timeMachineReducer = (
       return setViewProperties(state, {decimalPlaces})
     }
 
+    case 'SET_SHADE_BELOW': {
+      const {shadeBelow} = action.payload
+
+      return setViewProperties(state, {shadeBelow})
+    }
+
     case 'SET_BACKGROUND_THRESHOLD_COLORING': {
-      const colors = state.view.properties.colors.map(color => {
+      const viewColors = state.view.properties.colors as Color[]
+
+      const colors = viewColors.map(color => {
         if (color.type !== 'scale') {
           return {
             ...color,
-            type: 'background',
+            type: THRESHOLD_TYPE_BG,
           }
         }
 
@@ -360,11 +466,13 @@ export const timeMachineReducer = (
     }
 
     case 'SET_TEXT_THRESHOLD_COLORING': {
-      const colors = state.view.properties.colors.map(color => {
+      const viewColors = state.view.properties.colors as Color[]
+
+      const colors = viewColors.map(color => {
         if (color.type !== 'scale') {
           return {
             ...color,
-            type: 'text',
+            type: THRESHOLD_TYPE_TEXT,
           }
         }
         return color
@@ -379,13 +487,6 @@ export const timeMachineReducer = (
       return setViewProperties(state, {staticLegend})
     }
 
-    case 'INCREMENT_SUBMIT_TOKEN': {
-      return {
-        ...state,
-        submitToken: Date.now(),
-      }
-    }
-
     case 'EDIT_ACTIVE_QUERY_WITH_BUILDER': {
       return produce(state, draftState => {
         const query = draftState.draftQueries[draftState.activeQueryIndex]
@@ -393,7 +494,7 @@ export const timeMachineReducer = (
         query.editMode = QueryEditMode.Builder
         query.hidden = false
 
-        buildAndSubmitAllQueries(draftState)
+        buildAllQueries(draftState)
       })
     }
 
@@ -404,23 +505,6 @@ export const timeMachineReducer = (
       draftQueries[activeQueryIndex] = {
         ...draftQueries[activeQueryIndex],
         editMode: QueryEditMode.Advanced,
-        type: InfluxLanguage.Flux,
-      }
-
-      return {
-        ...state,
-        draftQueries,
-      }
-    }
-
-    case 'EDIT_ACTIVE_QUERY_AS_INFLUXQL': {
-      const {activeQueryIndex} = state
-      const draftQueries = [...state.draftQueries]
-
-      draftQueries[activeQueryIndex] = {
-        ...draftQueries[activeQueryIndex],
-        editMode: QueryEditMode.Advanced,
-        type: InfluxLanguage.InfluxQL,
       }
 
       return {
@@ -472,7 +556,6 @@ export const timeMachineReducer = (
         draftState.activeQueryIndex = activeQueryIndex
 
         resetBuilderState(draftState)
-        submitQueries(draftState)
       })
     }
 
@@ -494,6 +577,7 @@ export const timeMachineReducer = (
         if (action.payload.resetSelections) {
           builderConfig.tags = [{key: '', values: []}]
           builderConfig.functions = []
+          buildActiveQuery(draftState)
         }
       })
     }
@@ -508,6 +592,18 @@ export const timeMachineReducer = (
     case 'SET_BUILDER_BUCKETS_STATUS': {
       return produce(state, draftState => {
         draftState.queryBuilder.bucketsStatus = action.payload.bucketsStatus
+      })
+    }
+
+    case 'SET_BUILDER_TAGS_STATUS': {
+      return produce(state, draftState => {
+        const {status} = action.payload
+        const tags = draftState.queryBuilder.tags
+
+        for (const tag of tags) {
+          tag.keysStatus = status
+          tag.valuesStatus = status
+        }
       })
     }
 
@@ -645,6 +741,16 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SELECT_AGGREGATE_WINDOW': {
+      return produce(state, draftState => {
+        const {activeQueryIndex, draftQueries} = draftState
+        const {period} = action.payload
+
+        draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {period}
+        buildActiveQuery(draftState)
+      })
+    }
+
     case 'UPDATE_ACTIVE_QUERY_NAME': {
       const {activeQueryIndex} = state
       const {queryName} = action.payload
@@ -690,6 +796,14 @@ export const timeMachineReducer = (
       const view = {...state.view, properties}
 
       return {...state, view}
+    }
+
+    case 'SAVE_DRAFT_QUERIES': {
+      return produce(state, draftState => {
+        draftState.view.properties.queries = draftState.draftQueries.filter(
+          q => !q.hidden
+        )
+      })
     }
   }
 
@@ -762,6 +876,8 @@ const initialQueryBuilderState = (
   return {
     buckets: builderConfig.buckets,
     bucketsStatus: RemoteDataState.NotStarted,
+    functions: [],
+    aggregateWindow: {period: 'auto'},
     tags: builderConfig.tags.map(_ => ({
       valuesSearchTerm: '',
       keysSearchTerm: '',
@@ -773,6 +889,14 @@ const initialQueryBuilderState = (
   }
 }
 
+const initialQueryResultsState = (): QueryResultsState => ({
+  files: null,
+  status: RemoteDataState.NotStarted,
+  isInitialFetch: true,
+  fetchDuration: null,
+  errorMessage: null,
+})
+
 const buildActiveQuery = (draftState: TimeMachineState) => {
   const draftQuery = draftState.draftQueries[draftState.activeQueryIndex]
 
@@ -783,7 +907,7 @@ const buildActiveQuery = (draftState: TimeMachineState) => {
   }
 }
 
-const buildAndSubmitAllQueries = (draftState: TimeMachineState) => {
+const buildAllQueries = (draftState: TimeMachineState) => {
   draftState.draftQueries
     .filter(query => query.editMode === QueryEditMode.Builder)
     .forEach(query => {
@@ -793,8 +917,6 @@ const buildAndSubmitAllQueries = (draftState: TimeMachineState) => {
         query.text = ''
       }
     })
-
-  submitQueries(draftState)
 }
 
 const resetBuilderState = (draftState: TimeMachineState) => {
@@ -802,12 +924,4 @@ const resetBuilderState = (draftState: TimeMachineState) => {
     draftState.draftQueries[draftState.activeQueryIndex].builderConfig
 
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
-}
-
-const submitQueries = (draftState: TimeMachineState) => {
-  draftState.submitToken = Date.now()
-  draftState.view.properties.queries = _.filter(
-    draftState.draftQueries,
-    q => !q.hidden
-  )
 }

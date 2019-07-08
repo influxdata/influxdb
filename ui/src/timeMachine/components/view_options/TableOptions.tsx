@@ -4,15 +4,14 @@ import {connect} from 'react-redux'
 
 // Components
 import DecimalPlacesOption from 'src/timeMachine/components/view_options/DecimalPlaces'
-import ThresholdList from 'src/timeMachine/components/view_options/ThresholdList'
 import ColumnOptions from 'src/shared/components/columns_options/ColumnsOptions'
 import FixFirstColumn from 'src/timeMachine/components/view_options/FixFirstColumn'
 import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 import SortBy from 'src/timeMachine/components/view_options/SortBy'
-import {Grid} from 'src/clockface'
+import {Grid} from '@influxdata/clockface'
+import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
 
 // Constants
-import {THRESHOLD_TYPE_BASE} from 'src/shared/constants/thresholds'
 
 // Actions
 import {
@@ -30,14 +29,15 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, NewView} from 'src/types/v2'
 import {
+  AppState,
+  NewView,
   DecimalPlaces,
   TableView,
   FieldOption,
   TableOptions as ViewTableOptions,
-} from 'src/types/v2/dashboards'
-import {Color, ThresholdConfig} from 'src/types/colors'
+  Color,
+} from 'src/types'
 import {move} from 'src/shared/utils/move'
 
 interface StateProps {
@@ -66,6 +66,7 @@ export class TableOptions extends Component<Props, {}> {
       onSetColors,
       fieldOptions,
       tableOptions,
+      colors,
       decimalPlaces,
       onSetTimeFormat,
       onSetDecimalPlaces,
@@ -124,11 +125,12 @@ export class TableOptions extends Component<Props, {}> {
         <Grid.Column>
           <h4 className="view-options--header">Colorized Thresholds</h4>
         </Grid.Column>
-        <ThresholdList
-          colorConfigs={this.colorConfigs}
-          onUpdateColors={onSetColors}
-          onValidateNewColor={() => true}
-        />
+        <Grid.Column>
+          <ThresholdsSettings
+            thresholds={colors}
+            onSetThresholds={onSetColors}
+          />
+        </Grid.Column>
       </>
     )
   }
@@ -145,8 +147,8 @@ export class TableOptions extends Component<Props, {}> {
 
   private handleUpdateColumn = (fieldOption: FieldOption) => {
     const {internalName} = fieldOption
-    const fieldOptions = this.props.fieldOptions.map(
-      fopt => (fopt.internalName === internalName ? fieldOption : fopt)
+    const fieldOptions = this.props.fieldOptions.map(fopt =>
+      fopt.internalName === internalName ? fieldOption : fopt
     )
 
     this.props.onSetFieldOptions(fieldOptions)
@@ -156,28 +158,6 @@ export class TableOptions extends Component<Props, {}> {
     const {onSetTableOptions, tableOptions} = this.props
     const fixFirstColumn = !tableOptions.fixFirstColumn
     onSetTableOptions({...tableOptions, fixFirstColumn})
-  }
-
-  // private handleToggleVerticalTimeAxis = (verticalTimeAxis: boolean): void => {
-  //   const {tableOptions, onSetTableOptions} = this.props
-  //   onSetTableOptions({...tableOptions, verticalTimeAxis})
-  // }
-
-  private get colorConfigs(): ThresholdConfig[] {
-    return this.props.colors.map(color => {
-      const isBase = color.id === THRESHOLD_TYPE_BASE
-
-      const config: ThresholdConfig = {
-        color,
-        isBase,
-      }
-
-      if (isBase) {
-        config.label = 'Base'
-      }
-
-      return config
-    })
   }
 }
 

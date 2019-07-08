@@ -3,13 +3,13 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Types
 import {RemoteDataState} from 'src/types'
 
 // Actions
-import {getMe} from 'src/shared/actions/v2/me'
+import {getMe} from 'src/shared/actions/me'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'

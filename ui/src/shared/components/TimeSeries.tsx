@@ -1,108 +1,84 @@
 // Library
 import {Component} from 'react'
-import {isEqual, flatten} from 'lodash'
+import {isEqual, get} from 'lodash'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
+import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
 
 // API
-import {executeQuery, ExecuteFluxQueryResult} from 'src/shared/apis/v2/query'
+import {executeQueryWithVars} from 'src/shared/apis/query'
 
 // Utils
-import {parseResponse} from 'src/shared/parsing/flux/response'
-import {getSources, getActiveSource} from 'src/sources/selectors'
-import {renderQuery} from 'src/shared/utils/renderQuery'
+import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+
+// Constants
+import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
+import {rateLimitReached} from 'src/shared/copy/notifications'
+import {RATE_LIMIT_ERROR_TEXT} from 'src/cloud/constants'
+
+// Actions
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
-import {RemoteDataState, FluxTable} from 'src/types'
-import {DashboardQuery} from 'src/types/v2/dashboards'
-import {AppState, Source} from 'src/types/v2'
+import {RemoteDataState} from 'src/types'
+import {DashboardQuery} from 'src/types/dashboards'
+import {AppState} from 'src/types'
 import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {VariableAssignment} from 'src/types/ast'
 
-type URLQuery = DashboardQuery & {url: string}
-
-const executeRenderedQuery = (
-  {text, type, url}: URLQuery,
-  variables: {[key: string]: string}
-): WrappedCancelablePromise<ExecuteFluxQueryResult> => {
-  let isCancelled = false
-  let cancelExecution
-
-  const cancel = () => {
-    isCancelled = true
-
-    if (cancelExecution) {
-      cancelExecution()
-    }
-  }
-
-  const promise = renderQuery(text, type, variables).then(renderedQuery => {
-    if (isCancelled) {
-      return Promise.reject(new CancellationError())
-    }
-
-    const pendingResult = executeQuery(url, renderedQuery, type)
-
-    cancelExecution = pendingResult.cancel
-
-    return pendingResult.promise
-  })
-
-  return {promise, cancel}
-}
-
-export interface QueriesState {
-  tables: FluxTable[]
+interface QueriesState {
   files: string[] | null
   loading: RemoteDataState
-  error: Error | null
+  errorMessage: string
   isInitialFetch: boolean
   duration: number
+  giraffeResult: FromFluxResult
 }
 
 interface StateProps {
-  dynamicSourceURL: string
-  sources: Source[]
+  queryLink: string
 }
 
 interface OwnProps {
   queries: DashboardQuery[]
-  variables?: {[key: string]: string}
+  variables?: VariableAssignment[]
   submitToken: number
   implicitSubmit?: boolean
-  inView?: boolean
   children: (r: QueriesState) => JSX.Element
 }
 
-type Props = StateProps & OwnProps
+interface DispatchProps {
+  notify: typeof notifyAction
+}
+
+type Props = StateProps & OwnProps & DispatchProps
 
 interface State {
   loading: RemoteDataState
-  tables: FluxTable[]
   files: string[] | null
-  error: Error | null
+  errorMessage: string
   fetchCount: number
   duration: number
+  giraffeResult: FromFluxResult
 }
 
 const defaultState = (): State => ({
   loading: RemoteDataState.NotStarted,
-  tables: [],
   files: null,
   fetchCount: 0,
-  error: null,
+  errorMessage: '',
   duration: 0,
+  giraffeResult: null,
 })
 
-class TimeSeries extends Component<Props, State> {
+class TimeSeries extends Component<Props & WithRouterProps, State> {
   public static defaultProps = {
-    inView: true,
     implicitSubmit: true,
   }
 
   public state: State = defaultState()
 
-  private pendingResults: Array<
-    WrappedCancelablePromise<ExecuteFluxQueryResult>
-  > = []
+  private pendingResults: Array<WrappedCancelablePromise<string>> = []
 
   public async componentDidMount() {
     this.reload()
@@ -115,36 +91,29 @@ class TimeSeries extends Component<Props, State> {
   }
 
   public render() {
-    const {tables, files, loading, error, fetchCount, duration} = this.state
-
-    return this.props.children({
-      tables,
+    const {
+      giraffeResult,
       files,
       loading,
-      error,
+      errorMessage,
+      fetchCount,
+      duration,
+    } = this.state
+
+    return this.props.children({
+      giraffeResult,
+      files,
+      loading,
+      errorMessage,
       duration,
       isInitialFetch: fetchCount === 1,
     })
   }
 
-  private get queries(): URLQuery[] {
-    const {sources, queries, dynamicSourceURL} = this.props
-
-    return queries.filter(query => !!query.text).map(query => {
-      const source = sources.find(source => source.id === query.sourceID)
-      const url: string = source ? source.links.query : dynamicSourceURL
-
-      return {...query, url}
-    })
-  }
-
   private reload = async () => {
-    const {inView, variables} = this.props
-    const queries = this.queries
-
-    if (!inView) {
-      return
-    }
+    const {variables, notify} = this.props
+    const queries = this.props.queries.filter(({text}) => !!text.trim())
+    const orgID = this.props.params.orgID
 
     if (!queries.length) {
       this.setState(defaultState())
@@ -155,7 +124,7 @@ class TimeSeries extends Component<Props, State> {
     this.setState({
       loading: RemoteDataState.Loading,
       fetchCount: this.state.fetchCount + 1,
-      error: null,
+      errorMessage: '',
     })
 
     try {
@@ -165,17 +134,19 @@ class TimeSeries extends Component<Props, State> {
       this.pendingResults.forEach(({cancel}) => cancel())
 
       // Issue new queries
-      this.pendingResults = queries.map(q => executeRenderedQuery(q, variables))
+      this.pendingResults = queries.map(({text}) =>
+        executeQueryWithVars(orgID, text, variables)
+      )
 
       // Wait for new queries to complete
-      const results = await Promise.all(this.pendingResults.map(r => r.promise))
-
+      const files = await Promise.all(this.pendingResults.map(r => r.promise))
       const duration = Date.now() - startTime
-      const tables = flatten(results.map(r => parseResponse(r.csv)))
-      const files = results.map(r => r.csv)
+      const giraffeResult = fromFlux(files.join('\n\n'))
+
+      files.forEach(checkQueryResult)
 
       this.setState({
-        tables,
+        giraffeResult,
         files,
         duration,
         loading: RemoteDataState.Done,
@@ -185,8 +156,18 @@ class TimeSeries extends Component<Props, State> {
         return
       }
 
+      let errorMessage = get(error, 'message', '')
+
+      if (get(error, 'status') === RATE_LIMIT_ERROR_STATUS) {
+        const retryAfter = get(error, 'headers.Retry-After')
+
+        notify(rateLimitReached(retryAfter))
+        errorMessage = RATE_LIMIT_ERROR_TEXT
+      }
+
       this.setState({
-        error,
+        errorMessage,
+        giraffeResult: null,
         loading: RemoteDataState.Error,
       })
     }
@@ -205,7 +186,7 @@ class TimeSeries extends Component<Props, State> {
       return true
     }
 
-    if (prevProps.dynamicSourceURL !== this.props.dynamicSourceURL) {
+    if (!isEqual(prevProps.variables, this.props.variables)) {
       return true
     }
 
@@ -214,13 +195,16 @@ class TimeSeries extends Component<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const sources = getSources(state)
-  const dynamicSourceURL = getActiveSource(state).links.query
+  const {links} = state
 
-  return {sources, dynamicSourceURL}
+  return {queryLink: links.query.self}
+}
+
+const mdtp: DispatchProps = {
+  notify: notifyAction,
 }
 
 export default connect<StateProps, {}, OwnProps>(
   mstp,
-  null
-)(TimeSeries)
+  mdtp
+)(withRouter(TimeSeries))

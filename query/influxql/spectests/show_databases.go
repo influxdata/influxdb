@@ -6,7 +6,9 @@ func init() {
 			`SHOW DATABASES`,
 			`package main
 
-databases()
+import v1 "influxdata/influxdb/v1"
+
+v1.databases()
 	|> rename(columns: {databaseName: "name"})
 	|> keep(columns: ["name"])
 	|> yield(name: "0")

@@ -11,8 +11,8 @@ import EmptyDataSourceState from 'src/dataLoaders/components/configureStep/Empty
 import {getConfigFields} from 'src/dataLoaders/utils/pluginConfigs'
 
 // Types
-import {TelegrafPlugin, ConfigFields} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2'
+import {TelegrafPlugin, ConfigFields} from 'src/types/dataLoaders'
+import {AppState} from 'src/types'
 import TelegrafPluginInstructions from 'src/dataLoaders/components/collectorsWizard/configure/TelegrafPluginInstructions'
 
 interface StateProps {

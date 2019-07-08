@@ -2,23 +2,29 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  EmptyState,
-  IconFont,
-} from 'src/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+
+// Types
+import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
   searchTerm: string
   onCreate: () => void
   totalCount: number
+  onImportTask: () => void
+  onImportFromTemplate: () => void
 }
 
 export default class EmptyTasksLists extends PureComponent<Props> {
   public render() {
-    const {searchTerm, onCreate, totalCount} = this.props
+    const {
+      searchTerm,
+      onCreate,
+      totalCount,
+      onImportTask,
+      onImportFromTemplate,
+    } = this.props
 
     if (totalCount && searchTerm === '') {
       return (
@@ -37,12 +43,12 @@ export default class EmptyTasksLists extends PureComponent<Props> {
             text={"Looks like you don't have any Tasks , why not create one?"}
             highlightWords={['Tasks']}
           />
-          <Button
-            size={ComponentSize.Medium}
-            color={ComponentColor.Primary}
-            icon={IconFont.Plus}
-            text="Create Task"
-            onClick={onCreate}
+          <AddResourceDropdown
+            canImportFromTemplate={true}
+            onSelectNew={onCreate}
+            onSelectImport={onImportTask}
+            onSelectTemplate={onImportFromTemplate}
+            resourceName="Task"
           />
         </EmptyState>
       )
@@ -50,7 +56,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text={'No Tasks match your search term'} />
+        <EmptyState.Text text="No Tasks match your search term" />
       </EmptyState>
     )
   }

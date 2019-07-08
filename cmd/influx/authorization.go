@@ -5,10 +5,8 @@ import (
 	"os"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
-	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/spf13/cobra"
 )
 
@@ -268,6 +266,8 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 type AuthorizationFindFlags struct {
 	user   string
 	userID string
+	org    string
+	orgID  string
 	id     string
 }
 
@@ -282,6 +282,8 @@ func init() {
 
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.org, "org", "o", "", "The org")
+	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.orgID, "org-id", "", "", "The org ID")
 	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
 
 	authorizationCmd.AddCommand(authorizationFindCmd)
@@ -289,17 +291,7 @@ func init() {
 
 func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
 	if flags.local {
-		boltFile, err := fs.BoltFile()
-		if err != nil {
-			return nil, err
-		}
-		c := bolt.NewClient()
-		c.Path = boltFile
-		if err := c.Open(context.Background()); err != nil {
-			return nil, err
-		}
-
-		return c, nil
+		return newLocalKVService()
 	}
 	return &http.AuthorizationService{
 		Addr:  flags.host,
@@ -330,6 +322,16 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		filter.UserID = uID
+	}
+	if authorizationFindFlags.org != "" {
+		filter.Org = &authorizationFindFlags.org
+	}
+	if authorizationFindFlags.orgID != "" {
+		oID, err := platform.IDFromString(authorizationFindFlags.orgID)
+		if err != nil {
+			return err
+		}
+		filter.OrgID = oID
 	}
 
 	authorizations, _, err := s.FindAuthorizations(context.Background(), filter)
@@ -468,12 +470,14 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.TODO()
-	a, err := s.FindAuthorizationByID(ctx, id)
-	if err != nil {
+	if _, err := s.FindAuthorizationByID(ctx, id); err != nil {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(context.Background(), id, platform.Active); err != nil {
+	a, err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+		Status: platform.Active.Ptr(),
+	})
+	if err != nil {
 		return err
 	}
 
@@ -537,12 +541,14 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.TODO()
-	a, err := s.FindAuthorizationByID(ctx, id)
-	if err != nil {
+	if _, err = s.FindAuthorizationByID(ctx, id); err != nil {
 		return err
 	}
 
-	if err := s.SetAuthorizationStatus(ctx, id, platform.Inactive); err != nil {
+	a, err := s.UpdateAuthorization(context.Background(), id, &platform.AuthorizationUpdate{
+		Status: platform.Inactive.Ptr(),
+	})
+	if err != nil {
 		return err
 	}
 

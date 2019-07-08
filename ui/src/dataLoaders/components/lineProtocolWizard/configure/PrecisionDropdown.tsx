@@ -6,7 +6,7 @@ import {Dropdown} from 'src/clockface'
 
 // Types
 import {WritePrecision} from '@influxdata/influx'
-import {Precision} from 'src/types/v2/dataLoaders'
+import {Precision} from 'src/types/dataLoaders'
 
 interface Props {
   setPrecision: (precision: WritePrecision) => void
@@ -31,12 +31,13 @@ class PrecisionDropdown extends PureComponent<Props> {
   public render() {
     const {setPrecision, precision} = this.props
     return (
-      <div className={'wizard-step--footer dropdown'}>
+      <div className="wizard-step--lp-precision">
         <label>Time Precision </label>
         <Dropdown
           selectedID={precision}
           onChange={setPrecision}
           widthPixels={200}
+          customClass="wizard-step--lp-precision dropdown"
         >
           {writePrecisions.map(value => (
             <Dropdown.Item key={value} value={value} id={value}>

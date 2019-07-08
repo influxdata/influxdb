@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -21,27 +22,24 @@ import {
 import {clearDataLoaders} from 'src/dataLoaders/actions/dataLoaders'
 
 // Types
-import {Notification, NotificationFunc} from 'src/types'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 import {Bucket} from '@influxdata/influx'
 
 export interface LineProtocolStepProps {
   currentStepIndex: number
   onIncrementCurrentStepIndex: () => void
   onDecrementCurrentStepIndex: () => void
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onExit: () => void
 }
 
 interface OwnProps {
   onCompleteSetup: () => void
-  visible: boolean
-  buckets: Bucket[]
   startingStep?: number
 }
 
 interface DispatchProps {
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
   onSetBucketInfo: typeof setBucketInfo
   onIncrementCurrentStepIndex: typeof incrementCurrentStepIndex
   onDecrementCurrentStepIndex: typeof decrementCurrentStepIndex
@@ -54,43 +52,27 @@ interface StateProps {
   currentStepIndex: number
   username: string
   bucket: string
+  buckets: Bucket[]
 }
 
 type Props = OwnProps & StateProps & DispatchProps
 
 @ErrorHandling
-class CollectorsWizard extends PureComponent<Props> {
+class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
   public componentDidMount() {
     this.handleSetBucketInfo()
     this.handleSetStartingValues()
   }
 
-  public componentDidUpdate(prevProps: Props) {
-    const hasBecomeVisible = !prevProps.visible && this.props.visible
-
-    if (hasBecomeVisible) {
-      this.handleSetBucketInfo()
-      this.handleSetStartingValues()
-    }
-  }
-
   public render() {
-    const {visible, buckets} = this.props
+    const {buckets} = this.props
 
     return (
-      <WizardOverlay
-        visible={visible}
-        title={'Add Line Protocol'}
-        onDismiss={this.handleDismiss}
-      >
-        <div className="wizard-contents">
-          <div className="wizard-step--container">
-            <LineProtocolStepSwitcher
-              stepProps={this.stepProps}
-              buckets={buckets}
-            />
-          </div>
-        </div>
+      <WizardOverlay title="Line Protocol" onDismiss={this.handleDismiss}>
+        <LineProtocolStepSwitcher
+          stepProps={this.stepProps}
+          buckets={buckets}
+        />
       </WizardOverlay>
     )
   }
@@ -98,9 +80,9 @@ class CollectorsWizard extends PureComponent<Props> {
   private handleSetBucketInfo = () => {
     const {bucket, buckets} = this.props
     if (!bucket && (buckets && buckets.length)) {
-      const {organization, organizationID, name, id} = buckets[0]
+      const {orgID, name, id} = buckets[0]
 
-      this.props.onSetBucketInfo(organization, organizationID, name, id)
+      this.props.onSetBucketInfo(orgID, name, id)
     }
   }
 
@@ -115,9 +97,11 @@ class CollectorsWizard extends PureComponent<Props> {
   }
 
   private handleDismiss = () => {
-    this.props.onCompleteSetup()
-    this.props.onClearDataLoaders()
-    this.props.onClearSteps()
+    const {router, onClearDataLoaders, onClearSteps} = this.props
+
+    onClearDataLoaders()
+    onClearSteps()
+    router.goBack()
   }
 
   private get stepProps(): LineProtocolStepProps {
@@ -143,10 +127,12 @@ const mstp = ({
     steps: {currentStep, bucket},
   },
   me: {name},
+  buckets,
 }: AppState): StateProps => ({
   currentStepIndex: currentStep,
   username: name,
   bucket,
+  buckets: buckets.list,
 })
 
 const mdtp: DispatchProps = {
@@ -162,4 +148,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(CollectorsWizard)
+)(withRouter<Props>(LineProtocolWizard))

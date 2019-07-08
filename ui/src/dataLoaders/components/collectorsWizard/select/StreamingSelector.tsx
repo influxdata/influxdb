@@ -4,18 +4,10 @@ import uuid from 'uuid'
 import _ from 'lodash'
 
 // Components
+import {Input, EmptyState, FormElement, Grid} from '@influxdata/clockface'
+import {ResponsiveGridSizer} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
-import {
-  ResponsiveGridSizer,
-  Input,
-  IconFont,
-  ComponentSize,
-  FormElement,
-  Grid,
-  Columns,
-  EmptyState,
-} from 'src/clockface'
 
 // Constants
 import {
@@ -25,12 +17,13 @@ import {
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 
 // Types
-import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
+import {TelegrafPlugin, BundleName} from 'src/types/dataLoaders'
 import {Bucket} from '@influxdata/influx'
+import {IconFont, Columns, ComponentSize} from '@influxdata/clockface'
 
 export interface Props {
   buckets: Bucket[]
-  bucket: string
+  selectedBucketName: string
   pluginBundles: BundleName[]
   telegrafPlugins: TelegrafPlugin[]
   onTogglePluginBundle: (telegrafPlugin: string, isSelected: boolean) => void
@@ -68,7 +61,7 @@ class StreamingSelector extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {bucket, buckets} = this.props
+    const {buckets} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -77,7 +70,7 @@ class StreamingSelector extends PureComponent<Props, State> {
           <Grid.Column widthSM={Columns.Five}>
             <FormElement label="Bucket">
               <BucketDropdown
-                selected={bucket}
+                selectedBucketID={this.selectedBucketID}
                 buckets={buckets}
                 onSelectBucket={this.handleSelectBucket}
               />
@@ -86,7 +79,7 @@ class StreamingSelector extends PureComponent<Props, State> {
           <Grid.Column widthSM={Columns.Five} offsetSM={Columns.Two}>
             <FormElement label="">
               <Input
-                customClass="wizard-step--filter"
+                className="wizard-step--filter"
                 size={ComponentSize.Small}
                 icon={IconFont.Search}
                 value={searchTerm}
@@ -115,6 +108,12 @@ class StreamingSelector extends PureComponent<Props, State> {
         {this.emptyState}
       </div>
     )
+  }
+
+  private get selectedBucketID(): string {
+    const {buckets, selectedBucketName} = this.props
+
+    return buckets.find(b => b.name === selectedBucketName).id
   }
 
   private handleSelectBucket = (bucket: Bucket) => {

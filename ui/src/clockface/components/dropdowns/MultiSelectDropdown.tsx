@@ -12,31 +12,32 @@ import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar
 
 // Types
 import {
-  DropdownMenuColors,
   ComponentStatus,
   ComponentColor,
   ComponentSize,
   IconFont,
-} from 'src/clockface/types'
+} from '@influxdata/clockface'
+
+import {DropdownMenuColors} from 'src/clockface/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element[]
   onChange: (selectedIDs: string[], value: any) => void
-  onCollapse?: () => void
   selectedIDs: string[]
-  buttonColor?: ComponentColor
-  buttonSize?: ComponentSize
-  menuColor?: DropdownMenuColors
+  buttonColor: ComponentColor
+  buttonSize: ComponentSize
+  menuColor: DropdownMenuColors
+  wrapText: boolean
+  maxMenuHeight: number
+  emptyText: string
+  separatorText: string
+  customClass?: string
+  onCollapse?: () => void
   status?: ComponentStatus
   widthPixels?: number
   icon?: IconFont
-  wrapText?: boolean
-  customClass?: string
-  maxMenuHeight?: number
-  emptyText?: string
-  separatorText?: string
 }
 
 interface State {
@@ -45,7 +46,7 @@ interface State {
 
 @ErrorHandling
 class MultiSelectDropdown extends Component<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     buttonColor: ComponentColor.Default,
     buttonSize: ComponentSize.Small,
     status: ComponentStatus.Default,
@@ -69,8 +70,6 @@ class MultiSelectDropdown extends Component<Props, State> {
   }
 
   public render() {
-    this.validateChildCount()
-
     return (
       <ClickOutside onClickOutside={this.collapseMenu}>
         <div className={this.containerClassName} style={this.containerStyle}>
@@ -125,11 +124,11 @@ class MultiSelectDropdown extends Component<Props, State> {
       buttonColor,
       buttonSize,
       icon,
-      children,
       emptyText,
       separatorText,
     } = this.props
     const {expanded} = this.state
+    const children: JSX.Element[] = this.props.children
 
     const selectedChildren = children.filter(child =>
       _.includes(selectedIDs, child.props.id)
@@ -183,7 +182,7 @@ class MultiSelectDropdown extends Component<Props, State> {
             autoHeight={true}
             maxHeight={maxMenuHeight}
           >
-            <div className="dropdown--menu" data-test="dropdown-menu">
+            <div className="dropdown--menu" data-testid="dropdown-menu">
               {React.Children.map(children, (child: JSX.Element) => {
                 if (this.childTypeIsValid(child)) {
                   if (child.type === DropdownItem) {
@@ -249,16 +248,6 @@ class MultiSelectDropdown extends Component<Props, State> {
     }
 
     onChange(updatedSelection, value)
-  }
-
-  private validateChildCount = (): void => {
-    const {children} = this.props
-
-    if (React.Children.count(children) === 0) {
-      throw new Error(
-        'Dropdowns require at least 1 child element. We recommend using Dropdown.Item and/or Dropdown.Divider.'
-      )
-    }
   }
 
   private childTypeIsValid = (child: JSX.Element): boolean =>

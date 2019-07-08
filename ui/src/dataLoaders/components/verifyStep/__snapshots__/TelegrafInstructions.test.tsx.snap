@@ -25,19 +25,19 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
   <p>
     Your API token is required for pushing data into InfluxDB. You can copy the following command to your terminal window to set an environment variable with your token.
   </p>
-  <CopyText
+  <CodeSnippet
     copyText="export INFLUX_TOKEN="
-    notify={[MockFunction]}
+    label="CLI"
   />
   <h6>
     3. Start Telegraf
   </h6>
   <p>
-    Finally, you can run the following command the start Telegraf agent running on your machine.
+    Finally, you can run the following command to start the Telegraf agent running on your machine.
   </p>
-  <CopyText
-    copyText="telegraf -config http://localhost:9999/api/v2/telegrafs/"
-    notify={[MockFunction]}
+  <CodeSnippet
+    copyText="telegraf --config http://localhost/api/v2/telegrafs/"
+    label="CLI"
   />
 </div>
 `;

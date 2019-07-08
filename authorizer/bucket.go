@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var _ influxdb.BucketService = (*BucketService)(nil)
@@ -26,6 +27,9 @@ func newBucketPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Pe
 }
 
 func authorizeReadBucket(ctx context.Context, orgID, id influxdb.ID) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	p, err := newBucketPermission(influxdb.ReadAction, orgID, id)
 	if err != nil {
 		return err
@@ -53,12 +57,15 @@ func authorizeWriteBucket(ctx context.Context, orgID, id influxdb.ID) error {
 
 // FindBucketByID checks to see if the authorizer on context has read access to the id provided.
 func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := authorizeReadBucket(ctx, b.OrganizationID, id); err != nil {
+	if err := authorizeReadBucket(ctx, b.OrgID, id); err != nil {
 		return nil, err
 	}
 
@@ -67,12 +74,15 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 
 // FindBucket retrieves the bucket and checks to see if the authorizer on context has read access to the bucket.
 func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	b, err := s.s.FindBucket(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := authorizeReadBucket(ctx, b.OrganizationID, b.ID); err != nil {
+	if err := authorizeReadBucket(ctx, b.OrgID, b.ID); err != nil {
 		return nil, err
 	}
 
@@ -81,6 +91,9 @@ func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFi
 
 // FindBuckets retrieves all buckets that match the provided filter and then filters the list down to only the resources that are authorized.
 func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
 	// will likely be expensive.
 	bs, _, err := s.s.FindBuckets(ctx, filter, opt...)
@@ -92,7 +105,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	buckets := bs[:0]
 	for _, b := range bs {
-		err := authorizeReadBucket(ctx, b.OrganizationID, b.ID)
+		err := authorizeReadBucket(ctx, b.OrgID, b.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
 		}
@@ -109,7 +122,10 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 
 // CreateBucket checks to see if the authorizer on context has write access to the global buckets resource.
 func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.BucketsResourceType, b.OrganizationID)
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.BucketsResourceType, b.OrgID)
 	if err != nil {
 		return err
 	}
@@ -128,7 +144,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 		return nil, err
 	}
 
-	if err := authorizeWriteBucket(ctx, b.OrganizationID, id); err != nil {
+	if err := authorizeWriteBucket(ctx, b.OrgID, id); err != nil {
 		return nil, err
 	}
 
@@ -142,7 +158,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error 
 		return err
 	}
 
-	if err := authorizeWriteBucket(ctx, b.OrganizationID, id); err != nil {
+	if err := authorizeWriteBucket(ctx, b.OrgID, id); err != nil {
 		return err
 	}
 

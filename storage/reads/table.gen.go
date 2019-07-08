@@ -7,12 +7,12 @@
 package reads
 
 import (
-	"github.com/influxdata/flux/arrow"
-	"github.com/influxdata/flux/memory"
 	"sync"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
@@ -24,9 +24,9 @@ import (
 
 type floatTable struct {
 	table
-	valBuf []float64
-	mu     sync.Mutex
-	cur    cursors.FloatArrayCursor
+	mu    sync.Mutex
+	cur   cursors.FloatArrayCursor
+	alloc *memory.Allocator
 }
 
 func newFloatTable(
@@ -37,9 +37,10 @@ func newFloatTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *floatTable {
 	t := &floatTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -57,62 +58,40 @@ func (t *floatTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *floatTable) Statistics() flux.Statistics {
+func (t *floatTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
 }
 
 func (t *floatTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *floatTable) advance() bool {
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]float64, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -120,10 +99,9 @@ func (t *floatTable) advance() bool {
 
 type floatGroupTable struct {
 	table
-	valBuf []float64
-	mu     sync.Mutex
-	gc     GroupCursor
-	cur    cursors.FloatArrayCursor
+	mu  sync.Mutex
+	gc  GroupCursor
+	cur cursors.FloatArrayCursor
 }
 
 func newFloatGroupTable(
@@ -135,9 +113,10 @@ func newFloatGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *floatGroupTable {
 	t := &floatGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -161,27 +140,14 @@ func (t *floatGroupTable) Close() {
 }
 
 func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *floatGroupTable) advance() bool {
 RETRY:
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		if t.advanceCursor() {
 			goto RETRY
 		}
@@ -189,24 +155,15 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]float64, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -233,12 +190,12 @@ func (t *floatGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *floatGroupTable) Statistics() flux.Statistics {
+func (t *floatGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -250,9 +207,9 @@ func (t *floatGroupTable) Statistics() flux.Statistics {
 
 type integerTable struct {
 	table
-	valBuf []int64
-	mu     sync.Mutex
-	cur    cursors.IntegerArrayCursor
+	mu    sync.Mutex
+	cur   cursors.IntegerArrayCursor
+	alloc *memory.Allocator
 }
 
 func newIntegerTable(
@@ -263,9 +220,10 @@ func newIntegerTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *integerTable {
 	t := &integerTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -283,62 +241,40 @@ func (t *integerTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *integerTable) Statistics() flux.Statistics {
+func (t *integerTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
 }
 
 func (t *integerTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *integerTable) advance() bool {
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]int64, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -346,10 +282,9 @@ func (t *integerTable) advance() bool {
 
 type integerGroupTable struct {
 	table
-	valBuf []int64
-	mu     sync.Mutex
-	gc     GroupCursor
-	cur    cursors.IntegerArrayCursor
+	mu  sync.Mutex
+	gc  GroupCursor
+	cur cursors.IntegerArrayCursor
 }
 
 func newIntegerGroupTable(
@@ -361,9 +296,10 @@ func newIntegerGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *integerGroupTable {
 	t := &integerGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -387,27 +323,14 @@ func (t *integerGroupTable) Close() {
 }
 
 func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *integerGroupTable) advance() bool {
 RETRY:
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		if t.advanceCursor() {
 			goto RETRY
 		}
@@ -415,24 +338,15 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]int64, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -459,12 +373,12 @@ func (t *integerGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *integerGroupTable) Statistics() flux.Statistics {
+func (t *integerGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -476,9 +390,9 @@ func (t *integerGroupTable) Statistics() flux.Statistics {
 
 type unsignedTable struct {
 	table
-	valBuf []uint64
-	mu     sync.Mutex
-	cur    cursors.UnsignedArrayCursor
+	mu    sync.Mutex
+	cur   cursors.UnsignedArrayCursor
+	alloc *memory.Allocator
 }
 
 func newUnsignedTable(
@@ -489,9 +403,10 @@ func newUnsignedTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *unsignedTable {
 	t := &unsignedTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -509,62 +424,40 @@ func (t *unsignedTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *unsignedTable) Statistics() flux.Statistics {
+func (t *unsignedTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
 }
 
 func (t *unsignedTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *unsignedTable) advance() bool {
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]uint64, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -572,10 +465,9 @@ func (t *unsignedTable) advance() bool {
 
 type unsignedGroupTable struct {
 	table
-	valBuf []uint64
-	mu     sync.Mutex
-	gc     GroupCursor
-	cur    cursors.UnsignedArrayCursor
+	mu  sync.Mutex
+	gc  GroupCursor
+	cur cursors.UnsignedArrayCursor
 }
 
 func newUnsignedGroupTable(
@@ -587,9 +479,10 @@ func newUnsignedGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *unsignedGroupTable {
 	t := &unsignedGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -613,27 +506,14 @@ func (t *unsignedGroupTable) Close() {
 }
 
 func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *unsignedGroupTable) advance() bool {
 RETRY:
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		if t.advanceCursor() {
 			goto RETRY
 		}
@@ -641,24 +521,15 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]uint64, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -685,12 +556,12 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *unsignedGroupTable) Statistics() flux.Statistics {
+func (t *unsignedGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -702,9 +573,9 @@ func (t *unsignedGroupTable) Statistics() flux.Statistics {
 
 type stringTable struct {
 	table
-	valBuf []string
-	mu     sync.Mutex
-	cur    cursors.StringArrayCursor
+	mu    sync.Mutex
+	cur   cursors.StringArrayCursor
+	alloc *memory.Allocator
 }
 
 func newStringTable(
@@ -715,9 +586,10 @@ func newStringTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *stringTable {
 	t := &stringTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -735,62 +607,40 @@ func (t *stringTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *stringTable) Statistics() flux.Statistics {
+func (t *stringTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
 }
 
 func (t *stringTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *stringTable) advance() bool {
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]string, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -798,10 +648,9 @@ func (t *stringTable) advance() bool {
 
 type stringGroupTable struct {
 	table
-	valBuf []string
-	mu     sync.Mutex
-	gc     GroupCursor
-	cur    cursors.StringArrayCursor
+	mu  sync.Mutex
+	gc  GroupCursor
+	cur cursors.StringArrayCursor
 }
 
 func newStringGroupTable(
@@ -813,9 +662,10 @@ func newStringGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *stringGroupTable {
 	t := &stringGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -839,27 +689,14 @@ func (t *stringGroupTable) Close() {
 }
 
 func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *stringGroupTable) advance() bool {
 RETRY:
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		if t.advanceCursor() {
 			goto RETRY
 		}
@@ -867,24 +704,15 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]string, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -911,12 +739,12 @@ func (t *stringGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *stringGroupTable) Statistics() flux.Statistics {
+func (t *stringGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
@@ -928,9 +756,9 @@ func (t *stringGroupTable) Statistics() flux.Statistics {
 
 type booleanTable struct {
 	table
-	valBuf []bool
-	mu     sync.Mutex
-	cur    cursors.BooleanArrayCursor
+	mu    sync.Mutex
+	cur   cursors.BooleanArrayCursor
+	alloc *memory.Allocator
 }
 
 func newBooleanTable(
@@ -941,9 +769,10 @@ func newBooleanTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *booleanTable {
 	t := &booleanTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -961,62 +790,40 @@ func (t *booleanTable) Close() {
 	t.mu.Unlock()
 }
 
-func (t *booleanTable) Statistics() flux.Statistics {
+func (t *booleanTable) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
 }
 
 func (t *booleanTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *booleanTable) advance() bool {
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]bool, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -1024,10 +831,9 @@ func (t *booleanTable) advance() bool {
 
 type booleanGroupTable struct {
 	table
-	valBuf []bool
-	mu     sync.Mutex
-	gc     GroupCursor
-	cur    cursors.BooleanArrayCursor
+	mu  sync.Mutex
+	gc  GroupCursor
+	cur cursors.BooleanArrayCursor
 }
 
 func newBooleanGroupTable(
@@ -1039,9 +845,10 @@ func newBooleanGroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *booleanGroupTable {
 	t := &booleanGroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -1065,27 +872,14 @@ func (t *booleanGroupTable) Close() {
 }
 
 func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *booleanGroupTable) advance() bool {
 RETRY:
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		if t.advanceCursor() {
 			goto RETRY
 		}
@@ -1093,24 +887,15 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]bool, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -1137,12 +922,12 @@ func (t *booleanGroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *booleanGroupTable) Statistics() flux.Statistics {
+func (t *booleanGroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}

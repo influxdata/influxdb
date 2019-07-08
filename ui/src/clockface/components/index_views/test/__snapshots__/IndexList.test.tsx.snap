@@ -69,7 +69,7 @@ exports[`IndexList matches snapshot when 0 rows exist 1`] = `
           >
             <div
               className="index-list--empty-cell"
-              data-test="empty-state"
+              data-testid="empty-state"
             >
               <div>
                 Empty
@@ -146,19 +146,23 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
       >
         <IndexListRow
           disabled={false}
+          testID="table-row"
         >
           <tr
             className="index-list--row"
+            data-testid="table-row"
           >
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   Apple
                 </div>
@@ -167,12 +171,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   500
                 </div>
@@ -182,19 +188,23 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
         </IndexListRow>
         <IndexListRow
           disabled={false}
+          testID="table-row"
         >
           <tr
             className="index-list--row"
+            data-testid="table-row"
           >
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   Pear
                 </div>
@@ -203,12 +213,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   1000
                 </div>
@@ -218,19 +230,23 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
         </IndexListRow>
         <IndexListRow
           disabled={false}
+          testID="table-row"
         >
           <tr
             className="index-list--row"
+            data-testid="table-row"
           >
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   Banana
                 </div>
@@ -239,12 +255,14 @@ exports[`IndexList matches snapshot with minimal props 1`] = `
             <IndexListRowCell
               alignment="left"
               revealOnHover={false}
+              testID="table-cell"
             >
               <td
                 className="index-list--row-cell index-list--align-left"
               >
                 <div
                   className="index-list--cell"
+                  data-testid="table-cell"
                 >
                   100
                 </div>

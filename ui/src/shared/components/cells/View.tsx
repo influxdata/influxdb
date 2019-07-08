@@ -1,5 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import Markdown from 'src/shared/components/views/Markdown'
@@ -7,18 +8,18 @@ import RefreshingView from 'src/shared/components/RefreshingView'
 
 // Types
 import {TimeRange} from 'src/types'
-import {ViewType, ViewShape, View} from 'src/types/v2'
+import {ViewType, ViewShape, View} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface Props {
+interface OwnProps {
   view: View
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   onEditCell: () => void
 }
+
+type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
 class ViewComponent extends Component<Props> {
@@ -27,22 +28,21 @@ class ViewComponent extends Component<Props> {
   }
 
   public render() {
-    const {view, onZoom, timeRange, manualRefresh} = this.props
+    const {view, timeRange, manualRefresh} = this.props
+    const {dashboardID} = this.props.params
 
     switch (view.properties.type) {
       case ViewShape.Empty:
-      case ViewType.LogViewer:
         return this.emptyGraph
       case ViewType.Markdown:
         return <Markdown text={view.properties.note} />
       default:
         return (
           <RefreshingView
-            viewID={view.id}
-            onZoom={onZoom}
             timeRange={timeRange}
             properties={view.properties}
             manualRefresh={manualRefresh}
+            dashboardID={dashboardID}
           />
         )
     }
@@ -62,4 +62,4 @@ class ViewComponent extends Component<Props> {
   }
 }
 
-export default ViewComponent
+export default withRouter<OwnProps>(ViewComponent)

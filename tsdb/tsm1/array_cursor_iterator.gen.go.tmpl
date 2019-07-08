@@ -15,6 +15,9 @@ func (q *arrayCursorIterator) build{{.Name}}ArrayCursor(ctx context.Context, nam
 	key := q.seriesFieldKeyBytes(name, tags, field)
 	cacheValues := q.e.Cache.Values(key)
 	keyCursor := q.e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
+
+	q.e.readTracker.AddSeeks(uint64(keyCursor.seekN()))
+
 	if opt.Ascending {
 		if q.asc.{{.Name}} == nil {
 			q.asc.{{.Name}} = new{{.Name}}ArrayAscendingCursor()

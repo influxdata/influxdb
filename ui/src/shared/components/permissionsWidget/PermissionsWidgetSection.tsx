@@ -2,7 +2,13 @@
 import React, {Component} from 'react'
 
 // Components
-import {Button, ComponentSpacer, Alignment, ComponentSize} from 'src/clockface'
+import {
+  Button,
+  ComponentSize,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
 import PermissionsWidgetItem from 'src/shared/components/permissionsWidget/PermissionsWidgetItem'
 
 // Types
@@ -15,14 +21,18 @@ interface Props {
   title: string
   onSelectAll?: (sectionID: string) => void
   onDeselectAll?: (sectionID: string) => void
+  testID?: string
 }
 
 class PermissionsWidgetSection extends Component<Props> {
   public render() {
-    const {title} = this.props
+    const {title, testID} = this.props
 
     return (
-      <section className="permissions-widget--section">
+      <section
+        className="permissions-widget--section"
+        data-testid={testID || 'permissions-section'}
+      >
         <header className="permissions-widget--section-heading">
           <h3 className="permissions-widget--section-title">{title}</h3>
           {this.selectionButtons}
@@ -51,7 +61,11 @@ class PermissionsWidgetSection extends Component<Props> {
 
     if (mode === PermissionsWidgetMode.Write) {
       return (
-        <ComponentSpacer align={Alignment.Left}>
+        <ComponentSpacer
+          margin={ComponentSize.Small}
+          direction={FlexDirection.Row}
+          justifyContent={JustifyContent.FlexEnd}
+        >
           <Button
             text="Select All"
             size={ComponentSize.ExtraSmall}

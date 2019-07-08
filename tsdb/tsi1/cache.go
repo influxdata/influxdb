@@ -110,11 +110,16 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 	}
 	defer c.Unlock()
 
+	// Ensure our SeriesIDSet is go heap backed.
+	if ss != nil {
+		ss = ss.Clone()
+	}
+
 	// Create list item, and add to the front of the eviction list.
 	listElement := c.evictor.PushFront(&seriesIDCacheElement{
-		name:        name,
-		key:         key,
-		value:       value,
+		name:        string(name),
+		key:         string(key),
+		value:       string(value),
 		SeriesIDSet: ss,
 	})
 
@@ -214,9 +219,9 @@ func (c *TagValueSeriesIDCache) PrometheusCollectors() []prometheus.Collector {
 
 // seriesIDCacheElement is an item stored within a cache.
 type seriesIDCacheElement struct {
-	name        []byte
-	key         []byte
-	value       []byte
+	name        string
+	key         string
+	value       string
 	SeriesIDSet *tsdb.SeriesIDSet
 }
 

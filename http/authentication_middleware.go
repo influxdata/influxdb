@@ -14,24 +14,27 @@ import (
 
 // AuthenticationHandler is a middleware for authenticating incoming requests.
 type AuthenticationHandler struct {
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	AuthorizationService platform.AuthorizationService
 	SessionService       platform.SessionService
+	SessionRenewDisabled bool
 
 	// This is only really used for it's lookup method the specific http
-	// hanlder used to register routes does not matter.
+	// handler used to register routes does not matter.
 	noAuthRouter *httprouter.Router
 
 	Handler http.Handler
 }
 
 // NewAuthenticationHandler creates an authentication handler.
-func NewAuthenticationHandler() *AuthenticationHandler {
+func NewAuthenticationHandler(h platform.HTTPErrorHandler) *AuthenticationHandler {
 	return &AuthenticationHandler{
-		Logger:       zap.NewNop(),
-		Handler:      http.DefaultServeMux,
-		noAuthRouter: httprouter.New(),
+		Logger:           zap.NewNop(),
+		HTTPErrorHandler: h,
+		Handler:          http.DefaultServeMux,
+		noAuthRouter:     httprouter.New(),
 	}
 }
 
@@ -72,7 +75,7 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
-		UnauthorizedError(ctx, w)
+		UnauthorizedError(ctx, h, w)
 		return
 	}
 
@@ -95,7 +98,7 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	UnauthorizedError(ctx, w)
+	UnauthorizedError(ctx, h, w)
 }
 
 func (h *AuthenticationHandler) extractAuthorization(ctx context.Context, r *http.Request) (context.Context, error) {
@@ -123,10 +126,12 @@ func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Requ
 		return ctx, e
 	}
 
-	// if the session is not expired, renew the session
-	e = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
-	if e != nil {
-		return ctx, e
+	if !h.SessionRenewDisabled {
+		// if the session is not expired, renew the session
+		e = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
+		if e != nil {
+			return ctx, e
+		}
 	}
 
 	return platcontext.SetAuthorizer(ctx, s), nil

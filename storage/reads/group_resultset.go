@@ -4,19 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"sort"
 
-	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
 )
 
 type groupResultSet struct {
 	ctx context.Context
-	req *datatypes.ReadRequest
+	req *datatypes.ReadGroupRequest
 	agg *datatypes.Aggregate
 	mb  multiShardCursors
 
@@ -44,7 +43,7 @@ func GroupOptionNilSortLo() GroupOption {
 	}
 }
 
-func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
+func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
 	g := &groupResultSet{
 		ctx:         ctx,
 		req:         req,
@@ -58,7 +57,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadRequest, newCurso
 		o(g)
 	}
 
-	g.mb = newMultiShardArrayCursors(ctx, req.TimestampRange.Start, req.TimestampRange.End, !req.Descending, req.PointsLimit)
+	g.mb = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true, math.MaxInt64)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
@@ -113,30 +112,14 @@ func (g *groupResultSet) Next() GroupCursor {
 }
 
 func (g *groupResultSet) sort() (int, error) {
-	log := logger.LoggerFromContext(g.ctx)
-	if log != nil {
-		var f func()
-		log, f = logger.NewOperation(log, "Sort", "group.sort", zap.String("group_type", g.req.Group.String()))
-		defer f()
-	}
-
-	span := opentracing.SpanFromContext(g.ctx)
-	if span != nil {
-		span = opentracing.StartSpan(
-			"group.sort",
-			opentracing.ChildOf(span.Context()),
-			opentracing.Tag{Key: "group_type", Value: g.req.Group.String()})
-		defer span.Finish()
-	}
+	span, _ := tracing.StartSpanFromContext(g.ctx)
+	defer span.Finish()
+	span.LogKV("group_type", g.req.Group.String())
 
 	n, err := g.sortFn(g)
 
-	if span != nil {
-		span.SetTag("rows", n)
-	}
-
-	if log != nil {
-		log.Info("Sort completed", zap.Int("rows", n))
+	if err != nil {
+		span.LogKV("rows", n)
 	}
 
 	return n, err
@@ -261,7 +244,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 			nr.SeriesTags = tagsBuf.copyTags(nr.SeriesTags)
 			nr.Tags = tagsBuf.copyTags(nr.Tags)
 
-			l := 0
+			l := len(g.keys) // for sort key separators
 			for i, k := range g.keys {
 				vals[i] = nr.Tags.Get(k)
 				if len(vals[i]) == 0 {
@@ -273,6 +256,7 @@ func groupBySort(g *groupResultSet) (int, error) {
 			nr.SortKey = make([]byte, 0, l)
 			for _, v := range vals {
 				nr.SortKey = append(nr.SortKey, v...)
+				nr.SortKey = append(nr.SortKey, ',')
 			}
 
 			rows = append(rows, &nr)

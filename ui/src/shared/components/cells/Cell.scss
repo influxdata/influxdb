@@ -3,8 +3,6 @@
   ------------------------------------------------------------------------------
 */
 
-@import 'src/style/modules';
-
 $cell--header-size: 36px;
 
 .cell {
@@ -25,28 +23,47 @@ $cell--header-size: 36px;
   z-index: $z--cell-view;
 
   > .single-stat {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
     border-radius: $radius;
   }
 
   .time-machine-tables {
     padding-top: 0;
   }
+
+  .vis-plot-container {
+    padding-top: $ix-marg-a;
+  }
+}
+
+.empty-graph-error--copy {
+  z-index: 1;
+  float: right;
 }
 
 .cell--view-empty {
   width: 100%;
   height: 100%;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  align-content: center;
   color: $empty-state-text;
   @extend %no-user-select;
+  padding: 0 $ix-marg-d $ix-marg-d $ix-marg-d;
+  overflow: hidden;
+
+  &.error {
+    font-size: 40px;
+    color: $c-dreamsicle;
+  }
+}
+
+.cell--error-message {
+  white-space: normal;
+}
+
+.dashboard .cell--view-empty .empty-graph-error {
+    top: $ix-marg-c + $cell--header-size;
 }
 
 .cell--header {
@@ -84,7 +101,7 @@ $cell--header-size: 36px;
   transform: translateY(-50%);
   width: 100%;
   pointer-events: none;
-  
+
   .cell--header-note & {
     padding-left: $cell--header-size;
   }
@@ -151,6 +168,16 @@ $cell--header-size: 36px;
   .cell--header:hover .cell--header-bar {
     opacity: 1;
   }
+}
+
+.vis-plot-container {
+  width: 100%;
+  height: 100%;
+  padding: $ix-marg-c;
+}
+
+.giraffe-tooltip-container {
+  z-index: $z--dygraph-legend;
 }
 
 /* Drag & Resize State */

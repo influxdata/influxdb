@@ -5,6 +5,7 @@ import (
 	"context"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
@@ -33,6 +34,7 @@ var organizationCmpOptions = cmp.Options{
 type OrganizationFields struct {
 	IDGenerator   platform.IDGenerator
 	Organizations []*platform.Organization
+	TimeGenerator platform.TimeGenerator
 }
 
 // OrganizationService tests all the service functions.
@@ -99,19 +101,26 @@ func CreateOrganization(
 			name: "create organizations with empty set",
 			fields: OrganizationFields{
 				IDGenerator:   mock.NewIDGenerator(orgOneID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{},
 			},
 			args: args{
 				organization: &platform.Organization{
-					Name: "name1",
-					ID:   MustIDBase16(orgOneID),
+					Name:        "name1",
+					ID:          MustIDBase16(orgOneID),
+					Description: "desc1",
 				},
 			},
 			wants: wants{
 				organizations: []*platform.Organization{
 					{
-						Name: "name1",
-						ID:   MustIDBase16(orgOneID),
+						Name:        "name1",
+						ID:          MustIDBase16(orgOneID),
+						Description: "desc1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 				},
 			},
@@ -119,7 +128,8 @@ func CreateOrganization(
 		{
 			name: "basic create organization",
 			fields: OrganizationFields{
-				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
@@ -142,14 +152,74 @@ func CreateOrganization(
 					{
 						ID:   MustIDBase16(orgTwoID),
 						Name: "organization2",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 				},
 			},
 		},
 		{
+			name: "empty name",
+			fields: OrganizationFields{
+				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+			},
+			args: args{
+				organization: &platform.Organization{
+					ID: MustIDBase16(orgOneID),
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
+			name: "name only have spaces",
+			fields: OrganizationFields{
+				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+			},
+			args: args{
+				organization: &platform.Organization{
+					ID:   MustIDBase16(orgOneID),
+					Name: "  ",
+				},
+			},
+			wants: wants{
+				organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+				},
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
 			name: "names should be unique",
 			fields: OrganizationFields{
-				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
@@ -180,7 +250,8 @@ func CreateOrganization(
 		{
 			name: "create organization with no id",
 			fields: OrganizationFields{
-				IDGenerator: mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
@@ -202,6 +273,10 @@ func CreateOrganization(
 					{
 						ID:   MustIDBase16(orgTwoID),
 						Name: "organization2",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 				},
 			},
@@ -346,8 +421,9 @@ func FindOrganizations(
 						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
-						Name: "xyz",
+						ID:          MustIDBase16(orgTwoID),
+						Name:        "xyz",
+						Description: "desc xyz",
 					},
 				},
 			},
@@ -359,8 +435,9 @@ func FindOrganizations(
 						Name: "abc",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
-						Name: "xyz",
+						ID:          MustIDBase16(orgTwoID),
+						Name:        "xyz",
+						Description: "desc xyz",
 					},
 				},
 			},
@@ -603,6 +680,7 @@ func FindOrganization(
 ) {
 	type args struct {
 		name string
+		id   platform.ID
 	}
 
 	type wants struct {
@@ -641,6 +719,45 @@ func FindOrganization(
 			},
 		},
 		{
+			name: "find organization in which no name filter matches should return no org",
+			args: args{
+				name: "unknown",
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Op:   platform.OpFindOrganization,
+					Msg:  "organization name \"unknown\" not found",
+				},
+			},
+		},
+		{
+			name: "find organization in which no id filter matches should return no org",
+			args: args{
+				id: platform.ID(3),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.ENotFound,
+					Msg:  "organization not found",
+				},
+			},
+		},
+		{
+			name: "find organization no filter is set returns an error about filters not provided",
+			fields: OrganizationFields{
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "o1",
+					},
+				},
+			},
+			wants: wants{
+				err: platform.ErrInvalidOrgFilter,
+			},
+		},
+		{
 			name: "missing organization returns error",
 			fields: OrganizationFields{
 				Organizations: []*platform.Organization{},
@@ -667,6 +784,9 @@ func FindOrganization(
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
+			if tt.args.id != platform.InvalidID() {
+				filter.ID = &tt.args.id
+			}
 
 			organization, err := s.FindOrganization(ctx, filter)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
@@ -684,8 +804,9 @@ func UpdateOrganization(
 	t *testing.T,
 ) {
 	type args struct {
-		name string
-		id   platform.ID
+		id          platform.ID
+		name        *string
+		description *string
 	}
 	type wants struct {
 		err          error
@@ -701,6 +822,7 @@ func UpdateOrganization(
 		{
 			name: "update id not exists",
 			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
@@ -714,7 +836,7 @@ func UpdateOrganization(
 			},
 			args: args{
 				id:   MustIDBase16(threeID),
-				name: "changed",
+				name: strPtr("changed"),
 			},
 			wants: wants{
 				err: &platform.Error{
@@ -727,6 +849,7 @@ func UpdateOrganization(
 		{
 			name: "update name",
 			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*platform.Organization{
 					{
 						ID:   MustIDBase16(orgOneID),
@@ -740,12 +863,120 @@ func UpdateOrganization(
 			},
 			args: args{
 				id:   MustIDBase16(orgOneID),
-				name: "changed",
+				name: strPtr("changed"),
 			},
 			wants: wants{
 				organization: &platform.Organization{
 					ID:   MustIDBase16(orgOneID),
 					Name: "changed",
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
+			name: "update name not unique",
+			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr("organization2"),
+			},
+			wants: wants{
+				err: &platform.Error{
+					Code: platform.EConflict,
+					Op:   platform.OpUpdateOrganization,
+					Msg:  "organization with name organization2 already exists",
+				},
+			},
+		},
+		{
+			name: "update name is empty",
+			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr(""),
+			},
+			wants: wants{
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
+			name: "update name only has space",
+			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*platform.Organization{
+					{
+						ID:   MustIDBase16(orgOneID),
+						Name: "organization1",
+					},
+					{
+						ID:   MustIDBase16(orgTwoID),
+						Name: "organization2",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(orgOneID),
+				name: strPtr("            "),
+			},
+			wants: wants{
+				err: platform.ErrOrgNameisEmpty,
+			},
+		},
+		{
+			name: "update description",
+			fields: OrganizationFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*platform.Organization{
+					{
+						ID:          MustIDBase16(orgOneID),
+						Name:        "organization1",
+						Description: "organization1 description",
+					},
+					{
+						ID:          MustIDBase16(orgTwoID),
+						Name:        "organization2",
+						Description: "organization2 description",
+					},
+				},
+			},
+			args: args{
+				id:          MustIDBase16(orgOneID),
+				description: strPtr("changed"),
+			},
+			wants: wants{
+				organization: &platform.Organization{
+					ID:          MustIDBase16(orgOneID),
+					Name:        "organization1",
+					Description: "changed",
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
 				},
 			},
 		},
@@ -758,9 +989,8 @@ func UpdateOrganization(
 			ctx := context.Background()
 
 			upd := platform.OrganizationUpdate{}
-			if tt.args.name != "" {
-				upd.Name = &tt.args.name
-			}
+			upd.Name = tt.args.name
+			upd.Description = tt.args.description
 
 			organization, err := s.UpdateOrganization(ctx, tt.args.id, upd)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)

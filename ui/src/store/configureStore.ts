@@ -8,44 +8,60 @@ import {resizeLayout} from 'src/shared/middleware/resizeLayout'
 import {queryStringConfig} from 'src/shared/middleware/queryStringConfig'
 import sharedReducers from 'src/shared/reducers'
 import persistStateEnhancer from './persistStateEnhancer'
-import sourcesReducer from 'src/sources/reducers'
 
 // v2 reducers
-import meReducer from 'src/shared/reducers/v2/me'
-import tasksReducer from 'src/tasks/reducers/v2'
-import rangesReducer from 'src/dashboards/reducers/v2/ranges'
-import dashboardsReducer from 'src/dashboards/reducers/v2/dashboards'
-import viewsReducer from 'src/dashboards/reducers/v2/views'
-import logsReducer from 'src/logs/reducers'
+import meReducer from 'src/shared/reducers/me'
+import tasksReducer from 'src/tasks/reducers'
+import rangesReducer from 'src/dashboards/reducers/ranges'
+import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
+import viewsReducer from 'src/dashboards/reducers/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import orgsReducer from 'src/organizations/reducers/orgs'
 import onboardingReducer from 'src/onboarding/reducers'
-import noteEditorReducer from 'src/dashboards/reducers/v2/notes'
+import noteEditorReducer from 'src/dashboards/reducers/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
-import protosReducer from 'src/protos/reducers'
+import {variablesReducer} from 'src/variables/reducers'
+import {labelsReducer} from 'src/labels/reducers'
+import {bucketsReducer} from 'src/buckets/reducers'
+import {telegrafsReducer} from 'src/telegrafs/reducers'
+import {authorizationsReducer} from 'src/authorizations/reducers'
+import templatesReducer from 'src/templates/reducers'
+import {scrapersReducer} from 'src/scrapers/reducers'
+import {userSettingsReducer} from 'src/userSettings/reducers'
+import {membersReducer} from 'src/members/reducers'
+import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
+import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
-import {AppState} from 'src/types/v2'
+import {AppState} from 'src/types'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
 export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
   ranges: rangesReducer,
+  autoRefresh: autoRefreshReducer,
   dashboards: dashboardsReducer,
   timeMachines: timeMachinesReducer,
   routing: routerReducer,
-  sources: sourcesReducer,
   views: viewsReducer,
-  logs: logsReducer,
   tasks: tasksReducer,
   orgs: orgsReducer,
   me: meReducer,
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
-  protos: protosReducer,
+  variables: variablesReducer,
+  labels: labelsReducer,
+  buckets: bucketsReducer,
+  telegrafs: telegrafsReducer,
+  tokens: authorizationsReducer,
+  scrapers: scrapersReducer,
+  templates: templatesReducer,
+  userSettings: userSettingsReducer,
+  members: membersReducer,
+  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
   VERSION: () => '',
 })
 

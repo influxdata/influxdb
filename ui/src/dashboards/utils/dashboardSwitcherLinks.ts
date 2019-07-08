@@ -1,5 +1,5 @@
 import {Dashboard} from '@influxdata/influx'
-import {DashboardSwitcherLinks} from 'src/types/v2/dashboards'
+import {DashboardSwitcherLinks} from 'src/types/dashboards'
 
 export const EMPTY_LINKS = {
   links: [],

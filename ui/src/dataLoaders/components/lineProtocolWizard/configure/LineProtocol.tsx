@@ -5,9 +5,9 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import LineProtocolTabs from 'src/dataLoaders/components/lineProtocolWizard/configure/LineProtocolTabs'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
-import {Form} from 'src/clockface'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
 // Actions
@@ -20,8 +20,8 @@ import {
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
-import {AppState} from 'src/types/v2/index'
+import {LineProtocolTab} from 'src/types/dataLoaders'
+import {AppState} from 'src/types/index'
 import {WritePrecision} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
@@ -53,19 +53,19 @@ export class LineProtocol extends PureComponent<Props> {
     return (
       <div className="onboarding-step">
         <Form onSubmit={this.handleSubmit}>
-          <div className="wizard-step--scroll-area">
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <h3 className="wizard-step--title">
-                  Add Data via Line Protocol
-                </h3>
-                <h5 className="wizard-step--sub-title">
-                  Need help writing InfluxDB Line Protocol? See Documentation
-                </h5>
-                {this.content}
-              </div>
-            </FancyScrollbar>
-          </div>
+          <FancyScrollbar
+            autoHide={true}
+            className="wizard-step--scroll-content"
+          >
+            <div>
+              <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
+              <h5 className="wizard-step--lp-sub-title">
+                Need help writing InfluxDB Line Protocol? See Documentation
+              </h5>
+
+              {this.content}
+            </div>
+          </FancyScrollbar>
           <OnboardingButtons autoFocusNext={true} />
         </Form>
       </div>
@@ -83,33 +83,30 @@ export class LineProtocol extends PureComponent<Props> {
         tabs={this.LineProtocolTabs}
         bucket={bucket}
         org={org}
-        handleSubmit={this.handleSubmit}
       />
     )
   }
 
-  private handleSubmit = async () => {
-    const {
-      bucket,
-      org,
-      writeLineProtocolAction,
-      lineProtocolBody,
-      precision,
-      onIncrementCurrentStepIndex,
-    } = this.props
-
-    writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
+  private handleSubmit = () => {
+    const {onIncrementCurrentStepIndex} = this.props
+    this.handleUpload()
     onIncrementCurrentStepIndex()
+  }
+
+  private handleUpload = async () => {
+    const {bucket, org, lineProtocolBody, precision} = this.props
+    this.props.writeLineProtocolAction(org, bucket, lineProtocolBody, precision)
   }
 }
 
 const mstp = ({
   dataLoading: {
     dataLoaders: {lineProtocolBody, precision},
-    steps: {bucket, org},
+    steps: {bucket},
   },
+  orgs,
 }: AppState): StateProps => {
-  return {lineProtocolBody, precision, bucket, org}
+  return {lineProtocolBody, precision, bucket, org: orgs.org.name}
 }
 
 const mdtp: DispatchProps = {

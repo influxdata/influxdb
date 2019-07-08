@@ -1,23 +1,19 @@
 // Libraries
 import React, {ReactElement, PureComponent} from 'react'
-import {connect} from 'react-redux'
 import {InjectedRouter} from 'react-router'
 
 // APIs
 import {client} from 'src/utils/api'
 
-// Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
-
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SpinnerContainer, TechnoSpinner} from 'src/clockface'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Utils
 import {isOnboardingURL} from 'src/onboarding/utils'
 
 // Types
-import {Notification, NotificationFunc, RemoteDataState} from 'src/types'
+import {RemoteDataState} from 'src/types'
 
 interface State {
   loading: RemoteDataState
@@ -27,7 +23,6 @@ interface State {
 interface Props {
   router: InjectedRouter
   children: ReactElement<any>
-  notify: (message: Notification | NotificationFunc) => void
 }
 
 @ErrorHandling
@@ -74,11 +69,4 @@ export class Setup extends PureComponent<Props, State> {
   }
 }
 
-const mdtp = {
-  notify: notifyAction,
-}
-
-export default connect(
-  null,
-  mdtp
-)(Setup)
+export default Setup

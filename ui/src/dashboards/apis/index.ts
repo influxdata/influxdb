@@ -1,102 +1,112 @@
-import AJAX from 'src/utils/ajax'
+// Libraries
+import _ from 'lodash'
 
-import {AxiosResponse} from 'axios'
-import {DashboardsResponse, GetDashboards} from 'src/types/apis/dashboards'
+// Types
+import {Cell, NewCell, Dashboard, View} from 'src/types'
 
-export const getDashboards: GetDashboards = () => {
-  return AJAX<DashboardsResponse>({
-    method: 'GET',
-    resource: 'dashboards',
-  }) as Promise<AxiosResponse<DashboardsResponse>>
-}
+import {Cell as CellAPI, CreateDashboardRequest} from '@influxdata/influx'
+import {client} from 'src/utils/api'
 
-export const getDashboard = async dashboardID => {
-  try {
-    return await AJAX({
-      method: 'GET',
-      url: `/chronograf/v1/dashboards/${dashboardID}`,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
-}
-
-export const updateDashboard = dashboard => {
-  return AJAX({
-    method: 'PUT',
-    url: dashboard.links.self,
-    data: dashboard,
+export const addDashboardIDToCells = (
+  cells: CellAPI[],
+  dashboardID: string
+): Cell[] => {
+  return cells.map(c => {
+    return {...c, dashboardID}
   })
 }
 
-export const updateDashboardCell = cell => {
-  return AJAX({
-    method: 'PUT',
-    url: cell.links.self,
-    data: cell,
-  })
+// TODO(desa): what to do about getting dashboards from another v2 source
+export const getDashboards = async (orgID: string): Promise<Dashboard[]> => {
+  const dashboards = await client.dashboards.getAll(orgID)
+
+  return dashboards.map(d => ({
+    ...d,
+    cells: addDashboardIDToCells(d.cells, d.id),
+  }))
 }
 
-export const createDashboard = async dashboard => {
-  try {
-    return await AJAX({
-      method: 'POST',
-      resource: 'dashboards',
-      data: dashboard,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
+export const getDashboard = async (id: string): Promise<Dashboard> => {
+  const dashboard = await client.dashboards.get(id)
+
+  return {
+    ...dashboard,
+    cells: addDashboardIDToCells(dashboard.cells, dashboard.id),
   }
 }
 
-export const deleteDashboard = async dashboard => {
-  try {
-    return await AJAX({
-      method: 'DELETE',
-      url: dashboard.links.self,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
+export const createDashboard = async (
+  props: CreateDashboardRequest
+): Promise<Dashboard> => {
+  const dashboard = await client.dashboards.create(props)
+
+  return {
+    ...dashboard,
+    cells: addDashboardIDToCells(dashboard.cells, dashboard.id),
   }
 }
 
-export const addDashboardCell = async (dashboard, cell) => {
-  try {
-    return await AJAX({
-      method: 'POST',
-      url: dashboard.links.cells,
-      data: cell,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
+export const deleteDashboard = async (dashboard: Dashboard): Promise<void> => {
+  await client.dashboards.delete(dashboard.id)
+}
+
+export const updateDashboard = async (
+  dashboard: Dashboard
+): Promise<Dashboard> => {
+  const updated = await client.dashboards.update(dashboard.id, dashboard)
+
+  return {
+    ...updated,
+    cells: addDashboardIDToCells(updated.cells, updated.id),
   }
 }
 
-export const deleteDashboardCell = async cell => {
-  try {
-    return await AJAX({
-      method: 'DELETE',
-      url: cell.links.self,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+export const addCell = async (
+  dashboardID: string,
+  cell: NewCell
+): Promise<Cell> => {
+  const result = await client.dashboards.createCell(dashboardID, cell)
+
+  const cellWithID = {...result, dashboardID}
+
+  return cellWithID
 }
 
-export const editTemplateVariables = async templateVariable => {
-  try {
-    return await AJAX({
-      method: 'PUT',
-      url: templateVariable.links.self,
-      data: templateVariable,
-    })
-  } catch (error) {
-    console.error(error)
-    throw error
-  }
+export const updateCells = async (
+  id: string,
+  cells: Cell[]
+): Promise<Cell[]> => {
+  const result = await client.dashboards.updateAllCells(id, cells)
+
+  return addDashboardIDToCells(result, id)
+}
+
+export const deleteCell = async (
+  dashboardID: string,
+  cell: Cell
+): Promise<void> => {
+  await client.dashboards.deleteCell(dashboardID, cell.id)
+}
+
+export const getView = async (
+  dashboardID: string,
+  cellID: string
+): Promise<View> => {
+  const data = await client.dashboards.getView(dashboardID, cellID)
+
+  const view: View = {...data, dashboardID, cellID}
+
+  return view
+}
+
+export const updateView = async (
+  dashboardID: string,
+  cellID: string,
+  view: Partial<View>
+): Promise<View> => {
+  const data = await client.dashboards.updateView(dashboardID, cellID, view)
+
+  const viewWithIDs: View = {...data, dashboardID, cellID}
+
+  return viewWithIDs
 }

@@ -2,63 +2,61 @@
 import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
-// APIs
-import {client} from 'src/utils/api'
-
 // Components
 import {
-  ComponentSpacer,
   Form,
-  Grid,
-  Columns,
-  Input,
   Radio,
-  ButtonShape,
+  Input,
   Button,
-  ComponentColor,
-  ButtonType,
-} from 'src/clockface'
-import TaskOptionsOrgDropdown from 'src/tasks/components/TasksOptionsOrgDropdown'
-import TaskOptionsOrgIDDropdown from 'src/tasks/components/TasksOptionsOrgIDDropdown'
+  ComponentSpacer,
+  Grid,
+} from '@influxdata/clockface'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
-import GetOrgResources from 'src/organizations/components/GetOrgResources'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
+import {
+  Columns,
+  ButtonType,
+  ButtonShape,
+  ComponentColor,
+  ComponentStatus,
+  FlexDirection,
+  AlignItems,
+  ComponentSize,
+} from '@influxdata/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Alignment, Stack, ComponentStatus} from 'src/clockface/types'
-import {Organization, Bucket} from '@influxdata/influx'
-
-// Styles
-import './TaskForm.scss'
+import {Authorization} from '@influxdata/influx'
+import TaskTokenDropdown from './TaskTokenDropdown'
 
 interface Props {
-  orgs: Organization[]
   taskOptions: TaskOptions
+  isInOverlay: boolean
+  canSubmit: boolean
+  onSubmit: () => void
+  dismiss: () => void
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
-  onChangeTaskOrgID: (orgID: string) => void
-  onChangeToOrgName: (orgName: string) => void
   onChangeToBucketName: (bucketName: string) => void
-  isInOverlay?: boolean
-  onSubmit?: () => void
-  canSubmit?: boolean
-  dismiss?: () => void
+  tokens: Authorization[]
+  selectedToken: Authorization
+  onTokenChange: (token: Authorization) => void
 }
 
 interface State {
   schedule: TaskSchedule
 }
 
-const getBuckets = (org: Organization) => client.buckets.getAllByOrg(org)
-
 export default class TaskForm extends PureComponent<Props, State> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     isInOverlay: false,
-    onSubmit: () => {},
     canSubmit: true,
+    onSubmit: () => {},
     dismiss: () => {},
+    onChangeToBucketName: () => {},
   }
+
   constructor(props: Props) {
     super(props)
 
@@ -70,8 +68,6 @@ export default class TaskForm extends PureComponent<Props, State> {
   public render() {
     const {
       onChangeInput,
-      onChangeTaskOrgID,
-      onChangeToOrgName,
       onChangeToBucketName,
       taskOptions: {
         name,
@@ -79,12 +75,12 @@ export default class TaskForm extends PureComponent<Props, State> {
         interval,
         offset,
         cron,
-        orgID,
-        toOrgName,
         toBucketName,
       },
-      orgs,
       isInOverlay,
+      tokens,
+      onTokenChange,
+      selectedToken,
     } = this.props
 
     return (
@@ -101,20 +97,12 @@ export default class TaskForm extends PureComponent<Props, State> {
                 />
               </Form.Element>
             </Grid.Column>
-            <Grid.Column widthXS={Columns.Twelve}>
-              <Form.Element label="Owner">
-                <TaskOptionsOrgIDDropdown
-                  orgs={orgs}
-                  selectedOrgID={orgID}
-                  onChangeOrgID={onChangeTaskOrgID}
-                />
-              </Form.Element>
-            </Grid.Column>
             <Grid.Column>
               <Form.Element label="Schedule Task">
                 <ComponentSpacer
-                  align={Alignment.Left}
-                  stackChildren={Stack.Rows}
+                  direction={FlexDirection.Column}
+                  alignItems={AlignItems.FlexStart}
+                  margin={ComponentSize.Small}
                 >
                   <Radio shape={ButtonShape.StretchToFit}>
                     <Radio.Button
@@ -147,33 +135,24 @@ export default class TaskForm extends PureComponent<Props, State> {
               offset={offset}
               cron={cron}
             />
-            {isInOverlay && (
-              <Grid.Column widthXS={Columns.Six}>
-                <Form.Element label="Output Organization">
-                  <TaskOptionsOrgDropdown
-                    orgs={orgs}
-                    selectedOrgName={toOrgName}
-                    onChangeOrgName={onChangeToOrgName}
-                  />
-                </Form.Element>
-              </Grid.Column>
-            )}
+            <Grid.Column widthXS={Columns.Twelve}>
+              <Form.Element label="Token">
+                <TaskTokenDropdown
+                  tokens={tokens}
+                  onTokenChange={onTokenChange}
+                  selectedToken={selectedToken}
+                />
+              </Form.Element>
+            </Grid.Column>
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Six}>
                 <Form.Element label="Output Bucket">
-                  <GetOrgResources<Bucket[]>
-                    organization={this.toOrganization}
-                    fetcher={getBuckets}
-                  >
-                    {(buckets, loading) => (
-                      <TaskOptionsBucketDropdown
-                        buckets={buckets}
-                        selectedBucketName={toBucketName}
-                        onChangeBucketName={onChangeToBucketName}
-                        loading={loading}
-                      />
-                    )}
-                  </GetOrgResources>
+                  <GetResources resource={ResourceTypes.Buckets}>
+                    <TaskOptionsBucketDropdown
+                      selectedBucketName={toBucketName}
+                      onChangeBucketName={onChangeToBucketName}
+                    />
+                  </GetResources>
                 </Form.Element>
               </Grid.Column>
             )}
@@ -182,15 +161,6 @@ export default class TaskForm extends PureComponent<Props, State> {
         </Grid>
       </Form>
     )
-  }
-
-  private get toOrganization(): Organization {
-    const {
-      orgs,
-      taskOptions: {toOrgName},
-    } = this.props
-    const toOrg = orgs.find(o => o.name === toOrgName)
-    return toOrg
   }
 
   private get buttons(): JSX.Element {
@@ -205,7 +175,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             type={ButtonType.Button}
           />
           <Button
-            text={'Save as Task'}
+            text="Save as Task"
             color={ComponentColor.Success}
             type={ButtonType.Submit}
             onClick={onSubmit}

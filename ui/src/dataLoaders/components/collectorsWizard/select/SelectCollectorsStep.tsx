@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
+import {Form} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {ComponentStatus, Form} from 'src/clockface'
 import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/select/StreamingSelector'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
@@ -18,10 +18,11 @@ import {
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
 
 // Types
-import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {TelegrafPlugin, BundleName} from 'src/types/v2/dataLoaders'
 import {Bucket} from '@influxdata/influx'
-import {AppState} from 'src/types/v2'
+import {ComponentStatus} from '@influxdata/clockface'
+import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
+import {TelegrafPlugin, BundleName} from 'src/types/dataLoaders'
+import {AppState} from 'src/types'
 
 export interface OwnProps extends CollectorsStepProps {
   buckets: Bucket[]
@@ -45,33 +46,38 @@ type Props = OwnProps & StateProps & DispatchProps
 export class SelectCollectorsStep extends PureComponent<Props> {
   public render() {
     return (
-      <div className="onboarding-step">
-        <h3 className="wizard-step--title">What do you want to monitor?</h3>
-        <h5 className="wizard-step--sub-title">
-          Telegraf is a plugin-based data collection agent which writes metrics
-          to a bucket in InfluxDB
-        </h5>
-        <Form onSubmit={this.props.onIncrementCurrentStepIndex}>
-          <div className="wizard-step--scroll-area">
-            <FancyScrollbar autoHide={false}>
-              <div className="wizard-step--scroll-content">
-                <StreamingSelector
-                  pluginBundles={this.props.pluginBundles}
-                  telegrafPlugins={this.props.telegrafPlugins}
-                  onTogglePluginBundle={this.handleTogglePluginBundle}
-                  buckets={this.props.buckets}
-                  bucket={this.props.bucket}
-                  onSelectBucket={this.handleSelectBucket}
-                />
-              </div>
-            </FancyScrollbar>
+      <Form
+        onSubmit={this.props.onIncrementCurrentStepIndex}
+        className="data-loading--form"
+      >
+        <FancyScrollbar
+          autoHide={false}
+          className="data-loading--scroll-content"
+        >
+          <div>
+            <h3 className="wizard-step--title">What do you want to monitor?</h3>
+            <h5 className="wizard-step--sub-title">
+              Telegraf is a plugin-based data collection agent which writes
+              metrics to a bucket in InfluxDB
+            </h5>
           </div>
-          <OnboardingButtons
-            autoFocusNext={true}
-            nextButtonStatus={this.nextButtonStatus}
-          />
-        </Form>
-      </div>
+          {!!this.props.bucket && (
+            <StreamingSelector
+              pluginBundles={this.props.pluginBundles}
+              telegrafPlugins={this.props.telegrafPlugins}
+              onTogglePluginBundle={this.handleTogglePluginBundle}
+              buckets={this.props.buckets}
+              selectedBucketName={this.props.bucket}
+              onSelectBucket={this.handleSelectBucket}
+            />
+          )}
+        </FancyScrollbar>
+        <OnboardingButtons
+          autoFocusNext={true}
+          nextButtonStatus={this.nextButtonStatus}
+          className="data-loading--button-container"
+        />
+      </Form>
     )
   }
 
@@ -90,9 +96,9 @@ export class SelectCollectorsStep extends PureComponent<Props> {
   }
 
   private handleSelectBucket = (bucket: Bucket) => {
-    const {organization, organizationID, id, name} = bucket
+    const {orgID, id, name} = bucket
 
-    this.props.onSetBucketInfo(organization, organizationID, name, id)
+    this.props.onSetBucketInfo(orgID, name, id)
   }
 
   private handleTogglePluginBundle = (

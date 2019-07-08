@@ -19,7 +19,6 @@ type Config struct {
 	Dir                            string        `toml:"dir"`
 	WALDir                         string        `toml:"wal-dir"`
 	WALFsyncDelay                  toml.Duration `toml:"wal-fsync-delay"`
-	ValidateKeys                   bool          `toml:"validate-keys"`
 	CacheMaxMemorySize             toml.Size     `toml:"cache-max-memory-size"`
 	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
@@ -27,7 +26,6 @@ type Config struct {
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
 	MaxConcurrentCompactions       int           `toml:"max-concurrent-compactions"`
-	TraceLoggingEnabled            bool          `toml:"trace-logging-enabled"`
 	TSMWillNeed                    bool          `toml:"tsm-use-madv-willneed"`
 }
 
@@ -35,7 +33,6 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		WALFsyncDelay:                  toml.Duration(tsm1.DefaultWALFsyncDelay),
-		ValidateKeys:                   storage.DefaultValidateKeys,
 		CacheMaxMemorySize:             toml.Size(tsm1.DefaultCacheMaxMemorySize),
 		CacheSnapshotMemorySize:        toml.Size(tsm1.DefaultCacheSnapshotMemorySize),
 		CacheSnapshotWriteColdDuration: toml.Duration(tsm1.DefaultCacheSnapshotWriteColdDuration),
@@ -43,7 +40,6 @@ func NewConfig() Config {
 		CompactThroughput:              toml.Size(tsm1.DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(tsm1.DefaultCompactThroughputBurst),
 		MaxConcurrentCompactions:       tsm1.DefaultCompactMaxConcurrent,
-		TraceLoggingEnabled:            storage.DefaultTraceLoggingEnabled,
 		TSMWillNeed:                    tsm1.DefaultMADVWillNeed,
 	}
 }
@@ -52,8 +48,6 @@ func NewConfig() Config {
 // of the Dir key so that it can be passed through appropriately to the storage engine constructor.
 func Convert(oldConfig Config) (string, storage.Config) {
 	newConfig := storage.NewConfig()
-	newConfig.TraceLoggingEnabled = oldConfig.TraceLoggingEnabled
-	newConfig.ValidateKeys = oldConfig.ValidateKeys
 	newConfig.Engine.MADVWillNeed = oldConfig.TSMWillNeed
 	newConfig.Engine.Cache.MaxMemorySize = oldConfig.CacheMaxMemorySize
 	newConfig.Engine.Cache.SnapshotMemorySize = oldConfig.CacheSnapshotMemorySize

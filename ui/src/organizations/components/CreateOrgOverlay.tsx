@@ -1,93 +1,140 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
+import {connect} from 'react-redux'
+import {WithRouterProps, withRouter} from 'react-router'
+
+import _ from 'lodash'
 
 // Components
-import {
-  Form,
-  OverlayBody,
-  OverlayHeading,
-  OverlayContainer,
-  Input,
-  Button,
-  ComponentColor,
-  ComponentStatus,
-  ButtonType,
-} from 'src/clockface'
+import {Form, Input, Button, Overlay} from '@influxdata/clockface'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {createOrg} from 'src/organizations/actions'
+import {Organization, Bucket} from '@influxdata/influx'
+import {
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
-interface Props {
-  link: string
-  onCreateOrg: typeof createOrg
-  onCloseModal: () => void
+// Actions
+import {createOrgWithBucket} from 'src/organizations/actions/orgs'
+
+interface OwnProps {}
+
+interface DispatchProps {
+  createOrgWithBucket: typeof createOrgWithBucket
 }
+
+type Props = OwnProps & DispatchProps & WithRouterProps
 
 interface State {
   org: Organization
-  nameInputStatus: ComponentStatus
-  errorMessage: string
+  bucket: Bucket
+  orgNameInputStatus: ComponentStatus
+  bucketNameInputStatus: ComponentStatus
+  orgErrorMessage: string
+  bucketErrorMessage: string
 }
 
-export default class CreateOrgOverlay extends PureComponent<Props, State> {
+class CreateOrgOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
       org: {name: ''},
-      nameInputStatus: ComponentStatus.Default,
-      errorMessage: '',
+      bucket: {name: '', retentionRules: []},
+      orgNameInputStatus: ComponentStatus.Default,
+      bucketNameInputStatus: ComponentStatus.Default,
+      orgErrorMessage: '',
+      bucketErrorMessage: '',
     }
   }
 
   public render() {
-    const {onCloseModal} = this.props
-    const {org, nameInputStatus, errorMessage} = this.state
+    const {
+      org,
+      orgNameInputStatus,
+      orgErrorMessage,
+      bucket,
+      bucketNameInputStatus,
+      bucketErrorMessage,
+    } = this.state
 
     return (
-      <OverlayContainer>
-        <OverlayHeading
-          title="Create Organization"
-          onDismiss={this.props.onCloseModal}
-        />
-        <OverlayBody>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={500}>
+          <Overlay.Header
+            title="Create Organization"
+            onDismiss={this.closeModal}
+          />
           <Form onSubmit={this.handleCreateOrg}>
-            <Form.Element label="Name" errorMessage={errorMessage}>
-              <Input
-                placeholder="Give your organization a name"
-                name="name"
-                autoFocus={true}
-                value={org.name}
-                onChange={this.handleChangeInput}
-                status={nameInputStatus}
-              />
-            </Form.Element>
-            <Form.Footer>
-              <Button
-                text="Cancel"
-                color={ComponentColor.Danger}
-                onClick={onCloseModal}
-              />
+            <Overlay.Body>
+              <Form.Element
+                label="Organization Name"
+                errorMessage={orgErrorMessage}
+              >
+                <Input
+                  placeholder="Give your organization a name"
+                  name="name"
+                  autoFocus={true}
+                  value={org.name}
+                  onChange={this.handleChangeOrgInput}
+                  status={orgNameInputStatus}
+                  testID="create-org-name-input"
+                />
+              </Form.Element>
+              <Form.Element
+                label="Bucket Name"
+                errorMessage={bucketErrorMessage}
+              >
+                <Input
+                  placeholder="Give your bucket a name"
+                  name="name"
+                  autoFocus={false}
+                  value={bucket.name}
+                  onChange={this.handleChangeBucketInput}
+                  status={bucketNameInputStatus}
+                  testID="create-org-name-input"
+                />
+              </Form.Element>
+            </Overlay.Body>
+            <Overlay.Footer>
+              <Button text="Cancel" onClick={this.closeModal} />
               <Button
                 text="Create"
                 type={ButtonType.Submit}
                 color={ComponentColor.Primary}
+                status={this.submitButtonStatus}
+                testID="create-org-submit-button"
               />
-            </Form.Footer>
+            </Overlay.Footer>
           </Form>
-        </OverlayBody>
-      </OverlayContainer>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
-  private handleCreateOrg = async () => {
-    const {org} = this.state
-    const {onCreateOrg, onCloseModal} = this.props
-    await onCreateOrg(org)
-    onCloseModal()
+  private get submitButtonStatus(): ComponentStatus {
+    const {org, bucket} = this.state
+
+    if (org.name && bucket.name) {
+      return ComponentStatus.Default
+    }
+
+    return ComponentStatus.Disabled
   }
 
-  private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
+  private handleCreateOrg = async () => {
+    const {org, bucket} = this.state
+    const {createOrgWithBucket} = this.props
+
+    await createOrgWithBucket(org, bucket)
+  }
+
+  private closeModal = () => {
+    this.props.router.goBack()
+  }
+
+  private handleChangeOrgInput = (e: ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
     const key = e.target.name
     const org = {...this.state.org, [key]: value}
@@ -95,15 +142,59 @@ export default class CreateOrgOverlay extends PureComponent<Props, State> {
     if (!value) {
       return this.setState({
         org,
-        nameInputStatus: ComponentStatus.Error,
-        errorMessage: `Organization ${key} cannot be empty`,
+        orgNameInputStatus: ComponentStatus.Error,
+        orgErrorMessage: this.randomErrorMessage(key, 'organization'),
       })
     }
 
     this.setState({
       org,
-      nameInputStatus: ComponentStatus.Valid,
-      errorMessage: '',
+      orgNameInputStatus: ComponentStatus.Valid,
+      orgErrorMessage: '',
     })
   }
+
+  private handleChangeBucketInput = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    const key = e.target.name
+    const bucket = {...this.state.bucket, [key]: value}
+
+    if (!value) {
+      return this.setState({
+        bucket,
+        bucketNameInputStatus: ComponentStatus.Error,
+        bucketErrorMessage: this.randomErrorMessage(key, 'bucket'),
+      })
+    }
+
+    this.setState({
+      bucket,
+      bucketNameInputStatus: ComponentStatus.Valid,
+      bucketErrorMessage: '',
+    })
+  }
+
+  private randomErrorMessage = (key: string, resource: string): string => {
+    const messages = [
+      `Imagine that! ${_.startCase(resource)} without a ${key}`,
+      `${_.startCase(resource)} needs a ${key}`,
+      `You're not getting far without a ${key}`,
+      `The ${resource} formerly known as...`,
+      `Pick a ${key}, any ${key}`,
+      `Any ${key} will do`,
+    ]
+
+    return _.sample(messages)
+  }
 }
+
+const mdtp = {
+  createOrgWithBucket,
+}
+
+export default withRouter(
+  connect<{}, DispatchProps, OwnProps>(
+    null,
+    mdtp
+  )(CreateOrgOverlay)
+)

@@ -38,8 +38,8 @@ func (a *authzSvc) DeleteAuthorization(context.Context, platform.ID) error {
 	return a.Err
 }
 
-func (a *authzSvc) SetAuthorizationStatus(context.Context, platform.ID, platform.Status) error {
-	return a.Err
+func (a *authzSvc) UpdateAuthorization(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+	return nil, a.Err
 }
 
 func TestAuthorizationService_Metrics(t *testing.T) {

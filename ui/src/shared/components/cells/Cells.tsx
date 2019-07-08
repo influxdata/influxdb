@@ -12,71 +12,47 @@ import GradientBorder from 'src/shared/components/cells/GradientBorder'
 import {fastMap} from 'src/utils/fast'
 
 // Constants
-import {
-  LAYOUT_MARGIN,
-  PAGE_HEADER_HEIGHT,
-  PAGE_CONTAINER_MARGIN,
-  STATUS_PAGE_ROW_COUNT,
-  DASHBOARD_LAYOUT_ROW_HEIGHT,
-} from 'src/shared/constants'
+import {LAYOUT_MARGIN, DASHBOARD_LAYOUT_ROW_HEIGHT} from 'src/shared/constants'
 
 // Types
-import {Cell} from 'src/types/v2'
+import {Cell} from 'src/types'
 import {TimeRange} from 'src/types'
-
-// Styles
-import './react-grid-layout.scss'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   cells: Cell[]
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
-  onZoom: (range: TimeRange) => void
   onCloneCell?: (cell: Cell) => void
   onDeleteCell?: (cell: Cell) => void
   onPositionChange?: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
-}
-
-interface State {
-  rowHeight: number
+  onEditNote: (id: string) => void
 }
 
 @ErrorHandling
-class Cells extends Component<Props & WithRouterProps, State> {
-  constructor(props) {
-    super(props)
-
-    this.state = {
-      rowHeight: this.calculateRowHeight(),
-    }
-  }
-
+class Cells extends Component<Props & WithRouterProps> {
   public render() {
     const {
       cells,
-      onZoom,
       onDeleteCell,
       onCloneCell,
       timeRange,
-      autoRefresh,
       manualRefresh,
+      onEditNote,
     } = this.props
-    const {rowHeight} = this.state
 
     return (
       <Grid
         cols={12}
         layout={this.cells}
-        rowHeight={rowHeight}
-        useCSSTransforms={true}
+        rowHeight={DASHBOARD_LAYOUT_ROW_HEIGHT}
+        useCSSTransforms={false}
         containerPadding={[0, 0]}
         margin={[LAYOUT_MARGIN, LAYOUT_MARGIN]}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.cell--draggable'}
+        draggableHandle=".cell--draggable"
         isDraggable={this.isDashboard}
         isResizable={this.isDashboard}
       >
@@ -84,13 +60,12 @@ class Cells extends Component<Props & WithRouterProps, State> {
           <div key={cell.id} className="cell">
             <CellComponent
               cell={cell}
-              onZoom={onZoom}
-              autoRefresh={autoRefresh}
               manualRefresh={manualRefresh}
               timeRange={timeRange}
               onCloneCell={onCloneCell}
               onDeleteCell={onDeleteCell}
               onEditCell={this.handleEditCell(cell)}
+              onEditNote={onEditNote}
             />
             {this.cellBorder}
           </div>
@@ -162,20 +137,6 @@ class Cells extends Component<Props & WithRouterProps, State> {
     const {onEditView} = this.props
 
     return () => onEditView(cell.id)
-  }
-
-  // ensures that Status Page height fits the window
-  private calculateRowHeight = () => {
-    const {location} = this.props
-
-    return location.pathname.includes('status')
-      ? (window.innerHeight -
-          STATUS_PAGE_ROW_COUNT * LAYOUT_MARGIN -
-          PAGE_HEADER_HEIGHT -
-          PAGE_CONTAINER_MARGIN -
-          PAGE_CONTAINER_MARGIN) /
-          STATUS_PAGE_ROW_COUNT
-      : DASHBOARD_LAYOUT_ROW_HEIGHT
   }
 }
 

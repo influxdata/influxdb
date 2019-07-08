@@ -13,11 +13,14 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
+	"github.com/yudai/gojsondiff"
+	"github.com/yudai/gojsondiff/formatter"
 )
 
 // NewMockDashboardBackend returns a DashboardBackend with mock services.
@@ -71,10 +74,12 @@ func TestService_handleGetDashboards(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							},
@@ -152,7 +157,7 @@ func TestService_handleGetDashboards(t *testing.T) {
         "members": "/api/v2/dashboards/da7aba5e5d81e550/members",
         "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
         "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
-        "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
+        "logs": "/api/v2/dashboards/da7aba5e5d81e550/logs",
         "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
       }
     },
@@ -180,7 +185,7 @@ func TestService_handleGetDashboards(t *testing.T) {
         "org": "/api/v2/orgs/0000000000000001",
         "members": "/api/v2/dashboards/0ca2204eca2204e0/members",
         "owners": "/api/v2/dashboards/0ca2204eca2204e0/owners",
-        "log": "/api/v2/dashboards/0ca2204eca2204e0/log",
+        "logs": "/api/v2/dashboards/0ca2204eca2204e0/logs",
         "cells": "/api/v2/dashboards/0ca2204eca2204e0/cells",
         "labels": "/api/v2/dashboards/0ca2204eca2204e0/labels"
       }
@@ -235,10 +240,12 @@ func TestService_handleGetDashboards(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							},
@@ -311,7 +318,7 @@ func TestService_handleGetDashboards(t *testing.T) {
         "members": "/api/v2/dashboards/da7aba5e5d81e550/members",
         "owners": "/api/v2/dashboards/da7aba5e5d81e550/owners",
         "cells": "/api/v2/dashboards/da7aba5e5d81e550/cells",
-        "log": "/api/v2/dashboards/da7aba5e5d81e550/log",
+        "logs": "/api/v2/dashboards/da7aba5e5d81e550/logs",
         "labels": "/api/v2/dashboards/da7aba5e5d81e550/labels"
       }
     }
@@ -325,6 +332,7 @@ func TestService_handleGetDashboards(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.LabelService = tt.fields.LabelService
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
@@ -353,7 +361,9 @@ func TestService_handleGetDashboards(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDashboards() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, handleGetDashboards(). error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetDashboards() = ***%s***", tt.name, diff)
 			}
 		})
@@ -396,10 +406,12 @@ func TestService_handleGetDashboard(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							}, nil
@@ -444,7 +456,7 @@ func TestService_handleGetDashboard(t *testing.T) {
     "org": "/api/v2/orgs/0000000000000001",
     "members": "/api/v2/dashboards/020f755c3c082000/members",
     "owners": "/api/v2/dashboards/020f755c3c082000/owners",
-    "log": "/api/v2/dashboards/020f755c3c082000/log",
+    "logs": "/api/v2/dashboards/020f755c3c082000/logs",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
   }
@@ -476,6 +488,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -505,7 +518,9 @@ func TestService_handleGetDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleGetDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && err != nil {
+				t.Errorf("%q, handleGetDashboard(). error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handleGetDashboard() = ***%s***", tt.name, diff)
 			}
 		})
@@ -554,10 +569,12 @@ func TestService_handlePostDashboard(t *testing.T) {
 					Cells: []*platform.Cell{
 						{
 							ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-							X:  1,
-							Y:  2,
-							W:  3,
-							H:  4,
+							CellProperty: platform.CellProperty{
+								X: 1,
+								Y: 2,
+								W: 3,
+								H: 4,
+							},
 						},
 					},
 				},
@@ -594,7 +611,7 @@ func TestService_handlePostDashboard(t *testing.T) {
     "org": "/api/v2/orgs/0000000000000001",
     "members": "/api/v2/dashboards/020f755c3c082000/members",
     "owners": "/api/v2/dashboards/020f755c3c082000/owners",
-    "log": "/api/v2/dashboards/020f755c3c082000/log",
+    "logs": "/api/v2/dashboards/020f755c3c082000/logs",
     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
   }
@@ -607,6 +624,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -630,7 +648,9 @@ func TestService_handlePostDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, handlePostDashboard(). error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostDashboard() = ***%s***", tt.name, diff)
 			}
 		})
@@ -700,6 +720,7 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -729,8 +750,12 @@ func TestService_handleDeleteDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteDashboard() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteDashboard(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteDashboard() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -773,10 +798,12 @@ func TestService_handlePatchDashboard(t *testing.T) {
 								Cells: []*platform.Cell{
 									{
 										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
-										X:  1,
-										Y:  2,
-										W:  3,
-										H:  4,
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
 									},
 								},
 							}
@@ -828,7 +855,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 		    "org": "/api/v2/orgs/0000000000000001",
 		    "members": "/api/v2/dashboards/020f755c3c082000/members",
 		    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
-		    "log": "/api/v2/dashboards/020f755c3c082000/log",
+		    "logs": "/api/v2/dashboards/020f755c3c082000/logs",
 		    "cells": "/api/v2/dashboards/020f755c3c082000/cells",
 		    "labels": "/api/v2/dashboards/020f755c3c082000/labels"
 		  }
@@ -877,6 +904,7 @@ func TestService_handlePatchDashboard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -916,8 +944,12 @@ func TestService_handlePatchDashboard(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchDashboard() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchDashboard() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePatchDashboard(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePatchDashboard() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -929,7 +961,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 	}
 	type args struct {
 		id   string
-		cell *platform.Cell
+		body string
 	}
 	type wants struct {
 		statusCode  int
@@ -944,7 +976,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "create a dashboard cell",
+			name: "empty body",
 			fields: fields{
 				&mock.DashboardService{
 					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
@@ -955,11 +987,80 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			},
 			args: args{
 				id: "020f755c3c082000",
-				cell: &platform.Cell{
-					ID: platformtesting.MustIDBase16("020f755c3c082000"),
-					X:  10,
-					Y:  11,
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body:        `{"code":"invalid","message":"bad request json body","error":"EOF"}`,
+			},
+		},
+		{
+			name: "no properties",
+			fields: fields{
+				&mock.DashboardService{
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
 				},
+			},
+			args: args{
+				id:   "020f755c3c082000",
+				body: `{"bad":1}`,
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `
+				{
+					"code": "invalid",
+					"message": "req body is empty"
+				}`,
+			},
+		},
+		{
+			name: "bad dash id",
+			fields: fields{
+				&mock.DashboardService{
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+				},
+			},
+			args: args{
+				id:   "fff",
+				body: `{}`,
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `
+				{
+					"code": "invalid",
+					"message": "id must have a length of 16 bytes"
+				}`,
+			},
+		},
+		{
+			name: "general create a dashboard cell",
+			fields: fields{
+				&mock.DashboardService{
+					AddDashboardCellF: func(ctx context.Context, id platform.ID, c *platform.Cell, opt platform.AddDashboardCellOptions) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						return nil
+					},
+					GetDashboardCellViewF: func(ctx context.Context, id1, id2 platform.ID) (*platform.View, error) {
+						return &platform.View{
+							ViewContents: platform.ViewContents{
+								ID: platformtesting.MustIDBase16("020f755c3c082001"),
+							}}, nil
+					},
+				},
+			},
+			args: args{
+				id:   "020f755c3c082000",
+				body: `{"x":10,"y":11,"name":"name1","usingView":"020f755c3c082001"}`,
 			},
 			wants: wants{
 				statusCode:  http.StatusCreated,
@@ -984,15 +1085,12 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
-
-			b, err := json.Marshal(tt.args.cell)
-			if err != nil {
-				t.Fatalf("failed to unmarshal cell: %v", err)
-			}
-
-			r := httptest.NewRequest("GET", "http://any.url", bytes.NewReader(b))
+			buf := new(bytes.Buffer)
+			_, _ = buf.WriteString(tt.args.body)
+			r := httptest.NewRequest("POST", "http://any.url", buf)
 
 			r = r.WithContext(context.WithValue(
 				context.Background(),
@@ -1018,8 +1116,12 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePostDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePostDashboardCell() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePostDashboardCell(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePostDashboardCell() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -1067,6 +1169,7 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -1100,8 +1203,12 @@ func TestService_handleDeleteDashboardCell(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handleDeleteDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handleDeleteDashboardCell() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteDashboardCell(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteDashboardCell() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -1177,6 +1284,7 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.DashboardService = tt.fields.DashboardService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -1229,8 +1337,12 @@ func TestService_handlePatchDashboardCell(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePatchDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("%q. handlePatchDashboardCell() = ***%s***", tt.name, diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePatchDashboardCell(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePatchDashboardCell() = ***%s***", tt.name, diff)
+				}
 			}
 		})
 	}
@@ -1258,20 +1370,16 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
-	svc.WithTime(f.NowFn)
+	svc.TimeGenerator = f.TimeGenerator
 	ctx := context.Background()
 	for _, d := range f.Dashboards {
 		if err := svc.PutDashboard(ctx, d); err != nil {
 			t.Fatalf("failed to populate dashboard")
 		}
 	}
-	for _, b := range f.Views {
-		if err := svc.PutView(ctx, b); err != nil {
-			t.Fatalf("failed to populate views")
-		}
-	}
 
 	dashboardBackend := NewMockDashboardBackend()
+	dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 	dashboardBackend.DashboardService = svc
 	h := NewDashboardHandler(dashboardBackend)
 	server := httptest.NewServer(h)
@@ -1356,6 +1464,7 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dashboardBackend := NewMockDashboardBackend()
+			dashboardBackend.HTTPErrorHandler = ErrorHandler(0)
 			dashboardBackend.LabelService = tt.fields.LabelService
 			h := NewDashboardHandler(dashboardBackend)
 
@@ -1385,4 +1494,40 @@ func TestService_handlePostDashboardLabel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func jsonEqual(s1, s2 string) (eq bool, diff string, err error) {
+	var o1, o2 interface{}
+	if s1 == s2 {
+		return true, "", nil
+	}
+
+	if s1 == "" {
+		return false, s2, fmt.Errorf("s1 is empty")
+	}
+
+	if s2 == "" {
+		return false, s1, fmt.Errorf("s2 is empty")
+	}
+
+	if err = json.Unmarshal([]byte(s1), &o1); err != nil {
+		return
+	}
+
+	if err = json.Unmarshal([]byte(s2), &o2); err != nil {
+		return
+	}
+
+	differ := gojsondiff.New()
+	d, err := differ.Compare([]byte(s1), []byte(s2))
+	if err != nil {
+		return
+	}
+
+	config := formatter.AsciiFormatterConfig{}
+
+	formatter := formatter.NewAsciiFormatter(o1, config)
+	diff, err = formatter.Format(d)
+
+	return cmp.Equal(o1, o2), diff, err
 }

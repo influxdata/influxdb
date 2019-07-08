@@ -121,31 +121,40 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *influ
 		return err
 	}
 
-	for _, p := range a.Permissions {
-		if err := IsAllowed(ctx, p); err != nil {
-			return &influxdb.Error{
-				Err:  err,
-				Msg:  fmt.Sprintf("cannot create authorization with permission %s", p),
-				Code: influxdb.EForbidden,
-			}
-		}
+	if err := VerifyPermissions(ctx, a.Permissions); err != nil {
+		return err
 	}
 
 	return s.s.CreateAuthorization(ctx, a)
 }
 
-// SetAuthorizationStatus checks to see if the authorizer on context has write access to the authorization provided.
-func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id influxdb.ID, st influxdb.Status) error {
+// VerifyPermission ensures that an authorization is allowed all of the appropriate permissions.
+func VerifyPermissions(ctx context.Context, ps []influxdb.Permission) error {
+	for _, p := range ps {
+		if err := IsAllowed(ctx, p); err != nil {
+			return &influxdb.Error{
+				Err:  err,
+				Msg:  fmt.Sprintf("permission %s is not allowed", p),
+				Code: influxdb.EForbidden,
+			}
+		}
+	}
+
+	return nil
+}
+
+// UpdateAuthorization checks to see if the authorizer on context has write access to the authorization provided.
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	a, err := s.s.FindAuthorizationByID(ctx, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := authorizeWriteAuthorization(ctx, a.UserID); err != nil {
-		return err
+		return nil, err
 	}
 
-	return s.s.SetAuthorizationStatus(ctx, id, st)
+	return s.s.UpdateAuthorization(ctx, id, upd)
 }
 
 // DeleteAuthorization checks to see if the authorizer on context has write access to the authorization provided.

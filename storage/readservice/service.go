@@ -1,10 +1,9 @@
 package readservice
 
 import (
-	"github.com/influxdata/flux/control"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
-	pcontrol "github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/reads"
@@ -12,11 +11,9 @@ import (
 
 // NewProxyQueryService returns a proxy query service based on the given queryController
 // suitable for the storage read service.
-func NewProxyQueryService(queryController *pcontrol.Controller) query.ProxyQueryService {
-	return query.ProxyQueryServiceBridge{
-		QueryService: query.QueryServiceBridge{
-			AsyncQueryService: queryController,
-		},
+func NewProxyQueryService(queryController *control.Controller) query.ProxyQueryService {
+	return query.ProxyQueryServiceAsyncBridge{
+		AsyncQueryService: queryController,
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 type OnboardingFields struct {
 	IDGenerator    platform.IDGenerator
 	TokenGenerator platform.TokenGenerator
+	TimeGenerator  platform.TimeGenerator
 	IsOnboarding   bool
 }
 
@@ -133,6 +134,7 @@ func Generate(
 				IDGenerator: &loopIDGenerator{
 					s: []string{oneID, twoID, threeID, fourID},
 				},
+				TimeGenerator:  mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
 				IsOnboarding:   true,
 			},
@@ -141,12 +143,12 @@ func Generate(
 					User:            "admin",
 					Org:             "org1",
 					Bucket:          "bucket1",
-					Password:        "pass1",
+					Password:        "password1",
 					RetentionPeriod: 24 * 7, // 1 week
 				},
 			},
 			wants: wants{
-				password: "pass1",
+				password: "password1",
 				results: &platform.OnboardingResults{
 					User: &platform.User{
 						ID:   MustIDBase16(oneID),
@@ -155,13 +157,20 @@ func Generate(
 					Org: &platform.Organization{
 						ID:   MustIDBase16(twoID),
 						Name: "org1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 					Bucket: &platform.Bucket{
 						ID:              MustIDBase16(threeID),
 						Name:            "bucket1",
-						Organization:    "org1",
-						OrganizationID:  MustIDBase16(twoID),
+						OrgID:           MustIDBase16(twoID),
 						RetentionPeriod: time.Hour * 24 * 7,
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
 					},
 					Auth: &platform.Authorization{
 						ID:          MustIDBase16(fourID),
@@ -183,10 +192,12 @@ func Generate(
 			ctx := context.Background()
 			results, err := s.Generate(ctx, tt.args.request)
 			if (err != nil) != (tt.wants.errCode != "") {
+				t.Logf("Error: %v", err)
 				t.Fatalf("expected error code '%s' got '%v'", tt.wants.errCode, err)
 			}
 			if err != nil && tt.wants.errCode != "" {
 				if code := platform.ErrorCode(err); code != tt.wants.errCode {
+					t.Logf("Error: %v", err)
 					t.Fatalf("expected error code to match '%s' got '%v'", tt.wants.errCode, code)
 				}
 			}

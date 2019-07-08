@@ -1,9 +1,19 @@
-import {ViewType, ViewShape} from 'src/types/v2'
-import {HistogramPosition} from 'src/minard'
+// Constants
+import {INFERNO, NINETEEN_EIGHTY_FOUR} from '@influxdata/giraffe'
+import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
+import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
+import {
+  DEFAULT_GAUGE_COLORS,
+  DEFAULT_THRESHOLDS_LIST_COLORS,
+} from 'src/shared/constants/thresholds'
+
+// Types
+import {ViewType, ViewShape, Base, Scale} from 'src/types'
 import {
   XYView,
   XYViewGeom,
   HistogramView,
+  HeatmapView,
   LinePlusSingleStatView,
   SingleStatView,
   TableView,
@@ -12,15 +22,10 @@ import {
   NewView,
   ViewProperties,
   DashboardQuery,
-  InfluxLanguage,
   QueryEditMode,
-} from 'src/types/v2/dashboards'
-import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
-import {
-  DEFAULT_GAUGE_COLORS,
-  DEFAULT_THRESHOLDS_LIST_COLORS,
-} from 'src/shared/constants/thresholds'
-import {DEFAULT_CELL_NAME} from 'src/dashboards/constants/index'
+  BuilderConfig,
+  ScatterView,
+} from 'src/types/dashboards'
 
 function defaultView() {
   return {
@@ -30,15 +35,19 @@ function defaultView() {
 
 export function defaultViewQuery(): DashboardQuery {
   return {
+    name: '',
     text: '',
-    type: InfluxLanguage.Flux,
-    sourceID: '',
     editMode: QueryEditMode.Builder,
-    builderConfig: {
-      buckets: [],
-      tags: [{key: '_measurement', values: []}],
-      functions: [],
-    },
+    builderConfig: defaultBuilderConfig(),
+  }
+}
+
+export function defaultBuilderConfig(): BuilderConfig {
+  return {
+    buckets: [],
+    tags: [{key: '_measurement', values: []}],
+    functions: [],
+    aggregateWindow: {period: 'auto'},
   }
 }
 
@@ -55,24 +64,16 @@ function defaultLineViewProperties() {
         label: '',
         prefix: '',
         suffix: '',
-        base: '10',
-        scale: 'linear',
+        base: '10' as Base,
+        scale: Scale.Linear,
       },
       y: {
         bounds: ['', ''] as [string, string],
         label: '',
         prefix: '',
         suffix: '',
-        base: '10',
-        scale: 'linear',
-      },
-      y2: {
-        bounds: ['', ''] as [string, string],
-        label: '',
-        prefix: '',
-        suffix: '',
-        base: '10',
-        scale: 'linear',
+        base: '10' as Base,
+        scale: Scale.Linear,
       },
     },
   }
@@ -117,6 +118,8 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.XY,
       shape: ViewShape.ChronografV2,
       geom: XYViewGeom.Line,
+      xColumn: null,
+      yColumn: null,
     },
   }),
   [ViewType.Histogram]: (): NewView<HistogramView> => ({
@@ -124,11 +127,36 @@ const NEW_VIEW_CREATORS = {
     properties: {
       queries: [],
       type: ViewType.Histogram,
-      x: '_value',
-      fill: 'table',
-      position: HistogramPosition.Stacked,
+      shape: ViewShape.ChronografV2,
+      xColumn: '_value',
+      xDomain: null,
+      xAxisLabel: '',
+      fillColumns: null,
+      position: 'stacked',
       binCount: 30,
       colors: DEFAULT_LINE_COLORS,
+      note: '',
+      showNoteWhenEmpty: false,
+    },
+  }),
+  [ViewType.Heatmap]: (): NewView<HeatmapView> => ({
+    ...defaultView(),
+    properties: {
+      queries: [],
+      type: ViewType.Heatmap,
+      shape: ViewShape.ChronografV2,
+      xColumn: null,
+      yColumn: null,
+      xDomain: null,
+      yDomain: null,
+      xAxisLabel: '',
+      yAxisLabel: '',
+      xPrefix: '',
+      xSuffix: '',
+      yPrefix: '',
+      ySuffix: '',
+      colors: INFERNO,
+      binSize: 10,
       note: '',
       showNoteWhenEmpty: false,
     },
@@ -156,6 +184,8 @@ const NEW_VIEW_CREATORS = {
       ...defaultSingleStatViewProperties(),
       type: ViewType.LinePlusSingleStat,
       shape: ViewShape.ChronografV2,
+      xColumn: null,
+      yColumn: null,
     },
   }),
   [ViewType.Table]: (): NewView<TableView> => ({
@@ -186,6 +216,29 @@ const NEW_VIEW_CREATORS = {
       type: ViewType.Markdown,
       shape: ViewShape.ChronografV2,
       note: '',
+    },
+  }),
+  [ViewType.Scatter]: (): NewView<ScatterView> => ({
+    ...defaultView(),
+    properties: {
+      type: ViewType.Scatter,
+      shape: ViewShape.ChronografV2,
+      queries: [defaultViewQuery()],
+      colors: NINETEEN_EIGHTY_FOUR,
+      note: '',
+      showNoteWhenEmpty: false,
+      fillColumns: null,
+      symbolColumns: null,
+      xColumn: null,
+      xDomain: null,
+      yColumn: null,
+      yDomain: null,
+      xAxisLabel: '',
+      yAxisLabel: '',
+      xPrefix: '',
+      xSuffix: '',
+      yPrefix: '',
+      ySuffix: '',
     },
   }),
 }

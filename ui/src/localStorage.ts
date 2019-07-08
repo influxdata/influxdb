@@ -6,6 +6,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 import {LocalStorage} from 'src/types/localStorage'
+import {RemoteDataState} from '@influxdata/clockface'
 
 export const loadLocalStorage = (): LocalStorage => {
   try {
@@ -16,7 +17,7 @@ export const loadLocalStorage = (): LocalStorage => {
     if (state.VERSION && state.VERSION !== VERSION) {
       const version = VERSION ? ` (${VERSION})` : ''
 
-      console.log(newVersion(version).message) // tslint:disable-line no-console
+      console.log(newVersion(version).message) // eslint-disable-line no-console
     }
 
     delete state.VERSION
@@ -30,6 +31,10 @@ export const loadLocalStorage = (): LocalStorage => {
 export const saveToLocalStorage = ({
   app: {persisted},
   ranges,
+  autoRefresh,
+  variables,
+  userSettings,
+  orgs: {org},
 }: LocalStorage): void => {
   try {
     const appPersisted = {app: {persisted}}
@@ -39,6 +44,13 @@ export const saveToLocalStorage = ({
         ...appPersisted,
         VERSION,
         ranges: normalizer(ranges),
+        autoRefresh,
+        variables,
+        userSettings,
+        orgs: {
+          status: RemoteDataState.NotStarted,
+          org,
+        },
       })
     )
   } catch (err) {

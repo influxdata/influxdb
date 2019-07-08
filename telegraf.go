@@ -12,16 +12,15 @@ import (
 	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
 )
 
-// ErrTelegrafConfigInvalidOrganizationID is the error message for a missing or invalid organization ID.
-const ErrTelegrafConfigInvalidOrganizationID = "invalid organization ID"
+// ErrTelegrafConfigInvalidOrgID is the error message for a missing or invalid organization ID.
+const ErrTelegrafConfigInvalidOrgID = "invalid org ID"
 
 // ErrTelegrafConfigNotFound is the error message for a missing telegraf config.
-const ErrTelegrafConfigNotFound = "telegraf config not found"
+const ErrTelegrafConfigNotFound = "telegraf configuration not found"
 
 // ops for buckets error and buckets op logs.
 var (
 	OpFindTelegrafConfigByID = "FindTelegrafConfigByID"
-	OpFindTelegrafConfig     = "FindTelegrafConfig"
 	OpFindTelegrafConfigs    = "FindTelegrafConfigs"
 	OpCreateTelegrafConfig   = "CreateTelegrafConfig"
 	OpUpdateTelegrafConfig   = "UpdateTelegrafConfig"
@@ -36,9 +35,6 @@ type TelegrafConfigStore interface {
 
 	// FindTelegrafConfigByID returns a single telegraf config by ID.
 	FindTelegrafConfigByID(ctx context.Context, id ID) (*TelegrafConfig, error)
-
-	// FindTelegrafConfig returns the first telegraf config that matches filter.
-	FindTelegrafConfig(ctx context.Context, filter TelegrafConfigFilter) (*TelegrafConfig, error)
 
 	// FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 	// Additional options provide pagination & sorting.
@@ -57,16 +53,17 @@ type TelegrafConfigStore interface {
 
 // TelegrafConfigFilter represents a set of filter that restrict the returned telegraf configs.
 type TelegrafConfigFilter struct {
-	OrganizationID *ID
-	Organization   *string
+	OrgID        *ID
+	Organization *string
 	UserResourceMappingFilter
 }
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID             ID
-	OrganizationID ID
-	Name           string
+	ID          ID
+	OrgID       ID
+	Name        string
+	Description string
 
 	Agent   TelegrafAgentConfig
 	Plugins []TelegrafPlugin
@@ -138,9 +135,10 @@ func (tc TelegrafConfig) TOML() string {
 
 // telegrafConfigEncode is the helper struct for json encoding.
 type telegrafConfigEncode struct {
-	ID             ID     `json:"id"`
-	OrganizationID ID     `json:"organizationID,omitempty"`
-	Name           string `json:"name"`
+	ID          ID     `json:"id"`
+	OrgID       ID     `json:"orgID,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -152,15 +150,17 @@ type telegrafPluginEncode struct {
 	// Name of the telegraf plugin, exp "docker"
 	Name    string         `json:"name"`
 	Type    plugins.Type   `json:"type"`
-	Comment string         `json:"comment"`
-	Config  plugins.Config `json:"config"`
+	Comment string         `json:"comment,omitempty"`
+	Config  plugins.Config `json:"config,omitempty"`
 }
 
 // telegrafConfigDecode is the helper struct for json decoding.
 type telegrafConfigDecode struct {
 	ID             ID     `json:"id"`
 	OrganizationID ID     `json:"organizationID,omitempty"`
+	OrgID          ID     `json:"orgID,omitempty"`
 	Name           string `json:"name"`
+	Description    string `json:"description"`
 
 	Agent TelegrafAgentConfig `json:"agent"`
 
@@ -172,14 +172,14 @@ type telegrafPluginDecode struct {
 	// Name of the telegraf plugin, exp "docker"
 	Name    string          `json:"name"`
 	Type    plugins.Type    `json:"type"`
-	Comment string          `json:"comment"`
-	Config  json.RawMessage `json:"config"`
+	Comment string          `json:"comment,omitempty"`
+	Config  json.RawMessage `json:"config,omitempty"`
 }
 
 // TelegrafPlugin is the general wrapper of the telegraf plugin config
 type TelegrafPlugin struct {
-	Comment string         `json:"comment"`
-	Config  plugins.Config `json:"config"`
+	Comment string         `json:"comment,omitempty"`
+	Config  plugins.Config `json:"config,omitempty"`
 }
 
 // TelegrafAgentConfig is based telegraf/internal/config AgentConfig.
@@ -200,11 +200,12 @@ const (
 func (tc *TelegrafConfig) MarshalJSON() ([]byte, error) {
 	tce := new(telegrafConfigEncode)
 	*tce = telegrafConfigEncode{
-		ID:             tc.ID,
-		OrganizationID: tc.OrganizationID,
-		Name:           tc.Name,
-		Agent:          tc.Agent,
-		Plugins:        make([]telegrafPluginEncode, len(tc.Plugins)),
+		ID:          tc.ID,
+		OrgID:       tc.OrgID,
+		Name:        tc.Name,
+		Description: tc.Description,
+		Agent:       tc.Agent,
+		Plugins:     make([]telegrafPluginEncode, len(tc.Plugins)),
 	}
 	for k, p := range tc.Plugins {
 		tce.Plugins[k] = telegrafPluginEncode{
@@ -305,12 +306,17 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
+	orgID := tcd.OrgID
+	if !orgID.Valid() {
+		orgID = tcd.OrganizationID
+	}
 	*tc = TelegrafConfig{
-		ID:             tcd.ID,
-		OrganizationID: tcd.OrganizationID,
-		Name:           tcd.Name,
-		Agent:          tcd.Agent,
-		Plugins:        make([]TelegrafPlugin, len(tcd.Plugins)),
+		ID:          tcd.ID,
+		OrgID:       orgID,
+		Name:        tcd.Name,
+		Description: tcd.Description,
+		Agent:       tcd.Agent,
+		Plugins:     make([]TelegrafPlugin, len(tcd.Plugins)),
 	}
 	return decodePluginRaw(tcd, tc)
 }
@@ -335,6 +341,11 @@ func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) 
 		}
 		if ok {
 			config = tpFn()
+			// if pr.Config if empty, make it a blank obj,
+			// so it will still go to the unmarshalling process to validate.
+			if len(string(pr.Config)) == 0 {
+				pr.Config = []byte("{}")
+			}
 			if err = json.Unmarshal(pr.Config, config); err != nil {
 				return &Error{
 					Code: EInvalid,

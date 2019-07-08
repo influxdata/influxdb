@@ -35,18 +35,4 @@
   }
 }
 
-.wizard--columns {
-  .wizard-step--scroll-content {
-    margin: 0;
-    padding: $ix-marg-d;
-  }
-}
 
-.wizard--column-panel {
-  background-color: $g3-castle;
-  border-radius: 0 $radius $radius 0;
-}
-
-.wizard-step--scroll-area.plugins {
-  height: calc(100% - 232px);
-}

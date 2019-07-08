@@ -1,12 +1,12 @@
 package reads
 
 import (
-	"github.com/influxdata/flux/arrow"
-	"github.com/influxdata/flux/memory"
 	"sync"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
@@ -18,9 +18,9 @@ import (
 
 type {{.name}}Table struct {
 	table
-	valBuf []{{.Type}}
 	mu     sync.Mutex
 	cur    cursors.{{.Name}}ArrayCursor
+	alloc  *memory.Allocator
 }
 
 func new{{.Name}}Table(
@@ -31,9 +31,10 @@ func new{{.Name}}Table(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *{{.name}}Table {
 	t := &{{.name}}Table{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		cur:   cur,
 	}
 	t.readTags(tags)
@@ -51,62 +52,40 @@ func (t *{{.name}}Table) Close() {
 	t.mu.Unlock()
 }
 
-func (t *{{.name}}Table) Statistics() flux.Statistics {
+func (t *{{.name}}Table) Statistics() cursors.CursorStats {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	cur := t.cur
 	if cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}
 }
 
 func (t *{{.name}}Table) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *{{.name}}Table) advance() bool {
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]{{.Type}}, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -114,7 +93,6 @@ func (t *{{.name}}Table) advance() bool {
 
 type {{.name}}GroupTable struct {
 	table
-	valBuf []{{.Type}}
 	mu     sync.Mutex
 	gc     GroupCursor
 	cur    cursors.{{.Name}}ArrayCursor
@@ -129,9 +107,10 @@ func new{{.Name}}GroupTable(
 	cols []flux.ColMeta,
 	tags models.Tags,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) *{{.name}}GroupTable {
 	t := &{{.name}}GroupTable{
-		table: newTable(done, bounds, key, cols, defs),
+		table: newTable(done, bounds, key, cols, defs, alloc),
 		gc:    gc,
 		cur:   cur,
 	}
@@ -155,27 +134,14 @@ func (t *{{.name}}GroupTable) Close() {
 }
 
 func (t *{{.name}}GroupTable) Do(f func(flux.ColReader) error) error {
-	t.mu.Lock()
-	defer func() {
-		t.closeDone()
-		t.mu.Unlock()
-	}()
-
-	if !t.Empty() {
-		t.err = f(t)
-		for !t.isCancelled() && t.err == nil && t.advance() {
-			t.err = f(t)
-		}
-	}
-
-	return t.err
+	return t.do(f, t.advance)
 }
 
 func (t *{{.name}}GroupTable) advance() bool {
 RETRY:
 	a := t.cur.Next()
-	t.l = a.Len()
-	if t.l == 0 {
+	l := a.Len()
+	if l == 0 {
 		if t.advanceCursor() {
 			goto RETRY
 		}
@@ -183,24 +149,15 @@ RETRY:
 		return false
 	}
 
-	if cap(t.timeBuf) < t.l {
-		t.timeBuf = make([]int64, t.l)
-	} else {
-		t.timeBuf = t.timeBuf[:t.l]
-	}
-	copy(t.timeBuf, a.Timestamps)
-
-	if cap(t.valBuf) < t.l {
-		t.valBuf = make([]{{.Type}}, t.l)
-	} else {
-		t.valBuf = t.valBuf[:t.l]
-	}
-	copy(t.valBuf, a.Values)
-
-	t.colBufs[timeColIdx] = arrow.NewInt(t.timeBuf, &memory.Allocator{})
-	t.colBufs[valueColIdx] = t.toArrowBuffer(t.valBuf)
-	t.appendTags()
-	t.appendBounds()
+	// Retrieve the buffer for the data to avoid allocating
+	// additional slices. If the buffer is still being used
+	// because the references were retained, then we will
+	// allocate a new buffer.
+	cr := t.allocateBuffer(l)
+	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
+	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
+	t.appendTags(cr)
+	t.appendBounds(cr)
 	return true
 }
 
@@ -227,12 +184,12 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 	return false
 }
 
-func (t *{{.name}}GroupTable) Statistics() flux.Statistics {
+func (t *{{.name}}GroupTable) Statistics() cursors.CursorStats {
 	if t.cur == nil {
-		return flux.Statistics{}
+		return cursors.CursorStats{}
 	}
 	cs := t.cur.Stats()
-	return flux.Statistics{
+	return cursors.CursorStats{
 		ScannedValues: cs.ScannedValues,
 		ScannedBytes:  cs.ScannedBytes,
 	}

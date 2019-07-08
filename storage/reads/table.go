@@ -3,7 +3,7 @@ package reads
 //go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
 
 import (
-	"fmt"
+	"errors"
 	"sync/atomic"
 
 	"github.com/apache/arrow/go/arrow/array"
@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 type table struct {
@@ -27,15 +26,12 @@ type table struct {
 
 	done chan struct{}
 
-	// The current number of records in memory
-	l int
-
-	colBufs []array.Interface
-	timeBuf []int64
+	colBufs *colReader
 
 	err error
 
-	cancelled int32
+	cancelled, used int32
+	alloc           *memory.Allocator
 }
 
 func newTable(
@@ -44,28 +40,23 @@ func newTable(
 	key flux.GroupKey,
 	cols []flux.ColMeta,
 	defs [][]byte,
+	alloc *memory.Allocator,
 ) table {
 	return table{
-		done:    done,
-		bounds:  bounds,
-		key:     key,
-		tags:    make([][]byte, len(cols)),
-		defs:    defs,
-		colBufs: make([]array.Interface, len(cols)),
-		cols:    cols,
+		done:   done,
+		bounds: bounds,
+		key:    key,
+		tags:   make([][]byte, len(cols)),
+		defs:   defs,
+		cols:   cols,
+		alloc:  alloc,
 	}
-}
-
-func (t *table) Statistics() flux.Statistics {
-	return flux.Statistics{}
 }
 
 func (t *table) Key() flux.GroupKey   { return t.key }
 func (t *table) Cols() []flux.ColMeta { return t.cols }
-func (t *table) RefCount(n int)       {}
 func (t *table) Err() error           { return t.err }
-func (t *table) Empty() bool          { return t.l == 0 }
-func (t *table) Len() int             { return t.l }
+func (t *table) Empty() bool          { return t.colBufs == nil || t.colBufs.l == 0 }
 
 func (t *table) Cancel() {
 	atomic.StoreInt32(&t.cancelled, 1)
@@ -75,34 +66,114 @@ func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
 }
 
-func (t *table) Bools(j int) *array.Boolean {
-	execute.CheckColType(t.cols[j], flux.TBool)
-	return t.colBufs[j].(*array.Boolean)
+func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
+	// Mark this table as having been used. If this doesn't
+	// succeed, then this has already been invoked somewhere else.
+	if !atomic.CompareAndSwapInt32(&t.used, 0, 1) {
+		return errors.New("table already used")
+	}
+	defer t.closeDone()
+
+	if !t.Empty() {
+		t.err = f(t.colBufs)
+		t.colBufs.Release()
+
+		for !t.isCancelled() && t.err == nil && advance() {
+			t.err = f(t.colBufs)
+			t.colBufs.Release()
+		}
+		t.colBufs = nil
+	}
+
+	return t.err
 }
 
-func (t *table) Ints(j int) *array.Int64 {
-	execute.CheckColType(t.cols[j], flux.TInt)
-	return t.colBufs[j].(*array.Int64)
+func (t *table) Done() {
+	// Mark the table as having been used. If this has already
+	// been done, then nothing needs to be done.
+	if atomic.CompareAndSwapInt32(&t.used, 0, 1) {
+		defer t.closeDone()
+	}
+
+	if t.colBufs != nil {
+		t.colBufs.Release()
+		t.colBufs = nil
+	}
 }
 
-func (t *table) UInts(j int) *array.Uint64 {
-	execute.CheckColType(t.cols[j], flux.TUInt)
-	return t.colBufs[j].(*array.Uint64)
+// allocateBuffer will allocate a suitable buffer for the
+// table implementations to use. If the existing buffer
+// is not used anymore, then it may be reused.
+//
+// The allocated buffer can be accessed at colBufs or
+// through the returned colReader.
+func (t *table) allocateBuffer(l int) *colReader {
+	if t.colBufs == nil || atomic.LoadInt64(&t.colBufs.refCount) > 0 {
+		// The current buffer is still being used so we should
+		// generate a new one.
+		t.colBufs = &colReader{
+			key:     t.key,
+			colMeta: t.cols,
+			cols:    make([]array.Interface, len(t.cols)),
+		}
+	}
+	t.colBufs.refCount = 1
+	t.colBufs.l = l
+	return t.colBufs
 }
 
-func (t *table) Floats(j int) *array.Float64 {
-	execute.CheckColType(t.cols[j], flux.TFloat)
-	return t.colBufs[j].(*array.Float64)
+type colReader struct {
+	refCount int64
+
+	key     flux.GroupKey
+	colMeta []flux.ColMeta
+	cols    []array.Interface
+	l       int
 }
 
-func (t *table) Strings(j int) *array.Binary {
-	execute.CheckColType(t.cols[j], flux.TString)
-	return t.colBufs[j].(*array.Binary)
+func (cr *colReader) Retain() {
+	atomic.AddInt64(&cr.refCount, 1)
+}
+func (cr *colReader) Release() {
+	if atomic.AddInt64(&cr.refCount, -1) == 0 {
+		for _, col := range cr.cols {
+			col.Release()
+		}
+	}
 }
 
-func (t *table) Times(j int) *array.Int64 {
-	execute.CheckColType(t.cols[j], flux.TTime)
-	return t.colBufs[j].(*array.Int64)
+func (cr *colReader) Key() flux.GroupKey   { return cr.key }
+func (cr *colReader) Cols() []flux.ColMeta { return cr.colMeta }
+func (cr *colReader) Len() int             { return cr.l }
+
+func (cr *colReader) Bools(j int) *array.Boolean {
+	execute.CheckColType(cr.colMeta[j], flux.TBool)
+	return cr.cols[j].(*array.Boolean)
+}
+
+func (cr *colReader) Ints(j int) *array.Int64 {
+	execute.CheckColType(cr.colMeta[j], flux.TInt)
+	return cr.cols[j].(*array.Int64)
+}
+
+func (cr *colReader) UInts(j int) *array.Uint64 {
+	execute.CheckColType(cr.colMeta[j], flux.TUInt)
+	return cr.cols[j].(*array.Uint64)
+}
+
+func (cr *colReader) Floats(j int) *array.Float64 {
+	execute.CheckColType(cr.colMeta[j], flux.TFloat)
+	return cr.cols[j].(*array.Float64)
+}
+
+func (cr *colReader) Strings(j int) *array.Binary {
+	execute.CheckColType(cr.colMeta[j], flux.TString)
+	return cr.cols[j].(*array.Binary)
+}
+
+func (cr *colReader) Times(j int) *array.Int64 {
+	execute.CheckColType(cr.colMeta[j], flux.TTime)
+	return cr.cols[j].(*array.Int64)
 }
 
 // readTags populates b.tags with the provided tags
@@ -122,31 +193,32 @@ func (t *table) readTags(tags models.Tags) {
 }
 
 // appendTags fills the colBufs for the tag columns with the tag value.
-func (t *table) appendTags() {
+func (t *table) appendTags(cr *colReader) {
 	for j := range t.cols {
 		v := t.tags[j]
 		if v != nil {
-			b := arrow.NewStringBuilder(&memory.Allocator{})
-			b.Reserve(t.l)
-			for i := 0; i < t.l; i++ {
+			b := arrow.NewStringBuilder(t.alloc)
+			b.Reserve(cr.l)
+			b.ReserveData(cr.l * len(v))
+			for i := 0; i < cr.l; i++ {
 				b.Append(v)
 			}
-			t.colBufs[j] = b.NewArray()
+			cr.cols[j] = b.NewArray()
 			b.Release()
 		}
 	}
 }
 
 // appendBounds fills the colBufs for the time bounds
-func (t *table) appendBounds() {
+func (t *table) appendBounds(cr *colReader) {
 	bounds := []execute.Time{t.bounds.Start, t.bounds.Stop}
 	for j := range []int{startColIdx, stopColIdx} {
-		b := arrow.NewIntBuilder(&memory.Allocator{})
-		b.Reserve(t.l)
-		for i := 0; i < t.l; i++ {
+		b := arrow.NewIntBuilder(t.alloc)
+		b.Reserve(cr.l)
+		for i := 0; i < cr.l; i++ {
 			b.UnsafeAppend(int64(bounds[j]))
 		}
-		t.colBufs[j] = b.NewArray()
+		cr.cols[j] = b.NewArray()
 		b.Release()
 	}
 }
@@ -158,128 +230,33 @@ func (t *table) closeDone() {
 	}
 }
 
-// hasPoints returns true if the next block from cur has data. If cur is not
-// nil, it will be closed.
-func hasPoints(cur cursors.Cursor) bool {
-	if cur == nil {
-		return false
-	}
-
-	res := false
-	switch cur := cur.(type) {
-	case cursors.IntegerArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.FloatArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.UnsignedArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.BooleanArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	case cursors.StringArrayCursor:
-		a := cur.Next()
-		res = a.Len() > 0
-	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
-	}
-	cur.Close()
-	return res
-}
-
-type tableNoPoints struct {
-	table
-}
-
-func newTableNoPoints(
-	done chan struct{},
-	bounds execute.Bounds,
-	key flux.GroupKey,
-	cols []flux.ColMeta,
-	tags models.Tags,
-	defs [][]byte,
-) *tableNoPoints {
-	t := &tableNoPoints{
-		table: newTable(done, bounds, key, cols, defs),
-	}
-	t.readTags(tags)
-
-	return t
-}
-
-func (t *tableNoPoints) Close() {}
-
-func (t *tableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }
-
-func (t *tableNoPoints) Do(f func(flux.ColReader) error) error {
-	if t.isCancelled() {
-		return nil
-	}
-	t.err = f(t)
-	t.closeDone()
-	return t.err
-}
-
-type groupTableNoPoints struct {
-	table
-}
-
-func newGroupTableNoPoints(
-	done chan struct{},
-	bounds execute.Bounds,
-	key flux.GroupKey,
-	cols []flux.ColMeta,
-	defs [][]byte,
-) *groupTableNoPoints {
-	t := &groupTableNoPoints{
-		table: newTable(done, bounds, key, cols, defs),
-	}
-
-	return t
-}
-
-func (t *groupTableNoPoints) Close() {}
-
-func (t *groupTableNoPoints) Do(f func(flux.ColReader) error) error {
-	if t.isCancelled() {
-		return nil
-	}
-	t.err = f(t)
-	t.closeDone()
-	return t.err
-}
-
-func (t *groupTableNoPoints) Statistics() flux.Statistics { return flux.Statistics{} }
-
 func (t *floatTable) toArrowBuffer(vs []float64) *array.Float64 {
-	return arrow.NewFloat(vs, &memory.Allocator{})
+	return arrow.NewFloat(vs, t.alloc)
 }
 func (t *floatGroupTable) toArrowBuffer(vs []float64) *array.Float64 {
-	return arrow.NewFloat(vs, &memory.Allocator{})
+	return arrow.NewFloat(vs, t.alloc)
 }
 func (t *integerTable) toArrowBuffer(vs []int64) *array.Int64 {
-	return arrow.NewInt(vs, &memory.Allocator{})
+	return arrow.NewInt(vs, t.alloc)
 }
 func (t *integerGroupTable) toArrowBuffer(vs []int64) *array.Int64 {
-	return arrow.NewInt(vs, &memory.Allocator{})
+	return arrow.NewInt(vs, t.alloc)
 }
 func (t *unsignedTable) toArrowBuffer(vs []uint64) *array.Uint64 {
-	return arrow.NewUint(vs, &memory.Allocator{})
+	return arrow.NewUint(vs, t.alloc)
 }
 func (t *unsignedGroupTable) toArrowBuffer(vs []uint64) *array.Uint64 {
-	return arrow.NewUint(vs, &memory.Allocator{})
+	return arrow.NewUint(vs, t.alloc)
 }
 func (t *stringTable) toArrowBuffer(vs []string) *array.Binary {
-	return arrow.NewString(vs, &memory.Allocator{})
+	return arrow.NewString(vs, t.alloc)
 }
 func (t *stringGroupTable) toArrowBuffer(vs []string) *array.Binary {
-	return arrow.NewString(vs, &memory.Allocator{})
+	return arrow.NewString(vs, t.alloc)
 }
 func (t *booleanTable) toArrowBuffer(vs []bool) *array.Boolean {
-	return arrow.NewBool(vs, &memory.Allocator{})
+	return arrow.NewBool(vs, t.alloc)
 }
 func (t *booleanGroupTable) toArrowBuffer(vs []bool) *array.Boolean {
-	return arrow.NewBool(vs, &memory.Allocator{})
+	return arrow.NewBool(vs, t.alloc)
 }

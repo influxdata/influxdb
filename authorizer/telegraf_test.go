@@ -51,8 +51,8 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
 					FindTelegrafConfigByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             id,
-							OrganizationID: 10,
+							ID:    id,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -77,8 +77,8 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
 					FindTelegrafConfigByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             id,
-							OrganizationID: 10,
+							ID:    id,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -115,91 +115,6 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 	}
 }
 
-func TestTelegrafConfigStore_FindTelegrafConfig(t *testing.T) {
-	type fields struct {
-		TelegrafConfigStore influxdb.TelegrafConfigStore
-	}
-	type args struct {
-		permission influxdb.Permission
-	}
-	type wants struct {
-		err error
-	}
-
-	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		wants  wants
-	}{
-		{
-			name: "authorized to access telegraf",
-			fields: fields{
-				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter) (*influxdb.TelegrafConfig, error) {
-						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
-						}, nil
-					},
-				},
-			},
-			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.TelegrafsResourceType,
-						ID:   influxdbtesting.IDPtr(1),
-					},
-				},
-			},
-			wants: wants{
-				err: nil,
-			},
-		},
-		{
-			name: "unauthorized to access telegraf",
-			fields: fields{
-				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter) (*influxdb.TelegrafConfig, error) {
-						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
-						}, nil
-					},
-				},
-			},
-			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.TelegrafsResourceType,
-						ID:   influxdbtesting.IDPtr(2),
-					},
-				},
-			},
-			wants: wants{
-				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := authorizer.NewTelegrafConfigService(tt.fields.TelegrafConfigStore, mock.NewUserResourceMappingService())
-
-			ctx := context.Background()
-			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
-
-			_, err := s.FindTelegrafConfig(ctx, influxdb.TelegrafConfigFilter{})
-			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
-		})
-	}
-}
-
 func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 	type fields struct {
 		TelegrafConfigStore influxdb.TelegrafConfigStore
@@ -225,16 +140,16 @@ func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 					FindTelegrafConfigsF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
 						return []*influxdb.TelegrafConfig{
 							{
-								ID:             1,
-								OrganizationID: 10,
+								ID:    1,
+								OrgID: 10,
 							},
 							{
-								ID:             2,
-								OrganizationID: 10,
+								ID:    2,
+								OrgID: 10,
 							},
 							{
-								ID:             3,
-								OrganizationID: 11,
+								ID:    3,
+								OrgID: 11,
 							},
 						}, 3, nil
 					},
@@ -251,16 +166,16 @@ func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 			wants: wants{
 				telegrafs: []*influxdb.TelegrafConfig{
 					{
-						ID:             1,
-						OrganizationID: 10,
+						ID:    1,
+						OrgID: 10,
 					},
 					{
-						ID:             2,
-						OrganizationID: 10,
+						ID:    2,
+						OrgID: 10,
 					},
 					{
-						ID:             3,
-						OrganizationID: 11,
+						ID:    3,
+						OrgID: 11,
 					},
 				},
 			},
@@ -272,16 +187,16 @@ func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 					FindTelegrafConfigsF: func(ctx context.Context, filter influxdb.TelegrafConfigFilter, opt ...influxdb.FindOptions) ([]*influxdb.TelegrafConfig, int, error) {
 						return []*influxdb.TelegrafConfig{
 							{
-								ID:             1,
-								OrganizationID: 10,
+								ID:    1,
+								OrgID: 10,
 							},
 							{
-								ID:             2,
-								OrganizationID: 10,
+								ID:    2,
+								OrgID: 10,
 							},
 							{
-								ID:             3,
-								OrganizationID: 11,
+								ID:    3,
+								OrgID: 11,
 							},
 						}, 3, nil
 					},
@@ -299,12 +214,12 @@ func TestTelegrafConfigStore_FindTelegrafConfigs(t *testing.T) {
 			wants: wants{
 				telegrafs: []*influxdb.TelegrafConfig{
 					{
-						ID:             1,
-						OrganizationID: 10,
+						ID:    1,
+						OrgID: 10,
 					},
 					{
-						ID:             2,
-						OrganizationID: 10,
+						ID:    2,
+						OrgID: 10,
 					},
 				},
 			},
@@ -352,14 +267,14 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
 					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					UpdateTelegrafConfigF: func(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -393,14 +308,14 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
 					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					UpdateTelegrafConfigF: func(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 				},
@@ -463,8 +378,8 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
 					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					DeleteTelegrafConfigF: func(ctx context.Context, id influxdb.ID) error {
@@ -501,8 +416,8 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
 					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
-							ID:             1,
-							OrganizationID: 10,
+							ID:    1,
+							OrgID: 10,
 						}, nil
 					},
 					DeleteTelegrafConfigF: func(ctx context.Context, id influxdb.ID) error {
@@ -620,7 +535,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrganizationID: tt.args.orgID}, influxdb.ID(1))
+			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrgID: tt.args.orgID}, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

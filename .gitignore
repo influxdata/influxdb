@@ -11,7 +11,7 @@ vendor
 # binary databases
 influxd.bolt
 
-# Project distirbution
+# Project distribution
 /dist
 
 # Project binaries.
@@ -21,11 +21,19 @@ influxd.bolt
 /transpilerd
 /bin
 
+# Project tools that you might install with go build.
+/editorconfig-checker
+/staticcheck
+
 ui/node_modules
 ui/npm-error.log
-ui/yarn.lock
 ui/build
 ui/.cache
+ui/package-lock.json
+
+# e2e test artifacts
+ui/cypress/screenshots
+ui/cypress/videos
 
 ui/src/api/.gitignore
 ui/src/api/.openapi-generator-ignore
@@ -118,6 +126,9 @@ man/*.1.gz
 
 # test outputs
 /test-results.xml
+junit-results
+cypress/screenshots
+cypress/videos
 
 # profile data
 /prof

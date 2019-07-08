@@ -4,9 +4,20 @@ import "context"
 
 // Organization is an organization. 🎉
 type Organization struct {
-	ID   ID     `json:"id,omitempty"`
-	Name string `json:"name"`
+	ID          ID     `json:"id,omitempty"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CRUDLog
 }
+
+// errors of org
+var (
+	// ErrOrgNameisEmpty is error when org name is empty
+	ErrOrgNameisEmpty = &Error{
+		Code: EInvalid,
+		Msg:  "org name is empty",
+	}
+)
 
 // ops for orgs error and orgs op logs.
 const (
@@ -44,7 +55,14 @@ type OrganizationService interface {
 // OrganizationUpdate represents updates to a organization.
 // Only fields which are set are updated.
 type OrganizationUpdate struct {
-	Name *string
+	Name        *string
+	Description *string `json:"description,omitempty"`
+}
+
+// ErrInvalidOrgFilter is the error indicate org filter is empty
+var ErrInvalidOrgFilter = &Error{
+	Code: EInvalid,
+	Msg:  "Please provide either orgID or org",
 }
 
 // OrganizationFilter represents a set of filter that restrict the returned results.

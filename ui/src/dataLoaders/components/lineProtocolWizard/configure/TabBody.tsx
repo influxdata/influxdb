@@ -1,18 +1,21 @@
+// Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 
+// Components
 import {
-  Input,
-  InputType,
   Form,
+  Input,
   Grid,
+  TextArea,
   Columns,
+  InputType,
   ComponentSize,
-} from 'src/clockface'
+} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
-import TextArea from 'src/clockface/components/inputs/TextArea'
-import {LineProtocolTab} from 'src/types/v2/dataLoaders'
-import {setLineProtocolBody} from 'src/dataLoaders/actions/dataLoaders'
+import {LineProtocolTab} from 'src/types'
 import {WritePrecision} from '@influxdata/influx'
+
+import {setLineProtocolBody} from 'src/dataLoaders/actions/dataLoaders'
 
 interface Props {
   lineProtocolBody: string
@@ -21,7 +24,6 @@ interface Props {
   setLineProtocolBody: typeof setLineProtocolBody
   onURLChange: (url: string) => void
   urlInput: string
-  handleSubmit?: () => void
 }
 
 export default class extends PureComponent<Props> {
@@ -83,11 +85,8 @@ export default class extends PureComponent<Props> {
     setLineProtocolBody(lpBody)
   }
 
-  private handleSetLineProtocol = async (lpBody: string) => {
-    const {setLineProtocolBody, handleSubmit} = this.props
-    await setLineProtocolBody(lpBody)
-    if (handleSubmit) {
-      handleSubmit()
-    }
+  private handleSetLineProtocol = (lpBody: string) => {
+    const {setLineProtocolBody} = this.props
+    setLineProtocolBody(lpBody)
   }
 }

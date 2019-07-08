@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ComponentClass} from 'react'
+import React, {Component, RefObject} from 'react'
 import {connect} from 'react-redux'
 import {get} from 'lodash'
 
@@ -8,53 +8,76 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import Conditional from 'src/shared/components/Conditional'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
-// Actions
-import {readView} from 'src/dashboards/actions/v2/views'
+// Utils
+import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {RemoteDataState, TimeRange} from 'src/types'
-import {AppState, ViewType, View, Cell} from 'src/types/v2'
-
-// Styles
-import './Cell.scss'
+import {
+  AppState,
+  ViewType,
+  View,
+  Cell,
+  TimeRange,
+  RemoteDataState,
+} from 'src/types'
 
 interface StateProps {
+  viewsStatus: RemoteDataState
   view: View
-  viewStatus: RemoteDataState
 }
 
-interface DispatchProps {
-  onReadView: typeof readView
-}
-
-interface PassedProps {
+interface OwnProps {
   cell: Cell
   timeRange: TimeRange
-  autoRefresh: number
   manualRefresh: number
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onEditCell: () => void
-  onZoom: (range: TimeRange) => void
+  onEditNote: (id: string) => void
 }
 
-type Props = StateProps & DispatchProps & PassedProps
+interface State {
+  inView: boolean
+}
+
+type Props = StateProps & OwnProps
 
 @ErrorHandling
-class CellComponent extends Component<Props> {
-  public async componentDidMount() {
-    const {viewStatus, cell, onReadView} = this.props
+class CellComponent extends Component<Props, State> {
+  state: State = {
+    inView: false,
+  }
 
-    if (viewStatus === RemoteDataState.NotStarted) {
-      const dashboardID = cell.dashboardID
-      onReadView(dashboardID, cell.id)
-    }
+  private observer: IntersectionObserver
+
+  private cellRef: RefObject<HTMLDivElement> = React.createRef()
+
+  public componentDidMount() {
+    this.observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const {isIntersecting} = entry
+        if (isIntersecting) {
+          this.setState({inView: true})
+          this.observer.disconnect()
+        }
+      })
+    })
+
+    this.observer.observe(this.cellRef.current)
   }
 
   public render() {
-    const {onEditCell, onDeleteCell, onCloneCell, cell, view} = this.props
+    const {
+      onEditCell,
+      onEditNote,
+      onDeleteCell,
+      onCloneCell,
+      cell,
+      view,
+    } = this.props
+    const {inView} = this.state
 
     return (
       <>
@@ -66,10 +89,17 @@ class CellComponent extends Component<Props> {
             onDeleteCell={onDeleteCell}
             onCloneCell={onCloneCell}
             onEditCell={onEditCell}
+            onEditNote={onEditNote}
             onCSVDownload={this.handleCSVDownload}
           />
         )}
-        <div className="cell--view">{this.view}</div>
+        <div
+          className="cell--view"
+          data-testid="cell--view-empty"
+          ref={this.cellRef}
+        >
+          {inView && this.view}
+        </div>
       </>
     )
   }
@@ -102,27 +132,20 @@ class CellComponent extends Component<Props> {
   }
 
   private get view(): JSX.Element {
-    const {
-      timeRange,
-      autoRefresh,
-      manualRefresh,
-      onZoom,
-      view,
-      viewStatus,
-      onEditCell,
-    } = this.props
+    const {timeRange, manualRefresh, view, onEditCell, viewsStatus} = this.props
 
     return (
-      <Conditional isRendered={viewStatus === RemoteDataState.Done}>
+      <SpinnerContainer
+        loading={viewsStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
         <ViewComponent
           view={view}
-          onZoom={onZoom}
           timeRange={timeRange}
-          autoRefresh={autoRefresh}
           manualRefresh={manualRefresh}
           onEditCell={onEditCell}
         />
-      </Conditional>
+      </SpinnerContainer>
     )
   }
 
@@ -131,21 +154,15 @@ class CellComponent extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState, ownProps: PassedProps): StateProps => {
-  const entry = state.views[ownProps.cell.id]
+const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+  const {
+    views: {status},
+  } = state
 
-  if (entry) {
-    return {view: entry.view, viewStatus: entry.status}
-  }
-
-  return {view: null, viewStatus: RemoteDataState.NotStarted}
+  return {view: getView(state, ownProps.cell.id), viewsStatus: status}
 }
 
-const mdtp: DispatchProps = {
-  onReadView: readView,
-}
-
-export default connect(
+export default connect<StateProps, {}, OwnProps>(
   mstp,
-  mdtp
-)(CellComponent) as ComponentClass<PassedProps>
+  null
+)(CellComponent)

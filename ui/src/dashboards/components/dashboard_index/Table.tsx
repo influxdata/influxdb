@@ -4,179 +4,115 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  IconFont,
-  ComponentSize,
-  EmptyState,
-  IndexList,
-  Alignment,
-} from 'src/clockface'
-import TableRows from 'src/dashboards/components/dashboard_index/TableRows'
-import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
+import {EmptyState} from '@influxdata/clockface'
+import {ResourceList} from 'src/clockface'
+import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import DashboardCards from 'src/dashboards/components/dashboard_index/DashboardCards'
 
 // Types
-import {Sort} from 'src/clockface'
-import {Dashboard, Organization} from 'src/types/v2'
+import {Dashboard} from 'src/types'
+import {Sort, ComponentSize} from '@influxdata/clockface'
+import {SortTypes} from 'src/shared/utils/sort'
 
-// Constants
-const OWNER_COL_WIDTH = 17
-const NAME_COL_WIDTH = 63
-
-interface Props {
+interface OwnProps {
   searchTerm: string
-  dashboards: Dashboard[]
-  defaultDashboardLink: string
   onDeleteDashboard: (dashboard: Dashboard) => void
   onCreateDashboard: () => void
   onCloneDashboard: (dashboard: Dashboard) => void
-  onExportDashboard: (dashboard: Dashboard) => void
   onUpdateDashboard: (dashboard: Dashboard) => void
-  onSetDefaultDashboard: (dashboardLink: string) => void
-  onEditLabels: (dashboard: Dashboard) => void
-  orgs: Organization[]
-  showOwnerColumn: boolean
-}
-
-interface DatedDashboard extends Dashboard {
-  modified: Date
+  onFilterChange: (searchTerm: string) => void
+  filterComponent?: () => JSX.Element
+  onImportDashboard: () => void
+  dashboards: Dashboard[]
 }
 
 interface State {
   sortKey: SortKey
   sortDirection: Sort
+  sortType: SortTypes
 }
 
-type SortKey = keyof Dashboard | 'modified' | 'owner' | 'default' // owner and modified are currently hardcoded
+type SortKey = keyof Dashboard | 'modified'
 
-class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
-  constructor(props) {
-    super(props)
-    this.state = {
-      sortKey: null,
-      sortDirection: Sort.Descending,
-    }
+type Props = OwnProps & WithRouterProps
+
+class DashboardsTable extends PureComponent<Props, State> {
+  state: State = {
+    sortKey: 'name',
+    sortDirection: Sort.Ascending,
+    sortType: SortTypes.String,
   }
 
   public render() {
-    const {sortKey, sortDirection} = this.state
+    const {
+      dashboards,
+      filterComponent,
+      onCloneDashboard,
+      onDeleteDashboard,
+      onUpdateDashboard,
+      onFilterChange,
+    } = this.props
+
+    const {sortKey, sortDirection, sortType} = this.state
 
     return (
-      <IndexList>
-        <IndexList.Header>
-          <IndexList.HeaderCell
-            columnName={this.headerKeys[0]}
+      <ResourceList>
+        <ResourceList.Header filterComponent={filterComponent}>
+          <ResourceList.Sorter
+            name={this.headerKeys[0]}
             sortKey={this.headerKeys[0]}
             sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
-            width={this.nameColWidth}
             onClick={this.handleClickColumn}
           />
-          {this.ownerColumnHeader}
-          <IndexList.HeaderCell
-            columnName={this.headerKeys[2]}
-            sortKey={this.headerKeys[2]}
-            sort={sortKey === this.headerKeys[2] ? sortDirection : Sort.None}
-            width="11%"
+          <ResourceList.Sorter
+            name={this.headerKeys[1]}
+            sortKey={this.headerKeys[1]}
+            sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
             onClick={this.handleClickColumn}
           />
-          <IndexList.HeaderCell
-            columnName=""
-            width="10%"
-            alignment={Alignment.Right}
-          />
-        </IndexList.Header>
-        <IndexList.Body emptyState={this.emptyState} columnCount={5}>
-          {this.sortedRows}
-        </IndexList.Body>
-      </IndexList>
+        </ResourceList.Header>
+        <ResourceList.Body emptyState={this.emptyState}>
+          {!!dashboards.length && (
+            <DashboardCards
+              dashboards={dashboards}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onCloneDashboard={onCloneDashboard}
+              onDeleteDashboard={onDeleteDashboard}
+              onUpdateDashboard={onUpdateDashboard}
+              onFilterChange={onFilterChange}
+            />
+          )}
+        </ResourceList.Body>
+      </ResourceList>
     )
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'owner', 'modified', 'default']
-  }
-
-  private get ownerColumnHeader(): JSX.Element {
-    const {showOwnerColumn} = this.props
-    const {sortKey, sortDirection} = this.state
-
-    if (showOwnerColumn) {
-      return (
-        <IndexList.HeaderCell
-          columnName={this.headerKeys[1]}
-          sortKey={this.headerKeys[1]}
-          sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
-          width={`${OWNER_COL_WIDTH}%`}
-          onClick={this.handleClickColumn}
-        />
-      )
-    }
-  }
-
-  private get nameColWidth(): string {
-    const {showOwnerColumn} = this.props
-
-    if (showOwnerColumn) {
-      return `${NAME_COL_WIDTH}%`
-    }
-
-    return `${NAME_COL_WIDTH + OWNER_COL_WIDTH}%`
+    return ['name', 'modified']
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    this.setState({sortKey, sortDirection: nextSort})
-  }
+    let sortType = SortTypes.String
 
-  private get sortedRows(): JSX.Element {
-    const {
-      dashboards,
-      onExportDashboard,
-      onCloneDashboard,
-      onDeleteDashboard,
-      onUpdateDashboard,
-      onEditLabels,
-      orgs,
-      showOwnerColumn,
-    } = this.props
-
-    const {sortKey, sortDirection} = this.state
-
-    if (dashboards.length) {
-      return (
-        <SortingHat<DatedDashboard>
-          list={this.datedDashboards}
-          sortKey={sortKey}
-          direction={sortDirection}
-        >
-          {ds => (
-            <TableRows
-              dashboards={ds}
-              onCloneDashboard={onCloneDashboard}
-              onExportDashboard={onExportDashboard}
-              onDeleteDashboard={onDeleteDashboard}
-              onUpdateDashboard={onUpdateDashboard}
-              onEditLabels={onEditLabels}
-              orgs={orgs}
-              showOwnerColumn={showOwnerColumn}
-            />
-          )}
-        </SortingHat>
-      )
+    if (sortKey === 'modified') {
+      sortType = SortTypes.Date
     }
 
-    return null
+    this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
-  private get datedDashboards(): DatedDashboard[] {
-    return this.props.dashboards.map(d => ({
-      ...d,
-      modified: new Date(d.meta.updatedAt),
-    }))
+  private summonImportFromTemplateOverlay = (): void => {
+    const {
+      router,
+      params: {orgID},
+    } = this.props
+    router.push(`/orgs/${orgID}/dashboards/import/template`)
   }
 
   private get emptyState(): JSX.Element {
-    const {onCreateDashboard, searchTerm} = this.props
+    const {onCreateDashboard, searchTerm, onImportDashboard} = this.props
 
     if (searchTerm) {
       return (
@@ -192,16 +128,16 @@ class DashboardsTable extends PureComponent<Props & WithRouterProps, State> {
           text="Looks like you don’t have any Dashboards , why not create one?"
           highlightWords={['Dashboards']}
         />
-        <Button
-          text="Create a Dashboard"
-          icon={IconFont.Plus}
-          color={ComponentColor.Primary}
-          onClick={onCreateDashboard}
-          size={ComponentSize.Medium}
+        <AddResourceDropdown
+          onSelectNew={onCreateDashboard}
+          onSelectImport={onImportDashboard}
+          onSelectTemplate={this.summonImportFromTemplateOverlay}
+          resourceName="Dashboard"
+          canImportFromTemplate={true}
         />
       </EmptyState>
     )
   }
 }
 
-export default withRouter<Props>(DashboardsTable)
+export default withRouter<OwnProps>(DashboardsTable)

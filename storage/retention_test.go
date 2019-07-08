@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestRetentionService(t *testing.T) {
@@ -18,12 +20,12 @@ func TestRetentionService(t *testing.T) {
 	now := time.Date(2018, 4, 10, 23, 12, 33, 0, time.UTC)
 
 	t.Run("no buckets", func(t *testing.T) {
-		service.expireData(nil, now)
-		service.expireData([]*platform.Bucket{}, now)
+		service.expireData(context.Background(), nil, now)
+		service.expireData(context.Background(), []*influxdb.Bucket{}, now)
 	})
 
 	// Generate some buckets to expire
-	buckets := []*platform.Bucket{}
+	buckets := []*influxdb.Bucket{}
 	expMatched := map[string]struct{}{}  // To be used for verifying test results.
 	expRejected := map[string]struct{}{} // To be used for verifying test results.
 	for i := 0; i < 15; i++ {
@@ -36,8 +38,8 @@ func TestRetentionService(t *testing.T) {
 		// Put 1/3rd in the rpByBucketID into the set to delete and 1/3rd into the set
 		// to not delete because no rp, and 1/3rd into the set to not delete because 0 rp.
 		if i%3 == 0 {
-			buckets = append(buckets, &platform.Bucket{
-				OrganizationID:  orgID,
+			buckets = append(buckets, &influxdb.Bucket{
+				OrgID:           orgID,
 				ID:              bucketID,
 				RetentionPeriod: 3 * time.Hour,
 			})
@@ -45,8 +47,8 @@ func TestRetentionService(t *testing.T) {
 		} else if i%3 == 1 {
 			expRejected[string(name)] = struct{}{}
 		} else if i%3 == 2 {
-			buckets = append(buckets, &platform.Bucket{
-				OrganizationID:  orgID,
+			buckets = append(buckets, &influxdb.Bucket{
+				OrgID:           orgID,
 				ID:              bucketID,
 				RetentionPeriod: 0,
 			})
@@ -55,7 +57,7 @@ func TestRetentionService(t *testing.T) {
 	}
 
 	gotMatched := map[string]struct{}{}
-	engine.DeleteBucketRangeFn = func(orgID, bucketID platform.ID, from, to int64) error {
+	engine.DeleteBucketRangeFn = func(orgID, bucketID influxdb.ID, from, to int64) error {
 		if from != math.MinInt64 {
 			t.Fatalf("got from %d, expected %d", from, math.MinInt64)
 		}
@@ -73,11 +75,69 @@ func TestRetentionService(t *testing.T) {
 	}
 
 	t.Run("multiple buckets", func(t *testing.T) {
-		service.expireData(buckets, now)
+		service.expireData(context.Background(), buckets, now)
 		if !reflect.DeepEqual(gotMatched, expMatched) {
 			t.Fatalf("got\n%#v\nexpected\n%#v", gotMatched, expMatched)
 		}
 	})
+}
+
+func TestMetrics_Retention(t *testing.T) {
+	// metrics to be shared by multiple file stores.
+	metrics := newRetentionMetrics(prometheus.Labels{"engine_id": "", "node_id": ""})
+
+	t1 := newRetentionTracker(metrics, prometheus.Labels{"engine_id": "0", "node_id": "0"})
+	t2 := newRetentionTracker(metrics, prometheus.Labels{"engine_id": "1", "node_id": "0"})
+
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(metrics.PrometheusCollectors()...)
+
+	base := namespace + "_" + retentionSubsystem + "_"
+
+	// Generate some measurements.
+	for i, tracker := range []*retentionTracker{t1, t2} {
+		tracker.IncChecks(influxdb.ID(i+1), influxdb.ID(i+1), true)
+		tracker.IncChecks(influxdb.ID(i+1), influxdb.ID(i+1), false)
+		tracker.CheckDuration(time.Second, true)
+		tracker.CheckDuration(time.Second, false)
+	}
+
+	// Test that all the correct metrics are present.
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The label variants for the two caches.
+	labelVariants := []prometheus.Labels{
+		prometheus.Labels{"engine_id": "0", "node_id": "0"},
+		prometheus.Labels{"engine_id": "1", "node_id": "0"},
+	}
+
+	for i, labels := range labelVariants {
+		for _, status := range []string{"ok", "error"} {
+			labels["status"] = status
+
+			l := make(prometheus.Labels, len(labels))
+			for k, v := range labels {
+				l[k] = v
+			}
+			l["org_id"] = influxdb.ID(i + 1).String()
+			l["bucket_id"] = influxdb.ID(i + 1).String()
+
+			name := base + "checks_total"
+			metric := promtest.MustFindMetric(t, mfs, name, l)
+			if got, exp := metric.GetCounter().GetValue(), float64(1); got != exp {
+				t.Errorf("[%s %d %v] got %v, expected %v", name, i, l, got, exp)
+			}
+
+			name = base + "check_duration_seconds"
+			metric = promtest.MustFindMetric(t, mfs, name, labels)
+			if got, exp := metric.GetHistogram().GetSampleSum(), float64(1); got != exp {
+				t.Errorf("[%s %d %v] got %v, expected %v", name, i, labels, got, exp)
+			}
+		}
+	}
 }
 
 // genMeasurementName generates a random measurement name or panics.
@@ -91,31 +151,31 @@ func genMeasurementName() []byte {
 }
 
 type TestEngine struct {
-	DeleteBucketRangeFn func(platform.ID, platform.ID, int64, int64) error
+	DeleteBucketRangeFn func(influxdb.ID, influxdb.ID, int64, int64) error
 }
 
 func NewTestEngine() *TestEngine {
 	return &TestEngine{
-		DeleteBucketRangeFn: func(platform.ID, platform.ID, int64, int64) error { return nil },
+		DeleteBucketRangeFn: func(influxdb.ID, influxdb.ID, int64, int64) error { return nil },
 	}
 }
 
-func (e *TestEngine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) error {
+func (e *TestEngine) DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) error {
 	return e.DeleteBucketRangeFn(orgID, bucketID, min, max)
 }
 
 type TestBucketFinder struct {
-	FindBucketsFn func(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error)
+	FindBucketsFn func(context.Context, influxdb.BucketFilter, ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error)
 }
 
 func NewTestBucketFinder() *TestBucketFinder {
 	return &TestBucketFinder{
-		FindBucketsFn: func(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+		FindBucketsFn: func(context.Context, influxdb.BucketFilter, ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 			return nil, 0, nil
 		},
 	}
 }
 
-func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 	return f.FindBucketsFn(ctx, filter, opts...)
 }

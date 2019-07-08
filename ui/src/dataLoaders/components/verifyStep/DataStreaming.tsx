@@ -4,42 +4,29 @@ import _ from 'lodash'
 
 // Components
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import CreateOrUpdateConfig from 'src/dataLoaders/components/verifyStep/CreateOrUpdateConfig'
 import DataListening from 'src/dataLoaders/components/verifyStep/DataListening'
 
 // Decorator
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-// Types
-import {NotificationAction} from 'src/types'
-
 interface Props {
-  notify: NotificationAction
   bucket: string
   org: string
   configID: string
-  authToken: string
+  token: string
 }
 
 @ErrorHandling
 class DataStreaming extends PureComponent<Props> {
   public render() {
-    const {authToken, org, configID, bucket, notify} = this.props
+    const {token, configID, bucket} = this.props
 
     return (
-      <>
-        <CreateOrUpdateConfig org={org}>
-          {() => (
-            <TelegrafInstructions
-              notify={notify}
-              authToken={authToken}
-              configID={configID}
-            />
-          )}
-        </CreateOrUpdateConfig>
+      <div className="streaming">
+        <TelegrafInstructions token={token} configID={configID} />
 
         <DataListening bucket={bucket} />
-      </>
+      </div>
     )
   }
 }

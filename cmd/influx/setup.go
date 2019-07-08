@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/spf13/cobra"
-	"github.com/tcnksm/go-input"
+	input "github.com/tcnksm/go-input"
 )
 
 // setup Command
@@ -21,6 +21,7 @@ var setupCmd = &cobra.Command{
 	RunE:  wrapErrorFmt(setupF),
 }
 
+// SetupFlags are used when setup is not in interactive mode.
 type SetupFlags struct {
 	username  string
 	password  string
@@ -61,7 +62,19 @@ func setupF(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("instance at %q has already been setup", flags.host)
 	}
 
-	req, err := getOnboardingRequest()
+	dPath, dir, err := defaultTokenPath()
+	if err != nil {
+		return err
+	}
+
+	if _, err := os.Stat(dPath); err == nil {
+		return &platform.Error{
+			Code: platform.EConflict,
+			Msg:  fmt.Sprintf("token already exists at %s", dPath),
+		}
+	}
+
+	req, err := onboardingRequest()
 	if err != nil {
 		return fmt.Errorf("failed to retrieve data to setup instance: %v", err)
 	}
@@ -70,8 +83,13 @@ func setupF(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to setup instance: %v", err)
 	}
-	writeTokenToPath(result.Auth.Token, defaultTokenPath())
-	fmt.Println(promptWithColor("Your token has been stored in "+defaultTokenPath()+".", colorCyan))
+
+	err = writeTokenToPath(result.Auth.Token, dPath, dir)
+	if err != nil {
+		return fmt.Errorf("failed to write token to path %q: %v", dPath, err)
+	}
+
+	fmt.Println(promptWithColor("Your token has been stored in "+dPath+".", colorCyan))
 
 	w := internal.NewTabWriter(os.Stdout)
 	w.WriteHeaders(
@@ -90,7 +108,38 @@ func setupF(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func getOnboardingRequest() (req *platform.OnboardingRequest, err error) {
+func isInteractive() bool {
+	return !setupFlags.force ||
+		setupFlags.username == "" ||
+		setupFlags.password == "" ||
+		setupFlags.org == "" ||
+		setupFlags.bucket == ""
+}
+
+func onboardingRequest() (*platform.OnboardingRequest, error) {
+	if isInteractive() {
+		return interactive()
+	}
+	return nonInteractive()
+}
+
+func nonInteractive() (*platform.OnboardingRequest, error) {
+	req := &platform.OnboardingRequest{
+		User:            setupFlags.username,
+		Password:        setupFlags.password,
+		Token:           setupFlags.token,
+		Org:             setupFlags.org,
+		Bucket:          setupFlags.bucket,
+		RetentionPeriod: uint(setupFlags.retention),
+	}
+
+	if setupFlags.retention < 0 {
+		req.RetentionPeriod = platform.InfiniteRetention
+	}
+	return req, nil
+}
+
+func interactive() (req *platform.OnboardingRequest, err error) {
 	ui := &input.UI{
 		Writer: os.Stdout,
 		Reader: os.Stdin,
@@ -187,7 +236,10 @@ You have entered:
 	}
 }
 
-var errPasswordIsNotMatch = fmt.Errorf("passwords do not match")
+var (
+	errPasswordIsNotMatch = fmt.Errorf("passwords do not match")
+	errPasswordIsTooShort = fmt.Errorf("passwords is too short")
+)
 
 func getPassword(ui *input.UI) (password string) {
 	var err error
@@ -198,10 +250,19 @@ enterPasswd:
 			Required:  true,
 			HideOrder: true,
 			Hide:      true,
+			ValidateFunc: func(s string) error {
+				if len(s) < 8 {
+					return errPasswordIsTooShort
+				}
+				return nil
+			},
 		})
 		switch err {
 		case input.ErrInterrupted:
 			os.Exit(1)
+		case errPasswordIsTooShort:
+			fmt.Println(promptWithColor("Password too short - minimum length is 8 characters!", colorRed))
+			goto enterPasswd
 		default:
 			if password = strings.TrimSpace(password); password == "" {
 				continue

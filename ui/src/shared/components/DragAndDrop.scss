@@ -1,6 +1,3 @@
-
-@import 'src/style/modules';
-
 /*
   Drag and Drop Styles
   ------------------------------------------------------------------------------
@@ -33,14 +30,14 @@
     display: none;
   }
   .drag-and-drop--graphic {
-    background-image: url('../../../assets/images/drag-n-drop.svg');
+    background-image: url('../../assets/images/drag-n-drop.svg');
     background-size: 100% 100%;
     background-position: center center;
     width: 90px;
     height: 90px;
     color: $g6-smoke; 
     &.success {
-      background-image: url('../../../assets/images/drag-n-drop.svg'); 
+      background-image: url('../../assets/images/drag-n-drop.svg'); 
     }
   }
   .drag-and-drop--header {

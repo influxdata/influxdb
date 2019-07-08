@@ -1,4 +1,4 @@
-package executor_test
+package executor
 
 import (
 	"context"
@@ -16,11 +16,12 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 	platform "github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
-	"github.com/influxdata/influxdb/task/backend/executor"
-	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap"
 )
 
@@ -28,19 +29,25 @@ type fakeQueryService struct {
 	mu       sync.Mutex
 	queries  map[string]*fakeQuery
 	queryErr error
+	// The most recent ctx received in the Query method.
+	// Used to validate that the executor applied the correct authorizer.
+	mostRecentCtx context.Context
 }
 
 var _ query.AsyncQueryService = (*fakeQueryService)(nil)
 
-func makeSpec(q string) *flux.Spec {
-	qs, err := flux.Compile(context.Background(), q, time.Unix(123, 0))
+func makeAST(q string) lang.ASTCompiler {
+	pkg, err := flux.Parse(q)
 	if err != nil {
 		panic(err)
 	}
-	return qs
+	return lang.ASTCompiler{
+		AST: pkg,
+		Now: time.Unix(123, 0),
+	}
 }
 
-func makeSpecString(q *flux.Spec) string {
+func makeASTString(q lang.ASTCompiler) string {
 	b, err := json.Marshal(q)
 	if err != nil {
 		panic(err)
@@ -53,24 +60,29 @@ func newFakeQueryService() *fakeQueryService {
 }
 
 func (s *fakeQueryService) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
+	if req.Authorization == nil {
+		panic("authorization required")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.mostRecentCtx = ctx
 	if s.queryErr != nil {
 		err := s.queryErr
 		s.queryErr = nil
 		return nil, err
 	}
 
-	sc, ok := req.Compiler.(lang.SpecCompiler)
+	astc, ok := req.Compiler.(lang.ASTCompiler)
 	if !ok {
-		return nil, fmt.Errorf("fakeQueryService only supports the SpecCompiler, got %T", req.Compiler)
+		return nil, fmt.Errorf("fakeQueryService only supports the ASTCompiler, got %T", req.Compiler)
 	}
 
 	fq := &fakeQuery{
-		wait:  make(chan struct{}),
-		ready: make(chan map[string]flux.Result),
+		wait:    make(chan struct{}),
+		results: make(chan flux.Result),
 	}
-	s.queries[makeSpecString(sc.Spec)] = fq
+	s.queries[makeASTString(astc)] = fq
 
 	go fq.run(ctx)
 
@@ -83,8 +95,15 @@ func (s *fakeQueryService) SucceedQuery(script string) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeSpecString(makeSpec(script))
-	close(s.queries[spec].wait)
+	ast := makeAST(script)
+	spec := makeASTString(ast)
+	fq, ok := s.queries[spec]
+	if !ok {
+		ast.Now = ast.Now.UTC()
+		spec = makeASTString(ast)
+		fq = s.queries[spec]
+	}
+	close(fq.wait)
 	delete(s.queries, spec)
 }
 
@@ -94,9 +113,16 @@ func (s *fakeQueryService) FailQuery(script string, forced error) {
 	defer s.mu.Unlock()
 
 	// Unblock the flux.
-	spec := makeSpecString(makeSpec(script))
-	s.queries[spec].forcedError = forced
-	close(s.queries[spec].wait)
+	ast := makeAST(script)
+	spec := makeASTString(ast)
+	fq, ok := s.queries[spec]
+	if !ok {
+		ast.Now = ast.Now.UTC()
+		spec = makeASTString(ast)
+		fq = s.queries[spec]
+	}
+	fq.forcedError = forced
+	close(fq.wait)
 	delete(s.queries, spec)
 }
 
@@ -112,7 +138,11 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
 	const attempts = 10
-	spec := makeSpecString(makeSpec(script))
+	ast := makeAST(script)
+	astUTC := makeAST(script)
+	astUTC.Now = ast.Now.UTC()
+	spec := makeASTString(ast)
+	specUTC := makeASTString(astUTC)
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
 			time.Sleep(5 * time.Millisecond)
@@ -124,13 +154,20 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 		if ok {
 			return
 		}
+		s.mu.Lock()
+		_, ok = s.queries[specUTC]
+		s.mu.Unlock()
+		if ok {
+			return
+		}
+
 	}
 
 	t.Fatalf("Did not see live query %q in time", script)
 }
 
 type fakeQuery struct {
-	ready       chan map[string]flux.Result
+	results     chan flux.Result
 	wait        chan struct{} // Blocks Ready from returning.
 	forcedError error         // Value to return from Err() method.
 
@@ -139,11 +176,10 @@ type fakeQuery struct {
 
 var _ flux.Query = (*fakeQuery)(nil)
 
-func (q *fakeQuery) Spec() *flux.Spec                     { return nil }
-func (q *fakeQuery) Done()                                {}
-func (q *fakeQuery) Cancel()                              { close(q.ready) }
-func (q *fakeQuery) Statistics() flux.Statistics          { return flux.Statistics{} }
-func (q *fakeQuery) Ready() <-chan map[string]flux.Result { return q.ready }
+func (q *fakeQuery) Done()                       {}
+func (q *fakeQuery) Cancel()                     { close(q.results) }
+func (q *fakeQuery) Statistics() flux.Statistics { return flux.Statistics{} }
+func (q *fakeQuery) Results() <-chan flux.Result { return q.results }
 
 func (q *fakeQuery) Err() error {
 	if q.ctxErr != nil {
@@ -153,13 +189,14 @@ func (q *fakeQuery) Err() error {
 }
 
 // run is intended to be run on its own goroutine.
-// It blocks until q.wait is closed, then sends a fake result on the q.ready channel.
+// It blocks until q.wait is closed, then sends a fake result on the q.results channel.
 func (q *fakeQuery) run(ctx context.Context) {
+	defer close(q.results)
+
 	// Wait for call to set query success/fail.
 	select {
 	case <-ctx.Done():
 		q.ctxErr = ctx.Err()
-		close(q.ready)
 		return
 	case <-q.wait:
 		// Normal case.
@@ -167,11 +204,7 @@ func (q *fakeQuery) run(ctx context.Context) {
 
 	if q.forcedError == nil {
 		res := newFakeResult()
-		q.ready <- map[string]flux.Result{
-			res.Name(): res,
-		}
-	} else {
-		close(q.ready)
+		q.results <- res
 	}
 }
 
@@ -224,37 +257,51 @@ func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
 type system struct {
 	name string
 	svc  *fakeQueryService
-	st   backend.Store
+	ts   platform.TaskService
 	ex   backend.Executor
+	// We really just want an authorization service here, but we take a whole inmem service
+	// to ensure that the authorization service validates org and user existence properly.
+	i *kv.Service
 }
 
 type createSysFn func() *system
 
 func createAsyncSystem() *system {
 	svc := newFakeQueryService()
-	st := backend.NewInMemStore()
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		panic(err)
+	}
+
 	return &system{
 		name: "AsyncExecutor",
 		svc:  svc,
-		st:   st,
-		ex:   executor.NewAsyncQueryServiceExecutor(zap.NewNop(), svc, st),
+		ts:   i,
+		ex:   NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
+		i:    i,
 	}
 }
 
 func createSyncSystem() *system {
 	svc := newFakeQueryService()
-	st := backend.NewInMemStore()
+	i := kv.NewService(inmem.NewKVStore())
+	if err := i.Initialize(context.Background()); err != nil {
+		panic(err)
+	}
+
 	return &system{
 		name: "SynchronousExecutor",
 		svc:  svc,
-		st:   st,
-		ex: executor.NewQueryServiceExecutor(
+		ts:   i,
+		ex: NewQueryServiceExecutor(
 			zap.NewNop(),
 			query.QueryServiceBridge{
 				AsyncQueryService: svc,
 			},
-			st,
+			i,
+			i,
 		),
+		i: i,
 	}
 }
 
@@ -281,18 +328,18 @@ option task = {
 from(bucket: "one") |> http.to(url: "http://example.com")`
 
 func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
+	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
 		t.Parallel()
 
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -332,21 +379,30 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 		if !reflect.DeepEqual(res, res2) {
 			t.Fatalf("second call to wait returned a different result: %#v", res2)
 		}
+
+		// The query must have received the appropriate authorizer.
+		qa, err := icontext.GetAuthorizer(sys.svc.mostRecentCtx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if qa.Identifier() != tc.Auth.ID {
+			t.Fatalf("expected query authorizer to have ID %v, got %v", tc.Auth.ID, qa.Identifier())
+		}
 	})
 }
 
 func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
+	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -366,17 +422,17 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
+	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 		rp, err := sys.ex.Execute(context.Background(), qr)
 		if err != nil {
 			t.Fatal(err)
@@ -385,7 +441,7 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 		rp.Cancel()
 
 		res, err := rp.Wait()
-		if err != backend.ErrRunCanceled {
+		if err != &platform.ErrRunCanceled {
 			t.Fatalf("expected ErrRunCanceled, got %v", err)
 		}
 		if res != nil {
@@ -395,17 +451,17 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorServiceError(t *testing.T, fn createSysFn) {
-	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
 	sys := fn()
+	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
 		t.Parallel()
 		script := fmt.Sprintf(fmtTestScript, t.Name())
-		tid, err := sys.st.CreateTask(context.Background(), backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+		ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+		task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 		if err != nil {
 			t.Fatal(err)
 		}
-		qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+		qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 
 		var forced = errors.New("forced")
 		sys.svc.FailNextQuery(forced)
@@ -436,9 +492,6 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 	// but it needs to be large-ish for slow machines running with the race detector.
 	const waitCheckDelay = 100 * time.Millisecond
 
-	var orgID = platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa")
-	var userID = platformtesting.MustIDBase16("baaaaaaaaaaaaaab")
-
 	// Other executor tests create a single sys and share it among subtests.
 	// For this set of tests, we are testing Wait, which does not allow calling Execute concurrently,
 	// so we make a new sys for each subtest.
@@ -465,16 +518,18 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 		t.Run("cancel execute context", func(t *testing.T) {
 			t.Parallel()
 			sys := createSys()
+			tc := createCreds(t, sys.i)
 
 			ctx, ctxCancel := context.WithCancel(context.Background())
 			defer ctxCancel()
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			ctx = icontext.SetAuthorizer(ctx, tc.Auth)
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			if _, err := sys.ex.Execute(ctx, qr); err != nil {
 				t.Fatal(err)
 			}
@@ -505,15 +560,16 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 		t.Run("cancel run promise", func(t *testing.T) {
 			t.Parallel()
 			sys := createSys()
+			tc := createCreds(t, sys.i)
 
-			ctx := context.Background()
+			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			rp, err := sys.ex.Execute(ctx, qr)
 			if err != nil {
 				t.Fatal(err)
@@ -545,15 +601,16 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 		t.Run("run success", func(t *testing.T) {
 			t.Parallel()
 			sys := createSys()
+			tc := createCreds(t, sys.i)
 
-			ctx := context.Background()
+			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			if _, err := sys.ex.Execute(ctx, qr); err != nil {
 				t.Fatal(err)
 			}
@@ -585,15 +642,15 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 		t.Run("run failure", func(t *testing.T) {
 			t.Parallel()
 			sys := createSys()
-
-			ctx := context.Background()
+			tc := createCreds(t, sys.i)
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
-			tid, err := sys.st.CreateTask(ctx, backend.CreateTaskRequest{Org: orgID, User: userID, Script: script})
+			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
+			task, err := sys.ts.CreateTask(ctx, platform.TaskCreate{OrganizationID: tc.OrgID, Token: tc.Auth.Token, Flux: script})
 			if err != nil {
 				t.Fatal(err)
 			}
-			qr := backend.QueuedRun{TaskID: tid, RunID: platform.ID(1), Now: 123}
+			qr := backend.QueuedRun{TaskID: task.ID, RunID: platform.ID(1), Now: 123}
 			if _, err := sys.ex.Execute(ctx, qr); err != nil {
 				t.Fatal(err)
 			}
@@ -622,4 +679,43 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 			}
 		})
 	})
+}
+
+type testCreds struct {
+	OrgID, UserID platform.ID
+	Auth          *platform.Authorization
+}
+
+func createCreds(t *testing.T, i *kv.Service) testCreds {
+	t.Helper()
+
+	org := &platform.Organization{Name: t.Name() + "-org"}
+	if err := i.CreateOrganization(context.Background(), org); err != nil {
+		t.Fatal(err)
+	}
+
+	user := &platform.User{Name: t.Name() + "-user"}
+	if err := i.CreateUser(context.Background(), user); err != nil {
+		t.Fatal(err)
+	}
+
+	readPerm, err := platform.NewGlobalPermission(platform.ReadAction, platform.BucketsResourceType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePerm, err := platform.NewGlobalPermission(platform.WriteAction, platform.BucketsResourceType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth := &platform.Authorization{
+		OrgID:       org.ID,
+		UserID:      user.ID,
+		Token:       "hifriend!",
+		Permissions: []platform.Permission{*readPerm, *writePerm},
+	}
+	if err := i.CreateAuthorization(context.Background(), auth); err != nil {
+		t.Fatal(err)
+	}
+
+	return testCreds{OrgID: org.ID, Auth: auth}
 }

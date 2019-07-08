@@ -20,11 +20,11 @@ import {
 
 // Types
 import {Color} from 'src/types/colors'
-import {DecimalPlaces} from 'src/types/v2/dashboards'
+import {DecimalPlaces} from 'src/types/dashboards'
 
 interface Props {
-  width: string
-  height: string
+  width: number
+  height: number
   gaugePosition: number
   colors?: Color[]
   prefix: string
@@ -62,21 +62,16 @@ class Gauge extends Component<Props> {
     )
   }
 
-  private resetCanvas = (canvas, context) => {
-    context.setTransform(1, 0, 0, 1, 0, 0)
-    context.clearRect(0, 0, canvas.width, canvas.height)
-  }
-
   private updateCanvas = () => {
+    this.resetCanvas()
+
     const canvas = this.canvasRef.current
-    canvas.width = canvas.height * (canvas.clientWidth / canvas.clientHeight)
     const ctx = canvas.getContext('2d')
+    const {width, height} = this.props
 
-    this.resetCanvas(canvas, ctx)
-
-    const centerX = canvas.width / 2
-    const centerY = (canvas.height / 2) * 1.13
-    const radius = (Math.min(canvas.width, canvas.height) / 2) * 0.5
+    const centerX = width / 2
+    const centerY = (height / 2) * 1.13
+    const radius = (Math.min(width, height) / 2) * 0.5
 
     const {minLineWidth, minFontSize} = GAUGE_SPECS
     const gradientThickness = Math.max(minLineWidth, radius / 4)
@@ -121,6 +116,23 @@ class Gauge extends Component<Props> {
     this.drawGaugeLabels(ctx, radius, gradientThickness, minValue, maxValue)
     this.drawGaugeValue(ctx, radius, labelValueFontSize)
     this.drawNeedle(ctx, radius, minValue, maxValue)
+  }
+
+  private resetCanvas = () => {
+    const canvas = this.canvasRef.current
+    const ctx = canvas.getContext('2d')
+    const {width, height} = this.props
+    const dpRatio = window.devicePixelRatio || 1
+
+    // Set up canvas to draw on HiDPI / Retina screens correctly
+    canvas.width = width * dpRatio
+    canvas.height = height * dpRatio
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    ctx.scale(dpRatio, dpRatio)
+
+    // Clear the canvas
+    ctx.clearRect(0, 0, width, height)
   }
 
   private drawGradientGauge = (ctx, xc, yc, r, gradientThickness) => {
@@ -270,15 +282,14 @@ class Gauge extends Component<Props> {
     const {prefix, suffix, decimalPlaces} = this.props
     const {degree, lineCount, labelColor, labelFontSize} = GAUGE_SPECS
 
-    const incrementValue = (maxValue - minValue) / lineCount
+    const tickValues = [
+      ..._.range(minValue, maxValue, Math.abs(maxValue - minValue) / lineCount),
+      maxValue,
+    ]
 
-    const labels = []
-    for (let g = minValue; g < maxValue; g += incrementValue) {
-      const valueString = formatStatValue(g, {decimalPlaces, prefix, suffix})
-      labels.push(valueString)
-    }
-
-    labels.push(formatStatValue(maxValue, {decimalPlaces, prefix, suffix}))
+    const labels = tickValues.map(tick =>
+      formatStatValue(tick, {decimalPlaces, prefix, suffix})
+    )
 
     const startDegree = degree * 135
     const arcLength = Math.PI * 1.5
@@ -337,10 +348,18 @@ class Gauge extends Component<Props> {
 
   private drawNeedle = (ctx, radius, minValue, maxValue) => {
     const {gaugePosition} = this.props
-    const {degree, needleColor0, needleColor1} = GAUGE_SPECS
+    const {degree, needleColor0, needleColor1, overflowDelta} = GAUGE_SPECS
     const arcDistance = Math.PI * 1.5
 
-    const needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    let needleRotation: number
+
+    if (gaugePosition <= minValue) {
+      needleRotation = 0 - overflowDelta
+    } else if (gaugePosition >= maxValue) {
+      needleRotation = 1 + overflowDelta
+    } else {
+      needleRotation = (gaugePosition - minValue) / (maxValue - minValue)
+    }
 
     const needleGradient = ctx.createLinearGradient(0, -10, 0, radius)
     needleGradient.addColorStop(0, needleColor0)

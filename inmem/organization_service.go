@@ -3,6 +3,7 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -80,9 +81,8 @@ func (s *Service) FindOrganization(ctx context.Context, filter platform.Organiza
 	op := OpPrefix + platform.OpFindOrganization
 	if filter.ID == nil && filter.Name == nil {
 		return nil, &platform.Error{
-			Code: platform.EInvalid,
-			Op:   op,
-			Msg:  "no filter parameters provided",
+			Op:  op,
+			Err: platform.ErrInvalidOrgFilter,
 		}
 	}
 
@@ -179,15 +179,19 @@ func (s *Service) findOrganizationByName(ctx context.Context, n string) (*platfo
 // CreateOrganization creates a new organization and sets b.ID with the new identifier.
 func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organization) error {
 	op := OpPrefix + platform.OpCreateOrganization
+	if o.Name = strings.TrimSpace(o.Name); o.Name == "" {
+		return platform.ErrOrgNameisEmpty
+	}
 	if _, err := s.FindOrganization(ctx, platform.OrganizationFilter{Name: &o.Name}); err == nil {
 		return &platform.Error{
 			Code: platform.EConflict,
 			Op:   op,
 			Msg:  fmt.Sprintf("organization with name %s already exists", o.Name),
 		}
-
 	}
 	o.ID = s.IDGenerator.ID()
+	o.CreatedAt = s.Now()
+	o.UpdatedAt = s.Now()
 	err := s.PutOrganization(ctx, o)
 	if err != nil {
 		return &platform.Error{
@@ -215,8 +219,23 @@ func (s *Service) UpdateOrganization(ctx context.Context, id platform.ID, upd pl
 	}
 
 	if upd.Name != nil {
+		if *upd.Name = strings.TrimSpace(*upd.Name); *upd.Name == "" {
+			return nil, platform.ErrOrgNameisEmpty
+		}
+		if _, err := s.FindOrganization(ctx, platform.OrganizationFilter{Name: upd.Name}); err == nil {
+			return nil, &platform.Error{
+				Code: platform.EConflict,
+				Msg:  fmt.Sprintf("organization with name %s already exists", *upd.Name),
+			}
+		}
 		o.Name = *upd.Name
 	}
+
+	if upd.Description != nil {
+		o.Description = *upd.Description
+	}
+
+	o.UpdatedAt = s.Now()
 
 	s.organizationKV.Store(o.ID.String(), o)
 

@@ -12,12 +12,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: JSX.Element[] | JSX.Element | string | number
-  widthPixels?: number
+  widthPixels: number
 }
 
 @ErrorHandling
 class PageHeaderCenter extends Component<Props> {
-  public static defaultProps: Partial<Props> = {
+  public static defaultProps = {
     widthPixels: DEFAULT_PAGE_HEADER_CENTER_WIDTH,
   }
 

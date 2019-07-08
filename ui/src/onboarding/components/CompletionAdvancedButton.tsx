@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {Button, ComponentColor, ComponentSize} from 'src/clockface'
+import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
@@ -26,6 +26,7 @@ class CompletionAdvancedButton extends PureComponent<Props> {
         color={ComponentColor.Success}
         size={ComponentSize.Large}
         onClick={this.handleAdvanced}
+        testID="button--advanced"
       />
     )
   }
@@ -34,7 +35,7 @@ class CompletionAdvancedButton extends PureComponent<Props> {
     const {router, orgs, onExit} = this.props
     const id = _.get(orgs, '0.id', null)
     if (id) {
-      router.push(`/organizations/${id}/buckets_tab`)
+      router.push(`/orgs/${id}/buckets`)
     } else {
       onExit()
     }

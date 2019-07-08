@@ -9,19 +9,24 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/http/metric"
+	"github.com/julienschmidt/httprouter"
+	"go.uber.org/zap"
+
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/julienschmidt/httprouter"
-	"go.uber.org/zap"
 )
 
 // WriteBackend is all services and associated parameters required to construct
 // the WriteHandler.
 type WriteBackend struct {
-	Logger *zap.Logger
+	platform.HTTPErrorHandler
+	Logger             *zap.Logger
+	WriteEventRecorder metric.EventRecorder
 
 	PointsWriter        storage.PointsWriter
 	BucketService       platform.BucketService
@@ -31,7 +36,9 @@ type WriteBackend struct {
 // NewWriteBackend returns a new instance of WriteBackend.
 func NewWriteBackend(b *APIBackend) *WriteBackend {
 	return &WriteBackend{
-		Logger: b.Logger.With(zap.String("handler", "write")),
+		HTTPErrorHandler:   b.HTTPErrorHandler,
+		Logger:             b.Logger.With(zap.String("handler", "write")),
+		WriteEventRecorder: b.WriteEventRecorder,
 
 		PointsWriter:        b.PointsWriter,
 		BucketService:       b.BucketService,
@@ -42,13 +49,15 @@ func NewWriteBackend(b *APIBackend) *WriteBackend {
 // WriteHandler receives line protocol and sends to a publish function.
 type WriteHandler struct {
 	*httprouter.Router
-
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	BucketService       platform.BucketService
 	OrganizationService platform.OrganizationService
 
 	PointsWriter storage.PointsWriter
+
+	EventRecorder metric.EventRecorder
 }
 
 const (
@@ -60,12 +69,14 @@ const (
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
 func NewWriteHandler(b *WriteBackend) *WriteHandler {
 	h := &WriteHandler{
-		Router: NewRouter(),
-		Logger: b.Logger,
+		Router:           NewRouter(b.HTTPErrorHandler),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger,
 
 		PointsWriter:        b.PointsWriter,
 		BucketService:       b.BucketService,
 		OrganizationService: b.OrganizationService,
+		EventRecorder:       b.WriteEventRecorder,
 	}
 
 	h.HandlerFunc("POST", writePath, h.handleWrite)
@@ -73,15 +84,34 @@ func NewWriteHandler(b *WriteBackend) *WriteHandler {
 }
 
 func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
+	span, r := tracing.ExtractFromHTTPRequest(r, "WriteHandler")
+	defer span.Finish()
+
 	ctx := r.Context()
 	defer r.Body.Close()
+
+	// TODO(desa): I really don't like how we're recording the usage metrics here
+	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
+	var orgID platform.ID
+	var requestBytes int
+	sw := newStatusResponseWriter(w)
+	w = sw
+	defer func() {
+		h.EventRecorder.Record(ctx, metric.Event{
+			OrgID:         orgID,
+			Endpoint:      r.URL.Path, // This should be sufficient for the time being as it should only be single endpoint.
+			RequestBytes:  requestBytes,
+			ResponseBytes: sw.responseBytes,
+			Status:        sw.code(),
+		})
+	}()
 
 	in := r.Body
 	if r.Header.Get("Content-Encoding") == "gzip" {
 		var err error
 		in, err = gzip.NewReader(r.Body)
 		if err != nil {
-			EncodeError(ctx, &platform.Error{
+			h.HandleHTTPError(ctx, &platform.Error{
 				Code: platform.EInvalid,
 				Op:   "http/handleWrite",
 				Msg:  errInvalidGzipHeader,
@@ -94,13 +124,13 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	req, err := decodeWriteRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -113,7 +143,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			org = o
 		} else if platform.ErrorCode(err) != platform.ENotFound {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 	}
@@ -121,12 +151,13 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &req.Org})
 		if err != nil {
 			logger.Info("Failed to find organization", zap.Error(err))
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
 		org = o
 	}
+	orgID = org.ID
 
 	var bucket *platform.Bucket
 	if id, err := platform.IDFromString(req.Bucket); err == nil {
@@ -138,7 +169,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			bucket = b
 		} else if platform.ErrorCode(err) != platform.ENotFound {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 	}
@@ -149,7 +180,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			Name:           &req.Bucket,
 		})
 		if err != nil {
-			EncodeError(ctx, &platform.Error{
+			h.HandleHTTPError(ctx, &platform.Error{
 				Op:  "http/handleWrite",
 				Err: err,
 			}, w)
@@ -161,7 +192,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
 	if err != nil {
-		EncodeError(ctx, &platform.Error{
+		h.HandleHTTPError(ctx, &platform.Error{
 			Code: platform.EInternal,
 			Op:   "http/handleWrite",
 			Msg:  fmt.Sprintf("unable to create permission for bucket: %v", err),
@@ -171,7 +202,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !a.Allowed(*p) {
-		EncodeError(ctx, &platform.Error{
+		h.HandleHTTPError(ctx, &platform.Error{
 			Code: platform.EForbidden,
 			Op:   "http/handleWrite",
 			Msg:  "insufficient permissions for write",
@@ -185,7 +216,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	data, err := ioutil.ReadAll(in)
 	if err != nil {
 		logger.Error("Error reading body", zap.Error(err))
-		EncodeError(ctx, &platform.Error{
+		h.HandleHTTPError(ctx, &platform.Error{
 			Code: platform.EInternal,
 			Op:   "http/handleWrite",
 			Msg:  fmt.Sprintf("unable to read data: %v", err),
@@ -193,11 +224,14 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		}, w)
 		return
 	}
+	requestBytes = len(data)
 
-	points, err := models.ParsePointsWithPrecision(data, time.Now(), req.Precision)
+	encoded := tsdb.EncodeName(org.ID, bucket.ID)
+	mm := models.EscapeMeasurement(encoded[:])
+	points, err := models.ParsePointsWithPrecision(data, mm, time.Now(), req.Precision)
 	if err != nil {
 		logger.Error("Error parsing points", zap.Error(err))
-		EncodeError(ctx, &platform.Error{
+		h.HandleHTTPError(ctx, &platform.Error{
 			Code: platform.EInvalid,
 			Op:   "http/handleWrite",
 			Msg:  fmt.Sprintf("unable to parse points: %v", err),
@@ -206,21 +240,9 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exploded, err := tsdb.ExplodePoints(org.ID, bucket.ID, points)
-	if err != nil {
-		logger.Error("Error exploding points", zap.Error(err))
-		EncodeError(ctx, &platform.Error{
-			Code: platform.EInternal,
-			Op:   "http/handleWrite",
-			Msg:  fmt.Sprintf("unable to convert points to internal structures: %v", err),
-			Err:  err,
-		}, w)
-		return
-	}
-
-	if err := h.PointsWriter.WritePoints(exploded); err != nil {
+	if err := h.PointsWriter.WritePoints(ctx, points); err != nil {
 		logger.Error("Error writing points", zap.Error(err))
-		EncodeError(ctx, &platform.Error{
+		h.HandleHTTPError(ctx, &platform.Error{
 			Code: platform.EInternal,
 			Op:   "http/handleWrite",
 			Msg:  fmt.Sprintf("unable to write points to database: %v", err),
@@ -284,7 +306,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 		}
 	}
 
-	u, err := newURL(s.Addr, writePath)
+	u, err := NewURL(s.Addr, writePath)
 	if err != nil {
 		return err
 	}
@@ -319,7 +341,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID platform.ID, r
 	params.Set("precision", string(precision))
 	req.URL.RawQuery = params.Encode()
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {

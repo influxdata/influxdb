@@ -7,73 +7,59 @@ import TimeMachineFluxEditor from 'src/timeMachine/components/TimeMachineFluxEdi
 import CSVExportButton from 'src/shared/components/CSVExportButton'
 import TimeMachineQueriesSwitcher from 'src/timeMachine/components/QueriesSwitcher'
 import TimeMachineRefreshDropdown from 'src/timeMachine/components/RefreshDropdown'
-import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
+import TimeRangeDropdown, {
+  RangeType,
+} from 'src/shared/components/TimeRangeDropdown'
 import TimeMachineQueryTab from 'src/timeMachine/components/QueryTab'
 import TimeMachineQueryBuilder from 'src/timeMachine/components/QueryBuilder'
-import TimeMachineInfluxQLEditor from 'src/timeMachine/components/TimeMachineInfluxQLEditor'
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
+import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import {
-  Button,
-  ComponentSpacer,
-  Alignment,
-  ComponentColor,
-  ComponentSize,
-  ButtonShape,
+  SquareButton,
   IconFont,
-  SlideToggle,
-} from 'src/clockface'
+  ComponentSize,
+  ComponentColor,
+  ComponentSpacer,
+  FlexDirection,
+  JustifyContent,
+} from '@influxdata/clockface'
 
 // Actions
-import {addQuery} from 'src/timeMachine/actions'
-import {setTimeRange, setIsViewingRawData} from 'src/timeMachine/actions'
+import {addQuery, setAutoRefresh} from 'src/timeMachine/actions'
+import {setTimeRange} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
-
-// Styles
-import 'src/timeMachine/components/Queries.scss'
 
 // Types
 import {
   AppState,
   DashboardQuery,
-  InfluxLanguage,
   QueryEditMode,
   TimeRange,
-} from 'src/types/v2'
-import {DashboardDraftQuery} from 'src/types/v2/dashboards'
-import {QueriesState} from 'src/shared/components/TimeSeries'
+  AutoRefresh,
+  AutoRefreshStatus,
+} from 'src/types'
+import {DashboardDraftQuery} from 'src/types/dashboards'
 
 interface StateProps {
   activeQuery: DashboardQuery
   draftQueries: DashboardDraftQuery[]
   timeRange: TimeRange
-  isViewingRawData: boolean
+  autoRefresh: AutoRefresh
 }
 
 interface DispatchProps {
   onAddQuery: typeof addQuery
   onSetTimeRange: typeof setTimeRange
-  onSetIsViewingRawData: typeof setIsViewingRawData
+  onSetAutoRefresh: typeof setAutoRefresh
 }
 
-interface OwnProps {
-  queriesState: QueriesState
-}
-
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & DispatchProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
-    const {
-      queriesState,
-      draftQueries,
-      onAddQuery,
-      timeRange,
-      onSetTimeRange,
-      isViewingRawData,
-      queriesState: {files},
-    } = this.props
+    const {draftQueries, onAddQuery, timeRange} = this.props
 
     return (
       <div className="time-machine-queries">
@@ -84,12 +70,10 @@ class TimeMachineQueries extends PureComponent<Props> {
                 key={queryIndex}
                 queryIndex={queryIndex}
                 query={query}
-                queriesState={queriesState}
               />
             ))}
-            <Button
-              customClass="time-machine-queries--new"
-              shape={ButtonShape.Square}
+            <SquareButton
+              className="time-machine-queries--new"
               icon={IconFont.PlusSkinny}
               size={ComponentSize.ExtraSmall}
               color={ComponentColor.Default}
@@ -97,21 +81,20 @@ class TimeMachineQueries extends PureComponent<Props> {
             />
           </div>
           <div className="time-machine-queries--buttons">
-            <ComponentSpacer align={Alignment.Right}>
-              <SlideToggle.Label text="View Raw Data" />
-              <SlideToggle
-                active={isViewingRawData}
-                onChange={this.handleToggleIsViewingRawData}
-                size={ComponentSize.ExtraSmall}
-              />
-              <CSVExportButton files={files} />
+            <ComponentSpacer
+              direction={FlexDirection.Row}
+              justifyContent={JustifyContent.FlexEnd}
+              margin={ComponentSize.Small}
+            >
+              <RawDataToggle />
+              <CSVExportButton />
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown
                 timeRange={timeRange}
-                onSetTimeRange={onSetTimeRange}
+                onSetTimeRange={this.handleSetTimeRange}
               />
               <TimeMachineQueriesSwitcher />
-              <SubmitQueryButton queryStatus={queriesState.loading} />
+              <SubmitQueryButton />
             </ComponentSpacer>
           </div>
         </div>
@@ -120,42 +103,57 @@ class TimeMachineQueries extends PureComponent<Props> {
     )
   }
 
+  private handleSetTimeRange = (
+    timeRange: TimeRange,
+    rangeType: RangeType = RangeType.Relative
+  ) => {
+    const {autoRefresh, onSetAutoRefresh, onSetTimeRange} = this.props
+
+    onSetTimeRange(timeRange)
+
+    if (rangeType === RangeType.Absolute) {
+      onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Disabled})
+      return
+    }
+
+    if (autoRefresh.status === AutoRefreshStatus.Disabled) {
+      if (autoRefresh.interval === 0) {
+        onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Paused})
+        return
+      }
+
+      onSetAutoRefresh({...autoRefresh, status: AutoRefreshStatus.Active})
+    }
+  }
+
   private get queryEditor(): JSX.Element {
     const {activeQuery} = this.props
 
     if (activeQuery.editMode === QueryEditMode.Builder) {
       return <TimeMachineQueryBuilder />
-    } else if (activeQuery.type === InfluxLanguage.Flux) {
+    } else if (activeQuery.editMode === QueryEditMode.Advanced) {
       return <TimeMachineFluxEditor />
-    } else if (activeQuery.type === InfluxLanguage.InfluxQL) {
-      return <TimeMachineInfluxQLEditor />
+    } else {
+      return null
     }
-  }
-
-  private handleToggleIsViewingRawData = () => {
-    const {isViewingRawData, onSetIsViewingRawData} = this.props
-
-    onSetIsViewingRawData(!isViewingRawData)
   }
 }
 
 const mstp = (state: AppState) => {
-  const {draftQueries, timeRange, isViewingRawData} = getActiveTimeMachine(
-    state
-  )
+  const {draftQueries, timeRange, autoRefresh} = getActiveTimeMachine(state)
 
   const activeQuery = getActiveQuery(state)
 
-  return {timeRange, activeQuery, draftQueries, isViewingRawData}
+  return {timeRange, activeQuery, draftQueries, autoRefresh}
 }
 
 const mdtp = {
   onAddQuery: addQuery,
   onSetTimeRange: setTimeRange,
-  onSetIsViewingRawData: setIsViewingRawData,
+  onSetAutoRefresh: setAutoRefresh,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
 )(TimeMachineQueries)

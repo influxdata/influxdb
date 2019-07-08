@@ -21,7 +21,7 @@ type AuthorizationService struct {
 	FindAuthorizationsFn       func(context.Context, platform.AuthorizationFilter, ...platform.FindOptions) ([]*platform.Authorization, int, error)
 	CreateAuthorizationFn      func(context.Context, *platform.Authorization) error
 	DeleteAuthorizationFn      func(context.Context, platform.ID) error
-	SetAuthorizationStatusFn   func(context.Context, platform.ID, platform.Status) error
+	UpdateAuthorizationFn      func(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error)
 }
 
 // NewAuthorizationService returns a mock AuthorizationService where its methods will return
@@ -33,9 +33,11 @@ func NewAuthorizationService() *AuthorizationService {
 		FindAuthorizationsFn: func(context.Context, platform.AuthorizationFilter, ...platform.FindOptions) ([]*platform.Authorization, int, error) {
 			return nil, 0, nil
 		},
-		CreateAuthorizationFn:    func(context.Context, *platform.Authorization) error { return nil },
-		DeleteAuthorizationFn:    func(context.Context, platform.ID) error { return nil },
-		SetAuthorizationStatusFn: func(context.Context, platform.ID, platform.Status) error { return nil },
+		CreateAuthorizationFn: func(context.Context, *platform.Authorization) error { return nil },
+		DeleteAuthorizationFn: func(context.Context, platform.ID) error { return nil },
+		UpdateAuthorizationFn: func(context.Context, platform.ID, *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+			return nil, nil
+		},
 	}
 }
 
@@ -63,6 +65,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	return s.DeleteAuthorizationFn(ctx, id)
 }
 
-func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
-	return s.SetAuthorizationStatusFn(ctx, id, status)
+// UpdateAuthorization updates the status and description if available.
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+	return s.UpdateAuthorizationFn(ctx, id, upd)
 }

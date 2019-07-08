@@ -2,10 +2,15 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Dropdown, Form, Grid, Columns} from 'src/clockface'
+import {Form, Grid} from '@influxdata/clockface'
+import {Dropdown} from 'src/clockface'
+
+// Utils
+import {resolveGeom} from 'src/shared/utils/vis'
 
 // Types
-import {XYViewGeom} from 'src/types/v2/dashboards'
+import {XYViewGeom} from 'src/types'
+import {Columns} from '@influxdata/clockface'
 
 interface Props {
   geom: XYViewGeom
@@ -15,19 +20,16 @@ interface Props {
 const Geom: SFC<Props> = ({geom, onSetGeom}) => {
   return (
     <Grid.Column widthXS={Columns.Twelve}>
-      <Form.Element label="Geometry">
-        <Dropdown selectedID={geom} onChange={onSetGeom}>
+      <Form.Element label="Interpolation">
+        <Dropdown selectedID={resolveGeom(geom)} onChange={onSetGeom}>
           <Dropdown.Item id={XYViewGeom.Line} value={XYViewGeom.Line}>
-            Line
+            Linear
           </Dropdown.Item>
-          <Dropdown.Item id={XYViewGeom.Stacked} value={XYViewGeom.Stacked}>
-            Stacked
+          <Dropdown.Item id={XYViewGeom.MonotoneX} value={XYViewGeom.MonotoneX}>
+            Smooth
           </Dropdown.Item>
           <Dropdown.Item id={XYViewGeom.Step} value={XYViewGeom.Step}>
             Step
-          </Dropdown.Item>
-          <Dropdown.Item id={XYViewGeom.Bar} value={XYViewGeom.Bar}>
-            Bar
           </Dropdown.Item>
         </Dropdown>
       </Form.Element>

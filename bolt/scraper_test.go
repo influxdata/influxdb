@@ -26,11 +26,21 @@ func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T)
 			t.Fatalf("failed to populate user resource mapping")
 		}
 	}
+	for _, o := range f.Organizations {
+		if err := c.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate orgs: %v", err)
+		}
+	}
 	return c, bolt.OpPrefix, func() {
 		defer closeFn()
 		for _, target := range f.Targets {
 			if err := c.RemoveTarget(ctx, target.ID); err != nil {
 				t.Logf("failed to remove targets: %v", err)
+			}
+		}
+		for _, o := range f.Organizations {
+			if err := c.DeleteOrganization(ctx, o.ID); err != nil {
+				t.Logf("failed to remove org: %v", err)
 			}
 		}
 	}

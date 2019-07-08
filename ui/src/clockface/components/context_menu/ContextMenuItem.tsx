@@ -4,22 +4,29 @@ import classnames from 'classnames'
 
 interface Props {
   label: string
-  description?: string
   action: (value?: any) => void
+  description: string
+  testID: string
   value?: any
-  onCollapseMenu?: () => void
   disabled?: boolean
+  onCollapseMenu?: () => void
 }
 
 class ContextMenuItem extends Component<Props> {
+  public static defaultProps = {
+    description: '',
+    testID: 'context-menu-item',
+  }
+
   public render() {
-    const {label, disabled} = this.props
+    const {label, disabled, testID} = this.props
 
     return (
       <button
         className={this.className}
         onClick={this.handleClick}
         disabled={disabled}
+        data-testid={testID}
       >
         {label}
         {this.description}
@@ -45,12 +52,11 @@ class ContextMenuItem extends Component<Props> {
   private handleClick = (): void => {
     const {action, onCollapseMenu, value} = this.props
 
-    if (!onCollapseMenu) {
-      return
-    }
-
-    onCollapseMenu()
     action(value)
+
+    if (onCollapseMenu) {
+      onCollapseMenu()
+    }
   }
 }
 

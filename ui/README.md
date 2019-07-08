@@ -4,20 +4,20 @@
 To add a new package, run
 
 ```sh
-npm i packageName
+yarn add packageName
 ```
 
 ### Adding devDependency
 
 ```sh
-npm i packageName -D
+yarn add packageName --dev
 ```
 
 ### Updating a package
 First, run
 
 ```sh
-npm outdated
+yarn outdated
 ```
 
 ... to determine which packages may need upgrading.
@@ -28,8 +28,8 @@ to test.
 To upgrade a single package named `packageName`:
 
 ```sh
-npm upgrade packageName
+yarn upgrade packageName
 ```
 
 ## Testing
-Tests can be run via command line with `npm test`, from within the `/ui` directory. For more detailed reporting, use `yarn test -- --reporters=verbose`.
+Tests can be run via command line with `yarn test`, from within the `/ui` directory. For more detailed reporting, use `yarn test -- --reporters=verbose`.

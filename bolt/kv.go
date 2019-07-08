@@ -7,9 +7,11 @@ import (
 	"path/filepath"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
-	"github.com/influxdata/influxdb/kv"
+	"github.com/coreos/bbolt"
 	"go.uber.org/zap"
+
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/kv"
 )
 
 // KVStore is a kv.Store backed by boltdb.
@@ -30,6 +32,9 @@ func NewKVStore(path string) *KVStore {
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
 func (s *KVStore) Open(ctx context.Context) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	// Ensure the required directory structure exists.
 	if err := os.MkdirAll(filepath.Dir(s.path), 0700); err != nil {
 		return fmt.Errorf("unable to create directory %s: %v", s.path, err)
@@ -58,6 +63,33 @@ func (s *KVStore) Close() error {
 	return nil
 }
 
+// Flush removes all bolt keys within each bucket.
+func (s *KVStore) Flush(ctx context.Context) {
+	_ = s.db.Update(
+		func(tx *bolt.Tx) error {
+			return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+				s.cleanBucket(tx, b)
+				return nil
+			})
+		},
+	)
+}
+
+func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
+	// nested bucket recursion base case:
+	if b == nil {
+		return
+	}
+	c := b.Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		_ = v
+		if err := c.Delete(); err != nil {
+			// clean out nexted buckets
+			s.cleanBucket(tx, b.Bucket(k))
+		}
+	}
+}
+
 // WithLogger sets the logger on the store.
 func (s *KVStore) WithLogger(l *zap.Logger) {
 	s.logger = l
@@ -69,21 +101,27 @@ func (s *KVStore) WithDB(db *bolt.DB) {
 }
 
 // View opens up a view transaction against the store.
-func (s *KVStore) View(fn func(tx kv.Tx) error) error {
+func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	return s.db.View(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
-			ctx: context.Background(),
+			ctx: ctx,
 		})
 	})
 }
 
 // Update opens up an update transaction against the store.
-func (s *KVStore) Update(fn func(tx kv.Tx) error) error {
+func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	return s.db.Update(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
-			ctx: context.Background(),
+			ctx: ctx,
 		})
 	})
 }
@@ -176,7 +214,7 @@ type Cursor struct {
 // Seek seeks for the first key that matches the prefix provided.
 func (c *Cursor) Seek(prefix []byte) ([]byte, []byte) {
 	k, v := c.cursor.Seek(prefix)
-	if len(v) == 0 {
+	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
 	return k, v
@@ -185,7 +223,7 @@ func (c *Cursor) Seek(prefix []byte) ([]byte, []byte) {
 // First retrieves the first key value pair in the bucket.
 func (c *Cursor) First() ([]byte, []byte) {
 	k, v := c.cursor.First()
-	if len(v) == 0 {
+	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
 	return k, v
@@ -194,7 +232,7 @@ func (c *Cursor) First() ([]byte, []byte) {
 // Last retrieves the last key value pair in the bucket.
 func (c *Cursor) Last() ([]byte, []byte) {
 	k, v := c.cursor.Last()
-	if len(v) == 0 {
+	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
 	return k, v
@@ -203,7 +241,7 @@ func (c *Cursor) Last() ([]byte, []byte) {
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() ([]byte, []byte) {
 	k, v := c.cursor.Next()
-	if len(v) == 0 {
+	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
 	return k, v
@@ -212,7 +250,7 @@ func (c *Cursor) Next() ([]byte, []byte) {
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() ([]byte, []byte) {
 	k, v := c.cursor.Prev()
-	if len(v) == 0 {
+	if len(k) == 0 && len(v) == 0 {
 		return nil, nil
 	}
 	return k, v

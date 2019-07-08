@@ -11,6 +11,10 @@ var DefaultMaxConcurrentOpens = runtime.GOMAXPROCS(0)
 
 const (
 	DefaultMADVWillNeed = false
+
+	// DefaultLargeSeriesWriteThreshold is the number of series per write
+	// that requires the series index be pregrown before insert.
+	DefaultLargeSeriesWriteThreshold = 10000
 )
 
 // Config contains all of the configuration necessary to run a tsm1 engine.
@@ -25,6 +29,10 @@ type Config struct {
 	// slow disks.
 	MADVWillNeed bool `toml:"use-madv-willneed"`
 
+	// LargeSeriesWriteThreshold is the threshold before a write requires
+	// preallocation to improve throughput. Currently used in the series file.
+	LargeSeriesWriteThreshold int `toml:"large-series-write-threshold"`
+
 	Compaction CompactionConfig `toml:"compaction"`
 	Cache      CacheConfig      `toml:"cache"`
 }
@@ -32,14 +40,11 @@ type Config struct {
 // NewConfig constructs a Config with the default values.
 func NewConfig() Config {
 	return Config{
-		MaxConcurrentOpens: DefaultMaxConcurrentOpens,
-		MADVWillNeed:       DefaultMADVWillNeed,
+		MaxConcurrentOpens:        DefaultMaxConcurrentOpens,
+		MADVWillNeed:              DefaultMADVWillNeed,
+		LargeSeriesWriteThreshold: DefaultLargeSeriesWriteThreshold,
 
-		Cache: CacheConfig{
-			MaxMemorySize:             toml.Size(DefaultCacheMaxMemorySize),
-			SnapshotMemorySize:        toml.Size(DefaultCacheSnapshotMemorySize),
-			SnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
-		},
+		Cache: NewCacheConfig(),
 		Compaction: CompactionConfig{
 			FullWriteColdDuration: toml.Duration(DefaultCompactFullWriteColdDuration),
 			Throughput:            toml.Size(DefaultCompactThroughput),
@@ -79,10 +84,12 @@ type CompactionConfig struct {
 	MaxConcurrent int `toml:"max-concurrent"`
 }
 
+// Default Cache configuration values.
 const (
-	DefaultCacheMaxMemorySize             = 1024 * 1024 * 1024 // 1GB
-	DefaultCacheSnapshotMemorySize        = 25 * 1024 * 1024   // 25MB
-	DefaultCacheSnapshotWriteColdDuration = time.Duration(10 * time.Minute)
+	DefaultCacheMaxMemorySize             = toml.Size(1024 << 20)           // 1GB
+	DefaultCacheSnapshotMemorySize        = toml.Size(25 << 20)             // 25MB
+	DefaultCacheSnapshotAgeDuration       = toml.Duration(0)                // Defaults to off.
+	DefaultCacheSnapshotWriteColdDuration = toml.Duration(10 * time.Minute) // Ten minutes
 )
 
 // CacheConfig holds all of the configuration for the in memory cache of values that
@@ -96,12 +103,29 @@ type CacheConfig struct {
 	// write it to a TSM file, freeing up memory
 	SnapshotMemorySize toml.Size `toml:"snapshot-memory-size"`
 
+	// SnapshotAgeDuration, when set, will ensure that the cache is always snapshotted
+	// if it's age is greater than this duration, regardless of the cache's size.
+	SnapshotAgeDuration toml.Duration `toml:"snapshot-age-duration"`
+
 	// SnapshotWriteColdDuration is the length of time at which the engine will snapshot
 	// the cache and write it to a new TSM file if the shard hasn't received writes or
-	// deletes
+	// deletes.
+	//
+	// SnapshotWriteColdDuration should not be larger than SnapshotAgeDuration
 	SnapshotWriteColdDuration toml.Duration `toml:"snapshot-write-cold-duration"`
 }
 
+// NewCacheConfig initialises a new CacheConfig with default values.
+func NewCacheConfig() CacheConfig {
+	return CacheConfig{
+		MaxMemorySize:             DefaultCacheMaxMemorySize,
+		SnapshotMemorySize:        DefaultCacheSnapshotMemorySize,
+		SnapshotAgeDuration:       DefaultCacheSnapshotAgeDuration,
+		SnapshotWriteColdDuration: DefaultCacheSnapshotWriteColdDuration,
+	}
+}
+
+// Default WAL configuration values.
 const (
 	DefaultWALEnabled    = true
 	DefaultWALFsyncDelay = time.Duration(0)

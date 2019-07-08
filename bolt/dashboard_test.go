@@ -3,7 +3,6 @@ package bolt_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
@@ -16,21 +15,17 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
 
-	if f.NowFn == nil {
-		f.NowFn = time.Now
+	if f.TimeGenerator == nil {
+		f.TimeGenerator = platform.RealTimeGenerator{}
 	}
 
 	c.IDGenerator = f.IDGenerator
-	c.WithTime(f.NowFn)
+	c.TimeGenerator = f.TimeGenerator
+
 	ctx := context.TODO()
 	for _, b := range f.Dashboards {
 		if err := c.PutDashboard(ctx, b); err != nil {
 			t.Fatalf("failed to populate dashboards")
-		}
-	}
-	for _, b := range f.Views {
-		if err := c.PutView(ctx, b); err != nil {
-			t.Fatalf("failed to populate views")
 		}
 	}
 	return c, bolt.OpPrefix, func() {
@@ -38,11 +33,6 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 		for _, b := range f.Dashboards {
 			if err := c.DeleteDashboard(ctx, b.ID); err != nil {
 				t.Logf("failed to remove dashboard: %v", err)
-			}
-		}
-		for _, b := range f.Views {
-			if err := c.DeleteView(ctx, b.ID); err != nil {
-				t.Logf("failed to remove view: %v", err)
 			}
 		}
 	}

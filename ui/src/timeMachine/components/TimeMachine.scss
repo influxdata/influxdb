@@ -3,8 +3,6 @@
   ------------------------------------------------------------------------------
 */
 
-@import 'src/style/modules';
-
 .time-machine {
   height: 100%;
   flex: 0 0 100%;
@@ -50,5 +48,9 @@
 
   > .single-stat {
     border-radius: 0 0 $radius $radius;
+  }
+
+  > .cell--view-empty {
+    padding-top: 32px;
   }
 }

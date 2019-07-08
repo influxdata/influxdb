@@ -79,7 +79,7 @@ const LogoApache: SFC = () => {
           xlinkHref="#apache_b"
         />
       </defs>
-      <title>{'logo_apache'}</title>
+      <title>logo_apache</title>
       <path
         d="M42.56.48C41 1.4 38.39 4 35.28 7.82l2.85 5.39a71.05 71.05 0 0 1 6.1-7.65 3.45 3.45 0 0 1 .25-.26l-.25.26a64.18 64.18 0 0 0-5.72 7.76A108.36 108.36 0 0 0 49.62 12c1.09-6.18-1.08-9-1.08-9S45.79-1.43 42.56.48z"
         fill="url(#apache_c)"

@@ -1,16 +1,24 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`TaskForm rendering renders 1`] = `
-<Form>
-  <Grid>
-    <GridRow>
-      <GridColumn
+<t
+  testID="form-container"
+>
+  <t
+    testID="grid"
+  >
+    <t
+      testID="grid--row"
+    >
+      <t
+        testID="grid--column"
         widthXS={12}
       >
-        <FormElement
+        <t
           label="Name"
+          testID="form--element"
         >
-          <Input
+          <t
             autoFocus={false}
             autocomplete="off"
             disabledTitleText="This input is disabled"
@@ -20,68 +28,83 @@ exports[`TaskForm rendering renders 1`] = `
             size="sm"
             spellCheck={false}
             status="default"
+            testID="input-field"
             titleText=""
+            type="text"
             value=""
           />
-        </FormElement>
-      </GridColumn>
-      <GridColumn
+        </t>
+      </t>
+      <t
+        testID="grid--column"
         widthXS={12}
       >
-        <FormElement
-          label="Owner"
-        >
-          <TaskOptionsOrgIDDropdown
-            onChangeOrgID={[MockFunction]}
-            orgs={Array []}
-          />
-        </FormElement>
-      </GridColumn>
-      <GridColumn
-        widthXS={12}
-      >
-        <FormElement
+        <t
           label="Schedule Task"
+          testID="form--element"
         >
-          <ComponentSpacer
-            align="left"
-            stackChildren="rows"
+          <t
+            alignItems="flex-start"
+            direction="column"
+            justifyContent="flex-start"
+            margin="sm"
+            stretchToFitHeight={false}
+            stretchToFitWidth={false}
+            testID="component-spacer"
           >
-            <Radio
+            <t
               color="primary"
               shape="stretch"
               size="sm"
+              testID="radio-button"
             >
-              <RadioButton
+              <t
                 active={false}
                 disabled={false}
                 disabledTitleText="This option is disabled"
                 id="every"
                 onClick={[Function]}
+                testID="radio--button"
                 titleText="Run task at regular intervals"
                 value="interval"
               >
                 Every
-              </RadioButton>
-              <RadioButton
+              </t>
+              <t
                 active={false}
                 disabled={false}
                 disabledTitleText="This option is disabled"
                 id="cron"
                 onClick={[Function]}
+                testID="radio--button"
                 titleText="Use cron syntax for more control over scheduling"
                 value="cron"
               >
                 Cron
-              </RadioButton>
-            </Radio>
-          </ComponentSpacer>
-        </FormElement>
-      </GridColumn>
+              </t>
+            </t>
+          </t>
+        </t>
+      </t>
       <TaskScheduleFormFields
         onChangeInput={[MockFunction]}
       />
-    </GridRow>
-  </Grid>
-</Form>
+      <t
+        testID="grid--column"
+        widthXS={12}
+      >
+        <t
+          label="Token"
+          testID="form--element"
+        >
+          <TaskTokenDropdown
+            onTokenChange={[MockFunction]}
+            selectedToken=""
+            tokens={Array []}
+          />
+        </t>
+      </t>
+    </t>
+  </t>
+</t>
 `;

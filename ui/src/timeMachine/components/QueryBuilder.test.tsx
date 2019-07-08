@@ -1,8 +1,8 @@
 import React from 'react'
 
 import {renderWithRedux} from 'src/mockState'
-import {source} from 'mocks/dummyData'
 import {waitForElement, fireEvent} from 'react-testing-library'
+import {windows} from 'src/timeMachine/components/WindowSelector'
 
 import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
@@ -11,10 +11,9 @@ jest.mock('src/timeMachine/apis/queryBuilder')
 const setInitialState = state => {
   return {
     ...state,
-    sources: {
-      activeSourceID: source.id,
-      sources: {
-        [source.id]: source,
+    orgs: {
+      org: {
+        id: 'foo',
       },
     },
   }
@@ -22,31 +21,13 @@ const setInitialState = state => {
 
 describe('QueryBuilder', () => {
   it('can select a bucket', async () => {
-    const {
-      getByTestId,
-      getAllByTestId,
-      queryAllByTestId,
-      getByText,
-    } = renderWithRedux(<QueryBuilder />, setInitialState)
+    const {getByTestId} = renderWithRedux(<QueryBuilder />, setInitialState)
 
-    const bucketsDropdownClosed = await waitForElement(() => getByText('b1'))
-
-    fireEvent.click(bucketsDropdownClosed)
-
-    const bucketItems = getAllByTestId(/dropdown--item/)
-
-    expect(bucketItems.length).toBe(2)
-
-    const b2 = getByTestId('dropdown--item b2')
+    const b2 = await waitForElement(() => getByTestId('selector-list b2'))
 
     fireEvent.click(b2)
 
-    const closedDropdown = await waitForElement(() =>
-      getByTestId('buckets--button')
-    )
-
-    expect(closedDropdown.textContent).toBe('b2')
-    expect(queryAllByTestId(/dropdown--item/).length).toBe(0)
+    expect(b2.className).toContain('selected')
   })
 
   it('can select a tag', async () => {
@@ -90,5 +71,29 @@ describe('QueryBuilder', () => {
     await waitForElement(() => getByTestId('tag-selector--container 1'))
 
     expect(queryAllByTestId(/tag-selector--container/).length).toBe(2)
+  })
+
+  it('can select an aggregate window', async () => {
+    const {getByTestId} = renderWithRedux(<QueryBuilder />, setInitialState)
+
+    // can only select an aggregate window if you've already selected a function
+    const mean = getByTestId('selector-list mean')
+    fireEvent.click(mean)
+
+    let windowSelectorButton = getByTestId('window-selector--button')
+
+    fireEvent.click(windowSelectorButton)
+
+    const windowSelector = getByTestId('dropdown--menu window-selector')
+
+    expect(windowSelector.childElementCount).toBe(windows.length)
+
+    const fiveMins = getByTestId('5m')
+
+    fireEvent.click(fiveMins)
+
+    windowSelectorButton = getByTestId('window-selector--button')
+
+    expect(windowSelectorButton.textContent).toContain('5m')
   })
 })

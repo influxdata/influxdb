@@ -1,12 +1,16 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
+	"io"
 	"net/http"
 
 	platform "github.com/influxdata/influxdb"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -57,18 +61,29 @@ func CheckError(resp *http.Response) (err error) {
 		}
 	}
 	pe := new(platform.Error)
-	parseErr := json.NewDecoder(resp.Body).Decode(pe)
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, resp.Body); err != nil {
+		return &platform.Error{
+			Code: platform.EInternal,
+			Msg:  err.Error(),
+		}
+	}
+	parseErr := json.Unmarshal(buf.Bytes(), pe)
 	if parseErr != nil {
-		return parseErr
+		return errors.Wrap(stderrors.New(buf.String()), parseErr.Error())
 	}
 	return pe
 }
 
-// EncodeError encodes err with the appropriate status code and format,
+// ErrorHandler is the error handler in http package.
+type ErrorHandler int
+
+// HandleHTTPError encodes err with the appropriate status code and format,
 // sets the X-Platform-Error-Code headers on the response.
 // We're no longer using X-Influx-Error and X-Influx-Reference.
 // and sets the response status to the corresponding status code.
-func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
+func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.ResponseWriter) {
 	if err == nil {
 		return
 	}
@@ -100,8 +115,8 @@ func EncodeError(ctx context.Context, err error, w http.ResponseWriter) {
 }
 
 // UnauthorizedError encodes a error message and status code for unauthorized access.
-func UnauthorizedError(ctx context.Context, w http.ResponseWriter) {
-	EncodeError(ctx, &platform.Error{
+func UnauthorizedError(ctx context.Context, h platform.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &platform.Error{
 		Code: platform.EUnauthorized,
 		Msg:  "unauthorized access",
 	}, w)
@@ -117,6 +132,7 @@ var statusCodePlatformError = map[string]int{
 	platform.ENotFound:            http.StatusNotFound,
 	platform.EUnavailable:         http.StatusServiceUnavailable,
 	platform.EForbidden:           http.StatusForbidden,
+	platform.ETooManyRequests:     http.StatusTooManyRequests,
 	platform.EUnauthorized:        http.StatusUnauthorized,
 	platform.EMethodNotAllowed:    http.StatusMethodNotAllowed,
 }

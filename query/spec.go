@@ -2,20 +2,22 @@ package query
 
 import (
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
 )
 
 // BucketAwareOperationSpec specifies an operation that reads or writes buckets
 type BucketAwareOperationSpec interface {
-	BucketsAccessed() (readBuckets, writeBuckets []platform.BucketFilter)
+	BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter)
 }
 
 // BucketsAccessed returns the set of buckets read and written by a query spec
-func BucketsAccessed(q *flux.Spec) (readBuckets, writeBuckets []platform.BucketFilter, err error) {
-	err = q.Walk(func(o *flux.Operation) error {
+func BucketsAccessed(ast *ast.Package, orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter, err error) {
+	err = lang.WalkIR(ast, func(o *flux.Operation) error {
 		bucketAwareOpSpec, ok := o.Spec.(BucketAwareOperationSpec)
 		if ok {
-			opBucketsRead, opBucketsWritten := bucketAwareOpSpec.BucketsAccessed()
+			opBucketsRead, opBucketsWritten := bucketAwareOpSpec.BucketsAccessed(orgID)
 			readBuckets = append(readBuckets, opBucketsRead...)
 			writeBuckets = append(writeBuckets, opBucketsWritten...)
 		}

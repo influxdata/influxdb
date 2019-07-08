@@ -6,24 +6,21 @@ import _ from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
-import CopyText from 'src/shared/components/CopyText'
-
-// Types
-import {NotificationAction} from 'src/types'
+import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 export interface Props {
-  notify: NotificationAction
-  authToken: string
+  token: string
   configID: string
 }
 
 @ErrorHandling
 class TelegrafInstructions extends PureComponent<Props> {
   public render() {
-    const {notify, authToken, configID} = this.props
-    const exportToken = `export INFLUX_TOKEN=${authToken || ''}`
-    const configScript = `telegraf -config http://localhost:9999/api/v2/telegrafs/${configID ||
-      ''}`
+    const {token, configID} = this.props
+    const exportToken = `export INFLUX_TOKEN=${token || ''}`
+    const configScript = `telegraf --config ${
+      this.origin
+    }/api/v2/telegrafs/${configID || ''}`
     return (
       <div className="wizard-step--body">
         <h6>1. Install the Latest Telegraf</h6>
@@ -45,15 +42,19 @@ class TelegrafInstructions extends PureComponent<Props> {
           copy the following command to your terminal window to set an
           environment variable with your token.
         </p>
-        <CopyText copyText={exportToken} notify={notify} />
+        <CodeSnippet copyText={exportToken} label="CLI" />
         <h6>3. Start Telegraf</h6>
         <p>
-          Finally, you can run the following command the start Telegraf agent
+          Finally, you can run the following command to start the Telegraf agent
           running on your machine.
         </p>
-        <CopyText copyText={configScript} notify={notify} />
+        <CodeSnippet copyText={configScript} label="CLI" />
       </div>
     )
+  }
+
+  private get origin(): string {
+    return window.location.origin
   }
 }
 

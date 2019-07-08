@@ -8,7 +8,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/influx"
-	platformhttp "github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 // Shared transports for all clients to prevent leaking connections
@@ -79,6 +79,8 @@ type traceClient struct {
 
 // Do injects the trace and then performs the request.
 func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
-	platformhttp.InjectTrace(r)
+	span, _ := tracing.StartSpanFromContext(r.Context())
+	defer span.Finish()
+	tracing.InjectToHTTPRequest(span, r)
 	return c.Client.Do(r)
 }

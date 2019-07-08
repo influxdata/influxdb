@@ -22,11 +22,21 @@ export const telegrafsAPI = {
   telegrafsTelegrafIDPut,
 }
 
+const getAuthorizationToken = jest.fn(() => Promise.resolve('im_an_auth_token'))
+const addLabel = jest.fn(() => Promise.resolve())
+
 export const client = {
   telegrafConfigs: {
     getAll: telegrafsGet,
     getAllByOrg: telegrafsGet,
     create: telegrafsPost,
+    addLabel,
+  },
+  authorizations: {
+    getAuthorizationToken,
+  },
+  labels: {
+    create: addLabel,
   },
 }
 

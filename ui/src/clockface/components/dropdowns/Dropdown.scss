@@ -29,6 +29,11 @@
   z-index: 500;
   border-radius: $radius;
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.7);
+
+  .dropdown--above & {
+    top: 0;
+    transform: translateY(-100%);
+  }
 }
 
 .dropdown--menu {
@@ -46,7 +51,6 @@
   line-height: 12px;
   font-weight: 600;
   color: fade-out($g20-white, 0.18);
-  white-space: nowrap;
   position: relative;
   text-align: left;
 
@@ -54,7 +58,7 @@
   &.checked {
     color: $g20-white;
   }
-  
+
   &.checked {
     padding-left: 24px;
   }
@@ -64,10 +68,22 @@
     cursor: pointer;
   }
 
+  .dropdown--action & {
+    padding-left: 11px;
+  }
+}
+
+.dropdown-item--children {
   .dropdown-wrap & {
     word-break: break-all;
     white-space: pre-wrap;
-  } 
+  }
+
+  .dropdown-truncate & {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .dropdown-item--dot {
@@ -123,12 +139,12 @@
     width: 6px;
     height: 6px;
     opacity: 0;
-    transform: translate(-50%,-50%) scale(1.5,1.5);
+    transform: translate(-50%, -50%) scale(1.5, 1.5);
   }
 
   .active &:after {
     opacity: 1;
-    transform: translate(-50%,-50%) scale(1,1);
+    transform: translate(-50%, -50%) scale(1, 1);
   }
 
   .checked &:after {
@@ -138,7 +154,16 @@
 
 /* Themes */
 
-@mixin dropdownMenuColor($backgroundA, $backgroundB, $hoverA, $hoverB, $dividerA, $dividerB, $dividerText, $scrollA, $scrollB) {
+@mixin dropdownMenuColor(
+  $backgroundA,
+  $backgroundB,
+  $hoverA,
+  $hoverB,
+  $dividerA,
+  $dividerB,
+  $dividerText,
+  $checkbox
+) {
   @include gradient-h($backgroundA, $backgroundB);
 
   .dropdown--item:hover,
@@ -153,33 +178,58 @@
     background-color: $dividerA;
   }
   .dropdown-item--checkbox:after {
-    background-color: $scrollA;
-  }
-  .fancy-scroll--thumb-h {
-    @include gradient-h($scrollA, $scrollB);
-  }
-  .fancy-scroll--thumb-v {
-    @include gradient-v($scrollA, $scrollB);
+    background-color: $checkbox;
   }
 }
 
 .dropdown--amethyst {
-  @include dropdownMenuColor($c-star, $c-pool, $c-comet, $c-laser, $c-amethyst, $c-ocean, $c-potassium, $c-neutrino, $c-hydrogen);
+  @include dropdownMenuColor(
+    $c-star,
+    $c-pool,
+    $c-comet,
+    $c-laser,
+    $c-amethyst,
+    $c-ocean,
+    $c-potassium,
+    $c-neutrino
+  );
 }
 
 .dropdown--sapphire {
-  @include dropdownMenuColor($c-ocean, $c-pool, $c-pool, $c-laser, $c-sapphire, $c-ocean, $c-laser, $c-neutrino, $c-hydrogen);
+  @include dropdownMenuColor(
+    $c-ocean,
+    $c-pool,
+    $c-pool,
+    $c-laser,
+    $c-sapphire,
+    $c-ocean,
+    $c-laser,
+    $c-neutrino
+  );
 }
 
 .dropdown--malachite {
-  @include dropdownMenuColor($c-pool, $c-rainforest, $c-laser, $c-honeydew, $c-ocean, $c-viridian, $c-krypton, $c-neutrino, $c-krypton);
+  @include dropdownMenuColor(
+    $c-pool,
+    $c-rainforest,
+    $c-laser,
+    $c-honeydew,
+    $c-ocean,
+    $c-viridian,
+    $c-krypton,
+    $c-neutrino
+  );
 }
 
 .dropdown--onyx {
-  @include dropdownMenuColor($g2-kevlar, $g4-onyx, $g4-onyx, $g6-smoke, $g0-obsidian, $g2-kevlar, $g11-sidewalk, $c-pool, $c-comet);
-}
-
-/* TODO: Make fancyscroll more customizable */
-.dropdown--menu-container .fancy-scroll--track-h {
-  display: none;
+  @include dropdownMenuColor(
+    $g2-kevlar,
+    $g4-onyx,
+    $g4-onyx,
+    $g6-smoke,
+    $g0-obsidian,
+    $g2-kevlar,
+    $g11-sidewalk,
+    $c-pool
+  );
 }

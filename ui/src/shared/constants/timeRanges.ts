@@ -1,6 +1,18 @@
 import {TimeRange} from 'src/types'
 
+export const TIME_RANGE_LABEL = 'Time Range'
+export const CUSTOM_TIME_RANGE_LABEL = 'Custom Time Range'
+export const TIME_RANGE_FORMAT = 'YYYY-MM-DD HH:mm'
+
 export const TIME_RANGES: TimeRange[] = [
+  {
+    lower: '',
+    label: TIME_RANGE_LABEL,
+  },
+  {
+    lower: '',
+    label: CUSTOM_TIME_RANGE_LABEL,
+  },
   {
     seconds: 300,
     lower: 'now() - 5m',
@@ -66,7 +78,7 @@ export const TIME_RANGES: TimeRange[] = [
   },
 ]
 
-export const DEFAULT_TIME_RANGE: TimeRange = TIME_RANGES[1]
+export const DEFAULT_TIME_RANGE: TimeRange = TIME_RANGES[2]
 
 export const ABSOLUTE = 'absolute'
 export const INVALID = 'invalid'

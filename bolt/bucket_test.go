@@ -15,6 +15,10 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
 	c.IDGenerator = f.IDGenerator
+	c.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		c.TimeGenerator = platform.RealTimeGenerator{}
+	}
 	ctx := context.TODO()
 	for _, o := range f.Organizations {
 		if err := c.PutOrganization(ctx, o); err != nil {

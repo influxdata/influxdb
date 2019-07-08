@@ -5,19 +5,7 @@ import {connect} from 'react-redux'
 import _, {get} from 'lodash'
 
 // Components
-import {ErrorHandling} from 'src/shared/decorators/errors'
-
-import {
-  Button,
-  ComponentColor,
-  ComponentSize,
-  Input,
-  InputType,
-  Form,
-  Grid,
-  Columns,
-  ButtonType,
-} from 'src/clockface'
+import {Form, Input, Button, Grid} from '@influxdata/clockface'
 
 // APIs
 import {client} from 'src/utils/api'
@@ -29,12 +17,22 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {Links} from 'src/types/v2/links'
-import {Notification, NotificationFunc} from 'src/types'
+import {Links} from 'src/types/links'
+import {AppState} from 'src/types'
+import {
+  Columns,
+  InputType,
+  ButtonType,
+  ComponentSize,
+  ComponentColor,
+} from '@influxdata/clockface'
+
+// Decorators
+import {ErrorHandling} from 'src/shared/decorators/errors'
 
 export interface OwnProps {
   links: Links
-  notify: (message: Notification | NotificationFunc) => void
+  notify: typeof notifyAction
 }
 
 interface State {
@@ -60,6 +58,7 @@ class SigninForm extends PureComponent<Props, State> {
             <Grid.Column widthXS={Columns.Twelve}>
               <Form.Element label="Username">
                 <Input
+                  name="username"
                   value={username}
                   onChange={this.handleUsername}
                   size={ComponentSize.Medium}
@@ -70,6 +69,7 @@ class SigninForm extends PureComponent<Props, State> {
             <Grid.Column widthXS={Columns.Twelve}>
               <Form.Element label="Password">
                 <Input
+                  name="password"
                   value={password}
                   onChange={this.handlePassword}
                   size={ComponentSize.Medium}
@@ -114,14 +114,16 @@ class SigninForm extends PureComponent<Props, State> {
       const status = get(error, 'response.status', '')
 
       if (status === 401) {
-        return notify({
+        notify({
           ...copy.SigninError,
           message: 'Login failed: username or password is invalid',
         })
+        return
       }
 
       if (!message) {
-        return notify(copy.SigninError)
+        notify(copy.SigninError)
+        return
       }
 
       notify({...copy.SigninError, message})
@@ -133,14 +135,14 @@ class SigninForm extends PureComponent<Props, State> {
     const {query} = this.props.location
 
     if (query && query.returnTo) {
-      router.push(query.returnTo)
+      router.replace(query.returnTo)
     } else {
       router.push('/')
     }
   }
 }
 
-const mstp = ({links}) => ({
+const mstp = ({links}: AppState) => ({
   links,
 })
 

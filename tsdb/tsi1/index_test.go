@@ -1,18 +1,24 @@
 package tsi1_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // Bloom filter settings used in tests.
@@ -188,7 +194,7 @@ func TestIndex_DropMeasurement(t *testing.T) {
 		}
 
 		// Obtain file set to perform lower level checks.
-		fs, err := idx.PartitionAt(0).RetainFileSet()
+		fs, err := idx.PartitionAt(0).FileSet()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,6 +214,8 @@ func TestIndex_DropMeasurement(t *testing.T) {
 func TestIndex_Open(t *testing.T) {
 	// Opening a fresh index should set the MANIFEST version to current version.
 	idx := NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
+	defer idx.Close()
+
 	t.Run("open new index", func(t *testing.T) {
 		if err := idx.Open(); err != nil {
 			t.Fatal(err)
@@ -216,9 +224,14 @@ func TestIndex_Open(t *testing.T) {
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
 			partition := idx.PartitionAt(i)
-			if got, exp := partition.Manifest().Version, 1; got != exp {
+			fs, err := partition.FileSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, exp := partition.Manifest(fs).Version, 1; got != exp {
 				t.Fatalf("got index version %d, expected %d", got, exp)
 			}
+			fs.Release()
 		}
 	})
 
@@ -271,13 +284,19 @@ func TestIndex_Open(t *testing.T) {
 func TestIndex_Manifest(t *testing.T) {
 	t.Run("current MANIFEST", func(t *testing.T) {
 		idx := MustOpenIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
+		defer idx.Close()
 
 		// Check version set appropriately.
 		for i := 0; uint64(i) < tsi1.DefaultPartitionN; i++ {
 			partition := idx.PartitionAt(i)
-			if got, exp := partition.Manifest().Version, tsi1.Version; got != exp {
+			fs, err := partition.FileSet()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, exp := partition.Manifest(fs).Version, tsi1.Version; got != exp {
 				t.Fatalf("got MANIFEST version %d, expected %d", got, exp)
 			}
+			fs.Release()
 		}
 	})
 }
@@ -312,6 +331,8 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 
 // Ensure index can returns measurement cardinality stats.
 func TestIndex_MeasurementCardinalityStats(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Empty", func(t *testing.T) {
 		idx := MustOpenIndex(1, tsi1.NewConfig())
 		defer idx.Close()
@@ -394,6 +415,130 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 	})
 }
 
+// Ensure index keeps the correct set of series even with concurrent compactions.
+func TestIndex_CompactionConsistency(t *testing.T) {
+	t.Skip("TODO: flaky test: https://github.com/influxdata/influxdb/issues/13755")
+	t.Parallel()
+
+	idx := NewIndex(tsi1.DefaultPartitionN, tsi1.NewConfig())
+	idx.WithLogger(zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel)))
+	if err := idx.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+
+	// Set up some framework to track launched goroutines.
+	wg, done := new(sync.WaitGroup), make(chan struct{})
+	spawn := func(fn func()) {
+		wg.Add(1)
+		go func() {
+			for {
+				select {
+				case <-done:
+					wg.Done()
+					return
+				default:
+					fn()
+				}
+			}
+		}()
+	}
+
+	// Spawn a goroutine to constantly ask the index to compact.
+	spawn(func() { idx.Compact() })
+
+	// Issue a number of writes and deletes for a while.
+	expected, operations := make(map[string]struct{}), []string(nil)
+	spawn(func() {
+		var err error
+		if len(expected) > 0 && rand.Intn(5) == 0 {
+			for m := range expected {
+				err = idx.DropMeasurement([]byte(m))
+				operations = append(operations, "delete: "+m)
+				delete(expected, m)
+				break
+			}
+		} else {
+			m := []byte(fmt.Sprintf("m%d", rand.Int()))
+			s := make([]Series, 100)
+			for i := range s {
+				s[i] = Series{Name: m, Tags: models.NewTags(map[string]string{fmt.Sprintf("t%d", i): "v"})}
+			}
+			err = idx.CreateSeriesSliceIfNotExists(s)
+			operations = append(operations, "add: "+string(m))
+			expected[string(m)] = struct{}{}
+		}
+		if err != nil {
+			t.Error(err)
+		}
+	})
+
+	// Let them run for a while and then wait.
+	time.Sleep(10 * time.Second)
+	close(done)
+	wg.Wait()
+
+	defer func() {
+		if !t.Failed() {
+			return
+		}
+		t.Log("expect", len(expected), "measurements after", len(operations), "operations")
+		for _, op := range operations {
+			t.Log(op)
+		}
+	}()
+
+	for m := range expected {
+		if v, err := idx.MeasurementExists([]byte(m)); err != nil {
+			t.Fatal(err)
+		} else if !v {
+			t.Fatal("expected", m)
+		}
+	}
+
+	miter, err := idx.MeasurementIterator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer miter.Close()
+
+	for {
+		m, err := miter.Next()
+		if err != nil {
+			t.Fatal(err)
+		} else if m == nil {
+			break
+		} else if _, ok := expected[string(m)]; !ok {
+			t.Fatal("unexpected", string(m))
+		}
+	}
+}
+
+func BenchmarkIndex_ComputeMeasurementCardinalityStats(b *testing.B) {
+	idx := MustOpenIndex(1, tsi1.NewConfig())
+	defer idx.Close()
+
+	const n = 10000
+	for i := 0; i < n; i++ {
+		name := []byte(fmt.Sprintf("%08x", i))
+		a := make([]Series, 1000)
+		for j := range a {
+			a[j] = Series{Name: name, Tags: models.NewTags(map[string]string{"region": fmt.Sprintf("east%04d", j)})}
+		}
+		if err := idx.CreateSeriesSliceIfNotExists(a); err != nil {
+			b.Fatal(err)
+		}
+	}
+
+	b.Run("", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			if _, err := idx.ComputeMeasurementCardinalityStats(); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index
@@ -404,7 +549,7 @@ type Index struct {
 // NewIndex returns a new instance of Index at a temporary path.
 func NewIndex(partitionN uint64, c tsi1.Config) *Index {
 	idx := &Index{
-		Config:     tsi1.NewConfig(),
+		Config:     c,
 		SeriesFile: NewSeriesFile(),
 	}
 	idx.Index = tsi1.NewIndex(idx.SeriesFile.SeriesFile, idx.Config, tsi1.WithPath(MustTempDir()))
@@ -423,19 +568,19 @@ func MustOpenIndex(partitionN uint64, c tsi1.Config) *Index {
 
 // Open opens the underlying tsi1.Index and tsdb.SeriesFile
 func (idx Index) Open() error {
-	if err := idx.SeriesFile.Open(); err != nil {
+	if err := idx.SeriesFile.Open(context.Background()); err != nil {
 		return err
 	}
-	return idx.Index.Open()
+	return idx.Index.Open(context.Background())
 }
 
 // Close closes and removes the index directory.
 func (idx *Index) Close() error {
 	defer os.RemoveAll(idx.Path())
-	if err := idx.SeriesFile.Close(); err != nil {
+	if err := idx.Index.Close(); err != nil {
 		return err
 	}
-	return idx.Index.Close()
+	return idx.SeriesFile.Close()
 }
 
 // Reopen closes and opens the index.

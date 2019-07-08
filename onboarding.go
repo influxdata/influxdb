@@ -2,6 +2,20 @@ package influxdb
 
 import "context"
 
+// OnboardingService represents a service for the first run.
+type OnboardingService interface {
+	PasswordsService
+	BucketService
+	OrganizationService
+	UserService
+	AuthorizationService
+
+	// IsOnboarding determine if onboarding request is allowed.
+	IsOnboarding(ctx context.Context) (bool, error)
+	// Generate OnboardingResults.
+	Generate(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
+}
+
 // OnboardingResults is a group of elements required for first run.
 type OnboardingResults struct {
 	User   *User          `json:"user"`
@@ -21,16 +35,33 @@ type OnboardingRequest struct {
 	Token           string `json:"token,omitempty"`
 }
 
-// OnboardingService represents a service for the first run.
-type OnboardingService interface {
-	BasicAuthService
-	BucketService
-	OrganizationService
-	UserService
-	AuthorizationService
+func (r *OnboardingRequest) Valid() error {
+	if r.Password == "" {
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "password is empty",
+		}
+	}
 
-	// IsOnboarding determine if onboarding request is allowed.
-	IsOnboarding(ctx context.Context) (bool, error)
-	// Generate OnboardingResults.
-	Generate(ctx context.Context, req *OnboardingRequest) (*OnboardingResults, error)
+	if r.User == "" {
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "username is empty",
+		}
+	}
+
+	if r.Org == "" {
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "org name is empty",
+		}
+	}
+
+	if r.Bucket == "" {
+		return &Error{
+			Code: EEmptyValue,
+			Msg:  "bucket name is empty",
+		}
+	}
+	return nil
 }

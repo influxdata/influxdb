@@ -273,11 +273,9 @@ class MultiGrid extends React.PureComponent<PropsMultiGrid, State> {
   public render() {
     const {
       onScroll,
-      scrollLeft: scrollLeftProp,
       onSectionRendered,
       scrollToRow,
       scrollToColumn,
-      scrollTop: scrollTopProp,
       ...rest
     } = this.props
 

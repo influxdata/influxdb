@@ -1,39 +1,38 @@
+// Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-
-// utils
 import _ from 'lodash'
 
-// components
-import {
-  Grid,
-  Form,
-  Input,
-  Button,
-  ComponentColor,
-  ButtonType,
-  Columns,
-  ComponentStatus,
-  InputType,
-} from 'src/clockface'
+// Utils
+import {getSaveableView} from 'src/timeMachine/selectors'
+
+// Components
+import {Form, Input, Button, Grid} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardsDropdown from 'src/dataExplorer/components/DashboardsDropdown'
 
-// constants
+// Constants
 import {cellAddFailed, cellAdded} from 'src/shared/copy/notifications'
-
-// actions
-import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions/v2'
-import {createDashboard} from 'src/dashboards/apis/v2'
-import {notify} from 'src/shared/actions/notifications'
-
-// types
-import {AppState, Dashboard, View, Organization} from 'src/types/v2'
 import {
   DashboardTemplate,
   DEFAULT_DASHBOARD_NAME,
   DEFAULT_CELL_NAME,
 } from 'src/dashboards/constants'
+
+// Actions
+import {getDashboardsAsync, createCellWithView} from 'src/dashboards/actions'
+import {createDashboard} from 'src/dashboards/apis'
+import {notify} from 'src/shared/actions/notifications'
+
+// Types
+import {AppState, Dashboard, View} from 'src/types'
+import {
+  Columns,
+  InputType,
+  ButtonType,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 interface State {
   targetDashboardIDs: string[]
@@ -45,7 +44,7 @@ interface State {
 interface StateProps {
   dashboards: Dashboard[]
   view: View
-  orgs: Organization[]
+  orgID: string
 }
 
 interface DispatchProps {
@@ -111,7 +110,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
                   type={ButtonType.Button}
                 />
                 <Button
-                  text={'Save as Dashboard Cell'}
+                  text="Save as Dashboard Cell"
                   color={ComponentColor.Success}
                   type={ButtonType.Submit}
                   onClick={this.handleSubmit}
@@ -188,10 +187,10 @@ class SaveAsCellForm extends PureComponent<Props, State> {
     dashboardName: string,
     view: View
   ): Promise<void> => {
-    const {onCreateCellWithView, orgs} = this.props
+    const {onCreateCellWithView, orgID} = this.props
     try {
       const newDashboard = {
-        orgID: orgs[0].id,
+        orgID,
         name: dashboardName || DEFAULT_DASHBOARD_NAME,
         cells: [],
       }
@@ -234,14 +233,13 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
 const mstp = (state: AppState): StateProps => {
   const {
-    orgs,
-    dashboards,
-    timeMachines: {
-      timeMachines: {de},
-    },
+    dashboards: {list: dashboards},
+    orgs: {org},
   } = state
-  const {view} = de
-  return {dashboards, view, orgs}
+
+  const view = getSaveableView(state)
+
+  return {dashboards, view, orgID: _.get(org, 'id', '')}
 }
 
 const mdtp: DispatchProps = {

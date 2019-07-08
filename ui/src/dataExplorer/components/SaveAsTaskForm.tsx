@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -12,21 +13,30 @@ import {
   setTaskOption,
   clearTask,
   setNewScript,
-} from 'src/tasks/actions/v2'
+  setTaskToken,
+} from 'src/tasks/actions'
+import {getAuthorizations} from 'src/authorizations/actions'
 
 // Utils
-import {timeRangeVariables} from 'src/shared/utils/timeRangeVariables'
-import {renderQuery} from 'src/shared/utils/renderQuery'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
+import {
+  taskOptionsToFluxScript,
+  addDestinationToFluxScript,
+} from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, Organization, InfluxLanguage, TimeRange} from 'src/types/v2'
+import {AppState, TimeRange, RemoteDataState} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
 } from 'src/utils/taskOptionsToFluxScript'
-import {DashboardDraftQuery} from 'src/types/v2/dashboards'
+import {DashboardDraftQuery} from 'src/types/dashboards'
+import {Authorization} from '@influxdata/influx'
+import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   dismiss: () => void
@@ -37,21 +47,25 @@ interface DispatchProps {
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
   setNewScript: typeof setNewScript
+  getTokens: typeof getAuthorizations
+  setTaskToken: typeof setTaskToken
 }
 
 interface StateProps {
-  orgs: Organization[]
   taskOptions: TaskOptions
   draftQueries: DashboardDraftQuery[]
   activeQueryIndex: number
   newScript: string
   timeRange: TimeRange
+  tokens: Authorization[]
+  tokenStatus: RemoteDataState
+  selectedToken: Authorization
 }
 
 type Props = StateProps & OwnProps & DispatchProps
 
-class SaveAsTaskForm extends PureComponent<Props> {
-  public componentDidMount() {
+class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
+  public async componentDidMount() {
     const {setTaskOption, setNewScript} = this.props
 
     setTaskOption({
@@ -60,6 +74,10 @@ class SaveAsTaskForm extends PureComponent<Props> {
     })
 
     setNewScript(this.activeScript)
+    await this.props.getTokens()
+    if (this.props.tokens.length > 0) {
+      this.props.setTaskToken(this.props.tokens[0])
+    }
   }
 
   public componentWillUnmount() {
@@ -69,22 +87,90 @@ class SaveAsTaskForm extends PureComponent<Props> {
   }
 
   public render() {
-    const {orgs, taskOptions, dismiss} = this.props
+    const {taskOptions, dismiss, tokenStatus, selectedToken} = this.props
 
     return (
-      <TaskForm
-        orgs={orgs}
-        taskOptions={taskOptions}
-        onChangeScheduleType={this.handleChangeScheduleType}
-        onChangeInput={this.handleChangeInput}
-        onChangeTaskOrgID={this.handleChangeTaskOrgID}
-        onChangeToOrgName={this.handleChangeToOrgName}
-        onChangeToBucketName={this.handleChangeToBucketName}
-        isInOverlay={true}
-        onSubmit={this.handleSubmit}
-        canSubmit={this.isFormValid}
-        dismiss={dismiss}
-      />
+      <SpinnerContainer
+        loading={tokenStatus}
+        spinnerComponent={<TechnoSpinner />}
+      >
+        <TaskForm
+          taskOptions={taskOptions}
+          onChangeScheduleType={this.handleChangeScheduleType}
+          onChangeInput={this.handleChangeInput}
+          onChangeToBucketName={this.handleChangeToBucketName}
+          isInOverlay={true}
+          onSubmit={this.handleSubmit}
+          canSubmit={this.isFormValid}
+          dismiss={dismiss}
+          tokens={this.getRelevantTokens}
+          selectedToken={selectedToken}
+          onTokenChange={this.handleTokenChange}
+        />
+      </SpinnerContainer>
+    )
+  }
+
+  private get getRelevantTokens() {
+    const readAuthorizations = this.getReadAuthorizations
+    const writeAuthorizations = this.getWriteAuthorizations
+
+    const relevantAuthorizations = _.intersectionBy(
+      readAuthorizations,
+      writeAuthorizations,
+      'id'
+    )
+
+    return relevantAuthorizations
+  }
+
+  private get readBucketName() {
+    const {draftQueries, activeQueryIndex} = this.props
+
+    const query = draftQueries[activeQueryIndex]
+
+    let readBucketName = ''
+    if (query.editMode === 'builder') {
+      readBucketName = query.builderConfig.buckets[0] || ''
+    } else {
+      const text = query.text
+      const splitBucket = text.split('bucket:')
+      const splitQuotes = splitBucket[1].split('"')
+      readBucketName = splitQuotes[1]
+    }
+
+    return readBucketName
+  }
+
+  private get getReadAuthorizations() {
+    const authorizations = this.props.tokens
+    const readBucketName = this.readBucketName
+
+    return authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'read' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === readBucketName)
+      )
+    )
+  }
+
+  private get getWriteAuthorizations() {
+    const authorizations = this.props.tokens
+    const {
+      taskOptions: {toBucketName},
+    } = this.props
+
+    return authorizations.filter(auth =>
+      auth.permissions.some(
+        permission =>
+          permission.action === 'write' &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name ||
+            permission.resource.name === toBucketName)
+      )
     )
   }
 
@@ -104,27 +190,34 @@ class SaveAsTaskForm extends PureComponent<Props> {
   }
 
   private handleSubmit = async () => {
-    const {saveNewScript, newScript, taskOptions, timeRange} = this.props
-
-    const script = await renderQuery(
+    const {
+      saveNewScript,
       newScript,
-      InfluxLanguage.Flux,
-      timeRangeVariables(timeRange)
+      taskOptions,
+      timeRange,
+      selectedToken,
+    } = this.props
+
+    // When a task runs, it does not have access to variables that we typically
+    // inject into the script via the front end. So any variables that are used
+    // in the script need to be embedded in the script text itself before
+    // saving it as a task
+    //
+    // TODO(chnn): Embed user-defined variables in the script as well
+    const timeRangeVars = getTimeRangeVars(timeRange)
+    const windowPeriodVars = await getWindowVars(newScript, timeRangeVars)
+
+    // Don't embed variables that are not used in the script
+    const vars = [...timeRangeVars, ...windowPeriodVars].filter(assignment =>
+      newScript.includes(assignment.id.name)
     )
 
-    saveNewScript(script, taskOptions)
-  }
+    const varOption: string = formatVarsOption(vars) // option v = { ... }
+    const taskOption: string = taskOptionsToFluxScript(taskOptions) // option task = { ... }
+    const preamble = `${varOption}\n\n${taskOption}`
+    const script = addDestinationToFluxScript(newScript, taskOptions)
 
-  private handleChangeTaskOrgID = (orgID: string) => {
-    const {setTaskOption} = this.props
-
-    setTaskOption({key: 'orgID', value: orgID})
-  }
-
-  private handleChangeToOrgName = (orgName: string) => {
-    const {setTaskOption} = this.props
-
-    setTaskOption({key: 'toOrgName', value: orgName})
+    saveNewScript(script, preamble, selectedToken.token)
   }
 
   private handleChangeToBucketName = (bucketName: string) => {
@@ -147,12 +240,17 @@ class SaveAsTaskForm extends PureComponent<Props> {
 
     setTaskOption({key, value})
   }
+
+  private handleTokenChange = (selectedToken: Authorization) => {
+    this.props.setTaskToken(selectedToken)
+  }
 }
 
 const mstp = (state: AppState): StateProps => {
   const {
-    orgs,
-    tasks: {newScript, taskOptions},
+    tasks: {newScript, taskOptions, taskToken},
+    tokens,
+    orgs: {org},
   } = state
 
   const {draftQueries, activeQueryIndex, timeRange} = getActiveTimeMachine(
@@ -160,12 +258,14 @@ const mstp = (state: AppState): StateProps => {
   )
 
   return {
-    orgs,
     newScript,
-    taskOptions,
+    taskOptions: {...taskOptions, toOrgName: org.name},
     timeRange,
     draftQueries,
     activeQueryIndex,
+    tokens: tokens.list,
+    tokenStatus: tokens.status,
+    selectedToken: taskToken,
   }
 }
 
@@ -174,9 +274,11 @@ const mdtp: DispatchProps = {
   setTaskOption,
   clearTask,
   setNewScript,
+  getTokens: getAuthorizations,
+  setTaskToken,
 }
 
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(SaveAsTaskForm)
+)(withRouter(SaveAsTaskForm))

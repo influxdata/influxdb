@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	nethttp "net/http"
 	_ "net/http/pprof" // needed to add pprof to our binary.
@@ -12,41 +13,183 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/flux/control"
 	"github.com/influxdata/flux/execute"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
-	protofs "github.com/influxdata/influxdb/fs"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kit/cli"
 	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kit/signals"
+	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
 	infprom "github.com/influxdata/influxdb/prometheus"
-	"github.com/influxdata/influxdb/proto"
 	"github.com/influxdata/influxdb/query"
-	pcontrol "github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/source"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/readservice"
-	"github.com/influxdata/influxdb/task"
 	taskbackend "github.com/influxdata/influxdb/task/backend"
-	taskbolt "github.com/influxdata/influxdb/task/backend/bolt"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
+	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cobra"
+	jaegerconfig "github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+const (
+	// BoltStore stores all REST resources in boltdb.
+	BoltStore = "bolt"
+	// MemoryStore stores all REST resources in memory (useful for testing).
+	MemoryStore = "memory"
+
+	// LogTracing enables tracing via zap logs
+	LogTracing = "log"
+	// JaegerTracing enables tracing via the Jaeger client library
+	JaegerTracing = "jaeger"
+)
+
+func NewCommand() *cobra.Command {
+	l := NewLauncher()
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start the influxd server (default)",
+		Run: func(cmd *cobra.Command, args []string) {
+			// exit with SIGINT and SIGTERM
+			ctx := context.Background()
+			ctx = signals.WithStandardSignals(ctx)
+
+			if err := l.run(ctx); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			} else if !l.Running() {
+				os.Exit(1)
+			}
+
+			var wg sync.WaitGroup
+			if !l.ReportingDisabled() {
+				reporter := telemetry.NewReporter(l.Registry())
+				reporter.Interval = 8 * time.Hour
+				reporter.Logger = l.Logger()
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					reporter.Report(ctx)
+				}()
+			}
+
+			<-ctx.Done()
+
+			// Attempt clean shutdown.
+			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+			l.Shutdown(ctx)
+			wg.Wait()
+		},
+	}
+
+	buildLauncherCommand(l, cmd)
+
+	return cmd
+}
+
+func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
+	dir, err := fs.InfluxDir()
+	if err != nil {
+		panic(fmt.Errorf("failed to determine influx directory: %v", err))
+	}
+
+	opts := []cli.Opt{
+		{
+			DestP:   &l.logLevel,
+			Flag:    "log-level",
+			Default: zapcore.InfoLevel.String(),
+			Desc:    "supported log levels are debug, info, and error",
+		},
+		{
+			DestP:   &l.tracingType,
+			Flag:    "tracing-type",
+			Default: "",
+			Desc:    fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
+		},
+		{
+			DestP:   &l.httpBindAddress,
+			Flag:    "http-bind-address",
+			Default: ":9999",
+			Desc:    "bind address for the REST HTTP API",
+		},
+		{
+			DestP:   &l.boltPath,
+			Flag:    "bolt-path",
+			Default: filepath.Join(dir, "influxd.bolt"),
+			Desc:    "path to boltdb database",
+		},
+		{
+			DestP: &l.assetsPath,
+			Flag:  "assets-path",
+			Desc:  "override default assets by serving from a specific directory (developer mode)",
+		},
+		{
+			DestP:   &l.storeType,
+			Flag:    "store",
+			Default: "bolt",
+			Desc:    "backing store for REST resources (bolt or memory)",
+		},
+		{
+			DestP:   &l.testing,
+			Flag:    "e2e-testing",
+			Default: false,
+			Desc:    "add /debug/flush endpoint to clear stores; used for end-to-end tests",
+		},
+		{
+			DestP:   &l.enginePath,
+			Flag:    "engine-path",
+			Default: filepath.Join(dir, "engine"),
+			Desc:    "path to persistent engine files",
+		},
+		{
+			DestP:   &l.secretStore,
+			Flag:    "secret-store",
+			Default: "bolt",
+			Desc:    "data store for secrets (bolt or vault)",
+		},
+		{
+			DestP:   &l.reportingDisabled,
+			Flag:    "reporting-disabled",
+			Default: false,
+			Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
+		},
+		{
+			DestP:   &l.sessionLength,
+			Flag:    "session-length",
+			Default: 60, // 60 minutes
+			Desc:    "ttl in minutes for newly created sessions",
+		},
+		{
+			DestP:   &l.sessionRenewDisabled,
+			Flag:    "session-renew-disabled",
+			Default: false,
+			Desc:    "disables automatically extending session ttl on request",
+		},
+	}
+
+	cli.BindOptions(cmd, opts)
+}
 
 // Launcher represents the main program execution.
 type Launcher struct {
@@ -54,34 +197,39 @@ type Launcher struct {
 	cancel  func()
 	running bool
 
-	developerMode     bool
+	storeType            string
+	assetsPath           string
+	testing              bool
+	sessionLength        int // in minutes
+	sessionRenewDisabled bool
+
 	logLevel          string
+	tracingType       string
 	reportingDisabled bool
 
 	httpBindAddress string
 	boltPath        string
 	enginePath      string
-	protosPath      string
 	secretStore     string
 
-	boltClient *bolt.Client
-	engine     *storage.Engine
+	boltClient    *bolt.Client
+	kvService     *kv.Service
+	engine        *storage.Engine
+	StorageConfig storage.Config
 
-	queryController *pcontrol.Controller
+	queryController *control.Controller
 
 	httpPort   int
 	httpServer *nethttp.Server
 
 	natsServer *nats.Server
 
-	scheduler *taskbackend.TickScheduler
-	taskStore taskbackend.Store
+	scheduler          *taskbackend.TickScheduler
+	taskControlService taskbackend.TaskControlService
 
-	logger *zap.Logger
-	reg    *prom.Registry
-
-	// BuildInfo contains commit, version and such of influxdb.
-	BuildInfo platform.BuildInfo
+	jaegerTracerCloser io.Closer
+	logger             *zap.Logger
+	reg                *prom.Registry
 
 	Stdin      io.Reader
 	Stdout     io.Writer
@@ -92,9 +240,10 @@ type Launcher struct {
 // NewLauncher returns a new instance of Launcher connected to standard in/out/err.
 func NewLauncher() *Launcher {
 	return &Launcher{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
-		Stderr: os.Stderr,
+		Stdin:         os.Stdin,
+		Stdout:        os.Stdout,
+		Stderr:        os.Stderr,
+		StorageConfig: storage.NewConfig(),
 	}
 }
 
@@ -116,13 +265,6 @@ func (m *Launcher) Registry() *prom.Registry {
 // Logger returns the launchers logger.
 func (m *Launcher) Logger() *zap.Logger {
 	return m.logger
-}
-
-// SetBuild adds version, commit, and date to prometheus metrics.
-func (m *Launcher) SetBuild(version, commit, date string) {
-	m.BuildInfo.Version = version
-	m.BuildInfo.Commit = commit
-	m.BuildInfo.Date = date
 }
 
 // URL returns the URL to connect to the HTTP server.
@@ -163,6 +305,12 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 
 	m.wg.Wait()
 
+	if m.jaegerTracerCloser != nil {
+		if err := m.jaegerTracerCloser.Close(); err != nil {
+			m.logger.Warn("failed to closer Jaeger tracer", zap.Error(err))
+		}
+	}
+
 	m.logger.Sync()
 }
 
@@ -171,72 +319,24 @@ func (m *Launcher) Cancel() { m.cancel() }
 
 // Run executes the program with the given CLI arguments.
 func (m *Launcher) Run(ctx context.Context, args ...string) error {
-	dir, err := fs.InfluxDir()
-	if err != nil {
-		return fmt.Errorf("failed to determine influx directory: %v", err)
-	}
-
-	prog := &cli.Program{
-		Name: "influxd",
-		Run:  func() error { return m.run(ctx) },
-		Opts: []cli.Opt{
-			{
-				DestP:   &m.logLevel,
-				Flag:    "log-level",
-				Default: "info",
-				Desc:    "supported log levels are debug, info, and error",
-			},
-			{
-				DestP:   &m.httpBindAddress,
-				Flag:    "http-bind-address",
-				Default: ":9999",
-				Desc:    "bind address for the REST HTTP API",
-			},
-			{
-				DestP:   &m.boltPath,
-				Flag:    "bolt-path",
-				Default: filepath.Join(dir, "influxd.bolt"),
-				Desc:    "path to boltdb database",
-			},
-			{
-				DestP:   &m.developerMode,
-				Flag:    "developer-mode",
-				Default: false,
-				Desc:    "serve assets from the local filesystem in developer mode",
-			},
-			{
-				DestP:   &m.enginePath,
-				Flag:    "engine-path",
-				Default: filepath.Join(dir, "engine"),
-				Desc:    "path to persistent engine files",
-			},
-			{
-				DestP:   &m.secretStore,
-				Flag:    "secret-store",
-				Default: "bolt",
-				Desc:    "data store for secrets (bolt or vault)",
-			},
-			{
-				DestP:   &m.protosPath,
-				Flag:    "protos-path",
-				Default: filepath.Join(dir, "protos"),
-				Desc:    "path to protos on the filesystem",
-			},
-			{
-				DestP:   &m.reportingDisabled,
-				Flag:    "reporting-disabled",
-				Default: false,
-				Desc:    "disable sending telemetry data to https://telemetry.influxdata.com every 8 hours",
-			},
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start the influxd server (default)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return m.run(ctx)
 		},
 	}
 
-	cmd := cli.NewCommand(prog)
+	buildLauncherCommand(m, cmd)
+
 	cmd.SetArgs(args)
 	return cmd.Execute()
 }
 
 func (m *Launcher) run(ctx context.Context) (err error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	m.running = true
 	ctx, m.cancel = context.WithCancel(ctx)
 
@@ -255,17 +355,36 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	info := platform.GetBuildInfo()
 	m.logger.Info("Welcome to InfluxDB",
-		zap.String("version", m.BuildInfo.Version),
-		zap.String("commit", m.BuildInfo.Commit),
-		zap.String("build_date", m.BuildInfo.Date),
+		zap.String("version", info.Version),
+		zap.String("commit", info.Commit),
+		zap.String("build_date", info.Date),
 	)
 
-	// set tracing
-	tracer := new(pzap.Tracer)
-	tracer.Logger = m.logger
-	tracer.IDGenerator = snowflake.NewIDGenerator()
-	opentracing.SetGlobalTracer(tracer)
+	switch m.tracingType {
+	case LogTracing:
+		m.logger.Info("tracing via zap logging")
+		tracer := new(pzap.Tracer)
+		tracer.Logger = m.logger
+		tracer.IDGenerator = snowflake.NewIDGenerator()
+		opentracing.SetGlobalTracer(tracer)
+
+	case JaegerTracing:
+		m.logger.Info("tracing via Jaeger")
+		cfg, err := jaegerconfig.FromEnv()
+		if err != nil {
+			m.logger.Error("failed to get Jaeger client config from environment variables", zap.Error(err))
+			break
+		}
+		tracer, closer, err := cfg.NewTracer()
+		if err != nil {
+			m.logger.Error("failed to instantiate Jaeger tracer", zap.Error(err))
+			break
+		}
+		opentracing.SetGlobalTracer(tracer)
+		m.jaegerTracerCloser = closer
+	}
 
 	m.boltClient = bolt.NewClient()
 	m.boltClient.Path = m.boltPath
@@ -276,35 +395,66 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	serviceConfig := kv.ServiceConfig{
+		SessionLength: time.Duration(m.sessionLength) * time.Minute,
+	}
+
+	var flusher http.Flusher
+	switch m.storeType {
+	case BoltStore:
+		store := bolt.NewKVStore(m.boltPath)
+		store.WithDB(m.boltClient.DB())
+		m.kvService = kv.NewService(store, serviceConfig)
+		if m.testing {
+			flusher = store
+		}
+	case MemoryStore:
+		store := inmem.NewKVStore()
+		m.kvService = kv.NewService(store, serviceConfig)
+		if m.testing {
+			flusher = store
+		}
+	default:
+		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
+		m.logger.Error("failed opening bolt", zap.Error(err))
+		return err
+	}
+
+	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
+	if err := m.kvService.Initialize(ctx); err != nil {
+		m.logger.Error("failed to initialize kv service", zap.Error(err))
+		return err
+	}
+
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
-		infprom.NewInfluxCollector(m.boltClient, m.BuildInfo),
+		infprom.NewInfluxCollector(m.boltClient, info),
 	)
 	m.reg.WithLogger(m.logger)
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc           platform.OrganizationService             = m.boltClient
-		authSvc          platform.AuthorizationService            = m.boltClient
-		userSvc          platform.UserService                     = m.boltClient
-		macroSvc         platform.MacroService                    = m.boltClient
-		bucketSvc        platform.BucketService                   = m.boltClient
-		sourceSvc        platform.SourceService                   = m.boltClient
-		sessionSvc       platform.SessionService                  = m.boltClient
-		basicAuthSvc     platform.BasicAuthService                = m.boltClient
-		dashboardSvc     platform.DashboardService                = m.boltClient
-		dashboardLogSvc  platform.DashboardOperationLogService    = m.boltClient
-		userLogSvc       platform.UserOperationLogService         = m.boltClient
-		bucketLogSvc     platform.BucketOperationLogService       = m.boltClient
-		orgLogSvc        platform.OrganizationOperationLogService = m.boltClient
-		onboardingSvc    platform.OnboardingService               = m.boltClient
-		scraperTargetSvc platform.ScraperTargetStoreService       = m.boltClient
-		telegrafSvc      platform.TelegrafConfigStore             = m.boltClient
-		userResourceSvc  platform.UserResourceMappingService      = m.boltClient
-		labelSvc         platform.LabelService                    = m.boltClient
-		secretSvc        platform.SecretService                   = m.boltClient
-		lookupSvc        platform.LookupService                   = m.boltClient
+		orgSvc           platform.OrganizationService             = m.kvService
+		authSvc          platform.AuthorizationService            = m.kvService
+		userSvc          platform.UserService                     = m.kvService
+		variableSvc      platform.VariableService                 = m.kvService
+		bucketSvc        platform.BucketService                   = m.kvService
+		sourceSvc        platform.SourceService                   = m.kvService
+		sessionSvc       platform.SessionService                  = m.kvService
+		passwdsSvc       platform.PasswordsService                = m.kvService
+		dashboardSvc     platform.DashboardService                = m.kvService
+		dashboardLogSvc  platform.DashboardOperationLogService    = m.kvService
+		userLogSvc       platform.UserOperationLogService         = m.kvService
+		bucketLogSvc     platform.BucketOperationLogService       = m.kvService
+		orgLogSvc        platform.OrganizationOperationLogService = m.kvService
+		onboardingSvc    platform.OnboardingService               = m.kvService
+		scraperTargetSvc platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc      platform.TelegrafConfigStore             = m.kvService
+		userResourceSvc  platform.UserResourceMappingService      = m.kvService
+		labelSvc         platform.LabelService                    = m.kvService
+		secretSvc        platform.SecretService                   = m.kvService
+		lookupSvc        platform.LookupService                   = m.kvService
 	)
 
 	switch m.secretStore {
@@ -315,7 +465,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
 		svc, err := vault.NewSecretService()
 		if err != nil {
-			m.logger.Error("failed initalizing vault secret service", zap.Error(err))
+			m.logger.Error("failed initializing vault secret service", zap.Error(err))
 			return err
 		}
 		secretSvc = svc
@@ -325,22 +475,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Load proto examples from the user data.
-	protoSvc := protofs.NewProtoService(m.protosPath, m.logger, dashboardSvc)
-	if err := protoSvc.Open(ctx); err != nil {
-		m.logger.Error("failed to read protos from the filesystem", zap.Error(err))
-		return err
-	}
-
-	// ... now, load the proto examples that are build with release.
-	protoData, err := proto.Load(m.logger)
-	if err != nil {
-		return err
-	}
-
-	// join the release proto examples with the user data examples.
-	protoSvc.WithProtos(protoData)
-
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
 	if err != nil {
 		m.logger.Error("failed creating chronograf service", zap.Error(err))
@@ -349,10 +483,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var pointsWriter storage.PointsWriter
 	{
-		m.engine = storage.NewEngine(m.enginePath, storage.NewConfig(), storage.WithRetentionEnforcer(bucketSvc))
+		m.engine = storage.NewEngine(m.enginePath, m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
 		m.engine.WithLogger(m.logger)
 
-		if err := m.engine.Open(); err != nil {
+		if err := m.engine.Open(ctx); err != nil {
 			m.logger.Error("failed to open engine", zap.Error(err))
 			return err
 		}
@@ -361,16 +495,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 		pointsWriter = m.engine
 
+		// TODO(cwolff): Figure out a good default per-query memory limit:
+		//   https://github.com/influxdata/influxdb/issues/13642
 		const (
-			concurrencyQuota = 10
-			memoryBytesQuota = 1e6
+			concurrencyQuota         = 10
+			memoryBytesQuotaPerQuery = math.MaxInt64
+			QueueSize                = 10
 		)
 
 		cc := control.Config{
-			ExecutorDependencies: make(execute.Dependencies),
-			ConcurrencyQuota:     concurrencyQuota,
-			MemoryBytesQuota:     int64(memoryBytesQuota),
-			Logger:               m.logger.With(zap.String("service", "storage-reads")),
+			ExecutorDependencies:     make(execute.Dependencies),
+			ConcurrencyQuota:         concurrencyQuota,
+			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+			QueueSize:                QueueSize,
+			Logger:                   m.logger.With(zap.String("service", "storage-reads")),
 		}
 
 		if err := readservice.AddControllerConfigDependencies(
@@ -380,31 +518,34 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			return err
 		}
 
-		m.queryController = pcontrol.New(cc)
+		c, err := control.New(cc)
+		if err != nil {
+			m.logger.Error("Failed to create query controller", zap.Error(err))
+			return err
+		}
+		m.queryController = c
 		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-		boltStore, err := taskbolt.New(m.boltClient.DB(), "tasks")
-		if err != nil {
-			m.logger.Error("failed opening task bolt", zap.Error(err))
-			return err
-		}
 
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, boltStore)
+		// create the task stack:
+		// validation(coordinator(analyticalstore(kv.Service)))
 
-		lw := taskbackend.NewPointLogWriter(pointsWriter)
-		m.scheduler = taskbackend.NewScheduler(boltStore, executor, lw, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+		// define the executor and build analytical storage middleware
+		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
+
+		// create the scheduler
+		m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		queryService := query.QueryServiceBridge{AsyncQueryService: m.queryController}
-		lr := taskbackend.NewQueryLogReader(queryService)
-		taskSvc = task.PlatformAdapter(coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, boltStore), lr, m.scheduler)
-		taskSvc = task.NewValidator(taskSvc, bucketSvc)
-		m.taskStore = boltStore
+		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, combinedTaskService)
+		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
+		m.taskControlService = combinedTaskService
 	}
 
 	// NATS streaming server
@@ -454,8 +595,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	m.apibackend = &http.APIBackend{
-		DeveloperMode:        m.developerMode,
+		AssetsPath:           m.assetsPath,
+		HTTPErrorHandler:     http.ErrorHandler(0),
 		Logger:               m.logger,
+		SessionRenewDisabled: m.sessionRenewDisabled,
 		NewBucketService:     source.NewBucketService,
 		NewQueryService:      source.NewQueryService,
 		PointsWriter:         pointsWriter,
@@ -473,19 +616,24 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		UserOperationLogService:         userLogSvc,
 		OrganizationOperationLogService: orgLogSvc,
 		SourceService:                   sourceSvc,
-		MacroService:                    macroSvc,
-		BasicAuthService:                basicAuthSvc,
+		VariableService:                 variableSvc,
+		PasswordsService:                passwdsSvc,
 		OnboardingService:               onboardingSvc,
-		ProxyQueryService:               storageQueryService,
+		InfluxQLService:                 nil, // No InfluxQL support
+		FluxService:                     storageQueryService,
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
 		LookupService:                   lookupSvc,
-		ProtoService:                    protoSvc,
-		OrgLookupService:                m.boltClient,
+		DocumentService:                 m.kvService,
+		OrgLookupService:                m.kvService,
+		WriteEventRecorder:              infprom.NewEventRecorder("write"),
+		QueryEventRecorder:              infprom.NewEventRecorder("query"),
 	}
+
+	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
 	// HTTP server
 	httpLogger := m.logger.With(zap.String("service", "http"))
@@ -495,9 +643,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
 	h.Logger = httpLogger
-	h.Tracer = opentracing.GlobalTracer()
 
 	m.httpServer.Handler = h
+	// If we are in testing mode we allow all data to be flushed and removed.
+	if m.testing {
+		m.httpServer.Handler = http.DebugFlush(ctx, h, flusher)
+	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
 	if err != nil {
@@ -524,34 +675,47 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	return nil
 }
 
+// OrganizationService returns the internal organization service.
 func (m *Launcher) OrganizationService() platform.OrganizationService {
 	return m.apibackend.OrganizationService
 }
 
-func (m *Launcher) QueryController() *pcontrol.Controller {
+// QueryController returns the internal query service.
+func (m *Launcher) QueryController() *control.Controller {
 	return m.queryController
 }
 
+// BucketService returns the internal bucket service.
 func (m *Launcher) BucketService() platform.BucketService {
 	return m.apibackend.BucketService
 }
 
+// UserService returns the internal suser service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
 }
 
+// AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
 }
 
+// TaskService returns the internal task service.
 func (m *Launcher) TaskService() platform.TaskService {
 	return m.apibackend.TaskService
 }
 
-func (m *Launcher) TaskStore() taskbackend.Store {
-	return m.taskStore
+// TaskStore returns the internal store service.
+func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
+	return m.taskControlService
 }
 
+// TaskScheduler returns the internal scheduler service.
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
+}
+
+// KeyValueService returns the internal key-value service.
+func (m *Launcher) KeyValueService() *kv.Service {
+	return m.kvService
 }

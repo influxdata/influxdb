@@ -3,41 +3,28 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {
-  Button,
-  ComponentColor,
-  OverlayTechnology,
-  OverlayBody,
-  OverlayHeading,
-  OverlayContainer,
-  OverlayFooter,
-} from 'src/clockface'
+import {Button, ComponentColor, Overlay} from '@influxdata/clockface'
 
 // Actions
 import {
   editActiveQueryWithBuilder,
   editActiveQueryAsFlux,
-  editActiveQueryAsInfluxQL,
 } from 'src/timeMachine/actions'
 
 // Utils
-import {getActiveQuery, getActiveQuerySource} from 'src/timeMachine/selectors'
-
-// Styles
-import 'src/timeMachine/components/QueriesSwitcher.scss'
+import {getActiveQuery} from 'src/timeMachine/selectors'
+import {hasQueryBeenEdited} from 'src/timeMachine/utils/queryBuilder'
 
 // Types
-import {AppState, QueryEditMode, Source} from 'src/types/v2'
+import {AppState, QueryEditMode, DashboardQuery} from 'src/types'
 
 interface StateProps {
-  editMode: QueryEditMode
-  sourceType: Source.TypeEnum
+  activeQuery: DashboardQuery
 }
 
 interface DispatchProps {
   onEditWithBuilder: typeof editActiveQueryWithBuilder
   onEditAsFlux: typeof editActiveQueryAsFlux
-  onEditAsInfluxQL: typeof editActiveQueryAsInfluxQL
 }
 
 type Props = StateProps & DispatchProps
@@ -61,34 +48,35 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
     return (
       <>
         {this.button}
-        <OverlayTechnology visible={isOverlayVisible}>
-          <OverlayContainer maxWidth={400}>
-            <OverlayHeading
+        <Overlay visible={isOverlayVisible}>
+          <Overlay.Container maxWidth={400}>
+            <Overlay.Header
               title="Are you sure?"
               onDismiss={this.handleDismissOverlay}
             />
-            <OverlayBody>
+            <Overlay.Body>
               <p className="queries-switcher--warning">
                 Switching to Query Builder mode will discard any changes you
                 have made using Flux. This cannot be recovered.
               </p>
-            </OverlayBody>
-            <OverlayFooter>
+            </Overlay.Body>
+            <Overlay.Footer>
               <Button text="Cancel" onClick={this.handleDismissOverlay} />
               <Button
                 color={ComponentColor.Danger}
                 text="Switch to Builder"
                 onClick={this.handleConfirmSwitch}
               />
-            </OverlayFooter>
-          </OverlayContainer>
-        </OverlayTechnology>
+            </Overlay.Footer>
+          </Overlay.Container>
+        </Overlay>
       </>
     )
   }
 
   private get button(): JSX.Element {
-    const {editMode, sourceType, onEditAsFlux, onEditAsInfluxQL} = this.props
+    const {onEditAsFlux} = this.props
+    const {editMode} = this.props.activeQuery
 
     if (editMode !== QueryEditMode.Builder) {
       return (
@@ -96,16 +84,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
           text="Query Builder"
           titleText="Switch to Query Builder"
           onClick={this.handleShowOverlay}
-        />
-      )
-    }
-
-    if (sourceType === Source.TypeEnum.V1) {
-      return (
-        <Button
-          text="Script Editor"
-          titleText="Switch to Script Editor"
-          onClick={onEditAsInfluxQL}
+          testID="switch-to-query-builder"
         />
       )
     }
@@ -115,12 +94,21 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
         text="Script Editor"
         titleText="Switch to Script Editor"
         onClick={onEditAsFlux}
+        testID="switch-to-script-editor"
       />
     )
   }
 
   private handleShowOverlay = (): void => {
-    this.setState({isOverlayVisible: true})
+    const {text, builderConfig} = this.props.activeQuery
+
+    if (hasQueryBeenEdited(text, builderConfig)) {
+      // If a user will lose changes by switching to builder mode, show a modal
+      // that asks them to confirm the mode switch
+      this.setState({isOverlayVisible: true})
+    } else {
+      this.props.onEditWithBuilder()
+    }
   }
 
   private handleDismissOverlay = (): void => {
@@ -136,16 +124,14 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState) => {
-  const editMode = getActiveQuery(state).editMode
-  const sourceType = getActiveQuerySource(state).type
+  const activeQuery = getActiveQuery(state)
 
-  return {editMode, sourceType}
+  return {activeQuery}
 }
 
 const mdtp = {
   onEditWithBuilder: editActiveQueryWithBuilder,
   onEditAsFlux: editActiveQueryAsFlux,
-  onEditAsInfluxQL: editActiveQueryAsInfluxQL,
 }
 
 export default connect<StateProps, DispatchProps>(

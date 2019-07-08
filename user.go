@@ -6,8 +6,9 @@ import (
 
 // User is a user. 🎉
 type User struct {
-	ID   ID     `json:"id,omitempty"`
-	Name string `json:"name"`
+	ID      ID     `json:"id,omitempty"`
+	Name    string `json:"name"`
+	OAuthID string `json:"oauthID,omitempty"`
 }
 
 // Ops for user errors and op log.
@@ -42,13 +43,6 @@ type UserService interface {
 
 	// Removes a user by ID.
 	DeleteUser(ctx context.Context, id ID) error
-}
-
-// BasicAuthService is the service for managing basic auth.
-type BasicAuthService interface {
-	SetPassword(ctx context.Context, name string, password string) error
-	ComparePassword(ctx context.Context, name string, password string) error
-	CompareAndSetPassword(ctx context.Context, name string, old string, new string) error
 }
 
 // UserUpdate represents updates to a user.

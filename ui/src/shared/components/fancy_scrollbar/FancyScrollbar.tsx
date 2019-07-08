@@ -7,16 +7,14 @@ import {Scrollbars} from '@influxdata/react-custom-scrollbars'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
-interface DefaultProps {
+interface Props {
+  className: string
+  maxHeight: number
   autoHide: boolean
   autoHeight: boolean
-  maxHeight: number
-  setScrollTop: (value: React.MouseEvent<HTMLElement>) => void
   style: React.CSSProperties
-}
-
-interface Props {
-  className?: string
+  hideTracksWhenNotNeeded: boolean
+  setScrollTop: (value: React.MouseEvent<HTMLElement>) => void
   scrollTop?: number
   scrollLeft?: number
   thumbStartColor?: string
@@ -24,10 +22,12 @@ interface Props {
 }
 
 @ErrorHandling
-class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
-  public static defaultProps: DefaultProps = {
+class FancyScrollbar extends Component<Props> {
+  public static defaultProps = {
+    className: '',
     autoHide: true,
     autoHeight: false,
+    hideTracksWhenNotNeeded: true,
     maxHeight: null,
     style: {},
     setScrollTop: () => {},
@@ -70,6 +70,7 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
       style,
       thumbStartColor,
       thumbStopColor,
+      hideTracksWhenNotNeeded,
     } = this.props
 
     return (
@@ -87,6 +88,7 @@ class FancyScrollbar extends Component<Props & Partial<DefaultProps>> {
         autoHeightMax={maxHeight}
         thumbStartColor={thumbStartColor}
         thumbStopColor={thumbStopColor}
+        hideTracksWhenNotNeeded={hideTracksWhenNotNeeded}
       >
         {children}
       </Scrollbars>

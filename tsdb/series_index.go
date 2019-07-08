@@ -19,7 +19,11 @@ const (
 )
 
 const (
-	SeriesIndexElemSize   = 16 // offset + id
+	// SeriesIDSize is the size in bytes of a series key ID.
+	SeriesIDSize        = 8
+	SeriesOffsetSize    = 8
+	SeriesIndexElemSize = SeriesOffsetSize + SeriesIDSize
+
 	SeriesIndexLoadFactor = 90 // rhh load factor
 
 	SeriesIndexHeaderSize = 0 +
@@ -125,6 +129,7 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	options := rhh.DefaultOptions
 	options.Metrics = idx.rhhMetrics
 	options.Labels = idx.rhhLabels
+	options.MetricsEnabled = idx.rhhMetricsEnabled
 
 	idx.keyIDMap = rhh.NewHashMap(options)
 	idx.idOffsetMap = make(map[SeriesID]int64)
@@ -150,9 +155,21 @@ func (idx *SeriesIndex) Recover(segments []*SeriesSegment) error {
 	return nil
 }
 
+// GrowBy preallocates the in-memory hashmap to a larger size.
+func (idx *SeriesIndex) GrowBy(delta int) {
+	if delta < 0 {
+		return
+	}
+	idx.keyIDMap.Grow(((idx.keyIDMap.Len() + int64(delta)) * 100) / int64(idx.keyIDMap.LoadFactor()))
+}
+
 // Count returns the number of series in the index.
 func (idx *SeriesIndex) Count() uint64 {
-	return idx.OnDiskCount() + idx.InMemCount()
+	n := int64(idx.OnDiskCount()+idx.InMemCount()) - int64(len(idx.tombstones))
+	if n < 0 {
+		n = 0
+	}
+	return uint64(n)
 }
 
 // OnDiskCount returns the number of series in the on-disk index.
@@ -204,7 +221,11 @@ func (idx *SeriesIndex) execEntry(flag uint8, id SeriesIDTyped, offset int64, ke
 		}
 
 	case SeriesEntryTombstoneFlag:
-		idx.tombstones[untypedID] = struct{}{}
+		// Only add to tombstone if it exists on disk or in-memory.
+		// This affects counts if a tombstone exists but the ID doesn't exist.
+		if idx.FindOffsetByID(untypedID) != 0 {
+			idx.tombstones[untypedID] = struct{}{}
+		}
 
 	default:
 		panic("unreachable")
@@ -224,7 +245,7 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 	hash := rhh.HashKey(key)
 	for d, pos := int64(0), hash&idx.mask; ; d, pos = d+1, (pos+1)&idx.mask {
 		elem := idx.keyIDData[(pos * SeriesIndexElemSize):]
-		elemOffset := int64(binary.BigEndian.Uint64(elem[:8]))
+		elemOffset := int64(binary.BigEndian.Uint64(elem[:SeriesOffsetSize]))
 
 		if elemOffset == 0 {
 			return SeriesIDTyped{}
@@ -235,7 +256,7 @@ func (idx *SeriesIndex) FindIDBySeriesKey(segments []*SeriesSegment, key []byte)
 		if d > rhh.Dist(elemHash, pos, idx.capacity) {
 			return SeriesIDTyped{}
 		} else if elemHash == hash && bytes.Equal(elemKey, key) {
-			id := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[8:]))
+			id := NewSeriesIDTyped(binary.BigEndian.Uint64(elem[SeriesOffsetSize:]))
 			if idx.IsDeleted(id.SeriesID()) {
 				return SeriesIDTyped{}
 			}
@@ -275,10 +296,10 @@ func (idx *SeriesIndex) FindOffsetByID(id SeriesID) int64 {
 	hash := rhh.HashUint64(id.RawID())
 	for d, pos := int64(0), hash&idx.mask; ; d, pos = d+1, (pos+1)&idx.mask {
 		elem := idx.idOffsetData[(pos * SeriesIndexElemSize):]
-		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:8]))
+		elemID := NewSeriesID(binary.BigEndian.Uint64(elem[:SeriesIDSize]))
 
 		if elemID == id {
-			return int64(binary.BigEndian.Uint64(elem[8:]))
+			return int64(binary.BigEndian.Uint64(elem[SeriesIDSize:]))
 		} else if elemID.IsZero() || d > rhh.Dist(rhh.HashUint64(elemID.RawID()), pos, idx.capacity) {
 			return 0
 		}

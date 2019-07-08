@@ -14,6 +14,7 @@ package tsm1
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -25,6 +26,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -688,6 +690,7 @@ type Compactor struct {
 	Size int
 
 	FileStore interface {
+		SetCurrentGenerationFunc(func() int)
 		NextGeneration() int
 		TSMReader(path string) *TSMReader
 	}
@@ -808,7 +811,10 @@ func (c *Compactor) EnableCompactions() {
 }
 
 // WriteSnapshot writes a Cache snapshot to one or more new TSM files.
-func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
+func (c *Compactor) WriteSnapshot(ctx context.Context, cache *Cache) ([]string, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	c.mu.RLock()
 	enabled := c.snapshotsEnabled
 	intC := c.snapshotsInterrupt
@@ -1244,7 +1250,7 @@ type tsmKeyIterator struct {
 	// values is the temporary buffers for each key that is returned by a reader
 	values map[string][]Value
 
-	// pos is the current key postion within the corresponding readers slice.  A value of
+	// pos is the current key position within the corresponding readers slice.  A value of
 	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
 	pos []int
 
@@ -1577,7 +1583,7 @@ type tsmBatchKeyIterator struct {
 	// values is the temporary buffers for each key that is returned by a reader
 	values map[string][]Value
 
-	// pos is the current key postion within the corresponding readers slice.  A value of
+	// pos is the current key position within the corresponding readers slice.  A value of
 	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
 	pos []int
 

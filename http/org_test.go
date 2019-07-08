@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
@@ -35,6 +36,10 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	t.Helper()
 	svc := inmem.NewService()
 	svc.IDGenerator = f.IDGenerator
+	svc.TimeGenerator = f.TimeGenerator
+	if f.TimeGenerator == nil {
+		svc.TimeGenerator = platform.RealTimeGenerator{}
+	}
 
 	ctx := context.Background()
 	for _, o := range f.Organizations {
@@ -44,6 +49,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	}
 
 	orgBackend := NewMockOrgBackend()
+	orgBackend.HTTPErrorHandler = ErrorHandler(0)
 	orgBackend.OrganizationService = svc
 	handler := NewOrgHandler(orgBackend)
 	server := httptest.NewServer(handler)
@@ -98,7 +104,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 {
   "links": {
     "org": "/api/v2/orgs/0000000000000001",
-    "secrets": "/api/v2/orgs/0000000000000001/secrets"
+    "self": "/api/v2/orgs/0000000000000001/secrets"
   },
   "secrets": [
     "hello",
@@ -127,7 +133,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 {
   "links": {
     "org": "/api/v2/orgs/0000000000000001",
-    "secrets": "/api/v2/orgs/0000000000000001/secrets"
+    "self": "/api/v2/orgs/0000000000000001/secrets"
   },
   "secrets": []
 }
@@ -139,6 +145,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgBackend := NewMockOrgBackend()
+			orgBackend.HTTPErrorHandler = ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(orgBackend)
 
@@ -158,8 +165,12 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handleGetSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handleGetSecrets() = ***%s***", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleGetSecrets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleGetSecrets() = ***%s***", tt.name, diff)
+				}
 			}
 
 		})
@@ -210,6 +221,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgBackend := NewMockOrgBackend()
+			orgBackend.HTTPErrorHandler = ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(orgBackend)
 
@@ -235,8 +247,12 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handlePatchSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handlePatchSecrets() = ***%s***", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handlePatchSecrets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handlePatchSecrets() = ***%s***", tt.name, diff)
+				}
 			}
 
 		})
@@ -287,10 +303,13 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			orgBackend := NewMockOrgBackend()
+			orgBackend.HTTPErrorHandler = ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
 			h := NewOrgHandler(orgBackend)
 
-			b, err := json.Marshal(tt.args.secrets)
+			b, err := json.Marshal(deleteSecretsRequest{
+				Secrets: tt.args.secrets,
+			})
 			if err != nil {
 				t.Fatalf("failed to marshal secrets: %v", err)
 			}
@@ -312,8 +331,12 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("handleDeleteSecrets() = %v, want %v", content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
-				t.Errorf("handleDeleteSecrets() = ***%s***", diff)
+			if tt.wants.body != "" {
+				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+					t.Errorf("%q, handleDeleteSecrets(). error unmarshaling json %v", tt.name, err)
+				} else if !eq {
+					t.Errorf("%q. handleDeleteSecrets() = ***%s***", tt.name, diff)
+				}
 			}
 
 		})

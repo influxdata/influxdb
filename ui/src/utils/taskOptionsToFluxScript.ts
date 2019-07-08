@@ -41,6 +41,7 @@ export const addDestinationToFluxScript = (
   options: TaskOptions
 ): string => {
   const {toOrgName, toBucketName} = options
+
   if (toOrgName && toBucketName) {
     const trimmedScript = _.trimEnd(script)
     const trimmedOrgName = toOrgName.trim()

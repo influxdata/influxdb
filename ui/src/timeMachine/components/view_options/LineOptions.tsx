@@ -3,81 +3,118 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Grid} from 'src/clockface'
+import {Grid} from '@influxdata/clockface'
 import Geom from 'src/timeMachine/components/view_options/Geom'
 import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
-import YAxisBounds from 'src/timeMachine/components/view_options/YAxisBounds'
-import YAxisAffixes from 'src/timeMachine/components/view_options/YAxisAffixes'
-import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
-import YAxisScale from 'src/timeMachine/components/view_options/YAxisScale'
+import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 import ColorSelector from 'src/timeMachine/components/view_options/ColorSelector'
+import AutoDomainInput from 'src/shared/components/AutoDomainInput'
+import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
+import ColumnSelector from 'src/shared/components/ColumnSelector'
+import Checkbox from 'src/shared/components/Checkbox'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {
-  setStaticLegend,
   setColors,
   setYAxisLabel,
-  setYAxisMinBound,
-  setYAxisMaxBound,
-  setYAxisPrefix,
-  setYAxisSuffix,
+  setAxisPrefix,
+  setAxisSuffix,
+  setYAxisBounds,
   setYAxisBase,
-  setYAxisScale,
   setGeom,
+  setXColumn,
+  setYColumn,
+  setShadeBelow,
 } from 'src/timeMachine/actions'
 
+// Utils
+import {parseBounds} from 'src/shared/utils/vis'
+import {
+  getXColumnSelection,
+  getYColumnSelection,
+  getNumericColumns,
+} from 'src/timeMachine/selectors'
+
 // Types
-import {ViewType} from 'src/types/v2'
-import {Axes, XYViewGeom} from 'src/types/v2/dashboards'
+import {ViewType} from 'src/types'
+import {Axes, XYViewGeom} from 'src/types/dashboards'
 import {Color} from 'src/types/colors'
+import {AppState} from 'src/types'
+import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 interface OwnProps {
   type: ViewType
   axes: Axes
   geom?: XYViewGeom
   colors: Color[]
+  shadeBelow?: boolean
+}
+
+interface StateProps {
+  xColumn: string
+  yColumn: string
+  numericColumns: string[]
 }
 
 interface DispatchProps {
-  onUpdateYAxisLabel: (label: string) => void
-  onUpdateYAxisMinBound: (min: string) => void
-  onUpdateYAxisMaxBound: (max: string) => void
-  onUpdateYAxisPrefix: (prefix: string) => void
-  onUpdateYAxisSuffix: (suffix: string) => void
-  onUpdateYAxisBase: (base: string) => void
-  onUpdateYAxisScale: (scale: string) => void
-  onToggleStaticLegend: (isStaticLegend: boolean) => void
-  onUpdateColors: (colors: Color[]) => void
-  onSetGeom: (geom: XYViewGeom) => void
+  onUpdateYAxisLabel: typeof setYAxisLabel
+  onUpdateAxisPrefix: typeof setAxisPrefix
+  onUpdateAxisSuffix: typeof setAxisSuffix
+  onUpdateYAxisBounds: typeof setYAxisBounds
+  onUpdateYAxisBase: typeof setYAxisBase
+  onUpdateColors: typeof setColors
+  onSetShadeBelow: typeof setShadeBelow
+  onSetXColumn: typeof setXColumn
+  onSetYColumn: typeof setYColumn
+  onSetGeom: typeof setGeom
 }
 
-type Props = OwnProps & DispatchProps
+type Props = OwnProps & DispatchProps & StateProps
 
 class LineOptions extends PureComponent<Props> {
   public render() {
     const {
       axes: {
-        y: {label, bounds, scale, prefix, suffix, base},
+        y: {label, prefix, suffix, base},
       },
       colors,
       geom,
+      shadeBelow,
       onUpdateColors,
       onUpdateYAxisLabel,
-      onUpdateYAxisMinBound,
-      onUpdateYAxisMaxBound,
-      onUpdateYAxisPrefix,
-      onUpdateYAxisSuffix,
+      onUpdateAxisPrefix,
+      onUpdateAxisSuffix,
       onUpdateYAxisBase,
-      onUpdateYAxisScale,
+      onSetShadeBelow,
       onSetGeom,
+      onSetYColumn,
+      yColumn,
+      onSetXColumn,
+      xColumn,
+      numericColumns,
     } = this.props
-
-    const [min, max] = bounds
 
     return (
       <>
         <Grid.Column>
-          <h4 className="view-options--header">Customize Graph</h4>
+          <h4 className="view-options--header">Customize Line Graph</h4>
+          <CloudExclude>
+            <h5 className="view-options--header">Data</h5>
+            <ColumnSelector
+              selectedColumn={xColumn}
+              onSelectColumn={onSetXColumn}
+              availableColumns={numericColumns}
+              axisName="x"
+            />
+            <ColumnSelector
+              selectedColumn={yColumn}
+              onSelectColumn={onSetYColumn}
+              availableColumns={numericColumns}
+              axisName="y"
+            />
+          </CloudExclude>
+          <h5 className="view-options--header">Options</h5>
         </Grid.Column>
         {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
         <ColorSelector
@@ -85,43 +122,76 @@ class LineOptions extends PureComponent<Props> {
           onUpdateColors={onUpdateColors}
         />
         <Grid.Column>
-          <h4 className="view-options--header">Left Y Axis</h4>
+          <FeatureFlag name="lineGraphShading">
+            <Checkbox
+              label="Shade Area Below Lines"
+              checked={!!shadeBelow}
+              onSetChecked={onSetShadeBelow}
+            />
+          </FeatureFlag>
+        </Grid.Column>
+        <Grid.Column>
+          <h5 className="view-options--header">Y Axis</h5>
         </Grid.Column>
         <YAxisTitle label={label} onUpdateYAxisLabel={onUpdateYAxisLabel} />
-        <YAxisBounds
-          min={min}
-          max={max}
-          scale={scale}
-          onUpdateYAxisMaxBound={onUpdateYAxisMaxBound}
-          onUpdateYAxisMinBound={onUpdateYAxisMinBound}
-        />
-        <YAxisAffixes
+        <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
+        <AxisAffixes
           prefix={prefix}
           suffix={suffix}
-          onUpdateYAxisPrefix={onUpdateYAxisPrefix}
-          onUpdateYAxisSuffix={onUpdateYAxisSuffix}
+          axisName="y"
+          onUpdateAxisPrefix={prefix => onUpdateAxisPrefix(prefix, 'y')}
+          onUpdateAxisSuffix={suffix => onUpdateAxisSuffix(suffix, 'y')}
         />
-        <YAxisBase base={base} onUpdateYAxisBase={onUpdateYAxisBase} />
-        <YAxisScale scale={scale} onUpdateYAxisScale={onUpdateYAxisScale} />
+        <Grid.Column>
+          <AutoDomainInput
+            domain={this.yDomain}
+            onSetDomain={this.handleSetYDomain}
+            label="Y Axis Domain"
+          />
+        </Grid.Column>
       </>
     )
   }
+
+  private get yDomain(): [number, number] {
+    return parseBounds(this.props.axes.y.bounds)
+  }
+
+  private handleSetYDomain = (yDomain: [number, number]): void => {
+    let bounds: [string, string] | [null, null]
+
+    if (yDomain) {
+      bounds = [String(yDomain[0]), String(yDomain[1])]
+    } else {
+      bounds = [null, null]
+    }
+
+    this.props.onUpdateYAxisBounds(bounds)
+  }
+}
+
+const mstp = (state: AppState) => {
+  const xColumn = getXColumnSelection(state)
+  const yColumn = getYColumnSelection(state)
+  const numericColumns = getNumericColumns(state)
+
+  return {xColumn, yColumn, numericColumns}
 }
 
 const mdtp: DispatchProps = {
   onUpdateYAxisLabel: setYAxisLabel,
-  onUpdateYAxisMinBound: setYAxisMinBound,
-  onUpdateYAxisMaxBound: setYAxisMaxBound,
-  onUpdateYAxisPrefix: setYAxisPrefix,
-  onUpdateYAxisSuffix: setYAxisSuffix,
+  onUpdateAxisPrefix: setAxisPrefix,
+  onUpdateAxisSuffix: setAxisSuffix,
+  onUpdateYAxisBounds: setYAxisBounds,
   onUpdateYAxisBase: setYAxisBase,
-  onUpdateYAxisScale: setYAxisScale,
-  onToggleStaticLegend: setStaticLegend,
+  onSetXColumn: setXColumn,
+  onSetYColumn: setYColumn,
+  onSetShadeBelow: setShadeBelow,
   onUpdateColors: setColors,
   onSetGeom: setGeom,
 }
 
-export default connect<{}, DispatchProps, OwnProps>(
-  null,
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
   mdtp
 )(LineOptions)

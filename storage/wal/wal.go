@@ -2,6 +2,7 @@ package wal
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -17,12 +18,14 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
+
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/influxdb/tsdb/value"
-	"github.com/prometheus/client_golang/prometheus"
-	"go.uber.org/zap"
 )
 
 const (
@@ -101,9 +104,7 @@ type WAL struct {
 	syncDelay time.Duration
 
 	// WALOutput is the writer used by the logger.
-	logger       *zap.Logger // Logger to be used for important messages
-	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
-	traceLogging bool
+	logger *zap.Logger // Logger to be used for important messages
 
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
@@ -121,21 +122,12 @@ func NewWAL(path string) *WAL {
 		path:    path,
 		enabled: true,
 
-		// these options should be overriden by any options in the config
+		// these options should be overridden by any options in the config
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
 		syncWaiters: make(chan chan error, 1024),
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
-		traceLogger: logger,
-	}
-}
-
-// EnableTraceLogging must be called before the WAL is opened.
-func (l *WAL) EnableTraceLogging(enabled bool) {
-	l.traceLogging = enabled
-	if enabled {
-		l.traceLogger = l.logger
 	}
 }
 
@@ -152,10 +144,6 @@ func (l *WAL) SetEnabled(enabled bool) {
 // WithLogger sets the WAL's logger.
 func (l *WAL) WithLogger(log *zap.Logger) {
 	l.logger = log.With(zap.String("service", "wal"))
-
-	if l.traceLogging {
-		l.traceLogger = l.logger
-	}
 }
 
 // SetDefaultMetricLabels sets the default labels for metrics on the engine.
@@ -175,13 +163,19 @@ func (l *WAL) Path() string {
 }
 
 // Open opens and initializes the Log. Open can recover from previous unclosed shutdowns.
-func (l *WAL) Open() error {
+func (l *WAL) Open(ctx context.Context) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	if !l.enabled {
 		return nil
 	}
+
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	span.LogKV("segment_size", l.SegmentSize,
+		"path", l.path)
 
 	// Initialise metrics for trackers.
 	mmu.Lock()
@@ -192,9 +186,6 @@ func (l *WAL) Open() error {
 
 	// Set the shared metrics for the tracker
 	l.tracker = newWALTracker(wms, l.defaultMetricLabels)
-
-	l.traceLogger.Info("tsm1 WAL starting", zap.Int("segment_size", l.SegmentSize))
-	l.traceLogger.Info("tsm1 WAL writing", zap.String("path", l.path))
 
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -318,7 +309,10 @@ func (l *WAL) sync() {
 // WriteMulti writes the given values to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
 // be ignored. If the WAL is disabled, -1 and nil is returned.
-func (l *WAL) WriteMulti(values map[string][]value.Value) (int, error) {
+func (l *WAL) WriteMulti(ctx context.Context, values map[string][]value.Value) (int, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	if !l.enabled {
 		return -1, nil
 	}
@@ -375,16 +369,19 @@ func (l *WAL) ClosedSegments() ([]string, error) {
 }
 
 // Remove deletes the given segment file paths from disk and cleans up any associated objects.
-func (l *WAL) Remove(files []string) error {
+func (l *WAL) Remove(ctx context.Context, files []string) error {
 	if !l.enabled {
 		return nil
 	}
 
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	for _, fn := range files {
-		l.traceLogger.Info("Removing WAL file", zap.String("path", fn))
+	for i, fn := range files {
+		span.LogKV(fmt.Sprintf("path-%d", i), fn)
 		os.RemoveAll(fn)
 	}
 
@@ -522,16 +519,17 @@ func (l *WAL) CloseSegment() error {
 
 // DeleteBucketRange deletes the data inside of the bucket between the two times, returning
 // the segment ID for the operation.
-func (l *WAL) DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) (int, error) {
+func (l *WAL) DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64, pred []byte) (int, error) {
 	if !l.enabled {
 		return -1, nil
 	}
 
 	entry := &DeleteBucketRangeWALEntry{
-		OrgID:    orgID,
-		BucketID: bucketID,
-		Min:      min,
-		Max:      max,
+		OrgID:     orgID,
+		BucketID:  bucketID,
+		Min:       min,
+		Max:       max,
+		Predicate: pred,
 	}
 
 	id, err := l.writeToLog(entry)
@@ -551,8 +549,12 @@ func (l *WAL) Close() error {
 	}
 
 	l.once.Do(func() {
+		span, _ := tracing.StartSpanFromContextWithOperationName(context.Background(), "WAL.Close once.Do")
+		defer span.Finish()
+
+		span.LogKV("path", l.path)
+
 		// Close, but don't set to nil so future goroutines can still be signaled
-		l.traceLogger.Info("Closing WAL file", zap.String("path", l.path))
 		close(l.closing)
 
 		if l.currentSegmentWriter != nil {
@@ -991,9 +993,10 @@ func (w *WriteWALEntry) Type() WalEntryType {
 
 // DeleteBucketRangeWALEntry represents the deletion of data in a bucket.
 type DeleteBucketRangeWALEntry struct {
-	OrgID    influxdb.ID
-	BucketID influxdb.ID
-	Min, Max int64
+	OrgID     influxdb.ID
+	BucketID  influxdb.ID
+	Min, Max  int64
+	Predicate []byte
 }
 
 // MarshalBinary returns a binary representation of the entry in a new byte slice.
@@ -1004,7 +1007,7 @@ func (w *DeleteBucketRangeWALEntry) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary deserializes the byte slice into w.
 func (w *DeleteBucketRangeWALEntry) UnmarshalBinary(b []byte) error {
-	if len(b) != 2*influxdb.IDLength+16 {
+	if len(b) < 2*influxdb.IDLength+16 {
 		return ErrWALCorrupt
 	}
 
@@ -1016,13 +1019,19 @@ func (w *DeleteBucketRangeWALEntry) UnmarshalBinary(b []byte) error {
 	}
 	w.Min = int64(binary.BigEndian.Uint64(b[2*influxdb.IDLength : 2*influxdb.IDLength+8]))
 	w.Max = int64(binary.BigEndian.Uint64(b[2*influxdb.IDLength+8 : 2*influxdb.IDLength+16]))
+	w.Predicate = b[2*influxdb.IDLength+16:]
+
+	// Maintain backwards compatability where no predicate bytes means nil
+	if len(w.Predicate) == 0 {
+		w.Predicate = nil
+	}
 
 	return nil
 }
 
 // MarshalSize returns the number of bytes the entry takes when marshaled.
 func (w *DeleteBucketRangeWALEntry) MarshalSize() int {
-	return 2*influxdb.IDLength + 16
+	return 2*influxdb.IDLength + 16 + len(w.Predicate)
 }
 
 // Encode converts the entry into a byte stream using b if it is large enough.
@@ -1046,6 +1055,7 @@ func (w *DeleteBucketRangeWALEntry) Encode(b []byte) ([]byte, error) {
 	copy(b[influxdb.IDLength:], bucketID)
 	binary.BigEndian.PutUint64(b[2*influxdb.IDLength:], uint64(w.Min))
 	binary.BigEndian.PutUint64(b[2*influxdb.IDLength+8:], uint64(w.Max))
+	copy(b[2*influxdb.IDLength+16:], w.Predicate)
 
 	return b[:sz], nil
 }

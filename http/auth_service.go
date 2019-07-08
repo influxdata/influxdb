@@ -19,6 +19,7 @@ import (
 // AuthorizationBackend is all services and associated parameters required to construct
 // the AuthorizationHandler.
 type AuthorizationBackend struct {
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	AuthorizationService platform.AuthorizationService
@@ -30,7 +31,8 @@ type AuthorizationBackend struct {
 // NewAuthorizationBackend returns a new instance of AuthorizationBackend.
 func NewAuthorizationBackend(b *APIBackend) *AuthorizationBackend {
 	return &AuthorizationBackend{
-		Logger: b.Logger.With(zap.String("handler", "authorization")),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger.With(zap.String("handler", "authorization")),
 
 		AuthorizationService: b.AuthorizationService,
 		OrganizationService:  b.OrganizationService,
@@ -42,6 +44,7 @@ func NewAuthorizationBackend(b *APIBackend) *AuthorizationBackend {
 // AuthorizationHandler represents an HTTP API handler for authorizations.
 type AuthorizationHandler struct {
 	*httprouter.Router
+	platform.HTTPErrorHandler
 	Logger *zap.Logger
 
 	OrganizationService  platform.OrganizationService
@@ -53,8 +56,9 @@ type AuthorizationHandler struct {
 // NewAuthorizationHandler returns a new instance of AuthorizationHandler.
 func NewAuthorizationHandler(b *AuthorizationBackend) *AuthorizationHandler {
 	h := &AuthorizationHandler{
-		Router: NewRouter(),
-		Logger: b.Logger,
+		Router:           NewRouter(b.HTTPErrorHandler),
+		HTTPErrorHandler: b.HTTPErrorHandler,
+		Logger:           b.Logger,
 
 		AuthorizationService: b.AuthorizationService,
 		OrganizationService:  b.OrganizationService,
@@ -65,7 +69,7 @@ func NewAuthorizationHandler(b *AuthorizationBackend) *AuthorizationHandler {
 	h.HandlerFunc("POST", "/api/v2/authorizations", h.handlePostAuthorization)
 	h.HandlerFunc("GET", "/api/v2/authorizations", h.handleGetAuthorizations)
 	h.HandlerFunc("GET", "/api/v2/authorizations/:id", h.handleGetAuthorization)
-	h.HandlerFunc("PATCH", "/api/v2/authorizations/:id", h.handleSetAuthorizationStatus)
+	h.HandlerFunc("PATCH", "/api/v2/authorizations/:id", h.handleUpdateAuthorization)
 	h.HandlerFunc("DELETE", "/api/v2/authorizations/:id", h.handleDeleteAuthorization)
 	return h
 }
@@ -184,13 +188,13 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 
 	req, err := decodePostAuthorizationRequest(ctx, r)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	user, err := getAuthorizedUser(r, h.UserService)
 	if err != nil {
-		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+		h.HandleHTTPError(ctx, platform.ErrUnableToCreateToken, w)
 		return
 	}
 
@@ -198,18 +202,18 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, auth.OrgID)
 	if err != nil {
-		EncodeError(ctx, platform.ErrUnableToCreateToken, w)
+		h.HandleHTTPError(ctx, platform.ErrUnableToCreateToken, w)
 		return
 	}
 
 	if err := h.AuthorizationService.CreateAuthorization(ctx, auth); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	perms, err := newPermissionsResponse(ctx, auth.Permissions, h.LookupService)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -318,42 +322,42 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	req, err := decodeGetAuthorizationsRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorizations"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	opts := platform.FindOptions{}
 	as, _, err := h.AuthorizationService.FindAuthorizations(ctx, req.filter, opts)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	auths := make([]*authResponse, len(as))
-	for i, a := range as {
+	auths := make([]*authResponse, 0, len(as))
+	for _, a := range as {
 		o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 		if err != nil {
-			EncodeError(ctx, err, w)
-			return
+			h.Logger.Info("failed to get organization", zap.String("handler", "getAuthorizations"), zap.String("orgID", a.OrgID.String()), zap.Error(err))
+			continue
 		}
 
 		u, err := h.UserService.FindUserByID(ctx, a.UserID)
 		if err != nil {
-			EncodeError(ctx, err, w)
-			return
+			h.Logger.Info("failed to get user", zap.String("handler", "getAuthorizations"), zap.String("userID", a.UserID.String()), zap.Error(err))
+			continue
 		}
 
 		ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
 		if err != nil {
-			EncodeError(ctx, err, w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 
-		auths[i] = newAuthResponse(a, o, u, ps)
+		auths = append(auths, newAuthResponse(a, o, u, ps))
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths)); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 }
@@ -381,6 +385,20 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 		req.filter.User = &user
 	}
 
+	orgID := qp.Get("orgID")
+	if orgID != "" {
+		id, err := platform.IDFromString(orgID)
+		if err != nil {
+			return nil, err
+		}
+		req.filter.OrgID = id
+	}
+
+	org := qp.Get("org")
+	if org != "" {
+		req.filter.Org = &org
+	}
+
 	authID := qp.Get("id")
 	if authID != "" {
 		id, err := platform.IDFromString(authID)
@@ -400,37 +418,37 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 	req, err := decodeGetAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
 		// Don't log here, it should already be handled by the service
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	u, err := h.UserService.FindUserByID(ctx, a.UserID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 }
@@ -459,61 +477,59 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 	}, nil
 }
 
-// handleSetAuthorizationStatus is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status.
-func (h *AuthorizationHandler) handleSetAuthorizationStatus(w http.ResponseWriter, r *http.Request) {
+// handleUpdateAuthorization is the HTTP handler for the PATCH /api/v2/authorizations/:id route that updates the authorization's status and desc.
+func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeSetAuthorizationStatusRequest(ctx, r)
+	req, err := decodeUpdateAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	a, err := h.AuthorizationService.FindAuthorizationByID(ctx, req.ID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	if req.Status != a.Status {
-		a.Status = req.Status
-		if err := h.AuthorizationService.SetAuthorizationStatus(ctx, a.ID, a.Status); err != nil {
-			EncodeError(ctx, err, w)
-			return
-		}
+	a, err = h.AuthorizationService.UpdateAuthorization(ctx, a.ID, req.AuthorizationUpdate)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
 	}
 
 	o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	u, err := h.UserService.FindUserByID(ctx, a.UserID)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	ps, err := newPermissionsResponse(ctx, a.Permissions, h.LookupService)
 	if err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 }
 
 type updateAuthorizationRequest struct {
-	ID     platform.ID
-	Status platform.Status
+	ID platform.ID
+	*platform.AuthorizationUpdate
 }
 
-func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (*updateAuthorizationRequest, error) {
+func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*updateAuthorizationRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -528,14 +544,14 @@ func decodeSetAuthorizationStatusRequest(ctx context.Context, r *http.Request) (
 		return nil, err
 	}
 
-	a := &setAuthorizationStatusRequest{}
-	if err := json.NewDecoder(r.Body).Decode(a); err != nil {
+	upd := &platform.AuthorizationUpdate{}
+	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
 		return nil, err
 	}
 
 	return &updateAuthorizationRequest{
-		ID:     i,
-		Status: a.Status,
+		ID:                  i,
+		AuthorizationUpdate: upd,
 	}, nil
 }
 
@@ -546,13 +562,13 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 	req, err := decodeDeleteAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
 	if err := h.AuthorizationService.DeleteAuthorization(ctx, req.ID); err != nil {
 		// Don't log here, it should already be handled by the service
-		EncodeError(ctx, err, w)
+		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
@@ -605,7 +621,7 @@ var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
 // FindAuthorizationByID finds the authorization against a remote influx server.
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-	u, err := newURL(s.Addr, authorizationIDPath(id))
+	u, err := NewURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return nil, err
 	}
@@ -616,7 +632,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
@@ -643,7 +659,7 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, tok
 // FindAuthorizations returns a list of authorizations that match filter and the total count of matching authorizations.
 // Additional options provide pagination & sorting.
 func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter platform.AuthorizationFilter, opt ...platform.FindOptions) ([]*platform.Authorization, int, error) {
-	u, err := newURL(s.Addr, authorizationPath)
+	u, err := NewURL(s.Addr, authorizationPath)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -667,10 +683,18 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 		query.Add("user", *filter.User)
 	}
 
+	if filter.OrgID != nil {
+		query.Add("orgID", filter.OrgID.String())
+	}
+
+	if filter.Org != nil {
+		query.Add("org", *filter.Org)
+	}
+
 	req.URL.RawQuery = query.Encode()
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, 0, err
@@ -700,7 +724,7 @@ const (
 
 // CreateAuthorization creates a new authorization and sets b.ID with the new identifier.
 func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platform.Authorization) error {
-	u, err := newURL(s.Addr, authorizationPath)
+	u, err := NewURL(s.Addr, authorizationPath)
 	if err != nil {
 		return err
 	}
@@ -725,7 +749,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
@@ -745,50 +769,49 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 	return nil
 }
 
-type setAuthorizationStatusRequest struct {
-	Status platform.Status `json:"status"`
-}
-
-// SetAuthorizationStatus updates an authorization's status.
-func (s *AuthorizationService) SetAuthorizationStatus(ctx context.Context, id platform.ID, status platform.Status) error {
-	u, err := newURL(s.Addr, authorizationIDPath(id))
+// UpdateAuthorization updates the status and description if available.
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (*platform.Authorization, error) {
+	u, err := NewURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	b, err := json.Marshal(setAuthorizationStatusRequest{
-		Status: status,
-	})
+	b, err := json.Marshal(upd)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(b))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 
 	resp, err := hc.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if err := CheckError(resp); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	var res authResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+
+	return res.toPlatform(), nil
 }
 
 // DeleteAuthorization removes a authorization by id.
 func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) error {
-	u, err := newURL(s.Addr, authorizationIDPath(id))
+	u, err := NewURL(s.Addr, authorizationIDPath(id))
 	if err != nil {
 		return err
 	}
@@ -799,7 +822,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 	}
 	SetToken(s.Token, req)
 
-	hc := newClient(u.Scheme, s.InsecureSkipVerify)
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
 	resp, err := hc.Do(req)
 	if err != nil {
 		return err

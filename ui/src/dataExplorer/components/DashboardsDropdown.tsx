@@ -8,7 +8,7 @@ import {MultiSelectDropdown} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // types
-import {Dashboard} from 'src/types/v2'
+import {Dashboard} from 'src/types'
 import {DashboardTemplate} from 'src/dashboards/constants'
 
 interface Props {
@@ -25,7 +25,7 @@ class DashboardsDropdown extends PureComponent<Props> {
       <MultiSelectDropdown
         selectedIDs={selectedIDs}
         onChange={onSelect}
-        emptyText={'Choose at least 1 dashboard'}
+        emptyText="Choose at least 1 dashboard"
       >
         {this.dropdownItems}
       </MultiSelectDropdown>

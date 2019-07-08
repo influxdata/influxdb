@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"os"
 	"reflect"
 	"testing"
@@ -81,48 +80,6 @@ func TestTombstoner_Add(t *testing.T) {
 	}
 }
 
-func TestTombstoner_AddPrefix(t *testing.T) {
-	dir := MustTempDir()
-	defer func() { os.RemoveAll(dir) }()
-
-	f := MustTempFile(dir)
-	ts := tsm1.NewTombstoner(f.Name(), nil)
-
-	entries := mustReadAll(ts)
-	if got, exp := len(entries), 0; got != exp {
-		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
-	}
-
-	stats := ts.TombstoneFiles()
-	if got, exp := len(stats), 0; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if err := ts.AddPrefix([]byte("some-prefix")); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := ts.Flush(); err != nil {
-		t.Fatalf("unexpected error flushing tombstone: %v", err)
-	}
-
-	exp := tsm1.Tombstone{
-		Key:    []byte("some-prefix"),
-		Min:    math.MinInt64,
-		Max:    math.MaxInt64,
-		Prefix: true,
-	}
-
-	entries = mustReadAll(ts)
-	if got, exp := len(entries), 1; got != exp {
-		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if got := entries[0]; !reflect.DeepEqual(got, exp) {
-		t.Fatalf("unexpected tombstone entry. Got %s, expected %s", got, exp)
-	}
-}
-
 func TestTombstoner_AddPrefixRange(t *testing.T) {
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()
@@ -140,7 +97,7 @@ func TestTombstoner_AddPrefixRange(t *testing.T) {
 		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
 	}
 
-	if err := ts.AddPrefixRange([]byte("some-prefix"), 20, 30); err != nil {
+	if err := ts.AddPrefixRange([]byte("some-prefix"), 20, 30, []byte("some-predicate")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -149,10 +106,11 @@ func TestTombstoner_AddPrefixRange(t *testing.T) {
 	}
 
 	exp := tsm1.Tombstone{
-		Key:    []byte("some-prefix"),
-		Min:    20,
-		Max:    30,
-		Prefix: true,
+		Key:       []byte("some-prefix"),
+		Min:       20,
+		Max:       30,
+		Prefix:    true,
+		Predicate: []byte("some-predicate"),
 	}
 
 	entries = mustReadAll(ts)
@@ -484,7 +442,7 @@ func TestTombstoner_Existing(t *testing.T) {
 
 	t.Run("add_prefix", func(t *testing.T) {
 		ts := tsm1.NewTombstoner(name, nil)
-		if err := ts.AddPrefixRange([]byte("new-prefix"), 10, 20); err != nil {
+		if err := ts.AddPrefixRange([]byte("new-prefix"), 10, 20, []byte("new-predicate")); err != nil {
 			t.Fatal(err)
 		}
 
@@ -501,10 +459,11 @@ func TestTombstoner_Existing(t *testing.T) {
 		}
 
 		exp := tsm1.Tombstone{
-			Key:    []byte("new-prefix"),
-			Min:    10,
-			Max:    20,
-			Prefix: true,
+			Key:       []byte("new-prefix"),
+			Min:       10,
+			Max:       20,
+			Prefix:    true,
+			Predicate: []byte("new-predicate"),
 		}
 
 		if !reflect.DeepEqual(got, exp) {
@@ -518,11 +477,19 @@ func mustReadAll(t *tsm1.Tombstoner) []tsm1.Tombstone {
 	if err := t.Walk(func(t tsm1.Tombstone) error {
 		b := make([]byte, len(t.Key))
 		copy(b, t.Key)
+
+		var p []byte
+		if t.Predicate != nil {
+			p = make([]byte, len(t.Predicate))
+			copy(p, t.Predicate)
+		}
+
 		tombstones = append(tombstones, tsm1.Tombstone{
-			Min:    t.Min,
-			Max:    t.Max,
-			Key:    b,
-			Prefix: t.Prefix,
+			Min:       t.Min,
+			Max:       t.Max,
+			Key:       b,
+			Prefix:    t.Prefix,
+			Predicate: p,
 		})
 		return nil
 	}); err != nil {

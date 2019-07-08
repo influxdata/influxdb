@@ -2,7 +2,10 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Grid, Radio, ButtonShape, Form} from 'src/clockface'
+import {Form, Radio, Grid} from '@influxdata/clockface'
+
+// Types
+import {ButtonShape} from '@influxdata/clockface'
 
 interface Props {
   verticalTimeAxis: boolean
