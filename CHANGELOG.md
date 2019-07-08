@@ -4,6 +4,7 @@ v1.7.8 [unreleased]
 ### Bugfixes
 
 -	[#14264](https://github.com/influxdata/influxdb/pull/14264): Fix Prometheus read panic.
+-	[#14271](https://github.com/influxdata/influxdb/pull/14271): Remove stray fmt.Println in tsm1.StringArrayEncodeAll.
 
 v1.7.7 [2019-06-26]
 -------------------
