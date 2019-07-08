@@ -1273,51 +1273,6 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interr
 	}
 }
 
-// readStatsFile reads the stats file into memory and updates the stats size.
-func (p *Partition) readStatsFile() error {
-	p.stats = NewMeasurementCardinalityStats()
-
-	f, err := os.Open(p.StatsPath())
-	if os.IsNotExist(err) {
-		p.statsSize = 0
-		return nil
-	} else if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	n, err := p.stats.ReadFrom(bufio.NewReader(f))
-	if err != nil {
-		return err
-	}
-	p.statsSize = n
-
-	return nil
-}
-
-// writeStatsFile writes the stats file and updates the stats size.
-func (p *Partition) writeStatsFile() error {
-	tmpPath := p.StatsPath() + ".tmp"
-	f, err := fs.CreateFile(tmpPath)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	n, err := p.stats.WriteTo(f)
-	if err != nil {
-		return err
-	}
-
-	if err := f.Close(); err != nil {
-		return err
-	} else if err := fs.RenameFileWithReplacement(tmpPath, p.StatsPath()); err != nil {
-		return err
-	}
-
-	p.statsSize = n
-	return nil
-}
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
 func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
 	p.mu.RLock()

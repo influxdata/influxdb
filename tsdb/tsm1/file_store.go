@@ -17,9 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/pkg/file"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
