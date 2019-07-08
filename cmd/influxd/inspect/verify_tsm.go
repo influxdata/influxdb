@@ -48,8 +48,8 @@ the analysis.
 func verifyTSMF(cmd *cobra.Command, args []string) error {
 	verify := tsm1.VerifyTSM{
 		Stdout:   os.Stdout,
-		OrgID:    verifyTSMFlags.Org.ID,
-		BucketID: verifyTSMFlags.Bucket.ID,
+		OrgID:    verifyTSMFlags.Org,
+		BucketID: verifyTSMFlags.Bucket,
 	}
 
 	// resolve all pathspecs
