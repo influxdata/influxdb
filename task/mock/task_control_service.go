@@ -163,6 +163,40 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 	}, nil
 }
 
+func (t *TaskControlService) CreateRun(_ context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	runID := idgen.ID()
+	runs, ok := t.runs[taskID]
+	if !ok {
+		runs = make(map[influxdb.ID]*influxdb.Run)
+	}
+	runs[runID] = &influxdb.Run{
+		ID:           runID,
+		ScheduledFor: scheduledFor.Format(time.RFC3339),
+	}
+	t.runs[taskID] = runs
+	return runs[runID], nil
+}
+
+func (t *TaskControlService) StartManualRun(_ context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var run *influxdb.Run
+	for i, r := range t.manualRuns {
+		if r.ID == runID {
+			run = r
+			t.manualRuns = append(t.manualRuns[:i], t.manualRuns[i+1:]...)
+		}
+	}
+	if run == nil {
+		return nil, &influxdb.ErrRunNotFound
+	}
+	return run, nil
+}
+
 func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

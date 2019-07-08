@@ -16,6 +16,10 @@ import (
 // Returns unchanged error, so useful to wrap as in:
 //  return 0, tracing.LogError(err)
 func LogError(span opentracing.Span, err error) error {
+	if err == nil {
+		return nil
+	}
+
 	// Get caller frame.
 	var pcs [1]uintptr
 	n := runtime.Callers(2, pcs[:])
