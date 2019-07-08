@@ -67,7 +67,8 @@ func (cmd *Command) printUsage() {
 Usage: influx_inspect verify [flags]
 
     -dir <path>
-            Root storage path
+            The root storage path.
+            Must be changed if you are using a non-default storage directory.
             Defaults to "%[1]s/.influxdb".
     -check-utf8 
             Verify series keys are valid UTF-8.
@@ -84,7 +85,7 @@ type verifyTSM struct {
 	err   error
 }
 
-func (v *verifyTSM) loadFiles(dataPath string) {
+func (v *verifyTSM) loadFiles(dataPath string) error {
 	err := filepath.Walk(dataPath, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -94,9 +95,12 @@ func (v *verifyTSM) loadFiles(dataPath string) {
 		}
 		return nil
 	})
+
 	if err != nil {
-		panic(err)
+		return errors.Wrap(err, "could not load storage files (use -dir for custom storage root)")
 	}
+
+	return nil
 }
 
 func (v *verifyTSM) Next() bool {
@@ -140,7 +144,9 @@ type verifyChecksums struct {
 }
 
 func (v *verifyChecksums) Run(w io.Writer, dataPath string) error {
-	v.loadFiles(dataPath)
+	if err := v.loadFiles(dataPath); err != nil {
+		return err
+	}
 
 	v.Start()
 
@@ -185,7 +191,9 @@ type verifyUTF8 struct {
 }
 
 func (v *verifyUTF8) Run(w io.Writer, dataPath string) error {
-	v.loadFiles(dataPath)
+	if err := v.loadFiles(dataPath); err != nil {
+		return err
+	}
 
 	v.Start()
 
