@@ -805,7 +805,7 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	}
 
 	// Open file handler.
-	f, err := os.Create(path)
+	f, err := fs.CreateFile(path)
 	if err != nil {
 		return err
 	}

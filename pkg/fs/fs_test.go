@@ -78,6 +78,36 @@ func TestRenameFileWithReplacement(t *testing.T) {
 	})
 }
 
+func TestCreateFileWithReplacement(t *testing.T) {
+	path := MustCreateTempFile()
+	defer MustRemoveAll(path)
+
+	// should return an error if we CreateFile to the same path
+	_, err := fs.CreateFile(path)
+	if err == nil {
+		t.Fatalf("CreateFile did not return an error")
+	}
+
+	// contents of the file should be intact
+	contents := MustReadAllFile(path)
+	if got, exp := contents, path; got != exp {
+		t.Fatalf("got contents %q, expected %q", got, exp)
+	}
+
+	// running CreateFileWithReplacement on path should not return an error
+	_, err = fs.CreateFileWithReplacement(path)
+	if err != nil {
+		t.Fatalf("CreateFileWithReplacement returned err: %v", err)
+	}
+
+	// the file at path should now be empty
+	contents = MustReadAllFile(path)
+	if contents != "" {
+		t.Fatalf("expected file to be empty but got: %v", contents)
+	}
+
+}
+
 // MustCreateTempFile creates a temporary file returning the path to the file.
 //
 // MustCreateTempFile writes the absolute path to the file into the file itself.

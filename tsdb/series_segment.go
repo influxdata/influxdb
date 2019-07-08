@@ -59,7 +59,7 @@ func NewSeriesSegment(id uint16, path string) *SeriesSegment {
 // CreateSeriesSegment generates an empty segment at path.
 func CreateSeriesSegment(id uint16, path string) (*SeriesSegment, error) {
 	// Generate segment in temp location.
-	f, err := os.Create(path + ".initializing")
+	f, err := fs.CreateFile(path + ".initializing")
 	if err != nil {
 		return nil, err
 	}

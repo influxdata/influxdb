@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/pkg/fs"
 )
 
 // DashExt is the the file extension searched for in the directory for dashboard files
@@ -56,7 +57,7 @@ func load(name string, resource interface{}) error {
 }
 
 func create(file string, resource interface{}) error {
-	h, err := os.Create(file)
+	h, err := fs.CreateFile(file)
 	if err != nil {
 		return err
 	}

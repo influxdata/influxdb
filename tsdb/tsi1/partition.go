@@ -1018,7 +1018,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, level int, interrupt <-ch
 	// Create new index file.
 	path := filepath.Join(p.path, FormatIndexFileName(p.NextSequence(), level))
 	var f *os.File
-	if f, err = os.Create(path); err != nil {
+	if f, err = fs.CreateFile(path); err != nil {
 		log.Error("Cannot create compaction files", zap.Error(err))
 		return
 	}
@@ -1176,7 +1176,7 @@ func (p *Partition) compactLogFile(logFile *LogFile) {
 
 	// Create new index file.
 	path := filepath.Join(p.path, FormatIndexFileName(id, 1))
-	f, err := os.Create(path)
+	f, err := fs.CreateFile(path)
 	if err != nil {
 		log.Error("Cannot create index file", zap.Error(err))
 		return
@@ -1273,7 +1273,7 @@ func (p *Partition) readStatsFile() error {
 // writeStatsFile writes the stats file and updates the stats size.
 func (p *Partition) writeStatsFile() error {
 	tmpPath := p.StatsPath() + ".tmp"
-	f, err := os.Create(tmpPath)
+	f, err := fs.CreateFile(tmpPath)
 	if err != nil {
 		return err
 	}
