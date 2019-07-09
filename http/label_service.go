@@ -50,6 +50,7 @@ func NewLabelHandler(s influxdb.LabelService, he influxdb.HTTPErrorHandler) *Lab
 // handlePostLabel is the HTTP handler for the POST /api/v2/labels route.
 func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("label create request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodePostLabelRequest(ctx, r)
 	if err != nil {
@@ -61,7 +62,7 @@ func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.Logger.Debug("label created", zap.String("label", fmt.Sprint(req.Label)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(req.Label)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -109,6 +110,7 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 // handleGetLabels is the HTTP handler for the GET /api/v2/labels route.
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("labels retrieve request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodeGetLabelsRequest(ctx, r)
 	if err != nil {
@@ -121,7 +123,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.Logger.Debug("labels retrived", zap.String("labels", fmt.Sprint(labels)))
 	err = encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -151,6 +153,7 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 // handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
 func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("label retrieve request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodeGetLabelRequest(ctx, r)
 	if err != nil {
@@ -163,7 +166,7 @@ func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.Logger.Debug("label retrieved", zap.String("label", fmt.Sprint(l)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -198,6 +201,7 @@ func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelReque
 // handleDeleteLabel is the HTTP handler for the DELETE /api/v2/labels/:id route.
 func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("label delete request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodeDeleteLabelRequest(ctx, r)
 	if err != nil {
@@ -209,7 +213,7 @@ func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.Logger.Debug("label deleted", zap.String("labelID", fmt.Sprint(req.LabelID)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -241,6 +245,7 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 // handlePatchLabel is the HTTP handler for the PATCH /api/v2/labels route.
 func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("label update request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodePatchLabelRequest(ctx, r)
 	if err != nil {
@@ -253,7 +258,7 @@ func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.Logger.Debug("label updated", zap.String("label", fmt.Sprint(l)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

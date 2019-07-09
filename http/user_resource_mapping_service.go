@@ -70,7 +70,7 @@ type MemberBackend struct {
 func newPostMemberHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-
+		b.Logger.Debug("member/owner create request", zap.String("r", fmt.Sprint(r)))
 		req, err := decodePostMemberRequest(ctx, r)
 		if err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -94,6 +94,7 @@ func newPostMemberHandler(b MemberBackend) http.HandlerFunc {
 			b.HandleHTTPError(ctx, err, w)
 			return
 		}
+		b.Logger.Debug("member/owner created", zap.String("mapping", fmt.Sprint(mapping)))
 
 		if err := encodeResponse(ctx, w, http.StatusCreated, newResourceUserResponse(user, b.UserType)); err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -144,6 +145,7 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		b.Logger.Debug("members/owners retrieve request", zap.String("r", fmt.Sprint(r)))
 
 		req, err := decodeGetMembersRequest(ctx, r)
 		if err != nil {
@@ -177,6 +179,7 @@ func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 
 			users = append(users, user)
 		}
+		b.Logger.Debug("members/owners retrieved", zap.String("users", fmt.Sprint(users)))
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newResourceUsersResponse(opts, filter, users)); err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -216,6 +219,7 @@ func decodeGetMembersRequest(ctx context.Context, r *http.Request) (*getMembersR
 func newDeleteMemberHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		b.Logger.Debug("member delete request", zap.String("r", fmt.Sprint(r)))
 
 		req, err := decodeDeleteMemberRequest(ctx, r)
 		if err != nil {
@@ -227,6 +231,7 @@ func newDeleteMemberHandler(b MemberBackend) http.HandlerFunc {
 			b.HandleHTTPError(ctx, err, w)
 			return
 		}
+		b.Logger.Debug("member deleted", zap.String("resourceID", req.ResourceID.String()), zap.String("memberID", req.MemberID.String()))
 
 		w.WriteHeader(http.StatusNoContent)
 	}

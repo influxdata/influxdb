@@ -274,7 +274,7 @@ func newRunsResponse(rs []*platform.Run, taskID platform.ID) runsResponse {
 
 func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.logger.Debug("tasks retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetTasksRequest(ctx, r, h.OrganizationService)
 	if err != nil {
 		err = &platform.Error{
@@ -295,7 +295,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.logger.Debug("tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, req.filter, h.LabelService)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -466,7 +466,7 @@ func (h *TaskHandler) finalizeBootstrappedTaskAuthorization(ctx context.Context,
 
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.logger.Debug("task create request", zap.String("r", fmt.Sprint(r)))
 	auth, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
 		err = &platform.Error{
@@ -539,7 +539,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
+	h.logger.Debug("tasks created", zap.String("task", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*task, []*platform.Label{})); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -567,7 +567,7 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 
 func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.logger.Debug("task retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetTaskRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
@@ -599,7 +599,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.logger.Debug("task retrived", zap.String("tasks", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -634,7 +634,7 @@ func decodeGetTaskRequest(ctx context.Context, r *http.Request) (*getTaskRequest
 
 func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.logger.Debug("task update request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeUpdateTaskRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
@@ -667,7 +667,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.logger.Debug("tasks updated", zap.String("task", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
@@ -711,7 +711,7 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 
 func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.logger.Debug("task delete request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeDeleteTaskRequest(ctx, r)
 	if err != nil {
 		err = &platform.Error{
@@ -734,7 +734,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.logger.Debug("tasks deleted", zap.String("taskID", fmt.Sprint(req.TaskID)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
