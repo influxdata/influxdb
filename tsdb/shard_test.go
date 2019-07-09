@@ -491,6 +491,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 }
 
 func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/14267")
 	if testing.Short() {
 		t.Skip()
 	}
