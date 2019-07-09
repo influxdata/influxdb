@@ -22,11 +22,6 @@ import (
 	"github.com/influxdata/influxdb/task/options"
 )
 
-func init() {
-	// TODO(mr): remove as part of https://github.com/influxdata/platform/issues/484.
-	options.EnableScriptCacheForTest()
-}
-
 // BackendComponentFactory is supplied by consumers of the adaptertest package,
 // to provide the values required to constitute a PlatformAdapter.
 // The provided context.CancelFunc is called after the test,
