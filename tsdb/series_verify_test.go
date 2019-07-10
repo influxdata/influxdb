@@ -102,13 +102,17 @@ func NewTest(t *testing.T) *Test {
 			tagsSlice = append(tagsSlice, nil)
 		}
 
-		ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
+		keys := tsdb.GenerateSeriesKeys(names, tagsSlice)
+		//keyPartitionIDs := seriesFile.SeriesKeysPartitionIDs(keys)
+		ids := make([]uint64, len(keys))
+
+		//ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
 		if err != nil {
 			return err
 		}
 
 		// delete one series
-		if err := seriesFile.DeleteSeriesID(ids[0]); err != nil {
+		if err := seriesFile.DeleteSeriesID(tsdb.NewSeriesID(ids[0])); err != nil {
 			return err
 		}
 

@@ -17,6 +17,7 @@ func NewCommand() *cobra.Command {
 		NewExportBlocksCommand(),
 		NewReportTSMCommand(),
 		NewVerifyWALCommand(),
+		NewVerifySeriesFileCommand(),
 	}
 
 	for _, command := range subCommands {
