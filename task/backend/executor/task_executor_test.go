@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
@@ -57,6 +59,7 @@ func TestTaskExecutor(t *testing.T) {
 	t.Run("WorkerLimit", testWorkerLimit)
 	t.Run("LimitFunc", testLimitFunc)
 	t.Run("Metrics", testMetrics)
+	t.Run("IteratorFailure", testIteratorFailure)
 }
 
 func testQuerySuccess(t *testing.T) {
@@ -356,5 +359,48 @@ func testMetrics(t *testing.T) {
 
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
+	}
+}
+
+func testIteratorFailure(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	// replace iterator exhaust function with one which errors
+	tes.ex.workerPool = sync.Pool{New: func() interface{} {
+		return &worker{tes.ex, func(flux.Result) error {
+			return errors.New("something went wrong exhausting iterator")
+		}}
+	}}
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, Token: tes.tc.Auth.Token, Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	promiseID := influxdb.ID(promise.ID())
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promiseID {
+		t.Fatal("promise and run dont match")
+	}
+
+	tes.svc.WaitForQueryLive(t, script)
+	tes.svc.SucceedQuery(script)
+
+	<-promise.Done()
+
+	if got := promise.Error(); got == nil {
+		t.Fatal("got no error when I should have")
 	}
 }

@@ -245,11 +245,15 @@ type workerMaker struct {
 }
 
 func (wm *workerMaker) new() interface{} {
-	return &worker{wm.te}
+	return &worker{wm.te, exhaustResultIterators}
 }
 
 type worker struct {
 	te *TaskExecutor
+
+	// exhaustResultIterators is used to exhaust the result
+	// of a flux query
+	exhaustResultIterators func(res flux.Result) error
 }
 
 func (w *worker) work() {
@@ -380,7 +384,7 @@ func (w *worker) executeQuery(p *Promise) {
 	for it.More() {
 		// Consume the full iterator so that we don't leak outstanding iterators.
 		res := it.Next()
-		if err := exhaustResultIterators(res); err != nil {
+		if err := w.exhaustResultIterators(res); err != nil {
 			w.te.logger.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", res.Name()))
 		}
 	}
