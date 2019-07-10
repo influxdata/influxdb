@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -390,7 +389,6 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(database, expr, values)
 
 	m := make(map[string]struct{})
 	for _, name := range values {
