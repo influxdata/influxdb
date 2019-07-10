@@ -1114,13 +1114,20 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag.
-	// This ensures a consistent order of output.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
+	}
 
 	// Assume the points are already sorted until proven otherwise.
 	sortedByTime := true
@@ -1145,7 +1152,11 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -1391,15 +1402,19 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1425,7 +1440,11 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -1671,15 +1690,19 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1705,7 +1728,11 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -1951,15 +1978,19 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1985,7 +2016,11 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -2231,15 +2266,19 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -2265,7 +2304,11 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -3735,15 +3778,19 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -3769,7 +3816,11 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -4015,15 +4066,19 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4049,7 +4104,11 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -4295,15 +4354,19 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4329,7 +4392,11 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -4575,15 +4642,19 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4609,7 +4680,11 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -4855,15 +4930,19 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4889,7 +4968,11 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -6359,15 +6442,19 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -6393,7 +6480,11 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -6639,15 +6730,19 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -6673,7 +6768,11 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -6919,15 +7018,19 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -6953,7 +7056,11 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -7199,15 +7306,19 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -7233,7 +7344,11 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -7479,15 +7594,19 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -7513,7 +7632,11 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -8969,15 +9092,19 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9003,7 +9130,11 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -9249,15 +9380,19 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9283,7 +9418,11 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -9529,15 +9668,19 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9563,7 +9706,11 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -9809,15 +9956,19 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9843,7 +9994,11 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -10089,15 +10244,19 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -10123,7 +10282,11 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -11579,15 +11742,19 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11613,7 +11780,11 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -11859,15 +12030,19 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11893,7 +12068,11 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -12139,15 +12318,19 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -12173,7 +12356,11 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -12419,15 +12606,19 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -12453,7 +12644,11 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
@@ -12699,15 +12894,19 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -12733,7 +12932,11 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }

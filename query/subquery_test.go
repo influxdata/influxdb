@@ -323,6 +323,47 @@ func TestSubquery(t *testing.T) {
 				}
 			},
 		},
+		{
+			Name:      "DifferentDimensionsOrderByDesc",
+			Statement: `SELECT value, mytag FROM (SELECT last(value) AS value FROM testing GROUP BY mytag) ORDER BY desc`,
+			Fields:    map[string]influxql.DataType{"value": influxql.Float},
+			MapShardsFn: func(t *testing.T, tr influxql.TimeRange) CreateIteratorFn {
+				return func(ctx context.Context, m *influxql.Measurement, opt query.IteratorOptions) query.Iterator {
+					if got, want := m.Name, "testing"; got != want {
+						t.Errorf("unexpected source: got=%s want=%s", got, want)
+					}
+
+					if opt.Ascending {
+						t.Error("expected iterator to be descending, not ascending")
+					}
+
+					var itr query.Iterator = &FloatIterator{Points: []query.FloatPoint{
+						{Name: "testing", Tags: ParseTags("mytag=c"), Time: mustParseTime("2019-06-25T22:36:20.93605779Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=c"), Time: mustParseTime("2019-06-25T22:36:20.671604877Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=c"), Time: mustParseTime("2019-06-25T22:36:20.255794481Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=b"), Time: mustParseTime("2019-06-25T22:36:18.176662543Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=b"), Time: mustParseTime("2019-06-25T22:36:17.815979113Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=b"), Time: mustParseTime("2019-06-25T22:36:17.265031598Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=a"), Time: mustParseTime("2019-06-25T22:36:15.144253616Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=a"), Time: mustParseTime("2019-06-25T22:36:14.719167205Z").UnixNano(), Value: 2},
+						{Name: "testing", Tags: ParseTags("mytag=a"), Time: mustParseTime("2019-06-25T22:36:13.711721316Z").UnixNano(), Value: 2},
+					}}
+					if _, ok := opt.Expr.(*influxql.Call); ok {
+						i, err := query.NewCallIterator(itr, opt)
+						if err != nil {
+							panic(err)
+						}
+						itr = i
+					}
+					return itr
+				}
+			},
+			Rows: []query.Row{
+				{Time: mustParseTime("2019-06-25T22:36:20.93605779Z").UnixNano(), Series: query.Series{Name: "testing"}, Values: []interface{}{float64(2), "c"}},
+				{Time: mustParseTime("2019-06-25T22:36:18.176662543Z").UnixNano(), Series: query.Series{Name: "testing"}, Values: []interface{}{float64(2), "b"}},
+				{Time: mustParseTime("2019-06-25T22:36:15.144253616Z").UnixNano(), Series: query.Series{Name: "testing"}, Values: []interface{}{float64(2), "a"}},
+			},
+		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
 			shardMapper := ShardMapper{
