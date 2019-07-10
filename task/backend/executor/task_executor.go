@@ -380,16 +380,21 @@ func (w *worker) executeQuery(p *Promise) {
 		return
 	}
 
+	var runErr error
 	// Drain the result iterator.
 	for it.More() {
 		// Consume the full iterator so that we don't leak outstanding iterators.
 		res := it.Next()
-		if err := w.exhaustResultIterators(res); err != nil {
-			w.te.logger.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", res.Name()))
+		if runErr = w.exhaustResultIterators(res); runErr != nil {
+			w.te.logger.Info("Error exhausting result iterator", zap.Error(runErr), zap.String("name", res.Name()))
 		}
 	}
 
 	it.Release()
+
+	if runErr == nil {
+		runErr = it.Err()
+	}
 
 	// log the statistics on the run
 	stats := it.Statistics()
@@ -399,7 +404,7 @@ func (w *worker) executeQuery(p *Promise) {
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), string(b))
 	}
 
-	w.finish(p, backend.RunSuccess, it.Err())
+	w.finish(p, backend.RunSuccess, runErr)
 }
 
 // Promise represents a promise the executor makes to finish a run's execution asynchronously.
