@@ -85,5 +85,7 @@ var FluxEndToEndSkipList = map[string]string{
 	"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
 	"dynamic_query": "panic when executing",
 
-	"regexp_replaceAllString": "Reason TBD",
+	"regexp_replaceAllString":        "Reason TBD",
+	"extract_regexp_findStringIndex": "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
+	"partition_strings_splitN":       "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
 }
