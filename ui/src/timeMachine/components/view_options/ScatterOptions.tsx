@@ -46,7 +46,6 @@ import {AppState} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
-import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
 const COLOR_SCHEMES = [
   {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
@@ -168,20 +167,18 @@ const ScatterOptions: SFC<Props> = props => {
           ))}
         </MultiSelectDropdown>
       </Form.Element>
-      <CloudExclude>
-        <ColumnSelector
-          selectedColumn={xColumn}
-          onSelectColumn={onSetXColumn}
-          availableColumns={numericColumns}
-          axisName="x"
-        />
-        <ColumnSelector
-          selectedColumn={yColumn}
-          onSelectColumn={onSetYColumn}
-          availableColumns={numericColumns}
-          axisName="y"
-        />
-      </CloudExclude>
+      <ColumnSelector
+        selectedColumn={xColumn}
+        onSelectColumn={onSetXColumn}
+        availableColumns={numericColumns}
+        axisName="x"
+      />
+      <ColumnSelector
+        selectedColumn={yColumn}
+        onSelectColumn={onSetYColumn}
+        availableColumns={numericColumns}
+        axisName="y"
+      />
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <HexColorSchemeDropdown
