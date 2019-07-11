@@ -34,11 +34,9 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 		Usage: influx_inspect verify-seriesfile [flags]
 			-dir <path>
 					Root data path.
-					Defaults to "` + os.Getenv("HOME") + `/.influxdb/data".
-			-db <name>
-					Only verify this database inside of the data directory.
+					Defaults to "` + os.Getenv("HOME") + `/.influxdbv2/engine/_series".
 			-series-file <path>
-					Path to a series file. This overrides -db and -dir.
+					Path to a series file. This overrides -dir.
 			-v
 					Enable verbose logging.
 			-c
@@ -47,11 +45,9 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 		RunE: verifySeriesRun,
 	}
 
-	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdb", "data"), "Data directory.")
-	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.db, "db", "",
-		"Only use this database inside of the data directory.")
+	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine/_series"), "Data directory.")
 	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.seriesFile, "series-file", "",
-		"Path to a series file. This overrides -db and -dir.")
+		"Path to a series file. This overrides -dir.")
 	verifySeriesCommand.Flags().BoolVar(&VerifySeriesFlags.verbose, "v", false,
 		"Verbose output.")
 	verifySeriesCommand.Flags().IntVar(&VerifySeriesFlags.concurrent, "c", runtime.GOMAXPROCS(0),
@@ -62,7 +58,6 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 
 var VerifySeriesFlags = struct {
 	dir        string
-	db         string
 	seriesFile string
 	verbose    bool
 	concurrent int
@@ -89,11 +84,6 @@ func verifySeriesRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if VerifySeriesFlags.db != "" {
-		_, err := v.VerifySeriesFile(filepath.Join(VerifySeriesFlags.dir, VerifySeriesFlags.db, "_series"))
-		return err
-	}
-
 	dbs, err := ioutil.ReadDir(VerifySeriesFlags.dir)
 	if err != nil {
 		return err
@@ -103,7 +93,7 @@ func verifySeriesRun(cmd *cobra.Command, args []string) error {
 		if !db.IsDir() {
 			continue
 		}
-		_, err := v.VerifySeriesFile(filepath.Join(VerifySeriesFlags.dir, db.Name(), "_series"))
+		_, err := v.VerifySeriesFile(filepath.Join(VerifySeriesFlags.dir, db.Name()))
 		if err != nil {
 			return err
 		}
