@@ -5,6 +5,7 @@ import {
   setAutoRefresh,
   templateControlBarVisibilityToggled,
 } from 'src/shared/actions/app'
+import {TimeZone} from 'src/types'
 
 describe('Shared.Reducers.appReducer', () => {
   const initialState = {
@@ -14,6 +15,7 @@ describe('Shared.Reducers.appReducer', () => {
     persisted: {
       autoRefresh: 0,
       showTemplateControlBar: false,
+      timeZone: 'Local' as TimeZone,
     },
   }
 

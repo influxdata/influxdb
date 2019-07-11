@@ -2,7 +2,7 @@ import _ from 'lodash'
 import {Config} from '@influxdata/giraffe'
 import {AutoRefreshStatus} from 'src/types'
 
-export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss'
+export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss ZZ'
 
 export const DEFAULT_DURATION_MS = 1000
 
@@ -21,9 +21,6 @@ export const AUTOREFRESH_DEFAULT = {
   interval: AUTOREFRESH_DEFAULT_INTERVAL,
 }
 
-export const STATUS_PAGE_ROW_COUNT = 10 // TODO: calculate based on actual Status Page cells
-export const PAGE_HEADER_HEIGHT = 60 // TODO: get this dynamically to ensure longevity
-export const PAGE_CONTAINER_MARGIN = 30 // TODO: get this dynamically to ensure longevity
 export const LAYOUT_MARGIN = 4
 export const DASHBOARD_LAYOUT_ROW_HEIGHT = 83.5
 
@@ -51,6 +48,8 @@ export const CLOUD_BILLING_VISIBLE =
   CLOUD && process.env.CLOUD_BILLING_VISIBLE === 'true'
 export const CLOUD_URL = process.env.CLOUD_URL
 export const CLOUD_CHECKOUT_PATH = process.env.CLOUD_CHECKOUT_PATH
+
+export const VIS_SIG_DIGITS = 4
 
 export const VIS_THEME: Partial<Config> = {
   axisColor: '#31313d',

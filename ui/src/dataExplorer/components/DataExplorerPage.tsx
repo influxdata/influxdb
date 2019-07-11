@@ -9,6 +9,7 @@ import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 
 const DataExplorerPage: SFC = ({children}) => {
   return (
@@ -20,6 +21,7 @@ const DataExplorerPage: SFC = ({children}) => {
             <PageTitleWithOrg title="Data Explorer" />
           </Page.Header.Left>
           <Page.Header.Right>
+            <TimeZoneDropdown />
             <ViewTypeDropdown />
             <VisOptionsButton />
             <SaveAsButton />

@@ -95,6 +95,15 @@ func TestFromScript(t *testing.T) {
 	}
 }
 
+func BenchmarkFromScriptFunc(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		_, err := options.FromScript(`option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`)
+		if err != nil {
+			fmt.Printf("error: %v", err)
+		}
+	}
+}
+
 func TestFromScriptWithUnknownOptions(t *testing.T) {
 	const optPrefix = `option task = { name: "x", every: 1m`
 	const bodySuffix = `} from(bucket:"b") |> range(start:-1m)`

@@ -1,3 +1,13 @@
+## Unreleased
+
+### Features
+
+1. [14256](https://github.com/influxdata/influxdb/pull/14256): Add time zone support to UI
+
+### Bug Fixes
+
+1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration 
+
 ## v2.0.0-alpha.14 [2019-06-28]
 
 ### Features

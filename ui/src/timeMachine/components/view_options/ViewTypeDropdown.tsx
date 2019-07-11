@@ -10,7 +10,6 @@ import {Dropdown, DropdownMenuColors} from 'src/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {VIS_GRAPHICS} from 'src/timeMachine/constants/visGraphics'
@@ -50,9 +49,7 @@ class ViewTypeDropdown extends PureComponent<Props> {
   }
 
   private get dropdownItems(): JSX.Element[] {
-    return VIS_GRAPHICS.filter(
-      g => !g.featureFlag || isFlagEnabled(g.featureFlag)
-    ).map(g => (
+    return VIS_GRAPHICS.map(g => (
       <Dropdown.Item
         key={`view-type--${g.type}`}
         id={`${g.type}`}

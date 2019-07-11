@@ -16,18 +16,20 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HeatmapView} from 'src/types'
+import {RemoteDataState, HeatmapView, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
   loading: RemoteDataState
   viewProperties: HeatmapView
+  timeZone: TimeZone
   children: (config: Config) => JSX.Element
 }
 
 const HeatmapContainer: FunctionComponent<Props> = ({
   table,
   loading,
+  timeZone,
   viewProperties: {
     xColumn,
     yColumn,
@@ -71,17 +73,17 @@ const HeatmapContainer: FunctionComponent<Props> = ({
       ? storedColors
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(
-    table.getColumnType(xColumn),
-    xPrefix,
-    xSuffix
-  )
+  const xFormatter = getFormatter(table.getColumnType(xColumn), {
+    prefix: xPrefix,
+    suffix: xSuffix,
+    timeZone,
+  })
 
-  const yFormatter = getFormatter(
-    table.getColumnType(yColumn),
-    yPrefix,
-    ySuffix
-  )
+  const yFormatter = getFormatter(table.getColumnType(yColumn), {
+    prefix: yPrefix,
+    suffix: ySuffix,
+    timeZone,
+  })
 
   const config: Config = {
     ...VIS_THEME,

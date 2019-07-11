@@ -10,6 +10,7 @@ import TimeRangeDropdown, {
 } from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
+import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import {
   SquareButton,
   Button,
@@ -99,6 +100,7 @@ export default class DashboardHeader extends Component<Props> {
             text="Add Note"
             onClick={this.handleAddNote}
           />
+          <TimeZoneDropdown />
           <AutoRefreshDropdown
             onChoose={handleChooseAutoRefresh}
             onManualRefresh={onManualRefresh}

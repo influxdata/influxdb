@@ -140,7 +140,7 @@
   },
   "dependencies": {
     "@influxdata/clockface": "0.0.13",
-    "@influxdata/giraffe": "0.12.2",
+    "@influxdata/giraffe": "0.15.0",
     "@influxdata/influx": "0.4.0",
     "@influxdata/influxdb-templates": "0.2.0",
     "@influxdata/react-custom-scrollbars": "4.3.8",
