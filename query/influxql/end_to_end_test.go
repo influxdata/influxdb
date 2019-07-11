@@ -212,7 +212,7 @@ func testGeneratedInfluxQL(t testing.TB, prefix, queryExt string) {
 		got = append(got, res.Next())
 	}
 
-	if ok, err := executetest.EqualResults(exp, got); !ok {
+	if err := executetest.EqualResults(exp, got); err != nil {
 		t.Errorf("result not as expected: %v", err)
 
 		expBuffer := new(bytes.Buffer)
