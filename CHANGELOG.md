@@ -1,6 +1,10 @@
 v1.8.0 [unreleased]
 -------------------
 
+### Features
+
+-	[#14315](https://github.com/influxdata/influxdb/pull/14315): Update to go 1.12.7
+
 ### Bugfixes
 
 -	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.

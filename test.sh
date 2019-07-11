@@ -9,7 +9,7 @@
 #      1: race enabled 64bit tests
 #      2: normal 32bit tests
 #      3: tsi build
-#      4: go 1.11
+#      4: go 1.12
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
 #
@@ -124,8 +124,8 @@ case $ENVIRONMENT_INDEX in
         rc=$?
         ;;
     4)
-        # go1.11
-        run_test_docker Dockerfile_build_ubuntu64_go1.11 test_64bit --test --junit-report
+        # go1.12
+        run_test_docker Dockerfile_build_ubuntu64_go1.12 test_64bit --test --junit-report
         rc=$?
         ;;
     "count")
