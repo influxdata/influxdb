@@ -1,7 +1,6 @@
 package inspect
 
 import (
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -13,19 +12,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Command represents the program execution for "influx_inspect verify-seriesfile".
-type Command struct {
-	Stdout io.Writer
-	Stderr io.Writer
-
-	dir        string
-	db         string
-	seriesFile string
-	verbose    bool
-	concurrent int
-}
-
-// NewVerifySeriesFileCommand returns a new instance of verifySeriesCommand.
+// NewVerifySeriesFileCommand returns a new instance of verifySeriesCommand
+// for execution of "influx_inspect verify-seriesfile".
 func NewVerifySeriesFileCommand() *cobra.Command {
 	verifySeriesCommand := &cobra.Command{
 		Use:   "verify-seriesfile",
@@ -63,7 +51,7 @@ var VerifySeriesFlags = struct {
 	concurrent int
 }{}
 
-// Run executes the command.
+// verifySeriesRun executes the command.
 func verifySeriesRun(cmd *cobra.Command, args []string) error {
 	config := logger.NewConfig()
 	config.Level = zapcore.WarnLevel
