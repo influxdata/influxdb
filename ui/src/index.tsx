@@ -74,6 +74,10 @@ import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenO
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
+import AlertingIndex from 'src/alerting/containers/AlertingIndex'
+import AlertHistoryIndex from 'src/alerting/containers/AlertHistoryIndex'
+
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -298,6 +302,13 @@ class Root extends PureComponent {
                               component={CreateScraperOverlay}
                             />
                           </Route>
+                          <FeatureFlag name="alerting">
+                            <Route path="alerting" component={AlertingIndex} />
+                            <Route
+                              path="alert-history"
+                              component={AlertHistoryIndex}
+                            />
+                          </FeatureFlag>
                           <Route path="profile" component={OrgProfilePage}>
                             <Route path="rename" component={RenameOrgOverlay} />
                           </Route>
