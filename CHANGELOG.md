@@ -11,7 +11,7 @@
 
 ### Known Issues
 
-1. [1492]https://github.com/influxdata/flux/issues/1492 Null support in Flux was introduced in Alhpa 14. Several null issues were fixed in this release, but one known issue remains - Users may hit a panic if the first record processed by a map function has a null value.
+1. [influxdata/flux#1492](https://github.com/influxdata/flux/issues/1492): Null support in Flux was introduced in Alhpa 14. Several null issues were fixed in this release, but one known issue remains - Users may hit a panic if the first record processed by a map function has a null value.
 
 
 ## v2.0.0-alpha.14 [2019-06-28]
