@@ -53,19 +53,17 @@ pipeline {
 
       steps {
         sh """
-        mkdir $HOME/.cache
-
         mkdir -p /go/src/github.com/influxdata
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
-        go get github.com/golang/dep/cmd/dep
+        GOCACHE=/tmp go get github.com/golang/dep/cmd/dep
         dep ensure -vendor-only
         """
 
         sh """
         cd /go/src/github.com/influxdata/influxdb
-        go test -parallel=1 ./...
+        GOCACHE=/tmp go test -parallel=1 ./...
         """
       }
     }
@@ -85,13 +83,13 @@ pipeline {
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
-        go get github.com/golang/dep/cmd/dep
+        GOCACHE=/tmp go get github.com/golang/dep/cmd/dep
         dep ensure -vendor-only
         """
 
         sh """
         cd /go/src/github.com/influxdata/influxdb
-        go test -parallel=1 ./...
+        GOCACHE=/tmp go test -parallel=1 ./...
         """
       }
     }
