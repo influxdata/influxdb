@@ -48,14 +48,14 @@ pipeline {
       agent {
         docker {
           image 'golang:1.12'
-          inside '-e "GOCACHE=/tmp"'
         }
       }
 
       steps {
         sh """
+        mkdir $HOME/.cache
+
         mkdir -p /go/src/github.com/influxdata
-        mkdir -p $(go env GOCACHE)
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 
         cd /go/src/github.com/influxdata/influxdb
@@ -74,13 +74,12 @@ pipeline {
       agent {
         dockerfile {
           filename 'Dockerfile_jenkins_ubuntu32'
-          inside '-e "GOCACHE=/tmp"'
         }
       }
 
       steps {
         sh """
-        mkdir -p $(go env GOCACHE)
+        mkdir $HOME/.cache
         
         mkdir -p /go/src/github.com/influxdata
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
