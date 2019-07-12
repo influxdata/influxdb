@@ -1,3 +1,19 @@
+## v2.0.0-alpha.15 [2019-07-11]
+
+### Features
+
+1. [14256](https://github.com/influxdata/influxdb/pull/14256): Add time zone support to UI
+2. [14243](https://github.com/influxdata/influxdb/pull/14243): Addded new storage inspection tool to verify tsm files
+
+### Bug Fixes
+
+1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration 
+
+### Known Issues
+
+1. [influxdata/flux#1492](https://github.com/influxdata/flux/issues/1492): Null support in Flux was introduced in Alhpa 14. Several null issues were fixed in this release, but one known issue remains - Users may hit a panic if the first record processed by a map function has a null value.
+
+
 ## v2.0.0-alpha.14 [2019-06-28]
 
 ### Features

@@ -1188,16 +1188,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
           'A single argument function that to apply to each record. The return value must be an object.',
         type: 'Function',
       },
-      {
-        name: 'mergeKey',
-        desc:
-          'Indicates if the record returned from `fn` should be merged with the group key. Defaults to `true`.',
-        type: 'Boolean',
-      },
     ],
     package: '',
     desc: 'Applies a function to each record in the input tables.',
-    example: 'map(fn: (r) => r._value * r._value, mergeKey: true)',
+    example: 'map(fn: (r) => ({ r with _value: r._value * r._value }))',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/map/',
@@ -2261,6 +2255,34 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/min/',
   },
   {
+    name: 'movingAverage',
+    args: [
+      {
+        name: 'every',
+        desc: 'The frequency of time windows.',
+        type: 'Duration',
+      },
+      {
+        name: 'period',
+        desc: 'The length of each averaged time window.',
+        type: 'Duration',
+      },
+      {
+        name: 'column',
+        desc:
+          'The column on which to compute the moving average. Defaults to `"_value"`',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the mean of values in a defined time range at a specified frequency.',
+    example: 'movingAverage(every: 1d, period: 5d)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/movingAverage/',
+  },
+  {
     name: 'pearsonr',
     args: [
       {
@@ -2693,10 +2715,38 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'sql',
     desc: 'Retrieves data from a SQL data source.',
     example:
-      'sql.from(driverName: "postgres", dataSourceName: "postgresql://user:password@localhost", query:"SELECT * FROM ExampleTable")',
+      'sql.from(driverName: "postgres", dataSourceName: "postgresql://user:password@localhost", query:"SELECT * FROM example_table")',
     category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/sql/from/',
+  },
+  {
+    name: 'sql.to',
+    args: [
+      {
+        name: 'driverName',
+        desc: 'The driver used to connect to the SQL database.',
+        type: 'String',
+      },
+      {
+        name: 'dataSourceName',
+        desc:
+          'The connection string used to connect to the SQL database. The string’s form and structure depend on the driver.',
+        type: 'String',
+      },
+      {
+        name: 'table',
+        desc: 'The destination table.',
+        type: 'String',
+      },
+    ],
+    package: 'sql',
+    desc: 'Writes data to a SQL database.',
+    example:
+      'sql.to(driverName: "postgres", dataSourceName: "postgresql://user:password@localhost", table: "example_table")',
+    category: 'Outputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/sql/to/',
   },
   {
     name: 'stateCount',
@@ -3292,6 +3342,48 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/splitn/',
+  },
+  {
+    name: 'strings.strlen',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to measure.',
+        type: 'String',
+      },
+    ],
+    package: 'strings',
+    desc: 'Returns the length of a string.',
+    example: 'strings.strlen(v: "a flux of foxes")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/strlen/',
+  },
+  {
+    name: 'strings.substring',
+    args: [
+      {
+        name: 'v',
+        desc: 'The string value to search.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The starting index of the substring.',
+        type: 'Integer',
+      },
+      {
+        name: 'end',
+        desc: 'The ending index of the substring.',
+        type: 'Integer',
+      },
+    ],
+    package: 'strings',
+    desc: 'Returns a substring based on start and end parameters.',
+    example: 'strings.substring(v: "influx", start: 0, end: 3)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/strings/substring/',
   },
   STRINGS_TITLE,
   {

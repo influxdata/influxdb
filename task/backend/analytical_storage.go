@@ -67,6 +67,15 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 			models.NewTag([]byte(statusField), []byte(run.Status)),
 		}
 
+		// log an error if we have incomplete data on finish
+		if !run.ID.Valid() ||
+			run.ScheduledFor == "" ||
+			run.StartedAt == "" ||
+			run.FinishedAt == "" ||
+			run.Status == "" {
+			as.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
+		}
+
 		fields := map[string]interface{}{}
 		fields[statusField] = run.Status
 		fields[runIDField] = run.ID.String()
