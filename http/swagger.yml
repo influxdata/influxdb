@@ -1666,13 +1666,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         '503':
           description: the instance is unhealthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         default:
           description: unexpected error
           content:
@@ -1852,13 +1852,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         '503':
           description: the source is not healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         default:
           description: unexpected error
           content:
@@ -5051,6 +5051,494 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /checks:
+    get:
+      operationId: GetChecks
+      tags:
+          - Checks
+      summary: Get all checks
+      parameters:
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: orgID
+          required: true
+          description: only show checks belonging to specified organization
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of checks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Checks"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                  $ref: "#/components/schemas/Error"
+    post:
+      operationId: CreateCheck
+      tags:
+        - Checks
+      summary: Add new check
+      requestBody:
+        description: check to create
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/DeadmanCheck"
+                - $ref: "#/components/schemas/ThresholdCheck"
+      responses:
+        '201':
+          description: Check created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/checks/{checkID}':
+    get:
+      operationId: GetChecksID
+      tags:
+        - Checks
+      summary: Get an check
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of check
+      responses:
+        '200':
+          description: the check requested
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/DeadmanCheck"
+                  - $ref: "#/components/schemas/ThresholdCheck"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: PatchChecksID
+      tags:
+        - Checks
+      summary: Update a check
+      requestBody:
+        description: check update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/DeadmanCheck"
+                - $ref: "#/components/schemas/ThresholdCheck"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of check
+      responses:
+        '200':
+          description: An updated check
+          content:
+            application/json:
+              schema:
+                 oneOf:
+                  - $ref: "#/components/schemas/DeadmanCheck"
+                  - $ref: "#/components/schemas/ThresholdCheck"
+        '404':
+          description: The check was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteChecksID
+      tags:
+        - Checks
+      summary: Delete a check
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of check
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: The check was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /notificationRules:
+    get:
+      operationId: GetNotificationRules
+      tags:
+          - NotificationRules
+      summary: Get all notification rules
+      parameters:
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: orgID
+          required: true
+          description: only show notification rules belonging to specified organization
+          schema:
+            type: string
+        - in: query
+          name: checkID
+          description: only show notifications that belong to the specified check
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of notification rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRules"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                  $ref: "#/components/schemas/Error"
+    post:
+      operationId: CreateNotificationRule
+      tags:
+        - NotificationRules
+      summary: Add new notification rule
+      requestBody:
+        description: notificationRule to create
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SlackNotificationRule"
+                - $ref: "#/components/schemas/SMTPNotificationRule"
+                - $ref: "#/components/schemas/PagerDutyNotificationRule"
+      responses:
+        '201':
+          description: Notification rule created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SlackNotificationRule"
+                  - $ref: "#/components/schemas/SMTPNotificationRule"
+                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/notificationRules/{ruleID}':
+    get:
+      operationId: GetNotificationRulesID
+      tags:
+        - NotificationRules
+      summary: Get a notification rule
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of notification rule
+      responses:
+        '200':
+          description: the notification rule requested
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SlackNotificationRule"
+                  - $ref: "#/components/schemas/SMTPNotificationRule"
+                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: PatchNotificationRulesID
+      tags:
+        - NotificationRules
+      summary: Update a notification rule
+      requestBody:
+        description: notification rule update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SlackNotificationRule"
+                - $ref: "#/components/schemas/SMTPNotificationRule"
+                - $ref: "#/components/schemas/PagerDutyNotificationRule"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of notification rule
+      responses:
+        '200':
+          description: An updated notification rule
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SlackNotificationRule"
+                  - $ref: "#/components/schemas/SMTPNotificationRule"
+                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+        '404':
+          description: The notification rule was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteNotificationRulesID
+      tags:
+        - NotificationRules
+      summary: Delete a notification rule
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of notification rule
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: The check was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /notificationEndpoints:
+    get:
+      operationId: GetNotificationEndpoints
+      tags:
+          - NotificationEndpoints
+      summary: Get all notification endpoints
+      parameters:
+        - $ref: '#/components/parameters/Offset'
+        - $ref: '#/components/parameters/Limit'
+        - in: query
+          name: orgID
+          required: true
+          description: only show notification endpoints belonging to specified organization
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of notification rules
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEndpoints"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                  $ref: "#/components/schemas/Error"
+    post:
+      operationId: CreateNotificationEndpoint
+      tags:
+        - NotificationEndpoints
+      summary: Add new notification endpoint
+      requestBody:
+        description: notificationEndpoint to create
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SlackNotificationEndpoint"
+                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+      responses:
+        '201':
+          description: Notification rule created
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/SlackNotificationRule"
+                  - $ref: "#/components/schemas/SMTPNotificationRule"
+                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/notificationEndpoints/{endpointID}':
+    get:
+      operationId: GetNotificationEndpointsID
+      tags:
+        - NotificationEndpoints
+      summary: Get a notification endpoint
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of notification endpoint
+      responses:
+        '200':
+          description: the notification endpoint requested
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/SlackNotificationEndpoint"
+                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: PatchNotificationEndpointsID
+      tags:
+        - NotificationEndpoints
+      summary: Update a notification endpoint
+      requestBody:
+        description: check update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/SlackNotificationEndpoint"
+                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of notification endpoint
+      responses:
+        '200':
+          description: An updated notification endpoint
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/SlackNotificationEndpoint"
+                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+        '404':
+          description: The notification endpoint was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteNotificationEndpointsID
+      tags:
+        - NotificationEndpoints
+      summary: Delete a notification endpoint
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of notification endpoint
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: The endpoint was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 components:
   parameters:
     Offset:
@@ -6774,6 +7262,16 @@ components:
         type:
           type: string
           enum: ["empty"]
+    CheckViewProperties:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["check"]
+        checkID:
+          type: string
+        check:
+          $ref: '#/components/schemas/Check'
     Axes:
       description: The viewport for a View's visualizations
       type: object
@@ -6878,7 +7376,7 @@ components:
           items:
             type: string
         labels:
-            $ref: "#/components/schemas/Labels"
+          $ref: "#/components/schemas/Labels"
         arguments:
           type: object
           oneOf:
@@ -6954,6 +7452,7 @@ components:
             - $ref: "#/components/schemas/MarkdownViewProperties"
             - $ref: "#/components/schemas/LogViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
+            - $ref: "#/components/schemas/CheckViewProperties"
     Views:
       type: object
       properties:
@@ -7133,7 +7632,7 @@ components:
             cells:
                 $ref: "#/components/schemas/Cells"
             labels:
-                $ref: "#/components/schemas/Labels"
+              $ref: "#/components/schemas/Labels"
     Dashboards:
       type: object
       properties:
@@ -7954,7 +8453,7 @@ components:
         up:
           type: string
           example: "14m45.911966424s"
-    Check:
+    HealthCheck:
       type: object
       required:
         - name
@@ -7967,7 +8466,7 @@ components:
         checks:
           type: array
           items:
-            $ref: "#/components/schemas/Check"
+            $ref: "#/components/schemas/HealthCheck"
         status:
           type: string
           enum:
@@ -8100,6 +8599,336 @@ components:
         token:
           description: Override the existing token associated with the task.
           type: string
+    Checks:
+      properties:
+        checks:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/DeadmanCheck"
+              - $ref: "#/components/schemas/ThresholdCheck"
+        links:
+          $ref: "#/components/schemas/Links"
+    Check:
+      properties:
+        id:
+          readOnly: true
+          type: string
+        name:
+          type: string
+        orgID:
+          description: the ID of the organization that owns this check.
+          type: string
+        authorizationID:
+          description: The ID of the authorization used to create this check.
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        queries:
+          description: The Flux query to run for this check.
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        status:
+          description: The status of the check task.
+          default: active
+          type: string
+          enum: ["active", "inactive"]
+        every:
+          description: Check repetition interval
+          type: string
+        offset:
+          description: Duration to delay after the schedule, before executing check.
+          type: string
+        cron:
+          description: Check repetition interval in the form '* * * * * *';
+          type: string
+        tags:
+          description: tags to write to each status
+          type: array
+          items:
+            type: object
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+        statusMessageTemplate:
+          description: template that is used to generate and write a status message
+          type: string
+        labels:
+          $ref: "#/components/schemas/Labels"
+      required: [name, orgID, query]
+    ThresholdCheck:
+      allOf:
+        - $ref: "#/components/schemas/Check"
+        - type: object
+          properties:
+            thresholds:
+              type: array
+              items:
+                oneOf:
+                  - $ref: "#/components/schemas/GreaterThreshold"
+                  - $ref: "#/components/schemas/LesserThreshold"
+                  - $ref: "#/components/schemas/RangeThreshold"
+                discriminator:
+                  propertyName: type
+    DeadmanCheck:
+      allOf:
+        - $ref: "#/components/schemas/Check"
+        - type: object
+          properties:
+            timeSince:
+              description: seconds before deadman triggers
+              type: integer
+            reportZero:
+              description: if only zero values reported since time, trigger alert
+              type: boolean
+            level:
+              $ref: "#/components/schemas/CheckStatusLevel"
+    ThresholdConfig:
+      properties:
+        level:
+         $ref: "#/components/schemas/CheckStatusLevel"
+        allValues:
+          description: if true, only alert if all values meet threshold
+          type: boolean
+        type:
+          type: string
+    GreaterThreshold:
+      allOf:
+        - $ref: "#/components/schemas/ThresholdConfig"
+        - type: object
+          properties:
+            value:
+              type: number
+              format: float
+    LesserThreshold:
+      allOf:
+        - $ref: "#/components/schemas/ThresholdConfig"
+        - type: object
+          properties:
+            value:
+              type: number
+              format: float
+    RangeThreshold:
+      allOf:
+        - $ref: "#/components/schemas/ThresholdConfig"
+        - type: object
+          properties:
+            min:
+              type: number
+              format: float
+            max:
+              type: number
+              format: float
+            within:
+              type: boolean
+    CheckStatusLevel:
+      description: the state to record if check matches a criteria
+      type: string
+      enum: ["UNKNOWN", "OK", "INFO", "CRIT", "WARN"]
+    NotificationRules:
+      properties:
+        notificationRules:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/SlackNotificationRule"
+              - $ref: "#/components/schemas/SMTPNotificationRule"
+              - $ref: "#/components/schemas/PagerDutyNotificationRule"
+        links:
+          $ref: "#/components/schemas/Links"
+    NotificationRule:
+      type: object
+      properties:
+        notifyEndpointID:
+          type: string
+          readOnly: true
+        orgID:
+          description: the ID of the organization that owns this notification rule.
+          type: string
+        authorizationID:
+          description: The ID of the authorization used to create this notification rule.
+          type: string
+          readOnly: true
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        status:
+          description: The status of the notification rule task.
+          default: active
+          type: string
+          enum: ["active", "inactive"]
+        name:
+          description: human-readable name describing the notification rule
+          type: string
+        type:
+          description: the type of notification
+          type: string
+          enum: ['slack', 'smtp', 'pagerduty']
+        sleepUntil:
+          type: string
+        every:
+          description: notification repetition interval
+          type: string
+        offset:
+          description: Duration to delay after the schedule, before executing check.
+          type: string
+        cron:
+          description: notification repetition interval in the form '* * * * * *';
+          type: string
+        runbookLink:
+          type: string
+        limitEvery:
+          description: don't notify me more than <limit> times every <limitEvery> seconds. If set, limit cannot be empty.
+          type: integer
+        limit:
+          description: don't notify me more than <limit> times every <limitEvery> seconds. If set, limitEvery cannot be empty.
+          type: integer
+        tagRules:
+          description: list of tag rules the notification rule attempts to match
+          type: array
+          items:
+            $ref: "#/components/schemas/TagRule"
+        statusRules:
+          description: list of status rules the notification rule attempts to match
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/StatusRule"
+        labels:
+          $ref: "#/components/schemas/Labels"
+      discriminator:
+        propertyName: type
+    TagRule:
+      type: object
+      properties:
+        key:
+          type: string
+        value:
+          type: string
+        operator:
+          type: string
+          enum: ["==", "!=", "=~","!~"]
+    StatusRule:
+      type: object
+      properties:
+        currentLevel:
+          $ref: "#/components/schemas/LevelRule"
+        previousLevel:
+          $ref: "#/components/schemas/LevelRule"
+        count:
+          type: integer
+        period:
+          type: string
+    LevelRule:
+      type: object
+      properties:
+        level:
+          $ref: "#/components/schemas/CheckStatusLevel"
+        operation:
+          type: string
+          enum: ["==", "!="]
+    SlackNotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRule"
+        - type: object
+          properties:
+            channel:
+              type: string
+            messageTemplate:
+              type: string
+    SMTPNotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRule"
+        - type: object
+          properties:
+            subjectTemplate:
+              type: string
+            bodyTemplate:
+              type: string
+            to:
+              type: string
+    PagerDutyNotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRule"
+        - type: object
+          properties:
+            messageTemplate:
+              type: string
+    NotificationEndpoints:
+      properties:
+        notificationEndpoints:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/SlackNotificationEndpoint"
+              - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+              - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+              - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+        links:
+          $ref: "#/components/schemas/Links"
+    NotificationEndpoint:
+      type: object
+      properties:
+        id:
+          type: string
+        orgID:
+          type: string
+        userID:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+        name:
+          type: string
+        status:
+          description: The status of the endpoint.
+          default: active
+          type: string
+          enum: ["active", "inactive"]
+        labels:
+          $ref: "#/components/schemas/Labels"
+      discriminator:
+        propertyName: type
+    SlackNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpoint"
+        - type: object
+    SMTPNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpoint"
+        - type: object
+    PagerDutyNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpoint"
+        - type: object
+    WebhookNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpoint"
+        - type: object
   securitySchemes:
     BasicAuth:
       type: http
