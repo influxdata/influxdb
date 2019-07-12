@@ -78,8 +78,6 @@ pipeline {
 
       steps {
         sh """
-        mkdir $HOME/.cache
-        
         mkdir -p /go/src/github.com/influxdata
         cp -a $WORKSPACE /go/src/github.com/influxdata/influxdb
 

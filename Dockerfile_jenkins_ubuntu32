@@ -9,6 +9,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install go
+ENV GOCACHE=/tmp
 ENV GOPATH /go
 ENV GO_VERSION 1.12
 ENV GO_ARCH 386
