@@ -7262,6 +7262,16 @@ components:
         type:
           type: string
           enum: ["empty"]
+    CheckViewProperties:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: ["check"]
+        checkID:
+          type: string
+        check:
+          $ref: '#/components/schemas/Check'
     Axes:
       description: The viewport for a View's visualizations
       type: object
@@ -7442,6 +7452,7 @@ components:
             - $ref: "#/components/schemas/MarkdownViewProperties"
             - $ref: "#/components/schemas/LogViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
+            - $ref: "#/components/schemas/CheckViewProperties"
     Views:
       type: object
       properties:
