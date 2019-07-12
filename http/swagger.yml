@@ -8822,7 +8822,7 @@ components:
           type: string
         operator:
           type: string
-          enum: ["==", "!=", "=~","!~"]
+          enum: ["equal", "notequal", "equalregex","notequalregex"]
     StatusRule:
       type: object
       properties:
@@ -8841,7 +8841,7 @@ components:
           $ref: "#/components/schemas/CheckStatusLevel"
         operation:
           type: string
-          enum: ["==", "!="]
+          enum: ["equal", "notequal"]
     SlackNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRule"
