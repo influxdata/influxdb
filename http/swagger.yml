@@ -1666,13 +1666,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         '503':
           description: the instance is unhealthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         default:
           description: unexpected error
           content:
@@ -1852,13 +1852,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         '503':
           description: the source is not healthy
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/HealthCheck"
         default:
           description: unexpected error
           content:
@@ -7954,7 +7954,7 @@ components:
         up:
           type: string
           example: "14m45.911966424s"
-    Check:
+    HealthCheck:
       type: object
       required:
         - name
@@ -7967,7 +7967,7 @@ components:
         checks:
           type: array
           items:
-            $ref: "#/components/schemas/Check"
+            $ref: "#/components/schemas/HealthCheck"
         status:
           type: string
           enum:
