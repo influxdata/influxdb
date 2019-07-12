@@ -10,6 +10,7 @@ import CloudNav from 'src/pageLayout/components/CloudNav'
 import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
@@ -62,6 +63,8 @@ class SideNav extends PureComponent<Props, State> {
     const dashboardsLink = `${orgPrefix}/dashboards`
     const dataExplorerLink = `${orgPrefix}/data-explorer`
     const tasksLink = `${orgPrefix}/tasks`
+    const alertingLink = `${orgPrefix}/alerting`
+    const alertHistoryLink = `${orgPrefix}/alert-history`
     const settingsLink = `${orgPrefix}/settings`
     const feedbackLink =
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
@@ -130,6 +133,31 @@ class SideNav extends PureComponent<Props, State> {
           )}
           active={getNavItemActivation(['tasks'], location.pathname)}
         />
+        <FeatureFlag name="alerting">
+          <NavMenu.Item
+            titleLink={className => (
+              <Link className={className} to={alertingLink}>
+                Alerting
+              </Link>
+            )}
+            iconLink={className => (
+              <Link to={alertingLink} className={className}>
+                <Icon glyph={IconFont.Bell} />
+              </Link>
+            )}
+            active={getNavItemActivation(['alerting'], location.pathname)}
+          >
+            <NavMenu.SubItem
+              titleLink={className => (
+                <Link to={alertHistoryLink} className={className}>
+                  History
+                </Link>
+              )}
+              active={false}
+              key="alert-history"
+            />
+          </NavMenu.Item>
+        </FeatureFlag>
         <NavMenu.Item
           titleLink={className => (
             <Link className={className} to={settingsLink}>
