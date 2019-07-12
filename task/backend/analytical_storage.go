@@ -73,7 +73,7 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 			run.StartedAt == "" ||
 			run.FinishedAt == "" ||
 			run.Status == "" {
-			as.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run), zap.String("runID", run.ID.String())))
+			as.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
 		}
 
 		fields := map[string]interface{}{}
