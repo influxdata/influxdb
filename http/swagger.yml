@@ -8631,11 +8631,9 @@ components:
           type: string
           format: date-time
           readOnly: true
-        queries:
+        query:
           description: The Flux query to run for this check.
-          type: array
-          items:
-            $ref: "#/components/schemas/DashboardQuery"
+          $ref: "#/components/schemas/DashboardQuery"
         status:
           description: The status of the check task.
           default: active
