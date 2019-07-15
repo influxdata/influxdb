@@ -5090,9 +5090,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/DeadmanCheck"
-                - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
       responses:
         '201':
           description: Check created
@@ -5126,9 +5124,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/DeadmanCheck"
-                  - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
         default:
           description: unexpected error
           content:
@@ -5146,9 +5142,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/DeadmanCheck"
-                - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5163,9 +5157,7 @@ paths:
           content:
             application/json:
               schema:
-                 oneOf:
-                  - $ref: "#/components/schemas/DeadmanCheck"
-                  - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
         '404':
           description: The check was not found
           content:
@@ -8599,17 +8591,19 @@ components:
         token:
           description: Override the existing token associated with the task.
           type: string
+    Check:
+      oneOf:
+        - $ref: "#/components/schemas/DeadmanCheck"
+        - $ref: "#/components/schemas/ThresholdCheck"
     Checks:
       properties:
         checks:
           type: array
           items:
-            oneOf:
-              - $ref: "#/components/schemas/DeadmanCheck"
-              - $ref: "#/components/schemas/ThresholdCheck"
+            $ref: "#/components/schemas/Check"
         links:
           $ref: "#/components/schemas/Links"
-    Check:
+    CheckBase:
       properties:
         id:
           readOnly: true
@@ -8666,7 +8660,7 @@ components:
       required: [name, orgID, query]
     ThresholdCheck:
       allOf:
-        - $ref: "#/components/schemas/Check"
+        - $ref: "#/components/schemas/CheckBase"
         - type: object
           properties:
             thresholds:
@@ -8680,7 +8674,7 @@ components:
                   propertyName: type
     DeadmanCheck:
       allOf:
-        - $ref: "#/components/schemas/Check"
+        - $ref: "#/components/schemas/CheckBase"
         - type: object
           properties:
             timeSince:
