@@ -16,35 +16,30 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HeatmapView, TimeZone} from 'src/types'
+import {RemoteDataState, HistogramView, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
   loading: RemoteDataState
-  viewProperties: HeatmapView
-  timeZone: TimeZone
+  viewProperties: HistogramView
   children: (config: Config) => JSX.Element
+  timeZone: TimeZone
 }
 
-const HeatmapContainer: FunctionComponent<Props> = ({
+const HistogramPlot: FunctionComponent<Props> = ({
   table,
   loading,
+  children,
   timeZone,
   viewProperties: {
     xColumn,
-    yColumn,
-    xDomain: storedXDomain,
-    yDomain: storedYDomain,
+    fillColumns,
+    binCount,
+    position,
+    colors,
     xAxisLabel,
-    yAxisLabel,
-    xPrefix,
-    xSuffix,
-    yPrefix,
-    ySuffix,
-    colors: storedColors,
-    binSize,
+    xDomain: storedXDomain,
   },
-  children,
 }) => {
   const columnKeys = table.columnKeys
 
@@ -53,60 +48,38 @@ const HeatmapContainer: FunctionComponent<Props> = ({
     table.getColumn(xColumn, 'number')
   )
 
-  const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
-    storedYDomain,
-    table.getColumn(yColumn, 'number')
-  )
-
   const isValidView =
     xColumn &&
-    yColumn &&
-    columnKeys.includes(yColumn) &&
-    columnKeys.includes(xColumn)
+    columnKeys.includes(xColumn) &&
+    fillColumns.every(col => columnKeys.includes(col))
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
-  const colors: string[] =
-    storedColors && storedColors.length
-      ? storedColors
+  const colorHexes =
+    colors && colors.length
+      ? colors.map(c => c.hex)
       : DEFAULT_LINE_COLORS.map(c => c.hex)
 
-  const xFormatter = getFormatter(table.getColumnType(xColumn), {
-    prefix: xPrefix,
-    suffix: xSuffix,
-    timeZone,
-  })
-
-  const yFormatter = getFormatter(table.getColumnType(yColumn), {
-    prefix: yPrefix,
-    suffix: ySuffix,
-    timeZone,
-  })
+  const xFormatter = getFormatter(table.getColumnType(xColumn), {timeZone})
 
   const config: Config = {
     ...VIS_THEME,
     table,
     xAxisLabel,
-    yAxisLabel,
     xDomain,
     onSetXDomain,
     onResetXDomain,
-    yDomain,
-    onSetYDomain,
-    onResetYDomain,
-    valueFormatters: {
-      [xColumn]: xFormatter,
-      [yColumn]: yFormatter,
-    },
+    valueFormatters: {[xColumn]: xFormatter},
     layers: [
       {
-        type: 'heatmap',
+        type: 'histogram',
         x: xColumn,
-        y: yColumn,
-        colors,
-        binSize,
+        colors: colorHexes,
+        fill: fillColumns,
+        binCount,
+        position,
       },
     ],
   }
@@ -119,4 +92,4 @@ const HeatmapContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default HeatmapContainer
+export default HistogramPlot

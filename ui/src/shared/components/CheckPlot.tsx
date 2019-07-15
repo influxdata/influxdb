@@ -40,7 +40,7 @@ interface Props {
   children: (config: Config) => JSX.Element
 }
 
-const AlertCheckContainer: FunctionComponent<Props> = ({
+const CheckPlot: FunctionComponent<Props> = ({
   table,
   fluxGroupKeyUnion,
   loading,
@@ -129,4 +129,4 @@ const AlertCheckContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default AlertCheckContainer
+export default CheckPlot
