@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
@@ -89,7 +90,10 @@ func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 			return err
 		}
 	} else if o.BucketID, ok, _ = args.GetString("bucketID"); ok {
-		return errors.New("cannot provide both `bucket` and `bucketID` parameters to the `to` function")
+		return &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "cannot provide both `bucket` and `bucketID` parameters to the `to` function",
+		}
 	}
 
 	if o.Org, ok, _ = args.GetString("org"); !ok {
@@ -97,7 +101,10 @@ func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 			return err
 		}
 	} else if o.OrgID, ok, _ = args.GetString("orgID"); ok {
-		return errors.New("cannot provide both `org` and `orgID` parameters to the `to` function")
+		return &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "cannot provide both `org` and `orgID` parameters to the `to` function",
+		}
 	}
 
 	if o.Host, ok, _ = args.GetString("host"); ok {
@@ -152,7 +159,10 @@ func createToOpSpec(args flux.Arguments, a *flux.Administration) (flux.Operation
 
 	switch {
 	case httpOK && kafkaOK:
-		return nil, errors.New("specify at most one of url, brokers in the same `to` function")
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "specify at most one of url, brokers in the same `to` function",
+		}
 	case httpOK:
 		s = &http.ToHTTPOpSpec{}
 	case kafkaOK:
@@ -228,7 +238,10 @@ func (o *ToProcedureSpec) Copy() plan.ProcedureSpec {
 func newToProcedure(qs flux.OperationSpec, a plan.Administration) (plan.ProcedureSpec, error) {
 	spec, ok := qs.(*ToOpSpec)
 	if !ok && spec != nil {
-		return nil, fmt.Errorf("invalid spec type %T", qs)
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  fmt.Sprintf("invalid spec type %T", qs),
+		}
 	}
 	return &ToProcedureSpec{Spec: spec}, nil
 }
@@ -236,7 +249,10 @@ func newToProcedure(qs flux.OperationSpec, a plan.Administration) (plan.Procedur
 func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode, spec plan.ProcedureSpec, a execute.Administration) (execute.Transformation, execute.Dataset, error) {
 	s, ok := spec.(*ToProcedureSpec)
 	if !ok {
-		return nil, nil, fmt.Errorf("invalid spec type %T", spec)
+		return nil, nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  fmt.Sprintf("invalid spec type %T", spec),
+		}
 	}
 	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
@@ -459,7 +475,10 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 	if spec.Org != "" {
 		oID, ok := d.OrganizationLookup.Lookup(context.TODO(), spec.Org)
 		if !ok {
-			return fmt.Errorf("failed to look up organization %q", spec.Org)
+			return &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("failed to look up organization %q", spec.Org),
+			}
 		}
 		orgID = &oID
 	} else if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
@@ -470,11 +489,18 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 	if spec.Bucket != "" {
 		bID, ok := d.BucketLookup.Lookup(ctx, *orgID, spec.Bucket)
 		if !ok {
-			return fmt.Errorf("failed to look up bucket %q in org %q", spec.Bucket, spec.Org)
+			return &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("failed to look up bucket %q in org %q", spec.Bucket, spec.Org),
+			}
 		}
 		bucketID = &bID
 	} else if bucketID, err = platform.IDFromString(spec.BucketID); err != nil {
-		return err
+		return &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "invalid bucket id",
+			Err:  err,
+		}
 	}
 
 	// cache tag columns
@@ -490,10 +516,16 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 	timeColIdx := execute.ColIdx(timeColLabel, columns)
 
 	if timeColIdx < 0 {
-		return errors.New("no time column detected")
+		return &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "no time column detected",
+		}
 	}
 	if columns[timeColIdx].Type != flux.TTime {
-		return fmt.Errorf("column %s of type %s is not of type %s", timeColLabel, columns[timeColIdx].Type, flux.TTime)
+		return &flux.Error{
+			Code: codes.Invalid,
+			Msg:  fmt.Sprintf("column %s of type %s is not of type %s", timeColLabel, columns[timeColIdx].Type, flux.TTime),
+		}
 	}
 
 	// prepare field function if applicable and record the number of values to write per row
@@ -539,11 +571,17 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 			}
 
 			if pointTime.IsZero() {
-				return errors.New("timestamp missing from block")
+				return &flux.Error{
+					Code: codes.Invalid,
+					Msg:  "timestamp missing from block",
+				}
 			}
 
 			if measurementName == "" {
-				return fmt.Errorf("no column with label %s exists", spec.MeasurementColumn)
+				return &flux.Error{
+					Code: codes.Invalid,
+					Msg:  fmt.Sprintf("no column with label %s exists", spec.MeasurementColumn),
+				}
 			}
 
 			if spec.FieldFn == nil {
@@ -623,11 +661,17 @@ func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 	valueColumnIdx := execute.ColIdx(execute.DefaultValueColLabel, er.Cols())
 
 	if fieldColumnIdx < 0 {
-		return nil, errors.New("table has no _field column")
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "table has no _field column",
+		}
 	}
 
 	if valueColumnIdx < 0 {
-		return nil, errors.New("table has no _value column")
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "table has no _value column",
+		}
 	}
 
 	value := execute.ValueForRow(er, row, valueColumnIdx)
