@@ -5090,9 +5090,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/DeadmanCheck"
-                - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
       responses:
         '201':
           description: Check created
@@ -5126,9 +5124,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/DeadmanCheck"
-                  - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
         default:
           description: unexpected error
           content:
@@ -5146,9 +5142,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/DeadmanCheck"
-                - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5163,9 +5157,7 @@ paths:
           content:
             application/json:
               schema:
-                 oneOf:
-                  - $ref: "#/components/schemas/DeadmanCheck"
-                  - $ref: "#/components/schemas/ThresholdCheck"
+                $ref: "#/components/schemas/Check"
         '404':
           description: The check was not found
           content:
@@ -5250,20 +5242,14 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationRule"
-                - $ref: "#/components/schemas/SMTPNotificationRule"
-                - $ref: "#/components/schemas/PagerDutyNotificationRule"
+              $ref: "#/components/schemas/NotificationRule"
       responses:
         '201':
           description: Notification rule created
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         default:
           description: unexpected error
           content:
@@ -5290,10 +5276,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         default:
           description: unexpected error
           content:
@@ -5311,10 +5294,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationRule"
-                - $ref: "#/components/schemas/SMTPNotificationRule"
-                - $ref: "#/components/schemas/PagerDutyNotificationRule"
+              $ref: "#/components/schemas/NotificationRule"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5329,10 +5309,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         '404':
           description: The notification rule was not found
           content:
@@ -5412,21 +5389,14 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+              $ref: "#/components/schemas/NotificationEndpoint"
       responses:
         '201':
           description: Notification rule created
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         default:
           description: unexpected error
           content:
@@ -5453,11 +5423,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+                $ref: "#/components/schemas/NotificationEndpoint"
         default:
           description: unexpected error
           content:
@@ -5475,11 +5441,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+              $ref: "#/components/schemas/NotificationEndpoint"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5494,11 +5456,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+                $ref: "#/components/schemas/NotificationEndpoint"
         '404':
           description: The notification endpoint was not found
           content:
@@ -8599,17 +8557,19 @@ components:
         token:
           description: Override the existing token associated with the task.
           type: string
+    Check:
+      oneOf:
+        - $ref: "#/components/schemas/DeadmanCheck"
+        - $ref: "#/components/schemas/ThresholdCheck"
     Checks:
       properties:
         checks:
           type: array
           items:
-            oneOf:
-              - $ref: "#/components/schemas/DeadmanCheck"
-              - $ref: "#/components/schemas/ThresholdCheck"
+            $ref: "#/components/schemas/Check"
         links:
           $ref: "#/components/schemas/Links"
-    Check:
+    CheckBase:
       properties:
         id:
           readOnly: true
@@ -8631,11 +8591,9 @@ components:
           type: string
           format: date-time
           readOnly: true
-        queries:
+        query:
           description: The Flux query to run for this check.
-          type: array
-          items:
-            $ref: "#/components/schemas/DashboardQuery"
+          $ref: "#/components/schemas/DashboardQuery"
         status:
           description: The status of the check task.
           default: active
@@ -8668,7 +8626,7 @@ components:
       required: [name, orgID, query]
     ThresholdCheck:
       allOf:
-        - $ref: "#/components/schemas/Check"
+        - $ref: "#/components/schemas/CheckBase"
         - type: object
           properties:
             thresholds:
@@ -8682,7 +8640,7 @@ components:
                   propertyName: type
     DeadmanCheck:
       allOf:
-        - $ref: "#/components/schemas/Check"
+        - $ref: "#/components/schemas/CheckBase"
         - type: object
           properties:
             timeSince:
@@ -8735,18 +8693,20 @@ components:
       description: the state to record if check matches a criteria
       type: string
       enum: ["UNKNOWN", "OK", "INFO", "CRIT", "WARN"]
+    NotificationRule:
+      oneOf:
+        - $ref: "#/components/schemas/SlackNotificationRule"
+        - $ref: "#/components/schemas/SMTPNotificationRule"
+        - $ref: "#/components/schemas/PagerDutyNotificationRule"
     NotificationRules:
       properties:
         notificationRules:
           type: array
           items:
-            oneOf:
-              - $ref: "#/components/schemas/SlackNotificationRule"
-              - $ref: "#/components/schemas/SMTPNotificationRule"
-              - $ref: "#/components/schemas/PagerDutyNotificationRule"
+            $ref: "#/components/schemas/NotificationRule"
         links:
           $ref: "#/components/schemas/Links"
-    NotificationRule:
+    NotificationRuleBase:
       type: object
       properties:
         notifyEndpointID:
@@ -8822,7 +8782,7 @@ components:
           type: string
         operator:
           type: string
-          enum: ["==", "!=", "=~","!~"]
+          enum: ["equal", "notequal", "equalregex","notequalregex"]
     StatusRule:
       type: object
       properties:
@@ -8841,10 +8801,10 @@ components:
           $ref: "#/components/schemas/CheckStatusLevel"
         operation:
           type: string
-          enum: ["==", "!="]
+          enum: ["equal", "notequal"]
     SlackNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleBase"
         - type: object
           properties:
             channel:
@@ -8853,7 +8813,7 @@ components:
               type: string
     SMTPNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleBase"
         - type: object
           properties:
             subjectTemplate:
@@ -8864,24 +8824,26 @@ components:
               type: string
     PagerDutyNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleBase"
         - type: object
           properties:
             messageTemplate:
               type: string
+    NotificationEndpoint:
+      oneOf:
+        - $ref: "#/components/schemas/SlackNotificationEndpoint"
+        - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+        - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+        - $ref: "#/components/schemas/WebhookNotificationEndpoint"
     NotificationEndpoints:
       properties:
         notificationEndpoints:
           type: array
           items:
-            oneOf:
-              - $ref: "#/components/schemas/SlackNotificationEndpoint"
-              - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-              - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-              - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+            $ref: "#/components/schemas/NotificationEndpoint"
         links:
           $ref: "#/components/schemas/Links"
-    NotificationEndpoint:
+    NotificationEndpointBase:
       type: object
       properties:
         id:
@@ -8912,22 +8874,22 @@ components:
     SlackNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
     SMTPNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
     PagerDutyNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
     WebhookNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
   securitySchemes:
     BasicAuth:
