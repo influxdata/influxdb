@@ -452,15 +452,13 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		return nil, err
 	}
 
+	if tc.Token == "" {
+		return nil, influxdb.ErrMissingToken
+	}
+
 	auth, err := s.findAuthorizationByToken(ctx, tx, tc.Token)
 	if err != nil {
 		if err.Error() != "<not found> authorization not found" {
-			return nil, err
-		}
-		// if i cant find an authoriaztion based on the token we will use the users authID
-		auth, err = s.findAuthorizationByID(ctx, tx, userAuth.Identifier())
-		if err != nil {
-			// if we still fail to fine a real auth we cannot continue
 			return nil, err
 		}
 	}

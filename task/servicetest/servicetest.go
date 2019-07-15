@@ -182,6 +182,18 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		return nil, fmt.Errorf("failed to find task by id %s", id)
 	}
 
+	// should not be able to create a task without a token
+	noToken := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		// Token:          cr.Token, // should fail
+	}
+	_, err = sys.TaskService.CreateTask(authorizedCtx, noToken)
+
+	if err != influxdb.ErrMissingToken {
+		t.Fatalf("expected error missing token, got: %v", err)
+	}
+
 	// Look up a task the different ways we can.
 	// Map of method name to found task.
 	found := map[string]*influxdb.Task{

@@ -73,6 +73,12 @@ var (
 		Code: EUnprocessableEntity,
 		Msg:  "run limit is out of bounds, must be between 1 and 500",
 	}
+
+	// ErrMissingToken is called when trying to create a Task without providing a token
+	ErrMissingToken = &Error{
+		Code: EInvalid,
+		Msg:  "cannot create task without valid token",
+	}
 )
 
 func ErrInternalTaskServiceError(err error) *Error {

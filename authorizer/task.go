@@ -118,6 +118,10 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	if t.Token == "" {
+		return nil, influxdb.ErrMissingToken
+	}
+
 	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.OrganizationID)
 	if err != nil {
 		return nil, err

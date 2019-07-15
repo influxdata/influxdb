@@ -29,10 +29,12 @@
 
 1. [14256](https://github.com/influxdata/influxdb/pull/14256): Add time zone support to UI
 2. [14243](https://github.com/influxdata/influxdb/pull/14243): Addded new storage inspection tool to verify tsm files
+3. [14353](https://github.com/influxdata/influxdb/pull/14353): Require a token to be supplied for all task creation
 
 ### Bug Fixes
 
-1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration
+1. [14287](https://github.com/influxdata/influxdb/pull/14287): Fix incorrect reporting of task as successful when error occurs during result iteration
+1. [14412](https://github.com/influxdata/influxdb/pull/14412): Fix incorrect notification type for manually running a Task
 
 ### Known Issues
 
@@ -102,6 +104,7 @@
 1. [13945](https://github.com/influxdata/influxdb/pull/13945): Fix crash when opening histogram settings with no data
 
 ### UI Improvements
+
 1. [#13835](https://github.com/influxdata/influxdb/pull/13835): Render checkboxes in query builder tag selection lists
 1. [#13856](https://github.com/influxdata/influxdb/pull/13856): Fix jumbled card text in Telegraf configuration wizard
 1. [#13888](https://github.com/influxdata/influxdb/pull/13888): Change scrapers in scrapers list to be resource cards
@@ -112,6 +115,7 @@
 **NOTE: This will remove all tasks from your InfluxDB v2.0 instance.**
 
 ### Features
+
 1. [13423](https://github.com/influxdata/influxdb/pull/13423): Set autorefresh of dashboard to pause if absolute time range is selected
 1. [13473](https://github.com/influxdata/influxdb/pull/13473): Switch task back end to a more modular and flexible system
 1. [13493](https://github.com/influxdata/influxdb/pull/13493): Add org profile tab with ability to edit organization name
@@ -122,6 +126,7 @@
 1. [13715](https://github.com/influxdata/influxdb/pull/13715): Added a new Local Metrics Dashboard template that is created during Quick Start
 
 ### Bug Fixes
+
 1. [13584](https://github.com/influxdata/influxdb/pull/13584): Fixed scroll clipping found in label editing flow
 1. [13585](https://github.com/influxdata/influxdb/pull/13585): Prevent overlapping text and dot in time range dropdown
 1. [13602](https://github.com/influxdata/influxdb/pull/13602): Updated link in notes cell to a more useful site
@@ -133,6 +138,7 @@
 1. [13742](https://github.com/influxdata/influxdb/pull/13742): Updated the `systemTime` function to use `system.time`
 
 ### UI Improvements
+
 1. [13424](https://github.com/influxdata/influxdb/pull/13424): Add general polish and empty states to Create Dashboard from Template overlay
 
 ## v2.0.0-alpha.8 [2019-04-12]
@@ -147,9 +153,11 @@
 1. [13345](https://github.com/influxdata/influxdb/pull/13345): Added a new Getting Started with Flux Template
 
 ### Bug Fixes
+
 1. [13284](https://github.com/influxdata/influxdb/pull/13284): Update shift to timeShift in the flux functions side bar
 
 ### UI Improvements
+
 1. [13287](https://github.com/influxdata/influxdb/pull/13287): Update cursor to grab when hovering draggable areas
 1. [13311](https://github.com/influxdata/influxdb/pull/13311): Sync note editor text and preview scrolling
 1. [13249](https://github.com/influxdata/influxdb/pull/13249): Add the ability to create a bucket when creating an organization
