@@ -328,16 +328,18 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:1271da0466e1fbeed16f7498b9f4c5855ae0bbaafea885e5307406b0edfafdcd"
+  digest = "1:4ba702fa43214aa9a7289b675d12ca090bf460dbc6423162d367c7c22500f63a"
   name = "github.com/influxdata/flux"
   packages = [
     ".",
     "arrow",
     "ast",
+    "codes",
     "compiler",
     "csv",
     "execute",
     "influxql",
+    "internal/errors",
     "internal/parser",
     "internal/pkg/syncutil",
     "internal/scanner",
@@ -364,10 +366,12 @@
     "stdlib/influxdata/influxdb/v1/fluxtests",
     "stdlib/kafka",
     "stdlib/math",
+    "stdlib/pandas_tests/testdata",
     "stdlib/regexp",
     "stdlib/socket",
     "stdlib/sql",
     "stdlib/strings",
+    "stdlib/strings/testdata",
     "stdlib/system",
     "stdlib/testing",
     "stdlib/testing/chronograf",
@@ -377,8 +381,8 @@
     "values/objects",
   ]
   pruneopts = "UT"
-  revision = "6982ed0a676ffeb5fc78b710140764e66b679e31"
-  version = "v0.33.2"
+  revision = "b25312b5fc12e5709f8d31e9ad9dca75a8acf56b"
+  version = "v0.36.2"
 
 [[projects]]
   digest = "1:488639be850ddc33969609e08f783d3e9d129c7a0f6f2c4186b11475bb94c29d"
