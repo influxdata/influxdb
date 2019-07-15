@@ -5242,20 +5242,14 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationRule"
-                - $ref: "#/components/schemas/SMTPNotificationRule"
-                - $ref: "#/components/schemas/PagerDutyNotificationRule"
+              $ref: "#/components/schemas/NotificationRule"
       responses:
         '201':
           description: Notification rule created
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         default:
           description: unexpected error
           content:
@@ -5282,10 +5276,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         default:
           description: unexpected error
           content:
@@ -5303,10 +5294,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationRule"
-                - $ref: "#/components/schemas/SMTPNotificationRule"
-                - $ref: "#/components/schemas/PagerDutyNotificationRule"
+              $ref: "#/components/schemas/NotificationRule"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5321,10 +5309,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         '404':
           description: The notification rule was not found
           content:
@@ -5415,10 +5400,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - $ref: "#/components/schemas/SlackNotificationRule"
-                  - $ref: "#/components/schemas/SMTPNotificationRule"
-                  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+                $ref: "#/components/schemas/NotificationRule"
         default:
           description: unexpected error
           content:
@@ -8727,18 +8709,20 @@ components:
       description: the state to record if check matches a criteria
       type: string
       enum: ["UNKNOWN", "OK", "INFO", "CRIT", "WARN"]
+    NotificationRule:
+      oneOf:
+        - $ref: "#/components/schemas/SlackNotificationRule"
+        - $ref: "#/components/schemas/SMTPNotificationRule"
+        - $ref: "#/components/schemas/PagerDutyNotificationRule"
     NotificationRules:
       properties:
         notificationRules:
           type: array
           items:
-            oneOf:
-              - $ref: "#/components/schemas/SlackNotificationRule"
-              - $ref: "#/components/schemas/SMTPNotificationRule"
-              - $ref: "#/components/schemas/PagerDutyNotificationRule"
+            $ref: "#/components/schemas/NotificationRule"
         links:
           $ref: "#/components/schemas/Links"
-    NotificationRule:
+    NotificationRuleBase:
       type: object
       properties:
         notifyEndpointID:
@@ -8836,7 +8820,7 @@ components:
           enum: ["equal", "notequal"]
     SlackNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleBase"
         - type: object
           properties:
             channel:
@@ -8845,7 +8829,7 @@ components:
               type: string
     SMTPNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleBase"
         - type: object
           properties:
             subjectTemplate:
@@ -8856,7 +8840,7 @@ components:
               type: string
     PagerDutyNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleBase"
         - type: object
           properties:
             messageTemplate:
