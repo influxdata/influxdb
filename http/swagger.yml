@@ -5389,11 +5389,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+              $ref: "#/components/schemas/NotificationEndpoint"
       responses:
         '201':
           description: Notification rule created
@@ -5427,11 +5423,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+                $ref: "#/components/schemas/NotificationEndpoint"
         default:
           description: unexpected error
           content:
@@ -5449,11 +5441,7 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+              $ref: "#/components/schemas/NotificationEndpoint"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5468,11 +5456,7 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                - $ref: "#/components/schemas/SlackNotificationEndpoint"
-                - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-                - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-                - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+                $ref: "#/components/schemas/NotificationEndpoint"
         '404':
           description: The notification endpoint was not found
           content:
@@ -8845,19 +8829,21 @@ components:
           properties:
             messageTemplate:
               type: string
+    NotificationEndpoint:
+      oneOf:
+        - $ref: "#/components/schemas/SlackNotificationEndpoint"
+        - $ref: "#/components/schemas/SMTPNotificationEndpoint"
+        - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
+        - $ref: "#/components/schemas/WebhookNotificationEndpoint"
     NotificationEndpoints:
       properties:
         notificationEndpoints:
           type: array
           items:
-            oneOf:
-              - $ref: "#/components/schemas/SlackNotificationEndpoint"
-              - $ref: "#/components/schemas/SMTPNotificationEndpoint"
-              - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-              - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+            $ref: "#/components/schemas/NotificationEndpoint"
         links:
           $ref: "#/components/schemas/Links"
-    NotificationEndpoint:
+    NotificationEndpointBase:
       type: object
       properties:
         id:
@@ -8888,22 +8874,22 @@ components:
     SlackNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
     SMTPNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
     PagerDutyNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
     WebhookNotificationEndpoint:
       type: object
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
   securitySchemes:
     BasicAuth:
