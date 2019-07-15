@@ -121,12 +121,12 @@ func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platfo
 
 	// If disabling the task, do so before modifying the script.
 	if task.Status != oldTask.Status && task.Status == string(backend.TaskInactive) {
-		if err := c.sch.ReleaseTask(id); err != nil && err != &platform.ErrTaskNotClaimed {
+		if err := c.sch.ReleaseTask(id); err != nil && err != platform.ErrTaskNotClaimed {
 			return task, err
 		}
 	}
 
-	if err := c.sch.UpdateTask(ctx, task); err != nil && err != &platform.ErrTaskNotClaimed {
+	if err := c.sch.UpdateTask(ctx, task); err != nil && err != platform.ErrTaskNotClaimed {
 		return task, err
 	}
 
@@ -139,7 +139,7 @@ func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platfo
 			return task, err
 		}
 
-		if err := c.sch.ClaimTask(ctx, task); err != nil && err != &platform.ErrTaskAlreadyClaimed {
+		if err := c.sch.ClaimTask(ctx, task); err != nil && err != platform.ErrTaskAlreadyClaimed {
 			return task, err
 		}
 	}
@@ -148,7 +148,7 @@ func (c *Coordinator) UpdateTask(ctx context.Context, id platform.ID, upd platfo
 }
 
 func (c *Coordinator) DeleteTask(ctx context.Context, id platform.ID) error {
-	if err := c.sch.ReleaseTask(id); err != nil && err != &platform.ErrTaskNotClaimed {
+	if err := c.sch.ReleaseTask(id); err != nil && err != platform.ErrTaskNotClaimed {
 		return err
 	}
 
