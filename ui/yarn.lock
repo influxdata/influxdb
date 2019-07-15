@@ -748,10 +748,10 @@
     react-scrollbars-custom "^4.0.0-alpha.10"
     storybook-addon-jsx "^7.1.0"
 
-"@influxdata/giraffe@0.15.0":
-  version "0.15.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.15.0.tgz#e580095a44b0ece4d20ff04dcd393632205e3775"
-  integrity sha512-PtEqcckyOU7KAnsWfjlk59BCPvZrKHzm1M/Qz4rL6WYLDn7NDKrjCuXr6ztMIC8AD1S5MAPrB/w1cNB8Rhe/Wg==
+"@influxdata/giraffe@0.16.0":
+  version "0.16.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.0.tgz#b04a304460a7c9449fe1a9fa2a3f5db97949e916"
+  integrity sha512-nDVQgx5Lq3fjsMXTzYwzf0HXKjSxzsBJibitObwtE0wefpzU4LW0IEUrcCBNIQyXj1OxyBNL9a67gZ4DyV7M2w==
 
 "@influxdata/influx@0.4.0":
   version "0.4.0"
