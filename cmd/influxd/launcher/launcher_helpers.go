@@ -96,35 +96,54 @@ func (tl *TestLauncher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
 	}
 }
 
-// SetupOrFail creates a new user, bucket, org, and auth token. Fail on error.
-func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
-	results := tl.OnBoardOrFail(tb, &platform.OnboardingRequest{
+// SetupOrFail creates a new user, bucket, org, and auth token.
+func (tl *TestLauncher) Setup() error {
+	results, err := tl.OnBoard(&platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
 		Org:      "ORG",
 		Bucket:   "BUCKET",
 	})
+	if err != nil {
+		return err
+	}
 
 	tl.User = results.User
 	tl.Org = results.Org
 	tl.Bucket = results.Bucket
 	tl.Auth = results.Auth
+	return nil
+}
+
+// SetupOrFail creates a new user, bucket, org, and auth token. Fail on error.
+func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
+	if err := tl.Setup(); err != nil {
+		tb.Fatal(err)
+	}
+}
+
+// OnBoard attempts an on-boarding request.
+// The on-boarding status is also reset to allow multiple user/org/buckets to be created.
+func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+	res, err := tl.KeyValueService().Generate(context.Background(), req)
+	if err != nil {
+		return nil, err
+	}
+	err = tl.KeyValueService().PutOnboardingStatus(context.Background(), false)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 // OnBoardOrFail attempts an on-boarding request or fails on error.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
 func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingRequest) *platform.OnboardingResults {
 	tb.Helper()
-	res, err := tl.KeyValueService().Generate(context.Background(), req)
+	res, err := tl.OnBoard(req)
 	if err != nil {
 		tb.Fatal(err)
 	}
-
-	err = tl.KeyValueService().PutOnboardingStatus(context.Background(), false)
-	if err != nil {
-		tb.Fatal(err)
-	}
-
 	return res
 }
 
@@ -150,30 +169,36 @@ func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *platform.OnboardingResult
 	}
 }
 
-// WriteOrFail attempts a write to the organization and bucket used during setup or fails if there is an error.
-func (tl *TestLauncher) WritePointsOrFail(tb testing.TB, data string) {
-	tb.Helper()
-	resp, err := nethttp.DefaultClient.Do(
-		tl.NewHTTPRequestOrFail(
-			tb,
-			"POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", tl.Org.ID, tl.Bucket.ID),
-			tl.Auth.Token,
-			data))
+// WritePoints attempts a write to the organization and bucket used during setup.
+func (tl *TestLauncher) WritePoints(data string) error {
+	req, err := tl.NewHTTPRequest(
+		"POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", tl.Org.ID, tl.Bucket.ID),
+		tl.Auth.Token, data)
 	if err != nil {
-		tb.Fatal(err)
+		return err
 	}
-
+	resp, err := nethttp.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		tb.Fatal(err)
+		return err
 	}
-
 	if err := resp.Body.Close(); err != nil {
-		tb.Fatal(err)
+		return err
 	}
-
 	if resp.StatusCode != nethttp.StatusNoContent {
-		tb.Fatalf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
+		return fmt.Errorf("unexpected status code: %d, body: %s, headers: %v", resp.StatusCode, body, resp.Header)
+	}
+	return nil
+}
+
+// WritePointsOrFail attempts a write to the organization and bucket used during setup or fails if there is an error.
+func (tl *TestLauncher) WritePointsOrFail(tb testing.TB, data string) {
+	tb.Helper()
+	if err := tl.WritePoints(data); err != nil {
+		tb.Fatal(err)
 	}
 }
 
@@ -270,15 +295,23 @@ func (tl *TestLauncher) MustNewHTTPRequest(method, rawurl, body string) *nethttp
 	return req
 }
 
-// MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
+// NewHTTPRequest returns a new nethttp.Request with base URL and auth attached.
+func (tl *TestLauncher) NewHTTPRequest(method, rawurl, token string, body string) (*nethttp.Request, error) {
+	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Token "+token)
+	return req, nil
+}
+
+// NewHTTPRequestOrFail returns a new nethttp.Request with base URL and auth attached. Fail on error.
 func (tl *TestLauncher) NewHTTPRequestOrFail(tb testing.TB, method, rawurl, token string, body string) *nethttp.Request {
 	tb.Helper()
-	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))
+	req, err := tl.NewHTTPRequest(method, rawurl, token, body)
 	if err != nil {
 		tb.Fatal(err)
 	}
-
-	req.Header.Set("Authorization", "Token "+token)
 	return req
 }
 
