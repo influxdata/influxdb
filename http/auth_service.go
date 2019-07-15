@@ -198,7 +198,12 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	auth := req.toPlatform(user.ID)
+	userID := user.ID
+	if req.UserID != nil && req.UserID.Valid() {
+		userID = *req.UserID
+	}
+
+	auth := req.toPlatform(userID)
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, auth.OrgID)
 	if err != nil {
