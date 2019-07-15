@@ -161,7 +161,7 @@ func (e *TaskExecutor) startManualRun(ctx context.Context, id influxdb.ID, sched
 			return e.createPromise(ctx, r)
 		}
 	}
-	return nil, &influxdb.ErrRunNotFound
+	return nil, influxdb.ErrRunNotFound
 }
 
 func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
@@ -179,7 +179,7 @@ func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledA
 			return e.createPromise(ctx, run)
 		}
 	}
-	return nil, &influxdb.ErrRunNotFound
+	return nil, influxdb.ErrRunNotFound
 }
 
 func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
@@ -290,7 +290,7 @@ func (w *worker) work() {
 			case <-prom.ctx.Done():
 				w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), "Run canceled")
 				w.te.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), backend.RunCanceled)
-				prom.err = &influxdb.ErrRunCanceled
+				prom.err = influxdb.ErrRunCanceled
 				close(prom.done)
 				return
 			case <-time.After(time.Second):

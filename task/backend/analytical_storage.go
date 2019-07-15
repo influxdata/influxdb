@@ -151,7 +151,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	}
 
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		return nil, 0, &influxdb.ErrOutOfBoundsLimit
+		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
 
 	runs, n, err := as.TaskService.FindRuns(ctx, filter)
@@ -264,7 +264,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	}
 
 	if len(re.runs) == 0 {
-		return nil, &platform.ErrRunNotFound
+		return nil, platform.ErrRunNotFound
 
 	}
 

@@ -64,7 +64,7 @@ func TestScheduler_Cancelation(t *testing.T) {
 
 	// check for when we cancel something already canceled
 	time.Sleep(500 * time.Millisecond)
-	if err = o.CancelRun(context.Background(), task.ID, run.ID); err != &platform.ErrRunNotFound {
+	if err = o.CancelRun(context.Background(), task.ID, run.ID); err != platform.ErrRunNotFound {
 		t.Fatalf("expected ErrRunNotFound but got %s", err)
 	}
 }

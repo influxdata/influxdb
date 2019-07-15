@@ -192,7 +192,7 @@ func (t *TaskControlService) StartManualRun(_ context.Context, taskID, runID inf
 		}
 	}
 	if run == nil {
-		return nil, &influxdb.ErrRunNotFound
+		return nil, influxdb.ErrRunNotFound
 	}
 	return run, nil
 }
