@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent, useMemo} from 'react'
+import React, {FunctionComponent} from 'react'
 import {Config, Table} from '@influxdata/giraffe'
 
 // Components
@@ -10,9 +10,6 @@ import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 import {useVisDomainSettings} from 'src/shared/utils/useVisDomainSettings'
 import {
   getFormatter,
-  geomToInterpolation,
-  filterNoisyColumns,
-  parseBounds,
   defaultXColumn,
   defaultYColumn,
 } from 'src/shared/utils/vis'
@@ -23,49 +20,40 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYView, TimeZone} from 'src/types'
+import {RemoteDataState, ScatterView, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
-  fluxGroupKeyUnion: string[]
+  fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
-  timeZone: TimeZone
-  viewProperties: XYView
+  viewProperties: ScatterView
   children: (config: Config) => JSX.Element
+  timeZone: TimeZone
 }
 
-const XYContainer: FunctionComponent<Props> = ({
+const ScatterPlot: FunctionComponent<Props> = ({
   table,
-  fluxGroupKeyUnion,
   loading,
   children,
   timeZone,
   viewProperties: {
-    geom,
+    xAxisLabel,
+    yAxisLabel,
+    xPrefix,
+    xSuffix,
+    yPrefix,
+    ySuffix,
+    fillColumns: storedFill,
+    symbolColumns: storedSymbol,
     colors,
+    xDomain: storedXDomain,
+    yDomain: storedYDomain,
     xColumn: storedXColumn,
     yColumn: storedYColumn,
-    shadeBelow,
-    axes: {
-      x: {
-        label: xAxisLabel,
-        prefix: xTickPrefix,
-        suffix: xTickSuffix,
-        base: xTickBase,
-        bounds: xBounds,
-      },
-      y: {
-        label: yAxisLabel,
-        prefix: yTickPrefix,
-        suffix: yTickSuffix,
-        bounds: yBounds,
-        base: yTickBase,
-      },
-    },
   },
 }) => {
-  const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
-  const storedYDomain = useMemo(() => parseBounds(yBounds), [yBounds])
+  const fillColumns = storedFill || []
+  const symbolColumns = storedSymbol || []
 
   const xColumn = storedXColumn || defaultXColumn(table)
   const yColumn = storedYColumn || defaultYColumn(table)
@@ -86,37 +74,26 @@ const XYContainer: FunctionComponent<Props> = ({
     xColumn &&
     columnKeys.includes(xColumn) &&
     yColumn &&
-    columnKeys.includes(yColumn)
+    columnKeys.includes(yColumn) &&
+    fillColumns.every(col => columnKeys.includes(col)) &&
+    symbolColumns.every(col => columnKeys.includes(col))
 
   if (!isValidView) {
     return <EmptyGraphMessage message={INVALID_DATA_COPY} />
   }
 
   const colorHexes =
-    colors && colors.length
-      ? colors.map(c => c.hex)
-      : DEFAULT_LINE_COLORS.map(c => c.hex)
-
-  const interpolation = geomToInterpolation(geom)
-
-  const groupKey = [...fluxGroupKeyUnion, 'result']
-
-  const legendColumns = filterNoisyColumns(
-    [...groupKey, xColumn, yColumn],
-    table
-  )
+    colors && colors.length ? colors : DEFAULT_LINE_COLORS.map(c => c.hex)
 
   const xFormatter = getFormatter(table.getColumnType(xColumn), {
-    prefix: xTickPrefix,
-    suffix: xTickSuffix,
-    base: xTickBase,
+    prefix: xPrefix,
+    suffix: xSuffix,
     timeZone,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
-    prefix: yTickPrefix,
-    suffix: yTickSuffix,
-    base: yTickBase,
+    prefix: yPrefix,
+    suffix: ySuffix,
     timeZone,
   })
 
@@ -131,25 +108,21 @@ const XYContainer: FunctionComponent<Props> = ({
     yDomain,
     onSetYDomain,
     onResetYDomain,
-    legendColumns,
     valueFormatters: {
       [xColumn]: xFormatter,
       [yColumn]: yFormatter,
     },
     layers: [
       {
-        type: 'line',
+        type: 'scatter',
         x: xColumn,
         y: yColumn,
-        fill: groupKey,
-        interpolation,
         colors: colorHexes,
-        shadeBelow: !!shadeBelow,
-        shadeBelowOpacity: 0.08,
+        fill: fillColumns,
+        symbol: symbolColumns,
       },
     ],
   }
-
   return (
     <div className="vis-plot-container">
       {loading === RemoteDataState.Loading && <GraphLoadingDots />}
@@ -158,4 +131,4 @@ const XYContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default XYContainer
+export default ScatterPlot
