@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	platform "github.com/influxdata/influxdb"
@@ -61,11 +62,15 @@ type isOnboardingResponse struct {
 // isOnboarding is the HTTP handler for the GET /api/v2/setup route.
 func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("onboarding eligibility request", zap.String("r", fmt.Sprint(r)))
+
 	result, err := h.OnboardingService.IsOnboarding(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
+
 	if err := encodeResponse(ctx, w, http.StatusOK, isOnboardingResponse{result}); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
@@ -75,7 +80,7 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 // isOnboarding is the HTTP handler for the POST /api/v2/setup route.
 func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("onboarding setup request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePostSetupRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -86,6 +91,8 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("onboarding setup completed", zap.String("results", fmt.Sprint(results)))
+
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOnboardingResponse(results)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

@@ -97,12 +97,13 @@ func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r 
 // handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
 func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("user update password request", zap.String("r", fmt.Sprint(r)))
 	_, err := h.putPassword(ctx, w, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-
+	h.Logger.Debug("user password updated")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -141,7 +142,7 @@ func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*password
 // handlePostUser is the HTTP handler for the POST /api/v2/users route.
 func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("user create request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePostUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -152,6 +153,7 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("user created", zap.String("user", fmt.Sprint(req.User)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newUserResponse(req.User)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -200,7 +202,7 @@ func (h *UserHandler) handleGetMe(w http.ResponseWriter, r *http.Request) {
 // handleGetUser is the HTTP handler for the GET /api/v2/users/:id route.
 func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("user retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -212,6 +214,7 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("user retrieved", zap.String("user", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -248,7 +251,7 @@ func decodeGetUserRequest(ctx context.Context, r *http.Request) (*getUserRequest
 // handleDeleteUser is the HTTP handler for the DELETE /api/v2/users/:id route.
 func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("user delete request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeDeleteUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -259,6 +262,7 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("user deleted", zap.String("userID", fmt.Sprint(req.UserID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -331,7 +335,7 @@ func newUserResponse(u *influxdb.User) *userResponse {
 // handleGetUsers is the HTTP handler for the GET /api/v2/users route.
 func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("users retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetUsersRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -343,6 +347,7 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("users retrieved", zap.String("users", fmt.Sprint(users)))
 
 	err = encodeResponse(ctx, w, http.StatusOK, newUsersResponse(users))
 	if err != nil {
@@ -377,7 +382,7 @@ func decodeGetUsersRequest(ctx context.Context, r *http.Request) (*getUsersReque
 // handlePatchUser is the HTTP handler for the PATCH /api/v2/users/:id route.
 func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("user update request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePatchUserRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -389,6 +394,7 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("users updated", zap.String("user", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -681,7 +687,7 @@ func userIDPath(id influxdb.ID) string {
 // hanldeGetUserLog retrieves a user log by the users ID.
 func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
+	h.Logger.Debug("user log retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetUserLogRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -693,6 +699,7 @@ func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("user log retrieved", zap.String("log", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newUserLogResponse(req.UserID, log)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
