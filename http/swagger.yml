@@ -8561,6 +8561,14 @@ components:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
+      discriminator:
+        propertyName: type
+        mapping:
+          deadman: "#/components/schemas/DeadmanCheck"
+          threshold: "#/components/schemas/ThresholdCheck"
+    CheckType:
+      type: string
+      enum: [deadman, threshold]
     Checks:
       properties:
         checks:
@@ -8574,6 +8582,9 @@ components:
         id:
           readOnly: true
           type: string
+        type:
+          type: string
+          $ref: "#/components/schemas/CheckType"
         name:
           type: string
         orgID:
@@ -8623,7 +8634,7 @@ components:
           type: string
         labels:
           $ref: "#/components/schemas/Labels"
-      required: [name, orgID, query]
+      required: [name, type, orgID, query]
     ThresholdCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
