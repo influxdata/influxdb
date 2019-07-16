@@ -8603,7 +8603,6 @@ components:
           format: date-time
           readOnly: true
         query:
-          description: The Flux query to run for this check.
           $ref: "#/components/schemas/DashboardQuery"
         status:
           description: The status of the check task.
@@ -8860,6 +8859,13 @@ components:
         - $ref: "#/components/schemas/SMTPNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
         - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+      discriminator:
+        propertyName: type
+        mapping:
+          slack: "#/components/schemas/SlackNotificationEndpoint"
+          smtp: "#/components/schemas/SMTPNotificationEndpoint"
+          pagerduty:  "#/components/schemas/PagerDutyNotificationEndpoint"
+          webhook: "#/components/schemas/WebhookNotificationEndpoint"
     NotificationEndpoints:
       properties:
         notificationEndpoints:
@@ -8894,8 +8900,9 @@ components:
           enum: ["active", "inactive"]
         labels:
           $ref: "#/components/schemas/Labels"
-      discriminator:
-        propertyName: type
+        type:
+          $ref: "#/components/schemas/NotificationEndpointType"
+      required: [type]
     SlackNotificationEndpoint:
       type: object
       allOf:
@@ -8916,6 +8923,9 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
+    NotificationEndpointType:
+      type: string
+      enum: ['slack', smtp, 'pagerduty', 'webhook']
   securitySchemes:
     BasicAuth:
       type: http
