@@ -8677,7 +8677,7 @@ components:
       required: [type]
     GreaterThreshold:
       allOf:
-        - $ref: "#/components/schemas/ThresholdConfig"
+        - $ref: "#/components/schemas/ThresholdBase"
         - type: object
           properties:
             value:
@@ -8685,7 +8685,7 @@ components:
               format: float
     LesserThreshold:
       allOf:
-        - $ref: "#/components/schemas/ThresholdConfig"
+        - $ref: "#/components/schemas/ThresholdBase"
         - type: object
           properties:
             value:
@@ -8693,7 +8693,7 @@ components:
               format: float
     RangeThreshold:
       allOf:
-        - $ref: "#/components/schemas/ThresholdConfig"
+        - $ref: "#/components/schemas/ThresholdBase"
         - type: object
           properties:
             min:
