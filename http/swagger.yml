@@ -8649,6 +8649,10 @@ components:
                   - $ref: "#/components/schemas/RangeThreshold"
                 discriminator:
                   propertyName: type
+                  mapping:
+                    greater: "#/components/schemas/GreaterThreshold"
+                    lesser: "#/components/schemas/LesserThreshold"
+                    range: "#/components/schemas/RangeThreshold"
     DeadmanCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
@@ -8662,7 +8666,7 @@ components:
               type: boolean
             level:
               $ref: "#/components/schemas/CheckStatusLevel"
-    ThresholdConfig:
+    ThresholdBase:
       properties:
         level:
          $ref: "#/components/schemas/CheckStatusLevel"
@@ -8670,7 +8674,8 @@ components:
           description: if true, only alert if all values meet threshold
           type: boolean
         type:
-          type: string
+          $ref: "#/components/schemas/ThresholdType"
+      required: [type]
     GreaterThreshold:
       allOf:
         - $ref: "#/components/schemas/ThresholdConfig"
@@ -8700,6 +8705,9 @@ components:
               format: float
             within:
               type: boolean
+    ThresholdType:
+      type: string
+      enum: [greater, lesser, range]
     CheckStatusLevel:
       description: the state to record if check matches a criteria
       type: string
