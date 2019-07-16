@@ -8717,6 +8717,12 @@ components:
         - $ref: "#/components/schemas/SlackNotificationRule"
         - $ref: "#/components/schemas/SMTPNotificationRule"
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
+      discriminator:
+        propertyName: type
+        mapping:
+          slack: "#/components/schemas/SlackNotificationRule"
+          smtp: "#/components/schemas/SMTPNotificationRule"
+          pagerduty:  "#/components/schemas/PagerDutyNotificationRule"
     NotificationRules:
       properties:
         notificationRules:
@@ -8755,9 +8761,7 @@ components:
           description: human-readable name describing the notification rule
           type: string
         type:
-          description: the type of notification
-          type: string
-          enum: ['slack', 'smtp', 'pagerduty']
+          $ref: "#/components/schemas/NotificationRuleType"
         sleepUntil:
           type: string
         every:
@@ -8790,8 +8794,7 @@ components:
             $ref: "#/components/schemas/StatusRule"
         labels:
           $ref: "#/components/schemas/Labels"
-      discriminator:
-        propertyName: type
+      required: [type]
     TagRule:
       type: object
       properties:
@@ -8848,6 +8851,9 @@ components:
           properties:
             messageTemplate:
               type: string
+    NotificationRuleType:
+      type: string
+      enum: ['slack', 'smtp', 'pagerduty']
     NotificationEndpoint:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
