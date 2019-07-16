@@ -1118,15 +1118,19 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		rp.Aggregator.Aggregate{{$k.Name}}(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1152,7 +1156,11 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 	}
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse({{$v.name}}PointsByTime(a)))
+		var sorted sort.Interface = {{$v.name}}PointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
