@@ -450,7 +450,7 @@ func (h *{{$k.name}}SortedMergeHeap) Less(i, j int) bool {
 	} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
 		return xTags.ID() > yTags.ID()
 	}
-	
+
 	if x.Time != y.Time{
 		return x.Time > y.Time
 	}
@@ -1118,28 +1118,28 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		rp.Aggregator.Aggregate{{$k.Name}}(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
-	// This is because the final array needs to have the first
-	// point at the end since they are popped off of the end.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	// Emit the points for each name & tag combination.
 	a := make([]{{$v.Name}}Point, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
 		points := rp.Emitter.Emit()
-		// If the points are meant to be ordered,
-		// ensure that is done here. The tags are already
-		// sorted and should remain sorted.
-		if len(points) > 1 && itr.opt.Ordered {
-			sort.Stable({{$v.name}}PointsByTime(points))
-		}
 		for i := len(points)-1; i >= 0; i-- {
 			points[i].Name = rp.Name
 			if !itr.keepTags {
@@ -1148,9 +1148,19 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		var sorted sort.Interface = {{$v.name}}PointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
 	return a, nil
 }
