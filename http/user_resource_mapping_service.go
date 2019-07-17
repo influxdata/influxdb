@@ -24,13 +24,13 @@ type UserResourceMappingService struct {
 
 type resourceUserResponse struct {
 	Role platform.UserType `json:"role"`
-	*userResponse
+	*UserResponse
 }
 
 func newResourceUserResponse(u *platform.User, userType platform.UserType) *resourceUserResponse {
 	return &resourceUserResponse{
 		Role:         userType,
-		userResponse: newUserResponse(u),
+		UserResponse: newUserResponse(u),
 	}
 }
 

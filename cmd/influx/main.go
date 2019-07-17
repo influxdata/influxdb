@@ -103,7 +103,7 @@ func init() {
 
 func checkSetup(host string) error {
 	s := &http.SetupService{
-		Addr: flags.host,
+		Addr: host,
 	}
 
 	ctx := context.Background()
