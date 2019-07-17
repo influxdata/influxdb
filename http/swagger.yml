@@ -6974,12 +6974,6 @@ components:
       - shape
       - type
       properties:
-        shape:
-            type: string
-            enum: ["chronograf-v2"]
-        type:
-            type: string
-            enum: ["log-viewer"]
         columns:
           description: Defines the order, names, and visibility of columns in the log
             viewer table
@@ -7069,11 +7063,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        shape:
+          type: string
+          enum: ['chronograf-v2']
         note:
           type: string
+        type:
+          $ref: "#/components/schemas/ViewType"
         showNoteWhenEmpty:
           description: if true, will display note when empty
           type: boolean
+      required: [type]
     LinePlusSingleStatProperties:
       allOf:
         - $ref: '#/components/schemas/ViewProperties'
@@ -7081,9 +7081,6 @@ components:
           properties:
             axes:
               $ref: '#/components/schemas/Axes'
-            type:
-              type: string
-              enum: ["line-plus-single-stat"]
             legend:
               $ref: '#/components/schemas/Legend'
             prefix:
@@ -7099,22 +7096,96 @@ components:
           properties:
             axes:
               $ref: '#/components/schemas/Axes'
-            type:
-              type: string
-              enum: ["xy"]
             legend:
               $ref: '#/components/schemas/Legend'
-            geom:
+            xColumn:
               type: string
-              enum: ["line", "step", "stacked", "bar"]
+            yColumn:
+              type: string
+            ShadeBelow:
+              type: boolean
+            geom:
+              $ref: '#/components/schemas/XYGeomType'
+    XYGeomType:
+      type: string
+      enum: ["line", "step", "stacked", "bar", "monotoneX"]
+    ScatterViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            xColumn:
+              type: string
+            yColumn:
+              type: string
+            fillColumns:
+              type: array
+              items:
+                type: string
+            symbolColumns:
+              type: array
+              items:
+                type: string
+            xDomain:
+              type: array
+              items:
+                type: number
+              maxItems: 2
+            yDomain:
+              type: array
+              items:
+                type: number
+              maxItems: 2
+            xAxisLabel:
+              type: string
+            yAxisLabel:
+              type: string
+            xPrefix:
+              type: string
+            xSuffix:
+              type: string
+            yPrefix:
+              type: string
+            ySuffix:
+              type: string
+    HeatmapViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            xColumn:
+              type: string
+            yColumn:
+              type: string
+            xDomain:
+              type: array
+              items:
+                type: number
+              maxItems: 2
+            yDomain:
+              type: array
+              items:
+                type: number
+              maxItems: 2
+            xAxisLabel:
+              type: string
+            yAxisLabel:
+              type: string
+            xPrefix:
+              type: string
+            xSuffix:
+              type: string
+            yPrefix:
+              type: string
+            ySuffix:
+              type: string
+            binSize:
+              type: number
     SingleStatViewProperties:
       allOf:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["single-stat"]
             prefix:
               type: string
             suffix:
@@ -7128,9 +7199,6 @@ components:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["histogram"]
             xColumn:
               type: string
             fillColumns:
@@ -7153,9 +7221,6 @@ components:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["gauge"]
             prefix:
               type: string
             suffix:
@@ -7169,9 +7234,6 @@ components:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["table"]
             tableOptions:
               properties:
                 verticalTimeAxis:
@@ -7210,26 +7272,25 @@ components:
     MarkdownViewProperties:
       type: object
       properties:
+        note:
+          type: string
         type:
           type: string
           enum: ["markdown"]
-        note:
-          type: string
     EmptyViewProperties:
       properties:
         type:
           type: string
           enum: ["empty"]
     CheckViewProperties:
-      type: object
-      properties:
-        type:
-          type: string
-          enum: ["check"]
-        checkID:
-          type: string
-        check:
-          $ref: '#/components/schemas/Check'
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            checkID:
+              type: string
+            check:
+              $ref: '#/components/schemas/Check'
     Axes:
       description: The viewport for a View's visualizations
       type: object
@@ -7411,6 +7472,25 @@ components:
             - $ref: "#/components/schemas/LogViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
             - $ref: "#/components/schemas/CheckViewProperties"
+            - $ref: "#/components/schemas/ScatterViewProperties"
+            - $ref: "#/components/schemas/HeatmapViewProperties"
+          discriminator:
+            propertyName: type
+            mapping:
+              line-plus-single-stat: "#/components/schemas/LinePlusSingleStatProperties"
+              xy: "#/components/schemas/XYViewProperties"
+              single-stat: "#/components/schemas/SingleStatViewProperties"
+              histogram: "#/components/schemas/HistogramViewProperties"
+              gauge: "#/components/schemas/GaugeViewProperties"
+              table: "#/components/schemas/TableViewProperties"
+              markdown: "#/components/schemas/MarkdownViewProperties"
+              log-viewer: "#/components/schemas/LogViewProperties"
+              check: "#/components/schemas/CheckViewProperties"
+              scatter: "#/components/schemas/ScatterViewProperties"
+              heatmap: "#/components/schemas/HeatmapViewProperties"
+    ViewType:
+      type: string
+      enum: ['xy', 'line-plus-single-stat', 'single-stat', 'gauge', 'table', 'markdown', 'log-viewer', 'histogram', 'heatmap', 'scatter', 'check', 'empty']
     Views:
       type: object
       properties:
@@ -8561,6 +8641,14 @@ components:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
+      discriminator:
+        propertyName: type
+        mapping:
+          deadman: "#/components/schemas/DeadmanCheck"
+          threshold: "#/components/schemas/ThresholdCheck"
+    CheckType:
+      type: string
+      enum: [deadman, threshold]
     Checks:
       properties:
         checks:
@@ -8574,6 +8662,9 @@ components:
         id:
           readOnly: true
           type: string
+        type:
+          type: string
+          $ref: "#/components/schemas/CheckType"
         name:
           type: string
         orgID:
@@ -8592,7 +8683,6 @@ components:
           format: date-time
           readOnly: true
         query:
-          description: The Flux query to run for this check.
           $ref: "#/components/schemas/DashboardQuery"
         status:
           description: The status of the check task.
@@ -8623,7 +8713,7 @@ components:
           type: string
         labels:
           $ref: "#/components/schemas/Labels"
-      required: [name, orgID, query]
+      required: [name, type, orgID, query]
     ThresholdCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
@@ -8638,6 +8728,10 @@ components:
                   - $ref: "#/components/schemas/RangeThreshold"
                 discriminator:
                   propertyName: type
+                  mapping:
+                    greater: "#/components/schemas/GreaterThreshold"
+                    lesser: "#/components/schemas/LesserThreshold"
+                    range: "#/components/schemas/RangeThreshold"
     DeadmanCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
@@ -8651,7 +8745,7 @@ components:
               type: boolean
             level:
               $ref: "#/components/schemas/CheckStatusLevel"
-    ThresholdConfig:
+    ThresholdBase:
       properties:
         level:
          $ref: "#/components/schemas/CheckStatusLevel"
@@ -8659,10 +8753,11 @@ components:
           description: if true, only alert if all values meet threshold
           type: boolean
         type:
-          type: string
+          $ref: "#/components/schemas/ThresholdType"
+      required: [type]
     GreaterThreshold:
       allOf:
-        - $ref: "#/components/schemas/ThresholdConfig"
+        - $ref: "#/components/schemas/ThresholdBase"
         - type: object
           properties:
             value:
@@ -8670,7 +8765,7 @@ components:
               format: float
     LesserThreshold:
       allOf:
-        - $ref: "#/components/schemas/ThresholdConfig"
+        - $ref: "#/components/schemas/ThresholdBase"
         - type: object
           properties:
             value:
@@ -8678,7 +8773,7 @@ components:
               format: float
     RangeThreshold:
       allOf:
-        - $ref: "#/components/schemas/ThresholdConfig"
+        - $ref: "#/components/schemas/ThresholdBase"
         - type: object
           properties:
             min:
@@ -8689,6 +8784,9 @@ components:
               format: float
             within:
               type: boolean
+    ThresholdType:
+      type: string
+      enum: [greater, lesser, range]
     CheckStatusLevel:
       description: the state to record if check matches a criteria
       type: string
@@ -8698,6 +8796,12 @@ components:
         - $ref: "#/components/schemas/SlackNotificationRule"
         - $ref: "#/components/schemas/SMTPNotificationRule"
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
+      discriminator:
+        propertyName: type
+        mapping:
+          slack: "#/components/schemas/SlackNotificationRule"
+          smtp: "#/components/schemas/SMTPNotificationRule"
+          pagerduty:  "#/components/schemas/PagerDutyNotificationRule"
     NotificationRules:
       properties:
         notificationRules:
@@ -8736,9 +8840,7 @@ components:
           description: human-readable name describing the notification rule
           type: string
         type:
-          description: the type of notification
-          type: string
-          enum: ['slack', 'smtp', 'pagerduty']
+          $ref: "#/components/schemas/NotificationRuleType"
         sleepUntil:
           type: string
         every:
@@ -8771,8 +8873,7 @@ components:
             $ref: "#/components/schemas/StatusRule"
         labels:
           $ref: "#/components/schemas/Labels"
-      discriminator:
-        propertyName: type
+      required: [type]
     TagRule:
       type: object
       properties:
@@ -8829,12 +8930,22 @@ components:
           properties:
             messageTemplate:
               type: string
+    NotificationRuleType:
+      type: string
+      enum: ['slack', 'smtp', 'pagerduty']
     NotificationEndpoint:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
         - $ref: "#/components/schemas/SMTPNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
         - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+      discriminator:
+        propertyName: type
+        mapping:
+          slack: "#/components/schemas/SlackNotificationEndpoint"
+          smtp: "#/components/schemas/SMTPNotificationEndpoint"
+          pagerduty:  "#/components/schemas/PagerDutyNotificationEndpoint"
+          webhook: "#/components/schemas/WebhookNotificationEndpoint"
     NotificationEndpoints:
       properties:
         notificationEndpoints:
@@ -8869,8 +8980,9 @@ components:
           enum: ["active", "inactive"]
         labels:
           $ref: "#/components/schemas/Labels"
-      discriminator:
-        propertyName: type
+        type:
+          $ref: "#/components/schemas/NotificationEndpointType"
+      required: [type]
     SlackNotificationEndpoint:
       type: object
       allOf:
@@ -8891,6 +9003,9 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
+    NotificationEndpointType:
+      type: string
+      enum: ['slack', smtp, 'pagerduty', 'webhook']
   securitySchemes:
     BasicAuth:
       type: http
