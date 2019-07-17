@@ -7490,7 +7490,7 @@ components:
               heatmap: "#/components/schemas/HeatmapViewProperties"
     ViewType:
       type: string
-      enum: ['xy', 'line-plus-single-stat', 'single-stat', 'gauge', 'table', 'markdown', 'log-viewer', 'histogram', 'heatmap', 'scatter', 'check']
+      enum: ['xy', 'line-plus-single-stat', 'single-stat', 'gauge', 'table', 'markdown', 'log-viewer', 'histogram', 'heatmap', 'scatter', 'check', 'empty']
     Views:
       type: object
       properties:
