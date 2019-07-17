@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/rand"
 	"github.com/influxdata/influxdb/snowflake"
 )
@@ -134,4 +135,14 @@ func (s *Service) Initialize(ctx context.Context) error {
 // Should only be used in tests for mocking.
 func (s *Service) WithStore(store Store) {
 	s.kv = store
+}
+
+// Check calls the check function on the kv store if it implements the
+// check interface, otherwise returns pass
+func (s *Service) Check(ctx context.Context) check.Response {
+	if check, ok := s.kv.(check.Checker); ok {
+		return check.Check(ctx)
+	}
+
+	return check.Pass()
 }
