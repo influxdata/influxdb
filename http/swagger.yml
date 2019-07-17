@@ -7128,12 +7128,12 @@ components:
                 type: string
             xDomain:
               type: array
-              items: 
+              items:
                 type: number
               maxItems: 2
             yDomain:
               type: array
-              items: 
+              items:
                 type: number
               maxItems: 2
             xAxisLabel:
@@ -7159,12 +7159,12 @@ components:
               type: string
             xDomain:
               type: array
-              items: 
+              items:
                 type: number
               maxItems: 2
             yDomain:
               type: array
-              items: 
+              items:
                 type: number
               maxItems: 2
             xAxisLabel:
