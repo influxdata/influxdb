@@ -6974,12 +6974,6 @@ components:
       - shape
       - type
       properties:
-        shape:
-            type: string
-            enum: ["chronograf-v2"]
-        type:
-            type: string
-            enum: ["log-viewer"]
         columns:
           description: Defines the order, names, and visibility of columns in the log
             viewer table
@@ -7069,11 +7063,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        shape:
+          type: string
+          enum: ['chronograf-v2']
         note:
           type: string
+        type:
+          $ref: "#/components/schemas/ViewType"
         showNoteWhenEmpty:
           description: if true, will display note when empty
           type: boolean
+      required: [type]
     LinePlusSingleStatProperties:
       allOf:
         - $ref: '#/components/schemas/ViewProperties'
@@ -7081,9 +7081,6 @@ components:
           properties:
             axes:
               $ref: '#/components/schemas/Axes'
-            type:
-              type: string
-              enum: ["line-plus-single-stat"]
             legend:
               $ref: '#/components/schemas/Legend'
             prefix:
@@ -7099,9 +7096,6 @@ components:
           properties:
             axes:
               $ref: '#/components/schemas/Axes'
-            type:
-              type: string
-              enum: ["xy"]
             legend:
               $ref: '#/components/schemas/Legend'
             geom:
@@ -7128,9 +7122,6 @@ components:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["histogram"]
             xColumn:
               type: string
             fillColumns:
@@ -7153,9 +7144,6 @@ components:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["gauge"]
             prefix:
               type: string
             suffix:
@@ -7169,9 +7157,6 @@ components:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["table"]
             tableOptions:
               properties:
                 verticalTimeAxis:
@@ -7210,9 +7195,6 @@ components:
     MarkdownViewProperties:
       type: object
       properties:
-        type:
-          type: string
-          enum: ["markdown"]
         note:
           type: string
     EmptyViewProperties:
@@ -7223,9 +7205,6 @@ components:
     CheckViewProperties:
       type: object
       properties:
-        type:
-          type: string
-          enum: ["check"]
         checkID:
           type: string
         check:
@@ -7411,6 +7390,25 @@ components:
             - $ref: "#/components/schemas/LogViewProperties"
             - $ref: "#/components/schemas/EmptyViewProperties"
             - $ref: "#/components/schemas/CheckViewProperties"
+            - $ref: "#/components/schemas/ScatterViewProperties"
+            - $ref: "#/components/schemas/HeatmapViewProperties"
+          discriminator:
+            propertyName: type
+            mapping:
+              line-plus-single-stat: "#/components/schemas/LinePlusSingleStatProperties"
+              xy: "#/components/schemas/XYViewProperties"
+              single-stat: "#/components/schemas/SingleStatViewProperties"
+              histogram: "#/components/schemas/HistogramViewProperties"
+              gauge: "#/components/schemas/GaugeViewProperties"
+              table: "#/components/schemas/TableViewProperties"
+              markdown: "#/components/schemas/MarkdownViewProperties"
+              log-viewer: "#/components/schemas/LogViewProperties"
+              check: "#/components/schemas/CheckViewProperties"
+              scatter: "#/components/schemas/ScatterViewProperties"
+              heatmap: "#/components/schemas/HeatmapViewProperties"
+    ViewType:
+      type: string
+      enum: ['xy', 'line-plus-single-stat', 'single-stat', 'gauge', 'table', 'markdown', 'log-viewer', 'histogram', 'heatmap', 'scatter', 'check']
     Views:
       type: object
       properties:
