@@ -6816,88 +6816,55 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Field'
-    QueryConfig:
+    BuilderConfig:
       type: object
-      required:
-        - database
-        - measurement
-        - retentionPolicy
-        - areTagsAccepted
-        - tags
-        - groupBy
-        - fields
       properties:
-        id:
-          type: string
-        database:
-          type: string
-        measurement:
-          type: string
-        retentionPolicy:
-          type: string
-        areTagsAccepted:
-          type: boolean
-        rawText:
-          type: string
-        tags:
-          type: object
-        groupBy:
-          type: object
-          properties:
-            time:
-              type: string
-            tags:
-              type: array
-              items:
-                type: string
-          required:
-            - time
-            - tags
-        fields:
+        buckets:
           type: array
           items:
-            $ref: '#/components/schemas/Field'
-        range:
+            type: string
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/BuilderTagsType'
+        functions:
+          type: array
+          items:
+            $ref: '#/components/schemas/BuilderFunctionsType'
+        aggregateWindow:
           type: object
           properties:
-            lower:
+            name:
               type: string
-            upper:
-              type: string
-          required:
-            - lower
-            - upper
+    BuilderTagsType:
+      type: object
+      properties:
+        key:
+          type: string
+        values:
+          type: array
+          items:
+            type: string
+    BuilderFunctionsType:
+      type: object
+      properties:
+        name:
+          type: string
     DashboardQuery:
       type: object
-      required:
-        - query
       properties:
-        label:
+        text:
           type: string
-          description: Optional Y-axis user-facing label
-        range:
-          description: Optional default range of the Y-axis
-          type: object
-          required:
-            - upper
-            - lower
-          properties:
-            upper:
-              description: Upper bound of the display range of the Y-axis
-              type: integer
-              format: int64
-            lower:
-              description: Lower bound of the display range of the Y-axis
-              type: integer
-              format: int64
-        query:
+          description: The text of the flux query
+        editMode:
+          $ref: '#/components/schemas/QueryEditMode'
+        name:
           type: string
-        source:
-          type: string
-          format: uri
-          description: Optional URI for data source for this query
-        queryConfig:
-          $ref: '#/components/schemas/QueryConfig'
+        builderConfig:
+          $ref: '#/components/schemas/BuilderConfig'
+    QueryEditMode:
+      type: string
+      enum: ['builder', 'advanced']
     Axis:
       type: object
       description: A description of a particular axis for a visualization
@@ -6925,8 +6892,11 @@ components:
           description: Base represents the radix for formatting axis values.
           type: string
         scale:
-          description: 'Scale is the axis formatting scale. Supported: "log", "linear"'
-          type: string
+          $ref: '#/components/schemas/AxisScaleType'
+    AxisScaleType:
+      description: 'Scale is the axis formatting scale. Supported: "log", "linear"'
+      type: string
+      enum: ['log', 'linear']
     DashboardColor:
       type: object
       description: Color defines an encoding of data value into color space
@@ -6951,7 +6921,8 @@ components:
           type: string
         value:
           description: Value is the data value mapped to this color
-          type: string
+          type: number
+          format: float
     RenamableField:
       description: Describes a field that can be renamed and made visible or invisible
       type: object
