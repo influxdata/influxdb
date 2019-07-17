@@ -7098,17 +7098,94 @@ components:
               $ref: '#/components/schemas/Axes'
             legend:
               $ref: '#/components/schemas/Legend'
-            geom:
+            xColumn:
               type: string
-              enum: ["line", "step", "stacked", "bar"]
+            yColumn:
+              type: string
+            ShadeBelow:
+              type: boolean
+            geom:
+              $ref: '#/components/schemas/XYGeomType'
+    XYGeomType:
+      type: string
+      enum: ["line", "step", "stacked", "bar"]
+    ScatterViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            xColumn:
+              type: string
+            yColumn:
+              type: string
+            fillColumns:
+              type: array
+              items:
+                type: string
+            symbolColumns:
+              type: array
+              items:
+                type: string
+            xDomain:
+              type: array
+              items: 
+                type: number
+              maxItems: 2
+            yDomain:
+              type: array
+              items: 
+                type: number
+              maxItems: 2
+            xAxisLabel:
+              type: string
+            yAxisLabel:
+              type: string
+            xPrefix:
+              type: string
+            xSuffix:
+              type: string
+            yPrefix:
+              type: string
+            ySuffix:
+              type: string
+    HeatmapViewProperties:
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            xColumn:
+              type: string
+            yColumn:
+              type: string
+            xDomain:
+              type: array
+              items: 
+                type: number
+              maxItems: 2
+            yDomain:
+              type: array
+              items: 
+                type: number
+              maxItems: 2
+            xAxisLabel:
+              type: string
+            yAxisLabel:
+              type: string
+            xPrefix:
+              type: string
+            xSuffix:
+              type: string
+            yPrefix:
+              type: string
+            ySuffix:
+              type: string
+            binSize:
+              type: number
     SingleStatViewProperties:
       allOf:
         - $ref: '#/components/schemas/ViewProperties'
         - type: object
           properties:
-            type:
-              type: string
-              enum: ["single-stat"]
             prefix:
               type: string
             suffix:
@@ -7197,18 +7274,23 @@ components:
       properties:
         note:
           type: string
+        type:
+          type: string
+          enum: ["markdown"]
     EmptyViewProperties:
       properties:
         type:
           type: string
           enum: ["empty"]
     CheckViewProperties:
-      type: object
-      properties:
-        checkID:
-          type: string
-        check:
-          $ref: '#/components/schemas/Check'
+      allOf:
+        - $ref: '#/components/schemas/ViewProperties'
+        - type: object
+          properties:
+            checkID:
+              type: string
+            check:
+              $ref: '#/components/schemas/Check'
     Axes:
       description: The viewport for a View's visualizations
       type: object
