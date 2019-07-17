@@ -48,7 +48,7 @@ __Performance:__
 Generate profiles with the following commands for bugs related to performance, locking, out of memory (OOM), etc.
 
 ```sh
-# Commands should be run when the bug is actively.
+# Commands should be run when the bug is actively happening.
 # Note: This command will run for at least 30 seconds.
 curl -o profiles.tar.gz "http://localhost:8086/debug/pprof/all?cpu=true"
 curl -o vars.txt "http://localhost:8086/debug/vars"
