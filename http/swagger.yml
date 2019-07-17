@@ -7108,7 +7108,7 @@ components:
               $ref: '#/components/schemas/XYGeomType'
     XYGeomType:
       type: string
-      enum: ["line", "step", "stacked", "bar"]
+      enum: ["line", "step", "stacked", "bar", "monotoneX"]
     ScatterViewProperties:
       allOf:
         - $ref: '#/components/schemas/ViewProperties'
