@@ -18,6 +18,9 @@ import TemplateBrowserEmpty from 'src/templates/components/createFromTemplateOve
 import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
 import {getTemplateByID} from 'src/templates/actions'
 
+// Constants
+import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
+
 // Types
 import {
   TemplateSummary,
@@ -151,7 +154,14 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   private handleSelectTemplate = async (
     selectedTemplateSummary: TemplateSummary
   ): Promise<void> => {
-    const selectedTemplate = await getTemplateByID(selectedTemplateSummary.id)
+    const {id} = selectedTemplateSummary
+    let selectedTemplate
+
+    if (!id.includes('influxdb-template')) {
+      selectedTemplate = await getTemplateByID(id)
+    } else {
+      selectedTemplate = selectedTemplateSummary
+    }
 
     this.setState({
       selectedTemplateSummary,
@@ -185,7 +195,7 @@ const mstp = ({templates: {items, status}}: AppState): StateProps => {
   )
 
   return {
-    templates,
+    templates: [...templates, ...influxdbTemplateList],
     templateStatus: status,
   }
 }

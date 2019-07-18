@@ -29,3 +29,13 @@ export const staticTemplates = {
   Nginx: nginx,
   Kubernetes: kubernetes,
 }
+
+export const influxdbTemplateList = [
+  system,
+  localMetrics,
+  gettingStarted,
+  docker,
+  nginx,
+  redis,
+  kubernetes,
+].map((t, i) => ({...t, id: `influxdb-template-${i}`}))
