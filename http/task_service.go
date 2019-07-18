@@ -15,7 +15,6 @@ import (
 
 	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/authorizer"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"

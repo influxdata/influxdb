@@ -1,4 +1,5 @@
 import {Organization, Bucket} from '@influxdata/influx'
+import _ from 'lodash'
 
 describe('Tasks', () => {
   beforeEach(() => {
@@ -7,6 +8,14 @@ describe('Tasks', () => {
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
       cy.wrap(body.bucket).as('bucket')
+
+      cy.createToken(body.org.id, 'test token', 'active', [
+        {action: 'write', resource: {type: 'views'}},
+        {action: 'write', resource: {type: 'documents'}},
+        {action: 'write', resource: {type: 'tasks'}},
+      ]).then(({body}) => {
+        cy.wrap(body.token).as('token')
+      })
     })
 
     cy.fixture('routes').then(({orgs}) => {
@@ -46,8 +55,10 @@ describe('Tasks', () => {
 
   it('can delete a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createTask(id)
-      cy.createTask(id)
+      cy.get<string>('@token').then(token => {
+        cy.createTask(token, id)
+        cy.createTask(token, id)
+      })
 
       cy.fixture('routes').then(({orgs}) => {
         cy.visit(`${orgs}/${id}/tasks`)
@@ -69,7 +80,9 @@ describe('Tasks', () => {
 
   it('can disable a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createTask(id)
+      cy.get<string>('@token').then(token => {
+        cy.createTask(token, id)
+      })
     })
 
     cy.getByTestID('task-card--slide-toggle').should('have.class', 'active')
@@ -81,7 +94,9 @@ describe('Tasks', () => {
 
   it('can edit a tasks name', () => {
     cy.get<Organization>('@org').then(({id}) => {
-      cy.createTask(id)
+      cy.get<string>('@token').then(token => {
+        cy.createTask(token, id)
+      })
     })
 
     const newName = 'Task'
@@ -130,12 +145,14 @@ describe('Tasks', () => {
       const newLabelName = 'click-me'
 
       cy.get<Organization>('@org').then(({id}) => {
-        cy.createTask(id).then(({body}) => {
-          cy.createAndAddLabel('tasks', id, body.id, newLabelName)
-        })
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id).then(({body}) => {
+            cy.createAndAddLabel('tasks', id, body.id, newLabelName)
+          })
 
-        cy.createTask(id).then(({body}) => {
-          cy.createAndAddLabel('tasks', id, body.id, 'bar')
+          cy.createTask(token, id).then(({body}) => {
+            cy.createAndAddLabel('tasks', id, body.id, 'bar')
+          })
         })
       })
 
@@ -157,8 +174,10 @@ describe('Tasks', () => {
     it('can search by task name', () => {
       const searchName = 'beepBoop'
       cy.get<Organization>('@org').then(({id}) => {
-        cy.createTask(id, searchName)
-        cy.createTask(id)
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id, searchName)
+          cy.createTask(token, id)
+        })
       })
 
       cy.fixture('routes').then(({orgs}) => {
