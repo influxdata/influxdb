@@ -94,6 +94,7 @@ func (s *SeriesSegment) Open() error {
 	if err := func() (err error) {
 		// Memory map file data.
 		if s.data, err = mmap.Map(s.path, int64(SeriesSegmentSize(s.id))); err != nil {
+			//return errors.New("map err: " + fmt.Sprintf("%v, size: %v", s.path, int64(SeriesSegmentSize(s.id))))
 			return err
 		}
 
@@ -312,6 +313,7 @@ func IsValidSeriesSegmentFilename(filename string) bool {
 // ParseSeriesSegmentFilename returns the id represented by the hexadecimal filename.
 func ParseSeriesSegmentFilename(filename string) (uint16, error) {
 	i, err := strconv.ParseUint(filename, 16, 32)
+	//return uint16(i), errors.New("err- i:" + string(i) + ", to: " + string(uint16(i)))
 	return uint16(i), err
 }
 

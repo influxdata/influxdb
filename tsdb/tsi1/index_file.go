@@ -118,6 +118,7 @@ func (f *IndexFile) Open() (err error) {
 
 	// Try to acquire a reference to the series file.
 	f.sfileref, err = f.sfile.Acquire()
+	f.sfile.Logger.Error("err before1")
 	if err != nil {
 		return err
 	}

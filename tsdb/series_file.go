@@ -89,6 +89,7 @@ func (f *SeriesFile) DisableMetrics() {
 func (f *SeriesFile) Open(ctx context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.Logger.Error("starting open")
 
 	if f.res.Opened() {
 		return errors.New("series file already opened")
@@ -102,6 +103,7 @@ func (f *SeriesFile) Open(ctx context.Context) error {
 
 	// Create path if it doesn't exist.
 	if err := os.MkdirAll(filepath.Join(f.path), 0777); err != nil {
+		f.Logger.Error("creating path")
 		return err
 	}
 

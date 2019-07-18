@@ -8,6 +8,8 @@
 package mmap
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -32,8 +34,10 @@ func Map(path string, sz int64) ([]byte, error) {
 		sz = fi.Size()
 	}
 
-	data, err := syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_SHARED)
+	data, err := syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_PRIVATE)
+	//data, err := syscall.Mmap(int(f.Fd()), 0, int(sz), syscall.PROT_READ, syscall.MAP_SHARED)
 	if err != nil {
+		return nil, errors.New("map err: " + fmt.Sprintf("%v", int(sz)))
 		return nil, err
 	}
 

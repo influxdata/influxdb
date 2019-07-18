@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -83,6 +84,7 @@ func (p *SeriesPartition) Open() error {
 	// Open components.
 	if err := func() (err error) {
 		if err := p.openSegments(); err != nil {
+			p.Logger.Error("open seg")
 			return err
 		}
 		// Init last segment for writes.
@@ -114,12 +116,15 @@ func (p *SeriesPartition) openSegments() error {
 
 	for _, fi := range fis {
 		segmentID, err := ParseSeriesSegmentFilename(fi.Name())
+		p.Logger.Error("got segID: " + strconv.Itoa(int(segmentID)) + " from name: " + fi.Name())
 		if err != nil {
+			p.Logger.Error("got err" + fmt.Sprintf("%v", err))
 			continue
 		}
 
 		segment := NewSeriesSegment(segmentID, filepath.Join(p.path, fi.Name()))
 		if err := segment.Open(); err != nil {
+			p.Logger.Error("segment err: " + fmt.Sprintf("%v", err))
 			return err
 		}
 		p.segments = append(p.segments, segment)
