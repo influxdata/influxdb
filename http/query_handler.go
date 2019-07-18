@@ -13,12 +13,11 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
-	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/complete"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
@@ -165,58 +164,13 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.ProxyQueryService.Query(ctx, &cw, req); err != nil {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
-			h.HandleHTTPError(ctx, handleFluxError(err), w)
+			h.HandleHTTPError(ctx, err, w)
 			return
 		}
 		h.Logger.Info("Error writing response to client",
 			zap.String("handler", "flux"),
 			zap.Error(err),
 		)
-	}
-}
-
-// handleFluxError will take a flux.Error and convert it into an influxdb.Error.
-// It will match certain codes to the equivalent in influxdb.
-//
-// If the error is any other type of error, it will return the error untouched.
-//
-// TODO(jsternberg): This likely becomes a public function, but this is just an initial
-// implementation so playing it safe by making it package local for now.
-func handleFluxError(err error) error {
-	ferr, ok := err.(*flux.Error)
-	if !ok {
-		return err
-	}
-
-	code := influxdb.EInternal
-	switch flux.ErrorCode(err) {
-	case codes.NotFound:
-		code = influxdb.ENotFound
-	case codes.Invalid:
-		code = influxdb.EInvalid
-	// These don't really map correctly, but we want
-	// them to show up as 4XX so until influxdb error
-	// codes are updated for more types of failures,
-	// mapping these to invalid.
-	case codes.Canceled,
-		codes.ResourceExhausted,
-		codes.FailedPrecondition,
-		codes.Aborted,
-		codes.OutOfRange,
-		codes.Unimplemented:
-		code = influxdb.EInvalid
-	case codes.PermissionDenied:
-		code = influxdb.EForbidden
-	case codes.Unauthenticated:
-		code = influxdb.EUnauthorized
-	default:
-		// Everything else is treated as an internal error
-		// which is set above.
-	}
-	return &influxdb.Error{
-		Code: code,
-		Msg:  ferr.Msg,
-		Err:  handleFluxError(ferr.Err),
 	}
 }
 
