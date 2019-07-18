@@ -68,7 +68,7 @@ class JobManager {
 
   // @ts-ignore
   private postJobRequest = async (type: string, payload: any) => {
-    const id = uuid.v1()
+    const id = uuid.v4()
     const deferred = new Deferred()
 
     this.jobs[id] = deferred

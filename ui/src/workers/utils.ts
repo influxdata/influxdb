@@ -4,7 +4,7 @@ import uuid from 'uuid'
 import {RequestMessage, ResponseMessage} from 'src/workers/types'
 
 export const postSuccessResponse = async (requestID: string, payload: any) => {
-  const id = uuid.v1()
+  const id = uuid.v4()
 
   await DB.put(id, payload)
 
@@ -18,7 +18,7 @@ export const postSuccessResponse = async (requestID: string, payload: any) => {
 }
 
 export const postErrorResponse = (requestID: string, err: Error) => {
-  const id = uuid.v1()
+  const id = uuid.v4()
 
   const response: ResponseMessage = {
     id,
