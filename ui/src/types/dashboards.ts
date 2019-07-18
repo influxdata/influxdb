@@ -3,8 +3,8 @@ import {Color} from 'src/types/colors'
 
 import {
   IDashboard as DashboardAPI,
-  View as ViewAPI,
   Cell as CellAPI,
+  ViewLinks,
 } from '@influxdata/influx'
 
 export enum Scale {
@@ -94,8 +94,10 @@ export interface MarkDownProperties {
   text: string
 }
 
-export interface View<T extends ViewProperties = ViewProperties>
-  extends ViewAPI {
+export interface View<T extends ViewProperties = ViewProperties> {
+  links?: ViewLinks
+  id?: string
+  name?: string
   properties?: T
   dashboardID?: string
   cellID?: string
@@ -135,6 +137,7 @@ export type QueryViewProperties = Extract<
 >
 
 export type WorkingView<T extends ViewProperties> = View<T> | NewView<T>
+
 export type QueryView = WorkingView<QueryViewProperties>
 
 /**
