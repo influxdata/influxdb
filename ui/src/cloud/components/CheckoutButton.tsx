@@ -12,11 +12,11 @@ import {
 } from '@influxdata/clockface'
 
 // Constants
-import {CLOUD_CHECKOUT_PATH, CLOUD_URL} from 'src/shared/constants'
+import {CLOUD_BILLING_PATH, CLOUD_URL} from 'src/shared/constants'
 
 const CheckoutButton: FunctionComponent<{}> = () => {
-  const checkoutURL = `${CLOUD_URL}${CLOUD_CHECKOUT_PATH}`
-  const onClick = () => (window.location.href = checkoutURL)
+  const billingURL = `${CLOUD_URL}${CLOUD_BILLING_PATH}`
+  const onClick = () => (window.location.href = billingURL)
 
   return (
     <FeatureFlag name="cloudBilling">
