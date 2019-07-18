@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
@@ -328,8 +327,8 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		OrganizationService: i,
 		ProxyQueryService: &mock.ProxyQueryService{
 			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-				return flux.Statistics{}, &flux.Error{
-					Code: codes.Invalid,
+				return flux.Statistics{}, &influxdb.Error{
+					Code: influxdb.EInvalid,
 					Msg:  "some query error",
 				}
 			},
