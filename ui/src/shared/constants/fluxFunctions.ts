@@ -1191,7 +1191,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Applies a function to each record in the input tables.',
-    example: 'map(fn: (r) => ({ r with _value: r._value * r._value }))',
+    example: 'map(fn: (r) => ({ _value: r._value * r._value }))',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/map/',
