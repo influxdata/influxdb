@@ -26,7 +26,14 @@ exports[`LineProtocol rendering renders! 1`] = `
         <h5
           className="wizard-step--lp-sub-title"
         >
-          Need help writing InfluxDB Line Protocol? See Documentation
+          Need help writing InfluxDB Line Protocol?
+           
+          <a
+            href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
+            target="_blank"
+          >
+            See Documentation
+          </a>
         </h5>
         <Connect(LineProtocolTabs)
           bucket="a"
