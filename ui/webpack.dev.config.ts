@@ -5,6 +5,14 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 
 module.exports = {
   mode: 'development',
+  stats: {
+    colors: true,
+    children: false,
+    modules: false,
+    version: false,
+    assetsSort: '!size',
+    excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
+  },
   output: {
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'build'),
@@ -12,11 +20,6 @@ module.exports = {
   devtool: 'inline-source-map',
   entry: {
     app: './src/index.tsx',
-  },
-  devServer: {
-    port: 9999,
-    contentBase: './build',
-    inline: true,
   },
   module: {
     rules: [
@@ -52,8 +55,10 @@ module.exports = {
   plugins: [
     new CleanWebpackPlugin(),
     new HtmlWebpackPlugin({
-      template: './src/index.html',
-      filename: './index.html',
+      filename: 'index.html',
+      template: './assets/index.html',
+      favicon: './assets/images/favicon.ico',
+      inject: 'body',
     }),
     new MiniCssExtractPlugin({
       filename: '[name].css',
