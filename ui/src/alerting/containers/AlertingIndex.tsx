@@ -7,6 +7,7 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import AlertChecksColumn from 'src/alerting/components/AlertChecksColumn'
 import NotificationRulesColumn from 'src/alerting/components/NotificationRulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 const AlertingIndex: FunctionComponent = ({children}) => {
   return (
@@ -21,7 +22,9 @@ const AlertingIndex: FunctionComponent = ({children}) => {
           <Grid>
             <GridRow testID="grid--row">
               <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                <AlertChecksColumn />
+                <GetResources resource={ResourceTypes.Checks}>
+                  <AlertChecksColumn />
+                </GetResources>
               </GridColumn>
               <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
                 <NotificationRulesColumn />
@@ -33,7 +36,6 @@ const AlertingIndex: FunctionComponent = ({children}) => {
           </Grid>
         </Page.Contents>
       </Page>
-
       {children}
     </>
   )

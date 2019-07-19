@@ -24,6 +24,7 @@ import {OrgsState} from 'src/organizations/reducers/orgs'
 import {MembersState} from 'src/members/reducers'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
+import {ChecksState} from 'src/alerting/reducers/checks'
 
 export interface AppState {
   VERSION: string
@@ -53,6 +54,7 @@ export interface AppState {
   userSettings: UserSettingsState
   members: MembersState
   cloud: {limits: LimitsState}
+  checks: ChecksState
 }
 
 export type GetState = () => AppState

@@ -1,7 +1,7 @@
 import React, {FunctionComponent} from 'react'
 
 const EndpointsColumn: FunctionComponent = () => {
-  return <div>yo</div>
+  return <div>This is endpoints</div>
 }
 
 export default EndpointsColumn
