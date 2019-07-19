@@ -189,48 +189,49 @@ class DashboardPage extends Component<Props, State> {
           <AssetLimitAlert
             resourceName={resourceName}
             limitStatus={limitStatus}
-          />
-          <HoverTimeProvider>
-            <DashboardHeader
-              org={org}
-              dashboard={dashboard}
-              timeRange={timeRange}
-              autoRefresh={autoRefresh}
-              isHidden={inPresentationMode}
-              onAddCell={this.handleAddCell}
-              onAddNote={this.showNoteOverlay}
-              onManualRefresh={onManualRefresh}
-              zoomedTimeRange={zoomedTimeRange}
-              onRenameDashboard={this.handleRenameDashboard}
-              activeDashboard={dashboard ? dashboard.name : ''}
-              handleChooseAutoRefresh={this.handleChooseAutoRefresh}
-              onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
-              handleChooseTimeRange={this.handleChooseTimeRange}
-              handleClickPresentationButton={handleClickPresentationButton}
-              toggleVariablesControlBar={onToggleShowVariablesControls}
-              isShowingVariablesControlBar={showVariablesControls}
-            />
-            {showVariablesControls && !!dashboard && (
-              <VariablesControlBar dashboardID={dashboard.id} />
-            )}
-            {!!dashboard && (
-              <DashboardComponent
-                inView={this.inView}
+          >
+            <HoverTimeProvider>
+              <DashboardHeader
+                org={org}
                 dashboard={dashboard}
                 timeRange={timeRange}
-                manualRefresh={manualRefresh}
-                setScrollTop={this.setScrollTop}
-                onCloneCell={this.handleCloneCell}
-                inPresentationMode={inPresentationMode}
-                onPositionChange={this.handlePositionChange}
-                onDeleteCell={this.handleDeleteDashboardCell}
-                onEditView={this.handleEditView}
+                autoRefresh={autoRefresh}
+                isHidden={inPresentationMode}
                 onAddCell={this.handleAddCell}
-                onEditNote={this.showNoteOverlay}
+                onAddNote={this.showNoteOverlay}
+                onManualRefresh={onManualRefresh}
+                zoomedTimeRange={zoomedTimeRange}
+                onRenameDashboard={this.handleRenameDashboard}
+                activeDashboard={dashboard ? dashboard.name : ''}
+                handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+                onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
+                handleChooseTimeRange={this.handleChooseTimeRange}
+                handleClickPresentationButton={handleClickPresentationButton}
+                toggleVariablesControlBar={onToggleShowVariablesControls}
+                isShowingVariablesControlBar={showVariablesControls}
               />
-            )}
-            {children}
-          </HoverTimeProvider>
+              {showVariablesControls && !!dashboard && (
+                <VariablesControlBar dashboardID={dashboard.id} />
+              )}
+              {!!dashboard && (
+                <DashboardComponent
+                  inView={this.inView}
+                  dashboard={dashboard}
+                  timeRange={timeRange}
+                  manualRefresh={manualRefresh}
+                  setScrollTop={this.setScrollTop}
+                  onCloneCell={this.handleCloneCell}
+                  inPresentationMode={inPresentationMode}
+                  onPositionChange={this.handlePositionChange}
+                  onDeleteCell={this.handleDeleteDashboardCell}
+                  onEditView={this.handleEditView}
+                  onAddCell={this.handleAddCell}
+                  onEditNote={this.showNoteOverlay}
+                />
+              )}
+              {children}
+            </HoverTimeProvider>
+          </AssetLimitAlert>
         </LimitChecker>
       </Page>
     )

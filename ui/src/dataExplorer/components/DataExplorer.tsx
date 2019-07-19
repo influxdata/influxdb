@@ -50,10 +50,11 @@ class DataExplorer extends PureComponent<Props, {}> {
           <AssetLimitAlert
             resourceName={resourceName}
             limitStatus={limitStatus}
-          />
-          <HoverTimeProvider>
-            <TimeMachine />
-          </HoverTimeProvider>
+          >
+            <HoverTimeProvider>
+              <TimeMachine />
+            </HoverTimeProvider>
+          </AssetLimitAlert>
         </LimitChecker>
       </div>
     )
