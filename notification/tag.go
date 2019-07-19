@@ -12,6 +12,17 @@ type Tag struct {
 	Value string `json:"value"`
 }
 
+// Valid returns an error if the tag is missing fields
+func (t Tag) Valid() error {
+	if t.Key == "" || t.Value == "" {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "tag must contain a key and a value",
+		}
+	}
+	return nil
+}
+
 // TagRule is the struct of tag rule.
 type TagRule struct {
 	Tag
@@ -38,6 +49,9 @@ var availableOperator = map[Operator]bool{
 
 // Valid returns error for invalid operators.
 func (tr TagRule) Valid() error {
+	if err := tr.Tag.Valid(); err != nil {
+		return err
+	}
 	if _, ok := availableOperator[tr.Operator]; !ok {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
