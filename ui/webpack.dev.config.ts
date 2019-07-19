@@ -2,6 +2,7 @@ const path = require('path')
 const HtmlWebpackPlugin = require('html-webpack-plugin')
 const {CleanWebpackPlugin} = require('clean-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 
 module.exports = {
   mode: 'development',
@@ -11,6 +12,7 @@ module.exports = {
     modules: false,
     version: false,
     assetsSort: '!size',
+    warningsFilter: /export .* was not found in/,
     excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
   },
   devServer: {
@@ -25,7 +27,7 @@ module.exports = {
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'build'),
   },
-  devtool: 'inline-source-map',
+  devtool: 'cheap-module-eval-source-map',
   entry: {
     app: './src/index.tsx',
   },
@@ -33,8 +35,10 @@ module.exports = {
     rules: [
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: /node_modules/,
+        loader: 'ts-loader',
+        options: {
+          transpileOnly: true,
+        },
       },
       {
         test: /\.s?css$/i,
@@ -66,6 +70,10 @@ module.exports = {
     extensions: ['.tsx', '.ts', '.js'],
   },
   plugins: [
+    new ForkTsCheckerWebpackPlugin({
+      eslint: true,
+      warningsFilter: /export * was not found in/,
+    }),
     new CleanWebpackPlugin(),
     new HtmlWebpackPlugin({
       filename: 'index.html',
