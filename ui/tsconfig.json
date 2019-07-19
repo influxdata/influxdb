@@ -26,5 +26,11 @@
     "esModuleInterop": true,
     "baseUrl": "./"
   },
-  "exclude": ["assets", "build", "node_modules", "cypress"]
+  "exclude": [
+    "assets",
+    "build",
+    "node_modules",
+    "cypress",
+    "webpack.tsconfig.json"
+  ]
 }
