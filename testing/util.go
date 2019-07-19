@@ -38,6 +38,13 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 	}
 }
 
+// FloatPtr takes the ref of a float number.
+func FloatPtr(f float64) *float64 {
+	p := new(float64)
+	*p = f
+	return p
+}
+
 func idPtr(id platform.ID) *platform.ID {
 	return &id
 }
