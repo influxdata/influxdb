@@ -13,6 +13,14 @@ module.exports = {
     assetsSort: '!size',
     excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
   },
+  devServer: {
+    hot: true,
+    historyApiFallback: true,
+    compress: true,
+    proxy: {
+      '/api/v2': 'http://localhost:9999',
+    },
+  },
   output: {
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'build'),
@@ -33,7 +41,12 @@ module.exports = {
         use: [
           MiniCssExtractPlugin.loader,
           'css-loader?sourceMap=true',
-          'sass-loader',
+          {
+            loader: 'sass-loader',
+            options: {
+              implementation: require('sass'),
+            },
+          },
         ],
       },
       {

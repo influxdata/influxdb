@@ -16,7 +16,7 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "yarn install && GIT_SHA=$(git rev-parse HEAD) cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" webpack --watch --config ./webpack.dev.config.ts",
+    "start": "yarn install && GIT_SHA=$(git rev-parse HEAD) cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" webpack-dev-server --open --config ./webpack.dev.config.ts",
     "build": "yarn install --silent && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --log-level 2 src/index.html && ts:webpack",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
@@ -31,7 +31,6 @@
     "eslint": "eslint '{src,cypress}/**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
     "tsc": "tsc -p ./tsconfig.json --noEmit --pretty --skipLibCheck",
-    "tsc:watch": "tsc -p ./tsconfig.json --noEmit --pretty -w",
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
     "cy": "cypress open"
   },
@@ -136,13 +135,11 @@
     "mini-css-extract-plugin": "^0.8.0",
     "mocha": "^5.2.0",
     "mocha-junit-reporter": "^1.18.0",
-    "node-sass": "^4.12.0",
     "parcel": "^1.12.3",
     "prettier": "^1.16.4",
     "react-testing-library": "^5.4.4",
-    "sass": "^1.15.3",
+    "sass": "^1.22.7",
     "sass-loader": "^7.1.0",
-    "style-loader": "^0.23.1",
     "ts-jest": "^24.0.0",
     "ts-loader": "^5.3.3",
     "tslib": "^1.9.0",
