@@ -258,7 +258,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 	d := execute.NewDataset(id, mode, cache)
 	deps := a.Dependencies()[ToKind].(ToDependencies)
 
-	t, err := NewToTransformation(d, cache, s, deps)
+	t, err := NewToTransformation(a.Context(), d, cache, s, deps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -267,6 +267,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 
 // ToTransformation is the transformation for the `to` flux function.
 type ToTransformation struct {
+	ctx                context.Context
 	d                  execute.Dataset
 	fn                 *execute.RowMapFn
 	cache              execute.TableBuilderCache
@@ -281,7 +282,7 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 }
 
 // NewToTransformation returns a new *ToTransformation with the appropriate fields set.
-func NewToTransformation(d execute.Dataset, cache execute.TableBuilderCache, spec *ToProcedureSpec, deps ToDependencies) (*ToTransformation, error) {
+func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, spec *ToProcedureSpec, deps ToDependencies) (*ToTransformation, error) {
 	var fn *execute.RowMapFn
 	var err error
 
@@ -292,6 +293,7 @@ func NewToTransformation(d execute.Dataset, cache execute.TableBuilderCache, spe
 	}
 
 	return &ToTransformation{
+		ctx:                ctx,
 		d:                  d,
 		fn:                 fn,
 		cache:              cache,
@@ -327,7 +329,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 
 		addTagsFromTable(t.spec.Spec, tbl, excludeColumns)
 	}
-	return writeTable(t, tbl)
+	return writeTable(t.ctx, t, tbl)
 }
 
 // fieldFunctionVisitor implements semantic.Visitor.
@@ -461,8 +463,8 @@ func (s Stats) Update(o Stats) {
 	}
 }
 
-func writeTable(t *ToTransformation, tbl flux.Table) error {
-	span, ctx := tracing.StartSpanFromContext(context.TODO())
+func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	var bucketID, orgID *platform.ID
@@ -473,7 +475,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 
 	// Get organization ID
 	if spec.Org != "" {
-		oID, ok := d.OrganizationLookup.Lookup(context.TODO(), spec.Org)
+		oID, ok := d.OrganizationLookup.Lookup(ctx, spec.Org)
 		if !ok {
 			return &flux.Error{
 				Code: codes.NotFound,
@@ -652,7 +654,7 @@ func writeTable(t *ToTransformation, tbl flux.Table) error {
 				return err
 			}
 		}
-		return d.PointsWriter.WritePoints(context.TODO(), points)
+		return d.PointsWriter.WritePoints(ctx, points)
 	})
 }
 
