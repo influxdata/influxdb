@@ -16,6 +16,8 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	influxdbcontext "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	itesting "github.com/influxdata/influxdb/query/stdlib/testing"
 
@@ -24,7 +26,7 @@ import (
 )
 
 // Default context.
-var ctx = context.Background()
+var ctx = influxdbcontext.SetAuthorizer(context.Background(), &mock.Authorization{})
 
 func init() {
 	flux.FinalizeBuiltIns()
