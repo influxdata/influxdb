@@ -587,6 +587,7 @@ func (b *exprIteratorBuilder) callIterator(ctx context.Context, expr *influxql.C
 				// Identify the name of the field we are using.
 				arg0 := expr.Args[0].(*influxql.VarRef)
 
+				opt.Ordered = false
 				input, err := buildExprIterator(ctx, arg0, b.ic, []influxql.Source{source}, opt, b.selector, false)
 				if err != nil {
 					return err
@@ -801,7 +802,7 @@ func buildAuxIterator(ctx context.Context, ic IteratorCreator, sources influxql.
 		return nil, err
 	}
 
-	// Merge iterators to read auxiliary fields.
+	// Merge iterators to read auxilary fields.
 	input, err := Iterators(inputs).Merge(opt)
 	if err != nil {
 		Iterators(inputs).Close()
