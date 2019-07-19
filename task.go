@@ -60,10 +60,10 @@ type Run struct {
 	ID           ID     `json:"id,omitempty"`
 	TaskID       ID     `json:"taskID"`
 	Status       string `json:"status"`
-	ScheduledFor string `json:"scheduledFor"`
-	StartedAt    string `json:"startedAt,omitempty"`
-	FinishedAt   string `json:"finishedAt,omitempty"`
-	RequestedAt  string `json:"requestedAt,omitempty"`
+	ScheduledFor string `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
+	StartedAt    string `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
+	FinishedAt   string `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
+	RequestedAt  string `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
 	Log          []Log  `json:"log,omitempty"`
 }
 
