@@ -1,9 +1,7 @@
 package inspect
 
 import (
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"runtime"
 
 	"github.com/influxdata/influxdb/logger"
@@ -20,11 +18,8 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 		Short: "Verifies the integrity of Series files",
 		Long: `Verifies the integrity of Series files.
 		Usage: influx_inspect verify-seriesfile [flags]
-			-dir <path>
-					Root data path.
-					Defaults to "` + os.Getenv("HOME") + `/.influxdbv2/engine/_series".
 			-series-file <path>
-					Path to a series file. This overrides -dir.
+					Path to a series file. This defaults to ` + os.Getenv("HOME") + `/.influxdbv2/engine/_series.
 			-v
 					Enable verbose logging.
 			-c
@@ -33,9 +28,8 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 		RunE: verifySeriesRun,
 	}
 
-	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.dir, "dir", filepath.Join(os.Getenv("HOME"), ".influxdbv2", "engine/_series"), "Data directory.")
-	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.seriesFile, "series-file", "",
-		"Path to a series file. This overrides -dir.")
+	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.seriesFile, "series-file", os.Getenv("HOME")+"/.influxdbv2/engine/_series",
+		"Path to a series file. This defaults to "+os.Getenv("HOME")+"/.influxdbv2/engine/_series")
 	verifySeriesCommand.Flags().BoolVar(&VerifySeriesFlags.verbose, "v", false,
 		"Verbose output.")
 	verifySeriesCommand.Flags().IntVar(&VerifySeriesFlags.concurrent, "c", runtime.GOMAXPROCS(0),
@@ -45,7 +39,6 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 }
 
 var VerifySeriesFlags = struct {
-	dir        string
 	seriesFile string
 	verbose    bool
 	concurrent int
@@ -70,21 +63,6 @@ func verifySeriesRun(cmd *cobra.Command, args []string) error {
 	if VerifySeriesFlags.seriesFile != "" {
 		_, err := v.VerifySeriesFile(VerifySeriesFlags.seriesFile)
 		return err
-	}
-
-	dbs, err := ioutil.ReadDir(VerifySeriesFlags.dir)
-	if err != nil {
-		return err
-	}
-
-	for _, db := range dbs {
-		if !db.IsDir() {
-			continue
-		}
-		_, err := v.VerifySeriesFile(filepath.Join(VerifySeriesFlags.dir, db.Name()))
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
