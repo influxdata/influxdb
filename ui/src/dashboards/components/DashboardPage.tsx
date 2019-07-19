@@ -12,6 +12,8 @@ import DashboardComponent from 'src/dashboards/components/Dashboard'
 import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
+import LimitChecker from 'src/cloud/components/LimitChecker'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions'
@@ -26,6 +28,10 @@ import {
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {createView} from 'src/shared/utils/view'
+import {
+  extractRateLimitResourceName,
+  extractRateLimitStatus,
+} from 'src/cloud/utils/limits'
 
 // Constants
 import {
@@ -57,9 +63,11 @@ import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {Organization} from '@influxdata/influx'
-import LimitChecker from 'src/cloud/components/LimitChecker'
+import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
+  resourceName: string
+  limitStatus: LimitStatus
   org: Organization
   links: Links
   zoomedTimeRange: TimeRange
@@ -164,6 +172,8 @@ class DashboardPage extends Component<Props, State> {
       zoomedTimeRange,
       dashboard,
       autoRefresh,
+      limitStatus,
+      resourceName,
       manualRefresh,
       onManualRefresh,
       inPresentationMode,
@@ -176,6 +186,10 @@ class DashboardPage extends Component<Props, State> {
     return (
       <Page titleTag={this.pageTitle}>
         <LimitChecker>
+          <AssetLimitAlert
+            resourceName={resourceName}
+            limitStatus={limitStatus}
+          />
           <HoverTimeProvider>
             <DashboardHeader
               org={org}
@@ -360,6 +374,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     views: {views},
     userSettings: {showVariablesControls},
     orgs: {org},
+    cloud: {limits},
   } = state
 
   const timeRange =
@@ -369,6 +384,9 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
 
   const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
+  const resourceName = extractRateLimitResourceName(limits)
+  const limitStatus = extractRateLimitStatus(limits)
+
   return {
     org,
     links,
@@ -377,6 +395,8 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     timeRange,
     dashboard,
     autoRefresh,
+    limitStatus,
+    resourceName,
     inPresentationMode,
     showVariablesControls,
   }
