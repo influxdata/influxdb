@@ -94,7 +94,6 @@ func (s *SeriesSegment) Open() error {
 	if err := func() (err error) {
 		// Memory map file data.
 		if s.data, err = mmap.Map(s.path, int64(SeriesSegmentSize(s.id))); err != nil {
-			//return errors.New("map err: " + fmt.Sprintf("%v, size: %v", s.path, int64(SeriesSegmentSize(s.id))))
 			return err
 		}
 
