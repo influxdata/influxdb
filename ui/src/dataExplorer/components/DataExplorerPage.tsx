@@ -10,6 +10,7 @@ import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDr
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
+import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
 
 const DataExplorerPage: SFC = ({children}) => {
   return (
@@ -21,6 +22,7 @@ const DataExplorerPage: SFC = ({children}) => {
             <PageTitleWithOrg title="Data Explorer" />
           </Page.Header.Left>
           <Page.Header.Right>
+            <DeleteDataButton />
             <TimeZoneDropdown />
             <ViewTypeDropdown />
             <VisOptionsButton />
