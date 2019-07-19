@@ -25,6 +25,7 @@ import {MembersState} from 'src/members/reducers'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
 import {ChecksState} from 'src/alerting/reducers/checks'
+import {NotificationRulesState} from 'src/alerting/reducers/notificationRules'
 
 export interface AppState {
   VERSION: string
@@ -55,6 +56,7 @@ export interface AppState {
   members: MembersState
   cloud: {limits: LimitsState}
   checks: ChecksState
+  notificationRules: NotificationRulesState
 }
 
 export type GetState = () => AppState

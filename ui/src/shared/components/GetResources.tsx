@@ -15,6 +15,7 @@ import {getAuthorizations} from 'src/authorizations/actions'
 import {getTemplates} from 'src/templates/actions'
 import {getMembers, getUsers} from 'src/members/actions'
 import {getChecks} from 'src/alerting/actions/checks'
+import {getNotificationRules} from 'src/alerting/actions/notificationRules'
 
 // Types
 import {AppState} from 'src/types'
@@ -29,6 +30,7 @@ import {VariablesState} from 'src/variables/reducers'
 import {TemplatesState} from 'src/templates/reducers'
 import {MembersState, UsersMap} from 'src/members/reducers'
 import {ChecksState} from 'src/alerting/reducers/checks'
+import {NotificationRulesState} from 'src/alerting/reducers/notificationRules'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -51,6 +53,7 @@ interface StateProps {
   members: MembersState
   users: {status: RemoteDataState; item: UsersMap}
   checks: ChecksState
+  notificationRules: NotificationRulesState
 }
 
 interface DispatchProps {
@@ -66,6 +69,7 @@ interface DispatchProps {
   getMembers: typeof getMembers
   getUsers: typeof getUsers
   getChecks: typeof getChecks
+  getNotificationRules: typeof getNotificationRules
 }
 
 interface PassedProps {
@@ -87,6 +91,7 @@ export enum ResourceTypes {
   Members = 'members',
   Users = 'users',
   Checks = 'checks',
+  NotificationRules = 'notificationRules',
 }
 
 @ErrorHandling
@@ -141,6 +146,10 @@ class GetResources extends PureComponent<Props, StateProps> {
         return await this.props.getChecks()
       }
 
+      case ResourceTypes.NotificationRules: {
+        return await this.props.getNotificationRules()
+      }
+
       default: {
         throw new Error('incorrect resource type provided')
       }
@@ -173,6 +182,7 @@ const mstp = ({
   templates,
   members,
   checks,
+  notificationRules,
 }: AppState): StateProps => {
   return {
     labels,
@@ -187,6 +197,7 @@ const mstp = ({
     members,
     users: members.users,
     checks,
+    notificationRules,
   }
 }
 
@@ -203,6 +214,7 @@ const mdtp = {
   getMembers: getMembers,
   getUsers: getUsers,
   getChecks: getChecks,
+  getNotificationRules: getNotificationRules,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

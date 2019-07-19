@@ -737,3 +737,13 @@ export const getCheckFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to get check: ${message}`,
 })
+
+export const getNotificationRulesFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get notification rules: ${message}`,
+})
+
+export const getNotificationRuleFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get notification rule: ${message}`,
+})
