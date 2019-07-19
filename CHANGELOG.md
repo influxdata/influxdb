@@ -6,6 +6,7 @@ v1.7.8 [unreleased]
 -	[#14264](https://github.com/influxdata/influxdb/pull/14264): Fix Prometheus read panic.
 -	[#14271](https://github.com/influxdata/influxdb/pull/14271): Remove stray fmt.Println in tsm1.StringArrayEncodeAll.
 -	[#14307](https://github.com/influxdata/influxdb/pull/14307): Subquery ordering with aggregates in descending mode was wrong.
+-	[#14286](https://github.com/influxdata/influxdb/pull/14286): Fix issue where fields re-appear after DROP MEASUREMENT.
 
 v1.7.7 [2019-06-26]
 -------------------
