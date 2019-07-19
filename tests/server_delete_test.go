@@ -281,14 +281,63 @@ func TestServer_Insert_Delete_1515777603585914810(t *testing.T) {
 	}
 }
 
+// This test reproduces the issue identified in https://github.com/influxdata/influxdb/issues/10052
+func TestServer_Insert_Delete_10052(t *testing.T) {
+	t.Parallel()
+
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	mustWrite(s,
+		"ping,server=ping a=1,b=2,c=3,d=4,e=5 1",
+		"ping,server=ping a=1,b=2,c=3,d=4,e=5 2",
+		"ping,server=ping a=1,b=2,c=3,d=4,e=5 3",
+		"ping,server=ping a=1,b=2,c=3,d=4,e=5 4",
+		"ping,server=ping a=1,b=2,c=3,d=4,e=5 5",
+		"ping,server=ping a=1,b=2,c=3,d=4,e=5 6",
+	)
+
+	mustDropMeasurement(s, "ping")
+	gotSeries := mustGetSeries(s)
+	expectedSeries := []string(nil)
+	if !reflect.DeepEqual(gotSeries, expectedSeries) {
+		t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+	}
+
+	mustWrite(s, "ping v=1 1")
+	gotSeries = mustGetSeries(s)
+	expectedSeries = []string{"ping"}
+	if !reflect.DeepEqual(gotSeries, expectedSeries) {
+		t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+	}
+
+	gotSeries = mustGetFieldKeys(s)
+	expectedSeries = []string{"v"}
+	if !reflect.DeepEqual(gotSeries, expectedSeries) {
+		t.Fatalf("got series %v, expected %v", gotSeries, expectedSeries)
+	}
+}
+
 func mustGetSeries(s Server) []string {
-	// Compare series left in index.
 	result, err := s.QueryWithParams("SHOW SERIES", url.Values{"db": []string{"db0"}})
 	if err != nil {
 		panic(err)
 	}
 
-	gotSeries, err := seriesFromShowSeries(result)
+	gotSeries, err := valuesFromShowQuery(result)
+	if err != nil {
+		panic(err)
+	}
+	return gotSeries
+}
+
+func mustGetFieldKeys(s Server) []string {
+	result, err := s.QueryWithParams("SHOW FIELD KEYS", url.Values{"db": []string{"db0"}})
+	if err != nil {
+		panic(err)
+	}
+
+	gotSeries, err := valuesFromShowQuery(result)
 	if err != nil {
 		panic(err)
 	}
@@ -313,6 +362,13 @@ func mustWrite(s Server, points ...string) {
 
 func mustDelete(s Server, name string, min, max int64) {
 	query := fmt.Sprintf("DELETE FROM %q WHERE time >= %d AND time <= %d ", name, min, max)
+	if _, err := s.QueryWithParams(query, url.Values{"db": []string{db}}); err != nil {
+		panic(err)
+	}
+}
+
+func mustDropMeasurement(s Server, name string) {
+	query := fmt.Sprintf("DROP MEASUREMENT %q", name)
 	if _, err := s.QueryWithParams(query, url.Values{"db": []string{db}}); err != nil {
 		panic(err)
 	}
@@ -544,7 +600,7 @@ func (s *SeriesTracker) Verify() error {
 	}
 
 	// Get all series...
-	gotSeries, err := seriesFromShowSeries(res)
+	gotSeries, err := valuesFromShowQuery(res)
 	if err != nil {
 		return err
 	}
@@ -561,9 +617,9 @@ func (s *SeriesTracker) Verify() error {
 	return nil
 }
 
-// seriesFromShowSeries extracts a lexicographically sorted set of series keys
+// valuesFromShowQuery extracts a lexicographically sorted set of series keys
 // from a SHOW SERIES query.
-func seriesFromShowSeries(result string) ([]string, error) {
+func valuesFromShowQuery(result string) ([]string, error) {
 	// Get all series...
 	var results struct {
 		Results []struct {
