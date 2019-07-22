@@ -50,7 +50,6 @@ export default class AddResourceDropdown extends PureComponent<Props> {
             {titleText || `Create ${this.props.resourceName}`}
           </Dropdown.Button>
         )}
-        // onChange={this.handleSelect}
         menu={onCollapse => (
           <Dropdown.Menu onCollapse={onCollapse}>
             {this.optionItems}
