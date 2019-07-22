@@ -22,22 +22,22 @@ export type Action =
   | ReturnType<typeof setCheckStatus>
 
 const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
-  type: 'SET_ALL_CHECKS' as const,
+  type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
   payload: {status, checks},
 })
 
 const setChecksStatus = (status: RemoteDataState) => ({
-  type: 'SET_CHECKS_STATUS' as const,
+  type: 'SET_CHECKS_STATUS' as 'SET_CHECKS_STATUS',
   payload: {status},
 })
 
 const setCheck = (status: RemoteDataState, check?: Check) => ({
-  type: 'SET_CHECK' as const,
+  type: 'SET_CHECK' as 'SET_CHECK',
   payload: {status, check},
 })
 
 const setCheckStatus = (status: RemoteDataState) => ({
-  type: 'SET_CHECK_STATUS' as const,
+  type: 'SET_CHECK_STATUS' as 'SET_CHECK_STATUS',
   payload: {status},
 })
 
