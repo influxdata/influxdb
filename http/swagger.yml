@@ -6497,12 +6497,7 @@ components:
           description: An optional description of the task.
           type: string
         status:
-          description: The current status of the task. When updated to 'inactive', cancels all queued jobs of this task.
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
+          $ref: "#/components/schemas/TaskStatusType"
         labels:
           $ref: "#/components/schemas/Labels"
         authorizationID:
@@ -6557,6 +6552,9 @@ components:
             labels:
               $ref: "#/components/schemas/Link"
       required: [id, name, orgID, flux]
+    TaskStatusType:
+      type: string
+      enum: [active, inactive]
     User:
       properties:
         id:
@@ -8684,10 +8682,7 @@ components:
         query:
           $ref: "#/components/schemas/DashboardQuery"
         status:
-          description: The status of the check task.
-          default: active
-          type: string
-          enum: ["active", "inactive"]
+          $ref: "#/components/schemas/TaskStatusType"
         every:
           description: Check repetition interval
           type: string
@@ -8831,10 +8826,7 @@ components:
           format: date-time
           readOnly: true
         status:
-          description: The status of the notification rule task.
-          default: active
-          type: string
-          enum: ["active", "inactive"]
+          $ref: "#/components/schemas/TaskStatusType"
         name:
           description: human-readable name describing the notification rule
           type: string
