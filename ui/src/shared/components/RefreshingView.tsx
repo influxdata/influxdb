@@ -24,12 +24,13 @@ import {
   VariableAssignment,
   QueryViewProperties,
   ViewType,
+  CheckViewProperties,
 } from 'src/types'
 
 interface OwnProps {
   timeRange: TimeRange
   manualRefresh: number
-  properties: QueryViewProperties
+  properties: QueryViewProperties | CheckViewProperties
   dashboardID: string
 }
 

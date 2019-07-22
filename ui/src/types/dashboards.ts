@@ -6,9 +6,12 @@ import {
   Cell as CellAPI,
   ViewLinks,
   DashboardQuery,
+  CheckViewProperties,
 } from '@influxdata/influx'
 
 export {
+  CheckView,
+  CheckViewProperties,
   DashboardQuery,
   BuilderConfig,
   BuilderConfigAggregateWindow,
@@ -118,7 +121,7 @@ export type ViewProperties =
   | HistogramView
   | HeatmapView
   | ScatterView
-  | CheckView
+  | CheckViewProperties
 
 export type QueryViewProperties = Extract<
   ViewProperties,
@@ -279,47 +282,6 @@ export interface ScatterView {
   showNoteWhenEmpty: boolean
 }
 
-export type CheckStatusLevel = 'OK' | 'INFO' | 'WARN' | 'CRIT' | 'UNKNOWN'
-
-export interface GreaterThresholdConfig {
-  type: 'greater'
-  level: CheckStatusLevel
-  allValues: boolean
-  value: number
-}
-
-export interface LessThresholdConfig {
-  type: 'less'
-  level: CheckStatusLevel
-  allValues: boolean
-  value: number
-}
-
-export interface RangeThresholdConfig {
-  type: 'range'
-  level: CheckStatusLevel
-  allValues: boolean
-  minValue: number
-  maxValue: number
-  within: boolean
-}
-
-export type ThresholdConfig =
-  | GreaterThresholdConfig
-  | LessThresholdConfig
-  | RangeThresholdConfig
-
-export interface CheckView {
-  type: ViewType.Check
-  shape: ViewShape.ChronografV2
-  queries: DashboardQuery[]
-  thresholds: ThresholdConfig[]
-  yDomain: [number, number]
-  colors: string[]
-  note: string
-  showNoteWhenEmpty: boolean
-}
-
 export interface MarkdownView {
   type: ViewType.Markdown
   shape: ViewShape.ChronografV2
@@ -355,12 +317,6 @@ interface DashboardFileMetaSection {
 }
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
-
-export enum ThresholdType {
-  Text = 'text',
-  BG = 'background',
-  Base = 'base',
-}
 
 export interface DashboardSwitcherLink {
   key: string
