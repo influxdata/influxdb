@@ -6834,7 +6834,7 @@ components:
         aggregateWindow:
           type: object
           properties:
-            name:
+            period:
               type: string
     BuilderTagsType:
       type: object
