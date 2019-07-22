@@ -48,7 +48,12 @@ const WindowSelector: FunctionComponent<Props> = ({
           active={active}
           onClick={onClick}
           status={getStatus(disabled)}
-        />
+        >
+          {showPrefix(period) && (
+            <span className="window-selector--label">Every</span>
+          )}
+          {period}
+        </Dropdown.Button>
       )}
       menu={onCollapse => (
         <Dropdown.Menu onCollapse={onCollapse}>
