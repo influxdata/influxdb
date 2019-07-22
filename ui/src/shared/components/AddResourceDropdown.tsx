@@ -8,7 +8,6 @@ import {
   ComponentColor,
   ComponentSize,
   Dropdown,
-  DropdownMode,
   ComponentStatus,
 } from '@influxdata/clockface'
 
@@ -38,14 +37,25 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     const {titleText, status} = this.props
     return (
       <Dropdown
-        mode={DropdownMode.ActionList}
-        titleText={titleText || `Create ${this.props.resourceName}`}
-        icon={IconFont.Plus}
-        buttonColor={ComponentColor.Primary}
-        buttonSize={ComponentSize.Small}
         widthPixels={160}
-        onChange={this.handleSelect}
-        status={status}
+        button={(active, onClick) => (
+          <Dropdown.Button
+            active={active}
+            onClick={onClick}
+            color={ComponentColor.Primary}
+            size={ComponentSize.Small}
+            icon={IconFont.Plus}
+            status={status}
+          >
+            {titleText || `Create ${this.props.resourceName}`}
+          </Dropdown.Button>
+        )}
+        // onChange={this.handleSelect}
+        menu={onCollapse => (
+          <Dropdown.Menu onCollapse={onCollapse}>
+            {this.optionItems}
+          </Dropdown.Menu>
+        )}
       >
         {this.optionItems}
       </Dropdown>
@@ -61,6 +71,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
       <Dropdown.Item
         id={newOption}
         key={newOption}
+        onClick={this.handleSelect}
         value={newOption}
         testID="dropdown--item new"
       >
@@ -69,6 +80,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
       <Dropdown.Item
         id={importOption}
         key={importOption}
+        onClick={this.handleSelect}
         value={importOption}
         testID="dropdown--item import"
       >
@@ -81,6 +93,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         <Dropdown.Item
           id={templateOption}
           key={templateOption}
+          onClick={this.handleSelect}
           value={templateOption}
           testID="dropdown--item template"
         >
