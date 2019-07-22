@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Dropdown, Form, ComponentStatus} from 'src/clockface'
+import {SelectDropdown, Form, ComponentStatus} from '@influxdata/clockface'
 
 interface Props {
   selectedColumn: string
@@ -19,22 +19,16 @@ const ColumnSelector: FunctionComponent<Props> = ({
 }) => {
   return (
     <Form.Element label={`${axisName.toUpperCase()} Column`}>
-      <Dropdown
-        selectedID={selectedColumn}
-        onChange={onSelectColumn}
-        status={
+      <SelectDropdown
+        options={availableColumns}
+        selectedOption={selectedColumn || 'Build a query before selecting...'}
+        onSelect={onSelectColumn}
+        buttonStatus={
           availableColumns.length == 0
             ? ComponentStatus.Disabled
             : ComponentStatus.Default
         }
-        titleText="None"
-      >
-        {availableColumns.map(columnName => (
-          <Dropdown.Item id={columnName} key={columnName} value={columnName}>
-            {columnName}
-          </Dropdown.Item>
-        ))}
-      </Dropdown>
+      />
     </Form.Element>
   )
 }
