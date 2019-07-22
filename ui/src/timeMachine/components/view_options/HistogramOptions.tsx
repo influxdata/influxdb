@@ -1,10 +1,12 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
+import _ from 'lodash'
 
 // Components
 import {Form, Input, Grid} from '@influxdata/clockface'
-import {Dropdown, AutoInput, MultiSelectDropdown} from 'src/clockface'
+import {AutoInput} from 'src/clockface'
+import {Dropdown, MultiSelectDropdown} from '@influxdata/clockface'
 import ColorSchemeDropdown from 'src/shared/components/ColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 
@@ -85,6 +87,19 @@ const HistogramOptions: SFC<Props> = props => {
     ? ComponentStatus.Default
     : ComponentStatus.Disabled
 
+  const onSelectFillColumns = (option: string) => {
+    const columnExists = fillColumns.find(col => col === option)
+    let updatedColumns = fillColumns
+
+    if (columnExists) {
+      updatedColumns = fillColumns.filter(fc => fc !== option)
+    } else {
+      updatedColumns = [...fillColumns, option]
+    }
+
+    onSetFillColumns(updatedColumns)
+  }
+
   return (
     <Grid.Column>
       <h4 className="view-options--header">Customize Histogram</h4>
@@ -97,34 +112,44 @@ const HistogramOptions: SFC<Props> = props => {
       />
       <Form.Element label="Group By">
         <MultiSelectDropdown
-          selectedIDs={fillColumns}
-          onChange={onSetFillColumns}
-          status={groupDropdownStatus}
-        >
-          {availableGroupColumns.map(columnName => (
-            <Dropdown.Item
-              id={columnName}
-              key={columnName}
-              value={{id: columnName}}
-            >
-              {columnName}
-            </Dropdown.Item>
-          ))}
-        </MultiSelectDropdown>
+          options={availableGroupColumns}
+          selectedOptions={fillColumns}
+          onSelect={onSelectFillColumns}
+          buttonStatus={groupDropdownStatus}
+        />
       </Form.Element>
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <ColorSchemeDropdown value={colors} onChange={onSetColors} />
       </Form.Element>
       <Form.Element label="Positioning">
-        <Dropdown selectedID={position} onChange={onSetPosition}>
-          <Dropdown.Item id="overlaid" value="overlaid">
-            Overlaid
-          </Dropdown.Item>
-          <Dropdown.Item id="stacked" value="stacked">
-            Stacked
-          </Dropdown.Item>
-        </Dropdown>
+        <Dropdown
+          button={(active, onClick) => (
+            <Dropdown.Button active={active} onClick={onClick}>
+              {_.capitalize(position)}
+            </Dropdown.Button>
+          )}
+          menu={onCollapse => (
+            <Dropdown.Menu onCollapse={onCollapse}>
+              <Dropdown.Item
+                id="overlaid"
+                value="overlaid"
+                onClick={onSetPosition}
+                selected={position === 'overlaid'}
+              >
+                Overlaid
+              </Dropdown.Item>
+              <Dropdown.Item
+                id="stacked"
+                value="stacked"
+                onClick={onSetPosition}
+                selected={position === 'stacked'}
+              >
+                Stacked
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          )}
+        />
       </Form.Element>
       <Form.Element label="Bins">
         <AutoInput
