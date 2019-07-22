@@ -11,12 +11,12 @@ import {isInDomain, clamp} from 'src/shared/utils/vis'
 import {DragEvent} from 'src/shared/utils/useDragBehavior'
 
 // Types
-import {GreaterThresholdConfig} from 'src/types'
+import {GreaterThreshold} from 'src/types'
 
 interface Props {
   yScale: Scale<number, number>
   yDomain: number[]
-  threshold: GreaterThresholdConfig
+  threshold: GreaterThreshold
   onChangePos: (e: DragEvent) => void
 }
 

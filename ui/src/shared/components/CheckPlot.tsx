@@ -17,16 +17,23 @@ import {VIS_THEME} from 'src/shared/constants'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, CheckView, TimeZone, ThresholdConfig} from 'src/types'
+import {
+  RemoteDataState,
+  CheckView,
+  TimeZone,
+  CheckThreshold,
+  ThresholdType,
+  CheckStatusLevel,
+} from 'src/types'
 
 const X_COLUMN = '_time'
 const Y_COLUMN = '_value'
 
-const THRESHOLDS: ThresholdConfig[] = [
+const THRESHOLDS: CheckThreshold[] = [
   {
-    type: 'less',
+    type: ThresholdType.Greater,
     allValues: false,
-    level: 'UNKNOWN',
+    level: CheckStatusLevel.UNKNOWN,
     value: 20,
   },
 ]
@@ -46,12 +53,11 @@ const CheckPlot: FunctionComponent<Props> = ({
   loading,
   children,
   timeZone,
-  viewProperties: {yDomain: storedYDomain},
 }) => {
   const [thresholds, setThresholds] = useState(THRESHOLDS)
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
-    storedYDomain,
+    [0, 100],
     table.getColumn(Y_COLUMN, 'number')
   )
 
