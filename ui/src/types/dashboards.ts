@@ -5,6 +5,13 @@ import {
   IDashboard as DashboardAPI,
   Cell as CellAPI,
   ViewLinks,
+  DashboardQuery,
+} from '@influxdata/influx'
+
+export {
+  DashboardQuery,
+  BuilderConfig,
+  BuilderConfigAggregateWindow,
 } from '@influxdata/influx'
 
 export enum Scale {
@@ -55,24 +62,6 @@ export interface Axes {
 export enum QueryEditMode {
   Builder = 'builder',
   Advanced = 'advanced',
-}
-
-export interface AggregateWindow {
-  period: string
-}
-
-export interface BuilderConfig {
-  buckets: string[]
-  tags: Array<{key: string; values: string[]}>
-  functions: Array<{name: string}>
-  aggregateWindow: AggregateWindow
-}
-
-export interface DashboardQuery {
-  text: string
-  editMode: QueryEditMode
-  builderConfig: BuilderConfig
-  name: string
 }
 
 export interface DashboardDraftQuery extends DashboardQuery {
