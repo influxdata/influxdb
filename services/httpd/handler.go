@@ -658,6 +658,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 					}
 					// Values are for the same series, so append them.
 					lastSeries.Values = append(lastSeries.Values, row.Values...)
+					lastSeries.Partial = row.Partial
 					rowsMerged++
 				}
 			}
