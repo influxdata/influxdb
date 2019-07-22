@@ -139,7 +139,7 @@
     "webpack": "^4.29.0"
   },
   "dependencies": {
-    "@influxdata/clockface": "0.0.13",
+    "@influxdata/clockface": "0.0.17",
     "@influxdata/giraffe": "0.16.0",
     "@influxdata/influx": "0.5.0",
     "@influxdata/influxdb-templates": "0.2.0",
