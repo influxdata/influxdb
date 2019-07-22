@@ -16,7 +16,7 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "yarn install && GIT_SHA=$(git rev-parse HEAD) cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" webpack-dev-server --open --config ./webpack.dev.config.ts",
+    "start": "yarn install && GIT_SHA=$(git rev-parse HEAD) cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" webpack-dev-server --open --config ./webpack.dev.ts",
     "build": "yarn install --silent && GIT_SHA=$(git rev-parse HEAD) parcel build -d build --log-level 2 src/index.html && ts:webpack",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
