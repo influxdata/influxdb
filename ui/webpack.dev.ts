@@ -1,7 +1,10 @@
-const m = require('webpack-merge')
-const c = require('./webpack.common.ts')
+export {}
+const merge = require('webpack-merge')
+const webpack = require('webpack')
+const common = require('./webpack.common.ts')
+const path = require('path')
 
-module.exports = m(c, {
+module.exports = merge(common, {
   mode: 'development',
   devtool: 'inline-source-map',
   devServer: {
@@ -12,4 +15,10 @@ module.exports = m(c, {
       '/api/v2': 'http://localhost:9999',
     },
   },
+  plugins: [
+    new webpack.DllReferencePlugin({
+      context: path.join(__dirname, 'build'),
+      manifest: require('./build/vendor-manifest.json'),
+    }),
+  ],
 })

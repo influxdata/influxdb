@@ -7,6 +7,7 @@ const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const devMode = process.env.NODE_ENV !== 'production'
 
 module.exports = {
+  context: __dirname,
   output: {
     filename: '[name].bundle.js',
     path: path.resolve(__dirname, 'build'),
@@ -20,16 +21,6 @@ module.exports = {
     },
     extensions: ['.tsx', '.ts', '.js'],
   },
-  stats: {
-    colors: true,
-    children: false,
-    modules: false,
-    version: false,
-    assetsSort: '!size',
-    warningsFilter: /export .* was not found in/,
-    excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
-  },
-  performance: {hints: false},
   module: {
     rules: [
       {
@@ -85,4 +76,14 @@ module.exports = {
       warningsFilter: /export * was not found in/,
     }),
   ],
+  stats: {
+    colors: true,
+    children: false,
+    modules: false,
+    version: false,
+    assetsSort: '!size',
+    warningsFilter: /export .* was not found in/,
+    excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
+  },
+  performance: {hints: false},
 }
