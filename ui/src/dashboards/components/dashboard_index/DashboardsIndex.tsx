@@ -99,24 +99,23 @@ class DashboardIndex extends PureComponent<Props, State> {
                     <AssetLimitAlert
                       resourceName="dashboards"
                       limitStatus={limitStatus}
-                    >
-                      <DashboardsIndexContents
-                        filterComponent={() => (
-                          <SearchWidget
-                            placeholderText="Filter dashboards..."
-                            onSearch={this.handleFilterDashboards}
-                            searchTerm={searchTerm}
-                          />
-                        )}
-                        onDeleteDashboard={handleDeleteDashboard}
-                        onCreateDashboard={createDashboard}
-                        onCloneDashboard={cloneDashboard}
-                        onUpdateDashboard={handleUpdateDashboard}
-                        searchTerm={searchTerm}
-                        onFilterChange={this.handleFilterDashboards}
-                        onImportDashboard={this.summonImportOverlay}
-                      />
-                    </AssetLimitAlert>
+                    />
+                    <DashboardsIndexContents
+                      filterComponent={() => (
+                        <SearchWidget
+                          placeholderText="Filter dashboards..."
+                          onSearch={this.handleFilterDashboards}
+                          searchTerm={searchTerm}
+                        />
+                      )}
+                      onDeleteDashboard={handleDeleteDashboard}
+                      onCreateDashboard={createDashboard}
+                      onCloneDashboard={cloneDashboard}
+                      onUpdateDashboard={handleUpdateDashboard}
+                      searchTerm={searchTerm}
+                      onFilterChange={this.handleFilterDashboards}
+                      onImportDashboard={this.summonImportOverlay}
+                    />
                   </GetAssetLimits>
                 </GetResources>
               </GetResources>
