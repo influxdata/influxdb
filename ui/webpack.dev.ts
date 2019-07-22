@@ -6,7 +6,7 @@ const path = require('path')
 
 module.exports = merge(common, {
   mode: 'development',
-  devtool: 'inline-source-map',
+  devtool: 'cheap-inline-source-map',
   devServer: {
     hot: true,
     historyApiFallback: true,
