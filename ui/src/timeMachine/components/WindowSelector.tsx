@@ -42,20 +42,34 @@ const WindowSelector: FunctionComponent<Props> = ({
   return (
     <Dropdown
       testID="window-selector"
-      buttonTestID="window-selector--button"
-      selectedID={period}
-      onChange={onSelect}
-      status={getStatus(disabled)}
-    >
-      {windows.map(({period}) => (
-        <Dropdown.Item id={period} key={period} value={period} testID={period}>
-          {showPrefix(period) && (
-            <span className="window-selector--label">Every</span>
-          )}
-          {period}
-        </Dropdown.Item>
-      ))}
-    </Dropdown>
+      button={(active, onClick) => (
+        <Dropdown.Button
+          testID="window-selector--button"
+          active={active}
+          onClick={onClick}
+          status={getStatus(disabled)}
+        />
+      )}
+      menu={onCollapse => (
+        <Dropdown.Menu onCollapse={onCollapse}>
+          {windows.map(window => (
+            <Dropdown.Item
+              id={window.period}
+              key={window.period}
+              value={window.period}
+              testID={window.period}
+              selected={window.period === period}
+              onClick={onSelect}
+            >
+              {showPrefix(window.period) && (
+                <span className="window-selector--label">Every</span>
+              )}
+              {window.period}
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      )}
+    />
   )
 }
 
