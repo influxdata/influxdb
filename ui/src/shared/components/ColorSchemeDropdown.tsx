@@ -2,7 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Dropdown, DropdownMenuColors} from 'src/clockface'
+import {Dropdown, DropdownMenuTheme} from '@influxdata/clockface'
 import ColorSchemeDropdownItem from 'src/shared/components/ColorSchemeDropdownItem'
 
 // Constants
@@ -34,19 +34,33 @@ const findSelectedScaleID = (colors: Color[]) => {
 const ColorSchemeDropdown: SFC<Props> = ({value, onChange}) => {
   return (
     <Dropdown
-      selectedID={findSelectedScaleID(value)}
-      onChange={onChange}
-      menuColor={DropdownMenuColors.Onyx}
-    >
-      {LINE_COLOR_SCALES.map(({id, name, colors}) => (
-        <Dropdown.Item key={id} id={id} value={colors}>
+      button={(active, onClick) => (
+        <Dropdown.Button active={active} onClick={onClick}>
           <ColorSchemeDropdownItem
-            name={name}
-            colors={colors.map(c => c.hex)}
+            name={value[0].name}
+            colors={value.map(c => c.hex)}
           />
-        </Dropdown.Item>
-      ))}
-    </Dropdown>
+        </Dropdown.Button>
+      )}
+      menu={onCollapse => (
+        <Dropdown.Menu onCollapse={onCollapse} theme={DropdownMenuTheme.Onyx}>
+          {LINE_COLOR_SCALES.map(({id, name, colors}) => (
+            <Dropdown.Item
+              key={id}
+              id={id}
+              value={colors}
+              selected={findSelectedScaleID(value) === id}
+              onClick={onChange}
+            >
+              <ColorSchemeDropdownItem
+                name={name}
+                colors={colors.map(c => c.hex)}
+              />
+            </Dropdown.Item>
+          ))}
+        </Dropdown.Menu>
+      )}
+    />
   )
 }
 
