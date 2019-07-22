@@ -8702,6 +8702,9 @@ components:
                 type: string
               value:
                 type: string
+        description:
+          description: An optional description of the check
+          type: string
         statusMessageTemplate:
           description: template that is used to generate and write a status message
           type: string
@@ -8856,6 +8859,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TagRule"
+        description:
+          description: An optional description of the notification rule
+          type: string
         statusRules:
           description: list of status rules the notification rule attempts to match
           type: array
@@ -8962,6 +8968,9 @@ components:
           type: string
           format: date-time
           readOnly: true
+        description:
+          description: An optional description of the notification endpoint
+          type: string
         name:
           type: string
         status:
