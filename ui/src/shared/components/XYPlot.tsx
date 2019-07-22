@@ -23,21 +23,23 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, XYView} from 'src/types'
+import {RemoteDataState, XYView, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
+  timeZone: TimeZone
   viewProperties: XYView
   children: (config: Config) => JSX.Element
 }
 
-const XYContainer: FunctionComponent<Props> = ({
+const XYPlot: FunctionComponent<Props> = ({
   table,
   fluxGroupKeyUnion,
   loading,
   children,
+  timeZone,
   viewProperties: {
     geom,
     colors,
@@ -45,7 +47,13 @@ const XYContainer: FunctionComponent<Props> = ({
     yColumn: storedYColumn,
     shadeBelow,
     axes: {
-      x: {label: xAxisLabel, bounds: xBounds},
+      x: {
+        label: xAxisLabel,
+        prefix: xTickPrefix,
+        suffix: xTickSuffix,
+        base: xTickBase,
+        bounds: xBounds,
+      },
       y: {
         label: yAxisLabel,
         prefix: yTickPrefix,
@@ -98,12 +106,19 @@ const XYContainer: FunctionComponent<Props> = ({
     table
   )
 
-  const yFormatter = getFormatter(
-    table.getColumnType(yColumn),
-    yTickPrefix,
-    yTickSuffix,
-    yTickBase
-  )
+  const xFormatter = getFormatter(table.getColumnType(xColumn), {
+    prefix: xTickPrefix,
+    suffix: xTickSuffix,
+    base: xTickBase,
+    timeZone,
+  })
+
+  const yFormatter = getFormatter(table.getColumnType(yColumn), {
+    prefix: yTickPrefix,
+    suffix: yTickSuffix,
+    base: yTickBase,
+    timeZone,
+  })
 
   const config: Config = {
     ...VIS_THEME,
@@ -117,7 +132,10 @@ const XYContainer: FunctionComponent<Props> = ({
     onSetYDomain,
     onResetYDomain,
     legendColumns,
-    valueFormatters: {[yColumn]: yFormatter},
+    valueFormatters: {
+      [xColumn]: xFormatter,
+      [yColumn]: yFormatter,
+    },
     layers: [
       {
         type: 'line',
@@ -140,4 +158,4 @@ const XYContainer: FunctionComponent<Props> = ({
   )
 }
 
-export default XYContainer
+export default XYPlot

@@ -161,7 +161,7 @@ func (e *TaskExecutor) startManualRun(ctx context.Context, id influxdb.ID, sched
 			return e.createPromise(ctx, r)
 		}
 	}
-	return nil, &influxdb.ErrRunNotFound
+	return nil, influxdb.ErrRunNotFound
 }
 
 func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
@@ -179,7 +179,7 @@ func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledA
 			return e.createPromise(ctx, run)
 		}
 	}
-	return nil, &influxdb.ErrRunNotFound
+	return nil, influxdb.ErrRunNotFound
 }
 
 func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
@@ -245,11 +245,15 @@ type workerMaker struct {
 }
 
 func (wm *workerMaker) new() interface{} {
-	return &worker{wm.te}
+	return &worker{wm.te, exhaustResultIterators}
 }
 
 type worker struct {
 	te *TaskExecutor
+
+	// exhaustResultIterators is used to exhaust the result
+	// of a flux query
+	exhaustResultIterators func(res flux.Result) error
 }
 
 func (w *worker) work() {
@@ -286,7 +290,7 @@ func (w *worker) work() {
 			case <-prom.ctx.Done():
 				w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), "Run canceled")
 				w.te.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), backend.RunCanceled)
-				prom.err = &influxdb.ErrRunCanceled
+				prom.err = influxdb.ErrRunCanceled
 				close(prom.done)
 				return
 			case <-time.After(time.Second):
@@ -376,16 +380,21 @@ func (w *worker) executeQuery(p *Promise) {
 		return
 	}
 
+	var runErr error
 	// Drain the result iterator.
 	for it.More() {
 		// Consume the full iterator so that we don't leak outstanding iterators.
 		res := it.Next()
-		if err := exhaustResultIterators(res); err != nil {
-			w.te.logger.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", res.Name()))
+		if runErr = w.exhaustResultIterators(res); runErr != nil {
+			w.te.logger.Info("Error exhausting result iterator", zap.Error(runErr), zap.String("name", res.Name()))
 		}
 	}
 
 	it.Release()
+
+	if runErr == nil {
+		runErr = it.Err()
+	}
 
 	// log the statistics on the run
 	stats := it.Statistics()
@@ -395,7 +404,7 @@ func (w *worker) executeQuery(p *Promise) {
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), string(b))
 	}
 
-	w.finish(p, backend.RunSuccess, it.Err())
+	w.finish(p, backend.RunSuccess, runErr)
 }
 
 // Promise represents a promise the executor makes to finish a run's execution asynchronously.

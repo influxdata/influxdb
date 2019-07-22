@@ -62,7 +62,7 @@ func (s *Scheduler) ClaimTask(_ context.Context, task *platform.Task) error {
 
 	_, ok := s.claims[task.ID]
 	if ok {
-		return &platform.ErrTaskAlreadyClaimed
+		return platform.ErrTaskAlreadyClaimed
 	}
 
 	s.claims[task.ID] = task
@@ -80,7 +80,7 @@ func (s *Scheduler) UpdateTask(_ context.Context, task *platform.Task) error {
 
 	_, ok := s.claims[task.ID]
 	if !ok {
-		return &platform.ErrTaskNotClaimed
+		return platform.ErrTaskNotClaimed
 	}
 
 	s.claims[task.ID] = task
@@ -102,7 +102,7 @@ func (s *Scheduler) ReleaseTask(taskID platform.ID) error {
 
 	t, ok := s.claims[taskID]
 	if !ok {
-		return &platform.ErrTaskNotClaimed
+		return platform.ErrTaskNotClaimed
 	}
 	if s.releaseChan != nil {
 		s.releaseChan <- t
@@ -302,7 +302,7 @@ func (p *RunPromise) Wait() (backend.RunResult, error) {
 
 func (p *RunPromise) Cancel() {
 	p.cancelFunc()
-	p.Finish(nil, &platform.ErrRunCanceled)
+	p.Finish(nil, platform.ErrRunCanceled)
 }
 
 // Finish unblocks any call to Wait, to return r and err.

@@ -26,11 +26,11 @@ class TemplateBrowser extends PureComponent<Props> {
         {templates.map(t => (
           <TemplateBrowserListItem
             key={t.id}
-            onClick={onSelectTemplate}
-            selected={_.get(selectedTemplateSummary, 'id', '') === t.id}
-            label={t.meta.name}
             template={t}
+            label={t.meta.name}
+            onClick={onSelectTemplate}
             testID={`template--${t.meta.name}`}
+            selected={_.get(selectedTemplateSummary, 'id', '') === t.id}
           />
         ))}
       </DapperScrollbars>

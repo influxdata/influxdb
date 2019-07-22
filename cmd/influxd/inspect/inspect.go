@@ -16,6 +16,7 @@ func NewCommand() *cobra.Command {
 	subCommands := []*cobra.Command{
 		NewExportBlocksCommand(),
 		NewReportTSMCommand(),
+		NewVerifyTSMCommand(),
 		NewVerifyWALCommand(),
 	}
 

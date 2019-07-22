@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -328,7 +327,10 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		OrganizationService: i,
 		ProxyQueryService: &mock.ProxyQueryService{
 			QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
-				return flux.Statistics{}, errors.New("some query error")
+				return flux.Statistics{}, &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Msg:  "some query error",
+				}
 			},
 		},
 	}
@@ -392,7 +394,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		}
 	})
 
-	t.Run("valid request but executing query results in error", func(t *testing.T) {
+	t.Run("valid request but executing query results in client error", func(t *testing.T) {
 		org := influxdb.Organization{Name: t.Name()}
 		if err := i.CreateOrganization(context.Background(), &org); err != nil {
 			t.Fatal(err)
@@ -409,8 +411,8 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 		w := httptest.NewRecorder()
 		h.handleQuery(w, req)
 
-		if w.Code != http.StatusInternalServerError {
-			t.Errorf("expected internal error status, got %d", w.Code)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected bad request status, got %d", w.Code)
 		}
 
 		body := w.Body.Bytes()
@@ -421,11 +423,11 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if !strings.Contains(ierr.Msg, "failed to execute query") {
-			t.Fatalf("expected error to mention failure to execute query, got %s", ierr.Msg)
+		if got, want := ierr.Code, influxdb.EInvalid; got != want {
+			t.Fatalf("unexpected error code -want/+got:\n\t- %v\n\t+ %v", want, got)
 		}
-		if ierr.Err.Error() != "some query error" {
-			t.Fatalf("expected wrapped error to be the query service error, got %s", ierr.Err.Error())
+		if ierr.Msg != "some query error" {
+			t.Fatalf("expected error message to mention 'some query error', got %s", ierr.Err.Error())
 		}
 	})
 }

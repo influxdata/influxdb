@@ -2,15 +2,11 @@ import {FunctionComponent} from 'react'
 import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
 
 const OSS_FLAGS = {
-  heatmap: true,
-  scatter: true,
-  lineGraphShading: true,
+  alerting: false,
 }
 
 const CLOUD_FLAGS = {
-  heatmap: false, // We need to ensure the API updates have been deployed before enabling
-  scatter: false, // ditto ^^
-  lineGraphShading: false, // ditto! ^^
+  alerting: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
 }
 

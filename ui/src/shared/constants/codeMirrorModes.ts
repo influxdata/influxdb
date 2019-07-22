@@ -7,6 +7,10 @@ export const modeFlux = {
       token: 'pipe-forward',
     },
     {
+      regex: /({.+:.+})/,
+      token: 'object',
+    },
+    {
       regex: /\w+(?=[(])/,
       token: 'function',
     },
@@ -58,10 +62,6 @@ export const modeFlux = {
     {
       regex: /0x[a-f\d]+|[-+]?(?:\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?/i,
       token: 'number',
-    },
-    {
-      regex: /({.+:.+})/,
-      token: 'object',
     },
     {
       regex: /\/\/.*/,

@@ -67,6 +67,15 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 			models.NewTag([]byte(statusField), []byte(run.Status)),
 		}
 
+		// log an error if we have incomplete data on finish
+		if !run.ID.Valid() ||
+			run.ScheduledFor == "" ||
+			run.StartedAt == "" ||
+			run.FinishedAt == "" ||
+			run.Status == "" {
+			as.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
+		}
+
 		fields := map[string]interface{}{}
 		fields[statusField] = run.Status
 		fields[runIDField] = run.ID.String()
@@ -142,7 +151,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	}
 
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		return nil, 0, &influxdb.ErrOutOfBoundsLimit
+		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
 
 	runs, n, err := as.TaskService.FindRuns(ctx, filter)
@@ -255,7 +264,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	}
 
 	if len(re.runs) == 0 {
-		return nil, &platform.ErrRunNotFound
+		return nil, platform.ErrRunNotFound
 
 	}
 

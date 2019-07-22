@@ -2,10 +2,10 @@ package influxdb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
@@ -85,17 +85,27 @@ func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.I
 	case s.Bucket != "":
 		b, ok := buckets.Lookup(ctx, orgID, s.Bucket)
 		if !ok {
-			return 0, fmt.Errorf("could not find bucket %q", s.Bucket)
+			return 0, &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("could not find bucket %q", s.Bucket),
+			}
 		}
 		return b, nil
 	case len(s.BucketID) != 0:
 		var b influxdb.ID
 		if err := b.DecodeFromString(s.BucketID); err != nil {
-			return 0, err
+			return 0, &flux.Error{
+				Code: codes.Invalid,
+				Msg:  "invalid bucket id",
+				Err:  err,
+			}
 		}
 		return b, nil
 	default:
-		return 0, errors.New("no bucket name or id have been specified")
+		return 0, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "no bucket name or id have been specified",
+		}
 	}
 }
 

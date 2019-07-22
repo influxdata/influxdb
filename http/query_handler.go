@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
@@ -164,11 +164,6 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	if _, err := h.ProxyQueryService.Query(ctx, &cw, req); err != nil {
 		if cw.Count() == 0 {
 			// Only record the error headers IFF nothing has been written to w.
-			err := &influxdb.Error{
-				Msg: "failed to execute query against proxy service",
-				Op:  op,
-				Err: err,
-			}
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}

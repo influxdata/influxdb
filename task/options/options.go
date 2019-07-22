@@ -4,7 +4,6 @@ package options
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/influxdata/flux/parser"
@@ -17,18 +16,6 @@ import (
 	"github.com/influxdata/influxdb/pkg/pointer"
 	cron "gopkg.in/robfig/cron.v2"
 )
-
-// optionCache is enabled for tests, to work around https://github.com/influxdata/platform/issues/484.
-var optionCache map[string]Options
-
-var optionCacheMu sync.Mutex
-
-// EnableScriptCacheForTest is used as a workaround for https://github.com/influxdata/platform/issues/484,
-// and should be removed after that issue is addressed.
-// Do not call this method in production code, as it will leak memory.
-func EnableScriptCacheForTest() {
-	optionCache = make(map[string]Options)
-}
 
 const maxConcurrency = 100
 const maxRetry = 10
@@ -209,15 +196,6 @@ func grabTaskOptionAST(p *ast.Package, keys ...string) map[string]ast.Expression
 
 // FromScript extracts Options from a Flux script.
 func FromScript(script string) (Options, error) {
-	if optionCache != nil {
-		optionCacheMu.Lock()
-		opt, ok := optionCache[script]
-		optionCacheMu.Unlock()
-
-		if ok {
-			return opt, nil
-		}
-	}
 	opt := Options{Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}
 
 	fluxAST, err := flux.Parse(script)
@@ -325,12 +303,6 @@ func FromScript(script string) (Options, error) {
 
 	if err := opt.Validate(); err != nil {
 		return opt, err
-	}
-
-	if optionCache != nil {
-		optionCacheMu.Lock()
-		optionCache[script] = opt
-		optionCacheMu.Unlock()
 	}
 
 	return opt, nil

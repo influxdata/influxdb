@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -32,12 +31,12 @@ func (b *BucketLookup) Lookup(ctx context.Context, orgID platform.ID, name strin
 	return bucket.ID, true
 }
 
-func (b *BucketLookup) FindAllBuckets(orgID platform.ID) ([]*platform.Bucket, int) {
+func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*platform.Bucket, int) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
 		OrganizationID: &oid,
 	}
-	buckets, count, err := b.BucketService.FindBuckets(context.Background(), filter)
+	buckets, count, err := b.BucketService.FindBuckets(ctx, filter)
 	if err != nil {
 		return nil, count
 	}

@@ -22,11 +22,6 @@ import (
 	"github.com/influxdata/influxdb/task/options"
 )
 
-func init() {
-	// TODO(mr): remove as part of https://github.com/influxdata/platform/issues/484.
-	options.EnableScriptCacheForTest()
-}
-
 // BackendComponentFactory is supplied by consumers of the adaptertest package,
 // to provide the values required to constitute a PlatformAdapter.
 // The provided context.CancelFunc is called after the test,
@@ -401,7 +396,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Task should not be returned.
-	if _, err := sys.TaskService.FindTaskByID(sys.Ctx, origID); err != &influxdb.ErrTaskNotFound {
+	if _, err := sys.TaskService.FindTaskByID(sys.Ctx, origID); err != influxdb.ErrTaskNotFound {
 		t.Fatalf("expected %v, got %v", influxdb.ErrTaskNotFound, err)
 	}
 }
@@ -604,12 +599,12 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// check run filter errors
 		_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: -1})
-		if err0 != &influxdb.ErrOutOfBoundsLimit {
+		if err0 != influxdb.ErrOutOfBoundsLimit {
 			t.Fatalf("failed to error with out of bounds run limit: %d", -1)
 		}
 
 		_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: influxdb.TaskMaxPageSize + 1})
-		if err1 != &influxdb.ErrOutOfBoundsLimit {
+		if err1 != influxdb.ErrOutOfBoundsLimit {
 			t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 		}
 
@@ -685,13 +680,13 @@ func testTaskRuns(t *testing.T, sys *System) {
 		// Look for a run that doesn't exist.
 		_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
 		if err == nil {
-			t.Fatalf("expected %s but got %s instead", &influxdb.ErrRunNotFound, err)
+			t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 		}
 
 		// look for a taskID that doesn't exist.
 		_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
 		if err == nil {
-			t.Fatalf("expected %s but got %s instead", &influxdb.ErrRunNotFound, err)
+			t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 		}
 
 		foundRun0, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
@@ -956,7 +951,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			if _, err := sys.TaskControlService.CreateNextRun(sys.Ctx, tid, math.MaxInt64>>6); err != nil { // we use the >>6 here because math.MaxInt64 is too large which causes problems when converting back and forth from time
 				// This may have errored due to the task being deleted. Check if the task still exists.
 
-				if _, err2 := sys.TaskService.FindTaskByID(sys.Ctx, tid); err2 == &influxdb.ErrTaskNotFound {
+				if _, err2 := sys.TaskService.FindTaskByID(sys.Ctx, tid); err2 == influxdb.ErrTaskNotFound {
 					// It was deleted. Just continue.
 					continue
 				}
@@ -1046,12 +1041,12 @@ func testRunStorage(t *testing.T, sys *System) {
 
 	// check run filter errors
 	_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: -1})
-	if err0 != &influxdb.ErrOutOfBoundsLimit {
+	if err0 != influxdb.ErrOutOfBoundsLimit {
 		t.Fatalf("failed to error with out of bounds run limit: %d", -1)
 	}
 
 	_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: influxdb.TaskMaxPageSize + 1})
-	if err1 != &influxdb.ErrOutOfBoundsLimit {
+	if err1 != influxdb.ErrOutOfBoundsLimit {
 		t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 	}
 
@@ -1153,13 +1148,13 @@ func testRunStorage(t *testing.T, sys *System) {
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
 	// TODO(lh): use kv.ErrRunNotFound in the future. Our error's are not exact
 	if err == nil {
-		t.Fatalf("expected %s but got %s instead", &influxdb.ErrRunNotFound, err)
+		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 	}
 
 	// look for a taskID that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
 	if err == nil {
-		t.Fatalf("expected %s but got %s instead", &influxdb.ErrRunNotFound, err)
+		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 	}
 
 	foundRun0, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
@@ -1196,7 +1191,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	// Non-existent ID should return the right error.
 	_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
 	if !strings.Contains(err.Error(), "run not found") {
-		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", &influxdb.ErrRunNotFound, err)
+		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", influxdb.ErrRunNotFound, err)
 	}
 
 	requestedAtUnix := time.Now().Add(5 * time.Minute).UTC().Unix() // This should guarantee we can make a run.

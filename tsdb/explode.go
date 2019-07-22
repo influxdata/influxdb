@@ -27,6 +27,14 @@ func EncodeName(org, bucket platform.ID) [16]byte {
 	return nameBytes
 }
 
+// EncodeOrgName converts org to the tsdb internal serialization that may be used
+// as a prefix when searching for keys matching a specific organization.
+func EncodeOrgName(org platform.ID) [8]byte {
+	var orgBytes [8]byte
+	binary.BigEndian.PutUint64(orgBytes[0:8], uint64(org))
+	return orgBytes
+}
+
 // EncodeNameString converts org/bucket pairs to the tsdb internal serialization
 func EncodeNameString(org, bucket platform.ID) string {
 	name := EncodeName(org, bucket)

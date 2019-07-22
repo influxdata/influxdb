@@ -126,7 +126,7 @@ func (p *syncRunPromise) Wait() (backend.RunResult, error) {
 }
 
 func (p *syncRunPromise) Cancel() {
-	p.finish(nil, &influxdb.ErrRunCanceled)
+	p.finish(nil, influxdb.ErrRunCanceled)
 }
 
 func (p *syncRunPromise) finish(res *runResult, err error) {
@@ -180,7 +180,7 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	for it.More() {
 		// Consume the full iterator so that we don't leak outstanding iterators.
 		res := it.Next()
-		if err := exhaustResultIterators(res); err != nil {
+		if err = exhaustResultIterators(res); err != nil {
 			p.logger.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", res.Name()))
 		}
 	}
@@ -189,8 +189,12 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 	// It's safe for Release to be called multiple times.
 	it.Release()
 
+	if err == nil {
+		err = it.Err()
+	}
+
 	// Is it okay to assume it.Err will be set if the query context is canceled?
-	p.finish(&runResult{err: it.Err(), statistics: it.Statistics()}, nil)
+	p.finish(&runResult{err: err, statistics: it.Statistics()}, nil)
 }
 
 func (p *syncRunPromise) cancelOnContextDone(wg *sync.WaitGroup) {
@@ -312,7 +316,7 @@ func (p *asyncRunPromise) Wait() (backend.RunResult, error) {
 }
 
 func (p *asyncRunPromise) Cancel() {
-	p.finish(nil, &influxdb.ErrRunCanceled)
+	p.finish(nil, influxdb.ErrRunCanceled)
 }
 
 // followQuery waits for the query to become ready and sets p's results.

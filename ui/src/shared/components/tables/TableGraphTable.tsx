@@ -1,6 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {timeFormatter} from '@influxdata/giraffe'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -10,7 +11,10 @@ import {MultiGrid, PropsMultiGrid} from 'src/shared/components/MultiGrid'
 
 // Utils
 import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
-import {findHoverTimeIndex} from 'src/dashboards/utils/tableGraph'
+import {
+  findHoverTimeIndex,
+  resolveTimeFormat,
+} from 'src/dashboards/utils/tableGraph'
 
 // Constants
 import {
@@ -23,7 +27,7 @@ const COLUMN_MIN_WIDTH = 100
 const ROW_HEIGHT = 30
 
 // Types
-import {TableView} from 'src/types'
+import {TableView, TimeZone} from 'src/types'
 import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 export interface ColumnWidths {
@@ -44,6 +48,7 @@ interface OwnProps {
   transformedDataBundle: TransformTableDataReturnType
   properties: TableView
   onSort: (fieldName: string) => void
+  timeZone: TimeZone
 }
 
 type Props = OwnProps & InjectedHoverProps
@@ -331,6 +336,18 @@ class TableGraphTable extends PureComponent<Props, State> {
     return _.get(dataTypes, columnName, 'n/a')
   }
 
+  private get timeFormatter() {
+    const {
+      timeZone,
+      properties: {timeFormat},
+    } = this.props
+
+    return timeFormatter({
+      timeZone: timeZone === 'Local' ? undefined : timeZone,
+      format: resolveTimeFormat(timeFormat),
+    })
+  }
+
   private cellRenderer = (cellProps: CellRendererProps) => {
     const {rowIndex, columnIndex} = cellProps
     const {
@@ -357,6 +374,7 @@ class TableGraphTable extends PureComponent<Props, State> {
         isFirstColumnFixed={this.fixFirstColumn}
         isVerticalTimeAxis={this.isVerticalTimeAxis}
         onClickFieldName={onSort}
+        timeFormatter={this.timeFormatter}
       />
     )
   }

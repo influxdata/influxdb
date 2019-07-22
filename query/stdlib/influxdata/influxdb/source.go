@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
@@ -138,14 +139,20 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 
 	bounds := a.StreamContext().Bounds()
 	if bounds == nil {
-		return nil, errors.New("nil bounds passed to from")
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "nil bounds passed to from",
+		}
 	}
 
 	deps := a.Dependencies()[FromKind].(Dependencies)
 
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
-		return nil, errors.New("missing request on context")
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "missing request on context",
+		}
 	}
 
 	orgID := req.OrganizationID

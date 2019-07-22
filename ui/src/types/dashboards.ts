@@ -3,8 +3,8 @@ import {Color} from 'src/types/colors'
 
 import {
   IDashboard as DashboardAPI,
-  View as ViewAPI,
   Cell as CellAPI,
+  ViewLinks,
 } from '@influxdata/influx'
 
 export enum Scale {
@@ -94,8 +94,10 @@ export interface MarkDownProperties {
   text: string
 }
 
-export interface View<T extends ViewProperties = ViewProperties>
-  extends ViewAPI {
+export interface View<T extends ViewProperties = ViewProperties> {
+  links?: ViewLinks
+  id?: string
+  name?: string
   properties?: T
   dashboardID?: string
   cellID?: string
@@ -127,6 +129,7 @@ export type ViewProperties =
   | HistogramView
   | HeatmapView
   | ScatterView
+  | CheckView
 
 export type QueryViewProperties = Extract<
   ViewProperties,
@@ -134,6 +137,7 @@ export type QueryViewProperties = Extract<
 >
 
 export type WorkingView<T extends ViewProperties> = View<T> | NewView<T>
+
 export type QueryView = WorkingView<QueryViewProperties>
 
 /**
@@ -286,6 +290,47 @@ export interface ScatterView {
   showNoteWhenEmpty: boolean
 }
 
+export type CheckStatusLevel = 'OK' | 'INFO' | 'WARN' | 'CRIT' | 'UNKNOWN'
+
+export interface GreaterThresholdConfig {
+  type: 'greater'
+  level: CheckStatusLevel
+  allValues: boolean
+  value: number
+}
+
+export interface LessThresholdConfig {
+  type: 'less'
+  level: CheckStatusLevel
+  allValues: boolean
+  value: number
+}
+
+export interface RangeThresholdConfig {
+  type: 'range'
+  level: CheckStatusLevel
+  allValues: boolean
+  minValue: number
+  maxValue: number
+  within: boolean
+}
+
+export type ThresholdConfig =
+  | GreaterThresholdConfig
+  | LessThresholdConfig
+  | RangeThresholdConfig
+
+export interface CheckView {
+  type: ViewType.Check
+  shape: ViewShape.ChronografV2
+  queries: DashboardQuery[]
+  thresholds: ThresholdConfig[]
+  yDomain: [number, number]
+  colors: string[]
+  note: string
+  showNoteWhenEmpty: boolean
+}
+
 export interface MarkdownView {
   type: ViewType.Markdown
   shape: ViewShape.ChronografV2
@@ -308,6 +353,7 @@ export enum ViewType {
   Histogram = 'histogram',
   Heatmap = 'heatmap',
   Scatter = 'scatter',
+  Check = 'check',
 }
 
 export interface DashboardFile {

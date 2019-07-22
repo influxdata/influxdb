@@ -4,6 +4,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {presentationMode} from 'src/shared/copy/notifications'
 
 import {Dispatch} from 'redux'
+import {TimeZone} from 'src/types'
 
 import {
   ActionTypes,
@@ -12,6 +13,7 @@ import {
   DelayEnablePresentationModeDispatcher,
   SetAutoRefreshActionCreator,
   SetAutoRefreshAction,
+  SetTimeZoneAction,
   TemplateControlBarVisibilityToggledAction,
 } from 'src/types/actions/app'
 
@@ -42,6 +44,11 @@ export const setAutoRefresh: SetAutoRefreshActionCreator = (
   payload: {
     milliseconds,
   },
+})
+
+export const setTimeZone = (timeZone: TimeZone): SetTimeZoneAction => ({
+  type: ActionTypes.SetTimeZone,
+  payload: {timeZone},
 })
 
 export const templateControlBarVisibilityToggled = (): TemplateControlBarVisibilityToggledAction => ({
