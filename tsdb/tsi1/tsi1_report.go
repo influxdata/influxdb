@@ -2,12 +2,9 @@ package tsi1
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -39,6 +36,7 @@ type ReportTsi struct {
 
 	seriesFilePath string // optional. Defaults to dbPath/_series
 	sfile          *tsdb.SeriesFile
+	indexFile      *Index
 
 	topN          int
 	byMeasurement bool
@@ -124,53 +122,69 @@ func (report *ReportTsi) RunTsiReport() error {
 	// 	seriesFiles = append(seriesFiles, sFile)
 	// }
 	//}
-
-	indexFiles := make([]*Index, 0)
-	indexDir := filepath.Join(report.Path, "index")
-	indexFileInfos, _ := ioutil.ReadDir(indexDir)
-	report.Logger.Error("searching index: " + indexDir)
-	for _, indexFile := range indexFileInfos {
-		path := filepath.Join(indexDir, indexFile.Name())
-
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		fStat, err := file.Stat()
-		if err != nil {
-			return err
-		}
-
-		if !fStat.IsDir() {
-			report.Logger.Error("not a dir: " + path)
-			continue
-		}
-		report.Logger.Error("adding: " + path)
-		if ok, err := IsIndexDir(path); err != nil {
-			return err
-		} else if !ok {
-			return fmt.Errorf("not a TSI index directory: %q", path)
-		}
-
-		id, err := strconv.Atoi(fStat.Name())
-		if err != nil {
-			return err
-		}
-
-		//indexFile := NewIndexFile(seriesFiles[len(indexFiles)])
-		indexFile := NewIndex(sFile, NewConfig(), WithPath(path), DisableCompactions())
-		report.Logger.Error("created new index")
-		if err := indexFile.Open(context.Background()); err != nil {
-			return err
-		}
-		defer indexFile.Close()
-		report.Logger.Error("finished opening")
-		indexFiles = append(indexFiles, indexFile)
-		report.shardIdxs[uint64(id)] = indexFile
-		report.shardPaths[uint64(id)] = path
-		report.cardinalities[uint64(id)] = map[string]*cardinality{}
-		report.Logger.Error("finished mapping")
+	report.indexFile = NewIndex(sFile, NewConfig(), WithPath(filepath.Join(report.Path, "index")), DisableCompactions())
+	report.Logger.Error("created new index")
+	if err := report.indexFile.Open(context.Background()); err != nil {
+		return err
 	}
+	defer report.indexFile.Close()
+	report.Logger.Error("finished opening")
+	mitr, err := report.indexFile.MeasurementIterator()
+	if err != nil {
+		return err
+	}
+	n, err := mitr.Next()
+	if err != nil {
+		report.Logger.Error("err on next")
+	}
+	report.Logger.Error("mitr: " + string(n))
+
+	// indexFiles := make([]*Index, 0)
+	// indexDir := filepath.Join(report.Path, "index")
+	// indexFileInfos, _ := ioutil.ReadDir(indexDir)
+	// report.Logger.Error("searching index: " + indexDir)
+	// for _, indexFile := range indexFileInfos {
+	// 	path := filepath.Join(indexDir, indexFile.Name())
+
+	// 	file, err := os.Open(path)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	fStat, err := file.Stat()
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	if !fStat.IsDir() {
+	// 		report.Logger.Error("not a dir: " + path)
+	// 		continue
+	// 	}
+	// 	report.Logger.Error("adding: " + path)
+	// 	if ok, err := IsIndexDir(path); err != nil {
+	// 		return err
+	// 	} else if !ok {
+	// 		return fmt.Errorf("not a TSI index directory: %q", path)
+	// 	}
+
+	// 	id, err := strconv.Atoi(fStat.Name())
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	//indexFile := NewIndexFile(seriesFiles[len(indexFiles)])
+	// 	indexFile := NewIndex(sFile, NewConfig(), WithPath(path), DisableCompactions())
+	// 	report.Logger.Error("created new index")
+	// 	if err := indexFile.Open(context.Background()); err != nil {
+	// 		return err
+	// 	}
+	// 	defer indexFile.Close()
+	// 	report.Logger.Error("finished opening")
+	// 	indexFiles = append(indexFiles, indexFile)
+	// 	report.shardIdxs[uint64(id)] = indexFile
+	// 	report.shardPaths[uint64(id)] = path
+	// 	report.cardinalities[uint64(id)] = map[string]*cardinality{}
+	// 	report.Logger.Error("finished mapping")
+	// }
 
 	// Open all the indexes.
 	// Walk engine to find first each series file, then each index file
@@ -417,29 +431,34 @@ func (report *ReportTsi) printSummaryByMeasurement() error {
 	// }
 
 	// we are going to get a measurement iterator for each index
-	count := 0
 	var mitr tsdb.MeasurementIterator
-	for _, index := range report.shardIdxs {
-		small, err := index.MeasurementIterator()
-		name, _ := small.Next()
-		report.Logger.Error("called small.Next1 " + strconv.Itoa(len(name)))
-		name, _ = small.Next()
-		report.Logger.Error("called small.Next2 " + strconv.Itoa(len(name)))
-		name, _ = small.Next()
-		report.Logger.Error("called small.Next3 " + strconv.Itoa(len(name)))
-		if err != nil {
-			return err
-		} else if small == nil {
-			return errors.New("got nil measurement iterator for index set")
-		}
-		//defer small.Close()
-		// name, _ := small.Next()
-		// report.Logger.Error("called small.Next " + string(name))
-		mitr = tsdb.MergeMeasurementIterators(mitr, small)
-		count++
+	mitr, err := report.indexFile.MeasurementIterator()
+	if err != nil {
+		report.Logger.Error("got err")
+		return err
 	}
+	defer mitr.Close()
+
+	// for _, index := range report.shardIdxs {
+	// 	small, err := index.MeasurementIterator()
+	// 	name, _ := small.Next()
+	// 	report.Logger.Error("called small.Next1 " + strconv.Itoa(len(name)))
+	// 	name, _ = small.Next()
+	// 	report.Logger.Error("called small.Next2 " + strconv.Itoa(len(name)))
+	// 	name, _ = small.Next()
+	// 	report.Logger.Error("called small.Next3 " + strconv.Itoa(len(name)))
+	// 	if err != nil {
+	// 		return err
+	// 	} else if small == nil {
+	// 		return errors.New("got nil measurement iterator for index set")
+	// 	}
+	// 	//defer small.Close()
+	// 	// name, _ := small.Next()
+	// 	// report.Logger.Error("called small.Next " + string(name))
+	// 	mitr = tsdb.MergeMeasurementIterators(mitr, small)
+	// 	count++
+	// }
 	//defer mitr.Close()
-	report.Logger.Error("alright we got " + strconv.Itoa(count))
 	report.Logger.Error("calling mitr next")
 	name, _ := mitr.Next()
 	report.Logger.Error("mitr next: " + string(name))
