@@ -25,12 +25,12 @@ const setAllNotificationRules = (
   status: RemoteDataState,
   notificationRules?: NotificationRule[]
 ) => ({
-  type: 'SET_ALL_NOTIFICATIONRULES' as 'SET_ALL_NOTIFICATIONRULES',
+  type: 'SET_ALL_NOTIFICATION_RULES' as 'SET_ALL_NOTIFICATION_RULES',
   payload: {status, notificationRules},
 })
 
 const setNotificationRulesStatus = (status: RemoteDataState) => ({
-  type: 'SET_NOTIFICATIONRULES_STATUS' as 'SET_NOTIFICATIONRULES_STATUS',
+  type: 'SET_NOTIFICATION_RULES_STATUS' as 'SET_NOTIFICATION_RULES_STATUS',
   payload: {status},
 })
 
@@ -38,12 +38,12 @@ const setNotificationRule = (
   status: RemoteDataState,
   notificationRule?: NotificationRule
 ) => ({
-  type: 'SET_NOTIFICATIONRULE' as 'SET_NOTIFICATIONRULE',
+  type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
   payload: {status, notificationRule},
 })
 
 const setNotificationRuleStatus = (status: RemoteDataState) => ({
-  type: 'SET_NOTIFICATIONRULE_STATUS' as 'SET_NOTIFICATIONRULE_STATUS',
+  type: 'SET_NOTIFICATION_RULE_STATUS' as 'SET_NOTIFICATION_RULE_STATUS',
   payload: {status},
 })
 

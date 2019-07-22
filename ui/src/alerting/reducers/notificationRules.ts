@@ -19,23 +19,23 @@ export default (
   action: Action
 ): NotificationRulesState => {
   switch (action.type) {
-    case 'SET_NOTIFICATIONRULES_STATUS':
+    case 'SET_NOTIFICATION_RULES_STATUS':
       return {
         ...state,
         status: action.payload.status,
       }
-    case 'SET_ALL_NOTIFICATIONRULES':
+    case 'SET_ALL_NOTIFICATION_RULES':
       return {
         ...state,
         list: action.payload.notificationRules,
         status: RemoteDataState.Done,
       }
-    case 'SET_NOTIFICATIONRULE_STATUS':
+    case 'SET_NOTIFICATION_RULE_STATUS':
       return {
         ...state,
         current: {...state.current, status: action.payload.status},
       }
-    case 'SET_NOTIFICATIONRULE':
+    case 'SET_NOTIFICATION_RULE':
       return {
         ...state,
         current: {
