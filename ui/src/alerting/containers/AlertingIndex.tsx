@@ -4,7 +4,7 @@ import React, {FunctionComponent} from 'react'
 //Components
 import {Page, Grid, GridRow, GridColumn} from '@influxdata/clockface'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
-import AlertChecksColumn from 'src/alerting/components/AlertChecksColumn'
+import ChecksColumn from 'src/alerting/components/ChecksColumn'
 import NotificationRulesColumn from 'src/alerting/components/NotificationRulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
@@ -23,7 +23,7 @@ const AlertingIndex: FunctionComponent = ({children}) => {
             <GridRow testID="grid--row">
               <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
                 <GetResources resource={ResourceTypes.Checks}>
-                  <AlertChecksColumn />
+                  <ChecksColumn />
                 </GetResources>
               </GridColumn>
               <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>

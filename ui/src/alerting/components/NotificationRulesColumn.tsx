@@ -1,7 +1,29 @@
+// Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
 
-const NotificationRulesColumn: FunctionComponent = () => {
-  return <div>yo</div>
+// Types
+import {NotificationRule, AppState} from 'src/types'
+
+interface StateProps {
+  notificationRules: NotificationRule[]
 }
 
-export default NotificationRulesColumn
+type Props = StateProps
+
+const NotificationRulesColumn: FunctionComponent<Props> = () => {
+  return <>NotificationRules</>
+}
+
+const mstp = (state: AppState) => {
+  const {
+    notificationRules: {list: notificationRules},
+  } = state
+
+  return {notificationRules}
+}
+
+export default connect<StateProps, {}, {}>(
+  mstp,
+  null
+)(NotificationRulesColumn)
