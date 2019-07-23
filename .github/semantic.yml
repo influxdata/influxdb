@@ -1,0 +1,2 @@
+# Validate all commits and ignore the PR title
+commitsOnly: true
