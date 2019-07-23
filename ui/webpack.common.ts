@@ -13,7 +13,7 @@ const devMode = process.env.NODE_ENV !== 'production'
 module.exports = {
   context: __dirname,
   output: {
-    filename: '[name].bundle.js',
+    filename: devMode ? '[name].bundle.js' : '[name].[hash].bundle.js',
     path: path.resolve(__dirname, 'build'),
   },
   entry: {
