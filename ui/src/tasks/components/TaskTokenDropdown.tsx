@@ -3,7 +3,7 @@ import _ from 'lodash'
 import React, {PureComponent} from 'react'
 
 // Types
-import {ComponentColor, Dropdown} from '@influxdata/clockface'
+import {Dropdown} from '@influxdata/clockface'
 import {Authorization} from '@influxdata/influx'
 
 interface Props {

@@ -12,13 +12,7 @@ import {
 } from '@influxdata/giraffe'
 
 // Components
-import {
-  Form,
-  Input,
-  Grid,
-  Dropdown,
-  MultiSelectDropdown,
-} from '@influxdata/clockface'
+import {Form, Input, Grid, MultiSelectDropdown} from '@influxdata/clockface'
 import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
 
 // Actions
