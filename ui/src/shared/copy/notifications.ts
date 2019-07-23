@@ -762,3 +762,24 @@ export const deleteCheckFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete check: ${message}`,
 })
+
+export const createNotificationRuleFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to create notification rule: ${message}`,
+})
+
+export const updateNotificationRuleFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update notification rule: ${message}`,
+})
+
+export const deleteNotificationRuleFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete notification rule: ${message}`,
+})

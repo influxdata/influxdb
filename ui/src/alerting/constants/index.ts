@@ -12,6 +12,7 @@ import {
 } from 'src/types'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
+export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
 
 export const query: DashboardQuery = {
   text: 'this is query',
@@ -67,6 +68,7 @@ export const check2: Check = {
 export const checks: Array<Check> = [check1, check2]
 
 export const notificationRule: NotificationRule = {
+  id: '3',
   notifyEndpointID: '2',
   orgID: 'lala',
   createdAt: new Date('December 17, 2019'),
