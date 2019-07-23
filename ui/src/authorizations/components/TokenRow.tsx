@@ -37,15 +37,15 @@ class TokenRow extends PureComponent<Props> {
       <IndexList.Row>
         <IndexList.Cell>
           <EditableName
-            onUpdate={this.handleUpdateName}
             name={description}
+            onUpdate={this.handleUpdateName}
             noNameString={DEFAULT_TOKEN_DESCRIPTION}
             onEditName={this.handleClickDescription}
           />
         </IndexList.Cell>
         <IndexList.Cell>
           <SlideToggle
-            active={this.isTokenEnbled}
+            active={this.isTokenEnabled}
             size={ComponentSize.ExtraSmall}
             onChange={this.changeToggle}
           />
@@ -62,7 +62,7 @@ class TokenRow extends PureComponent<Props> {
     )
   }
 
-  private get isTokenEnbled(): boolean {
+  private get isTokenEnabled(): boolean {
     const {auth} = this.props
     return auth.status === AuthorizationUpdateRequest.StatusEnum.Active
   }

@@ -76,7 +76,7 @@ export default class DatePicker extends PureComponent<Props, State> {
             </Form.Element>
             <div className="range-picker--popper-container">
               <ReactDatePicker
-                inline
+                inline={true}
                 selected={date}
                 onChange={this.handleSelectDate}
                 startOpen={true}
