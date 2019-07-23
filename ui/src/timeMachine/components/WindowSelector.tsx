@@ -56,13 +56,13 @@ const WindowSelector: FunctionComponent<Props> = ({
         </Dropdown.Button>
       )}
       menu={onCollapse => (
-        <Dropdown.Menu onCollapse={onCollapse}>
+        <Dropdown.Menu onCollapse={onCollapse} testID="window-selector--menu">
           {windows.map(window => (
             <Dropdown.Item
               id={window.period}
               key={window.period}
               value={window.period}
-              testID={window.period}
+              testID={`window-selector--${window.period}`}
               selected={window.period === period}
               onClick={onSelect}
             >
