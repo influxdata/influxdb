@@ -121,12 +121,9 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 	defer logEnd()
 
 	// Snapshot to clear the cache to reduce write contention.
-	span, _ := tracing.StartSpanFromContext(ctx)
 	if err := s.Snapshotter.WriteSnapshot(ctx, tsm1.CacheStatusRetention); err != nil && err != tsm1.ErrSnapshotInProgress {
 		logger.Warn("Unable to snapshot cache before retention", zap.Error(err))
-		tracing.LogError(span, err)
 	}
-	span.Finish()
 
 	for _, b := range buckets {
 		if b.RetentionPeriod == 0 {

@@ -889,7 +889,7 @@ func (e *Engine) compactCache() {
 				continue
 			}
 
-			span, ctx := tracing.StartSpanFromContextWithOperationName(context.Background(), "Engine.compactCache <-t.C")
+			span, ctx := tracing.StartSpanFromContextWithOperationName(context.Background(), "compact cache")
 			span.LogKV("path", e.path)
 
 			err := e.WriteSnapshot(ctx, status)
