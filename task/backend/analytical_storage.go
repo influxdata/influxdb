@@ -185,8 +185,9 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 
 	// At this point we are behind authorization
 	// so we are faking a read only permission to the org's system bucket
-	runSystemBucketID := influxdb.ID(10)
+	runSystemBucketID := taskSystemBucketID
 	runAuth := &influxdb.Authorization{
+		ID:    taskSystemBucketID,
 		OrgID: task.OrganizationID,
 		Permissions: []influxdb.Permission{
 			influxdb.Permission{
@@ -250,8 +251,9 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 
 	// At this point we are behind authorization
 	// so we are faking a read only permission to the org's system bucket
-	runSystemBucketID := influxdb.ID(10)
+	runSystemBucketID := taskSystemBucketID
 	runAuth := &influxdb.Authorization{
+		ID:    taskSystemBucketID,
 		OrgID: task.OrganizationID,
 		Permissions: []influxdb.Permission{
 			influxdb.Permission{
@@ -335,6 +337,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 		var r influxdb.Run
 		for j, col := range cr.Cols() {
 			switch col.Label {
+			// TODO(goller): add error column in case flux has an error
 			case "runID":
 				if cr.Strings(j).ValueString(i) != "" {
 					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
