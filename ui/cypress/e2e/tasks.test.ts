@@ -18,7 +18,7 @@ describe('Tasks', () => {
 
   it('can create a task', () => {
     const taskName = 'Task'
-    cy.get('.empty-state').within(() => {
+    cy.get('.cf-empty-state').within(() => {
       cy.contains('Create').click()
     })
 
@@ -91,7 +91,7 @@ describe('Tasks', () => {
 
       cy.getByTestID('task-card--name-button').click()
 
-      cy.get('.input-field')
+      cy.get('.cf-input-field')
         .type(newName)
         .type('{enter}')
     })
@@ -106,7 +106,7 @@ describe('Tasks', () => {
   })
 
   it('fails to create a task without a valid script', () => {
-    cy.get('.empty-state').within(() => {
+    cy.get('.cf-empty-state').within(() => {
       cy.contains('Create').click()
     })
 
