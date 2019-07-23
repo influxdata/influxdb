@@ -53,7 +53,7 @@ class AddMembersOverlay extends PureComponent<Props, State> {
     return (
       <GetResources resource={ResourceTypes.Users}>
         <Overlay visible={true}>
-          <Overlay.Container maxWidth={500}>
+          <Overlay.Container maxWidth={720}>
             <Overlay.Header title="Add Member" onDismiss={this.handleDismiss} />
             <Overlay.Body>
               <SpinnerContainer

@@ -2,13 +2,27 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input, Button, Grid} from '@influxdata/clockface'
+import {
+  Form,
+  Input,
+  Button,
+  Grid,
+  ComponentSpacer,
+  Icon,
+} from '@influxdata/clockface'
 import SelectUsers from 'src/members/components/SelectUsers'
 import {UsersMap} from 'src/members/reducers'
 
 // Types
 import {User} from '@influxdata/influx'
-import {Columns, IconFont, ButtonType} from '@influxdata/clockface'
+import {
+  Columns,
+  IconFont,
+  ButtonType,
+  FlexDirection,
+  AlignItems,
+} from '@influxdata/clockface'
+import {ComponentSize} from 'src/clockface'
 
 interface Props {
   onCloseModal: () => void
@@ -60,7 +74,13 @@ export default class AddMembersForm extends PureComponent<Props> {
             </Grid.Column>
             <Grid.Column widthSM={Columns.Six}>
               <Form.Element label="Members to be added">
-                <ul>{this.membersSelected}</ul>
+                <ComponentSpacer
+                  direction={FlexDirection.Column}
+                  alignItems={AlignItems.Stretch}
+                  margin={ComponentSize.ExtraSmall}
+                >
+                  {this.membersSelected}
+                </ComponentSpacer>
               </Form.Element>
             </Grid.Column>
           </Grid.Row>
@@ -90,7 +110,10 @@ export default class AddMembersForm extends PureComponent<Props> {
 
     if (selectedMembers) {
       return Object.keys(selectedMembers).map(id => (
-        <li key={id}>{selectedMembers[id].name}</li>
+        <Form.Box key={id} className="selected-member">
+          <Icon glyph={IconFont.User} />
+          <p>{selectedMembers[id].name}</p>
+        </Form.Box>
       ))
     }
     return
