@@ -10,7 +10,6 @@ import {
   FlexDirection,
   AlignItems,
 } from '@influxdata/clockface'
-import {Dropdown} from 'src/clockface'
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'
 import SelectorList from 'src/timeMachine/components/SelectorList'
@@ -123,21 +122,17 @@ class TagSelector extends PureComponent<Props> {
           >
             <SearchableDropdown
               searchTerm={keysSearchTerm}
-              titleText="No Tags Found"
+              emptyText="No Tags Found"
               searchPlaceholder="Search keys..."
-              selectedID={selectedKey}
-              onChange={this.handleSelectTag}
-              status={toComponentStatus(keysStatus)}
+              selectedOption={selectedKey}
+              onSelect={this.handleSelectTag}
+              buttonStatus={toComponentStatus(keysStatus)}
               onChangeSearchTerm={this.handleKeysSearch}
               testID="tag-selector--dropdown"
               buttonTestID="tag-selector--dropdown-button"
-            >
-              {keys.map(key => (
-                <Dropdown.Item key={key} id={key} value={key}>
-                  {key}
-                </Dropdown.Item>
-              ))}
-            </SearchableDropdown>
+              menuTestID="tag-selector--dropdown-menu"
+              options={keys}
+            />
             {this.selectedCounter}
           </ComponentSpacer>
           <Input
