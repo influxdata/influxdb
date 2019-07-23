@@ -127,14 +127,11 @@ func (f *IndexFile) Open() (err error) {
 
 	data, err := mmap.Map(f.Path(), 0)
 	if err != nil {
-		f.sfile.Logger.Error("err here1")
 		f.sfileref.Release()
 		return err
 	}
 
 	if err := f.UnmarshalBinary(data); err != nil {
-		f.sfile.Logger.Error("err here2")
-
 		f.sfileref.Release()
 		f.Close()
 		return err
