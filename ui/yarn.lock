@@ -760,10 +760,10 @@
   dependencies:
     axios "^0.19.0"
 
-"@influxdata/influxdb-templates@0.2.0":
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.2.0.tgz#80218a8ee74bf125add8cea87a89e6638346102b"
-  integrity sha512-+9II5hrL3vjv0XCEmR2YdqZXYP8q7klnIqF+vHkWdS2ns9V1yC8e2tNAuXnbhYN4AtO7kYJx27yifzCvlfMzKw==
+"@influxdata/influxdb-templates@0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.3.0.tgz#02f1f03f4eba7e0c8c21b67c9f7618ca24b74f8b"
+  integrity sha512-/oHB91UWhN0eyLiyGptYHfO43mQb7g/AqDZwq8jQVw6A/0bTUh4ucsCMJkUVJutnM2PZRTGR4VbJH5p2oUB/BA==
 
 "@influxdata/react-custom-scrollbars@4.3.8":
   version "4.3.8"
