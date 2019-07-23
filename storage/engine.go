@@ -93,7 +93,7 @@ func WithNodeID(id int) Option {
 // metrics are labelled correctly.
 func WithRetentionEnforcer(finder BucketFinder) Option {
 	return func(e *Engine) {
-		e.retentionEnforcer = newRetentionEnforcer(e, finder)
+		e.retentionEnforcer = newRetentionEnforcer(e, e.engine, finder)
 	}
 }
 
@@ -531,11 +531,6 @@ func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
 
 // DeleteBucketRange deletes an entire bucket from the storage engine.
 func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) error {
-	// Snapshot to clear the cache to reduce write contention.
-	if err := e.engine.WriteSnapshot(context.Background()); err != nil {
-		return err
-	}
-
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
