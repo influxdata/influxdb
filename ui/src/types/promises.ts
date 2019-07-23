@@ -3,4 +3,10 @@ export interface WrappedCancelablePromise<T> {
   cancel: () => void
 }
 
-export class CancellationError extends Error {}
+export class CancellationError extends Error {
+  constructor() {
+    super(...arguments)
+
+    this.name = 'CancellationError'
+  }
+}
