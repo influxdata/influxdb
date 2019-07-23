@@ -13,35 +13,35 @@ exports[`Account rendering renders! 1`] = `
     }
   }
 >
-  <t
+  <Grid
     testID="grid"
   >
     <div
-      className="grid--container"
+      className="cf-grid--container"
       data-testid="grid"
     >
-      <t
+      <GridRow
         testID="grid--row"
       >
         <div
-          className="grid--row"
+          className="cf-grid--row"
           data-testid="grid--row"
         >
-          <t
+          <GridColumn
             testID="grid--column"
             widthXS={6}
           >
             <div
-              className="grid--column col-xs-6"
+              className="cf-grid--column cf-col-xs-6"
               data-testid="grid--column"
             >
-              <t
+              <Panel
                 backgroundColor="#292933"
                 size="sm"
                 testID="panel"
               >
                 <div
-                  className="panel panel--sm panel__light-text"
+                  className="cf-panel cf-panel--sm cf-panel__light-text"
                   data-testid="panel"
                   style={
                     Object {
@@ -49,22 +49,23 @@ exports[`Account rendering renders! 1`] = `
                     }
                   }
                 >
-                  <t
+                  <PanelHeader
                     testID="panel--header"
                     title="About Me"
                   >
                     <div
-                      className="panel--header"
+                      className="cf-panel--header"
+                      data-testid="panel--header"
                     >
                       <div
-                        className="panel--title"
+                        className="cf-panel--title"
                       >
                         About Me
                       </div>
                       <div
-                        className="panel--controls"
+                        className="cf-panel--controls"
                       >
-                        <t
+                        <ComponentSpacer
                           alignItems="center"
                           direction="row"
                           justifyContent="flex-end"
@@ -73,10 +74,10 @@ exports[`Account rendering renders! 1`] = `
                           testID="component-spacer"
                         >
                           <div
-                            className="component-spacer component-spacer__row component-spacer__justify-flex-end component-spacer__align-center"
+                            className="cf-component-spacer cf-component-spacer__row cf-component-spacer__justify-flex-end cf-component-spacer__align-center"
                             data-testid="component-spacer"
                           >
-                            <t
+                            <Button
                               active={false}
                               color="default"
                               placeIconAfterText={false}
@@ -87,7 +88,7 @@ exports[`Account rendering renders! 1`] = `
                               text="Edit About Me"
                               type="button"
                             >
-                              <t
+                              <ButtonBase
                                 active={false}
                                 color="default"
                                 shape="none"
@@ -99,7 +100,7 @@ exports[`Account rendering renders! 1`] = `
                                 type="button"
                               >
                                 <button
-                                  className="button button-sm button-default"
+                                  className="cf-button cf-button-sm cf-button-default"
                                   data-testid="button"
                                   disabled={false}
                                   tabIndex={0}
@@ -107,54 +108,55 @@ exports[`Account rendering renders! 1`] = `
                                   type="button"
                                 >
                                   <span
-                                    className="button--label"
+                                    className="cf-button--label"
                                   >
                                     Edit About Me
                                   </span>
                                 </button>
-                              </t>
-                            </t>
+                              </ButtonBase>
+                            </Button>
                           </div>
-                        </t>
+                        </ComponentSpacer>
                       </div>
                     </div>
-                  </t>
-                  <t
+                  </PanelHeader>
+                  <PanelBody
                     testID="panel--body"
                   >
                     <div
-                      className="panel--body"
+                      className="cf-panel--body"
+                      data-testid="panel--body"
                     >
-                      <t
+                      <Form
                         testID="form-container"
                       >
                         <form
-                          className="form--wrapper"
+                          className="cf-form--wrapper"
                           data-testid="form-container"
                           onSubmit={[Function]}
                         >
-                          <t
+                          <FormElement
                             label="Username"
                             testID="form--element"
                           >
                             <div
-                              className="form--element"
+                              className="cf-form--element"
                               data-testid="form--element"
                             >
-                              <t
+                              <FormLabel
                                 label="Username"
                                 testID="form--label"
                               >
                                 <label
-                                  className="form--label"
+                                  className="cf-form--label"
                                   data-testid="form--label"
                                 >
                                   <span>
                                     Username
                                   </span>
                                 </label>
-                              </t>
-                              <t
+                              </FormLabel>
+                              <Input
                                 autoFocus={false}
                                 autocomplete="off"
                                 disabledTitleText="This input is disabled"
@@ -170,7 +172,7 @@ exports[`Account rendering renders! 1`] = `
                                 value="groot"
                               >
                                 <div
-                                  className="input input-sm input--disabled"
+                                  className="cf-input cf-input-sm cf-input__disabled"
                                   style={
                                     Object {
                                       "width": "100%",
@@ -180,7 +182,7 @@ exports[`Account rendering renders! 1`] = `
                                   <input
                                     autoComplete="off"
                                     autoFocus={false}
-                                    className="input-field"
+                                    className="cf-input-field"
                                     data-testid="nameInput"
                                     disabled={true}
                                     name=""
@@ -192,23 +194,23 @@ exports[`Account rendering renders! 1`] = `
                                     value="groot"
                                   />
                                   <div
-                                    className="input-shadow"
+                                    className="cf-input-shadow"
                                   />
                                 </div>
-                              </t>
+                              </Input>
                             </div>
-                          </t>
+                          </FormElement>
                         </form>
-                      </t>
+                      </Form>
                     </div>
-                  </t>
+                  </PanelBody>
                 </div>
-              </t>
+              </Panel>
             </div>
-          </t>
+          </GridColumn>
         </div>
-      </t>
+      </GridRow>
     </div>
-  </t>
+  </Grid>
 </Settings>
 `;

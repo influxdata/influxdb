@@ -16,7 +16,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
     <div
       className="confirmation-button"
     >
-      <t
+      <Button
         active={true}
         color="danger"
         onClick={[Function]}
@@ -28,7 +28,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
         text="I am a dangerous button!"
         type="button"
       >
-        <t
+        <ButtonBase
           active={true}
           color="danger"
           onClick={[Function]}
@@ -41,7 +41,7 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
           type="button"
         >
           <button
-            className="button button-sm button-danger active"
+            className="cf-button cf-button-sm cf-button-danger active"
             data-testid="delete-button"
             disabled={false}
             onClick={[Function]}
@@ -50,13 +50,13 @@ exports[`ConfirmationButton interaction shows the tooltip when clicked 1`] = `
             type="button"
           >
             <span
-              className="button--label"
+              className="cf-button--label"
             >
               I am a dangerous button!
             </span>
           </button>
-        </t>
-      </t>
+        </ButtonBase>
+      </Button>
       <div
         className="confirmation-button--tooltip visible"
       >
