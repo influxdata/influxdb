@@ -4,6 +4,9 @@ const {CleanWebpackPlugin} = require('clean-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const webpack = require('webpack')
+const GIT_SHA = require('child_process')
+  .execSync('git rev-parse HEAD')
+  .toString()
 
 const devMode = process.env.NODE_ENV !== 'production'
 
@@ -76,6 +79,7 @@ module.exports = {
       warningsFilter: /export * was not found in/,
     }),
     new webpack.ProgressPlugin(),
+    new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
   ],
   stats: {
     colors: true,
