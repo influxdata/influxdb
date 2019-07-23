@@ -3,6 +3,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin')
 const {CleanWebpackPlugin} = require('clean-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
+const webpack = require('webpack')
 
 const devMode = process.env.NODE_ENV !== 'production'
 
@@ -71,9 +72,10 @@ module.exports = {
       chunkFilename: devMode ? '[id].css' : '[id].[hash].css',
     }),
     new ForkTsCheckerWebpackPlugin({
-      eslint: true,
+      eslint: !devMode,
       warningsFilter: /export * was not found in/,
     }),
+    new webpack.ProgressPlugin(),
   ],
   stats: {
     colors: true,
