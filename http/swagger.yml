@@ -8810,6 +8810,9 @@ components:
     NotificationRuleBase:
       type: object
       properties:
+        id:
+          readOnly: true
+          type: string
         notifyEndpointID:
           type: string
           readOnly: true
