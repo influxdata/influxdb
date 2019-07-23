@@ -94,15 +94,27 @@ export default class VariableForm extends PureComponent<Props, State> {
             <Grid.Column widthXS={Columns.Six}>
               <Form.Element label="Type" required={true}>
                 <Dropdown
-                  selectedID={args.type}
-                  onChange={this.handleChangeType}
-                >
-                  {variableItemTypes.map(v => (
-                    <Dropdown.Item key={v.type} id={v.type} value={v.type}>
-                      {v.label}
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown>
+                  button={(active, onClick) => (
+                    <Dropdown.Button active={active} onClick={onClick}>
+                      {this.typeDropdownLabel}
+                    </Dropdown.Button>
+                  )}
+                  menu={onCollapse => (
+                    <Dropdown.Menu onCollapse={onCollapse}>
+                      {variableItemTypes.map(v => (
+                        <Dropdown.Item
+                          key={v.type}
+                          id={v.type}
+                          value={v.type}
+                          onClick={this.handleChangeType}
+                          selected={v.type === args.type}
+                        >
+                          {v.label}
+                        </Dropdown.Item>
+                      ))}
+                    </Dropdown.Menu>
+                  )}
+                />
               </Form.Element>
             </Grid.Column>
           </Grid.Row>
@@ -140,6 +152,12 @@ export default class VariableForm extends PureComponent<Props, State> {
         </Grid>
       </Form>
     )
+  }
+
+  private get typeDropdownLabel(): string {
+    const {args} = this.state
+
+    return variableItemTypes.find(variable => variable.type === args.type).label
   }
 
   private get isFormValid(): boolean {
