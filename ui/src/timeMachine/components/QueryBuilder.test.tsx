@@ -84,11 +84,11 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(windowSelectorButton)
 
-    const windowSelector = getByTestId('dropdown--menu window-selector')
+    const windowSelector = getByTestId('window-selector--menu')
 
     expect(windowSelector.childElementCount).toBe(windows.length)
 
-    const fiveMins = getByTestId('5m')
+    const fiveMins = getByTestId('window-selector--5m')
 
     fireEvent.click(fiveMins)
 
