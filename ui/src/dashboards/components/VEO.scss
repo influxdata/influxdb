@@ -4,8 +4,8 @@
 */
 
 .veo {
-  width: calc(100% - #{$ix-marg-e});
-  height: calc(100% - #{$ix-marg-d});
+  width: calc(100vw - #{$ix-marg-e});
+  height: calc(100vh - #{$ix-marg-d});
   margin: 0 auto;
   display: flex;
   flex-direction: column;
