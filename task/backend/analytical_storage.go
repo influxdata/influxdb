@@ -216,6 +216,10 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 		}
 	}
 
+	if err := ittr.Err(); err != nil {
+		return nil, 0, fmt.Errorf("unexpected internal error while decoding run response: %v", err)
+	}
+
 	runs = append(runs, re.runs...)
 
 	return runs, n, err
@@ -282,6 +286,10 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 		}
 	}
 
+	if err := ittr.Err(); err != nil {
+		return nil, fmt.Errorf("unexpected internal error while decoding run response: %v", err)
+	}
+
 	if len(re.runs) == 0 {
 		return nil, platform.ErrRunNotFound
 
@@ -337,7 +345,6 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 		var r influxdb.Run
 		for j, col := range cr.Cols() {
 			switch col.Label {
-			// TODO(goller): add error column in case flux has an error
 			case "runID":
 				if cr.Strings(j).ValueString(i) != "" {
 					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
