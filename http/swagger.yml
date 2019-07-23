@@ -4440,6 +4440,34 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    delete:
+      operationId: DeleteTasksIDRunsID
+      tags:
+        - Tasks
+      summary: Cancel a single running task
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: taskID
+          schema:
+            type: string
+          required: true
+          description: task ID
+        - in: path
+          name: runID
+          schema:
+            type: string
+          required: true
+          description: run ID
+      responses:
+        '204':
+          description: delete has been accepted
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/tasks/{taskID}/runs/{runID}/retry':
     post:
       operationId: PostTasksIDRunsIDRetry
