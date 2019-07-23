@@ -500,13 +500,13 @@ export const taskImportSuccess = (): Notification => ({
 })
 
 export const taskRunSuccess = (): Notification => ({
-  ...defaultErrorNotification,
+  ...defaultSuccessNotification,
   duration: FIVE_SECONDS,
   message: 'Task scheduled successfully',
 })
 
 export const taskRunFailed = (error: string): Notification => ({
-  ...defaultSuccessNotification,
+  ...defaultErrorNotification,
   duration: FIVE_SECONDS,
   message: `Failed to run task: ${error}`,
 })
