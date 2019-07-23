@@ -2,6 +2,8 @@
 import {RemoteDataState, Check} from 'src/types'
 import {Action} from 'src/alerting/actions/checks'
 
+import {checks} from 'src/alerting/constants'
+
 export interface ChecksState {
   status: RemoteDataState
   list: Check[]
@@ -10,7 +12,7 @@ export interface ChecksState {
 
 export const defaultChecksState: ChecksState = {
   status: RemoteDataState.NotStarted,
-  list: [],
+  list: checks,
   current: {status: RemoteDataState.NotStarted, check: null},
 }
 

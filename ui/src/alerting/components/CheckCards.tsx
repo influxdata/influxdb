@@ -1,12 +1,13 @@
+//Libraries
 import React, {FunctionComponent} from 'react'
 
-//Libraries
+//Components
 import CheckCard from 'src/alerting/components/CheckCard'
+import {ResourceList} from 'src/clockface'
 
 // Types
 import {Check} from 'src/types'
 import {EmptyState, ComponentSize} from '@influxdata/clockface'
-import {ResourceList} from 'src/clockface'
 
 interface Props {
   checks: Check[]
