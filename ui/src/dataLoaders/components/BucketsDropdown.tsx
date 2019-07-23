@@ -17,8 +17,10 @@ class BucketsDropdown extends PureComponent<Props> {
   public render() {
     return (
       <Dropdown
+        testID="bucket-dropdown"
         button={(active, onClick) => (
           <Dropdown.Button
+            testID="bucket-dropdown--button"
             active={active}
             onClick={onClick}
             status={this.status}
