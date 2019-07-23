@@ -44,6 +44,7 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
   private get optionItems(): JSX.Element[] {
     return [
       <Dropdown.Item
+        testID="dropdown-item generate-token--read-write"
         id={this.bucketReadWriteOption}
         key={this.bucketReadWriteOption}
         value={this.bucketReadWriteOption}
@@ -52,6 +53,7 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
         {this.bucketReadWriteOption}
       </Dropdown.Item>,
       <Dropdown.Item
+        testID="dropdown-item generate-token--all-access"
         id={this.allAccessOption}
         key={this.allAccessOption}
         value={this.allAccessOption}

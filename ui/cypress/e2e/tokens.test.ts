@@ -227,8 +227,8 @@ describe('tokens', () => {
 
       // open overlay
       cy.getByTestID('dropdown-button--gen-token').click()
-      cy.getByTestIDSubStr('dropdown--item').should('have.length', 2)
-      cy.getByTestID('dropdown--item Read/Write Token').click()
+      cy.getByTestIDSubStr('dropdown-item').should('have.length', 2)
+      cy.getByTestID('dropdown-item generate-token--read-write').click()
       cy.getByTestID('overlay--container').should('be.visible')
 
       //check cancel
@@ -238,8 +238,8 @@ describe('tokens', () => {
 
       // open overlay - again
       cy.getByTestID('dropdown-button--gen-token').click()
-      cy.getByTestIDSubStr('dropdown--item').should('have.length', 2)
-      cy.getByTestID('dropdown--item Read/Write Token').click()
+      cy.getByTestIDSubStr('dropdown-item').should('have.length', 2)
+      cy.getByTestID('dropdown-item generate-token--read-write').click()
       cy.getByTestID('overlay--container').should('be.visible')
 
       //Create a token  //todo filters in this or seperate test
