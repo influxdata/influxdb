@@ -4,8 +4,12 @@ import {connect} from 'react-redux'
 import {get} from 'lodash'
 
 // Components
-import {Form} from '@influxdata/clockface'
-import {Dropdown, DropdownMenuPosition} from 'src/clockface'
+import {
+  Form,
+  SelectDropdown,
+  IconFont,
+  ComponentStatus,
+} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -58,23 +62,35 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
     onAddVariableToTimeMachine(variableID)
   }
 
+  let selectedOption = 'None Selected'
+  let icon
+  let status = toComponentStatus(valuesStatus)
+
+  if (!values) {
+    selectedOption = 'Failed to Load'
+    icon = IconFont.AlertTriangle
+    status = ComponentStatus.Disabled
+  } else if (values.error) {
+    selectedOption = 'Failed to Load'
+    icon = IconFont.AlertTriangle
+    status = ComponentStatus.Disabled
+  } else if (!values.values.length) {
+    selectedOption = 'No Results'
+  } else {
+    selectedOption = get(values, 'selectedValue', 'None Selected')
+  }
+
   return (
     <div className="box-tooltip--contents" onMouseEnter={handleMouseEnter}>
       <Form.Element label="Value">
-        <Dropdown
-          selectedID={get(values, 'selectedValue')}
-          status={toComponentStatus(valuesStatus)}
-          titleText={values ? 'No Results' : 'None Selected'}
+        <SelectDropdown
+          buttonIcon={icon}
+          options={dropdownItems}
+          selectedOption={selectedOption}
+          buttonStatus={status}
           widthPixels={200}
-          menuPosition={DropdownMenuPosition.Above}
-          onChange={value => onSelectVariableValue(variableID, value)}
-        >
-          {dropdownItems.map(value => (
-            <Dropdown.Item id={value} key={value} value={value}>
-              {value}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
+          onSelect={value => onSelectVariableValue(variableID, value)}
+        />
       </Form.Element>
     </div>
   )
