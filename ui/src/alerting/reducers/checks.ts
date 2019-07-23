@@ -19,28 +19,50 @@ export default (
   action: Action
 ): ChecksState => {
   switch (action.type) {
-    case 'SET_CHECKS_STATUS':
+    case 'SET_ALL_CHECKS':
+      if (action.payload.checks) {
+        return {
+          ...state,
+          list: action.payload.checks,
+          status: action.payload.status,
+        }
+      }
       return {
         ...state,
         status: action.payload.status,
       }
-    case 'SET_ALL_CHECKS':
+    case 'SET_CHECK':
+      const newCheck = action.payload.check
+      const checkIndex = state.list.findIndex(c => c.id == newCheck.id)
+
+      let updatedList = state.list
+      if (checkIndex == -1) {
+        updatedList = [...updatedList, newCheck]
+      } else {
+        updatedList[checkIndex] = newCheck
+      }
+
       return {
         ...state,
-        list: action.payload.checks,
-        status: RemoteDataState.Done,
+        list: updatedList,
       }
-    case 'SET_CHECK_STATUS':
+    case 'SET_CURRENT_CHECK':
+      if (action.payload.check) {
+        return {
+          ...state,
+          current: {check: action.payload.check, status: action.payload.status},
+        }
+      }
       return {
         ...state,
         current: {...state.current, status: action.payload.status},
       }
-    case 'SET_CHECK':
+    case 'REMOVE_CHECK':
+      const list = state.list.filter(c => c.id != action.payload.checkID)
       return {
         ...state,
-        current: {status: action.payload.status, check: action.payload.check},
+        list: list,
       }
-
     default:
       return state
   }

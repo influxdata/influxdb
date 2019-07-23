@@ -1,5 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ResourceList} from 'src/clockface'
@@ -7,22 +9,44 @@ import {ResourceList} from 'src/clockface'
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
 
-// Types
-import {Check} from 'src/types'
+// Actions
+import {updateCheck} from 'src/alerting/actions/checks'
 
-interface Props {
+// Types
+import {Check, CheckBase} from 'src/types'
+
+interface DispatchProps {
+  updateCheck: typeof updateCheck
+}
+
+interface OwnProps {
   check: Check
 }
 
-const CheckCard: FunctionComponent<Props> = ({check}) => {
+type Props = OwnProps & DispatchProps & WithRouterProps
+
+const CheckCard: FunctionComponent<Props> = ({
+  check,
+  updateCheck,
+  router,
+  params: {orgID},
+}) => {
+  const onUpdateName = (name: string) => {
+    updateCheck({name})
+  }
+
+  const onClickName = () => {
+    router.push(`/orgs/${orgID}/checks/${check.id}`)
+  }
+
   return (
     <ResourceList.Card
       key={`check-id--${check.id}`}
       testID="check-card"
       name={() => (
         <ResourceList.EditableName
-          onUpdate={() => {}}
-          onClick={() => {}}
+          onUpdate={onUpdateName}
+          onClick={onClickName}
           name={check.name}
           noNameString={DEFAULT_CHECK_NAME}
           parentTestID="check-card--name"
@@ -30,9 +54,17 @@ const CheckCard: FunctionComponent<Props> = ({check}) => {
           inputTestID="check-card--input"
         />
       )}
+      disabled={check.status == CheckBase.StatusEnum.Inactive}
       updatedAt={check.updatedAt.toString()}
     />
   )
 }
 
-export default CheckCard
+const mdtp: DispatchProps = {
+  updateCheck: updateCheck,
+}
+
+export default connect<{}, DispatchProps, {}>(
+  null,
+  mdtp
+)(withRouter(CheckCard))
