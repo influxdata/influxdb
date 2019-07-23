@@ -4,11 +4,11 @@ import classnames from 'classnames'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
-import {Input} from '@influxdata/clockface'
+import {Input, Icon} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Types
-import {ComponentSize} from '@influxdata/clockface'
+import {ComponentSize, IconFont} from '@influxdata/clockface'
 import {RemoteDataState} from 'src/types'
 
 // Decorators
@@ -65,7 +65,7 @@ class EditableName extends Component<Props, State> {
           onClick={this.handleStartEditing}
           data-testid={testID + '--toggle'}
         >
-          <span className="icon pencil" />
+          <Icon glyph={IconFont.Pencil} />
         </div>
         {this.input}
       </div>

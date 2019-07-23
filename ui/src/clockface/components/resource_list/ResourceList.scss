@@ -69,7 +69,7 @@
     opacity: 1;
   }
 
-  > span.icon {
+  > span.cf-icon {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -77,11 +77,11 @@
     transition: transform 0.25s ease;
   }
 
-  .resource-list--sort-descending & > span.icon {
+  .resource-list--sort-descending & > span.cf-icon {
     transform: translate(-50%, -50%) rotate(0deg);
   }
 
-  .resource-list--sort-ascending & > span.icon {
+  .resource-list--sort-ascending & > span.cf-icon {
     transform: translate(-50%, -50%) rotate(180deg);
   }
 }

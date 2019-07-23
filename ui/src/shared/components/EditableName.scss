@@ -8,7 +8,7 @@ $resource-name-font-wight: 600;
 $rename-dash-title-padding: 6px;
 
 .editable-name > a,
-.input.editable-name--input > input {
+.cf-input.editable-name--input > input {
   font-size: $resource-name-font-size;
   font-weight: $resource-name-font-wight;
   font-family: $ix-text-font;
@@ -45,7 +45,7 @@ $rename-dash-title-padding: 6px;
 }
 
 
-.input.editable-name--input {
+.cf-input.editable-name--input {
   position: absolute;
   top: -1px;
   left: 0;
@@ -53,7 +53,7 @@ $rename-dash-title-padding: 6px;
 }
 
 /* Ensure placeholder text matches font weight of title */
-.input.editable-name--input > input {
+.cf-input.editable-name--input > input {
   &::-webkit-input-placeholder {
       font-weight: $resource-name-font-wight !important;
     }
