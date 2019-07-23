@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {Dropdown} from '@influxdata/clockface'
+import {SelectDropdown} from '@influxdata/clockface'
 
 // Types
 import {AppState, Bucket} from 'src/types'
@@ -22,14 +22,13 @@ const BucketsDropdown: FunctionComponent<Props> = ({
   bucketName,
   onSetBucketName,
 }) => {
+  const bucketNames = buckets.map(bucket => bucket.name)
   return (
-    <Dropdown selectedID={bucketName} onChange={onSetBucketName}>
-      {buckets.map(bucket => (
-        <Dropdown.Item key={bucket.name} id={bucket.name} value={bucket.name}>
-          {bucket.name}
-        </Dropdown.Item>
-      ))}
-    </Dropdown>
+    <SelectDropdown
+      options={bucketNames}
+      selectedOption={bucketName}
+      onSelect={onSetBucketName}
+    />
   )
 }
 
