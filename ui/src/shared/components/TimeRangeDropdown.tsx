@@ -119,7 +119,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
   private get formattedCustomTimeRange(): string {
     const {timeRange} = this.props
     if (!this.isCustomTimeRange) {
-      return timeRange.label
+      return TIME_RANGES.find(range => range.lower === timeRange.lower).label
     }
 
     return `${moment(timeRange.lower).format(TIME_RANGE_FORMAT)} - ${moment(
