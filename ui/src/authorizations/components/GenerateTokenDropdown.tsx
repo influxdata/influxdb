@@ -3,10 +3,10 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Dropdown, DropdownMode} from 'src/clockface'
+import {Dropdown} from '@influxdata/clockface'
 
 // Types
-import {IconFont, ComponentColor, ComponentSize} from '@influxdata/clockface'
+import {IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface OwnProps {
   onSelectAllAccess: () => void
@@ -19,18 +19,25 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
   public render() {
     return (
       <Dropdown
-        mode={DropdownMode.ActionList}
-        titleText="Generate"
-        icon={IconFont.Plus}
-        buttonColor={ComponentColor.Primary}
-        buttonSize={ComponentSize.Small}
-        widthPixels={160}
-        onChange={this.handleSelect}
         testID="dropdown--gen-token"
-        buttonTestID="dropdown-button--gen-token"
-      >
-        {this.optionItems}
-      </Dropdown>
+        widthPixels={160}
+        button={(active, onClick) => (
+          <Dropdown.Button
+            active={active}
+            onClick={onClick}
+            icon={IconFont.Plus}
+            color={ComponentColor.Primary}
+            testID="dropdown-button--gen-token"
+          >
+            Generate
+          </Dropdown.Button>
+        )}
+        menu={onCollapse => (
+          <Dropdown.Menu onCollapse={onCollapse}>
+            {this.optionItems}
+          </Dropdown.Menu>
+        )}
+      />
     )
   }
 
@@ -40,6 +47,7 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
         id={this.bucketReadWriteOption}
         key={this.bucketReadWriteOption}
         value={this.bucketReadWriteOption}
+        onClick={this.handleSelect}
       >
         {this.bucketReadWriteOption}
       </Dropdown.Item>,
@@ -47,6 +55,7 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
         id={this.allAccessOption}
         key={this.allAccessOption}
         value={this.allAccessOption}
+        onClick={this.handleSelect}
       >
         {this.allAccessOption}
       </Dropdown.Item>,
