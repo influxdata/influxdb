@@ -7,6 +7,7 @@ v1.7.8 [unreleased]
 -	[#14271](https://github.com/influxdata/influxdb/pull/14271): Remove stray fmt.Println in tsm1.StringArrayEncodeAll.
 -	[#14307](https://github.com/influxdata/influxdb/pull/14307): Subquery ordering with aggregates in descending mode was wrong.
 -	[#14286](https://github.com/influxdata/influxdb/pull/14286): Fix issue where fields re-appear after DROP MEASUREMENT.
+-	[#14402](https://github.com/influxdata/influxdb/pull/14402): Fix the http handler to not mislabel series as partial.
 
 v1.7.7 [2019-06-26]
 -------------------
