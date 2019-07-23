@@ -12,7 +12,7 @@ $rename-dash-title-padding: 5px;
 }
 
 .editable-description--preview,
-.input.editable-description--input > input {
+.cf-input.editable-description--input > input {
   font-size: $form-xs-font;
   font-weight: 400;
   font-family: $ix-text-font;
@@ -38,7 +38,7 @@ $rename-dash-title-padding: 5px;
   height: $form-xs-height;
   line-height: $form-xs-height - ($ix-border * 2);
   
-  .icon {
+  .cf-icon {
     position: relative;
     top: -2px;
     display: inline-block;
@@ -48,7 +48,7 @@ $rename-dash-title-padding: 5px;
     color: $g11-sidewalk;
   }
   
-  &:hover .icon {
+  &:hover .cf-icon {
     opacity: 1;
   }
   
@@ -64,7 +64,7 @@ $rename-dash-title-padding: 5px;
 }
 
 /* Ensure placeholder text matches font weight of title */
-.input.editable-description--input > input {
+.cf-input.editable-description--input > input {
   &::-webkit-input-placeholder {
       font-weight: $page-title-weight !important;
     }
