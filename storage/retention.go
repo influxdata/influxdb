@@ -25,7 +25,7 @@ type Deleter interface {
 
 // A Snapshotter implementation can take snapshots of the entire engine.
 type Snapshotter interface {
-	WriteSnapshot(ctx context.Context) error
+	WriteSnapshot(ctx context.Context, status tsm1.CacheStatus) error
 }
 
 // A BucketFinder is responsible for providing access to buckets via a filter.
@@ -121,12 +121,10 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 	defer logEnd()
 
 	// Snapshot to clear the cache to reduce write contention.
-	span, _ := tracing.StartSpanFromContextWithOperationName(ctx, "retention_snapshot")
-	if err := s.Snapshotter.WriteSnapshot(context.Background()); err != nil {
-		if err != tsm1.ErrSnapshotInProgress {
-			logger.Warn("unable to snapshot cache before retention", zap.Error(err))
-			tracing.LogError(span, err)
-		}
+	span, _ := tracing.StartSpanFromContext(ctx)
+	if err := s.Snapshotter.WriteSnapshot(ctx, tsm1.CacheStatusRetention); err != nil && err != tsm1.ErrSnapshotInProgress {
+		logger.Warn("Unable to snapshot cache before retention", zap.Error(err))
+		tracing.LogError(span, err)
 	}
 	span.Finish()
 

@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"math"
 	"math/rand"
 	"reflect"
@@ -164,9 +165,9 @@ func (e *TestEngine) DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int
 	return e.DeleteBucketRangeFn(orgID, bucketID, min, max)
 }
 
-type TestSnapshotter struct {}
+type TestSnapshotter struct{}
 
-func (s *TestSnapshotter) WriteSnapshot(ctx context.Context) error {
+func (s *TestSnapshotter) WriteSnapshot(ctx context.Context, status tsm1.CacheStatus) error {
 	return nil
 }
 

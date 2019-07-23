@@ -124,7 +124,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 
 	// Writing a snapshot should not fail when the snapshot is empty
 	// even if snapshots are disabled.
-	if err := e.WriteSnapshot(context.Background()); err != nil {
+	if err := e.WriteSnapshot(context.Background(), tsm1.CacheStatusColdNoWrites); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 }
@@ -463,7 +463,7 @@ func (e *Engine) MustAddSeries(name string, tags map[string]string) {
 
 // MustWriteSnapshot forces a snapshot of the engine. Panic on error.
 func (e *Engine) MustWriteSnapshot() {
-	if err := e.WriteSnapshot(context.Background()); err != nil {
+	if err := e.WriteSnapshot(context.Background(), tsm1.CacheStatusColdNoWrites); err != nil {
 		panic(err)
 	}
 }
