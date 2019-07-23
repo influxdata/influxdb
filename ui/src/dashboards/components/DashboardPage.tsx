@@ -319,7 +319,7 @@ class DashboardPage extends Component<Props, State> {
     if (id) {
       const view = _.get(views, `${id}.view`) as QueryView
       onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
-      router.push(`${location.pathname}/cells/${id}/edit`)
+      router.push(`${location.pathname}/cells/${id}/editQuery`)
     } else {
       const view = createView<XYView>(ViewType.XY)
       onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})

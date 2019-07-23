@@ -196,7 +196,11 @@ class Root extends PureComponent {
                           >
                             <Route path="cells">
                               <Route path="new" component={VEO} />
-                              <Route path=":cellID/edit" component={VEO} />
+                              <Route path=":cellID/editQuery" component={VEO} />
+                              <Route
+                                path=":cellID/editAlerting"
+                                component={VEO}
+                              />
                             </Route>
                             <Route path="notes">
                               <Route path="new" component={NoteEditorOverlay} />
@@ -313,7 +317,10 @@ class Root extends PureComponent {
                             />
                           </Route>
                           <FeatureFlag name="alerting">
-                            <Route path="alerting" component={AlertingIndex} />
+                            <Route path="alerting" component={AlertingIndex}>
+                              <Route path="checks/:id/edit" component={VEO} />
+                              <Route path="checks/new" component={VEO} />
+                            </Route>
                             <Route
                               path="alert-history"
                               component={AlertHistoryIndex}
