@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Dropdown} from 'src/clockface'
+import {Dropdown} from '@influxdata/clockface'
 
 // Types
 import {WritePrecision} from '@influxdata/influx'
@@ -32,19 +32,31 @@ class PrecisionDropdown extends PureComponent<Props> {
     const {setPrecision, precision} = this.props
     return (
       <div className="wizard-step--lp-precision">
-        <label>Time Precision </label>
+        <label>Time Precision</label>
         <Dropdown
-          selectedID={precision}
-          onChange={setPrecision}
           widthPixels={200}
-          customClass="wizard-step--lp-precision dropdown"
-        >
-          {writePrecisions.map(value => (
-            <Dropdown.Item key={value} value={value} id={value}>
-              {makePrecisionReadable[value]}
-            </Dropdown.Item>
-          ))}
-        </Dropdown>
+          className="wizard-step--lp-precision"
+          button={(active, onClick) => (
+            <Dropdown.Button active={active} onClick={onClick}>
+              {makePrecisionReadable[precision]}
+            </Dropdown.Button>
+          )}
+          menu={onCollapse => (
+            <Dropdown.Menu onCollapse={onCollapse}>
+              {writePrecisions.map(value => (
+                <Dropdown.Item
+                  key={value}
+                  value={value}
+                  id={value}
+                  onClick={setPrecision}
+                  selected={`${value}` === `${precision}`}
+                >
+                  {makePrecisionReadable[value]}
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          )}
+        />
       </div>
     )
   }
