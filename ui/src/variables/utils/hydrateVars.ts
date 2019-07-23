@@ -412,7 +412,7 @@ export const hydrateVars = (
 
       return Promise.all(node.parents.filter(readyToResolve).map(resolve))
     } catch (e) {
-      if (e instanceof CancellationError) {
+      if (e.name === 'CancellationError') {
         return
       }
 

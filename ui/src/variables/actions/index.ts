@@ -21,7 +21,7 @@ import {createVariableFromTemplate as createVariableFromTemplateAJAX} from 'src/
 
 // Utils
 import {getValueSelections, extractVariablesList} from 'src/variables/selectors'
-import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {WrappedCancelablePromise} from 'src/types/promises'
 import {variableToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {findDepedentVariables} from 'src/variables/utils/exportVariables'
 
@@ -286,7 +286,7 @@ export const refreshVariableValues = (
 
     dispatch(setValues(contextID, RemoteDataState.Done, values))
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e.name === 'CancellationError') {
       return
     }
 

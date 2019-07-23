@@ -23,7 +23,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {RemoteDataState} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
 import {AppState} from 'src/types'
-import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {WrappedCancelablePromise} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
 interface QueriesState {
@@ -152,7 +152,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         loading: RemoteDataState.Done,
       })
     } catch (error) {
-      if (error instanceof CancellationError) {
+      if (error.name === 'CancellationError') {
         return
       }
 

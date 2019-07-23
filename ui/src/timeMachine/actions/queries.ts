@@ -24,7 +24,7 @@ import {
 } from 'src/variables/selectors'
 
 // Types
-import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {WrappedCancelablePromise} from 'src/types/promises'
 import {RemoteDataState} from 'src/types'
 import {GetState} from 'src/types'
 
@@ -120,7 +120,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     dispatch(setQueryResults(RemoteDataState.Done, files, duration))
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e.name === 'CancellationError') {
       return
     }
 
