@@ -124,9 +124,24 @@ describe('latestValues', () => {
 ,result,table,_time,_value,foo
 ,,0,2018-12-10T18:29:48Z,1,7.0
 ,,0,2018-12-10T18:40:18Z,2,8.0`
+
     const table = fromFlux(resp).table
     const result = latestValues(table)
 
     expect(result).toEqual([4, 6.0, 2.0, 8.0])
+  })
+
+  test('ignores rows with empty values', () => {
+    const resp = `#group,false,false,true,true,true,true,true,false,false
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,string,string,double,dateTime:RFC3339
+#default,mean,,,,,,,,
+,result,table,_start,_stop,_field,_measurement,host,_value,_time
+,,0,2019-07-23T16:59:55.077422828Z,2019-07-23T17:04:55.077422828Z,used_percent,mem,oox4k.local,51.3,2019-07-23T17:04:00Z
+,,0,2019-07-23T16:59:55.077422828Z,2019-07-23T17:04:55.077422828Z,used_percent,mem,oox4k.local,,2019-07-23T17:04:45Z`
+
+    const table = fromFlux(resp).table
+    const result = latestValues(table)
+
+    expect(result).toEqual([51.3])
   })
 })

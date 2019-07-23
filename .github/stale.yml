@@ -15,5 +15,7 @@ markComment: >
   recent activity. It will be closed if no further activity occurs. Thank you
   for your contributions.
 # Comment to post when closing a stale issue. Set to `false` to disable
-closeComment: true
-
+closeComment: >
+  This issue has been automatically closed because it has not had
+  recent activity. Please reopen if this issue is still
+  important to you. Thank you for your contributions.

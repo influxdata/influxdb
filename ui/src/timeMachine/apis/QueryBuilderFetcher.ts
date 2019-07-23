@@ -9,9 +9,9 @@ import {
 } from 'src/timeMachine/apis/queryBuilder'
 
 // Types
-import {WrappedCancelablePromise} from 'src/types'
+import {CancelBox} from 'src/types'
 
-type CancelableQuery = WrappedCancelablePromise<string[]>
+type CancelableQuery = CancelBox<string[]>
 
 class QueryBuilderFetcher {
   private findBucketsQuery: CancelableQuery

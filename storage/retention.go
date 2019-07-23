@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"math"
 	"time"
 
@@ -22,6 +23,11 @@ type Deleter interface {
 	DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) error
 }
 
+// A Snapshotter implementation can take snapshots of the entire engine.
+type Snapshotter interface {
+	WriteSnapshot(ctx context.Context, status tsm1.CacheStatus) error
+}
+
 // A BucketFinder is responsible for providing access to buckets via a filter.
 type BucketFinder interface {
 	FindBuckets(context.Context, influxdb.BucketFilter, ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error)
@@ -36,6 +42,8 @@ type retentionEnforcer struct {
 	// Engine provides access to data stored on the engine
 	Engine Deleter
 
+	Snapshotter Snapshotter
+
 	// BucketService provides an API for retrieving buckets associated with
 	// organisations.
 	BucketService BucketFinder
@@ -48,9 +56,10 @@ type retentionEnforcer struct {
 // newRetentionEnforcer returns a new enforcer that ensures expired data is
 // deleted every interval period. Setting interval to 0 is equivalent to
 // disabling the service.
-func newRetentionEnforcer(engine Deleter, bucketService BucketFinder) *retentionEnforcer {
+func newRetentionEnforcer(engine Deleter, snapshotter Snapshotter, bucketService BucketFinder) *retentionEnforcer {
 	return &retentionEnforcer{
 		Engine:        engine,
+		Snapshotter:   snapshotter,
 		BucketService: bucketService,
 		logger:        zap.NewNop(),
 		tracker:       newRetentionTracker(newRetentionMetrics(nil), nil),
@@ -110,6 +119,11 @@ func (s *retentionEnforcer) run() {
 func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.Bucket, now time.Time) {
 	logger, logEnd := logger.NewOperation(ctx, s.logger, "Data deletion", "data_deletion")
 	defer logEnd()
+
+	// Snapshot to clear the cache to reduce write contention.
+	if err := s.Snapshotter.WriteSnapshot(ctx, tsm1.CacheStatusRetention); err != nil && err != tsm1.ErrSnapshotInProgress {
+		logger.Warn("Unable to snapshot cache before retention", zap.Error(err))
+	}
 
 	for _, b := range buckets {
 		if b.RetentionPeriod == 0 {

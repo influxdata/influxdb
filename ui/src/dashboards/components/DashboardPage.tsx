@@ -186,52 +186,52 @@ class DashboardPage extends Component<Props, State> {
     return (
       <Page titleTag={this.pageTitle}>
         <LimitChecker>
-          <AssetLimitAlert
-            resourceName={resourceName}
-            limitStatus={limitStatus}
-          >
-            <HoverTimeProvider>
-              <DashboardHeader
-                org={org}
+          <HoverTimeProvider>
+            <DashboardHeader
+              org={org}
+              dashboard={dashboard}
+              timeRange={timeRange}
+              autoRefresh={autoRefresh}
+              isHidden={inPresentationMode}
+              onAddCell={this.handleAddCell}
+              onAddNote={this.showNoteOverlay}
+              onManualRefresh={onManualRefresh}
+              zoomedTimeRange={zoomedTimeRange}
+              onRenameDashboard={this.handleRenameDashboard}
+              activeDashboard={dashboard ? dashboard.name : ''}
+              handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+              onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              handleClickPresentationButton={handleClickPresentationButton}
+              toggleVariablesControlBar={onToggleShowVariablesControls}
+              isShowingVariablesControlBar={showVariablesControls}
+            />
+            {showVariablesControls && !!dashboard && (
+              <VariablesControlBar dashboardID={dashboard.id} />
+            )}
+            <AssetLimitAlert
+              resourceName={resourceName}
+              limitStatus={limitStatus}
+              className="dashboard--asset-alert"
+            />
+            {!!dashboard && (
+              <DashboardComponent
+                inView={this.inView}
                 dashboard={dashboard}
                 timeRange={timeRange}
-                autoRefresh={autoRefresh}
-                isHidden={inPresentationMode}
+                manualRefresh={manualRefresh}
+                setScrollTop={this.setScrollTop}
+                onCloneCell={this.handleCloneCell}
+                inPresentationMode={inPresentationMode}
+                onPositionChange={this.handlePositionChange}
+                onDeleteCell={this.handleDeleteDashboardCell}
+                onEditView={this.handleEditView}
                 onAddCell={this.handleAddCell}
-                onAddNote={this.showNoteOverlay}
-                onManualRefresh={onManualRefresh}
-                zoomedTimeRange={zoomedTimeRange}
-                onRenameDashboard={this.handleRenameDashboard}
-                activeDashboard={dashboard ? dashboard.name : ''}
-                handleChooseAutoRefresh={this.handleChooseAutoRefresh}
-                onSetAutoRefreshStatus={this.handleSetAutoRefreshStatus}
-                handleChooseTimeRange={this.handleChooseTimeRange}
-                handleClickPresentationButton={handleClickPresentationButton}
-                toggleVariablesControlBar={onToggleShowVariablesControls}
-                isShowingVariablesControlBar={showVariablesControls}
+                onEditNote={this.showNoteOverlay}
               />
-              {showVariablesControls && !!dashboard && (
-                <VariablesControlBar dashboardID={dashboard.id} />
-              )}
-              {!!dashboard && (
-                <DashboardComponent
-                  inView={this.inView}
-                  dashboard={dashboard}
-                  timeRange={timeRange}
-                  manualRefresh={manualRefresh}
-                  setScrollTop={this.setScrollTop}
-                  onCloneCell={this.handleCloneCell}
-                  inPresentationMode={inPresentationMode}
-                  onPositionChange={this.handlePositionChange}
-                  onDeleteCell={this.handleDeleteDashboardCell}
-                  onEditView={this.handleEditView}
-                  onAddCell={this.handleAddCell}
-                  onEditNote={this.showNoteOverlay}
-                />
-              )}
-              {children}
-            </HoverTimeProvider>
-          </AssetLimitAlert>
+            )}
+            {children}
+          </HoverTimeProvider>
         </LimitChecker>
       </Page>
     )

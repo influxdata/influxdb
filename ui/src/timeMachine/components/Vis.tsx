@@ -8,6 +8,7 @@ import {AutoSizer} from 'react-virtualized'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 import RawFluxDataTable from 'src/timeMachine/components/RawFluxDataTable'
+import ErrorBoundary from 'src/shared/components/ErrorBoundary'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -74,33 +75,39 @@ const TimeMachineVis: SFC<Props> = ({
 
   return (
     <div className="time-machine--view">
-      <EmptyQueryView
-        loading={loading}
-        errorFormat={ErrorFormat.Scroll}
-        errorMessage={errorMessage}
-        isInitialFetch={isInitialFetch}
-        queries={viewProperties.queries}
-        hasResults={checkResultsLength(giraffeResult)}
-      >
-        {isViewingRawData ? (
-          <AutoSizer>
-            {({width, height}) =>
-              width &&
-              height && (
-                <RawFluxDataTable files={files} width={width} height={height} />
-              )
-            }
-          </AutoSizer>
-        ) : (
-          <ViewSwitcher
-            giraffeResult={giraffeResult}
-            files={files}
-            loading={loading}
-            properties={resolvedViewProperties}
-            timeZone={timeZone}
-          />
-        )}
-      </EmptyQueryView>
+      <ErrorBoundary>
+        <EmptyQueryView
+          loading={loading}
+          errorFormat={ErrorFormat.Scroll}
+          errorMessage={errorMessage}
+          isInitialFetch={isInitialFetch}
+          queries={viewProperties.queries}
+          hasResults={checkResultsLength(giraffeResult)}
+        >
+          {isViewingRawData ? (
+            <AutoSizer>
+              {({width, height}) =>
+                width &&
+                height && (
+                  <RawFluxDataTable
+                    files={files}
+                    width={width}
+                    height={height}
+                  />
+                )
+              }
+            </AutoSizer>
+          ) : (
+            <ViewSwitcher
+              giraffeResult={giraffeResult}
+              files={files}
+              loading={loading}
+              properties={resolvedViewProperties}
+              timeZone={timeZone}
+            />
+          )}
+        </EmptyQueryView>
+      </ErrorBoundary>
     </div>
   )
 }

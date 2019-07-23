@@ -789,7 +789,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 	if k := auth.Kind(); k != platform.AuthorizationKind {
 		// Get the authorization for the task, if allowed.
-		authz, err := h.getAuthorizationForTask(ctx, req.filter.Task)
+		authz, err := h.getAuthorizationForTask(ctx, auth, req.filter.Task)
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -881,7 +881,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 
 	if k := auth.Kind(); k != platform.AuthorizationKind {
 		// Get the authorization for the task, if allowed.
-		authz, err := h.getAuthorizationForTask(ctx, req.filter.Task)
+		authz, err := h.getAuthorizationForTask(ctx, auth, req.filter.Task)
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -1084,7 +1084,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 
 	if k := auth.Kind(); k != platform.AuthorizationKind {
 		// Get the authorization for the task, if allowed.
-		authz, err := h.getAuthorizationForTask(ctx, req.TaskID)
+		authz, err := h.getAuthorizationForTask(ctx, auth, req.TaskID)
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -1241,7 +1241,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 
 	if k := auth.Kind(); k != platform.AuthorizationKind {
 		// Get the authorization for the task, if allowed.
-		authz, err := h.getAuthorizationForTask(ctx, req.TaskID)
+		authz, err := h.getAuthorizationForTask(ctx, auth, req.TaskID)
 		if err != nil {
 			h.HandleHTTPError(ctx, err, w)
 			return
@@ -1333,7 +1333,14 @@ func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *platform.Ta
 // ensuring that the authorizer on ctx is allowed to view the task and the authorization.
 //
 // This method returns a *platform.Error, suitable for directly passing to h.HandleHTTPError.
-func (h *TaskHandler) getAuthorizationForTask(ctx context.Context, taskID platform.ID) (*platform.Authorization, *platform.Error) {
+func (h *TaskHandler) getAuthorizationForTask(ctx context.Context, auth platform.Authorizer, taskID platform.ID) (*platform.Authorization, *platform.Error) {
+	sess, ok := auth.(*platform.Session)
+	if !ok {
+		return nil, &platform.Error{
+			Code: platform.EUnauthorized,
+			Msg:  "unable to authorize session",
+		}
+	}
 	// First look up the task, if we're allowed.
 	// This assumes h.TaskService validates access.
 	t, err := h.TaskService.FindTaskByID(ctx, taskID)
@@ -1345,17 +1352,7 @@ func (h *TaskHandler) getAuthorizationForTask(ctx context.Context, taskID platfo
 		}
 	}
 
-	// Explicitly check against an authorized authorization service.
-	authz, err := authorizer.NewAuthorizationService(h.AuthorizationService).FindAuthorizationByID(ctx, t.AuthorizationID)
-	if err != nil {
-		return nil, &platform.Error{
-			Err:  err,
-			Code: platform.EUnauthorized,
-			Msg:  "unable to access task authorization",
-		}
-	}
-
-	return authz, nil
+	return sess.EphemeralAuth(t.OrganizationID), nil
 }
 
 // TaskService connects to Influx via HTTP using tokens to manage tasks.
@@ -1774,6 +1771,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 	return &rs.Run, nil
 }
 
+// ForceRun starts a run manually right now.
 func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -1825,6 +1823,7 @@ func cancelPath(taskID, runID platform.ID) string {
 	return path.Join(taskID.String(), runID.String())
 }
 
+// CancelRun stops a longer running run.
 func (t TaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()

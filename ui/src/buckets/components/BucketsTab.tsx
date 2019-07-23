@@ -112,27 +112,26 @@ class BucketsTab extends PureComponent<Props, State> {
             titleText={this.createButtonTitleText}
           />
         </Tabs.TabContentsHeader>
-        <AssetLimitAlert resourceName="buckets" limitStatus={limitStatus}>
-          <FilterList<PrettyBucket>
-            searchTerm={searchTerm}
-            searchKeys={['name', 'ruleString', 'labels[].name']}
-            list={prettyBuckets(buckets)}
-          >
-            {bs => (
-              <BucketList
-                buckets={bs}
-                emptyState={this.emptyState}
-                onUpdateBucket={this.handleUpdateBucket}
-                onDeleteBucket={this.handleDeleteBucket}
-                onFilterChange={this.handleFilterUpdate}
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                sortType={sortType}
-                onClickColumn={this.handleClickColumn}
-              />
-            )}
-          </FilterList>
-        </AssetLimitAlert>
+        <AssetLimitAlert resourceName="buckets" limitStatus={limitStatus} />
+        <FilterList<PrettyBucket>
+          searchTerm={searchTerm}
+          searchKeys={['name', 'ruleString', 'labels[].name']}
+          list={prettyBuckets(buckets)}
+        >
+          {bs => (
+            <BucketList
+              buckets={bs}
+              emptyState={this.emptyState}
+              onUpdateBucket={this.handleUpdateBucket}
+              onDeleteBucket={this.handleDeleteBucket}
+              onFilterChange={this.handleFilterUpdate}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
+            />
+          )}
+        </FilterList>
         <Overlay visible={overlayState === OverlayState.Open}>
           <CreateBucketOverlay
             org={org}
