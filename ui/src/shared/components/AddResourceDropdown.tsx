@@ -72,7 +72,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         key={newOption}
         onClick={this.handleSelect}
         value={newOption}
-        testID="dropdown--item new"
+        testID="dropdown-item new"
       >
         {newOption}
       </Dropdown.Item>,
@@ -81,7 +81,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         key={importOption}
         onClick={this.handleSelect}
         value={importOption}
-        testID="dropdown--item import"
+        testID="dropdown-item import"
       >
         {importOption}
       </Dropdown.Item>,
