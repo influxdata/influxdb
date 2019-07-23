@@ -117,7 +117,7 @@ describe('Dashboards', () => {
           .first()
           .click()
 
-        cy.get('.input-field')
+        cy.get('.cf-input-field')
           .type(newName)
           .type('{enter}')
       })
@@ -209,7 +209,7 @@ describe('Dashboards', () => {
 
         cy.getByTestID('dashboard-card')
           .first()
-          .get('.label')
+          .get('.cf-label')
           .should('contain', newLabelName)
       })
 
