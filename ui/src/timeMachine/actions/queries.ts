@@ -24,7 +24,7 @@ import {
 } from 'src/variables/selectors'
 
 // Types
-import {WrappedCancelablePromise} from 'src/types/promises'
+import {CancelBox} from 'src/types/promises'
 import {RemoteDataState} from 'src/types'
 import {GetState} from 'src/types'
 
@@ -82,7 +82,7 @@ export const refreshTimeMachineVariableValues = () => async (
   await dispatch(refreshVariableValues(contextID, variablesToRefresh))
 }
 
-let pendingResults: Array<WrappedCancelablePromise<string>> = []
+let pendingResults: Array<CancelBox<string>> = []
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
   const {view, timeRange} = getActiveTimeMachine(getState())

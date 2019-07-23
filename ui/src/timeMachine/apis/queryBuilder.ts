@@ -11,12 +11,12 @@ import {formatExpression} from 'src/variables/utils/formatExpression'
 
 // Types
 import {TimeRange, BuilderConfig} from 'src/types'
-import {WrappedCancelablePromise} from 'src/types/promises'
+import {CancelBox} from 'src/types/promises'
 
 const DEFAULT_TIME_RANGE: TimeRange = {lower: 'now() - 30d'}
 const DEFAULT_LIMIT = 200
 
-type CancelableQuery = WrappedCancelablePromise<string[]>
+type CancelableQuery = CancelBox<string[]>
 
 export interface FindBucketsOptions {
   url: string

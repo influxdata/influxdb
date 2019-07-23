@@ -9,7 +9,7 @@ import {parseResponse} from 'src/shared/parsing/flux/response'
 // Types
 import {VariableAssignment} from 'src/types/ast'
 import {VariableValues, FluxColumnType} from 'src/variables/types'
-import {WrappedCancelablePromise} from 'src/types/promises'
+import {CancelBox} from 'src/types/promises'
 
 const cacheKey = (
   url: string,
@@ -71,7 +71,7 @@ export interface ValueFetcher {
     variables: VariableAssignment[],
     prevSelection: string,
     defaultSelection: string
-  ) => WrappedCancelablePromise<VariableValues>
+  ) => CancelBox<VariableValues>
 }
 
 export class DefaultValueFetcher implements ValueFetcher {
