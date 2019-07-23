@@ -1,4 +1,4 @@
-export interface WrappedCancelablePromise<T> {
+export interface CancelBox<T> {
   promise: Promise<T>
   cancel: () => void
 }

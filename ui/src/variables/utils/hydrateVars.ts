@@ -10,7 +10,7 @@ import {OPTION_NAME, BOUNDARY_GROUP} from 'src/variables/constants/index'
 // Types
 import {RemoteDataState} from 'src/types'
 import {IVariable as Variable} from '@influxdata/influx'
-import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {CancelBox, CancellationError} from 'src/types/promises'
 import {
   VariableValues,
   VariableValuesByID,
@@ -392,7 +392,7 @@ export const hydrateVars = (
   variables: Variable[],
   allVariables: Variable[],
   options: HydrateVarsOptions
-): WrappedCancelablePromise<VariableValuesByID> => {
+): CancelBox<VariableValuesByID> => {
   const graph = findSubgraph(createVariableGraph(allVariables), variables)
 
   invalidateCycles(graph)

@@ -5,7 +5,7 @@ import {client} from 'src/utils/api'
 import {File} from '@influxdata/influx'
 
 // Types
-import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {CancelBox, CancellationError} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
 const MAX_RESPONSE_CHARS = 50000 * 160
@@ -14,7 +14,7 @@ export const runQuery = (
   orgID: string,
   query: string,
   extern?: File
-): WrappedCancelablePromise<string> => {
+): CancelBox<string> => {
   return client.queries.execute(orgID, query, {
     extern,
     limitChars: MAX_RESPONSE_CHARS,
@@ -42,7 +42,7 @@ export const executeQueryWithVars = (
   orgID: string,
   query: string,
   variables?: VariableAssignment[]
-): WrappedCancelablePromise<string> => {
+): CancelBox<string> => {
   let isCancelled = false
   let cancelExecution
 

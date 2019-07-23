@@ -23,7 +23,7 @@ import {notify as notifyAction} from 'src/shared/actions/notifications'
 import {RemoteDataState} from 'src/types'
 import {DashboardQuery} from 'src/types/dashboards'
 import {AppState} from 'src/types'
-import {WrappedCancelablePromise} from 'src/types/promises'
+import {CancelBox} from 'src/types/promises'
 import {VariableAssignment} from 'src/types/ast'
 
 interface QueriesState {
@@ -78,7 +78,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
   public state: State = defaultState()
 
-  private pendingResults: Array<WrappedCancelablePromise<string>> = []
+  private pendingResults: Array<CancelBox<string>> = []
 
   public async componentDidMount() {
     this.reload()
