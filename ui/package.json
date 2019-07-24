@@ -158,7 +158,7 @@
     "@influxdata/clockface": "0.0.13",
     "@influxdata/giraffe": "0.16.0",
     "@influxdata/influx": "0.5.5",
-    "@influxdata/influxdb-templates": "0.4.0",
+    "@influxdata/influxdb-templates": "0.5.0",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "axios": "^0.19.0",
     "babel-polyfill": "^6.26.0",
