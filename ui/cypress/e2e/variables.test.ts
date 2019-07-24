@@ -15,7 +15,7 @@ describe('Variables', () => {
       cy.contains('Create').click()
     })
 
-    cy.getByTestID('dropdown-item new').click()
+    cy.getByTestID('add-resource-dropdown--new').click()
 
     cy.getByInputName('name').type('Little Variable')
     cy.getByTestID('flux-editor').within(() => {
