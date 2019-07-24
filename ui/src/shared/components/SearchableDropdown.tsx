@@ -123,6 +123,7 @@ export default class SearchableDropdown extends Component<Props> {
         value={option}
         selected={option === selectedOption}
         onClick={onSelect}
+        testID={`searchable-dropdown--item ${option}`}
       >
         {option}
       </Dropdown.Item>
