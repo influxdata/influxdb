@@ -47,7 +47,7 @@ type ReportCommand struct {
 	Concurrency int
 }
 
-// NewCommand returns a new instance of Command with default setting applied.
+// NewReportCommand returns a new instance of ReportCommand with default setting applied.
 func NewReportCommand() *ReportCommand {
 	return &ReportCommand{
 		Logger:               zap.NewNop(),
@@ -59,6 +59,8 @@ func NewReportCommand() *ReportCommand {
 	}
 }
 
+// Run initializes the orgBucketCardinality map which can be used to find the cardinality
+// any org or bucket. Run() must be called before GetOrgCardinality() or GetOrgBucketCardinality()
 func (report *ReportCommand) Run() error {
 	report.Stdout = os.Stdout
 
@@ -89,21 +91,7 @@ func (report *ReportCommand) Run() error {
 	report.calculateCardinalities(fn)
 
 	// Print summary.
-	if err := report.printSummaryByMeasurement(); err != nil {
-		return err
-	}
-
-	//allIDs := make([]uint64, 0, len(report.shardIdxs))
-	//for id := range report.shardIdxs {
-	//	allIDs = append(allIDs, id)
-	//}
-	//sort.Slice(allIDs, func(i int, j int) bool { return allIDs[i] < allIDs[j] })
-	//
-	//for _, id := range allIDs {
-	//	if err := report.printShardByMeasurement(id); err != nil {
-	//		return err
-	//	}
-	//}
+	report.printOrgBucketCardinality()
 	return nil
 }
 
@@ -111,32 +99,6 @@ func (report *ReportCommand) Run() error {
 // worked on concurrently. The provided function determines how cardinality is
 // calculated and broken down.
 func (report *ReportCommand) calculateCardinalities(fn func() error) error {
-	// Get list of shards to work on.
-	//shardIDs := make([]uint64, 0, len(report.shardIdxs))
-	//for id := range report.shardIdxs {
-	//	shardIDs = append(shardIDs, id)
-	//}
-	//
-	//errC := make(chan error, len(shardIDs))
-	//var maxi uint32 // index of maximumm shard being worked on.
-	//for k := 0; k < report.Concurrency; k++ {
-	//	go func() {
-	//		for {
-	//			i := int(atomic.AddUint32(&maxi, 1) - 1) // Get next partition to work on.
-	//			if i >= len(shardIDs) {
-	//				return // No more work.
-	//			}
-	//			errC <- fn(shardIDs[i])
-	//		}
-	//	}()
-	//}
-	//
-	//// Check for error
-	//for i := 0; i < cap(errC); i++ {
-	//	if err := <-errC; err != nil {
-	//		return err
-	//	}
-	//}
 	if err := fn(); err != nil {
 		return err
 	}
@@ -311,172 +273,28 @@ func (a results) Less(i, j int) bool { return a[i].count < a[j].count }
 func (a results) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func (report *ReportCommand) printSummaryByMeasurement() error {
-	//Get global set of measurement names across shards.
-	//idxs := &tsdb.IndexSet{SeriesFile: report.sfile}
-	// for _, idx := range report.shardIdxs {
-	// 	idxs.Indexes = append(idxs.Indexes, idx)
-	// }
-
-	// we are going to get a measurement iterator for each index
-	//var mitr tsdb.MeasurementIterator
-	//mitr, err := report.indexFile.MeasurementIterator()
-	//if err != nil {
-	//	report.Logger.Error("got err")
-	//	return err
-	//}
-	//defer mitr.Close()
-
-	// for _, index := range report.shardIdxs {
-	// 	small, err := index.MeasurementIterator()
-	// 	name, _ := small.Next()
-	// 	report.Logger.Error("called small.Next1 " + strconv.Itoa(len(name)))
-	// 	name, _ = small.Next()
-	// 	report.Logger.Error("called small.Next2 " + strconv.Itoa(len(name)))
-	// 	name, _ = small.Next()
-	// 	report.Logger.Error("called small.Next3 " + strconv.Itoa(len(name)))
-	// 	if err != nil {
-	// 		return err
-	// 	} else if small == nil {
-	// 		return errors.New("got nil measurement iterator for index set")
-	// 	}
-	// 	//defer small.Close()
-	// 	// name, _ := small.Next()
-	// 	// report.Logger.Error("called small.Next " + string(name))
-	// 	mitr = tsdb.MergeMeasurementIterators(mitr, small)
-	// 	count++
-	// }
-	//defer mitr.Close()
-	// report.Logger.Error("calling mitr next")
-	// name, _ := mitr.Next()
-	// report.Logger.Error("mitr next: " + string(name))
-
-	//var name []byte
-	//var totalCardinality int64
-	//measurements := results{}
-	//for name, err := mitr.Next(); err == nil && name != nil; name, err = mitr.Next() {
-	//	res := &result{name: name}
-	//	for _, shardCards := range report.cardinalities {
-	//		other, ok := shardCards[string(name)]
-	//		if !ok {
-	//			continue // this shard doesn't have anything for this measurement.
-	//		}
-	//
-	//		if other.short != nil && other.set != nil {
-	//			panic("cardinality stored incorrectly")
-	//		}
-	//
-	//		if other.short != nil { // low cardinality case
-	//			res.addShort(other.short)
-	//		} else if other.set != nil { // High cardinality case
-	//			res.merge(other.set)
-	//		}
-	//
-	//		// Shard does not have any series for this measurement.
-	//	}
-	//
-	//	// Determine final cardinality and allow intermediate structures to be
-	//	// GCd.
-	//	if res.lowCardinality != nil {
-	//		res.count = int64(len(res.lowCardinality))
-	//	} else {
-	//		res.count = int64(res.set.Cardinality())
-	//	}
-	//	totalCardinality += res.count
-	//	res.set = nil
-	//	res.lowCardinality = nil
-	//	measurements = append(measurements, res)
-	//}
-
-	// if err != nil {
-	// 	return err
-	// }
-
-	// sort measurements by cardinality.
-	//sort.Sort(sort.Reverse(measurements))
-	//
-	//if report.topN > 0 {
-	//	// There may not be "topN" measurement cardinality to sub-slice.
-	//	n := int(math.Min(float64(report.topN), float64(len(measurements))))
-	//	measurements = measurements[:n]
-	//}
-
-	// tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
-	// fmt.Fprintf(tw, "Summary\nDatabase Path: %s\nCardinality (exact): %d\n\n", report.Path, totalCardinality)
-	// fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
-	// for _, res := range measurements {
-	// 	fmt.Fprintf(tw, "%q\t\t%d\n", res.name, res.count)
-	// }
-
-	// if err := tw.Flush(); err != nil {
-	// 	return err
-	// }
-	// fmt.Fprint(report.Stdout, "\n\n")
 	report.printOrgBucketCardinality()
 	return nil
 }
 
-//func (report *ReportCommand) printShardByMeasurement(id uint64) error {
-//	allMap, ok := report.cardinalities[id]
-//	if !ok {
-//		return nil
-//	}
-//
-//	var totalCardinality int64
-//	all := make(cardinalities, 0, len(allMap))
-//	for _, card := range allMap {
-//		n := card.cardinality()
-//		if n == 0 {
-//			continue
-//		}
-//
-//		totalCardinality += n
-//		all = append(all, card)
-//	}
-//
-//	sort.Sort(sort.Reverse(all))
-//
-//	// Trim to top-n
-//	if report.topN > 0 {
-//		// There may not be "topN" measurement cardinality to sub-slice.
-//		n := int(math.Min(float64(report.topN), float64(len(all))))
-//		all = all[:n]
-//	}
-//
-//	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
-//	fmt.Fprintf(tw, "===============\nShard ID: %d\nPath: %s\nCardinality (exact): %d\n\n", id, report.shardPaths[id], totalCardinality)
-//	fmt.Fprint(tw, "Measurement\tCardinality (exact)\n\n")
-//	for _, card := range all {
-//		fmt.Fprintf(tw, "%q\t\t%d\n", card.name, card.cardinality())
-//	}
-//	fmt.Fprint(tw, "===============\n\n")
-//	if err := tw.Flush(); err != nil {
-//		return err
-//	}
-//	fmt.Fprint(report.Stdout, "\n\n")
-//	return nil
-//}
+// GetOrgCardinality returns the total cardinality of the org provided.
+// Can only be called after Run().
+func (report *ReportCommand) GetOrgCardinality(orgID influxdb.ID) int64 {
+	orgTotal := int64(0)
+	for _, bucket := range report.orgBucketCardinality[orgID] {
+		orgTotal += bucket.cardinality()
+	}
+	return orgTotal
+}
+
+// GetBucketCardinality returns the total cardinality of the bucket in the org provided
+// Can only be called after Run()
+func (report *ReportCommand) GetBucketCardinality(orgID, bucketID influxdb.ID) int64 {
+	return report.orgBucketCardinality[orgID][bucketID].cardinality()
+}
 
 func (report *ReportCommand) printOrgBucketCardinality() {
 	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
-	//for k, v := range report.orgs {
-	//	report.Logger.Error("calculating org")
-	//	for _, j := range v {
-	//		cCard := j.cardinality()
-	//		totalCount = totalCount + j.cardinality()
-	//		if influxdb.ID(k).String() == report.Org {
-	//			orgCount += cCard
-	//		}
-	//	}
-	//}
-	//
-	//for k, v := range report.buckets {
-	//	for _, j := range v {
-	//		cCard := j.cardinality()
-	//		if influxdb.ID(k).String() == report.Bucket {
-	//			bucketCount += cCard
-	//		}
-	//	}
-	//}
 
 	totalCard := int64(0)
 	orgTotals := make(map[influxdb.ID]int64)

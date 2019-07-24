@@ -52,7 +52,7 @@ func NewReportTsiCommand() *cobra.Command {
 	reportTsiCommand.Flags().IntVar(&tsiFlags.topN, "top", 0, "Limit results to top n")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
 	reportTsiCommand.Flags().StringVar(&tsiFlags.bucket, "bucket", "", "If bucket is specified, org must be specified")
-	reportTsiCommand.Flags().StringVar(&tsiFlags.org, "org", "", "org to be searched")
+	reportTsiCommand.Flags().StringVar(&tsiFlags.org, "org", "", "Org to be reported")
 
 	reportTsiCommand.SetOutput(tsiFlags.Stdout)
 
@@ -65,8 +65,6 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 	config := logger.NewConfig()
 	config.Level = zapcore.InfoLevel
 	log, err := config.New(os.Stderr)
-	// do some filepath walking, we are looking for index files
-	//dir := os.Getenv("HOME") + "/.influxdbv2/engine/index"
 
 	// if path is unset, set to os.Getenv("HOME") + "/.influxdbv2/engine"
 	if tsiFlags.Path == "" {
@@ -96,7 +94,6 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	report.Logger.Error("running report")
 	err = report.Run()
 	if err != nil {
 		return err
