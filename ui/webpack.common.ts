@@ -76,7 +76,6 @@ module.exports = {
     }),
     new ForkTsCheckerWebpackPlugin({
       eslint: !devMode,
-      warningsFilter: /export * was not found in/,
     }),
     new webpack.ProgressPlugin(),
     new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
@@ -86,8 +85,8 @@ module.exports = {
     children: false,
     modules: false,
     version: false,
+    warnings: false,
     assetsSort: '!size',
-    warningsFilter: [/export .* was not found in/, /'\/locale'/],
     excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
   },
   performance: {hints: false},
