@@ -112,6 +112,7 @@ jobs:
           name: Restoring GOPATH/pkg/mod
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Matches based on go.sum checksum.
+      - run: sudo apt-get install -y bzr
       - run: mkdir -p $TEST_RESULTS
       - run: make test-go # This uses the test cache so it may succeed or fail quickly.
       - run: make vet
