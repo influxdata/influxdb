@@ -36,7 +36,7 @@ class ViewTypeDropdown extends PureComponent<Props> {
         className="view-type-dropdown"
         button={(active, onClick) => (
           <Dropdown.Button active={active} onClick={onClick}>
-            {this.getVewTypeGraphic(view.properties.type)}
+            {this.getVewTypeGraphic(view.properties.type as ViewType)}
           </Dropdown.Button>
         )}
         menu={onCollapse => (
