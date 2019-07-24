@@ -219,6 +219,8 @@ const (
 	twoID    = "020f755c3c082001"
 	threeID  = "020f755c3c082002"
 	fourID   = "020f755c3c082003"
+	fiveID   = "020f755c3c082004"
+	sixID    = "020f755c3c082005"
 	oneToken = "020f755c3c082008"
 )
 
