@@ -64,6 +64,7 @@ jobs:
           keys:
             - influxdb-gomod-{{ checksum "go.sum" }} # Just match the go.sum checksum cache.
       - run: sudo apt-get install -y netcat-openbsd
+      - run: sudo apt-get install -y bzr
       - run: make protoc
       - run: make build
       - run:
@@ -151,6 +152,7 @@ jobs:
     working_directory: /go/src/github.com/influxdata/influxdb
     steps:
       - checkout
+      - run: sudo apt-get install -y bzr
       - run: make checkcommit
 
       # Speed up `make build` by restoring caches from previous runs.
