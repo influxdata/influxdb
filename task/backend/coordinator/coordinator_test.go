@@ -58,7 +58,7 @@ func inmemTaskService() platform.TaskService {
 			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
-				return nil, &platform.ErrTaskNotFound
+				return nil, platform.ErrTaskNotFound
 			}
 			if upd.Flux != nil {
 				t.Flux = *upd.Flux
@@ -78,7 +78,7 @@ func inmemTaskService() platform.TaskService {
 			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
-				return nil, &platform.ErrTaskNotFound
+				return nil, platform.ErrTaskNotFound
 			}
 			newt := *t
 			return &newt, nil
@@ -100,7 +100,7 @@ func inmemTaskService() platform.TaskService {
 			defer mu.Unlock()
 			t, ok := tasks[id]
 			if !ok {
-				return nil, &platform.ErrTaskNotFound
+				return nil, platform.ErrTaskNotFound
 			}
 
 			return &platform.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0).Format(time.RFC3339)}, nil
@@ -276,7 +276,7 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := ts.FindTaskByID(context.Background(), task.ID); err != &platform.ErrTaskNotFound {
+	if _, err := ts.FindTaskByID(context.Background(), task.ID); err != platform.ErrTaskNotFound {
 		t.Fatalf("expected deleted task not to be found; got %v", err)
 	}
 }

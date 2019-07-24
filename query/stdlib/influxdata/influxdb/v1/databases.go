@@ -70,15 +70,14 @@ type DatabasesDecoder struct {
 	deps      *DatabasesDependencies
 	databases []*platform.DBRPMapping
 	alloc     *memory.Allocator
-	ctx       context.Context
 }
 
-func (bd *DatabasesDecoder) Connect() error {
+func (bd *DatabasesDecoder) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (bd *DatabasesDecoder) Fetch() (bool, error) {
-	b, _, err := bd.deps.DBRP.FindMany(bd.ctx, platform.DBRPMappingFilter{})
+func (bd *DatabasesDecoder) Fetch(ctx context.Context) (bool, error) {
+	b, _, err := bd.deps.DBRP.FindMany(ctx, platform.DBRPMappingFilter{})
 	if err != nil {
 		return false, err
 	}
@@ -86,7 +85,7 @@ func (bd *DatabasesDecoder) Fetch() (bool, error) {
 	return false, nil
 }
 
-func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
+func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 	kb := execute.NewGroupKeyBuilder(nil)
 	if len(bd.databases) == 0 {
 		return nil, errors.New("no 1.x databases found")
@@ -137,7 +136,7 @@ func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
 	}
 
 	for _, db := range bd.databases {
-		if bucket, err := bd.deps.BucketLookup.FindBucketByID(bd.ctx, db.BucketID); err != nil {
+		if bucket, err := bd.deps.BucketLookup.FindBucketByID(ctx, db.BucketID); err != nil {
 			return nil, err
 		} else {
 			_ = b.AppendString(0, db.OrganizationID.String())
@@ -171,7 +170,7 @@ func createDatabasesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a 
 	}
 	orgID := req.OrganizationID
 
-	bd := &DatabasesDecoder{orgID: orgID, deps: &deps, alloc: a.Allocator(), ctx: a.Context()}
+	bd := &DatabasesDecoder{orgID: orgID, deps: &deps, alloc: a.Allocator()}
 
 	return execute.CreateSourceFromDecoder(bd, dsid, a)
 }

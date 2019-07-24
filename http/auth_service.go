@@ -186,6 +186,8 @@ func newAuthsResponse(as []*authResponse) *authsResponse {
 func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	h.Logger.Debug("create auth request", zap.String("r", fmt.Sprint(r)))
+
 	req, err := decodePostAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -198,7 +200,12 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	auth := req.toPlatform(user.ID)
+	userID := user.ID
+	if req.UserID != nil && req.UserID.Valid() {
+		userID = *req.UserID
+	}
+
+	auth := req.toPlatform(userID)
 
 	org, err := h.OrganizationService.FindOrganizationByID(ctx, auth.OrgID)
 	if err != nil {
@@ -216,6 +223,8 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
+	h.Logger.Debug("auth created ", zap.String("auth", fmt.Sprint(auth)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(auth, org, user, perms)); err != nil {
 		logEncodingError(h.Logger, r, err)
@@ -318,6 +327,7 @@ func decodePostAuthorizationRequest(ctx context.Context, r *http.Request) (*post
 // handleGetAuthorizations is the HTTP handler for the GET /api/v2/authorizations route.
 func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	h.Logger.Debug("get auths request", zap.String("r", fmt.Sprint(r)))
 
 	req, err := decodeGetAuthorizationsRequest(ctx, r)
 	if err != nil {
@@ -355,6 +365,8 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 
 		auths = append(auths, newAuthResponse(a, o, u, ps))
 	}
+
+	h.Logger.Debug("auths retrieved ", zap.String("auths", fmt.Sprint(auths)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -415,6 +427,7 @@ func decodeGetAuthorizationsRequest(ctx context.Context, r *http.Request) (*getA
 func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	h.Logger.Debug("get auth request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
@@ -446,6 +459,8 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
+	h.Logger.Debug("auth retrieved ", zap.String("auth", fmt.Sprint(a)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -481,6 +496,7 @@ func decodeGetAuthorizationRequest(ctx context.Context, r *http.Request) (*getAu
 func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	h.Logger.Debug("update auth request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeUpdateAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
@@ -517,6 +533,7 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+	h.Logger.Debug("auth updated", zap.String("auth", fmt.Sprint(a)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -559,6 +576,8 @@ func decodeUpdateAuthorizationRequest(ctx context.Context, r *http.Request) (*up
 func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	h.Logger.Debug("delete auth request", zap.String("r", fmt.Sprint(r)))
+
 	req, err := decodeDeleteAuthorizationRequest(ctx, r)
 	if err != nil {
 		h.Logger.Info("failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
@@ -571,6 +590,8 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
+
+	h.Logger.Debug("auth deleted", zap.String("authID", fmt.Sprint(req.ID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

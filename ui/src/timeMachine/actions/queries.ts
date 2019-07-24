@@ -24,7 +24,7 @@ import {
 } from 'src/variables/selectors'
 
 // Types
-import {WrappedCancelablePromise, CancellationError} from 'src/types/promises'
+import {CancelBox} from 'src/types/promises'
 import {RemoteDataState} from 'src/types'
 import {GetState} from 'src/types'
 
@@ -82,7 +82,7 @@ export const refreshTimeMachineVariableValues = () => async (
   await dispatch(refreshVariableValues(contextID, variablesToRefresh))
 }
 
-let pendingResults: Array<WrappedCancelablePromise<string>> = []
+let pendingResults: Array<CancelBox<string>> = []
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
   const {view, timeRange} = getActiveTimeMachine(getState())
@@ -120,7 +120,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     dispatch(setQueryResults(RemoteDataState.Done, files, duration))
   } catch (e) {
-    if (e instanceof CancellationError) {
+    if (e.name === 'CancellationError') {
       return
     }
 

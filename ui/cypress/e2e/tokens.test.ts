@@ -93,7 +93,11 @@ describe('tokens', () => {
     cy.getByTestID('table-row').then(rows => {
       authData = authData.sort((a, b) =>
         // eslint-disable-next-line
-        a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+        a.description < b.description
+          ? -1
+          : a.description > b.description
+          ? 1
+          : 0
       )
 
       for (var i = 0; i < rows.length; i++) {
@@ -257,7 +261,6 @@ describe('tokens', () => {
         })
 
       cy.getByTestID('button--save').click()
-      cy.getByTestID('overlay--container').should('not.be.visible')
 
       //Verify token
       cy.getByTestID('table-row')

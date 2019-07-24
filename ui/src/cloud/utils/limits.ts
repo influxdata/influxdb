@@ -30,3 +30,30 @@ export const extractTaskLimits = (limits: LimitsState): LimitStatus => {
 export const extractTaskMax = (limits: LimitsState): number => {
   return get(limits, 'tasks.maxAllowed') || Infinity
 }
+
+export const extractRateLimitStatus = (limits: LimitsState): LimitStatus => {
+  const statuses = [
+    get(limits, 'rate.writeKBs.limitStatus'),
+    get(limits, 'rate.readKBs.limitStatus'),
+  ]
+
+  if (statuses.includes(LimitStatus.EXCEEDED)) {
+    return LimitStatus.EXCEEDED
+  }
+
+  return LimitStatus.OK
+}
+
+export const extractRateLimitResourceName = (limits: LimitsState): string => {
+  const rateLimitedResources = []
+
+  if (get(limits, 'rate.writeKBs.limitStatus') === LimitStatus.EXCEEDED) {
+    rateLimitedResources.push('writes')
+  }
+
+  if (get(limits, 'rate.readKBs.limitStatus') === LimitStatus.EXCEEDED) {
+    rateLimitedResources.push('reads')
+  }
+
+  return rateLimitedResources.join(' and ')
+}

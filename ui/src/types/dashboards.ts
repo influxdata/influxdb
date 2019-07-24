@@ -3,8 +3,18 @@ import {Color} from 'src/types/colors'
 
 import {
   IDashboard as DashboardAPI,
-  View as ViewAPI,
   Cell as CellAPI,
+  ViewLinks,
+  DashboardQuery,
+  CheckViewProperties,
+} from '@influxdata/influx'
+
+export {
+  CheckView,
+  CheckViewProperties,
+  DashboardQuery,
+  BuilderConfig,
+  BuilderConfigAggregateWindow,
 } from '@influxdata/influx'
 
 export enum Scale {
@@ -57,24 +67,6 @@ export enum QueryEditMode {
   Advanced = 'advanced',
 }
 
-export interface AggregateWindow {
-  period: string
-}
-
-export interface BuilderConfig {
-  buckets: string[]
-  tags: Array<{key: string; values: string[]}>
-  functions: Array<{name: string}>
-  aggregateWindow: AggregateWindow
-}
-
-export interface DashboardQuery {
-  text: string
-  editMode: QueryEditMode
-  builderConfig: BuilderConfig
-  name: string
-}
-
 export interface DashboardDraftQuery extends DashboardQuery {
   hidden: boolean
 }
@@ -94,8 +86,10 @@ export interface MarkDownProperties {
   text: string
 }
 
-export interface View<T extends ViewProperties = ViewProperties>
-  extends ViewAPI {
+export interface View<T extends ViewProperties = ViewProperties> {
+  links?: ViewLinks
+  id?: string
+  name?: string
   properties?: T
   dashboardID?: string
   cellID?: string
@@ -127,6 +121,7 @@ export type ViewProperties =
   | HistogramView
   | HeatmapView
   | ScatterView
+  | CheckViewProperties
 
 export type QueryViewProperties = Extract<
   ViewProperties,
@@ -134,6 +129,7 @@ export type QueryViewProperties = Extract<
 >
 
 export type WorkingView<T extends ViewProperties> = View<T> | NewView<T>
+
 export type QueryView = WorkingView<QueryViewProperties>
 
 /**
@@ -308,6 +304,7 @@ export enum ViewType {
   Histogram = 'histogram',
   Heatmap = 'heatmap',
   Scatter = 'scatter',
+  Check = 'check',
 }
 
 export interface DashboardFile {
@@ -320,12 +317,6 @@ interface DashboardFileMetaSection {
 }
 
 export type NewCell = Omit<Cell, 'id' | 'links' | 'dashboardID'>
-
-export enum ThresholdType {
-  Text = 'text',
-  BG = 'background',
-  Base = 'base',
-}
 
 export interface DashboardSwitcherLink {
   key: string

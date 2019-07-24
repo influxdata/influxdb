@@ -93,7 +93,7 @@ func WithNodeID(id int) Option {
 // metrics are labelled correctly.
 func WithRetentionEnforcer(finder BucketFinder) Option {
 	return func(e *Engine) {
-		e.retentionEnforcer = newRetentionEnforcer(e, finder)
+		e.retentionEnforcer = newRetentionEnforcer(e, e.engine, finder)
 	}
 }
 

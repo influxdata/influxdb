@@ -74,6 +74,12 @@ import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenO
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
+import AlertingIndex from 'src/alerting/containers/AlertingIndex'
+import AlertHistoryIndex from 'src/alerting/containers/AlertHistoryIndex'
+import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
+import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
+
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -165,6 +171,10 @@ class Root extends PureComponent {
                             component={DataExplorerPage}
                           >
                             <Route path="save" component={SaveAsOverlay} />
+                            <Route
+                              path="delete-data"
+                              component={DEDeleteDataOverlay}
+                            />
                           </Route>
                           <Route path="dashboards" component={DashboardsIndex}>
                             <Route
@@ -218,6 +228,10 @@ class Root extends PureComponent {
                               <Route
                                 path="edit"
                                 component={UpdateBucketOverlay}
+                              />
+                              <Route
+                                path="delete-data"
+                                component={BucketsDeleteDataOverlay}
                               />
                               <Route
                                 path="rename"
@@ -298,6 +312,13 @@ class Root extends PureComponent {
                               component={CreateScraperOverlay}
                             />
                           </Route>
+                          <FeatureFlag name="alerting">
+                            <Route path="alerting" component={AlertingIndex} />
+                            <Route
+                              path="alert-history"
+                              component={AlertHistoryIndex}
+                            />
+                          </FeatureFlag>
                           <Route path="profile" component={OrgProfilePage}>
                             <Route path="rename" component={RenameOrgOverlay} />
                           </Route>

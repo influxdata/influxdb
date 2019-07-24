@@ -60,7 +60,13 @@ export class LineProtocol extends PureComponent<Props> {
             <div>
               <h3 className="wizard-step--title">Add Data via Line Protocol</h3>
               <h5 className="wizard-step--lp-sub-title">
-                Need help writing InfluxDB Line Protocol? See Documentation
+                Need help writing InfluxDB Line Protocol?{' '}
+                <a
+                  href="https://v2.docs.influxdata.com/v2.0/write-data/#write-data-in-the-influxdb-ui"
+                  target="_blank"
+                >
+                  See Documentation
+                </a>
               </h5>
 
               {this.content}

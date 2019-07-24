@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, createRef, CSSProperties} from 'react'
+import React, {PureComponent, CSSProperties} from 'react'
 
 // Components
 import DatePicker from 'src/shared/components/dateRangePicker/DatePicker'
@@ -12,45 +12,24 @@ import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
 interface Props {
   timeRange: TimeRange
   onSetTimeRange: (timeRange: TimeRange) => void
-  position?: {top: number; right: number}
   onClose: () => void
+  position?: {top?: number; right?: number; bottom?: number; left?: number}
 }
 
 interface State {
   lower: string
   upper: string
-  bottomPosition?: number
-  topPosition?: number
 }
 
-const PICKER_HEIGHT = 416
-const HORIZONTAL_PADDING = 2
-const VERTICAL_PADDING = 15
-
 class DateRangePicker extends PureComponent<Props, State> {
-  private rangePickerRef = createRef<HTMLDivElement>()
-
   constructor(props: Props) {
     super(props)
+
     const {
       timeRange: {lower, upper},
     } = props
 
-    this.state = {lower, upper, bottomPosition: null}
-  }
-
-  public componentDidMount() {
-    const {
-      bottom,
-      top,
-      height,
-    } = this.rangePickerRef.current.getBoundingClientRect()
-
-    if (bottom > window.innerHeight) {
-      this.setState({bottomPosition: height / 2})
-    } else if (top < 0) {
-      this.setState({topPosition: height / 2})
-    }
+    this.state = {lower, upper}
   }
 
   public render() {
@@ -61,7 +40,6 @@ class DateRangePicker extends PureComponent<Props, State> {
       <ClickOutside onClickOutside={onClose}>
         <div
           className="range-picker react-datepicker-ignore-onclickoutside"
-          ref={this.rangePickerRef}
           style={this.stylePosition}
         >
           <button className="range-picker--dismiss" onClick={onClose} />
@@ -91,28 +69,21 @@ class DateRangePicker extends PureComponent<Props, State> {
 
   private get stylePosition(): CSSProperties {
     const {position} = this.props
-    const {bottomPosition, topPosition} = this.state
 
     if (!position) {
-      return
-    }
-
-    const {top, right} = position
-
-    if (topPosition) {
       return {
-        top: '14px',
-        right: `${right + HORIZONTAL_PADDING}px`,
+        top: `${window.innerHeight / 2}px`,
+        left: `${window.innerWidth / 2}px`,
+        transform: `translate(-50%, -50%)`,
       }
     }
 
-    const bottomPx =
-      (bottomPosition || window.innerHeight - top - VERTICAL_PADDING) -
-      PICKER_HEIGHT / 2
-    return {
-      bottom: `${bottomPx}px`,
-      right: `${right + HORIZONTAL_PADDING}px`,
-    }
+    const style = Object.entries(position).reduce(
+      (acc, [k, v]) => ({...acc, [k]: `${v}px`}),
+      {}
+    )
+
+    return style
   }
 
   private handleSetTimeRange = (): void => {

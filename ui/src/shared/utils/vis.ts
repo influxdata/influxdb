@@ -45,11 +45,12 @@ interface GetFormatterOptions {
   suffix?: string
   base?: Base
   timeZone?: TimeZone
+  trimZeros?: boolean
 }
 
 export const getFormatter = (
   columnType: ColumnType,
-  {prefix, suffix, base, timeZone}: GetFormatterOptions = {}
+  {prefix, suffix, base, timeZone, trimZeros = true}: GetFormatterOptions = {}
 ): null | ((x: any) => string) => {
   if (columnType === 'number' && base === '2') {
     return binaryPrefixFormatter({
@@ -64,6 +65,7 @@ export const getFormatter = (
       prefix,
       suffix,
       significantDigits: VIS_SIG_DIGITS,
+      trimZeros,
     })
   }
 
@@ -222,4 +224,19 @@ export const defaultYColumn = (
   }
 
   return null
+}
+
+export const isInDomain = (value: number, domain: number[]) =>
+  value >= domain[0] && value <= domain[1]
+
+export const clamp = (value: number, domain: number[]) => {
+  if (value < domain[0]) {
+    return domain[0]
+  }
+
+  if (value > domain[1]) {
+    return domain[1]
+  }
+
+  return value
 }

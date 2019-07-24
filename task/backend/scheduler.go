@@ -198,13 +198,13 @@ func (s *TickScheduler) CancelRun(_ context.Context, taskID, runID platform.ID) 
 	defer s.schedulerMu.Unlock()
 	ts, ok := s.taskSchedulers[taskID]
 	if !ok {
-		return &platform.ErrTaskNotFound
+		return platform.ErrTaskNotFound
 	}
 	ts.runningMu.Lock()
 	c, ok := ts.running[runID]
 	if !ok {
 		ts.runningMu.Unlock()
-		return &platform.ErrRunNotFound
+		return platform.ErrRunNotFound
 	}
 	ts.runningMu.Unlock()
 	if c.CancelFunc != nil {
@@ -303,11 +303,9 @@ func (s *TickScheduler) ClaimTask(authCtx context.Context, task *platform.Task) 
 
 	_, ok := s.taskSchedulers[task.ID]
 	if ok {
-		err = &platform.ErrTaskAlreadyClaimed
+		err = platform.ErrTaskAlreadyClaimed
 		return err
 	}
-
-	s.taskSchedulers[task.ID] = ts
 
 	// pickup any runs that are still "running from a previous failure"
 	runs, err := s.taskControlService.CurrentlyRunning(authCtx, task.ID)
@@ -319,6 +317,8 @@ func (s *TickScheduler) ClaimTask(authCtx context.Context, task *platform.Task) 
 			return err
 		}
 	}
+
+	s.taskSchedulers[task.ID] = ts
 
 	next, hasQueue := ts.NextDue()
 	if now := atomic.LoadInt64(&s.now); now >= next || hasQueue {
@@ -338,7 +338,7 @@ func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task)
 
 	ts, ok := s.taskSchedulers[task.ID]
 	if !ok {
-		return &platform.ErrTaskNotClaimed
+		return platform.ErrTaskNotClaimed
 	}
 	ts.task = task
 
@@ -392,7 +392,7 @@ func (s *TickScheduler) ReleaseTask(taskID platform.ID) error {
 
 	t, ok := s.taskSchedulers[taskID]
 	if !ok {
-		return &platform.ErrTaskNotClaimed
+		return platform.ErrTaskNotClaimed
 	}
 
 	t.Cancel()
@@ -509,8 +509,9 @@ func (ts *taskScheduler) Work() {
 }
 
 func (ts *taskScheduler) WorkCurrentlyRunning(runs []*platform.Run) error {
+	foundWorker := false
+
 	for _, cr := range runs {
-		foundWorker := false
 		for _, r := range ts.runners {
 			t, err := time.Parse(time.RFC3339, cr.ScheduledFor)
 			if err != nil {
@@ -523,9 +524,10 @@ func (ts *taskScheduler) WorkCurrentlyRunning(runs []*platform.Run) error {
 			}
 		}
 
-		if !foundWorker {
-			return errors.New("worker not found to resume work")
-		}
+	}
+
+	if !foundWorker {
+		return errors.New("worker not found to resume work")
 	}
 
 	return nil
@@ -677,7 +679,7 @@ func (r *runner) startFromWorking(now int64) {
 	// and we'll quickly end up with many run_ids associated with the log.
 	runLogger := r.logger.With(logger.TraceID(ctx), zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
-	runLogger.Debug("Created run; beginning execution")
+	runLogger.Info("Created run; beginning execution")
 	r.wg.Add(1)
 	go r.executeAndWait(ctx, qr, runLogger)
 
@@ -748,7 +750,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	rr, err := rp.Wait()
 	close(ready)
 	if err != nil {
-		if err == &platform.ErrRunCanceled {
+		if err == platform.ErrRunCanceled {
 			r.updateRunState(qr, RunCanceled, runLogger)
 			errMsg = "Waiting for execution result failed, " + errMsg
 			// Move on to the next execution, for a canceled run.
@@ -782,7 +784,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		r.taskControlService.AddRunLog(authCtx, r.task.ID, qr.RunID, time.Now(), string(b))
 	}
 	r.updateRunState(qr, RunSuccess, runLogger)
-	runLogger.Debug("Execution succeeded")
+	runLogger.Info("Execution succeeded")
 
 	// Check again if there is a new run available, without returning to idle state.
 	r.startFromWorking(atomic.LoadInt64(r.ts.now))
