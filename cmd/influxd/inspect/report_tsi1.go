@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Command represents the program execution for "influxd reporttsi".
+// Command represents the program execution for "influxd inspect report-tsi".
 var tsiFlags = struct {
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
@@ -88,13 +88,13 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 		if bucketID, err := influxdb.IDFromString(tsiFlags.bucket); err != nil {
 			return err
 		} else if report.OrgID == nil {
-			return errors.New("org must be provided if filtering by bucket ")
+			return errors.New("org must be provided if filtering by bucket")
 		} else {
 			report.BucketID = bucketID
 		}
 	}
 
-	err = report.Run()
+	_, err = report.Run()
 	if err != nil {
 		return err
 	}
