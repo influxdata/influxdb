@@ -1,2 +1,3 @@
-# Validate all commits and ignore the PR title
-commitsOnly: true
+# docs: https://github.com/probot/semantic-pull-requests#configuration
+# Always validate the PR title AND all the commits
+titleAndCommits: true
