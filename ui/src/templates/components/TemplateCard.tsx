@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -191,8 +191,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     onClone(id)
   }
 
-  private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
+  private handleNameClick = () => {
     this.handleViewTemplate()
   }
 

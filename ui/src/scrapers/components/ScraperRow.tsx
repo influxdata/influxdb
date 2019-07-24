@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 
 // Components
 import {ResourceList, Context} from 'src/clockface'
@@ -28,7 +28,6 @@ export default class ScraperRow extends PureComponent<Props> {
               noNameString={DEFAULT_SCRAPER_NAME}
               buttonTestID="editable-name"
               inputTestID="input-field"
-              onClick={this.handleClick}
             />
           )}
           metaData={() => [
@@ -53,10 +52,6 @@ export default class ScraperRow extends PureComponent<Props> {
         </Context.Menu>
       </Context>
     )
-  }
-
-  private handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
   }
 
   private handleDeleteScraper = () => {

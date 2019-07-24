@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -116,9 +116,7 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
-
+  private handleNameClick = () => {
     this.props.onSelect(this.props.task)
   }
 

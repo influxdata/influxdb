@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 
@@ -146,8 +146,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     }
   }
 
-  private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
+  private handleNameClick = () => {
     this.handleOpenConfig()
   }
 

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent, MouseEvent} from 'react'
+import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -35,17 +35,10 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
   notificationRule,
   updateNotificationRule,
   deleteNotificationRule,
-  router,
   params: {orgID},
 }) => {
   const onUpdateName = (name: string) => {
     updateNotificationRule({id: notificationRule.id, name})
-  }
-
-  const onClickName = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
-
-    router.push(`/orgs/${orgID}/notificationRules/${notificationRule.id}`)
   }
 
   const onDelete = () => {
@@ -71,7 +64,7 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
       name={() => (
         <ResourceList.EditableName
           onUpdate={onUpdateName}
-          onClick={onClickName}
+          hrefValue={`/orgs/${orgID}/notificationRules/${notificationRule.id}`}
           name={notificationRule.name}
           noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
           parentTestID="notificationRule-card--name"
