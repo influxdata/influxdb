@@ -17,28 +17,28 @@ import {Check, GetState} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
-  | ReturnType<typeof setChecksStatus>
   | ReturnType<typeof setCheck>
-  | ReturnType<typeof setCheckStatus>
+  | ReturnType<typeof removeCheck>
+  | ReturnType<typeof setCurrentCheck>
 
-const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
+export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
   payload: {status, checks},
 })
 
-const setChecksStatus = (status: RemoteDataState) => ({
-  type: 'SET_CHECKS_STATUS' as 'SET_CHECKS_STATUS',
-  payload: {status},
-})
-
-const setCheck = (status: RemoteDataState, check?: Check) => ({
+export const setCheck = (check: Check) => ({
   type: 'SET_CHECK' as 'SET_CHECK',
-  payload: {status, check},
+  payload: {check},
 })
 
-const setCheckStatus = (status: RemoteDataState) => ({
-  type: 'SET_CHECK_STATUS' as 'SET_CHECK_STATUS',
-  payload: {status},
+export const removeCheck = (checkID: string) => ({
+  type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
+  payload: {checkID},
+})
+
+export const setCurrentCheck = (status: RemoteDataState, check?: Check) => ({
+  type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
+  payload: {status, check},
 })
 
 export const getChecks = () => async (
@@ -46,7 +46,7 @@ export const getChecks = () => async (
   getState: GetState
 ) => {
   try {
-    dispatch(setChecksStatus(RemoteDataState.Loading))
+    dispatch(setAllChecks(RemoteDataState.Loading))
     const {
       orgs: {
         org: {id: orgID},
@@ -58,23 +58,58 @@ export const getChecks = () => async (
     dispatch(setAllChecks(RemoteDataState.Done, checks))
   } catch (e) {
     console.error(e)
-    dispatch(setChecksStatus(RemoteDataState.Error))
+    dispatch(setAllChecks(RemoteDataState.Error))
     dispatch(notify(copy.getChecksFailed(e.message)))
   }
 }
 
-export const getCheck = (checkID: string) => async (
+export const getCurrentCheck = (checkID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    dispatch(setCheckStatus(RemoteDataState.Loading))
+    dispatch(setCurrentCheck(RemoteDataState.Loading))
 
     const check = await client.checks.get(checkID)
 
-    dispatch(setCheck(RemoteDataState.Done, check))
+    dispatch(setCurrentCheck(RemoteDataState.Done, check))
   } catch (e) {
     console.error(e)
-    dispatch(setCheckStatus(RemoteDataState.Error))
+    dispatch(setCurrentCheck(RemoteDataState.Error))
     dispatch(notify(copy.getCheckFailed(e.message)))
+  }
+}
+
+export const createCheck = (check: Check) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    client.checks.create(check)
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.createCheckFailed(e.message)))
+  }
+}
+
+export const updateCheck = (check: Partial<Check>) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const updatedCheck = await client.checks.update(check.id, check)
+    dispatch(setCheck(updatedCheck))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.updateCheckFailed(e.message)))
+  }
+}
+
+export const deleteCheck = (checkID: string) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    await client.checks.delete(checkID)
+    dispatch(removeCheck(checkID))
+  } catch (e) {
+    console.error(e)
+    dispatch(notify(copy.deleteCheckFailed(e.message)))
   }
 }

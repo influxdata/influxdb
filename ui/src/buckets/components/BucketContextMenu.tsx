@@ -29,7 +29,7 @@ interface Props {
   onAddScraper: () => void
 }
 
-export default class MemberContextMenu extends PureComponent<Props> {
+export default class BucketContextMenu extends PureComponent<Props> {
   public render() {
     const {
       bucket,

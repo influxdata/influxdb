@@ -1,4 +1,9 @@
+//Libraries
 import React, {FunctionComponent} from 'react'
+
+//Components
+import CheckCard from 'src/alerting/components/CheckCard'
+import {ResourceList} from 'src/clockface'
 
 // Types
 import {Check} from 'src/types'
@@ -9,9 +14,20 @@ interface Props {
 }
 
 const CheckCards: FunctionComponent<Props> = ({checks}) => {
-  if (checks && checks.length) {
-    return <></>
-  }
+  return (
+    <>
+      <ResourceList>
+        <ResourceList.Body emptyState={<EmptyChecksList />}>
+          {checks.map(check => (
+            <CheckCard key={check.id} check={check} />
+          ))}
+        </ResourceList.Body>
+      </ResourceList>
+    </>
+  )
+}
+
+const EmptyChecksList: FunctionComponent = () => {
   return (
     <EmptyState size={ComponentSize.ExtraSmall}>
       <EmptyState.Text

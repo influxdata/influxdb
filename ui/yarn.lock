@@ -1151,10 +1151,10 @@
   resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.0.tgz#b04a304460a7c9449fe1a9fa2a3f5db97949e916"
   integrity sha512-nDVQgx5Lq3fjsMXTzYwzf0HXKjSxzsBJibitObwtE0wefpzU4LW0IEUrcCBNIQyXj1OxyBNL9a67gZ4DyV7M2w==
 
-"@influxdata/influx@0.5.0":
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/influx/-/influx-0.5.0.tgz#dedf688d84a50b526a15362633bd5ee7f1e7a95b"
-  integrity sha512-P24C5j20RRMX2JT43vTdoSozjZp01rcXxOAoIMR+sDMSMG4XuuckIEEOsdTnP1w+N2ivhjC74MjzmswxKeO0fw==
+"@influxdata/influx@0.5.5":
+  version "0.5.5"
+  resolved "https://registry.yarnpkg.com/@influxdata/influx/-/influx-0.5.5.tgz#ff30862ba3837df8e6e237634e7c844a00c03c08"
+  integrity sha512-mmyymYIT/HpWDrdR1/x9+ENJIrZTFyr46EF42adqRwujwLxVyG1MPOC7H6aoH87DZgVxKV4nt+zmRSgOnetdpg==
   dependencies:
     axios "^0.19.0"
 
