@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -132,13 +132,15 @@ class DashboardCard extends PureComponent<Props> {
     )
   }
 
-  private handleClickDashboard = () => {
+  private handleClickDashboard = (e: MouseEvent<HTMLAnchorElement>) => {
     const {
       router,
       dashboard,
       onResetViews,
       params: {orgID},
     } = this.props
+
+    e.preventDefault()
 
     onResetViews()
 
