@@ -1,8 +1,9 @@
+// Libraries
+import {produce} from 'immer'
+
 // Types
 import {RemoteDataState, NotificationRule} from 'src/types'
 import {Action} from 'src/alerting/actions/notificationRules'
-
-import {notificationRule} from 'src/alerting/constants'
 
 export interface NotificationRulesState {
   status: RemoteDataState
@@ -12,67 +13,49 @@ export interface NotificationRulesState {
 
 export const defaultNotificationRulesState: NotificationRulesState = {
   status: RemoteDataState.NotStarted,
-  list: [notificationRule],
+  list: [],
   current: {status: RemoteDataState.NotStarted, notificationRule: null},
 }
 
 export default (
   state: NotificationRulesState = defaultNotificationRulesState,
   action: Action
-): NotificationRulesState => {
-  switch (action.type) {
-    case 'SET_ALL_NOTIFICATION_RULES':
-      if (action.payload.notificationRules) {
-        return {
-          ...state,
-          list: action.payload.notificationRules,
-          status: action.payload.status,
+): NotificationRulesState =>
+  produce(state, draftState => {
+    switch (action.type) {
+      case 'SET_ALL_NOTIFICATION_RULES':
+        const {status, notificationRules} = action.payload
+        draftState.status = status
+        if (notificationRules) {
+          draftState.list = notificationRules
         }
-      }
-      return {
-        ...state,
-        status: action.payload.status,
-      }
-    case 'SET_NOTIFICATION_RULE':
-      const newNotificationRule = action.payload.notificationRule
-      const notificationRuleIndex = state.list.findIndex(
-        nr => nr.id == newNotificationRule.id
-      )
+        return
 
-      let updatedList = state.list
-      if (notificationRuleIndex == -1) {
-        updatedList = [...updatedList, newNotificationRule]
-      } else {
-        updatedList[notificationRuleIndex] = newNotificationRule
-      }
+      case 'SET_NOTIFICATION_RULE':
+        const newNotificationRule = action.payload.notificationRule
+        const notificationRuleIndex = state.list.findIndex(
+          nr => nr.id == newNotificationRule.id
+        )
 
-      return {
-        ...state,
-        list: updatedList,
-      }
-    case 'SET_CURRENT_NOTIFICATION_RULE':
-      if (action.payload.notificationRule) {
-        return {
-          ...state,
-          current: {
-            notificationRule: action.payload.notificationRule,
-            status: action.payload.status,
-          },
+        if (notificationRuleIndex == -1) {
+          draftState.list.push(newNotificationRule)
+        } else {
+          draftState.list[notificationRuleIndex] = newNotificationRule
         }
-      }
-      return {
-        ...state,
-        current: {...state.current, status: action.payload.status},
-      }
-    case 'REMOVE_NOTIFICATION_RULE':
-      const list = state.list.filter(
-        c => c.id != action.payload.notificationRuleID
-      )
-      return {
-        ...state,
-        list: list,
-      }
-    default:
-      return state
-  }
-}
+        return
+
+      case 'REMOVE_NOTIFICATION_RULE':
+        const {notificationRuleID} = action.payload
+        draftState.list = draftState.list.filter(
+          nr => nr.id != notificationRuleID
+        )
+        return
+
+      case 'SET_CURRENT_NOTIFICATION_RULE':
+        draftState.current.status = action.payload.status
+        if (action.payload.notificationRule) {
+          draftState.current.notificationRule = action.payload.notificationRule
+        }
+        return
+    }
+  })

@@ -5,7 +5,7 @@ import {Dispatch} from 'react'
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
-//Actions
+// Actions
 import {
   notify,
   Action as NotificationAction,
@@ -21,7 +21,7 @@ export type Action =
   | ReturnType<typeof setCurrentNotificationRule>
   | ReturnType<typeof removeNotificationRule>
 
-const setAllNotificationRules = (
+export const setAllNotificationRules = (
   status: RemoteDataState,
   notificationRules?: NotificationRule[]
 ) => ({
@@ -29,12 +29,12 @@ const setAllNotificationRules = (
   payload: {status, notificationRules},
 })
 
-const setNotificationRule = (notificationRule: NotificationRule) => ({
+export const setNotificationRule = (notificationRule: NotificationRule) => ({
   type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
   payload: {notificationRule},
 })
 
-const setCurrentNotificationRule = (
+export const setCurrentNotificationRule = (
   status: RemoteDataState,
   notificationRule?: NotificationRule
 ) => ({
@@ -42,7 +42,7 @@ const setCurrentNotificationRule = (
   payload: {status, notificationRule},
 })
 
-const removeNotificationRule = (notificationRuleID: string) => ({
+export const removeNotificationRule = (notificationRuleID: string) => ({
   type: 'REMOVE_NOTIFICATION_RULE' as 'REMOVE_NOTIFICATION_RULE',
   payload: {notificationRuleID},
 })
