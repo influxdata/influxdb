@@ -36,13 +36,14 @@ var FluxEndToEndSkipList = map[string]string{
 	"distinct":                 "Reason TBD",
 
 	// it appears these occur when writing the input data.  `to` may not be null safe.
-	"fill_bool":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
-	"fill_float":  "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
-	"fill_int":    "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
-	"fill_string": "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
-	"fill_time":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
-	"fill_uint":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
-	"window_null": "failed to read meta data: panic: interface conversion: interface {} is nil, not float64",
+	"fill_bool":    "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+	"fill_float":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+	"fill_int":     "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+	"fill_string":  "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+	"fill_time":    "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+	"fill_uint":    "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+	"window_null":  "failed to read meta data: panic: interface conversion: interface {} is nil, not float64",
+	"fill_default": "unknown field type for f1",
 
 	// these may just be missing calls to range() in the tests.  easy to fix in a new PR.
 	"group_nulls":      "unbounded test",
