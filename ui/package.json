@@ -178,7 +178,7 @@
     "levelup": "^3.1.1",
     "lodash": "^4.3.0",
     "memoize-one": "^4.0.2",
-    "moment": "^2.13.0",
+    "moment": "^2.18.1",
     "papaparse": "^4.6.3",
     "prop-types": "^15.6.1",
     "qs": "^6.5.2",

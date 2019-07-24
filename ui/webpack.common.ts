@@ -87,7 +87,7 @@ module.exports = {
     modules: false,
     version: false,
     assetsSort: '!size',
-    warningsFilter: /export .* was not found in/,
+    warningsFilter: [/export .* was not found in/, /'\/locale'/],
     excludeAssets: [/\.(hot-update|woff|eot|ttf|svg|ico|png)/],
   },
   performance: {hints: false},
