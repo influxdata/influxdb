@@ -320,6 +320,39 @@ func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 	}
 }
 
+// Ensure the handler merges series from the same result.
+func TestHandler_Query_MergeSeries(t *testing.T) {
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{
+			{
+				Name: "series0",
+				Values: [][]interface{}{
+					{float64(2.0)},
+				},
+				Partial: true,
+			},
+		})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{
+			{
+				Name: "series0",
+				Values: [][]interface{}{
+					{float64(3.0)},
+				},
+			},
+		})}
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series0","values":[[2],[3]]}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
 // Ensure the handler can parse chunked and chunk size query parameters.
 func TestHandler_Query_Chunked(t *testing.T) {
 	h := NewHandler(false)
