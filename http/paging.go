@@ -18,7 +18,10 @@ func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOpti
 	if offset := qp.Get("offset"); offset != "" {
 		o, err := strconv.Atoi(offset)
 		if err != nil {
-			return nil, err
+			return nil, &platform.Error{
+				Code: platform.EInvalid,
+				Msg:  "offset is invalid",
+			}
 		}
 
 		opts.Offset = o
@@ -27,7 +30,10 @@ func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOpti
 	if limit := qp.Get("limit"); limit != "" {
 		l, err := strconv.Atoi(limit)
 		if err != nil {
-			return nil, err
+			return nil, &platform.Error{
+				Code: platform.EInvalid,
+				Msg:  "limit is invalid",
+			}
 		}
 
 		if l < 1 || l > platform.MaxPageSize {
@@ -49,7 +55,10 @@ func decodeFindOptions(ctx context.Context, r *http.Request) (*platform.FindOpti
 	if descending := qp.Get("descending"); descending != "" {
 		desc, err := strconv.ParseBool(descending)
 		if err != nil {
-			return nil, err
+			return nil, &platform.Error{
+				Code: platform.EInvalid,
+				Msg:  "descending is invalid",
+			}
 		}
 
 		opts.Descending = desc
