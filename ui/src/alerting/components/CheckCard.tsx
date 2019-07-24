@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, MouseEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -39,7 +39,9 @@ const CheckCard: FunctionComponent<Props> = ({
     updateCheck({id: check.id, name})
   }
 
-  const onClickName = () => {
+  const onClickName = (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+
     router.push(`/orgs/${orgID}/checks/${check.id}`)
   }
 
