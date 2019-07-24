@@ -197,10 +197,12 @@ class Root extends PureComponent {
                             <Route path="cells">
                               <Route path="new" component={VEO} />
                               <Route path=":cellID/editQuery" component={VEO} />
-                              <Route
-                                path=":cellID/editAlerting"
-                                component={VEO}
-                              />
+                              <FeatureFlag name="alerting">
+                                <Route
+                                  path=":cellID/editAlerting"
+                                  component={VEO}
+                                />
+                              </FeatureFlag>
                             </Route>
                             <Route path="notes">
                               <Route path="new" component={NoteEditorOverlay} />
