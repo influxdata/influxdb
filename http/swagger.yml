@@ -8632,12 +8632,7 @@ components:
           description: The name of the organization that owns this Task.
           type: string
         status:
-          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
+          $ref: "#/components/schemas/TaskStatusType"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -8649,12 +8644,7 @@ components:
       type: object
       properties:
         status:
-          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
+          $ref: "#/components/schemas/TaskStatusType"
         flux:
           description: The Flux script to run for this task.
           type: string
