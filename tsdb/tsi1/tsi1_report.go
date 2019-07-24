@@ -75,6 +75,7 @@ func newTsiSummary() *ReportTsiSummary {
 // Run runs the report-tsi tool which can be used to find the cardinality
 // any org or bucket. Run returns a *ReportTsiSummary, which contains maps for finding
 // the cardinality of a bucket or org based on it's influxdb.ID
+// The *ReportTsiSummary will be nil if there is a failure
 func (report *ReportCommand) Run() (*ReportTsiSummary, error) {
 	report.Stdout = os.Stdout
 
@@ -104,8 +105,26 @@ func (report *ReportCommand) Run() (*ReportTsiSummary, error) {
 	// Blocks until all work done.
 	report.calculateCardinalities(fn)
 
-	// Generate and print summary.
-	summary := report.printOrgBucketCardinality()
+	// Generate and print summary
+	var summary *ReportTsiSummary
+	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
+
+	// if no org or bucket flags have been specified, print everything
+	// if not, only print the specified org/bucket
+	if report.OrgID == nil {
+		summary = report.printOrgBucketCardinality(true)
+	} else {
+		// still need to generate a summary, just without printing
+		summary = report.printOrgBucketCardinality(false)
+
+		// if we do not have a bucket, print the cardinality of OrgID
+		if report.BucketID == nil {
+			fmt.Fprintf(tw, "Org (%v) Cardinality: %v \n\n", report.OrgID, summary.OrgCardinality[*report.OrgID])
+		} else {
+			fmt.Fprintf(tw, "Bucket (%v) Cardinality: %v \n\n", report.BucketID, summary.BucketCardinality[*report.BucketID])
+		}
+		tw.Flush()
+	}
 	return summary, nil
 }
 
@@ -286,14 +305,9 @@ func (a results) Len() int           { return len(a) }
 func (a results) Less(i, j int) bool { return a[i].count < a[j].count }
 func (a results) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-// func (report *ReportCommand) printSummaryByMeasurement() error {
-// 	report.printOrgBucketCardinality()
-// 	return nil
-// }
-
 // GetOrgCardinality returns the total cardinality of the org provided.
-// Can only be called after Run().
-func (report *ReportCommand) GetOrgCardinality(orgID influxdb.ID) int64 {
+// Can only be called after Run()
+func (report *ReportCommand) printOrgCardinality(orgID influxdb.ID) int64 {
 	orgTotal := int64(0)
 	for _, bucket := range report.orgBucketCardinality[orgID] {
 		orgTotal += bucket.cardinality()
@@ -303,11 +317,11 @@ func (report *ReportCommand) GetOrgCardinality(orgID influxdb.ID) int64 {
 
 // GetBucketCardinality returns the total cardinality of the bucket in the org provided
 // Can only be called after Run()
-func (report *ReportCommand) GetBucketCardinality(orgID, bucketID influxdb.ID) int64 {
+func (report *ReportCommand) printBucketCardinality(orgID, bucketID influxdb.ID) int64 {
 	return report.orgBucketCardinality[orgID][bucketID].cardinality()
 }
 
-func (report *ReportCommand) printOrgBucketCardinality() *ReportTsiSummary {
+func (report *ReportCommand) printOrgBucketCardinality(print bool) *ReportTsiSummary {
 	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
 
 	// Generate a new summary
@@ -327,14 +341,16 @@ func (report *ReportCommand) printOrgBucketCardinality() *ReportTsiSummary {
 		summary.OrgCardinality[org] = orgTotal
 	}
 
-	fmt.Fprintf(tw, "Summary (total): %v \n\n", totalCard)
+	if print {
+		fmt.Fprintf(tw, "Summary (total): %v \n\n", totalCard)
 
-	fmt.Println(report.orgBucketCardinality)
+		fmt.Println(report.orgBucketCardinality)
 
-	for orgName, orgToBucket := range report.orgBucketCardinality {
-		fmt.Fprintf(tw, "Org %s total: %d \n\n", orgName.String(), orgTotals[orgName])
-		for bucketName, bucketCard := range orgToBucket {
-			fmt.Fprintf(tw, "    Bucket    %s    %d\n", bucketName.String(), bucketCard.cardinality())
+		for orgName, orgToBucket := range report.orgBucketCardinality {
+			fmt.Fprintf(tw, "Org %s total: %d \n\n", orgName.String(), summary.OrgCardinality[orgName])
+			for bucketName := range orgToBucket {
+				fmt.Fprintf(tw, "    Bucket    %s    %d\n", bucketName.String(), summary.BucketCardinality[bucketName])
+			}
 		}
 	}
 

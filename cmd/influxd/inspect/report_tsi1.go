@@ -51,8 +51,8 @@ func NewReportTsiCommand() *cobra.Command {
 	// fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.topN, "top", 0, "Limit results to top n")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
-	reportTsiCommand.Flags().StringVar(&tsiFlags.bucket, "bucket", "", "If bucket is specified, org must be specified")
-	reportTsiCommand.Flags().StringVar(&tsiFlags.org, "org", "", "Org to be reported")
+	reportTsiCommand.Flags().StringVarP(&tsiFlags.bucket, "bucket", "b", "", "If bucket is specified, org must be specified")
+	reportTsiCommand.Flags().StringVarP(&tsiFlags.org, "org", "o", "", "Org to be reported")
 
 	reportTsiCommand.SetOutput(tsiFlags.Stdout)
 
