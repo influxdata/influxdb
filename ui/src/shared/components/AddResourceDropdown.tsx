@@ -38,8 +38,10 @@ export default class AddResourceDropdown extends PureComponent<Props> {
     return (
       <Dropdown
         widthPixels={160}
+        testID="add-resource-dropdown"
         button={(active, onClick) => (
           <Dropdown.Button
+            testID="add-resource-dropdown--button"
             active={active}
             onClick={onClick}
             color={ComponentColor.Primary}
@@ -51,7 +53,10 @@ export default class AddResourceDropdown extends PureComponent<Props> {
           </Dropdown.Button>
         )}
         menu={onCollapse => (
-          <Dropdown.Menu onCollapse={onCollapse}>
+          <Dropdown.Menu
+            onCollapse={onCollapse}
+            testID="add-resource-dropdown--menu"
+          >
             {this.optionItems}
           </Dropdown.Menu>
         )}
@@ -72,7 +77,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         key={newOption}
         onClick={this.handleSelect}
         value={newOption}
-        testID="dropdown-item new"
+        testID="add-resource-dropdown--new"
       >
         {newOption}
       </Dropdown.Item>,
@@ -81,7 +86,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
         key={importOption}
         onClick={this.handleSelect}
         value={importOption}
-        testID="dropdown-item import"
+        testID="add-resource-dropdown--import"
       >
         {importOption}
       </Dropdown.Item>,
@@ -94,7 +99,7 @@ export default class AddResourceDropdown extends PureComponent<Props> {
           key={templateOption}
           onClick={this.handleSelect}
           value={templateOption}
-          testID="dropdown--item template"
+          testID="add-resource-dropdown--template"
         >
           {templateOption}
         </Dropdown.Item>
