@@ -20,6 +20,7 @@ export type Action =
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
   | ReturnType<typeof setCurrentCheck>
+  | ReturnType<typeof updateCurrentCheck>
 
 export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
@@ -39,6 +40,11 @@ export const removeCheck = (checkID: string) => ({
 export const setCurrentCheck = (status: RemoteDataState, check?: Check) => ({
   type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
   payload: {status, check},
+})
+
+export const updateCurrentCheck = (checkUpdate: Partial<Check>) => ({
+  type: 'UPDATE_CURRENT_CHECK' as 'UPDATE_CURRENT_CHECK',
+  payload: {status, checkUpdate},
 })
 
 export const getChecks = () => async (

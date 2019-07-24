@@ -53,5 +53,12 @@ export default (
           draftState.current.check = action.payload.check
         }
         return
+      case 'UPDATE_CURRENT_CHECK':
+        draftState.current.check = {
+          ...draftState.current.check,
+          ...action.payload.checkUpdate,
+        } as Check
+
+        return
     }
   })
