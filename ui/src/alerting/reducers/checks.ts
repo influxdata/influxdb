@@ -1,3 +1,6 @@
+// Libraries
+import {produce} from 'immer'
+
 // Types
 import {RemoteDataState, Check} from 'src/types'
 import {Action} from 'src/alerting/actions/checks'
@@ -17,53 +20,38 @@ export const defaultChecksState: ChecksState = {
 export default (
   state: ChecksState = defaultChecksState,
   action: Action
-): ChecksState => {
-  switch (action.type) {
-    case 'SET_ALL_CHECKS':
-      if (action.payload.checks) {
-        return {
-          ...state,
-          list: action.payload.checks,
-          status: action.payload.status,
+): ChecksState =>
+  produce(state, draftState => {
+    switch (action.type) {
+      case 'SET_ALL_CHECKS':
+        const {status, checks} = action.payload
+        draftState.status = status
+        if (checks) {
+          draftState.list = checks
         }
-      }
-      return {
-        ...state,
-        status: action.payload.status,
-      }
-    case 'SET_CHECK':
-      const newCheck = action.payload.check
-      const checkIndex = state.list.findIndex(c => c.id == newCheck.id)
+        return
 
-      let updatedList = state.list
-      if (checkIndex == -1) {
-        updatedList = [...updatedList, newCheck]
-      } else {
-        updatedList[checkIndex] = newCheck
-      }
+      case 'SET_CHECK':
+        const newCheck = action.payload.check
+        const checkIndex = state.list.findIndex(c => c.id == newCheck.id)
 
-      return {
-        ...state,
-        list: updatedList,
-      }
-    case 'SET_CURRENT_CHECK':
-      if (action.payload.check) {
-        return {
-          ...state,
-          current: {check: action.payload.check, status: action.payload.status},
+        if (checkIndex == -1) {
+          draftState.list.push(newCheck)
+        } else {
+          draftState.list[checkIndex] = newCheck
         }
-      }
-      return {
-        ...state,
-        current: {...state.current, status: action.payload.status},
-      }
-    case 'REMOVE_CHECK':
-      const list = state.list.filter(c => c.id != action.payload.checkID)
-      return {
-        ...state,
-        list,
-      }
-    default:
-      return state
-  }
-}
+        return
+
+      case 'REMOVE_CHECK':
+        const {checkID} = action.payload
+        draftState.list = draftState.list.filter(c => c.id != checkID)
+        return
+
+      case 'SET_CURRENT_CHECK':
+        draftState.current.status = action.payload.status
+        if (action.payload.check) {
+          draftState.current.check = action.payload.check
+        }
+        return
+    }
+  })
