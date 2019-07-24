@@ -42,11 +42,11 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(keysButton)
 
-    const keyMenuItems = getAllByTestId(/dropdown--item/)
+    const keyMenuItems = getAllByTestId(/searchable-dropdown--item/)
 
     expect(keyMenuItems.length).toBe(2)
 
-    const tk2 = getByTestId('dropdown--item tk2')
+    const tk2 = getByTestId('searchable-dropdown--item tk2')
 
     fireEvent.click(tk2)
 
@@ -55,7 +55,7 @@ describe('QueryBuilder', () => {
     )
 
     expect(keysButton.innerHTML.includes('tk2')).toBe(true)
-    expect(queryAllByTestId(/dropdown--item/).length).toBe(0)
+    expect(queryAllByTestId(/searchable-dropdown--item/).length).toBe(0)
   })
 
   it('can select a tag value', async () => {

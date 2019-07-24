@@ -82,6 +82,7 @@ class VariableDropdown extends PureComponent<Props> {
                   value={name}
                   onClick={this.handleSelect}
                   selected={name === selectedKey}
+                  testID="variable-dropdown--item"
                 >
                   {name}
                 </Dropdown.Item>
