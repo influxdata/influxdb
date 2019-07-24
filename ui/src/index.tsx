@@ -78,6 +78,8 @@ import AlertingIndex from 'src/alerting/containers/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/containers/AlertHistoryIndex'
 import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
 import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
+import NewCheckEditorOverlay from 'src/alerting/components/NewCheckEditorOverlay'
+import EditCheckEditorOverlay from 'src/alerting/components/EditCheckEditorOverlay'
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -320,8 +322,14 @@ class Root extends PureComponent {
                           </Route>
                           <FeatureFlag name="alerting">
                             <Route path="alerting" component={AlertingIndex}>
-                              <Route path="checks/:id/edit" component={VEO} />
-                              <Route path="checks/new" component={VEO} />
+                              <Route
+                                path="checks/:checkID/edit"
+                                component={EditCheckEditorOverlay}
+                              />
+                              <Route
+                                path="checks/new"
+                                component={NewCheckEditorOverlay}
+                              />
                             </Route>
                             <Route
                               path="alert-history"
