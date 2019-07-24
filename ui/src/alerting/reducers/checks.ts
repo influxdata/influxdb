@@ -2,8 +2,6 @@
 import {RemoteDataState, Check} from 'src/types'
 import {Action} from 'src/alerting/actions/checks'
 
-import {checks} from 'src/alerting/constants'
-
 export interface ChecksState {
   status: RemoteDataState
   list: Check[]
@@ -12,7 +10,7 @@ export interface ChecksState {
 
 export const defaultChecksState: ChecksState = {
   status: RemoteDataState.NotStarted,
-  list: checks,
+  list: [],
   current: {status: RemoteDataState.NotStarted, check: null},
 }
 
@@ -63,7 +61,7 @@ export default (
       const list = state.list.filter(c => c.id != action.payload.checkID)
       return {
         ...state,
-        list: list,
+        list,
       }
     default:
       return state

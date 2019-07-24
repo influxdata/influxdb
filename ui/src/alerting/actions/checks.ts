@@ -18,27 +18,27 @@ import {Check, GetState} from 'src/types'
 export type Action =
   | ReturnType<typeof setAllChecks>
   | ReturnType<typeof setCheck>
-  | ReturnType<typeof setCurrentCheck>
   | ReturnType<typeof removeCheck>
+  | ReturnType<typeof setCurrentCheck>
 
-const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
+export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
   payload: {status, checks},
 })
 
-const setCheck = (check: Check) => ({
+export const setCheck = (check: Check) => ({
   type: 'SET_CHECK' as 'SET_CHECK',
   payload: {check},
 })
 
-const setCurrentCheck = (status: RemoteDataState, check?: Check) => ({
-  type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
-  payload: {status, check},
-})
-
-const removeCheck = (checkID: string) => ({
+export const removeCheck = (checkID: string) => ({
   type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
   payload: {checkID},
+})
+
+export const setCurrentCheck = (status: RemoteDataState, check?: Check) => ({
+  type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
+  payload: {status, check},
 })
 
 export const getChecks = () => async (
