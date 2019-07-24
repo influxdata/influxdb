@@ -32,15 +32,10 @@ const CheckCard: FunctionComponent<Props> = ({
   check,
   updateCheck,
   deleteCheck,
-  router,
   params: {orgID},
 }) => {
   const onUpdateName = (name: string) => {
     updateCheck({id: check.id, name})
-  }
-
-  const onClickName = () => {
-    router.push(`/orgs/${orgID}/checks/${check.id}`)
   }
 
   const onDelete = () => {
@@ -66,7 +61,7 @@ const CheckCard: FunctionComponent<Props> = ({
       name={() => (
         <ResourceList.EditableName
           onUpdate={onUpdateName}
-          onClick={onClickName}
+          hrefValue={`/orgs/${orgID}/checks/${check.id}`}
           name={check.name}
           noNameString={DEFAULT_CHECK_NAME}
           parentTestID="check-card--name"

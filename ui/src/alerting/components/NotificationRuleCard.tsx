@@ -35,15 +35,10 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
   notificationRule,
   updateNotificationRule,
   deleteNotificationRule,
-  router,
   params: {orgID},
 }) => {
   const onUpdateName = (name: string) => {
     updateNotificationRule({id: notificationRule.id, name})
-  }
-
-  const onClickName = () => {
-    router.push(`/orgs/${orgID}/notificationRules/${notificationRule.id}`)
   }
 
   const onDelete = () => {
@@ -69,7 +64,7 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
       name={() => (
         <ResourceList.EditableName
           onUpdate={onUpdateName}
-          onClick={onClickName}
+          hrefValue={`/orgs/${orgID}/notificationRules/${notificationRule.id}`}
           name={notificationRule.name}
           noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
           parentTestID="notificationRule-card--name"
