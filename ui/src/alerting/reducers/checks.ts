@@ -1,3 +1,6 @@
+// Libraries
+import {produce} from 'immer'
+
 // Types
 import {RemoteDataState, Check} from 'src/types'
 import {Action} from 'src/alerting/actions/checks'
@@ -17,31 +20,38 @@ export const defaultChecksState: ChecksState = {
 export default (
   state: ChecksState = defaultChecksState,
   action: Action
-): ChecksState => {
-  switch (action.type) {
-    case 'SET_CHECKS_STATUS':
-      return {
-        ...state,
-        status: action.payload.status,
-      }
-    case 'SET_ALL_CHECKS':
-      return {
-        ...state,
-        list: action.payload.checks,
-        status: RemoteDataState.Done,
-      }
-    case 'SET_CHECK_STATUS':
-      return {
-        ...state,
-        current: {...state.current, status: action.payload.status},
-      }
-    case 'SET_CHECK':
-      return {
-        ...state,
-        current: {status: action.payload.status, check: action.payload.check},
-      }
+): ChecksState =>
+  produce(state, draftState => {
+    switch (action.type) {
+      case 'SET_ALL_CHECKS':
+        const {status, checks} = action.payload
+        draftState.status = status
+        if (checks) {
+          draftState.list = checks
+        }
+        return
 
-    default:
-      return state
-  }
-}
+      case 'SET_CHECK':
+        const newCheck = action.payload.check
+        const checkIndex = state.list.findIndex(c => c.id == newCheck.id)
+
+        if (checkIndex == -1) {
+          draftState.list.push(newCheck)
+        } else {
+          draftState.list[checkIndex] = newCheck
+        }
+        return
+
+      case 'REMOVE_CHECK':
+        const {checkID} = action.payload
+        draftState.list = draftState.list.filter(c => c.id != checkID)
+        return
+
+      case 'SET_CURRENT_CHECK':
+        draftState.current.status = action.payload.status
+        if (action.payload.check) {
+          draftState.current.check = action.payload.check
+        }
+        return
+    }
+  })
