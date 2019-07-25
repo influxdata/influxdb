@@ -10,6 +10,7 @@
 1. [14434](https://github.com/influxdata/influxdb/pull/14434): Fixes an issue where clicking on a dashboard name caused an incorrect redirect.
 1. [14441](https://github.com/influxdata/influxdb/pull/14441): Upgrade templates lib to 0.5.0
 1. [14453](https://github.com/influxdata/influxdb/pull/14453): Upgrade giraffe lib to 0.16.1
+1. [14412](https://github.com/influxdata/influxdb/pull/14412) Fix incorrect notification type for manually running a Task
 
 ## v2.0.0-alpha.15 [2019-07-11]
 
@@ -21,12 +22,10 @@
 ### Bug Fixes
 
 1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration 
-1. [14412](https://github.com/influxdata/influxdb/pull/14412) Fix incorrect notification type for manually running a Task
 
 ### Known Issues
 
 1. [influxdata/flux#1492](https://github.com/influxdata/flux/issues/1492): Null support in Flux was introduced in Alhpa 14. Several null issues were fixed in this release, but one known issue remains - Users may hit a panic if the first record processed by a map function has a null value.
-
 
 ## v2.0.0-alpha.14 [2019-06-28]
 
