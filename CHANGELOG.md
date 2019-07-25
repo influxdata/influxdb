@@ -1,14 +1,16 @@
 ## v2.0.0-alpha.17 [unreleased]
-### Features
-### UI Improvements
-### Bug Fixes
 
+### Features
+
+### UI Improvements
+
+### Bug Fixes
 
 ## v2.0.0-alpha.16 [2019-07-25]
 
 ### Bug Fixes
 
-1. [14385](https://github.com/influxdata/influxdb/pull/14385) Add link to Documentation text in line protocol upload overlay
+1. [14385](https://github.com/influxdata/influxdb/pull/14385): Add link to Documentation text in line protocol upload overlay
 1. [14344](https://github.com/influxdata/influxdb/pull/14344): Fix issue in Authorization API, can't create auth for another user.
 1. [14352](https://github.com/influxdata/influxdb/pull/14352): Fix Influx CLI ignored user flag for auth creation.
 1. [14379](https://github.com/influxdata/influxdb/pull/14379): Fix the map example in the documentation
@@ -16,7 +18,8 @@
 1. [14434](https://github.com/influxdata/influxdb/pull/14434): Fixes an issue where clicking on a dashboard name caused an incorrect redirect.
 1. [14441](https://github.com/influxdata/influxdb/pull/14441): Upgrade templates lib to 0.5.0
 1. [14453](https://github.com/influxdata/influxdb/pull/14453): Upgrade giraffe lib to 0.16.1
-1. [14412](https://github.com/influxdata/influxdb/pull/14412) Fix incorrect notification type for manually running a Task
+1. [14412](https://github.com/influxdata/influxdb/pull/14412): Fix incorrect notification type for manually running a Task
+1. [14356](https://github.com/influxdata/influxdb/pull/14356): Fix an issue where canceled tasks did not resume.
 
 ## v2.0.0-alpha.15 [2019-07-11]
 
@@ -27,7 +30,7 @@
 
 ### Bug Fixes
 
-1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration 
+1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration
 
 ### Known Issues
 
@@ -55,8 +58,8 @@
 ### Features
 
 1. [14130](https://github.com/influxdata/influxdb/pull/14130): Add static templates for system, docker, redis, kubernetes
-1. [14189] (https://github.com/influxdata/influxdb/pull/14189): Add option to select a token when creating a task
-1. [14200] (https://github.com/influxdata/influxdb/pull/14200): Add the ability to update a token when updating a task
+1. [14189](https://github.com/influxdata/influxdb/pull/14189): Add option to select a token when creating a task
+1. [14200](https://github.com/influxdata/influxdb/pull/14200): Add the ability to update a token when updating a task
 
 ## v2.0.0-alpha.12 [2019-06-13]
 
