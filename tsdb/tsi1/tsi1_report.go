@@ -91,7 +91,10 @@ func (report *ReportCommand) Run(print bool) (*Summary, error) {
 	}
 
 	sFile := tsdb.NewSeriesFile(report.SeriesDirPath)
-	sFile.WithLogger(report.Logger)
+
+	// TODO: do we actually want the seriesfile logging?
+	// sFile.WithLogger(report.Logger)
+
 	if err := sFile.Open(context.Background()); err != nil {
 		report.Logger.Error("failed to open series")
 		return nil, err
