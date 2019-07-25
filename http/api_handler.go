@@ -18,25 +18,26 @@ import (
 // APIHandler is a collection of all the service handlers.
 type APIHandler struct {
 	influxdb.HTTPErrorHandler
-	BucketHandler        *BucketHandler
-	UserHandler          *UserHandler
-	OrgHandler           *OrgHandler
-	AuthorizationHandler *AuthorizationHandler
-	DashboardHandler     *DashboardHandler
-	LabelHandler         *LabelHandler
-	AssetHandler         *AssetHandler
-	ChronografHandler    *ChronografHandler
-	ScraperHandler       *ScraperHandler
-	SourceHandler        *SourceHandler
-	VariableHandler      *VariableHandler
-	TaskHandler          *TaskHandler
-	TelegrafHandler      *TelegrafHandler
-	QueryHandler         *FluxHandler
-	WriteHandler         *WriteHandler
-	DocumentHandler      *DocumentHandler
-	SetupHandler         *SetupHandler
-	SessionHandler       *SessionHandler
-	SwaggerHandler       http.Handler
+	BucketHandler           *BucketHandler
+	UserHandler             *UserHandler
+	OrgHandler              *OrgHandler
+	AuthorizationHandler    *AuthorizationHandler
+	DashboardHandler        *DashboardHandler
+	LabelHandler            *LabelHandler
+	AssetHandler            *AssetHandler
+	ChronografHandler       *ChronografHandler
+	ScraperHandler          *ScraperHandler
+	SourceHandler           *SourceHandler
+	VariableHandler         *VariableHandler
+	TaskHandler             *TaskHandler
+	TelegrafHandler         *TelegrafHandler
+	QueryHandler            *FluxHandler
+	WriteHandler            *WriteHandler
+	DocumentHandler         *DocumentHandler
+	SetupHandler            *SetupHandler
+	SessionHandler          *SessionHandler
+	SwaggerHandler          http.Handler
+	NotificationRuleHandler *NotificationRuleHandler
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -80,6 +81,7 @@ type APIBackend struct {
 	ChronografService               *server.Service
 	OrgLookupService                authorizer.OrganizationService
 	DocumentService                 influxdb.DocumentService
+	NotificationRuleStore           influxdb.NotificationRuleStore
 }
 
 // PrometheusCollectors exposes the prometheus collectors associated with an APIBackend.
@@ -158,6 +160,11 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	telegrafBackend.TelegrafService = authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)
 	h.TelegrafHandler = NewTelegrafHandler(telegrafBackend)
 
+	notificationRuleBackend := NewNotificationRuleBackend(b)
+	notificationRuleBackend.NotificationRuleStore = authorizer.NewNotificationRuleStore(b.NotificationRuleStore,
+		b.UserResourceMappingService, b.OrganizationService)
+	h.NotificationRuleHandler = NewNotificationRuleHandler(notificationRuleBackend)
+
 	writeBackend := NewWriteBackend(b)
 	h.WriteHandler = NewWriteHandler(writeBackend)
 
@@ -180,10 +187,11 @@ var apiLinks = map[string]interface{}{
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
 	},
-	"labels":    "/api/v2/labels",
-	"variables": "/api/v2/variables",
-	"me":        "/api/v2/me",
-	"orgs":      "/api/v2/orgs",
+	"labels":            "/api/v2/labels",
+	"variables":         "/api/v2/variables",
+	"me":                "/api/v2/me",
+	"notificationRules": "/api/v2/notificationRules",
+	"orgs":              "/api/v2/orgs",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -299,6 +307,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/telegrafs") {
 		h.TelegrafHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/notificationRules") {
+		h.NotificationRuleHandler.ServeHTTP(w, r)
 		return
 	}
 
