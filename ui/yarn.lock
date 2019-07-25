@@ -1136,19 +1136,19 @@
   resolved "https://registry.yarnpkg.com/@iarna/toml/-/toml-2.2.3.tgz#f060bf6eaafae4d56a7dac618980838b0696e2ab"
   integrity sha512-FmuxfCuolpLl0AnQ2NHSzoUKWEJDFl63qXjzdoWBVyFCXzMGm1spBzk7LeHNoVCiWCF7mRVms9e6jEV9+MoPbg==
 
-"@influxdata/clockface@0.0.17":
-  version "0.0.17"
-  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-0.0.17.tgz#992c819bf7ae63a0713c541ecefee8ee8aec267e"
-  integrity sha512-etnewgdU2LxphVj/Y2g5TqDITI5z98EBvQDdd/9mkkuouzXLBtTQL/6GJ/PlEyIOYC1frbzd5Be3F8DMA3rZiw==
+"@influxdata/clockface@0.0.18":
+  version "0.0.18"
+  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-0.0.18.tgz#9455fa5236be8ab0733ddde8b57ce818ce6889a7"
+  integrity sha512-LFaj+PV3ikugOHivGWAefDaN2ZazrxA6GfCfYhWqBH1bkZY94w0QY72doAmPBvxPfdr2wY8cPP1WD7lkU2fTYQ==
   dependencies:
     chroma-js "^2.0.3"
     classnames "^2.2.6"
     react-scrollbars-custom "^4.0.4"
 
-"@influxdata/giraffe@0.16.0":
-  version "0.16.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.0.tgz#b04a304460a7c9449fe1a9fa2a3f5db97949e916"
-  integrity sha512-nDVQgx5Lq3fjsMXTzYwzf0HXKjSxzsBJibitObwtE0wefpzU4LW0IEUrcCBNIQyXj1OxyBNL9a67gZ4DyV7M2w==
+"@influxdata/giraffe@0.16.1":
+  version "0.16.1"
+  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.1.tgz#c7667bb04c30299f32c3a1d2ef66c489df3fb429"
+  integrity sha512-fVbY8vOdGiwsf2W4fKDQegjqUrh7Nz9HuFY18bVtAXJzaqQ7B292F+23UCa8M6HZwWt8IzOvljhAylq5uRyeJw==
 
 "@influxdata/influx@0.5.5":
   version "0.5.5"
@@ -1157,10 +1157,10 @@
   dependencies:
     axios "^0.19.0"
 
-"@influxdata/influxdb-templates@0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.3.0.tgz#02f1f03f4eba7e0c8c21b67c9f7618ca24b74f8b"
-  integrity sha512-/oHB91UWhN0eyLiyGptYHfO43mQb7g/AqDZwq8jQVw6A/0bTUh4ucsCMJkUVJutnM2PZRTGR4VbJH5p2oUB/BA==
+"@influxdata/influxdb-templates@0.5.0":
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.5.0.tgz#655cd7e2caa0dd6f5ce7a189542ca14b3ff290a8"
+  integrity sha512-LfmUMoRmWb4Gc+pLx0WrfRLbYgednZJhP6Ss1W3CYGUNE6YM+U1EZYHNN3AJnA5rwYamWJOC0MlPSgsyoJ7bBg==
 
 "@influxdata/react-custom-scrollbars@4.3.8":
   version "4.3.8"

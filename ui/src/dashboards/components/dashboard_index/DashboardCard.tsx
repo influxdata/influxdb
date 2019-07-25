@@ -49,7 +49,12 @@ type Props = PassedProps & DispatchProps & StateProps & WithRouterProps
 
 class DashboardCard extends PureComponent<Props> {
   public render() {
-    const {dashboard, onFilterChange, labels} = this.props
+    const {
+      dashboard,
+      onFilterChange,
+      labels,
+      params: {orgID},
+    } = this.props
     const {id} = dashboard
 
     return (
@@ -59,6 +64,7 @@ class DashboardCard extends PureComponent<Props> {
         name={() => (
           <ResourceList.EditableName
             onUpdate={this.handleUpdateDashboard}
+            hrefValue={`/orgs/${orgID}/dashboards/${dashboard.id}`}
             onClick={this.handleClickDashboard}
             name={dashboard.name}
             noNameString={DEFAULT_DASHBOARD_NAME}
@@ -133,16 +139,9 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleClickDashboard = () => {
-    const {
-      router,
-      dashboard,
-      onResetViews,
-      params: {orgID},
-    } = this.props
+    const {onResetViews} = this.props
 
     onResetViews()
-
-    router.push(`/orgs/${orgID}/dashboards/${dashboard.id}`)
   }
 
   private handleUpdateDescription = (description: string): void => {
