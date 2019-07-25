@@ -9,6 +9,7 @@
 
 1. [14287](https://github.com/influxdata/influxdb/pull/14287) Fix incorrect reporting of task as successful when error occurs during result iteration 
 1. [14412](https://github.com/influxdata/influxdb/pull/14412) Fix incorrect notification type for manually running a Task
+1. [14385](https://github.com/influxdata/influxdb/pull/14385) Add link to Documentation text in line protocol upload overlay
 
 ### Known Issues
 
