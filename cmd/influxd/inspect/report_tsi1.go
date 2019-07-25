@@ -49,7 +49,7 @@ func NewReportTsiCommand() *cobra.Command {
 	reportTsiCommand.Flags().StringVar(&tsiFlags.seriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
 	reportTsiCommand.Flags().BoolVarP(&tsiFlags.byMeasurement, "measurements", "m", false, "Segment cardinality by measurements")
 	// fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
-	reportTsiCommand.Flags().IntVar(&tsiFlags.topN, "top", 0, "Limit results to top n")
+	reportTsiCommand.Flags().IntVarP(&tsiFlags.topN, "top", "t", 0, "Limit results to top n")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
 	reportTsiCommand.Flags().StringVarP(&tsiFlags.bucket, "bucket", "b", "", "If bucket is specified, org must be specified")
 	reportTsiCommand.Flags().StringVarP(&tsiFlags.org, "org", "o", "", "Org to be reported")

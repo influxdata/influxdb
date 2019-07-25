@@ -312,7 +312,6 @@ func IsValidSeriesSegmentFilename(filename string) bool {
 // ParseSeriesSegmentFilename returns the id represented by the hexadecimal filename.
 func ParseSeriesSegmentFilename(filename string) (uint16, error) {
 	i, err := strconv.ParseUint(filename, 16, 32)
-	//return uint16(i), errors.New("err- i:" + string(i) + ", to: " + string(uint16(i)))
 	return uint16(i), err
 }
 
