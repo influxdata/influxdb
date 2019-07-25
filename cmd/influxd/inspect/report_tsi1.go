@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path"
 	"runtime"
 
 	"github.com/influxdata/influxdb"
@@ -47,7 +48,6 @@ func NewReportTsiCommand() *cobra.Command {
 	reportTsiCommand.Flags().StringVar(&tsiFlags.Path, "path", os.Getenv("HOME")+"/.influxdbv2/engine", "Path to data engine. Defaults $HOME/.influxdbv2/engine")
 	reportTsiCommand.Flags().StringVar(&tsiFlags.seriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
 	reportTsiCommand.Flags().BoolVar(&tsiFlags.byMeasurement, "measurements", true, "Segment cardinality by measurements")
-	// TODO(edd): Not yet implemented.
 	// fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.topN, "top", 0, "Limit results to top n")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
@@ -66,15 +66,16 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 	config.Level = zapcore.InfoLevel
 	log, err := config.New(os.Stderr)
 
-	// if path is unset, set to os.Getenv("HOME") + "/.influxdbv2/engine"
+	// if path is unset, set to $HOME/.influxdbv2/engine"
 	if tsiFlags.Path == "" {
-		tsiFlags.Path = os.Getenv("HOME") + "/.influxdbv2/engine"
+		tsiFlags.Path = path.Join(os.Getenv("HOME"), ".influxdbv2/engine")
 	}
 
 	report := tsi1.NewReportCommand()
 	report.Concurrency = tsiFlags.concurrency
 	report.DataPath = tsiFlags.Path
 	report.Logger = log
+	report.ByMeasurement = tsiFlags.byMeasurement
 
 	if tsiFlags.org != "" {
 		if orgID, err := influxdb.IDFromString(tsiFlags.org); err != nil {
@@ -94,7 +95,7 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	_, err = report.Run()
+	_, err = report.Run(true)
 	if err != nil {
 		return err
 	}
