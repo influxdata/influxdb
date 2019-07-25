@@ -120,40 +120,49 @@ const (
 	// LabelsResourceType gives permission to one or more labels.
 	LabelsResourceType = ResourceType("labels") // 11
 	// ViewsResourceType gives permission to one or more views.
-	ViewsResourceType     = ResourceType("views")     // 12
+	ViewsResourceType = ResourceType("views") // 12
+	// DocumentsResourceType gives permission to one or more documents.
 	DocumentsResourceType = ResourceType("documents") // 13
+	// NotificationRuleResourceType gives permission to one or more notificationRules.
+	NotificationRuleResourceType = ResourceType("notificationRules") // 14
+	// NotificationEndpointResourceType gives permission to one or more notificationEndpoints.
+	NotificationEndpointResourceType = ResourceType("notificationEndpoints") // 15
 )
 
 // AllResourceTypes is the list of all known resource types.
 var AllResourceTypes = []ResourceType{
-	AuthorizationsResourceType, // 0
-	BucketsResourceType,        // 1
-	DashboardsResourceType,     // 2
-	OrgsResourceType,           // 3
-	SourcesResourceType,        // 4
-	TasksResourceType,          // 5
-	TelegrafsResourceType,      // 6
-	UsersResourceType,          // 7
-	VariablesResourceType,      // 8
-	ScraperResourceType,        // 9
-	SecretsResourceType,        // 10
-	LabelsResourceType,         // 11
-	ViewsResourceType,          // 12
-	DocumentsResourceType,      // 13
+	AuthorizationsResourceType,       // 0
+	BucketsResourceType,              // 1
+	DashboardsResourceType,           // 2
+	OrgsResourceType,                 // 3
+	SourcesResourceType,              // 4
+	TasksResourceType,                // 5
+	TelegrafsResourceType,            // 6
+	UsersResourceType,                // 7
+	VariablesResourceType,            // 8
+	ScraperResourceType,              // 9
+	SecretsResourceType,              // 10
+	LabelsResourceType,               // 11
+	ViewsResourceType,                // 12
+	DocumentsResourceType,            // 13
+	NotificationRuleResourceType,     // 14
+	NotificationEndpointResourceType, // 15
 	// NOTE: when modifying this list, please update the swagger for components.schemas.Permission resource enum.
 }
 
 // OrgResourceTypes is the list of all known resource types that belong to an organization.
 var OrgResourceTypes = []ResourceType{
-	BucketsResourceType,    // 1
-	DashboardsResourceType, // 2
-	SourcesResourceType,    // 4
-	TasksResourceType,      // 5
-	TelegrafsResourceType,  // 6
-	UsersResourceType,      // 7
-	VariablesResourceType,  // 8
-	SecretsResourceType,    // 10
-	DocumentsResourceType,  //13
+	BucketsResourceType,              // 1
+	DashboardsResourceType,           // 2
+	SourcesResourceType,              // 4
+	TasksResourceType,                // 5
+	TelegrafsResourceType,            // 6
+	UsersResourceType,                // 7
+	VariablesResourceType,            // 8
+	SecretsResourceType,              // 10
+	DocumentsResourceType,            // 13
+	NotificationRuleResourceType,     // 14
+	NotificationEndpointResourceType, // 15
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
@@ -178,6 +187,8 @@ func (t ResourceType) Valid() (err error) {
 	case LabelsResourceType: // 11
 	case ViewsResourceType: // 12
 	case DocumentsResourceType: // 13
+	case NotificationRuleResourceType: // 14
+	case NotificationEndpointResourceType: // 15
 	default:
 		err = ErrInvalidResourceType
 	}

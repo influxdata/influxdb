@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`SideBarButton rendering renders! wee! 1`] = `
-<t
+<Button
   active={false}
   className="side-bar--button"
   color="secondary"

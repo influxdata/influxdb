@@ -300,7 +300,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 
 func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform.TelegrafConfigFilter, error) {
 	f := &platform.TelegrafConfigFilter{}
-	urm, err := decodeUserResourceMappingFilter(ctx, r)
+	urm, err := decodeUserResourceMappingFilter(ctx, r, platform.TelegrafsResourceType)
 	if err == nil {
 		f.UserResourceMappingFilter = *urm
 	}
@@ -320,29 +320,6 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 		*f.Organization = orgNameStr
 	}
 	return f, err
-}
-
-func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request) (*platform.UserResourceMappingFilter, error) {
-	q := r.URL.Query()
-	f := &platform.UserResourceMappingFilter{
-		ResourceType: platform.TelegrafsResourceType,
-	}
-	if idStr := q.Get("resourceID"); idStr != "" {
-		id, err := platform.IDFromString(idStr)
-		if err != nil {
-			return nil, err
-		}
-		f.ResourceID = *id
-	}
-
-	if idStr := q.Get("userID"); idStr != "" {
-		id, err := platform.IDFromString(idStr)
-		if err != nil {
-			return nil, err
-		}
-		f.UserID = *id
-	}
-	return f, nil
 }
 
 func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {

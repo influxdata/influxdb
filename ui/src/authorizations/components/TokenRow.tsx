@@ -9,7 +9,7 @@ import {
 } from 'src/authorizations/actions'
 
 // Components
-import {ComponentSize, SlideToggle} from '@influxdata/clockface'
+import {ComponentSize, SlideToggle, ComponentColor} from '@influxdata/clockface'
 import {IndexList, ConfirmationButton, Alignment} from 'src/clockface'
 import EditableName from 'src/shared/components/EditableName'
 
@@ -48,6 +48,7 @@ class TokenRow extends PureComponent<Props> {
             active={this.isTokenEnabled}
             size={ComponentSize.ExtraSmall}
             onChange={this.changeToggle}
+            color={ComponentColor.Success}
           />
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>

@@ -1,0 +1,11 @@
+.selected-member {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  p {
+    width: auto;
+    margin: 0 0 0 $ix-marg-a;
+    font-weight: 900;
+  }
+}

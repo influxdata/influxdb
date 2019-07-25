@@ -28,7 +28,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
 
     if (totalCount && searchTerm === '') {
       return (
-        <EmptyState size={ComponentSize.Large}>
+        <EmptyState testID="empty-tasks-list" size={ComponentSize.Large}>
           <EmptyState.Text
             text={`All ${totalCount} of your Tasks are inactive`}
           />
@@ -38,7 +38,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
 
     if (searchTerm === '') {
       return (
-        <EmptyState size={ComponentSize.Large}>
+        <EmptyState testID="empty-tasks-list" size={ComponentSize.Large}>
           <EmptyState.Text
             text={"Looks like you don't have any Tasks , why not create one?"}
             highlightWords={['Tasks']}
@@ -55,7 +55,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
     }
 
     return (
-      <EmptyState size={ComponentSize.Large}>
+      <EmptyState testID="empty-tasks-list" size={ComponentSize.Large}>
         <EmptyState.Text text="No Tasks match your search term" />
       </EmptyState>
     )

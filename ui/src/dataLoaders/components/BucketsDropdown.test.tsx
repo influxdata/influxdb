@@ -1,10 +1,9 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {render} from 'react-testing-library'
 
 // Components
 import BucketsDropdown from 'src/dataLoaders/components/BucketsDropdown'
-import {Dropdown, ComponentStatus} from 'src/clockface'
 import {bucket} from 'mocks/dummyData'
 
 // Mocks
@@ -17,34 +16,33 @@ const setup = (override = {}) => {
     ...override,
   }
 
-  const wrapper = shallow(<BucketsDropdown {...props} />)
-
-  return {wrapper}
+  return render(<BucketsDropdown {...props} />)
 }
 
 describe('DataLoading.Components.BucketsDropdown', () => {
   describe('when no buckets', () => {
     it('renders disabled dropdown', () => {
-      const {wrapper} = setup()
+      const {getByTestId} = setup()
 
-      const dropdown = wrapper.find(Dropdown)
+      const dropdown = getByTestId('bucket-dropdown')
+      const dropdownButton = getByTestId('bucket-dropdown--button')
 
-      expect(wrapper.exists()).toBe(true)
-      expect(dropdown.exists()).toBe(true)
-      expect(dropdown.prop('status')).toBe(ComponentStatus.Disabled)
+      expect(dropdown).toBeDefined()
+      expect(dropdownButton.getAttribute('disabled')).toBe('')
     })
   })
 
   describe('if buckets', () => {
     it('renders dropdown', () => {
       const buckets = [bucket]
-      const {wrapper} = setup({buckets})
+      const selectedBucketID = bucket.id
+      const {getByTestId} = setup({buckets, selectedBucketID})
 
-      const dropdown = wrapper.find(Dropdown)
+      const dropdown = getByTestId('bucket-dropdown')
+      const dropdownButton = getByTestId('bucket-dropdown--button')
 
-      expect(wrapper.exists()).toBe(true)
-      expect(dropdown.exists()).toBe(true)
-      expect(dropdown.prop('status')).toBe(ComponentStatus.Default)
+      expect(dropdown).toBeDefined()
+      expect(dropdownButton.getAttribute('disabled')).toBe(null)
     })
   })
 })

@@ -4,7 +4,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
 <div
   className="onboarding-step"
 >
-  <t
+  <Form
     onSubmit={[Function]}
     testID="form-container"
   >
@@ -35,23 +35,23 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
           >
             You will be able to create additional Users, Buckets and Organizations later
           </h5>
-          <t
+          <Grid
             testID="grid"
           >
-            <t
+            <GridRow
               testID="grid--row"
             >
-              <t
+              <GridColumn
                 offsetMD={1}
                 testID="grid--column"
                 widthMD={10}
                 widthXS={12}
               >
-                <t
+                <FormElement
                   label="Username"
                   testID="form--element"
                 >
-                  <t
+                  <Input
                     autoFocus={true}
                     autocomplete="off"
                     disabledTitleText="Username has been set"
@@ -67,19 +67,19 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="text"
                     value=""
                   />
-                </t>
-              </t>
-              <t
+                </FormElement>
+              </GridColumn>
+              <GridColumn
                 offsetMD={1}
                 testID="grid--column"
                 widthMD={5}
                 widthXS={6}
               >
-                <t
+                <FormElement
                   label="Password"
                   testID="form--element"
                 >
-                  <t
+                  <Input
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="Password has been set"
@@ -95,19 +95,19 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="password"
                     value=""
                   />
-                </t>
-              </t>
-              <t
+                </FormElement>
+              </GridColumn>
+              <GridColumn
                 testID="grid--column"
                 widthMD={5}
                 widthXS={6}
               >
-                <t
+                <FormElement
                   errorMessage={false}
                   label="Confirm Password"
                   testID="form--element"
                 >
-                  <t
+                  <Input
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="password has been set"
@@ -123,20 +123,20 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="password"
                     value=""
                   />
-                </t>
-              </t>
-              <t
+                </FormElement>
+              </GridColumn>
+              <GridColumn
                 offsetMD={1}
                 testID="grid--column"
                 widthMD={10}
                 widthXS={12}
               >
-                <t
+                <FormElement
                   label="Initial Organization Name"
                   labelAddOn={[Function]}
                   testID="form-elem--orgname"
                 >
-                  <t
+                  <Input
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="Initial organization name has been set"
@@ -152,20 +152,20 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="text"
                     value=""
                   />
-                </t>
-              </t>
-              <t
+                </FormElement>
+              </GridColumn>
+              <GridColumn
                 offsetMD={1}
                 testID="grid--column"
                 widthMD={10}
                 widthXS={12}
               >
-                <t
+                <FormElement
                   label="Initial Bucket Name"
                   labelAddOn={[Function]}
                   testID="form-elem--bucketname"
                 >
-                  <t
+                  <Input
                     autoFocus={false}
                     autocomplete="off"
                     disabledTitleText="Initial bucket name has been set"
@@ -181,10 +181,10 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     type="text"
                     value=""
                   />
-                </t>
-              </t>
-            </t>
-          </t>
+                </FormElement>
+              </GridColumn>
+            </GridRow>
+          </Grid>
         </div>
       </FancyScrollbar>
     </div>
@@ -196,6 +196,6 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
       showSkip={false}
       skipButtonText="Skip"
     />
-  </t>
+  </Form>
 </div>
 `;

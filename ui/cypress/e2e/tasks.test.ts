@@ -18,11 +18,11 @@ describe('Tasks', () => {
 
   it('can create a task', () => {
     const taskName = 'Task'
-    cy.get('.empty-state').within(() => {
-      cy.contains('Create').click()
+    cy.getByTestID('empty-tasks-list').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
     })
 
-    cy.getByTestID('dropdown--item new').click()
+    cy.getByTestID('add-resource-dropdown--new').click()
 
     cy.getByInputName('name').type(taskName)
     cy.getByInputName('interval').type('24h')
@@ -91,7 +91,7 @@ describe('Tasks', () => {
 
       cy.getByTestID('task-card--name-button').click()
 
-      cy.get('.input-field')
+      cy.get('.cf-input-field')
         .type(newName)
         .type('{enter}')
     })
@@ -106,11 +106,11 @@ describe('Tasks', () => {
   })
 
   it('fails to create a task without a valid script', () => {
-    cy.get('.empty-state').within(() => {
-      cy.contains('Create').click()
+    cy.getByTestID('empty-tasks-list').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
     })
 
-    cy.getByTestID('dropdown--item new').click()
+    cy.getByTestID('add-resource-dropdown--new').click()
 
     cy.getByInputName('name').type('Task')
     cy.getByInputName('interval').type('24h')

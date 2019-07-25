@@ -116,14 +116,14 @@ class DashboardsTable extends PureComponent<Props, State> {
 
     if (searchTerm) {
       return (
-        <EmptyState size={ComponentSize.Large}>
+        <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
           <EmptyState.Text text="No Dashboards match your search term" />
         </EmptyState>
       )
     }
 
     return (
-      <EmptyState size={ComponentSize.Large}>
+      <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
         <EmptyState.Text
           text="Looks like you don’t have any Dashboards , why not create one?"
           highlightWords={['Dashboards']}

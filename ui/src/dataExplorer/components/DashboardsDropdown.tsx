@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // components
-import {MultiSelectDropdown} from 'src/clockface'
+import {Dropdown, DropdownItemType} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // types
@@ -20,25 +20,59 @@ interface Props {
 @ErrorHandling
 class DashboardsDropdown extends PureComponent<Props> {
   public render() {
-    const {selectedIDs, onSelect} = this.props
     return (
-      <MultiSelectDropdown
-        selectedIDs={selectedIDs}
-        onChange={onSelect}
-        emptyText="Choose at least 1 dashboard"
-      >
-        {this.dropdownItems}
-      </MultiSelectDropdown>
+      <Dropdown
+        button={(active, onClick) => (
+          <Dropdown.Button active={active} onClick={onClick}>
+            {this.dropdownLabel}
+          </Dropdown.Button>
+        )}
+        menu={() => <Dropdown.Menu>{this.dropdownItems}</Dropdown.Menu>}
+      />
     )
   }
 
+  private handleSelectDashboard = (dashboard: Dashboard): void => {
+    const {onSelect, selectedIDs} = this.props
+
+    let updatedSelection
+
+    if (selectedIDs.includes(dashboard.id)) {
+      updatedSelection = selectedIDs.filter(id => id !== dashboard.id)
+    } else {
+      updatedSelection = [...selectedIDs, dashboard.id]
+    }
+
+    onSelect(updatedSelection, dashboard)
+  }
+
+  private get dropdownLabel(): string {
+    const {dashboards, selectedIDs} = this.props
+
+    if (!selectedIDs.length) {
+      return 'Choose at least 1 dashboard'
+    }
+
+    return dashboards
+      .filter(d => selectedIDs.includes(d.id))
+      .map(d => d.name)
+      .join(', ')
+  }
+
   private get dropdownItems(): JSX.Element[] {
-    const {dashboards} = this.props
+    const {dashboards, selectedIDs} = this.props
     const dashboardItems = dashboards.map(d => {
       return (
-        <MultiSelectDropdown.Item id={d.id} key={d.id} value={d}>
+        <Dropdown.Item
+          id={d.id}
+          key={d.id}
+          value={d}
+          type={DropdownItemType.Checkbox}
+          onClick={this.handleSelectDashboard}
+          selected={selectedIDs.includes(d.id)}
+        >
           {d.name}
-        </MultiSelectDropdown.Item>
+        </Dropdown.Item>
       )
     })
 
@@ -46,21 +80,24 @@ class DashboardsDropdown extends PureComponent<Props> {
   }
 
   private get newDashboardItem(): JSX.Element {
+    const {selectedIDs} = this.props
+
     return (
-      <MultiSelectDropdown.Item
+      <Dropdown.Item
         id={DashboardTemplate.id}
         key={DashboardTemplate.id}
         value={DashboardTemplate}
+        type={DropdownItemType.Checkbox}
+        onClick={this.handleSelectDashboard}
+        selected={selectedIDs.includes(DashboardTemplate.id)}
       >
         {DashboardTemplate.name}
-      </MultiSelectDropdown.Item>
+      </Dropdown.Item>
     )
   }
 
   private get dividerItem(): JSX.Element {
-    return (
-      <MultiSelectDropdown.Divider id="divider" key="existing-dashboards" />
-    )
+    return <Dropdown.Divider id="divider" key="existing-dashboards" />
   }
 }
 export default DashboardsDropdown

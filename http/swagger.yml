@@ -5311,8 +5311,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    patch:
-      operationId: PatchNotificationRulesID
+    put:
+      operationId: PutNotificationRulesID
       tags:
         - NotificationRules
       summary: Update a notification rule

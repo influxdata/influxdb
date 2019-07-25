@@ -14,13 +14,13 @@ import {
 } from 'react-dnd'
 
 // Components
-import {Input} from '@influxdata/clockface'
+import {Input, Icon} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ComponentStatus} from '@influxdata/clockface'
+import {ComponentStatus, IconFont} from '@influxdata/clockface'
 import {FieldOption} from 'src/types'
 
 // Constants
@@ -186,7 +186,7 @@ export default class DraggableColumn extends Component<Props> {
           onClick={this.handleToggleVisible}
           title={`Click to HIDE ${internalName}`}
         >
-          <span className="icon eye-open" />
+          <Icon glyph={IconFont.EyeOpen} />
         </div>
       )
     }
@@ -197,7 +197,7 @@ export default class DraggableColumn extends Component<Props> {
         onClick={this.handleToggleVisible}
         title={`Click to SHOW ${internalName}`}
       >
-        <span className="icon eye-closed" />
+        <Icon glyph={IconFont.EyeClosed} />
       </div>
     )
   }
