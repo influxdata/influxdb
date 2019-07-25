@@ -17,16 +17,20 @@ module.exports = {
     path: path.resolve(__dirname, 'build'),
   },
   entry: {
-    app: './src/index.tsx',
+    app: './src/bootstrap.ts',
   },
   resolve: {
     alias: {
       src: path.resolve(__dirname, 'src'),
     },
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: ['.tsx', '.ts', '.js', '.wasm'],
   },
   module: {
     rules: [
+      {
+        test: /\.wasm$/,
+        type: 'webassembly/experimental',
+      },
       {
         test: /\.tsx?$/,
         use: [
