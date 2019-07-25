@@ -50,9 +50,6 @@ func NewSeriesFile(path string) *SeriesFile {
 	if maxCompactionConcurrency < 1 {
 		maxCompactionConcurrency = 1
 	}
-	if maxCompactionConcurrency > SeriesFilePartitionN {
-		maxCompactionConcurrency = SeriesFilePartitionN
-	}
 
 	return &SeriesFile{
 		path:                     path,
@@ -63,10 +60,10 @@ func NewSeriesFile(path string) *SeriesFile {
 
 func (f *SeriesFile) WithMaxCompactionConcurrency(maxCompactionConcurrency int) {
 	if maxCompactionConcurrency < 1 {
-		maxCompactionConcurrency = 1
-	}
-	if maxCompactionConcurrency > SeriesFilePartitionN {
-		maxCompactionConcurrency = SeriesFilePartitionN
+		maxCompactionConcurrency = runtime.GOMAXPROCS(0)
+		if maxCompactionConcurrency < 1 {
+			maxCompactionConcurrency = 1
+		}
 	}
 
 	f.maxCompactionConcurrency = maxCompactionConcurrency

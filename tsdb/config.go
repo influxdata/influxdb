@@ -133,9 +133,9 @@ type Config struct {
 	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
 
 	// SeriesFileMaxConcurrentCompactions is the maximum number of concurrent compactions
-	// that can be running at one time across all shards.  Compactions scheduled to run when the
-	// limit is reached are blocked until a running compaction completes.  Only snapshot compactions
-	// are affected by this limit.  A value of 0 limits compactions to the lesser of
+	// that can be running at one time across all series partitions in a database.  Compactions scheduled
+	// to run when the limit is reached are blocked until a running compaction completes.  Only snapshot
+	// compactions are affected by this limit.  A value of 0 limits compactions to the lesser of
 	// 8 (series file partition quantity) and runtime.GOMAXPROCS(0).
 	SeriesFileMaxConcurrentCompactions int `toml:"series-file-max-concurrent-compactions"`
 
@@ -195,8 +195,6 @@ func (c *Config) Validate() error {
 
 	if c.SeriesFileMaxConcurrentCompactions < 0 {
 		return errors.New("series-file-max-concurrent-compactions must be non-negative")
-	} else if c.SeriesFileMaxConcurrentCompactions > SeriesFilePartitionN {
-		return fmt.Errorf("series-file-max-concurrent-compactions must be <= series file partition quantity (%d)", SeriesFilePartitionN)
 	}
 
 	valid := false
