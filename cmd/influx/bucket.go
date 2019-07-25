@@ -89,8 +89,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		"ID",
 		"Name",
 		"Retention",
-		"Org",
-		"OrganizationID",
+		"OrgID",
 	)
 	w.Write(map[string]interface{}{
 		"ID":        b.ID.String(),
@@ -173,8 +172,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 		"ID",
 		"Name",
 		"Retention",
-		"Org",
-		"OrganizationID",
+		"OrgID",
 	)
 	for _, b := range buckets {
 		w.Write(map[string]interface{}{
@@ -242,8 +240,7 @@ func bucketUpdateF(cmd *cobra.Command, args []string) error {
 		"ID",
 		"Name",
 		"Retention",
-		"Organization",
-		"OrganizationID",
+		"OrgID",
 	)
 	w.Write(map[string]interface{}{
 		"ID":        b.ID.String(),
@@ -289,8 +286,7 @@ func bucketDeleteF(cmd *cobra.Command, args []string) error {
 		"ID",
 		"Name",
 		"Retention",
-		"Organization",
-		"OrganizationID",
+		"OrgID",
 		"Deleted",
 	)
 	w.Write(map[string]interface{}{
