@@ -44,6 +44,9 @@ type AuthorizationCreateFlags struct {
 
 	writeDashboardsPermission bool
 	readDashboardsPermission  bool
+
+	writeNotificationRulePermission bool
+	readNotificationRulePermission  bool
 }
 
 var authorizationCreateFlags AuthorizationCreateFlags
@@ -80,6 +83,9 @@ func init() {
 
 	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeDashboardsPermission, "write-dashboards", "", false, "Grants the permission to create dashboards")
 	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readDashboardsPermission, "read-dashboards", "", false, "Grants the permission to read dashboards")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeNotificationRulePermission, "write-notificationRules", "", false, "Grants the permission to create notificationRules")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readNotificationRulePermission, "read-notificationRules", "", false, "Grants the permission to read notificationRules")
 
 	authorizationCmd.AddCommand(authorizationCreateCmd)
 }
@@ -215,6 +221,22 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 
 	if authorizationCreateFlags.readDashboardsPermission {
 		p, err := platform.NewPermission(platform.ReadAction, platform.DashboardsResourceType, o.ID)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeNotificationRulePermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.NotificationRuleResourceType, o.ID)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readNotificationRulePermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.NotificationRuleResourceType, o.ID)
 		if err != nil {
 			return err
 		}
