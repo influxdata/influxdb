@@ -1,7 +1,6 @@
 package fs_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,18 +10,22 @@ import (
 )
 
 func TestRenameFileWithReplacement(t *testing.T) {
+	// sample data for loading into files
+	sampleData1 := "this is some data"
+	sampleData2 := "we got some more data"
+
 	t.Run("exists", func(t *testing.T) {
-		oldpath := MustCreateTempFile()
-		newpath := MustCreateTempFile()
+		oldpath := MustCreateTempFile(t, sampleData1)
+		newpath := MustCreateTempFile(t, sampleData2)
 		defer MustRemoveAll(oldpath)
 		defer MustRemoveAll(newpath)
 
 		oldContents := MustReadAllFile(oldpath)
 		newContents := MustReadAllFile(newpath)
 
-		if got, exp := oldContents, oldpath; got != exp {
+		if got, exp := oldContents, sampleData1; got != exp {
 			t.Fatalf("got contents %q, expected %q", got, exp)
-		} else if got, exp := newContents, newpath; got != exp {
+		} else if got, exp := newContents, sampleData2; got != exp {
 			t.Fatalf("got contents %q, expected %q", got, exp)
 		}
 
@@ -47,11 +50,11 @@ func TestRenameFileWithReplacement(t *testing.T) {
 	})
 
 	t.Run("not exists", func(t *testing.T) {
-		oldpath := MustCreateTempFile()
+		oldpath := MustCreateTempFile(t, sampleData1)
 		defer MustRemoveAll(oldpath)
 
 		oldContents := MustReadAllFile(oldpath)
-		if got, exp := oldContents, oldpath; got != exp {
+		if got, exp := oldContents, sampleData1; got != exp {
 			t.Fatalf("got contents %q, expected %q", got, exp)
 		}
 
@@ -79,7 +82,7 @@ func TestRenameFileWithReplacement(t *testing.T) {
 }
 
 func TestCreateFileWithReplacement(t *testing.T) {
-	path := MustCreateTempFile()
+	path := MustCreateTempFile(t, "sample data")
 	defer MustRemoveAll(path)
 
 	// should return an error if we CreateFile to the same path
@@ -90,13 +93,12 @@ func TestCreateFileWithReplacement(t *testing.T) {
 
 	// contents of the file should be intact
 	contents := MustReadAllFile(path)
-	if got, exp := contents, path; got != exp {
+	if got, exp := contents, "sample data"; got != exp {
 		t.Fatalf("got contents %q, expected %q", got, exp)
 	}
 
 	// running CreateFileWithReplacement on path should not return an error
-	_, err = fs.CreateFileWithReplacement(path)
-	if err != nil {
+	if _, err = fs.CreateFileWithReplacement(path); err != nil {
 		t.Fatalf("CreateFileWithReplacement returned err: %v", err)
 	}
 
@@ -108,22 +110,19 @@ func TestCreateFileWithReplacement(t *testing.T) {
 
 }
 
-// MustCreateTempFile creates a temporary file returning the path to the file.
-//
-// MustCreateTempFile writes the absolute path to the file into the file itself.
-// It panics if there is an error.
-func MustCreateTempFile() string {
+// CreateTempFileOrFail creates a temporary file returning the path to the file.
+func MustCreateTempFile(t testing.TB, data string) string {
+	t.Helper()
+
 	f, err := ioutil.TempFile("", "fs-test")
 	if err != nil {
-		panic(fmt.Sprintf("failed to create temp file: %v", err))
+		t.Fatalf("failed to create temp file: %v", err)
+	} else if _, err := f.WriteString(data); err != nil {
+		t.Fatal(err)
+	} else if err := f.Close(); err != nil {
+		t.Fatal(err)
 	}
-
-	name := f.Name()
-	f.WriteString(name)
-	if err := f.Close(); err != nil {
-		panic(err)
-	}
-	return name
+	return f.Name()
 }
 
 func MustRemoveAll(path string) {
