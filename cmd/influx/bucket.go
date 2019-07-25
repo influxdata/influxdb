@@ -26,6 +26,7 @@ func bucketF(cmd *cobra.Command, args []string) {
 // BucketCreateFlags define the Create Command
 type BucketCreateFlags struct {
 	name      string
+	org       string
 	orgID     string
 	retention time.Duration
 }
@@ -40,8 +41,9 @@ func init() {
 	}
 
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.name, "name", "n", "", "Name of bucket that will be created")
-	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration in nanoseconds data will live in bucket")
+	bucketCreateCmd.Flags().DurationVarP(&bucketCreateFlags.retention, "retention", "r", 0, "Duration (e.g. 2h) data will live in bucket")
 	bucketCreateCmd.Flags().StringVarP(&bucketCreateFlags.orgID, "org-id", "", "", "The ID of the organization that owns the bucket")
+	bucketCreateCmd.Flags().StringVarP(&bucketFindFlags.org, "org", "o", "", "The Name of the organization that owns the bucket")
 	bucketCreateCmd.MarkFlagRequired("name")
 
 	bucketCmd.AddCommand(bucketCreateCmd)
@@ -58,8 +60,8 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 }
 
 func bucketCreateF(cmd *cobra.Command, args []string) error {
-	if bucketCreateFlags.orgID == "" {
-		return fmt.Errorf("must specify org-id")
+	if bucketCreateFlags.orgID == "" && bucketCreateFlags.org == "" {
+		return fmt.Errorf("must specify exactly one of org and org-id")
 	}
 
 	s, err := newBucketService(flags)
@@ -78,6 +80,16 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to decode org id %q: %v", bucketCreateFlags.orgID, err)
 		}
 		b.OrgID = *id
+	} else {
+		orgSvc, err := newOrganizationService(flags)
+		if err != nil {
+			return err
+		}
+		org, err := orgSvc.FindOrganization(context.Background(), platform.OrganizationFilter{Name: &bucketCreateFlags.org})
+		if err != nil {
+			return err
+		}
+		b.OrgID = org.ID
 	}
 
 	if err := s.CreateBucket(context.Background(), b); err != nil {
