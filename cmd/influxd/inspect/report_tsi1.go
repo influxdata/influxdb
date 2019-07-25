@@ -47,7 +47,7 @@ func NewReportTsiCommand() *cobra.Command {
 	}
 	reportTsiCommand.Flags().StringVar(&tsiFlags.Path, "path", os.Getenv("HOME")+"/.influxdbv2/engine", "Path to data engine. Defaults $HOME/.influxdbv2/engine")
 	reportTsiCommand.Flags().StringVar(&tsiFlags.seriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
-	reportTsiCommand.Flags().BoolVar(&tsiFlags.byMeasurement, "measurements", true, "Segment cardinality by measurements")
+	reportTsiCommand.Flags().BoolVarP(&tsiFlags.byMeasurement, "measurements", "m", false, "Segment cardinality by measurements")
 	// fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.topN, "top", 0, "Limit results to top n")
 	reportTsiCommand.Flags().IntVar(&tsiFlags.concurrency, "c", runtime.GOMAXPROCS(0), "Set worker concurrency. Defaults to GOMAXPROCS setting.")
@@ -76,6 +76,7 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 	report.DataPath = tsiFlags.Path
 	report.Logger = log
 	report.ByMeasurement = tsiFlags.byMeasurement
+	report.TopN = tsiFlags.topN
 
 	if tsiFlags.org != "" {
 		if orgID, err := influxdb.IDFromString(tsiFlags.org); err != nil {

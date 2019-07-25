@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"text/tabwriter"
 
 	"github.com/influxdata/influxdb"
@@ -41,7 +42,7 @@ type ReportCommand struct {
 	sfile         *tsdb.SeriesFile
 	indexFile     *Index
 
-	topN          int
+	TopN          int
 	ByMeasurement bool
 	byTagKey      bool
 
@@ -57,7 +58,7 @@ func NewReportCommand() *ReportCommand {
 		byBucket:            make(map[influxdb.ID]*cardinality),
 		byBucketMeasurement: make(map[influxdb.ID]map[string]*cardinality),
 		orgToBucket:         make(map[influxdb.ID][]influxdb.ID),
-		topN:                0,
+		TopN:                0,
 		byTagKey:            false,
 		Concurrency:         runtime.GOMAXPROCS(0),
 	}
@@ -243,7 +244,6 @@ OUTER:
 			}
 
 			mName := string(tags[0].Value) // measurement name should be first tag.
-			fmt.Println("")
 
 			if report.ByMeasurement {
 				var mCard *cardinality
@@ -267,79 +267,6 @@ OUTER:
 	}
 	return nil
 }
-
-type result struct {
-	name  []byte
-	count int64
-
-	// For low cardinality measurements just track series using map
-	lowCardinality map[uint32]struct{}
-
-	// For higher cardinality measurements track using bitmap.
-	set *tsdb.SeriesIDSet
-}
-
-func (r *result) addShort(ids []uint32) {
-	// There is already a bitset of this result.
-	if r.set != nil {
-		for _, id := range ids {
-			r.set.AddNoLock(tsdb.NewSeriesID(uint64(id)))
-		}
-		return
-	}
-
-	// Still tracking low cardinality sets
-	if r.lowCardinality == nil {
-		r.lowCardinality = map[uint32]struct{}{}
-	}
-
-	for _, id := range ids {
-		r.lowCardinality[id] = struct{}{}
-	}
-
-	// Cardinality is large enough that we will benefit from using a bitmap
-	if len(r.lowCardinality) > useBitmapN {
-		r.set = tsdb.NewSeriesIDSet()
-		for id := range r.lowCardinality {
-			r.set.AddNoLock(tsdb.NewSeriesID(uint64(id)))
-		}
-		r.lowCardinality = nil
-	}
-}
-
-func (r *result) merge(other *tsdb.SeriesIDSet) {
-	if r.set == nil {
-		r.set = tsdb.NewSeriesIDSet()
-		for id := range r.lowCardinality {
-			r.set.AddNoLock(tsdb.NewSeriesID(uint64(id)))
-		}
-		r.lowCardinality = nil
-	}
-	r.set.Merge(other)
-}
-
-// TODO: remove... not needed (though possibly if we add concurrency)
-type results []*result
-
-func (a results) Len() int           { return len(a) }
-func (a results) Less(i, j int) bool { return a[i].count < a[j].count }
-func (a results) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// GetOrgCardinality returns the total cardinality of the org provided.
-//// Can only be called after Run()
-//func (report *ReportCommand) printOrgCardinality(orgID influxdb.ID) int64 {
-//	orgTotal := int64(0)
-//	for _, bucket := range report.orgBucketCardinality[orgID] {
-//		orgTotal += bucket.cardinality()
-//	}
-//	return orgTotal
-//}
-
-// GetBucketCardinality returns the total cardinality of the bucket in the org provided
-//// Can only be called after Run()
-//func (report *ReportCommand) printBucketCardinality(orgID, bucketID influxdb.ID) int64 {
-//	return report.orgBucketCardinality[orgID][bucketID].cardinality()
-//}
 
 func (report *ReportCommand) calculateOrgBucketCardinality() (*Summary, error) {
 	if err := report.calculateCardinalities(); err != nil {
@@ -367,19 +294,76 @@ func (report *ReportCommand) calculateOrgBucketCardinality() (*Summary, error) {
 
 func (report *ReportCommand) printCardinalitySummary(summary *Summary) {
 	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
+	fmt.Fprint(tw, "\n")
 
-	for orgID, orgCard := range summary.OrgCardinality {
-		fmt.Fprintf(tw, "Org %s total: %d\n", orgID.String(), orgCard)
+	sortedOrgs := sortKeys(summary.OrgCardinality, report.TopN)
+	sortedBuckets := sortKeys(summary.BucketCardinality, report.TopN)
 
-		for _, bucketID := range report.orgToBucket[orgID] {
-			fmt.Fprintf(tw, "\tBucket %s total: %d\n", bucketID.String(), summary.BucketCardinality[bucketID])
+	for orgIndex := range sortedOrgs {
+		// if we specify a bucket, we do not print the org cardinality
+		if report.BucketID == nil {
+			fmt.Fprintf(tw, "Org %s total: %d\n", sortedOrgs[orgIndex].id, sortedOrgs[orgIndex].card)
+		}
+
+		for bucketIndex := range sortedBuckets {
+			fmt.Fprintf(tw, "\tBucket %s total: %d\n", sortedBuckets[bucketIndex].id, sortedBuckets[bucketIndex].card)
+
 			if report.ByMeasurement {
-				for mName, mCard := range summary.BucketMeasurementCardinality[bucketID] {
-					fmt.Fprintf(tw, "\t\t_m=%s\t%d\n", mName, mCard)
+				bucketID, _ := influxdb.IDFromString(sortedBuckets[bucketIndex].id)
+				sortedMeasurements := sortMeasurements(summary.BucketMeasurementCardinality[*bucketID], report.TopN)
+
+				for measIndex := range sortedMeasurements {
+					fmt.Fprintf(tw, "\t\t_m=%s\t%d\n", sortedMeasurements[measIndex].id, sortedMeasurements[measIndex].card)
 				}
 			}
 		}
 	}
+	fmt.Fprint(tw, "\n")
 
 	tw.Flush()
+}
+
+// sortKeys is a quick helper to return the sorted set of a map's keys
+// sortKeys will only return report.topN keys if the flag is set
+type result struct {
+	id   string
+	card int64
+}
+
+type resultList []result
+
+func (a resultList) Len() int           { return len(a) }
+func (a resultList) Less(i, j int) bool { return a[i].card < a[j].card }
+func (a resultList) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+func sortKeys(vals map[influxdb.ID]int64, topN int) resultList {
+	sorted := make(resultList, 0)
+	for k, v := range vals {
+		sorted = append(sorted, result{k.String(), v})
+	}
+	sort.Sort(sort.Reverse(sorted))
+
+	if topN == 0 {
+		return sorted
+	}
+	if topN > len(sorted) {
+		topN = len(sorted)
+	}
+	return sorted[:topN]
+}
+
+func sortMeasurements(vals map[string]int64, topN int) resultList {
+	sorted := make(resultList, 0)
+	for k, v := range vals {
+		sorted = append(sorted, result{k, v})
+	}
+	sort.Sort(sort.Reverse(sorted))
+
+	if topN == 0 {
+		return sorted
+	}
+	if topN > len(sorted) {
+		topN = len(sorted)
+	}
+	return sorted[:topN]
 }
