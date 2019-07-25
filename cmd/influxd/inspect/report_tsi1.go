@@ -65,6 +65,9 @@ func RunReportTsi(cmd *cobra.Command, args []string) error {
 	config := logger.NewConfig()
 	config.Level = zapcore.InfoLevel
 	log, err := config.New(os.Stderr)
+	if err != nil {
+		return err
+	}
 
 	// if path is unset, set to $HOME/.influxdbv2/engine"
 	if tsiFlags.Path == "" {

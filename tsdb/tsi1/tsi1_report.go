@@ -157,12 +157,6 @@ func (c *cardinality) cardinality() int64 {
 	return int64(c.set.Cardinality())
 }
 
-type cardinalities []*cardinality
-
-func (a cardinalities) Len() int           { return len(a) }
-func (a cardinalities) Less(i, j int) bool { return a[i].cardinality() < a[j].cardinality() }
-func (a cardinalities) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
 func (report *ReportCommand) calculateCardinalities() error {
 	idx := report.indexFile
 	itr, err := idx.MeasurementIterator()
