@@ -1,3 +1,10 @@
+## v2.0.0-alpha.16 [unreleased]
+
+### Bug Fixes
+
+1. [14344](https://github.com/influxdata/influxdb/pull/14344): Fix issue in Authorization API, can't create auth for another user.
+2. [14352](https://github.com/influxdata/influxdb/pull/14352): Fix Influx CLI ignored user flag for auth creation.
+
 ## v2.0.0-alpha.15 [2019-07-11]
 
 ### Features
