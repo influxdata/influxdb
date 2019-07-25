@@ -1,7 +1,11 @@
 ## v2.0.0-alpha.16 [unreleased]
 ### Bug Fixes
 1. [14385](https://github.com/influxdata/influxdb/pull/14385) Add link to Documentation text in line protocol upload overlay
-
+1. [14379](https://github.com/influxdata/influxdb/pull/14379): Fix the map example in the documentation
+1. [14423](https://github.com/influxdata/influxdb/pull/14423): Ignore null/empty Flux rows which prevents a single stat/gauge crash.
+1. [14434](https://github.com/influxdata/influxdb/pull/14434): Fixes an issue where clicking on a dashboard name caused an incorrect redirect.
+1. [14441](https://github.com/influxdata/influxdb/pull/14441): Upgrade templates lib to 0.5.0
+1. [14453](https://github.com/influxdata/influxdb/pull/14453): Upgrade giraffe lib to 0.16.1
 
 ## v2.0.0-alpha.15 [2019-07-11]
 
