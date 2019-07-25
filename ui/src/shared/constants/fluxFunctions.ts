@@ -688,6 +688,29 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/elapsed/',
   },
   {
+    name: 'exponentialMovingAverage',
+    args: [
+      {
+        name: 'n',
+        desc: 'The number of points to average.',
+        type: 'Integer',
+      },
+      {
+        name: 'columns',
+        desc:
+          'Columns to operate on. Defaults to `["_value"]`.',
+        type: 'Array of Strings`',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the exponential moving average of values grouped into `n` number of points, giving more weight to recent data.',
+    example: 'exponentialMovingAverage(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/exponentialmovingaverage/',
+  },
+  {
     name: 'fill',
     args: [
       {
