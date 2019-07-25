@@ -1490,9 +1490,13 @@ func (c *KeyCursor) nextAscending() {
 	}
 	c.current[0] = c.seeks[c.pos]
 
-	// If we have ovelapping blocks, append all their values so we can dedup
+	// If we have overlapping blocks, append all their values so we can dedup
 	for i := c.pos + 1; i < len(c.seeks); i++ {
 		if c.seeks[i].read() {
+			continue
+		}
+
+		if !c.seeks[i].entry.Contains(c.current[0].entry.MaxTime) {
 			continue
 		}
 
@@ -1512,17 +1516,22 @@ func (c *KeyCursor) nextDescending() {
 
 	// Append the first matching block
 	if len(c.current) == 0 {
-		c.current = make([]*location, 1)
+		c.current = append(c.current, nil)
 	} else {
 		c.current = c.current[:1]
 	}
 	c.current[0] = c.seeks[c.pos]
 
-	// If we have ovelapping blocks, append all their values so we can dedup
+	// If we have overlapping blocks, append all their values so we can dedup
 	for i := c.pos; i >= 0; i-- {
 		if c.seeks[i].read() {
 			continue
 		}
+
+		if !c.seeks[i].entry.Contains(c.current[0].entry.MinTime) {
+			continue
+		}
+
 		c.current = append(c.current, c.seeks[i])
 	}
 }

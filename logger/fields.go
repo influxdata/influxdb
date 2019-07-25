@@ -111,7 +111,7 @@ func NewOperation(ctx context.Context, log *zap.Logger, msg, name string, fields
 
 	now := time.Now()
 	log = log.With(f...)
-	log.Debug(msg+" (start)", OperationEventStart())
+	log.Info(msg+" (start)", OperationEventStart())
 
-	return log, func() { log.Debug(msg+" (end)", OperationEventEnd(), OperationElapsed(time.Since(now))) }
+	return log, func() { log.Info(msg+" (end)", OperationEventEnd(), OperationElapsed(time.Since(now))) }
 }

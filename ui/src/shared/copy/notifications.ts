@@ -500,13 +500,13 @@ export const taskImportSuccess = (): Notification => ({
 })
 
 export const taskRunSuccess = (): Notification => ({
-  ...defaultErrorNotification,
+  ...defaultSuccessNotification,
   duration: FIVE_SECONDS,
   message: 'Task scheduled successfully',
 })
 
 export const taskRunFailed = (error: string): Notification => ({
-  ...defaultSuccessNotification,
+  ...defaultErrorNotification,
   duration: FIVE_SECONDS,
   message: `Failed to run task: ${error}`,
 })
@@ -726,4 +726,60 @@ export const removeVariableLabelFailed = (): Notification => ({
 export const invalidMapType = (): Notification => ({
   ...defaultErrorNotification,
   message: `Variables of type map accept two comma separated values per line`,
+})
+
+export const getChecksFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get checks: ${message}`,
+})
+
+export const getCheckFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get check: ${message}`,
+})
+
+export const getNotificationRulesFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get notification rules: ${message}`,
+})
+
+export const getNotificationRuleFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get notification rule: ${message}`,
+})
+
+export const createCheckFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to create check: ${message}`,
+})
+
+export const updateCheckFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update check: ${message}`,
+})
+
+export const deleteCheckFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete check: ${message}`,
+})
+
+export const createNotificationRuleFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to create notification rule: ${message}`,
+})
+
+export const updateNotificationRuleFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update notification rule: ${message}`,
+})
+
+export const deleteNotificationRuleFailed = (
+  message: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete notification rule: ${message}`,
 })

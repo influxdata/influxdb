@@ -430,7 +430,7 @@ func (e *Engine) disableSnapshotCompactions() {
 // TSM files.  This is an expensive operation.
 func (e *Engine) ScheduleFullCompaction(ctx context.Context) error {
 	// Snapshot any data in the cache
-	if err := e.WriteSnapshot(ctx); err != nil {
+	if err := e.WriteSnapshot(ctx, CacheStatusFullCompaction); err != nil {
 		return err
 	}
 
@@ -775,8 +775,23 @@ func (t *compactionTracker) SetOptimiseQueue(length uint64) { t.SetQueue(4, leng
 // SetFullQueue sets the queue depth for Full compactions.
 func (t *compactionTracker) SetFullQueue(length uint64) { t.SetQueue(5, length) }
 
+func (e *Engine) WriteSnapshot(ctx context.Context, status CacheStatus) error {
+	start := time.Now()
+	err := e.writeSnapshot(ctx)
+	if err != nil && err != errCompactionsDisabled {
+		e.logger.Info("Error writing snapshot", zap.Error(err))
+	}
+	e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled ||
+		err == ErrSnapshotInProgress, status, time.Since(start))
+
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
-func (e *Engine) WriteSnapshot(ctx context.Context) error {
+func (e *Engine) writeSnapshot(ctx context.Context) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -874,15 +889,13 @@ func (e *Engine) compactCache() {
 				continue
 			}
 
-			span, ctx := tracing.StartSpanFromContextWithOperationName(context.Background(), "Engine.compactCache <-t.C")
+			span, ctx := tracing.StartSpanFromContextWithOperationName(context.Background(), "compact cache")
 			span.LogKV("path", e.path)
 
-			start := time.Now()
-			err := e.WriteSnapshot(ctx)
-			if err != nil && err != errCompactionsDisabled {
+			err := e.WriteSnapshot(ctx, status)
+			if err != nil && err != errCompactionsDisabled && err != ErrSnapshotInProgress {
 				e.logger.Info("Error writing snapshot", zap.Error(err))
 			}
-			e.compactionTracker.SnapshotAttempted(err == nil || err == errCompactionsDisabled, status, time.Since(start))
 
 			span.Finish()
 		}
@@ -895,10 +908,12 @@ type CacheStatus int
 
 // Possible types of Cache status
 const (
-	CacheStatusOkay         CacheStatus = iota // Cache is Okay - do not snapshot.
-	CacheStatusSizeExceeded                    // The cache is large enough to be snapshotted.
-	CacheStatusAgeExceeded                     // The cache is past the age threshold to be snapshotted.
-	CacheStatusColdNoWrites                    // The cache has not been written to for long enough that it should be snapshotted.
+	CacheStatusOkay           CacheStatus = iota // Cache is Okay - do not snapshot.
+	CacheStatusSizeExceeded                      // The cache is large enough to be snapshotted.
+	CacheStatusAgeExceeded                       // The cache is past the age threshold to be snapshotted.
+	CacheStatusColdNoWrites                      // The cache has not been written to for long enough that it should be snapshotted.
+	CacheStatusRetention                         // The cache was snapshotted before running retention.
+	CacheStatusFullCompaction                    // The cache was snapshotted as part of a full compaction.
 )
 
 // ShouldCompactCache returns a status indicating if the Cache should be

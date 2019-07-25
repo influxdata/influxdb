@@ -18,6 +18,7 @@ export interface PrettyBucket extends Bucket {
 interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
+  onDeleteData: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
   onAddData: (b: PrettyBucket, d: DataLoaderType, l: string) => void
   onUpdateBucket: (b: PrettyBucket) => void
@@ -26,7 +27,7 @@ interface Props {
 
 class BucketRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {bucket, onDeleteBucket} = this.props
+    const {bucket, onDeleteBucket, onDeleteData} = this.props
     return (
       <>
         <ResourceList.Card
@@ -34,7 +35,8 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           contextMenu={() => (
             <BucketContextMenu
               bucket={bucket}
-              onDelete={onDeleteBucket}
+              onDeleteBucket={onDeleteBucket}
+              onDeleteData={onDeleteData}
               onRename={this.handleRenameBucket}
               onAddCollector={this.handleAddCollector}
               onAddLineProtocol={this.handleAddLineProtocol}
