@@ -1,5 +1,5 @@
 // APIs
-import {getAST} from 'src/shared/apis/ast'
+import {parse} from '@influxdata/flux-parser'
 
 // Utils
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
@@ -10,28 +10,31 @@ import {WINDOW_PERIOD} from 'src/variables/constants'
 import {DEFAULT_DURATION_MS} from 'src/shared/constants'
 
 // Types
-import {VariableAssignment} from 'src/types/ast'
+import {VariableAssignment, Package} from 'src/types/ast'
 
 const DESIRED_POINTS_PER_GRAPH = 360
 const FALLBACK_WINDOW_PERIOD = 15000
 
-export const getWindowVars = async (
+// Compute the v.windowPeriod variable assignment for a query
+export const getWindowVars = (
   query: string,
   variables: VariableAssignment[]
-): Promise<VariableAssignment[]> => {
+): VariableAssignment[] => {
   if (!query.includes(WINDOW_PERIOD)) {
     return []
   }
 
-  const ast = await getAST(query)
+  const ast = parse(query)
 
-  const substitutedAST = {
-    ...ast,
-    files: [...ast.files, buildVarsOption(variables)],
+  const substitutedAST: Package = {
+    package: '',
+    type: 'Package',
+    files: [ast, buildVarsOption(variables)],
   }
 
   let windowPeriod: number
 
+  // Use the duration of the query to compute the value of `windowPeriod`
   try {
     windowPeriod = getWindowInterval(getMinDurationFromAST(substitutedAST))
   } catch {

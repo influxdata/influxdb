@@ -6,10 +6,12 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
 
 // API
-import {executeQueryWithVars} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 
 // Utils
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Constants
 import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
@@ -134,9 +136,11 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       this.pendingResults.forEach(({cancel}) => cancel())
 
       // Issue new queries
-      this.pendingResults = queries.map(({text}) =>
-        executeQueryWithVars(orgID, text, variables)
-      )
+      this.pendingResults = queries.map(({text}) => {
+        const windowVars = getWindowVars(text, variables)
+        const extern = buildVarsOption([...variables, ...windowVars])
+        return runQuery(orgID, text, extern)
+      })
 
       // Wait for new queries to complete
       const files = await Promise.all(this.pendingResults.map(r => r.promise))
