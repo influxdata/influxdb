@@ -156,7 +156,7 @@
     "ts-node": "^8.3.0"
   },
   "dependencies": {
-    "@influxdata/clockface": "0.0.18",
+    "@influxdata/clockface": "0.0.19",
     "@influxdata/giraffe": "0.16.1",
     "@influxdata/influx": "0.5.5",
     "@influxdata/influxdb-templates": "0.5.0",
