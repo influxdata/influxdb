@@ -10,7 +10,7 @@
 
 .resource-description--static,
 .resource-description--preview,
-.input.resource-description--input > input {
+.cf-input.resource-description--input > input {
   font-size: $form-xs-font;
   font-weight: 500;
   font-family: $ix-text-font;
@@ -39,7 +39,7 @@
   transition: color 0.25s ease, background-color 0.25s ease,
     border-color 0.25s ease;
 
-  .icon {
+  .cf-icon {
     position: relative;
     top: -2px;
     display: inline-block;
@@ -49,7 +49,7 @@
     color: $g11-sidewalk;
   }
 
-  &:hover .icon {
+  &:hover .cf-icon {
     opacity: 1;
   }
 
@@ -65,7 +65,7 @@
 }
 
 /* Ensure placeholder text matches font weight of title */
-.input.resource-description--input > input {
+.cf-input.resource-description--input > input {
   &::-webkit-input-placeholder {
     font-weight: $page-title-weight !important;
   }

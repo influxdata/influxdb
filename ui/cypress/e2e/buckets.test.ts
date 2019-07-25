@@ -25,7 +25,7 @@ describe('Buckets', () => {
       cy.getByTestID('Create Bucket').click()
       cy.getByTestID('overlay--container').within(() => {
         cy.getByInputName('name').type(newBucket)
-        cy.get('.button')
+        cy.get('.cf-button')
           .contains('Create')
           .click()
       })

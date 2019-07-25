@@ -72,9 +72,9 @@ describe('Dashboards.Components.VariablesControlBar.VariableDropdown', () => {
         setInitialState
       )
 
-      const dropdownClosed = getByTestId('variable-dropdown')
-      fireEvent.click(dropdownClosed)
-      const dropdownItems = getAllByTestId(/dropdown--item/)
+      const dropdownButton = getByTestId('variable-dropdown--button')
+      fireEvent.click(dropdownButton)
+      const dropdownItems = getAllByTestId('variable-dropdown--item')
 
       expect(dropdownItems.length).toBe(Object.keys(values).length)
     })

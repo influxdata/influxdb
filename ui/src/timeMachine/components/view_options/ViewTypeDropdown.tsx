@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {setType} from 'src/timeMachine/actions'
 
 // Components
-import {Dropdown, DropdownMenuColors} from 'src/clockface'
+import {Dropdown, DropdownMenuTheme} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -29,16 +29,22 @@ type Props = DispatchProps & StateProps
 
 class ViewTypeDropdown extends PureComponent<Props> {
   public render() {
+    const {view} = this.props
     return (
       <Dropdown
-        selectedID={this.selectedView}
-        onChange={this.handleChange}
         widthPixels={215}
-        customClass="view-type-dropdown"
-        menuColor={DropdownMenuColors.Onyx}
-      >
-        {this.dropdownItems}
-      </Dropdown>
+        className="view-type-dropdown"
+        button={(active, onClick) => (
+          <Dropdown.Button active={active} onClick={onClick}>
+            {this.getVewTypeGraphic(view.properties.type as ViewType)}
+          </Dropdown.Button>
+        )}
+        menu={onCollapse => (
+          <Dropdown.Menu onCollapse={onCollapse} theme={DropdownMenuTheme.Onyx}>
+            {this.dropdownItems}
+          </Dropdown.Menu>
+        )}
+      />
     )
   }
 
@@ -54,9 +60,10 @@ class ViewTypeDropdown extends PureComponent<Props> {
         key={`view-type--${g.type}`}
         id={`${g.type}`}
         value={g.type}
+        onClick={this.handleChange}
+        selected={`${g.type}` === this.selectedView}
       >
-        <div className="view-type-dropdown--graphic">{g.graphic}</div>
-        <div className="view-type-dropdown--name">{g.name}</div>
+        {this.getVewTypeGraphic(g.type)}
       </Dropdown.Item>
     ))
   }
@@ -65,6 +72,19 @@ class ViewTypeDropdown extends PureComponent<Props> {
     const {view} = this.props
 
     return `${view.properties.type}`
+  }
+
+  private getVewTypeGraphic = (viewType: ViewType): JSX.Element => {
+    const {graphic, name} = VIS_GRAPHICS.find(
+      graphic => graphic.type === viewType
+    )
+
+    return (
+      <>
+        <div className="view-type-dropdown--graphic">{graphic}</div>
+        <div className="view-type-dropdown--name">{name}</div>
+      </>
+    )
   }
 }
 

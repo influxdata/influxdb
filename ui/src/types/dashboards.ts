@@ -117,7 +117,6 @@ export type ViewProperties =
   | TableView
   | GaugeView
   | MarkdownView
-  | EmptyView
   | HistogramView
   | HeatmapView
   | ScatterView

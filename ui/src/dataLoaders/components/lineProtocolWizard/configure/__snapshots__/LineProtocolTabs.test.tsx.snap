@@ -12,13 +12,13 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
       ]
     }
   />
-  <t
+  <Grid
     testID="grid"
   >
-    <t
+    <GridRow
       testID="grid--row"
     >
-      <t
+      <GridColumn
         offsetLG={2}
         offsetMD={1}
         testID="grid--column"
@@ -39,8 +39,8 @@ exports[`LineProtocolTabs rendering renders! 1`] = `
             />
           </div>
         </div>
-      </t>
-    </t>
-  </t>
+      </GridColumn>
+    </GridRow>
+  </Grid>
 </div>
 `;

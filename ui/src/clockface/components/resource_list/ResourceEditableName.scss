@@ -7,7 +7,7 @@ $resource-name-font-size: 17px;
 $resource-name-font-weight: 600;
 
 .resource-editable-name > a,
-.input.resource-editable-name--input > input {
+.cf-input.resource-editable-name--input > input {
   font-size: $resource-name-font-size;
   font-weight: $resource-name-font-weight;
   font-family: $ix-text-font;
@@ -27,7 +27,7 @@ $resource-name-font-weight: 600;
   margin-right: $ix-marg-a;
 }
 
-.input.resource-editable-name--input {
+.cf-input.resource-editable-name--input {
   position: absolute;
   top: 0;
   left: 0;
@@ -35,7 +35,7 @@ $resource-name-font-weight: 600;
 }
 
 /* Ensure placeholder text matches font weight of title */
-.input.resource-editable-name--input > input {
+.cf-input.resource-editable-name--input > input {
   &::-webkit-input-placeholder {
     font-weight: $resource-name-font-weight !important;
   }

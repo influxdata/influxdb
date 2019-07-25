@@ -15,7 +15,7 @@ $rename-dash-title-padding: 4px;
 
 .renamable-page-title--title,
 .renamable-page-title--input-prefix,
-.input.renamable-page-title--input > input {
+.cf-input.renamable-page-title--input > input {
   font-size: $page-title-size;
   font-weight: $page-title-weight;
   font-family: $ix-text-font;
@@ -42,7 +42,7 @@ $rename-dash-title-padding: 4px;
   height: $form-sm-height;
   line-height: $form-sm-height - ($ix-border * 2);
   
-  .icon {
+  .cf-icon {
     position: absolute;
     font-size: 15px;
     top: 50%;
@@ -60,7 +60,7 @@ $rename-dash-title-padding: 4px;
     border-color: $g3-castle;
   }
 
-  &:hover .icon {
+  &:hover .cf-icon {
     opacity: 1;
   }
 
@@ -83,7 +83,7 @@ $rename-dash-title-padding: 4px;
 }
 
 /* Ensure placeholder text matches font weight of title */
-.input.renamable-page-title--input > input {
+.cf-input.renamable-page-title--input > input {
   &::-webkit-input-placeholder {
       font-weight: $page-title-weight !important;
     }

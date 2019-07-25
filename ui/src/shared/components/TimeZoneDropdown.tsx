@@ -1,7 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {Dropdown, IconFont} from '@influxdata/clockface'
+import {SelectDropdown, IconFont} from '@influxdata/clockface'
 
 // Actions
 import {setTimeZone} from 'src/shared/actions/app'
@@ -27,18 +27,13 @@ const TimeZoneDropdown: FunctionComponent<Props> = ({
   onSetTimeZone,
 }) => {
   return (
-    <Dropdown
-      selectedID={selectedTimeZone}
-      onChange={onSetTimeZone}
-      icon={IconFont.Annotate}
+    <SelectDropdown
+      options={TIME_ZONES.map(tz => tz.timeZone)}
+      selectedOption={selectedTimeZone}
+      onSelect={onSetTimeZone}
+      buttonIcon={IconFont.Annotate}
       widthPixels={115}
-    >
-      {TIME_ZONES.map(({timeZone, displayName}) => (
-        <Dropdown.Item key={timeZone} id={timeZone} value={timeZone}>
-          {displayName}
-        </Dropdown.Item>
-      ))}
-    </Dropdown>
+    />
   )
 }
 
