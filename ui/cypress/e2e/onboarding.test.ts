@@ -18,7 +18,7 @@ describe('Onboarding', () => {
     cy.visit('/')
   })
 
-  it('Can Onboard to Quick Start', () => {
+  it('can onboard to Quick Start', () => {
     cy.server()
 
     //Will want to capture response from this
@@ -59,15 +59,6 @@ describe('Onboarding', () => {
       .contains('Initial User Setup')
       .should('be.visible')
     cy.getByTestID('nav-step--setup').should('have.class', 'current')
-    cy.getByTestID('nav-step--setup')
-      .parent()
-      .children('span')
-      .children('span')
-      .should($span => {
-        expect($span)
-          .to.have.class('icon')
-          .and.to.have.class('circle-thick')
-      })
 
     cy.getByTestID('nav-step--complete')
       .parent()

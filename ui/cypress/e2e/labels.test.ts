@@ -27,7 +27,7 @@ describe('labels', () => {
     return `background-color: rgb(${red}, ${green}, ${blue});`
   }
 
-  it('Can create a label', () => {
+  it('can create a label', () => {
     const newLabelName = 'Substantia (サブスタンス)'
     const newLabelDescription =
       '(\u03943) quod in se est et per se concipitur hoc est id cujus conceptus non indiget conceptu alterius rei a quo formari debeat. '
@@ -110,12 +110,13 @@ describe('labels', () => {
     cy.getByTestID('input-error').should($ie => {
       expect($ie).to.have.class('alert-triangle')
     })
+
     cy.getByTestID('input-error')
       .parent()
       .parent()
       .children('div.cf-color-picker--selected')
       .invoke('attr', 'style')
-      .should('equal', undefined)
+      .should('equal', '')
 
     //Type nonsense string - color input
     cy.getByTestID('color-picker--input').type('zzzzzz')
@@ -126,12 +127,13 @@ describe('labels', () => {
     cy.getByTestID('input-error').should($ie => {
       expect($ie).to.have.class('alert-triangle')
     })
+
     cy.getByTestID('input-error')
       .parent()
       .parent()
       .children('div.cf-color-picker--selected')
       .invoke('attr', 'style')
-      .should('equal', undefined)
+      .should('equal', '')
 
     //feel lucky
     cy.getByTestID('color-picker--randomize').click()
