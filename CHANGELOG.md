@@ -1,4 +1,10 @@
-## v2.0.0-alpha.16 [unreleased]
+## v2.0.0-alpha.17 [unreleased]
+### Features
+### UI Improvements
+### Bug Fixes
+
+
+## v2.0.0-alpha.16 [2019-07-25]
 
 ### Bug Fixes
 
