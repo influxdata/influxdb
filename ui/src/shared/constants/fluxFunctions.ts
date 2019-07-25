@@ -409,6 +409,121 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/cumulativesum/',
   },
   {
+    name: 'date.hour',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 'Returns the hour of a specified time. Results range from `[0-23]`.',
+    example: 'date.hour(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/hour/',
+  },
+  {
+    name: 'date.minute',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the minute of a specified time. Results range from `[0-59]`.',
+    example: 'date.minute(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/minute/',
+  },
+  {
+    name: 'date.month',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 'Returns the month of a specified time. Results range from `[1-12]`.',
+    example: 'date.month(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/month/',
+  },
+  {
+    name: 'date.monthDay',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the day of the month for a specified time. Results range from `[1-31]`.',
+    example: 'date.monthDay(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/monthday/',
+  },
+  {
+    name: 'date.second',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the second of a specified time. Results range from `[0-59]`.',
+    example: 'date.second(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/second/',
+  },
+  {
+    name: 'date.weekDay',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 'Returns the day of the week for a specified time. Results range from `[0-6]`.',
+    example: 'date.weekDay(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/weekday/',
+  },
+  {
+    name: 'date.yearDay',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 'Returns the day of the year for a specified time. Results include leap days and range from `[1-366]`.',
+    example: 'date.yearDay(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/yearday/',
+  },
+  {
     name: 'derivative',
     args: [
       {
@@ -544,6 +659,33 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/duration/',
   },
   {
+    name: 'elapsed',
+    args: [
+      {
+        name: 'unit',
+        desc: 'The unit time to return. Defaults to `1s`.',
+        type: 'Duration',
+      },
+      {
+        name: 'timeColumn',
+        desc:
+          'The column to use to compute the elapsed time. Defaults to `"_time"`.',
+        type: 'String`',
+      },
+      {
+        name: 'columnName',
+        desc: 'The column to store elapsed times. Defaults to `"elapsed"`.',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc: 'Returns the time between subsequent records.',
+    example: 'elapsed(unit: 1s)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/elapsed/',
+  },
+  {
     name: 'fill',
     args: [
       {
@@ -566,7 +708,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc:
-      'replaces all null values in an input stream and replace them with a non-null value.',
+      'Replaces all null values in an input stream and replace them with a non-null value.',
     example: 'fill(column: "_value", usePrevious: true)',
     category: 'Transformations',
     link:
@@ -2255,32 +2397,42 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/min/',
   },
   {
-    name: 'movingAverage',
+    name: 'mode',
     args: [
       {
-        name: 'every',
-        desc: 'The frequency of time windows.',
-        type: 'Duration',
-      },
-      {
-        name: 'period',
-        desc: 'The length of each averaged time window.',
-        type: 'Duration',
-      },
-      {
         name: 'column',
-        desc:
-          'The column on which to compute the moving average. Defaults to `"_value"`',
+        desc: 'The column to use to compute the mode. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
     package: '',
     desc:
-      'Calculates the mean of values in a defined time range at a specified frequency.',
-    example: 'movingAverage(every: 1d, period: 5d)',
+      'Computes the mode or value that occurs most often in a specified column.',
+    example: 'mode(column: "_value")',
     category: 'Aggregates',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/movingAverage/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/mode/',
+  },
+  {
+    name: 'movingAverage',
+    args: [
+      {
+        name: 'n',
+        desc: 'The frequency of time windows.',
+        type: 'Duration',
+      },
+      {
+        name: 'columns',
+        desc: 'Columns to operate on. Defaults to `["_value"]`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: '',
+    desc: 'Calculates the mean of values grouped into `n` number of points.',
+    example: 'movingAverage(n: 5, columns: ["_value"])',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/movingaverage/',
   },
   {
     name: 'pearsonr',
@@ -2349,7 +2501,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'String',
       },
       {
-        name: 'quantile',
+        name: 'q',
         desc: 'A value between 0 and 1 indicating the desired quantile.',
         type: 'Float',
       },
@@ -2370,7 +2522,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'This is both an aggregate and selector function depending on the `method` used. When using the `estimate_tdigest` or `exact_mean` methods, it outputs non-null records with values that fall within the specified quantile. When using the `exact_selector` method, it outputs the non-null record with the value that represents the specified quantile.',
     example:
-      'quantile(column: "_value", quantile: 0.99, method: "estimate_tdigest", compression: 1000)',
+      'quantile(column: "_value", q: 0.99, method: "estimate_tdigest", compression: 1000)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/quantile/',
@@ -2651,6 +2803,27 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/skew/',
+  },
+  {
+    name: 'sleep',
+    args: [
+      {
+        name: 'v',
+        desc: 'Defines input tables.',
+        type: 'Object',
+      },
+      {
+        name: 'duration',
+        desc: 'The length of time to delay execution.',
+        type: 'Duration',
+      },
+    ],
+    package: '',
+    desc: 'Delays execution by a specified duration.',
+    example: 'sleep(duration: 5s)',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/misc/sleep/',
   },
   {
     name: 'sort',
@@ -3637,6 +3810,34 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/time/',
   },
   {
+    name: 'timedMovingAverage',
+    args: [
+      {
+        name: 'every',
+        desc: 'The frequency of time windows.',
+        type: 'Duration',
+      },
+      {
+        name: 'period',
+        desc: 'The length of each averaged time window.',
+        type: 'Duration',
+      },
+      {
+        name: 'column',
+        desc:
+          'The column on which to compute the moving average. Defaults to `"_value"`',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the mean of values in a defined time range at a specified frequency.',
+    example: 'timedMovingAverage(every: 1d, period: 5d)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/timedmovingaverage/',
+  },
+  {
     name: 'timeShift',
     args: [
       {
@@ -3734,16 +3935,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Type Conversions',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/tobool',
-  },
-  {
-    name: 'toDuration',
-    args: [],
-    package: '',
-    desc: 'Converts all values in the `_value` column to a duration.',
-    example: 'toDuration()',
-    category: 'Type Conversions',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/toduration/',
   },
   {
     name: 'toFloat',
