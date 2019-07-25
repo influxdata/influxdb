@@ -501,7 +501,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'date',
-    desc: 'Returns the day of the week for a specified time. Results range from `[0-6]`.',
+    desc:
+      'Returns the day of the week for a specified time. Results range from `[0-6]`.',
     example: 'date.weekDay(t: 2019-07-17T12:05:21.012Z)',
     category: 'Transformations',
     link:
@@ -517,7 +518,8 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'date',
-    desc: 'Returns the day of the year for a specified time. Results include leap days and range from `[1-366]`.',
+    desc:
+      'Returns the day of the year for a specified time. Results include leap days and range from `[1-366]`.',
     example: 'date.yearDay(t: 2019-07-17T12:05:21.012Z)',
     category: 'Transformations',
     link:
