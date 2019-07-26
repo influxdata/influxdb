@@ -197,6 +197,8 @@ jobs:
       - run:
           name: 'Docker Login'
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - run: sudo apt-get install -y bzr
+      - run: make protoc # installs protoc
       - run:
           name: 'Build nightly'
           command: make nightly
