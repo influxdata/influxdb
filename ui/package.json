@@ -52,7 +52,7 @@
     ],
     "modulePaths": [
       "<rootDir>",
-      "<rootDir>/node_modules/"
+      "<rootDir>/node_modules"
     ],
     "moduleDirectories": [
       "src"
