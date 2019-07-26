@@ -155,8 +155,11 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 		return nil, err
 	}
 
-	if err := ts.validateBucket(ctx, task.Flux, task.OrganizationID, loggerFields...); err != nil {
-		return nil, err
+	// given an update to the task flux definition
+	if upd.Flux != nil {
+		if err := ts.validateBucket(ctx, *upd.Flux, task.OrganizationID, loggerFields...); err != nil {
+			return nil, err
+		}
 	}
 
 	return ts.TaskService.UpdateTask(ctx, id, upd)

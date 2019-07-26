@@ -6,6 +6,8 @@
 
 ### Bug Fixes
 
+1. [14480](https://github.com/influxdata/influxdb/pull/14480): Fix authentication when updating a task with invalid org or bucket.
+
 ## v2.0.0-alpha.16 [2019-07-25]
 
 ### Bug Fixes
