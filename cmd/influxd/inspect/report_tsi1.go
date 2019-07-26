@@ -36,24 +36,23 @@ var reportTSIFlags = struct {
 
 // NewReportTsiCommand returns a new instance of Command with default setting applied.
 func NewReportTSICommand() *cobra.Command {
-	reportTSICommand := &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "report-tsi",
 		Short: "Reports the cardinality of tsi files short",
 		Long:  `Reports the cardinality of tsi files long.`,
 		RunE:  RunReportTSI,
 	}
 
-	reportTSICommand.Flags().StringVar(&reportTSIFlags.Path, "path", os.Getenv("HOME")+"/.influxdbv2/engine", "Path to data engine. Defaults $HOME/.influxdbv2/engine")
-	reportTSICommand.Flags().StringVar(&reportTSIFlags.SeriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
-	reportTSICommand.Flags().BoolVarP(&reportTSIFlags.ByMeasurement, "measurements", "m", false, "Segment cardinality by measurements")
-	// fs.BoolVar(&cmd.byTagKey, "tag-key", false, "Segment cardinality by tag keys (overrides `measurements`")
-	reportTSICommand.Flags().IntVarP(&reportTSIFlags.TopN, "top", "t", 0, "Limit results to top n")
-	reportTSICommand.Flags().StringVarP(&reportTSIFlags.Bucket, "bucket", "b", "", "If bucket is specified, org must be specified")
-	reportTSICommand.Flags().StringVarP(&reportTSIFlags.Org, "org", "o", "", "Org to be reported")
+	cmd.Flags().StringVar(&reportTSIFlags.Path, "path", os.Getenv("HOME")+"/.influxdbv2/engine", "Path to data engine. Defaults $HOME/.influxdbv2/engine")
+	cmd.Flags().StringVar(&reportTSIFlags.SeriesFilePath, "series-file", "", "Optional path to series file. Defaults /path/to/db-path/_series")
+	cmd.Flags().BoolVarP(&reportTSIFlags.ByMeasurement, "measurements", "m", false, "Segment cardinality by measurements")
+	cmd.Flags().IntVarP(&reportTSIFlags.TopN, "top", "t", 0, "Limit results to top n")
+	cmd.Flags().StringVarP(&reportTSIFlags.Bucket, "bucket", "b", "", "If bucket is specified, org must be specified")
+	cmd.Flags().StringVarP(&reportTSIFlags.Org, "org", "o", "", "Org to be reported")
 
-	reportTSICommand.SetOutput(reportTSIFlags.Stdout)
+	cmd.SetOutput(reportTSIFlags.Stdout)
 
-	return reportTSICommand
+	return cmd
 }
 
 // RunReportTSI executes the run command for ReportTSI.
@@ -78,26 +77,21 @@ func RunReportTSI(cmd *cobra.Command, args []string) error {
 	report.TopN = reportTSIFlags.TopN
 
 	if reportTSIFlags.Org != "" {
-		if orgID, err := influxdb.IDFromString(reportTSIFlags.Org); err != nil {
+		if report.OrgID, err = influxdb.IDFromString(reportTSIFlags.Org); err != nil {
 			return err
-		} else {
-			report.OrgID = orgID
 		}
 	}
 
 	if reportTSIFlags.Bucket != "" {
-		if bucketID, err := influxdb.IDFromString(reportTSIFlags.Bucket); err != nil {
+		if report.BucketID, err = influxdb.IDFromString(reportTSIFlags.Bucket); err != nil {
 			return err
 		} else if report.OrgID == nil {
 			return errors.New("org must be provided if filtering by bucket")
-		} else {
-			report.BucketID = bucketID
 		}
 	}
 
 	// Run command with printing enabled
-	_, err = report.Run(true)
-	if err != nil {
+	if _, err = report.Run(true); err != nil {
 		return err
 	}
 	return nil

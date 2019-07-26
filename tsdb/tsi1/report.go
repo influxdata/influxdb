@@ -81,26 +81,24 @@ func newSummary() *Summary {
 // the cardinality of a bucket or org based on its influxdb.ID
 func (report *ReportCommand) Run(print bool) (*Summary, error) {
 	report.start = time.Now()
+
 	report.Stdout = os.Stdout
 
 	if report.SeriesDirPath == "" {
 		report.SeriesDirPath = filepath.Join(report.DataPath, "_series")
 	}
 
-	sFile := tsdb.NewSeriesFile(report.SeriesDirPath)
+	sfile := tsdb.NewSeriesFile(report.SeriesDirPath)
 
-	// TODO: do we actually want the seriesfile logging?
-	// sFile.WithLogger(report.Logger)
-
-	if err := sFile.Open(context.Background()); err != nil {
+	if err := sfile.Open(context.Background()); err != nil {
 		report.Logger.Error("failed to open series")
 		return nil, err
 	}
-	defer sFile.Close()
-	report.sfile = sFile
+	defer sfile.Close()
+	report.sfile = sfile
 
 	indexPath := filepath.Join(report.DataPath, "index")
-	report.indexFile = NewIndex(sFile, NewConfig(), WithPath(indexPath))
+	report.indexFile = NewIndex(sfile, NewConfig(), WithPath(indexPath))
 	if err := report.indexFile.Open(context.Background()); err != nil {
 		return nil, err
 	}
@@ -155,8 +153,7 @@ func (c *cardinality) cardinality() int64 {
 }
 
 func (report *ReportCommand) calculateCardinalities() error {
-	idx := report.indexFile
-	itr, err := idx.MeasurementIterator()
+	itr, err := report.indexFile.MeasurementIterator()
 	if err != nil {
 		return err
 	} else if itr == nil {
@@ -164,94 +161,98 @@ func (report *ReportCommand) calculateCardinalities() error {
 	}
 	defer itr.Close()
 
-OUTER:
 	for {
 		name, err := itr.Next()
 		if err != nil {
 			return err
 		} else if name == nil {
-			break OUTER
+			return nil
 		}
 
-		// decode org and bucket from measurement name
-		var a [16]byte
-		copy(a[:], name[:16])
-		org, bucket := tsdb.DecodeName(a)
-
-		if report.OrgID != nil && *report.OrgID != org {
-			continue
-		} else if report.BucketID != nil && *report.BucketID != bucket {
-			continue
-		}
-
-		sitr, err := idx.MeasurementSeriesIDIterator(name)
-		if err != nil {
-			return err
-		} else if sitr == nil {
-			continue
-		}
-
-		var bucketCard *cardinality
-
-		// initialize map of bucket to measurements
-		if _, ok := report.byBucketMeasurement[bucket]; !ok {
-			report.byBucketMeasurement[bucket] = make(map[string]*cardinality)
-		}
-
-		if _, ok := report.byOrgBucket[org]; !ok {
-			report.byOrgBucket[org] = make(map[influxdb.ID]*cardinality)
-		}
-
-		// initialize total cardinality tracking struct for this bucket
-		if c, ok := report.byOrgBucket[org][bucket]; !ok {
-			bucketCard = &cardinality{name: []byte(bucket.String())}
-			report.byOrgBucket[org][bucket] = bucketCard
-		} else {
-			bucketCard = c
-		}
-
-		var e tsdb.SeriesIDElem
-		for e, err = sitr.Next(); err == nil && e.SeriesID.ID != 0; e, err = sitr.Next() {
-			id := e.SeriesID.ID
-
-			if id > math.MaxUint32 {
-				panic(fmt.Sprintf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, uint32(math.MaxUint32)))
-			}
-
-			// add cardinality to bucket
-			bucketCard.add(id)
-
-			// retrieve tags associated with series id so we can get
-			// associated measurement
-			_, tags := report.sfile.Series(e.SeriesID)
-			if len(tags) == 0 {
-				panic(fmt.Sprintf("empty series key"))
-			}
-
-			// measurement name should be first tag
-			mName := string(tags[0].Value)
-
-			// update measurement-level cardinality if tracking by measurement
-			if report.ByMeasurement {
-				var mCard *cardinality
-				if cardForM, ok := report.byBucketMeasurement[bucket][mName]; !ok {
-					mCard = &cardinality{name: []byte(mName)}
-					report.byBucketMeasurement[bucket][mName] = mCard
-				} else {
-					mCard = cardForM
-				}
-
-				mCard.add(id)
-			}
-		}
-
-		sitr.Close()
-
-		if err != nil {
+		if err = report.calculateMeasurementCardinalities(name); err != nil {
 			return err
 		}
-
 	}
+}
+
+func (report *ReportCommand) calculateMeasurementCardinalities(name []byte) error {
+	// decode org and bucket from measurement name
+	var a [16]byte
+	copy(a[:], name[:16])
+	org, bucket := tsdb.DecodeName(a)
+	if report.OrgID != nil && *report.OrgID != org ||
+		report.BucketID != nil && *report.BucketID != bucket {
+		return nil
+	}
+
+	idx := report.indexFile
+	sitr, err := idx.MeasurementSeriesIDIterator(name)
+	if err != nil {
+		return err
+	} else if sitr == nil {
+		return nil
+	}
+
+	defer sitr.Close()
+
+	var bucketCard *cardinality
+
+	// initialize map of bucket to measurements
+	if _, ok := report.byBucketMeasurement[bucket]; !ok {
+		report.byBucketMeasurement[bucket] = make(map[string]*cardinality)
+	}
+
+	if _, ok := report.byOrgBucket[org]; !ok {
+		report.byOrgBucket[org] = make(map[influxdb.ID]*cardinality)
+	}
+
+	// initialize total cardinality tracking struct for this bucket
+	if c, ok := report.byOrgBucket[org][bucket]; !ok {
+		bucketCard = &cardinality{name: []byte(bucket.String())}
+		report.byOrgBucket[org][bucket] = bucketCard
+	} else {
+		bucketCard = c
+	}
+
+	for {
+		e, err := sitr.Next()
+		if err != nil {
+			return err
+		} else if e.SeriesID.ID == 0 {
+			break
+		}
+
+		id := e.SeriesID.ID
+		if id > math.MaxUint32 {
+			return fmt.Errorf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, uint32(math.MaxUint32))
+		}
+
+		// add cardinality to bucket
+		bucketCard.add(id)
+
+		// retrieve tags associated with series id so we can get
+		// associated measurement
+		_, tags := report.sfile.Series(e.SeriesID)
+		if len(tags) == 0 {
+			return fmt.Errorf("series ID has empty key: %d", e.SeriesID)
+		}
+
+		// measurement name should be first tag
+		mName := string(tags[0].Value)
+
+		// update measurement-level cardinality if tracking by measurement
+		if report.ByMeasurement {
+			var mCard *cardinality
+			if cardForM, ok := report.byBucketMeasurement[bucket][mName]; !ok {
+				mCard = &cardinality{name: []byte(mName)}
+				report.byBucketMeasurement[bucket][mName] = mCard
+			} else {
+				mCard = cardForM
+			}
+			mCard.add(id)
+		}
+	}
+
 	return nil
 }
 
