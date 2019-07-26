@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"text/tabwriter"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb"
@@ -32,8 +33,7 @@ type ReportCommand struct {
 	DataPath        string
 	OrgID, BucketID *influxdb.ID
 
-	byOrg               map[influxdb.ID]*cardinality
-	byBucket            map[influxdb.ID]*cardinality
+	byOrgBucket         map[influxdb.ID]map[influxdb.ID]*cardinality
 	byBucketMeasurement map[influxdb.ID]map[string]*cardinality
 	orgToBucket         map[influxdb.ID][]influxdb.ID
 
@@ -44,14 +44,15 @@ type ReportCommand struct {
 	TopN          int
 	ByMeasurement bool
 	byTagKey      bool
+
+	start time.Time
 }
 
 // NewReportCommand returns a new instance of ReportCommand with default setting applied.
 func NewReportCommand() *ReportCommand {
 	return &ReportCommand{
 		Logger:              zap.NewNop(),
-		byOrg:               make(map[influxdb.ID]*cardinality),
-		byBucket:            make(map[influxdb.ID]*cardinality),
+		byOrgBucket:         make(map[influxdb.ID]map[influxdb.ID]*cardinality),
 		byBucketMeasurement: make(map[influxdb.ID]map[string]*cardinality),
 		orgToBucket:         make(map[influxdb.ID][]influxdb.ID),
 		TopN:                0,
@@ -61,15 +62,16 @@ func NewReportCommand() *ReportCommand {
 
 // ReportTSISummary is returned by a report-tsi Run() command and is used to access cardinality information
 type Summary struct {
+	TotalCardinality             int64
 	OrgCardinality               map[influxdb.ID]int64
-	BucketCardinality            map[influxdb.ID]int64
+	BucketByOrgCardinality       map[influxdb.ID]map[influxdb.ID]int64
 	BucketMeasurementCardinality map[influxdb.ID]map[string]int64
 }
 
 func newSummary() *Summary {
 	return &Summary{
 		OrgCardinality:               make(map[influxdb.ID]int64),
-		BucketCardinality:            make(map[influxdb.ID]int64),
+		BucketByOrgCardinality:       make(map[influxdb.ID]map[influxdb.ID]int64),
 		BucketMeasurementCardinality: make(map[influxdb.ID]map[string]int64),
 	}
 }
@@ -78,6 +80,7 @@ func newSummary() *Summary {
 // any org or bucket. Run returns a *ReportTSISummary, which contains maps for finding
 // the cardinality of a bucket or org based on its influxdb.ID
 func (report *ReportCommand) Run(print bool) (*Summary, error) {
+	report.start = time.Now()
 	report.Stdout = os.Stdout
 
 	if report.SeriesDirPath == "" {
@@ -161,7 +164,6 @@ func (report *ReportCommand) calculateCardinalities() error {
 	}
 	defer itr.Close()
 
-	var totalCard = &cardinality{name: []byte("total")}
 OUTER:
 	for {
 		name, err := itr.Next()
@@ -189,35 +191,24 @@ OUTER:
 			continue
 		}
 
-		var orgCard, bucketCard *cardinality
+		var bucketCard *cardinality
 
 		// initialize map of bucket to measurements
 		if _, ok := report.byBucketMeasurement[bucket]; !ok {
 			report.byBucketMeasurement[bucket] = make(map[string]*cardinality)
 		}
 
+		if _, ok := report.byOrgBucket[org]; !ok {
+			report.byOrgBucket[org] = make(map[influxdb.ID]*cardinality)
+		}
+
 		// initialize total cardinality tracking struct for this bucket
-		if c, ok := report.byBucket[bucket]; !ok {
+		if c, ok := report.byOrgBucket[org][bucket]; !ok {
 			bucketCard = &cardinality{name: []byte(bucket.String())}
-			report.byBucket[bucket] = bucketCard
+			report.byOrgBucket[org][bucket] = bucketCard
 		} else {
 			bucketCard = c
 		}
-
-		// initialize total cardinality tracking struct for this org
-		if c, ok := report.byOrg[org]; !ok {
-			orgCard = &cardinality{name: []byte(bucket.String())}
-			report.byOrg[org] = orgCard
-		} else {
-			orgCard = c
-		}
-
-		// track org to bucket mappings so we can associate org an bucket in the printed summary
-		if _, ok := report.orgToBucket[org]; !ok {
-			report.orgToBucket[org] = []influxdb.ID{}
-		}
-
-		report.orgToBucket[org] = append(report.orgToBucket[org], bucket)
 
 		var e tsdb.SeriesIDElem
 		for e, err = sitr.Next(); err == nil && e.SeriesID.ID != 0; e, err = sitr.Next() {
@@ -227,10 +218,7 @@ OUTER:
 				panic(fmt.Sprintf("series ID is too large: %d (max %d). Corrupted series file?", e.SeriesID, uint32(math.MaxUint32)))
 			}
 
-			totalCard.add(id)
-
-			// add cardinalities to org and bucket maps
-			orgCard.add(id)
+			// add cardinality to bucket
 			bucketCard.add(id)
 
 			// retrieve tags associated with series id so we can get
@@ -240,7 +228,7 @@ OUTER:
 				panic(fmt.Sprintf("empty series key"))
 			}
 
-			// measurement name should be first tag.
+			// measurement name should be first tag
 			mName := string(tags[0].Value)
 
 			// update measurement-level cardinality if tracking by measurement
@@ -271,16 +259,24 @@ func (report *ReportCommand) calculateOrgBucketCardinality() (*Summary, error) {
 	if err := report.calculateCardinalities(); err != nil {
 		return nil, err
 	}
+
+	var totalCard int64
 	// Generate a new summary
 	summary := newSummary()
-	for bucketID, bucketCard := range report.byBucket {
-		summary.BucketCardinality[bucketID] = bucketCard.cardinality()
-		summary.BucketMeasurementCardinality[bucketID] = make(map[string]int64)
+	for orgID, bucketMap := range report.byOrgBucket {
+		summary.BucketByOrgCardinality[orgID] = make(map[influxdb.ID]int64)
+		orgTotal := int64(0)
+		for bucketID, bucketCard := range bucketMap {
+			count := bucketCard.cardinality()
+			summary.BucketByOrgCardinality[orgID][bucketID] = count
+			summary.BucketMeasurementCardinality[bucketID] = make(map[string]int64)
+			orgTotal += count
+			totalCard += count
+		}
+		summary.OrgCardinality[orgID] = orgTotal
 	}
 
-	for orgID, orgCard := range report.byOrg {
-		summary.OrgCardinality[orgID] = orgCard.cardinality()
-	}
+	summary.TotalCardinality = totalCard
 
 	for bucketID, bucketMeasurement := range report.byBucketMeasurement {
 		for mName, mCard := range bucketMeasurement {
@@ -295,30 +291,39 @@ func (report *ReportCommand) printCardinalitySummary(summary *Summary) {
 	tw := tabwriter.NewWriter(report.Stdout, 4, 4, 1, '\t', 0)
 	fmt.Fprint(tw, "\n")
 
-	// sort total org and bucket cardinalities and limit to top n values
+	fmt.Fprintf(tw, "Total: %d\n", summary.TotalCardinality)
+	// sort total org and bucket  and limit to top n values
 	sortedOrgs := sortKeys(summary.OrgCardinality, report.TopN)
-	sortedBuckets := sortKeys(summary.BucketCardinality, report.TopN)
 
-	for orgIndex := range sortedOrgs {
+	for i, orgResult := range sortedOrgs {
+		orgID, _ := influxdb.IDFromString(orgResult.id)
+		sortedBuckets := sortKeys(summary.BucketByOrgCardinality[*orgID], report.TopN)
 		// if we specify a bucket, we do not print the org cardinality
+		fmt.Fprintln(tw, "===============")
 		if report.BucketID == nil {
-			fmt.Fprintf(tw, "Org %s total: %d\n", sortedOrgs[orgIndex].id, sortedOrgs[orgIndex].card)
+			fmt.Fprintf(tw, "Org %s total: %d\n", orgResult.id, orgResult.card)
 		}
 
-		for bucketIndex := range sortedBuckets {
-			fmt.Fprintf(tw, "\tBucket %s total: %d\n", sortedBuckets[bucketIndex].id, sortedBuckets[bucketIndex].card)
+		for _, bucketResult := range sortedBuckets {
+			fmt.Fprintf(tw, "\tBucket %s total: %d\n", bucketResult.id, bucketResult.card)
 
 			if report.ByMeasurement {
-				bucketID, _ := influxdb.IDFromString(sortedBuckets[bucketIndex].id)
+				bucketID, _ := influxdb.IDFromString(bucketResult.id)
 				sortedMeasurements := sortMeasurements(summary.BucketMeasurementCardinality[*bucketID], report.TopN)
 
-				for measIndex := range sortedMeasurements {
-					fmt.Fprintf(tw, "\t\t_m=%s\t%d\n", sortedMeasurements[measIndex].id, sortedMeasurements[measIndex].card)
+				for _, measResult := range sortedMeasurements {
+					fmt.Fprintf(tw, "\t\t_m=%s\t%d\n", measResult.id, measResult.card)
 				}
 			}
 		}
+		if i == len(sortedOrgs)-1 {
+			fmt.Fprintln(tw, "===============")
+		}
 	}
-	fmt.Fprint(tw, "\n")
+	fmt.Fprint(tw, "\n\n")
+
+	elapsed := time.Since(report.start)
+	fmt.Fprintf(tw, "Finished in %v\n", elapsed)
 
 	tw.Flush()
 }
