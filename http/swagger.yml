@@ -3074,6 +3074,16 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: header
+          name: Accept-Encoding
+          description: The Accept-Encoding request HTTP header advertises which content encoding, usually a compression algorithm, the client is able to understand.
+          schema:
+            type: string
+            description: specifies that the query response in the body should be encoded with gzip or not encoded with identity.
+            default: identity
+            enum:
+              - gzip
+              - identity
+        - in: header
           name: Content-Type
           schema:
             type: string
@@ -3102,6 +3112,16 @@ paths:
       responses:
           '200':
             description: query results
+            headers:
+              Content-Encoding:
+                description: The Content-Encoding entity header is used to compress the media-type.  When present, its value indicates which encodings were applied to the entity-body
+                schema:
+                    type: string
+                    description: specifies that the response in the body is encoded with gzip or not encoded with identity.
+                    default: identity
+                    enum:
+                    - gzip
+                    - identity
             content:
               text/csv:
                 schema:
