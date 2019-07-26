@@ -38,6 +38,7 @@ func TestOnboardingValidation(t *testing.T) {
 
 	_, err = ts.CreateTask(ctx, influxdb.TaskCreate{
 		OrganizationID: r.Org.ID,
+		Token:          r.Auth.Token,
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -219,6 +220,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
 					OrganizationID: r.Org.ID,
+					Token:          r.Auth.Token,
 					Flux: `option task = {
  name: "my_task",
  every: 1s,

@@ -110,6 +110,7 @@ export const createBucket = (
 }
 
 export const createTask = (
+  token: string,
   orgID?: string,
   name: string = '🦄ask'
 ): Cypress.Chainable<Cypress.Response> => {
@@ -127,6 +128,7 @@ export const createTask = (
     body: {
       flux,
       orgID,
+      token,
     },
   })
 }

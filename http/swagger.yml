@@ -8603,9 +8603,9 @@ components:
           description: The Flux script to run for this task.
           type: string
         token:
-          description: The token to use for authenticating this task when it executes queries. If omitted, uses the token associated with the request that creates the task.
+          description: The token to use for authenticating this task when it executes queries.
           type: string
-      required: [flux]
+      required: [flux, token]
     TaskUpdateRequest:
       type: object
       properties:
