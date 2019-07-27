@@ -1,10 +1,11 @@
 // APIs
-import {executeQueryWithVars} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 
 // Utils
 import {resolveSelectedValue} from 'src/variables/utils/resolveSelectedValue'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
 import {parseResponse} from 'src/shared/parsing/flux/response'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Types
 import {VariableAssignment} from 'src/types/ast'
@@ -85,7 +86,8 @@ export class DefaultValueFetcher implements ValueFetcher {
       return {promise: Promise.resolve(cachedValues), cancel: () => {}}
     }
 
-    const request = executeQueryWithVars(orgID, query, variables)
+    const extern = buildVarsOption(variables)
+    const request = runQuery(orgID, query, extern)
 
     const promise = request.promise.then(csv => {
       const values = extractValues(csv, prevSelection, defaultSelection)

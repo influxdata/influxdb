@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es6",
-    "module": "es2015",
+    "module": "esNext",
     "moduleResolution": "node",
     "lib": ["es2017", "dom", "webworker"],
     "skipLibCheck": true,

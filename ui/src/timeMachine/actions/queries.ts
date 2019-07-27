@@ -1,7 +1,7 @@
 import {get} from 'lodash'
 
 // API
-import {executeQueryWithVars} from 'src/shared/apis/query'
+import {runQuery} from 'src/shared/apis/query'
 
 // Actions
 import {refreshVariableValues, selectValue} from 'src/variables/actions'
@@ -22,6 +22,8 @@ import {
   getVariable,
   getHydratedVariables,
 } from 'src/variables/selectors'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Types
 import {CancelBox} from 'src/types/promises'
@@ -108,9 +110,11 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
 
     pendingResults.forEach(({cancel}) => cancel())
 
-    pendingResults = queries.map(({text}) =>
-      executeQueryWithVars(orgID, text, variableAssignments)
-    )
+    pendingResults = queries.map(({text}) => {
+      const windowVars = getWindowVars(text, variableAssignments)
+      const extern = buildVarsOption([...variableAssignments, ...windowVars])
+      return runQuery(orgID, text, extern)
+    })
 
     const files = await Promise.all(pendingResults.map(r => r.promise))
 
