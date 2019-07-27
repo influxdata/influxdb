@@ -8,6 +8,9 @@ import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
+// Utils
+import {createView} from 'src/shared/utils/view';
+
 // Actions
 import {
   updateCheck,
@@ -15,14 +18,17 @@ import {
   updateCurrentCheck,
   getCurrentCheck,
 } from 'src/alerting/actions/checks'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Types
-import {Check, AppState, RemoteDataState} from 'src/types'
+import {Check, AppState, RemoteDataState, XYView, ViewType} from 'src/types'
+import {ALERTING_TIME_MACHINE_ID} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
   setCurrentCheck: typeof setCurrentCheck
   updateCurrentCheck: typeof updateCurrentCheck
+  onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
 interface StateProps {
@@ -33,13 +39,21 @@ interface StateProps {
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
+  onSetActiveTimeMachine,
   params,
   check,
   status,
 }) => {
   useEffect(() => {
     getCurrentCheck(params.checkID)
+    onSetActiveTimeMachine(ALERTING_TIME_MACHINE_ID)
   }, [params.checkID])
+
+  useEffect(() => {
+    // create view properties from check
+    const view = createView<XYView>(ViewType.XY)
+    onSetActiveTimeMachine(ALERTING_TIME_MACHINE_ID, {view})
+  }, [check.id])
 
   const handleUpdateName = (name: string) => {
     updateCurrentCheck({name})
@@ -48,6 +62,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   const handleCancel = () => {}
 
   const handleSave = () => {}
+// dont render time machine until active time machine is what we expect
 
   return (
     <Overlay visible={true} className="veo-overlay">
@@ -86,6 +101,7 @@ const mdtp: DispatchProps = {
   updateCheck: updateCheck,
   setCurrentCheck: setCurrentCheck,
   updateCurrentCheck: updateCurrentCheck,
+  onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

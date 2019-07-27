@@ -11,6 +11,7 @@ import {isConfigValid, buildQuery} from 'src/timeMachine/utils/queryBuilder'
 import {
   VEO_TIME_MACHINE_ID,
   DE_TIME_MACHINE_ID,
+  ALERTING_TIME_MACHINE_ID,
 } from 'src/timeMachine/constants'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {
@@ -109,6 +110,7 @@ export const initialState = (): TimeMachinesState => ({
   timeMachines: {
     [VEO_TIME_MACHINE_ID]: initialStateHelper(),
     [DE_TIME_MACHINE_ID]: initialStateHelper(),
+    [ALERTING_TIME_MACHINE_ID]: initialStateHelper(),
   },
 })
 
