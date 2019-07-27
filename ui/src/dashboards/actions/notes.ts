@@ -76,7 +76,7 @@ export const createNoteCell = (dashboardID: string) => async (
 
   view.properties.note = note
 
-  return dispatch(createCellWithView(dashboard, view))
+  return dispatch(createCellWithView(dashboard.id, view))
 }
 
 export interface ResetNoteStateAction {

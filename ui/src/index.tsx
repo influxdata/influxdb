@@ -39,7 +39,8 @@ import GetMe from 'src/shared/containers/GetMe'
 import Notifications from 'src/shared/containers/Notifications'
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
-import VEO from 'src/dashboards/components/VEO'
+import EditVEO from 'src/dashboards/components/EditVEO'
+import NewVEO from 'src/dashboards/components/NewVEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
@@ -197,14 +198,8 @@ class Root extends PureComponent {
                             component={DashboardPage}
                           >
                             <Route path="cells">
-                              <Route path="new" component={VEO} />
-                              <Route path=":cellID/editQuery" component={VEO} />
-                              <FeatureFlag name="alerting">
-                                <Route
-                                  path=":cellID/editAlerting"
-                                  component={VEO}
-                                />
-                              </FeatureFlag>
+                              <Route path="new" component={NewVEO} />
+                              <Route path=":cellID/edit" component={EditVEO} />
                             </Route>
                             <Route path="notes">
                               <Route path="new" component={NoteEditorOverlay} />
