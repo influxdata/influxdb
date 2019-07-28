@@ -135,6 +135,21 @@ func (b *Base) GetLimit() *influxdb.Limit {
 	return b.Limit
 }
 
+// GetName implements influxdb.Getter interface.
+func (b *Base) GetName() string {
+	return b.Name
+}
+
+// GetDescription implements influxdb.Getter interface.
+func (b *Base) GetDescription() string {
+	return b.Description
+}
+
+// GetStatus implements influxdb.Getter interface.
+func (b *Base) GetStatus() influxdb.Status {
+	return b.Status
+}
+
 // SetID will set the primary key.
 func (b *Base) SetID(id influxdb.ID) {
 	b.ID = id
@@ -143,4 +158,19 @@ func (b *Base) SetID(id influxdb.ID) {
 // SetOrgID will set the org key.
 func (b *Base) SetOrgID(id influxdb.ID) {
 	b.OrgID = id
+}
+
+// SetName implements influxdb.Updator interface.
+func (b *Base) SetName(name string) {
+	b.Name = name
+}
+
+// SetDescription implements influxdb.Updator interface.
+func (b *Base) SetDescription(description string) {
+	b.Description = description
+}
+
+// SetStatus implements influxdb.Updator interface.
+func (b *Base) SetStatus(status influxdb.Status) {
+	b.Status = status
 }
