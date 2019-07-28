@@ -1562,17 +1562,25 @@ paths:
         - in: query
           name: org
           description: specifies the destination organization for writes
-          required: true
           schema:
             type: string
             description: all points within batch are written to this organization.
         - in: query
+          name: orgID
+          description: specifies the destination organization ID for writes.
+          schema:
+            type: string
+        - in: query
           name: bucket
           description: specifies the destination bucket for writes
-          required: true
           schema:
             type: string
             description: all points within batch are written to this bucket.
+        - in: query
+          name: bucketID
+          description: specifies the destination bucket ID for writes.
+          schema:
+            type: string
         - in: query
           name: precision
           description: specifies the precision for the unix timestamps within the body line-protocol
