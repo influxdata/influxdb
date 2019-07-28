@@ -25,7 +25,7 @@ func TestPipeline_Write_Query_FieldKey(t *testing.T) {
 	resp, err := nethttp.DefaultClient.Do(
 		be.MustNewHTTPRequest(
 			"POST",
-			fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", be.Org.ID, be.Bucket.ID),
+			fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", be.Org.ID, be.Bucket.ID),
 			`cpu,region=west,server=a v0=1.2
 cpu,region=west,server=b v0=33.2
 cpu,region=east,server=b,area=z v1=100.0
@@ -72,7 +72,7 @@ func TestPipeline_WriteV2_Query(t *testing.T) {
 	// so go the roundabout way to insert things correctly.
 	req := be.MustNewHTTPRequest(
 		"POST",
-		fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", be.Org.ID, be.Bucket.ID),
+		fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", be.Org.ID, be.Bucket.ID),
 		fmt.Sprintf("ctr n=1i %d", time.Now().UnixNano()),
 	)
 	phttp.SetToken(be.Auth.Token, req)

@@ -70,7 +70,7 @@ func TestLauncher_Task(t *testing.T) {
 	resp, err := nethttp.DefaultClient.Do(
 		be.MustNewHTTPRequest(
 			"POST",
-			fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", be.Org.ID, bIn.ID), `
+			fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", be.Org.ID, bIn.ID), `
 ctr,num=one n=1i
 # Different series, same measurement.
 ctr,num=two n=2i

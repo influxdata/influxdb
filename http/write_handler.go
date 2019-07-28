@@ -128,69 +128,16 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := decodeWriteRequest(ctx, r)
+	req, err := decodeWriteRequest(ctx, r, h.OrganizationService, h.BucketService)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	logger := h.Logger.With(zap.String("org", req.Org), zap.String("bucket", req.Bucket))
+	orgID = req.Org.ID
+	logger := h.Logger.With(zap.String("org", req.Org.Name), zap.String("bucket", req.Bucket.Name))
 
-	var org *platform.Organization
-	if id, err := platform.IDFromString(req.Org); err == nil {
-		// Decoded ID successfully. Make sure it's a real org.
-		o, err := h.OrganizationService.FindOrganizationByID(ctx, *id)
-		if err == nil {
-			org = o
-		} else if platform.ErrorCode(err) != platform.ENotFound {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
-	}
-	if org == nil {
-		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &req.Org})
-		if err != nil {
-			logger.Info("Failed to find organization", zap.Error(err))
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
-
-		org = o
-	}
-	orgID = org.ID
-
-	var bucket *platform.Bucket
-	if id, err := platform.IDFromString(req.Bucket); err == nil {
-		// Decoded ID successfully. Make sure it's a real bucket.
-		b, err := h.BucketService.FindBucket(ctx, platform.BucketFilter{
-			OrganizationID: &org.ID,
-			ID:             id,
-		})
-		if err == nil {
-			bucket = b
-		} else if platform.ErrorCode(err) != platform.ENotFound {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
-	}
-
-	if bucket == nil {
-		b, err := h.BucketService.FindBucket(ctx, platform.BucketFilter{
-			OrganizationID: &org.ID,
-			Name:           &req.Bucket,
-		})
-		if err != nil {
-			h.HandleHTTPError(ctx, &platform.Error{
-				Op:  "http/handleWrite",
-				Err: err,
-			}, w)
-			return
-		}
-
-		bucket = b
-	}
-
-	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
+	p, err := platform.NewPermissionAtID(req.Bucket.ID, platform.WriteAction, platform.BucketsResourceType, req.Org.ID)
 	if err != nil {
 		h.HandleHTTPError(ctx, &platform.Error{
 			Code: platform.EInternal,
@@ -226,7 +173,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 	requestBytes = len(data)
 
-	encoded := tsdb.EncodeName(org.ID, bucket.ID)
+	encoded := tsdb.EncodeName(req.Org.ID, req.Bucket.ID)
 	mm := models.EscapeMeasurement(encoded[:])
 	points, err := models.ParsePointsWithPrecision(data, mm, time.Now(), req.Precision)
 	if err != nil {
@@ -254,7 +201,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func decodeWriteRequest(ctx context.Context, r *http.Request) (*postWriteRequest, error) {
+func decodeWriteRequest(ctx context.Context, r *http.Request, orgSvc platform.OrganizationService, bucketSvc platform.BucketService) (*postWriteRequest, error) {
 	qp := r.URL.Query()
 	p := qp.Get("precision")
 	if p == "" {
@@ -269,16 +216,42 @@ func decodeWriteRequest(ctx context.Context, r *http.Request) (*postWriteRequest
 		}
 	}
 
+	org, err := queryOrganization(ctx, r, orgSvc)
+	if err != nil {
+		return nil, err
+	}
+
+	filter := platform.BucketFilter{OrganizationID: &org.ID}
+	if name := r.URL.Query().Get("bucket"); name != "" {
+		filter.Name = &name
+	} else if id := r.URL.Query().Get("bucketID"); id != "" {
+		filter.ID, err = platform.IDFromString(id)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, &platform.Error{
+			Code: platform.EInvalid,
+			Op:   "http/decodeWriteRequest",
+			Msg:  "missing 'bucket' or 'bucketID'",
+		}
+	}
+
+	bucket, err := bucketSvc.FindBucket(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
 	return &postWriteRequest{
-		Bucket:    qp.Get("bucket"),
-		Org:       qp.Get("org"),
+		Org:       org,
+		Bucket:    bucket,
 		Precision: p,
 	}, nil
 }
 
 type postWriteRequest struct {
-	Org       string
-	Bucket    string
+	Org       *platform.Organization
+	Bucket    *platform.Bucket
 	Precision string
 }
 

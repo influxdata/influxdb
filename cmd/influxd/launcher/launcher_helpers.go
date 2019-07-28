@@ -131,7 +131,7 @@ func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingReq
 // WriteOrFail attempts a write to the organization and bucket identified by to or fails if there is an error.
 func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *platform.OnboardingResults, data string) {
 	tb.Helper()
-	resp, err := nethttp.DefaultClient.Do(tl.NewHTTPRequestOrFail(tb, "POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", to.Org.ID, to.Bucket.ID), to.Auth.Token, data))
+	resp, err := nethttp.DefaultClient.Do(tl.NewHTTPRequestOrFail(tb, "POST", fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", to.Org.ID, to.Bucket.ID), to.Auth.Token, data))
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func (tl *TestLauncher) WritePointsOrFail(tb testing.TB, data string) {
 	resp, err := nethttp.DefaultClient.Do(
 		tl.NewHTTPRequestOrFail(
 			tb,
-			"POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", tl.Org.ID, tl.Bucket.ID),
+			"POST", fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", tl.Org.ID, tl.Bucket.ID),
 			tl.Auth.Token,
 			data))
 	if err != nil {

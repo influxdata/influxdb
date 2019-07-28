@@ -59,7 +59,7 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
-	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
+	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
-	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
+	resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?orgID=%s&bucketID=%s", l.Org.ID, l.Bucket.ID), `m,k=v f=100i 946684800000000000`))
 	if err != nil {
 		t.Fatal(err)
 	}
