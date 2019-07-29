@@ -3,6 +3,7 @@ package authorizer_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb"
@@ -234,17 +235,46 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			name: "create badbucket",
 			auth: r.Auth,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
-					OrganizationID: r.Org.ID,
-					Flux: `option task = {
+				var (
+					expMsg  = "Failed to create task."
+					expCode = platform.EUnauthorized
+					errfmt  = "expected %q, got %q"
+					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
+						OrganizationID: r.Org.ID,
+						Token:          r.Auth.Token,
+						Flux: `option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
-				})
+					})
+				)
+
 				if err == nil {
 					return errors.New("created task without bucket permission")
 				}
+
+				perr, ok := err.(*influxdb.Error)
+				if !ok {
+					return fmt.Errorf(errfmt, &platform.Error{}, err)
+				}
+
+				if perr.Code != expCode {
+					return fmt.Errorf(errfmt, expCode, perr.Code)
+				}
+
+				if perr.Err == nil {
+					return fmt.Errorf(errfmt, "platform.Error.Err to be present", perr.Err)
+				}
+
+				if !strings.Contains(perr.Err.Error(), "<not found> bucket \"bad\" not found") {
+					return fmt.Errorf(errfmt, "to container bucket not found", perr.Err)
+				}
+
+				if perr.Msg != expMsg {
+					return fmt.Errorf(errfmt, expMsg, perr.Msg)
+				}
+
 				return nil
 			},
 		},
@@ -259,6 +289,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 					errfmt  = "expected %q, got %q"
 					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
 						OrganizationID: r.Org.ID,
+						Token:          r.Auth.Token,
 						Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -278,6 +309,10 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad")`,
 
 				if perr.Code != expCode {
 					return fmt.Errorf(errfmt, expCode, perr.Code)
+				}
+
+				if perr.Err == nil {
+					return fmt.Errorf(errfmt, "platform.Error.Err to be present", perr.Err)
 				}
 
 				if perr.Err.Error() != expErr.Error() {
@@ -445,11 +480,11 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"other_bucket", org:"other_
 					return fmt.Errorf("expected platform error, got %q of type %T", err, err)
 				}
 
-				if perr.Code != influxdb.EInvalid {
-					return fmt.Errorf(`expected "invalid", got %q`, perr.Code)
+				if perr.Code != influxdb.EUnauthorized {
+					return fmt.Errorf(`expected "unauthorized", got %q`, perr.Code)
 				}
 
-				if perr.Msg != "Failed to authorize." {
+				if perr.Msg != "Failed to create task." {
 					return fmt.Errorf(`expected "Failed to authorize.", got %q`, perr.Msg)
 				}
 

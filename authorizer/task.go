@@ -385,8 +385,8 @@ func (ts *taskServiceValidator) validateBucket(ctx context.Context, script strin
 
 		return platform.NewError(
 			platform.WithErrorErr(err),
-			platform.WithErrorMsg("Failed to authorize."),
-			platform.WithErrorCode(platform.EInvalid))
+			platform.WithErrorMsg("Failed to create task."),
+			platform.WithErrorCode(platform.EUnauthorized))
 	}
 
 	return nil
