@@ -12,7 +12,8 @@ import {
 } from '@influxdata/clockface'
 
 // Components
-import {ResourceList, Context, IconFont} from 'src/clockface'
+import {Context} from 'src/clockface'
+import {ResourceCard, IconFont} from '@influxdata/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
@@ -64,22 +65,22 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     const {template, labels, onFilterChange} = this.props
 
     return (
-      <ResourceList.Card
+      <ResourceCard
         testID="template-card"
-        contextMenu={() => this.contextMenu}
-        name={() => (
-          <ResourceList.EditableName
+        contextMenu={this.contextMenu}
+        name={
+          <ResourceCard.EditableName
             onClick={this.handleNameClick}
             onUpdate={this.handleUpdateTemplateName}
             name={template.meta.name}
             noNameString={DEFAULT_TEMPLATE_NAME}
-            parentTestID="template-card--name"
+            testID="template-card--name"
             buttonTestID="template-card--name-button"
             inputTestID="template-card--input"
           />
-        )}
-        description={() => this.description}
-        labels={() => (
+        }
+        description={this.description}
+        labels={
           <InlineLabels
             selectedLabels={template.labels}
             labels={labels}
@@ -88,8 +89,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
             onRemoveLabel={this.handleRemoveLabel}
             onCreateLabel={this.handleCreateLabel}
           />
-        )}
-        metaData={() => [this.templateType]}
+        }
+        metaData={[this.templateType]}
       />
     )
   }
@@ -118,7 +119,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     const name = _.get(template, 'meta.name', '')
 
     return (
-      <ResourceList.Description
+      <ResourceCard.Description
         onUpdate={this.handleUpdateTemplateDescription}
         description={description}
         placeholder={`Describe ${name} Template`}
@@ -191,7 +192,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     onClone(id)
   }
 
-  private handleNameClick = (e: MouseEvent) => {
+  private handleNameClick = (e: MouseEvent): void => {
     e.preventDefault()
 
     this.handleViewTemplate()
