@@ -109,7 +109,7 @@ const mstp = (state: AppState, {params: {cellID}}): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
-  const viewMatchesRoute = get(view, 'id', null) == cellID
+  const viewMatchesRoute = get(view, 'id', null) === cellID
 
   let loadingState = RemoteDataState.Loading
 
