@@ -2,7 +2,8 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {ResourceList, Context} from 'src/clockface'
+import {Context} from 'src/clockface'
+import {ResourceCard} from '@influxdata/clockface'
 import {ScraperTargetResponse} from '@influxdata/influx'
 
 // Constants
@@ -20,21 +21,18 @@ export default class ScraperRow extends PureComponent<Props> {
     const {scraper} = this.props
     return (
       <>
-        <ResourceList.Card
-          name={() => (
-            <ResourceList.EditableName
+        <ResourceCard
+          name={
+            <ResourceCard.EditableName
               onUpdate={this.handleUpdateScraperName}
               name={scraper.name}
               noNameString={DEFAULT_SCRAPER_NAME}
               buttonTestID="editable-name"
               inputTestID="input-field"
             />
-          )}
-          metaData={() => [
-            <>Bucket: {scraper.bucket}</>,
-            <>URL: {scraper.url}</>,
-          ]}
-          contextMenu={() => this.contextMenu}
+          }
+          metaData={[<>Bucket: {scraper.bucket}</>, <>URL: {scraper.url}</>]}
+          contextMenu={this.contextMenu}
         />
       </>
     )

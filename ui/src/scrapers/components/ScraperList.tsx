@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceList} from '@influxdata/clockface'
 import ScraperRow from 'src/scrapers/components/ScraperRow'
 
 // Types
