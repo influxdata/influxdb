@@ -5,9 +5,14 @@ import {
 } from 'src/dashboards/apis/'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, QueryView} from 'src/types'
 import {Dispatch} from 'redux'
 import {View} from 'src/types'
+import {Action as TimeMachineAction} from 'src/timeMachine/actions'
+
+//Actions
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
+import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 export type Action = SetViewAction | SetViewsAction | ResetViewsAction
 
@@ -81,5 +86,21 @@ export const updateView = (dashboardID: string, view: View) => async (
     return newView
   } catch {
     dispatch(setView(viewID, null, RemoteDataState.Error))
+  }
+}
+
+export const getViewForTimeMachine = (
+  dashboardID: string,
+  cellID: string,
+  timeMachineID: TimeMachineEnum
+) => async (dispatch: Dispatch<Action | TimeMachineAction>): Promise<void> => {
+  dispatch(setView(cellID, null, RemoteDataState.Loading))
+  try {
+    const view = (await getViewAJAX(dashboardID, cellID)) as QueryView
+
+    dispatch(setView(cellID, view, RemoteDataState.Done))
+    dispatch(setActiveTimeMachine(timeMachineID, {view}))
+  } catch {
+    dispatch(setView(cellID, null, RemoteDataState.Error))
   }
 }

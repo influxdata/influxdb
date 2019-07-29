@@ -170,7 +170,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
           } else {
             const selectedDashboard = dashboards.find(d => d.id === dashID)
             targetDashboardName = selectedDashboard.name
-            onCreateCellWithView(selectedDashboard, viewWithProps)
+            onCreateCellWithView(selectedDashboard.id, viewWithProps)
           }
           notify(cellAdded(cellName, targetDashboardName))
         } catch {
@@ -195,7 +195,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
         cells: [],
       }
       const dashboard = await createDashboard(newDashboard)
-      onCreateCellWithView(dashboard, view)
+      onCreateCellWithView(dashboard.id, view)
     } catch (error) {
       console.error(error)
     }
