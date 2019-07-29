@@ -31,7 +31,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  check: Check
+  check: Partial<Check>
   status: RemoteDataState
 }
 
@@ -45,8 +45,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   check,
 }) => {
   useEffect(() => {
-    const check = {...DEFAULT_CHECK, id: '9'}
-    setCurrentCheck(RemoteDataState.Done, check)
+    setCurrentCheck(RemoteDataState.Done, DEFAULT_CHECK)
     const view = createView<XYView>(ViewType.XY)
     onSetActiveTimeMachine(TimeMachineEnum.Alerting, {view})
   }, [])

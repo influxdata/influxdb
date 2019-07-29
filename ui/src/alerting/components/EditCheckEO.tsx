@@ -32,7 +32,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  check: Check
+  check: Partial<Check>
   status: RemoteDataState
 }
 

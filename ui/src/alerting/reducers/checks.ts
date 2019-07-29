@@ -8,7 +8,7 @@ import {Action} from 'src/alerting/actions/checks'
 export interface ChecksState {
   status: RemoteDataState
   list: Check[]
-  current: {status: RemoteDataState; check: Check}
+  current: {status: RemoteDataState; check: Partial<Check>}
 }
 
 export const defaultChecksState: ChecksState = {
