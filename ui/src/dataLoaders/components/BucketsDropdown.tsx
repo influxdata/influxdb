@@ -5,7 +5,7 @@ import React, {PureComponent} from 'react'
 import {Dropdown, ComponentStatus} from '@influxdata/clockface'
 
 // Types
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 
 interface Props {
   selectedBucketID: string

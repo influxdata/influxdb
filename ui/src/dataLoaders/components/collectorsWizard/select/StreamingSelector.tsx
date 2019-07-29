@@ -18,7 +18,7 @@ import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 
 // Types
 import {TelegrafPlugin, BundleName} from 'src/types/dataLoaders'
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 import {IconFont, Columns, ComponentSize} from '@influxdata/clockface'
 
 export interface Props {

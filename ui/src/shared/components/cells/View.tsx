@@ -8,7 +8,7 @@ import RefreshingView from 'src/shared/components/RefreshingView'
 
 // Types
 import {TimeRange} from 'src/types'
-import {ViewType, View} from 'src/types'
+import {View} from 'src/types'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
@@ -32,7 +32,7 @@ class ViewComponent extends Component<Props> {
     const {dashboardID} = this.props.params
 
     switch (view.properties.type) {
-      case ViewType.Markdown:
+      case 'markdown':
         return <Markdown text={view.properties.note} />
       default:
         return (

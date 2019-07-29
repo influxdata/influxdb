@@ -8,7 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
-import {Cell, View, ViewType} from 'src/types'
+import {Cell, View} from 'src/types'
 
 interface Props {
   cell: Cell
@@ -44,7 +44,7 @@ export default class CellContext extends PureComponent<Props> {
   private get editMenuItems(): JSX.Element[] | JSX.Element {
     const {view, onEditCell, onCSVDownload} = this.props
 
-    if (view.properties.type === ViewType.Markdown) {
+    if (view.properties.type === 'markdown') {
       return <Context.Item label="Edit Note" action={this.handleEditNote} />
     }
 

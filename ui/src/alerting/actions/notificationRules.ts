@@ -1,9 +1,11 @@
 // Libraries
-import {client} from 'src/utils/api'
 import {Dispatch} from 'react'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+
+// APIs
+import * as api from 'src/client'
 
 // Actions
 import {
@@ -59,11 +61,15 @@ export const getNotificationRules = () => async (
       },
     } = getState()
 
-    const notificationRules = (await client.notificationRules.getAll(
-      orgID
-    )) as NotificationRule[]
+    const resp = await api.getNotificationRules({query: {orgID}})
 
-    dispatch(setAllNotificationRules(RemoteDataState.Done, notificationRules))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(
+      setAllNotificationRules(RemoteDataState.Done, resp.data.notificationRules)
+    )
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))
@@ -77,11 +83,13 @@ export const getCurrentNotificationRule = (
   try {
     dispatch(setCurrentNotificationRule(RemoteDataState.Loading))
 
-    const notificationRule = (await client.notificationRules.get(
-      notificationRuleID
-    )) as NotificationRule
+    const resp = await api.getNotificationRule({ruleID: notificationRuleID})
 
-    dispatch(setCurrentNotificationRule(RemoteDataState.Done, notificationRule))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setCurrentNotificationRule(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
     dispatch(setCurrentNotificationRule(RemoteDataState.Error))
@@ -90,10 +98,16 @@ export const getCurrentNotificationRule = (
 }
 
 export const createNotificationRule = (
-  notificationRule: NotificationRule
+  notificationRule: Partial<NotificationRule>
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
   try {
-    client.notificationRules.create(notificationRule)
+    const resp = await api.postNotificationRule({
+      data: notificationRule as NotificationRule,
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.createNotificationRuleFailed(e.message)))
@@ -104,11 +118,16 @@ export const updateNotificationRule = (
   notificationRule: Partial<NotificationRule>
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
   try {
-    const updatedNotificationRule = (await client.notificationRules.update(
-      notificationRule.id,
-      notificationRule
-    )) as NotificationRule
-    dispatch(setNotificationRule(updatedNotificationRule))
+    const resp = await api.putNotificationRule({
+      ruleID: notificationRule.id,
+      data: notificationRule as NotificationRule,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setNotificationRule(resp.data))
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.updateNotificationRuleFailed(e.message)))
@@ -119,7 +138,12 @@ export const deleteNotificationRule = (notificationRuleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    await client.notificationRules.delete(notificationRuleID)
+    const resp = await api.deleteNotificationRule({ruleID: notificationRuleID})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
     dispatch(removeNotificationRule(notificationRuleID))
   } catch (e) {
     console.error(e)

@@ -16,7 +16,7 @@ import {BucketRetentionRules} from '@influxdata/influx'
 
 interface Props {
   retentionSeconds: number
-  type: BucketRetentionRules.TypeEnum
+  type: 'expire'
   onChangeRetentionRule: (seconds: number) => void
   onChangeRuleType: (type: BucketRetentionRules.TypeEnum) => void
 }

@@ -6,7 +6,7 @@ import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 
 // Types
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 import {Input} from '@influxdata/clockface'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 import FilterList from 'src/shared/components/Filter'

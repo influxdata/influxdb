@@ -138,7 +138,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
 
 const mstp = ({labels}: AppState): StateProps => {
   return {
-    labels: viewableLabels(labels.list),
+    labels: viewableLabels(labels.list as ILabel[]),
   }
 }
 

@@ -11,7 +11,7 @@ import {
   ITemplate,
   IVariable as Variable,
 } from '@influxdata/influx'
-import {DashboardQuery, QueryEditMode} from 'src/types/dashboards'
+import {DashboardQuery} from 'src/types/dashboards'
 
 const CURRENT_TEMPLATE_VERSION = '1'
 
@@ -123,7 +123,7 @@ const viewToIncluded = (view: View) => {
     const sanitizedQueries = properties.queries.map((q: DashboardQuery) => {
       return {
         ...q,
-        editMode: QueryEditMode.Advanced,
+        editMode: 'advanced' as 'advanced',
         builderConfig: defaultBuilderConfig(),
       }
     })

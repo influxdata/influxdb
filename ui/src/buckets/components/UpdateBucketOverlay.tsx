@@ -14,13 +14,12 @@ import {updateBucket} from 'src/buckets/actions'
 import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
 
 // Types
-import {IBucket as Bucket, BucketRetentionRules} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, Bucket} from 'src/types'
 
 interface State {
   bucket: Bucket
   nameErrorMessage: string
-  ruleType: BucketRetentionRules.TypeEnum
+  ruleType: 'expire'
   nameInputStatus: ComponentStatus
 }
 
@@ -76,9 +75,7 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
   }
 
   private get retentionSeconds(): number {
-    const rule = this.state.bucket.retentionRules.find(
-      r => r.type === BucketRetentionRules.TypeEnum.Expire
-    )
+    const rule = this.state.bucket.retentionRules.find(r => r.type === 'expire')
 
     if (!rule) {
       return DEFAULT_SECONDS
@@ -87,30 +84,26 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
     return rule.everySeconds
   }
 
-  private ruleType = (bucket: Bucket): BucketRetentionRules.TypeEnum => {
-    const rule = bucket.retentionRules.find(
-      r => r.type === BucketRetentionRules.TypeEnum.Expire
-    )
+  private ruleType = (bucket: Bucket): 'expire' => {
+    const rule = bucket.retentionRules.find(r => r.type === 'expire')
 
     if (!rule) {
       return null
     }
 
-    return BucketRetentionRules.TypeEnum.Expire
+    return 'expire'
   }
 
   private handleChangeRetentionRule = (everySeconds: number): void => {
     const bucket = {
       ...this.state.bucket,
-      retentionRules: [
-        {type: BucketRetentionRules.TypeEnum.Expire, everySeconds},
-      ],
+      retentionRules: [{type: 'expire' as 'expire', everySeconds}],
     }
 
     this.setState({bucket})
   }
 
-  private handleChangeRuleType = (ruleType: BucketRetentionRules.TypeEnum) => {
+  private handleChangeRuleType = (ruleType: 'expire') => {
     this.setState({ruleType})
   }
 

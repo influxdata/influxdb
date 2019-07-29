@@ -17,11 +17,11 @@ import {getDeep} from 'src/utils/wrappers'
 import {findTableNameHeaders} from 'src/dashboards/utils/tableGraph'
 
 // Types
-import {TableView, FieldOption, FluxTable, TimeZone} from 'src/types'
+import {TableViewProperties, FieldOption, FluxTable, TimeZone} from 'src/types'
 
 interface PassedProps {
   tables: FluxTable[]
-  properties: TableView
+  properties: TableViewProperties
   timeZone: TimeZone
 }
 

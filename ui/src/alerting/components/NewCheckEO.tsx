@@ -19,7 +19,7 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {createView} from 'src/shared/utils/view'
 
 // Types
-import {Check, AppState, RemoteDataState, XYView, ViewType} from 'src/types'
+import {Check, AppState, RemoteDataState, XYViewProperties} from 'src/types'
 import {DEFAULT_CHECK} from 'src/alerting/constants'
 import {TimeMachineEnum} from 'src/timeMachine/constants'
 
@@ -46,7 +46,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     setCurrentCheck(RemoteDataState.Done, DEFAULT_CHECK)
-    const view = createView<XYView>(ViewType.XY)
+    const view = createView<XYViewProperties>('xy')
     onSetActiveTimeMachine(TimeMachineEnum.Alerting, {view})
   }, [])
 

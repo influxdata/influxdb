@@ -1,6 +1,6 @@
-import {IBucket} from '@influxdata/influx'
+import {Bucket} from 'src/client'
 
-export interface Bucket extends IBucket {}
+export type BucketRetentionRules = Bucket['retentionRules']
 
 export enum RetentionRuleTypes {
   Expire = 'expire',
@@ -16,3 +16,5 @@ export interface BucketLinks {
   org: string
   self: string
 }
+
+export {Bucket} from 'src/client'

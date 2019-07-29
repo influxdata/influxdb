@@ -36,8 +36,8 @@ import {createAuthorization} from 'src/authorizations/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState} from 'src/types'
-import {Bucket, Permission, Authorization} from '@influxdata/influx'
+import {AppState, Bucket} from 'src/types'
+import {Permission, Authorization} from '@influxdata/influx'
 
 interface StateProps {
   buckets: Bucket[]

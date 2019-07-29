@@ -7,8 +7,7 @@ import {connect} from 'react-redux'
 import {Dropdown, ComponentStatus} from '@influxdata/clockface'
 
 // Types
-import {Bucket} from '@influxdata/influx'
-import {RemoteDataState, AppState} from 'src/types'
+import {RemoteDataState, AppState, Bucket} from 'src/types'
 
 interface OwnProps {
   onChangeBucketName: (selectedBucketName: string) => void

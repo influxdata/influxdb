@@ -10,8 +10,7 @@ import {createView} from 'src/shared/utils/view'
 import {getView} from 'src/dashboards/selectors'
 
 // Types
-import {GetState} from 'src/types'
-import {NoteEditorMode, MarkdownView, ViewType} from 'src/types/dashboards'
+import {GetState, MarkdownViewProperties, NoteEditorMode} from 'src/types'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {Dispatch} from 'redux-thunk'
 
@@ -72,7 +71,7 @@ export const createNoteCell = (dashboardID: string) => async (
   }
 
   const {note} = getState().noteEditor
-  const view = createView<MarkdownView>(ViewType.Markdown)
+  const view = createView<MarkdownViewProperties>('markdown')
 
   view.properties.note = note
 

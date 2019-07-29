@@ -12,8 +12,8 @@ import CreateScraperForm from 'src/scrapers/components/CreateScraperForm'
 import {createScraper} from 'src/scrapers/actions'
 
 // Types
-import {Bucket, ScraperTargetRequest} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {ScraperTargetRequest} from '@influxdata/influx'
+import {AppState, Bucket} from 'src/types'
 
 interface OwnProps {
   visible: boolean

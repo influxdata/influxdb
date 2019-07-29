@@ -14,7 +14,7 @@ import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
 import {updateCheck, deleteCheck} from 'src/alerting/actions/checks'
 
 // Types
-import {Check, CheckBase} from 'src/types'
+import {Check} from 'src/types'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -47,10 +47,8 @@ const CheckCard: FunctionComponent<Props> = ({
   const onClone = () => {}
 
   const onToggle = () => {
-    const status =
-      check.status == CheckBase.StatusEnum.Active
-        ? CheckBase.StatusEnum.Inactive
-        : CheckBase.StatusEnum.Active
+    const status = check.status === 'active' ? 'inactive' : 'active'
+
     updateCheck({id: check.id, status})
   }
 
@@ -75,7 +73,7 @@ const CheckCard: FunctionComponent<Props> = ({
       }
       toggle={
         <SlideToggle
-          active={check.status == CheckBase.StatusEnum.Active}
+          active={check.status === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="check-card--slide-toggle"
@@ -83,7 +81,7 @@ const CheckCard: FunctionComponent<Props> = ({
       }
       // description
       // labels
-      disabled={check.status == CheckBase.StatusEnum.Inactive}
+      disabled={check.status === 'inactive'}
       contextMenu={
         <CheckCardContext
           onDelete={onDelete}

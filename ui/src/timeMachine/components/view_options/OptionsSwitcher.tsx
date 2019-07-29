@@ -11,7 +11,7 @@ import HeatmapOptions from 'src/timeMachine/components/view_options/HeatmapOptio
 import ScatterOptions from 'src/timeMachine/components/view_options/ScatterOptions'
 
 // Types
-import {ViewType, View, NewView} from 'src/types'
+import {View, NewView} from 'src/types'
 
 interface Props {
   view: View | NewView
@@ -22,26 +22,26 @@ class OptionsSwitcher extends PureComponent<Props> {
     const {view} = this.props
 
     switch (view.properties.type) {
-      case ViewType.LinePlusSingleStat:
+      case 'line-plus-single-stat':
         return (
           <>
             <LineOptions {...view.properties} />
             <SingleStatOptions />
           </>
         )
-      case ViewType.XY:
+      case 'xy':
         return <LineOptions {...view.properties} />
-      case ViewType.Gauge:
+      case 'gauge':
         return <GaugeOptions {...view.properties} />
-      case ViewType.SingleStat:
+      case 'single-stat':
         return <SingleStatOptions />
-      case ViewType.Table:
+      case 'table':
         return <TableOptions />
-      case ViewType.Histogram:
+      case 'histogram':
         return <HistogramOptions {...view.properties} />
-      case ViewType.Heatmap:
+      case 'heatmap':
         return <HeatmapOptions {...view.properties} />
-      case ViewType.Scatter:
+      case 'scatter':
         return <ScatterOptions {...view.properties} />
       default:
         return <div />

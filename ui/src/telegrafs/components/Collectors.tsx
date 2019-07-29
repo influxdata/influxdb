@@ -21,7 +21,7 @@ import {updateTelegraf, deleteTelegraf} from 'src/telegrafs/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {ITelegraf as Telegraf, Bucket} from '@influxdata/influx'
+import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {
   Columns,
   IconFont,
@@ -30,7 +30,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {OverlayState, AppState} from 'src/types'
+import {OverlayState, AppState, Bucket} from 'src/types'
 import {
   setDataLoadersType,
   setTelegrafConfigID,

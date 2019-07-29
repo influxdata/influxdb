@@ -25,7 +25,7 @@ import {
   AppState,
   NewView,
   Color,
-  SingleStatView,
+  SingleStatViewProperties,
   DecimalPlaces,
 } from 'src/types'
 
@@ -87,7 +87,9 @@ const SingleStatOptions: SFC<Props> = props => {
 }
 
 const mstp = (state: AppState) => {
-  const view = getActiveTimeMachine(state).view as NewView<SingleStatView>
+  const view = getActiveTimeMachine(state).view as NewView<
+    SingleStatViewProperties
+  >
   const {colors, prefix, suffix, decimalPlaces} = view.properties
 
   return {colors, prefix, suffix, decimalPlaces}

@@ -1,4 +1,4 @@
-import {Organization, Bucket} from '@influxdata/influx'
+import {Organization, Bucket} from '../../src/types'
 import _ from 'lodash'
 
 describe('Tasks', () => {

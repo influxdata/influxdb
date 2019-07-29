@@ -6,20 +6,20 @@ import LabelOverlayForm from 'src/labels/components/LabelOverlayForm'
 import {ComponentStatus, Overlay} from '@influxdata/clockface'
 
 // Types
-import {ILabel} from '@influxdata/influx'
+import {Label} from 'src/types'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  label: ILabel
+  label: Label
   onDismiss: () => void
-  onUpdateLabel: (label: ILabel) => Promise<void>
+  onUpdateLabel: (label: Label) => Promise<void>
   onNameValidation: (name: string) => string | null
 }
 
 interface State {
-  label: ILabel
+  label: Label
   colorStatus: ComponentStatus
 }
 

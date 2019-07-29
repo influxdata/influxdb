@@ -10,7 +10,6 @@ import Retention from 'src/buckets/components/Retention'
 import {MIN_RETENTION_SECONDS} from 'src/buckets/constants'
 
 // Types
-import {BucketRetentionRules} from '@influxdata/influx'
 import {
   ButtonType,
   ComponentColor,
@@ -21,11 +20,11 @@ interface Props {
   name: string
   nameErrorMessage: string
   retentionSeconds: number
-  ruleType: BucketRetentionRules.TypeEnum
+  ruleType: 'expire'
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   onCloseModal: () => void
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (t: BucketRetentionRules.TypeEnum) => void
+  onChangeRuleType: (t: 'expire') => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   nameInputStatus: ComponentStatus
   buttonText: string
@@ -134,10 +133,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
   private get retentionIsTooShort(): boolean {
     const {retentionSeconds, ruleType} = this.props
 
-    return (
-      ruleType === BucketRetentionRules.TypeEnum.Expire &&
-      retentionSeconds < MIN_RETENTION_SECONDS
-    )
+    return ruleType === 'expire' && retentionSeconds < MIN_RETENTION_SECONDS
   }
 
   private get ruleErrorMessage(): string {

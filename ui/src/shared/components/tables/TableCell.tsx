@@ -12,14 +12,14 @@ import {generateThresholdsListHexs} from 'src/shared/constants/colorOperations'
 
 // Types
 import {SortOptions, FieldOption} from 'src/types/dashboards'
-import {TableView} from 'src/types/dashboards'
+import {TableViewProperties} from 'src/types/dashboards'
 import {CellRendererProps} from 'src/shared/components/tables/TableGraphTable'
 
 interface Props extends CellRendererProps {
   sortOptions: SortOptions
   data: string
   dataType: string
-  properties: TableView
+  properties: TableViewProperties
   hoveredRowIndex: number
   hoveredColumnIndex: number
   isTimeVisible: boolean
