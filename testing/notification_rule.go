@@ -62,6 +62,10 @@ func NotificationRuleStore(
 			fn:   UpdateNotificationRule,
 		},
 		{
+			name: "PatchNotificationRule",
+			fn:   PatchNotificationRule,
+		},
+		{
 			name: "DeleteNotificationRule",
 			fn:   DeleteNotificationRule,
 		},
@@ -1449,6 +1453,200 @@ func UpdateNotificationRule(
 
 			tc, err := s.UpdateNotificationRule(ctx, tt.args.id,
 				tt.args.notificationRule, tt.args.userID)
+			ErrorsEqual(t, err, tt.wants.err)
+			if diff := cmp.Diff(tc, tt.wants.notificationRule, notificationRuleCmpOptions...); tt.wants.err == nil && diff != "" {
+				t.Errorf("notificationRules are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// PatchNotificationRule testing.
+func PatchNotificationRule(
+	init func(NotificationRuleFields, *testing.T) (influxdb.NotificationRuleStore, func()),
+	t *testing.T,
+) {
+
+	name3 := "name2"
+	status3 := influxdb.Inactive
+
+	type args struct {
+		//userID           influxdb.ID
+		id  influxdb.ID
+		upd influxdb.NotificationRuleUpdate
+	}
+
+	type wants struct {
+		notificationRule influxdb.NotificationRule
+		err              error
+	}
+	tests := []struct {
+		name   string
+		fields NotificationRuleFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "can't find the id",
+			fields: NotificationRuleFields{
+				TimeGenerator: fakeGenerator,
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:              MustIDBase16(oneID),
+							Name:            "name1",
+							AuthorizationID: MustIDBase16(threeID),
+							OrgID:           MustIDBase16(fourID),
+							Status:          influxdb.Active,
+							RunbookLink:     "runbooklink1",
+							SleepUntil:      &time3,
+							Every:           influxdb.Duration{Duration: time.Hour},
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						Channel:         "channel1",
+						MessageTemplate: "msg1",
+					},
+					&rule.PagerDuty{
+						Base: rule.Base{
+							ID:              MustIDBase16(twoID),
+							Name:            "name2",
+							AuthorizationID: MustIDBase16(threeID),
+							OrgID:           MustIDBase16(fourID),
+							Status:          influxdb.Active,
+							RunbookLink:     "runbooklink2",
+							SleepUntil:      &time3,
+							Every:           influxdb.Duration{Duration: time.Hour},
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						MessageTemp: "msg",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(fourID),
+				upd: influxdb.NotificationRuleUpdate{
+					Name:   &name3,
+					Status: &status3,
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Msg:  "notification rule not found",
+				},
+			},
+		},
+		{
+			name: "regular update",
+			fields: NotificationRuleFields{
+				TimeGenerator: fakeGenerator,
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:              MustIDBase16(oneID),
+							Name:            "name1",
+							Status:          influxdb.Active,
+							AuthorizationID: MustIDBase16(threeID),
+							OrgID:           MustIDBase16(fourID),
+							RunbookLink:     "runbooklink1",
+							SleepUntil:      &time3,
+							Every:           influxdb.Duration{Duration: time.Hour},
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						Channel:         "channel1",
+						MessageTemplate: "msg1",
+					},
+					&rule.PagerDuty{
+						Base: rule.Base{
+							ID:              MustIDBase16(twoID),
+							Name:            "name2",
+							Status:          influxdb.Active,
+							AuthorizationID: MustIDBase16(threeID),
+							OrgID:           MustIDBase16(fourID),
+							RunbookLink:     "runbooklink2",
+							SleepUntil:      &time3,
+							Every:           influxdb.Duration{Duration: time.Hour},
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						MessageTemp: "msg",
+					},
+				},
+			},
+			args: args{
+				id: MustIDBase16(twoID),
+				upd: influxdb.NotificationRuleUpdate{
+					Name:   &name3,
+					Status: &status3,
+				},
+			},
+			wants: wants{
+				notificationRule: &rule.PagerDuty{
+					Base: rule.Base{
+						ID:              MustIDBase16(twoID),
+						Name:            name3,
+						Status:          status3,
+						AuthorizationID: MustIDBase16(threeID),
+						OrgID:           MustIDBase16(fourID),
+						RunbookLink:     "runbooklink2",
+						SleepUntil:      &time3,
+						Every:           influxdb.Duration{Duration: time.Hour},
+						CRUDLog: influxdb.CRUDLog{
+							CreatedAt: timeGen1.Now(),
+							UpdatedAt: fakeDate,
+						},
+					},
+					MessageTemp: "msg",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			tc, err := s.PatchNotificationRule(ctx, tt.args.id, tt.args.upd)
 			ErrorsEqual(t, err, tt.wants.err)
 			if diff := cmp.Diff(tc, tt.wants.notificationRule, notificationRuleCmpOptions...); tt.wants.err == nil && diff != "" {
 				t.Errorf("notificationRules are different -got/+want\ndiff %s", diff)

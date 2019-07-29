@@ -116,6 +116,47 @@ func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb
 	return nr, err
 }
 
+// PatchNotificationRule updates a single  notification rule with changeset.
+// Returns the new notification rule state after update.
+func (s *Service) PatchNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+	var nr influxdb.NotificationRule
+	if err := s.kv.Update(ctx, func(tx Tx) (err error) {
+		nr, err = s.patchNotificationRule(ctx, tx, id, upd)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return nr, nil
+}
+
+func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+	nr, err := s.findNotificationRuleByID(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if upd.Name != nil {
+		nr.SetName(*upd.Name)
+	}
+	if upd.Description != nil {
+		nr.SetDescription(*upd.Description)
+	}
+	if upd.Status != nil {
+		nr.SetStatus(*upd.Status)
+	}
+	nr.SetUpdatedAt(s.TimeGenerator.Now())
+	err = s.putNotificationRule(ctx, tx, nr)
+	if err != nil {
+		return nil, err
+	}
+
+	return nr, nil
+}
+
 // PutNotificationRule put a notification rule to storage.
 func (s *Service) PutNotificationRule(ctx context.Context, nr influxdb.NotificationRule) error {
 	return s.kv.Update(ctx, func(tx Tx) (err error) {

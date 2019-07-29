@@ -83,6 +83,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 	h.HandlerFunc("GET", notificationRulesIDPath, h.handleGetNotificationRule)
 	h.HandlerFunc("DELETE", notificationRulesIDPath, h.handleDeleteNotificationRule)
 	h.HandlerFunc("PUT", notificationRulesIDPath, h.handlePutNotificationRule)
+	h.HandlerFunc("PATCH", notificationRulesIDPath, h.handlePatchNotificationRule)
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -360,6 +361,46 @@ func decodePutNotificationRuleRequest(ctx context.Context, r *http.Request) (inf
 	return nr, nil
 }
 
+type patchNotificationRuleRequest struct {
+	influxdb.ID
+	Update influxdb.NotificationRuleUpdate
+}
+
+func decodePatchNotificationRuleRequest(ctx context.Context, r *http.Request) (*patchNotificationRuleRequest, error) {
+	req := &patchNotificationRuleRequest{}
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing id",
+		}
+	}
+
+	var i influxdb.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+	req.ID = i
+
+	upd := &influxdb.NotificationRuleUpdate{}
+	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  err.Error(),
+		}
+	}
+	if err := upd.Valid(); err != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  err.Error(),
+		}
+	}
+
+	req.Update = *upd
+	return req, nil
+}
+
 // handlePostNotificationRule is the HTTP handler for the POST /api/v2/notificationRules route.
 func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -416,6 +457,36 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 		return
 	}
 	h.Logger.Debug("notification rule updated", zap.String("notificationRule", fmt.Sprint(nr)))
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationRuleResponse(nr, labels)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+// handlePatchNotificationRule is the HTTP handler for the PATCH /api/v2/notificationRule/:id route.
+func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	h.Logger.Debug("notification rule patch request", zap.String("r", fmt.Sprint(r)))
+	req, err := decodePatchNotificationRuleRequest(ctx, r)
+	if err != nil {
+		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	nr, err := h.NotificationRuleStore.PatchNotificationRule(ctx, req.ID, req.Update)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+	h.Logger.Debug("notification rule patch", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationRuleResponse(nr, labels)); err != nil {
 		logEncodingError(h.Logger, r, err)
