@@ -24,8 +24,8 @@ import {AppState, ViewType, XYView, RemoteDataState, View} from 'src/types'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSetName: typeof setName,
-  onSaveView: typeof saveVEOView,
+  onSetName: typeof setName
+  onSaveView: typeof saveVEOView
 }
 
 interface StateProps {
@@ -86,11 +86,11 @@ const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
-  const viewIsNew = !get(view,'id', null)
+  const viewIsNew = !get(view, 'id', null)
 
-  let loadingState= RemoteDataState.Loading
+  let loadingState = RemoteDataState.Loading
 
-  if (activeTimeMachineID===TimeMachineEnum.VEO &&  viewIsNew) {
+  if (activeTimeMachineID === TimeMachineEnum.VEO && viewIsNew) {
     loadingState = RemoteDataState.Done
   }
 

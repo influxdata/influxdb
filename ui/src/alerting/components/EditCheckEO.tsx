@@ -9,7 +9,7 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Utils
-import {createView} from 'src/shared/utils/view';
+import {createView} from 'src/shared/utils/view'
 
 // Actions
 import {
@@ -62,7 +62,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   const handleCancel = () => {}
 
   const handleSave = () => {}
-// dont render time machine until active time machine is what we expect
+  // dont render time machine until active time machine is what we expect
 
   return (
     <Overlay visible={true} className="veo-overlay">

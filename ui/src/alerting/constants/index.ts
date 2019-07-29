@@ -19,7 +19,7 @@ export const DEFAULT_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: CheckType.Threshold,
   status: CheckBase.StatusEnum.Active,
-  thresholds:[]
+  thresholds: [],
 }
 
 export const query: DashboardQuery = {

@@ -16,7 +16,7 @@ import {
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
-import {createView} from 'src/shared/utils/view';
+import {createView} from 'src/shared/utils/view'
 
 // Types
 import {Check, AppState, RemoteDataState, XYView, ViewType} from 'src/types'

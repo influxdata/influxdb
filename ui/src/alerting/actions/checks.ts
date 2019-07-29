@@ -37,7 +37,10 @@ export const removeCheck = (checkID: string) => ({
   payload: {checkID},
 })
 
-export const setCurrentCheck = (status: RemoteDataState, check?: Partial<Check>) => ({
+export const setCurrentCheck = (
+  status: RemoteDataState,
+  check?: Partial<Check>
+) => ({
   type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
   payload: {status, check},
 })

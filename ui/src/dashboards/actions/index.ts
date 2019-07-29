@@ -397,7 +397,7 @@ export const createCellWithView = (
   try {
     const state = getState()
     let dashboard = state.dashboards.list.find(d => d.id === dashboardID)
-    if (!dashboard){
+    if (!dashboard) {
       dashboard = await getDashboardAJAX(dashboardID)
     }
 

@@ -71,8 +71,8 @@ export interface TimeMachinesState {
   activeTimeMachineID: TimeMachineEnum
   timeMachines: {
     [TimeMachineEnum.DE]: TimeMachineState
-    [TimeMachineEnum.VEO]: TimeMachineState,
-    [TimeMachineEnum.Alerting]: TimeMachineState,
+    [TimeMachineEnum.VEO]: TimeMachineState
+    [TimeMachineEnum.Alerting]: TimeMachineState
   }
 }
 

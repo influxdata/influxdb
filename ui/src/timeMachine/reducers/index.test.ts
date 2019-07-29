@@ -26,9 +26,7 @@ import {
 import {createView} from 'src/shared/utils/view'
 
 // Constants
-import {
-TimeMachineEnum
-} from 'src/timeMachine/constants'
+import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 // Types
 import {TimeMachineTab} from 'src/types/timeMachine'
