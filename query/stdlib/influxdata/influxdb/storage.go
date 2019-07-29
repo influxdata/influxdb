@@ -20,10 +20,12 @@ type HostLookup interface {
 
 type BucketLookup interface {
 	Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool)
+	LookupName(ctx context.Context, orgID platform.ID, id platform.ID) string
 }
 
 type OrganizationLookup interface {
 	Lookup(ctx context.Context, name string) (platform.ID, bool)
+	LookupName(ctx context.Context, id platform.ID) string
 }
 
 type Dependencies struct {

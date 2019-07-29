@@ -31,6 +31,21 @@ func (b *BucketLookup) Lookup(ctx context.Context, orgID platform.ID, name strin
 	return bucket.ID, true
 }
 
+// LookupName returns an bucket name given its organization ID and its bucket ID.
+func (b *BucketLookup) LookupName(ctx context.Context, orgID platform.ID, id platform.ID) string {
+	oid := platform.ID(orgID)
+	id = platform.ID(id)
+	filter := platform.BucketFilter{
+		OrganizationID: &oid,
+		ID:             &id,
+	}
+	bucket, err := b.BucketService.FindBucket(ctx, filter)
+	if err != nil || bucket == nil {
+		return ""
+	}
+	return bucket.Name
+}
+
 func (b *BucketLookup) FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*platform.Bucket, int) {
 	oid := platform.ID(orgID)
 	filter := platform.BucketFilter{
@@ -65,4 +80,20 @@ func (o *OrganizationLookup) Lookup(ctx context.Context, name string) (platform.
 		return platform.InvalidID(), false
 	}
 	return org.ID, true
+}
+
+// LookupName returns an organization name given its ID.
+func (o *OrganizationLookup) LookupName(ctx context.Context, id platform.ID) string {
+	id = platform.ID(id)
+	org, err := o.OrganizationService.FindOrganization(
+		ctx,
+		platform.OrganizationFilter{
+			ID: &id,
+		},
+	)
+
+	if err != nil || org == nil {
+		return ""
+	}
+	return org.Name
 }
