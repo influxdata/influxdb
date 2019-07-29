@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceList} from '@influxdata/clockface'
 import MemberCard from 'src/members/components/MemberCard'
 
 // Types

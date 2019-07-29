@@ -4,7 +4,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceCard} from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 
 // Types
@@ -30,9 +30,9 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
     const {bucket, onDeleteBucket, onDeleteData} = this.props
     return (
       <>
-        <ResourceList.Card
+        <ResourceCard
           testID="resource-card"
-          contextMenu={() => (
+          contextMenu={
             <BucketContextMenu
               bucket={bucket}
               onDeleteBucket={onDeleteBucket}
@@ -42,14 +42,14 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
               onAddLineProtocol={this.handleAddLineProtocol}
               onAddScraper={this.handleAddScraper}
             />
-          )}
-          name={() => (
-            <ResourceList.Name
-              hrefValue={this.editBucketLink}
+          }
+          name={
+            <ResourceCard.Name
+              onClick={this.handleNameClick}
               name={bucket.name}
             />
-          )}
-          metaData={() => [<>Retention: {bucket.ruleString}</>]}
+          }
+          metaData={[<>Retention: {bucket.ruleString}</>]}
         />
       </>
     )
@@ -65,13 +65,14 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
     router.push(`/orgs/${orgID}/buckets/${id}/rename`)
   }
 
-  private get editBucketLink(): string {
+  private handleNameClick = (): void => {
     const {
       params: {orgID},
       bucket: {id},
+      router,
     } = this.props
 
-    return `/orgs/${orgID}/buckets/${id}/edit`
+    router.push(`/orgs/${orgID}/buckets/${id}/edit`)
   }
 
   private handleAddCollector = (): void => {

@@ -24,7 +24,7 @@ interface OwnProps {
   onUpdateDashboard: (dashboard: Dashboard) => void
   onFilterChange: (searchTerm: string) => void
   searchTerm: string
-  filterComponent?: () => JSX.Element
+  filterComponent?: JSX.Element
   onImportDashboard: () => void
 }
 

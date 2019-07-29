@@ -4,8 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {ResourceList} from 'src/clockface'
-import {SlideToggle, ComponentSize} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import CheckCardContext from 'src/alerting/components/CheckCardContext'
 
 // Constants
@@ -33,6 +32,7 @@ const CheckCard: FunctionComponent<Props> = ({
   updateCheck,
   deleteCheck,
   params: {orgID},
+  router,
 }) => {
   const onUpdateName = (name: string) => {
     updateCheck({id: check.id, name})
@@ -54,40 +54,44 @@ const CheckCard: FunctionComponent<Props> = ({
     updateCheck({id: check.id, status})
   }
 
+  const onCheckClick = () => {
+    router.push(`/orgs/${orgID}/checks/${check.id}`)
+  }
+
   return (
-    <ResourceList.Card
+    <ResourceCard
       key={`check-id--${check.id}`}
       testID="check-card"
-      name={() => (
-        <ResourceList.EditableName
+      name={
+        <ResourceCard.EditableName
           onUpdate={onUpdateName}
-          hrefValue={`/orgs/${orgID}/checks/${check.id}`}
+          onClick={onCheckClick}
           name={check.name}
           noNameString={DEFAULT_CHECK_NAME}
-          parentTestID="check-card--name"
+          testID="check-card--name"
           buttonTestID="check-card--name-button"
           inputTestID="check-card--input"
         />
-      )}
-      toggle={() => (
+      }
+      toggle={
         <SlideToggle
           active={check.status == CheckBase.StatusEnum.Active}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="check-card--slide-toggle"
         />
-      )}
+      }
       // description
       // labels
       disabled={check.status == CheckBase.StatusEnum.Inactive}
-      contextMenu={() => (
+      contextMenu={
         <CheckCardContext
           onDelete={onDelete}
           onExport={onExport}
           onClone={onClone}
         />
-      )}
-      updatedAt={check.updatedAt.toString()}
+      }
+      metaData={[<>{check.updatedAt.toString()}</>]}
     />
   )
 }

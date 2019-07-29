@@ -2,26 +2,34 @@
 
 exports[`ScraperList rendering renders 1`] = `
 <Fragment>
-  <ResourceList>
-    <ResourceListHeader>
+  <ResourceList
+    testID="resource-list"
+  >
+    <ResourceListHeader
+      testID="resource-list--header"
+    >
       <ResourceListSorter
         name="name"
         sort="none"
         sortKey="name"
+        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="url"
         sort="none"
         sortKey="url"
+        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="bucket"
         sort="none"
         sortKey="bucket"
+        testID="resource-list--sorter"
       />
     </ResourceListHeader>
     <ResourceListBody
       emptyState={<React.Fragment />}
+      testID="resource-list--body"
     >
       <ScraperRow
         key="03636a0bfe351000"

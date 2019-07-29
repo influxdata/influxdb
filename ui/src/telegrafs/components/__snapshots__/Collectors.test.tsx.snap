@@ -2,21 +2,28 @@
 
 exports[`CollectorList rendering renders 1`] = `
 <Fragment>
-  <ResourceList>
-    <ResourceListHeader>
+  <ResourceList
+    testID="resource-list"
+  >
+    <ResourceListHeader
+      testID="resource-list--header"
+    >
       <ResourceListSorter
         name="Name"
         sort="none"
         sortKey="name"
+        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="Bucket"
         sort="none"
         sortKey="bucket"
+        testID="resource-list--sorter"
       />
     </ResourceListHeader>
     <ResourceListBody
       emptyState={<React.Fragment />}
+      testID="resource-list--body"
     >
       <Connect(withRouter(CollectorRow))
         bucket=""

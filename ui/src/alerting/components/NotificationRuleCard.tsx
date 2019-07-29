@@ -4,8 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {ResourceList} from 'src/clockface'
-import {SlideToggle, ComponentSize} from '@influxdata/clockface'
+import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import NotificationRuleCardContext from 'src/alerting/components/NotificationRuleCardContext'
 
 // Constants
@@ -36,6 +35,7 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
   updateNotificationRule,
   deleteNotificationRule,
   params: {orgID},
+  router,
 }) => {
   const onUpdateName = (name: string) => {
     updateNotificationRule({id: notificationRule.id, name})
@@ -57,22 +57,26 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
     updateNotificationRule({id: notificationRule.id, status})
   }
 
+  const onRuleClick = () => {
+    router.push(`/orgs/${orgID}/notificationRules/${notificationRule.id}`)
+  }
+
   return (
-    <ResourceList.Card
+    <ResourceCard
       key={`notificationRule-id--${notificationRule.id}`}
       testID="notificationRule-card"
-      name={() => (
-        <ResourceList.EditableName
+      name={
+        <ResourceCard.EditableName
           onUpdate={onUpdateName}
-          hrefValue={`/orgs/${orgID}/notificationRules/${notificationRule.id}`}
+          onClick={onRuleClick}
           name={notificationRule.name}
           noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
-          parentTestID="notificationRule-card--name"
+          testID="notificationRule-card--name"
           buttonTestID="notificationRule-card--name-button"
           inputTestID="notificationRule-card--input"
         />
-      )}
-      toggle={() => (
+      }
+      toggle={
         <SlideToggle
           active={
             notificationRule.status == NotificationRuleBase.StatusEnum.Active
@@ -81,20 +85,20 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
           onChange={onToggle}
           testID="notificationRule-card--slide-toggle"
         />
-      )}
+      }
       // description
       // labels
       disabled={
         notificationRule.status == NotificationRuleBase.StatusEnum.Inactive
       }
-      contextMenu={() => (
+      contextMenu={
         <NotificationRuleCardContext
           onDelete={onDelete}
           onExport={onExport}
           onClone={onClone}
         />
-      )}
-      updatedAt={notificationRule.updatedAt.toString()}
+      }
+      metaData={[<>{notificationRule.updatedAt.toString()}</>]}
     />
   )
 }
