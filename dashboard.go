@@ -630,7 +630,7 @@ type HistogramViewProperties struct {
 	ViewColors        []ViewColor      `json:"colors"`
 	XColumn           string           `json:"xColumn"`
 	FillColumns       []string         `json:"fillColumns"`
-	XDomain           []float64        `json:"xDomain,omitEmpty"`
+	XDomain           []float64        `json:"xDomain,omitempty"`
 	XAxisLabel        string           `json:"xAxisLabel"`
 	Position          string           `json:"position"`
 	BinCount          int              `json:"binCount"`
@@ -646,8 +646,8 @@ type HeatmapViewProperties struct {
 	BinSize           int32            `json:"binSize"`
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
-	XDomain           []float64        `json:"xDomain,omitEmpty"`
-	YDomain           []float64        `json:"yDomain,omitEmpty"`
+	XDomain           []float64        `json:"xDomain,omitempty"`
+	YDomain           []float64        `json:"yDomain,omitempty"`
 	XAxisLabel        string           `json:"xAxisLabel"`
 	YAxisLabel        string           `json:"yAxisLabel"`
 	XPrefix           string           `json:"xPrefix"`
@@ -667,8 +667,8 @@ type ScatterViewProperties struct {
 	SymbolColumns     []string         `json:"symbolColumns"`
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
-	XDomain           []float64        `json:"xDomain,omitEmpty"`
-	YDomain           []float64        `json:"yDomain,omitEmpty"`
+	XDomain           []float64        `json:"xDomain,omitempty"`
+	YDomain           []float64        `json:"yDomain,omitempty"`
 	XAxisLabel        string           `json:"xAxisLabel"`
 	YAxisLabel        string           `json:"yAxisLabel"`
 	XPrefix           string           `json:"xPrefix"`
