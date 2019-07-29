@@ -7,6 +7,7 @@
 ### Bug Fixes
 
 1. [14480](https://github.com/influxdata/influxdb/pull/14480): Fix authentication when updating a task with invalid org or bucket.
+2. [14492](https://github.com/influxdata/influxdb/pull/14492): Fix to surface errors properly as task notifications on create.
 
 ## v2.0.0-alpha.16 [2019-07-25]
 
