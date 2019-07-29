@@ -408,10 +408,16 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 		if e, ok := err.(AuthzError); ok {
 			h.logger.Error("failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
 		}
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to create task",
+
+		// if the error is not already a platform error then make it into one
+		if _, ok := err.(*platform.Error); !ok {
+			err = &platform.Error{
+				Err:  err,
+				Code: platform.EInternal,
+				Msg:  "failed to create task",
+			}
 		}
+
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}

@@ -25,6 +25,32 @@ describe('Tasks', () => {
     })
   })
 
+  it('cannot create a task with an invalid to() function', () => {
+    const taskName = 'Bad Task'
+    cy.getByTestID('empty-tasks-list').within(() => {
+      cy.getByTestID('add-resource-dropdown--button').click()
+    })
+
+    cy.getByTestID('add-resource-dropdown--new').click()
+
+    cy.getByInputName('name').type(taskName)
+    cy.getByInputName('interval').type('24h')
+    cy.getByInputName('offset').type('20m')
+
+    cy.get<Bucket>('@bucket').then(({name}) => {
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea').type(
+          `import "influxdata/influxdb/v1"\nv1.tagValues(bucket: "${name}", tag: "_field")\nfrom(bucket: "${name}")\n|> range(start: -2m)\n |> to(bucket: "${name}")`,
+          {force: true}
+        )
+      })
+
+      cy.contains('Save').click()
+
+      cy.getByTestID('notification-error').should('contain', 'error calling function "to": missing required keyword argument "orgID"')
+    })
+  })
+
   it('can create a task', () => {
     const taskName = 'Task'
     cy.getByTestID('empty-tasks-list').within(() => {

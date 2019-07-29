@@ -377,6 +377,12 @@ func (ts *taskServiceValidator) validateBucket(ctx context.Context, script strin
 			zap.String("auth_kind", auth.Kind()),
 			zap.String("auth_id", auth.Identifier().String()),
 		)
+
+		// if error is already a platform error then return it
+		if perr, ok := err.(*platform.Error); ok {
+			return perr
+		}
+
 		return platform.NewError(
 			platform.WithErrorErr(err),
 			platform.WithErrorMsg("Failed to authorize."),
