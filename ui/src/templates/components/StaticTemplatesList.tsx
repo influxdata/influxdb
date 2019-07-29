@@ -4,7 +4,7 @@ import memoizeOne from 'memoize-one'
 // import _ from 'lodash'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceList} from '@influxdata/clockface'
 import EmptyTemplatesList from 'src/templates/components/EmptyTemplatesList'
 import StaticTemplateCard from 'src/templates/components/StaticTemplateCard'
 
