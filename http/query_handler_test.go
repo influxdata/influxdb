@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
@@ -24,6 +25,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/check"
+	influxmock "github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"
 	"go.uber.org/zap/zaptest"
@@ -430,4 +432,236 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			t.Fatalf("expected error message to mention 'some query error', got %s", ierr.Err.Error())
 		}
 	})
+}
+
+func TestFluxService_Query_gzip(t *testing.T) {
+	// orgService is just to mock out orgs by returning
+	// the same org every time.
+	orgService := &influxmock.OrganizationService{
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+			return &platform.Organization{
+				ID:   id,
+				Name: id.String(),
+			}, nil
+		},
+
+		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+			return &platform.Organization{
+				ID:   platform.ID(1),
+				Name: platform.ID(1).String(),
+			}, nil
+		},
+	}
+
+	// queryService is test setup that returns the same CSV for all queries.
+	queryService := &mock.ProxyQueryService{
+		QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+			_, _ = w.Write([]byte(`#datatype,string,long,dateTime:RFC3339,double,long,string,boolean,string,string,string
+#group,false,false,false,false,false,false,false,true,true,true
+#default,_result,,,,,,,,,
+,result,table,_time,usage_user,test,mystr,this,cpu,host,_measurement
+,,0,2018-08-29T13:08:47Z,10.2,10,yay,true,cpu-total,a,cpui`))
+			return flux.Statistics{}, nil
+		},
+	}
+
+	// authService is yet more test setup that returns an operator auth for any token.
+	authService := &influxmock.AuthorizationService{
+		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+			return &platform.Authorization{
+				ID:          platform.ID(1),
+				OrgID:       platform.ID(1),
+				Permissions: platform.OperPermissions(),
+			}, nil
+		},
+	}
+
+	fluxBackend := &FluxBackend{
+		HTTPErrorHandler:    ErrorHandler(0),
+		Logger:              zaptest.NewLogger(t),
+		QueryEventRecorder:  noopEventRecorder{},
+		OrganizationService: orgService,
+		ProxyQueryService:   queryService,
+	}
+
+	fluxHandler := NewFluxHandler(fluxBackend)
+
+	// fluxHandling expects authorization to be on the request context.
+	// AuthenticationHandler extracts the token from headers and places
+	// the auth on context.
+	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth.AuthorizationService = authService
+	auth.Handler = fluxHandler
+
+	ts := httptest.NewServer(auth)
+	defer ts.Close()
+
+	newFakeRequest := func() *http.Request {
+		req, err := http.NewRequest("POST", ts.URL+"/api/v2/query?orgID=0000000000000001", bytes.NewReader([]byte("buckets()")))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		req.Header.Set("Content-Type", "application/vnd.flux")
+		SetToken("not important hard coded test response", req)
+		return req
+	}
+
+	// disable any gzip compression
+	client := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:       10,
+			IdleConnTimeout:    30 * time.Second,
+			DisableCompression: true,
+		},
+	}
+
+	req := newFakeRequest()
+	res, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("unable to POST to server: %v", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("unexpected status code %s", res.Status)
+	}
+
+	identityBody, _ := ioutil.ReadAll(res.Body)
+	_ = res.Body.Close()
+
+	// now, we try to use gzip
+	req = newFakeRequest()
+	// If we enable compression, we should get the same response.
+	client = &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:       10,
+			IdleConnTimeout:    30 * time.Second,
+			DisableCompression: false,
+		},
+	}
+
+	res, err = client.Do(req)
+	if err != nil {
+		t.Fatalf("unable to POST to server: %v", err)
+	}
+
+	gzippedBody, _ := ioutil.ReadAll(res.Body)
+	_ = res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("unexpected status code %s", res.Status)
+	}
+
+	if string(identityBody) != string(gzippedBody) {
+		t.Errorf("unexpected difference in identity and compressed bodies:\n%s\n%s", string(identityBody), string(gzippedBody))
+	}
+}
+
+func Benchmark_Query_no_gzip(b *testing.B) {
+	benchmarkQuery(b, true)
+}
+
+func Benchmark_Query_gzip(b *testing.B) {
+	benchmarkQuery(b, false)
+}
+
+func benchmarkQuery(b *testing.B, disableCompression bool) {
+	// orgService is just to mock out orgs by returning
+	// the same org every time.
+	orgService := &influxmock.OrganizationService{
+		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+			return &platform.Organization{
+				ID:   id,
+				Name: id.String(),
+			}, nil
+		},
+
+		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+			return &platform.Organization{
+				ID:   platform.ID(1),
+				Name: platform.ID(1).String(),
+			}, nil
+		},
+	}
+
+	// queryService is test setup that returns the same CSV for all queries.
+	queryService := &mock.ProxyQueryService{
+		QueryF: func(ctx context.Context, w io.Writer, req *query.ProxyRequest) (flux.Statistics, error) {
+			_, _ = w.Write([]byte(`#datatype,string,long,dateTime:RFC3339,double,long,string,boolean,string,string,string
+#group,false,false,false,false,false,false,false,true,true,true
+#default,_result,,,,,,,,,
+,result,table,_time,usage_user,test,mystr,this,cpu,host,_measurement
+,,0,2018-08-29T13:08:47Z,10.2,10,yay,true,cpu-total,a,cpui`))
+			return flux.Statistics{}, nil
+		},
+	}
+
+	// authService is yet more test setup that returns an operator auth for any token.
+	authService := &influxmock.AuthorizationService{
+		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+			return &platform.Authorization{
+				ID:          platform.ID(1),
+				OrgID:       platform.ID(1),
+				Permissions: platform.OperPermissions(),
+			}, nil
+		},
+	}
+
+	fluxBackend := &FluxBackend{
+		HTTPErrorHandler:    ErrorHandler(0),
+		Logger:              zaptest.NewLogger(b),
+		QueryEventRecorder:  noopEventRecorder{},
+		OrganizationService: orgService,
+		ProxyQueryService:   queryService,
+	}
+
+	fluxHandler := NewFluxHandler(fluxBackend)
+
+	// fluxHandling expects authorization to be on the request context.
+	// AuthenticationHandler extracts the token from headers and places
+	// the auth on context.
+	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth.AuthorizationService = authService
+	auth.Handler = fluxHandler
+
+	ts := httptest.NewServer(auth)
+	defer ts.Close()
+
+	newFakeRequest := func() *http.Request {
+		req, err := http.NewRequest("POST", ts.URL+"/api/v2/query?orgID=0000000000000001", bytes.NewReader([]byte("buckets()")))
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		req.Header.Set("Content-Type", "application/vnd.flux")
+		SetToken("not important hard coded test response", req)
+		return req
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			MaxIdleConns:       10,
+			IdleConnTimeout:    30 * time.Second,
+			DisableCompression: disableCompression,
+		},
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		req := newFakeRequest()
+
+		res, err := client.Do(req)
+		if err != nil {
+			b.Fatalf("unable to POST to server: %v", err)
+		}
+
+		if res.StatusCode != http.StatusOK {
+			b.Errorf("unexpected status code %s", res.Status)
+		}
+
+		_, _ = ioutil.ReadAll(res.Body)
+		_ = res.Body.Close()
+
+	}
 }
