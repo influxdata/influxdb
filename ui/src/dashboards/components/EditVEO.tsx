@@ -18,7 +18,6 @@ import {setView, getViewForTimeMachine} from 'src/dashboards/actions/views';
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {TimeMachineEnum} from 'src/timeMachine/constants'
-import {getView} from 'src/dashboards/apis'
 
 // Types
 import {AppState, RemoteDataState, View, QueryView} from 'src/types'
