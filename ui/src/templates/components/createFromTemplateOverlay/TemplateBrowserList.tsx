@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {get, orderBy} from 'lodash'
 
 // Components
 import {DapperScrollbars} from '@influxdata/clockface'
@@ -23,16 +23,18 @@ class TemplateBrowser extends PureComponent<Props> {
         autoSize={false}
         noScrollX={true}
       >
-        {templates.map(t => (
-          <TemplateBrowserListItem
-            key={t.id}
-            template={t}
-            label={t.meta.name}
-            onClick={onSelectTemplate}
-            testID={`template--${t.meta.name}`}
-            selected={_.get(selectedTemplateSummary, 'id', '') === t.id}
-          />
-        ))}
+        {orderBy(templates, [({meta: {name}}) => name.toLocaleLowerCase()]).map(
+          t => (
+            <TemplateBrowserListItem
+              key={t.id}
+              template={t}
+              label={t.meta.name}
+              onClick={onSelectTemplate}
+              testID={`template--${t.meta.name}`}
+              selected={get(selectedTemplateSummary, 'id', '') === t.id}
+            />
+          )
+        )}
       </DapperScrollbars>
     )
   }
