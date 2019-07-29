@@ -21,7 +21,7 @@ import {createView} from 'src/shared/utils/view';
 // Types
 import {Check, AppState, RemoteDataState, XYView, ViewType} from 'src/types'
 import {DEFAULT_CHECK} from 'src/alerting/constants'
-import {ALERTING_TIME_MACHINE_ID} from 'src/timeMachine/constants'
+import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -48,7 +48,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     const check = {...DEFAULT_CHECK, id: '9'}
     setCurrentCheck(RemoteDataState.Done, check)
     const view = createView<XYView>(ViewType.XY)
-    onSetActiveTimeMachine(ALERTING_TIME_MACHINE_ID, {view})
+    onSetActiveTimeMachine(TimeMachineEnum.Alerting, {view})
   }, [])
 
   const handleUpdateName = (name: string) => {

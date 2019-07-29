@@ -17,7 +17,7 @@ import {saveVEOView} from 'src/dashboards/actions'
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {createView} from 'src/shared/utils/view'
-import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
+import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 // Types
 import {AppState, ViewType, XYView, RemoteDataState, View} from 'src/types'
@@ -46,7 +46,7 @@ const NewViewVEO: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     const view = createView<XYView>(ViewType.XY)
-    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
+    onSetActiveTimeMachine(TimeMachineEnum.VEO, {view})
   }, [])
 
   const handleClose = () => {
@@ -90,7 +90,7 @@ const mstp = (state: AppState): StateProps => {
 
   let loadingState= RemoteDataState.Loading
 
-  if (activeTimeMachineID===VEO_TIME_MACHINE_ID &&  viewIsNew) {
+  if (activeTimeMachineID===TimeMachineEnum.VEO &&  viewIsNew) {
     loadingState = RemoteDataState.Done
   }
 

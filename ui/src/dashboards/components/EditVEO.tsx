@@ -13,11 +13,11 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
-import {setView} from 'src/dashboards/actions/views';
+import {setView, getViewForTimeMachine} from 'src/dashboards/actions/views';
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {VEO_TIME_MACHINE_ID} from 'src/timeMachine/constants'
+import {TimeMachineEnum} from 'src/timeMachine/constants'
 import {getView} from 'src/dashboards/apis'
 
 // Types
@@ -31,6 +31,7 @@ interface DispatchProps {
   onSaveView: typeof saveVEOView,
   setView: typeof setView,
   executeQueries: typeof executeQueries,
+  getViewForTimeMachine: typeof getViewForTimeMachine
 }
 
 interface StateProps {
@@ -43,6 +44,7 @@ type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewViewVEO: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
+  getViewForTimeMachine,
   executeQueries,
   loadingState,
   onSaveView,
@@ -54,20 +56,13 @@ const NewViewVEO: FunctionComponent<Props> = ({
 }) => {
 
   useEffect(() => {
-    onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {})
+    onSetActiveTimeMachine(TimeMachineEnum.VEO, {})
 
-    const fetchView = async () => {
-      view = await getView(params.dashboardID, params.cellID) as QueryView
-      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view})
-      setView(params.cellID, view, RemoteDataState.Done)
-    }
-
-    const viewInState = get(views, `${params.cellID}.view`) as QueryView
-
+    const viewInState = get(views, `${params.cellID}.view`, null) as QueryView
     if (viewInState){
-      onSetActiveTimeMachine(VEO_TIME_MACHINE_ID, {view:viewInState})
+      onSetActiveTimeMachine(TimeMachineEnum.VEO, {view:viewInState})
     } else {
-      fetchView();
+      getViewForTimeMachine(params.dashboardID, params.cellID, TimeMachineEnum.VEO);
     }
 
   }, [params.cellID])
@@ -115,7 +110,7 @@ const mstp = (state: AppState, {params:{cellID}}): StateProps => {
 
   let loadingState= RemoteDataState.Loading
 
-  if (activeTimeMachineID===VEO_TIME_MACHINE_ID &&  viewMatchesRoute) {
+  if (activeTimeMachineID===TimeMachineEnum.VEO &&  viewMatchesRoute) {
     loadingState = RemoteDataState.Done
   }
 
@@ -129,7 +124,8 @@ const mdtp: DispatchProps = {
   setView: setView,
   onSaveView: saveVEOView,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  executeQueries: executeQueries
+  executeQueries: executeQueries,
+  getViewForTimeMachine: getViewForTimeMachine
 }
 
 export default connect<StateProps, DispatchProps, {}>(

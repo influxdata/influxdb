@@ -22,7 +22,7 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Types
 import {Check, AppState, RemoteDataState, XYView, ViewType} from 'src/types'
-import {ALERTING_TIME_MACHINE_ID} from 'src/timeMachine/constants'
+import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -46,13 +46,13 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     getCurrentCheck(params.checkID)
-    onSetActiveTimeMachine(ALERTING_TIME_MACHINE_ID)
+    onSetActiveTimeMachine(TimeMachineEnum.Alerting)
   }, [params.checkID])
 
   useEffect(() => {
     // create view properties from check
     const view = createView<XYView>(ViewType.XY)
-    onSetActiveTimeMachine(ALERTING_TIME_MACHINE_ID, {view})
+    onSetActiveTimeMachine(TimeMachineEnum.Alerting, {view})
   }, [check.id])
 
   const handleUpdateName = (name: string) => {
