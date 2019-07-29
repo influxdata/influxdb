@@ -22,7 +22,9 @@ interface Props {
 const findSelectedScaleID = (colors: Color[]) => {
   const key = (colors: Color[]) => colors.map(color => color.hex).join(', ')
   const needle = key(colors)
-  const selectedScale = LINE_COLOR_SCALES.find(d => key(d.colors) === needle)
+  const selectedScale = LINE_COLOR_SCALES.find(
+    d => key(d.colors as Color[]) === needle
+  )
 
   if (selectedScale) {
     return selectedScale.id

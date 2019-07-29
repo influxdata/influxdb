@@ -16,7 +16,7 @@ import {getActiveQuery} from 'src/timeMachine/selectors'
 import {hasQueryBeenEdited} from 'src/timeMachine/utils/queryBuilder'
 
 // Types
-import {AppState, QueryEditMode, DashboardQuery} from 'src/types'
+import {AppState, DashboardQuery} from 'src/types'
 
 interface StateProps {
   activeQuery: DashboardQuery
@@ -78,7 +78,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props, State> {
     const {onEditAsFlux} = this.props
     const {editMode} = this.props.activeQuery
 
-    if (editMode !== QueryEditMode.Builder) {
+    if (editMode !== 'builder') {
       return (
         <Button
           text="Query Builder"

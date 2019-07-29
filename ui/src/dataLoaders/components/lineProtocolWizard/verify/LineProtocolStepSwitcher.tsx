@@ -10,7 +10,7 @@ import LineProtocolVerifyStep from 'src/dataLoaders/components/lineProtocolWizar
 // Types
 import {LineProtocolStep} from 'src/types'
 import {LineProtocolStepProps} from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 
 interface Props {
   stepProps: LineProtocolStepProps

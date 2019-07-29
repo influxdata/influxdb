@@ -11,8 +11,7 @@ import {validateLabelUniqueness} from 'src/labels/utils/'
 import memoizeOne from 'memoize-one'
 
 // Types
-import {ILabel} from '@influxdata/influx'
-import {OverlayState} from 'src/types'
+import {OverlayState, Label} from 'src/types'
 import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 
@@ -22,12 +21,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof ILabel
+type SortKey = keyof Label
 
 interface Props {
-  labels: ILabel[]
+  labels: Label[]
   emptyState: JSX.Element
-  onUpdateLabel: (label: ILabel) => void
+  onUpdateLabel: (label: Label) => void
   onDeleteLabel: (labelID: string) => void
   sortKey: string
   sortDirection: Sort
@@ -111,7 +110,7 @@ export default class LabelList extends PureComponent<Props, State> {
     ))
   }
 
-  private get label(): ILabel | null {
+  private get label(): Label | null {
     if (this.state.labelID) {
       return this.props.labels.find(l => l.id === this.state.labelID)
     }
@@ -130,7 +129,7 @@ export default class LabelList extends PureComponent<Props, State> {
     return !!labelID && overlayState === OverlayState.Open
   }
 
-  private handleUpdateLabel = async (updatedLabel: ILabel) => {
+  private handleUpdateLabel = async (updatedLabel: Label) => {
     await this.props.onUpdateLabel(updatedLabel)
     this.setState({overlayState: OverlayState.Closed})
   }

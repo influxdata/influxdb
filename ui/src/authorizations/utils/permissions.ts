@@ -1,4 +1,5 @@
-import {Permission, PermissionResource, Bucket} from '@influxdata/influx'
+import {Permission, PermissionResource} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 
 // Types
 

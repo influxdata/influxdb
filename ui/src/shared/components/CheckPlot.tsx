@@ -19,21 +19,19 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 // Types
 import {
   RemoteDataState,
-  CheckView,
+  CheckViewProperties,
   TimeZone,
-  CheckThreshold,
-  ThresholdType,
-  CheckStatusLevel,
+  Threshold,
 } from 'src/types'
 
 const X_COLUMN = '_time'
 const Y_COLUMN = '_value'
 
-const THRESHOLDS: CheckThreshold[] = [
+const THRESHOLDS: Threshold[] = [
   {
-    type: ThresholdType.Greater,
+    type: 'greater',
     allValues: false,
-    level: CheckStatusLevel.UNKNOWN,
+    level: 'UNKNOWN',
     value: 20,
   },
 ]
@@ -43,7 +41,7 @@ interface Props {
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
   timeZone: TimeZone
-  viewProperties: CheckView
+  viewProperties: CheckViewProperties
   children: (config: Config) => JSX.Element
 }
 

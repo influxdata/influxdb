@@ -1,9 +1,11 @@
 // Libraries
-import {client} from 'src/utils/api'
 import {Dispatch} from 'react'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+
+// APIs
+import * as api from 'src/client'
 
 //Actions
 import {
@@ -62,9 +64,13 @@ export const getChecks = () => async (
       },
     } = getState()
 
-    const checks = await client.checks.getAll(orgID)
+    const resp = await api.getChecks({query: {orgID}})
 
-    dispatch(setAllChecks(RemoteDataState.Done, checks))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setAllChecks(RemoteDataState.Done, resp.data.checks))
   } catch (e) {
     console.error(e)
     dispatch(setAllChecks(RemoteDataState.Error))
@@ -78,9 +84,13 @@ export const getCurrentCheck = (checkID: string) => async (
   try {
     dispatch(setCurrentCheck(RemoteDataState.Loading))
 
-    const check = await client.checks.get(checkID)
+    const resp = await api.getCheck({checkID})
 
-    dispatch(setCurrentCheck(RemoteDataState.Done, check))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setCurrentCheck(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
     dispatch(setCurrentCheck(RemoteDataState.Error))
@@ -88,11 +98,15 @@ export const getCurrentCheck = (checkID: string) => async (
   }
 }
 
-export const createCheck = (check: Check) => async (
+export const createCheck = (check: Partial<Check>) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    client.checks.create(check)
+    const resp = await api.postCheck({data: check as Check})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.createCheckFailed(e.message)))
@@ -103,8 +117,13 @@ export const updateCheck = (check: Partial<Check>) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    const updatedCheck = await client.checks.update(check.id, check)
-    dispatch(setCheck(updatedCheck))
+    const resp = await api.patchCheck({checkID: check.id, data: check as Check})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setCheck(resp.data))
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.updateCheckFailed(e.message)))
@@ -115,7 +134,12 @@ export const deleteCheck = (checkID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    await client.checks.delete(checkID)
+    const resp = await api.deleteCheck({checkID})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
     dispatch(removeCheck(checkID))
   } catch (e) {
     console.error(e)

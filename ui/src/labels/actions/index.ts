@@ -3,7 +3,7 @@ import {client} from 'src/utils/api'
 
 // Types
 import {RemoteDataState} from 'src/types'
-import {ILabel} from '@influxdata/influx'
+import {ILabel, ILabelProperties} from '@influxdata/influx'
 import {LabelProperties} from 'src/types/labels'
 import {Dispatch} from 'redux-thunk'
 
@@ -99,7 +99,7 @@ export const createLabel = (
     const createdLabel = await client.labels.create({
       orgID: org.id,
       name,
-      properties,
+      properties: properties as ILabelProperties,
     })
 
     dispatch(addLabel(createdLabel))

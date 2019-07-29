@@ -1,7 +1,7 @@
 import {Dispatch} from 'redux-thunk'
 
 // API
-import {client} from 'src/utils/api'
+import * as api from 'src/client'
 
 // Types
 import {RemoteDataState, AppState, Bucket} from 'src/types'
@@ -86,9 +86,13 @@ export const getBuckets = () => async (
       orgs: {org},
     } = getState()
 
-    const buckets = await client.buckets.getAll(org.id)
+    const resp = await api.getBuckets({query: {orgID: org.id}})
 
-    dispatch(setBuckets(RemoteDataState.Done, buckets))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setBuckets(RemoteDataState.Done, resp.data.buckets))
   } catch (e) {
     console.error(e)
     dispatch(setBuckets(RemoteDataState.Error))
@@ -105,12 +109,13 @@ export const createBucket = (bucket: Bucket) => async (
       orgs: {org},
     } = getState()
 
-    const createdBucket = await client.buckets.create({
-      ...bucket,
-      orgID: org.id,
-    })
+    const resp = await api.postBucket({data: {...bucket, orgID: org.id}})
 
-    dispatch(addBucket(createdBucket))
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(addBucket(resp.data))
     dispatch(checkBucketLimits())
   } catch (error) {
     console.error(error)
@@ -123,9 +128,16 @@ export const updateBucket = (updatedBucket: Bucket) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
+    const resp = await api.patchBucket({
+      bucketID: updatedBucket.id,
+      data: updatedBucket,
+    })
 
-    dispatch(editBucket(bucket))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(editBucket(resp.data))
     dispatch(notify(bucketUpdateSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)
@@ -139,9 +151,16 @@ export const renameBucket = (
   updatedBucket: Bucket
 ) => async (dispatch: Dispatch<Action>) => {
   try {
-    const bucket = await client.buckets.update(updatedBucket.id, updatedBucket)
+    const resp = await api.patchBucket({
+      bucketID: updatedBucket.id,
+      data: updatedBucket,
+    })
 
-    dispatch(editBucket(bucket))
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(editBucket(resp.data))
     dispatch(notify(bucketRenameSuccess(updatedBucket.name)))
   } catch (e) {
     console.error(e)
@@ -153,7 +172,11 @@ export const deleteBucket = (id: string, name: string) => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    await client.buckets.delete(id)
+    const resp = await api.deleteBucket({bucketID: id})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(removeBucket(id))
     dispatch(checkBucketLimits())

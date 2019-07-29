@@ -11,7 +11,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {CollectorsStep} from 'src/types/dataLoaders'
 import {CollectorsStepProps} from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 
 interface Props {
   stepProps: CollectorsStepProps

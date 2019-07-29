@@ -16,12 +16,12 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {RemoteDataState, HeatmapView, TimeZone} from 'src/types'
+import {RemoteDataState, HeatmapViewProperties, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
   loading: RemoteDataState
-  viewProperties: HeatmapView
+  viewProperties: HeatmapViewProperties
   timeZone: TimeZone
   children: (config: Config) => JSX.Element
 }

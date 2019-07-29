@@ -7,13 +7,13 @@ import {
   DESCENDING,
   DEFAULT_SORT_DIRECTION,
 } from 'src/shared/constants/tableGraph'
-import {TableView, SortOptions, FluxTable, TimeZone} from 'src/types'
+import {TableViewProperties, SortOptions, FluxTable, TimeZone} from 'src/types'
 import TableGraphTransform from 'src/shared/components/tables/TableGraphTransform'
 import TableGraphTable from 'src/shared/components/tables/TableGraphTable'
 
 interface Props {
   table: FluxTable
-  properties: TableView
+  properties: TableViewProperties
   timeZone: TimeZone
 }
 

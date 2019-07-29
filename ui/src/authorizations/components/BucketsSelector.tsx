@@ -8,7 +8,7 @@ import {BucketTab} from 'src/authorizations/utils/permissions'
 import BucketsTabSelector from 'src/authorizations/components/BucketsTabSelector'
 
 // Types
-import {Bucket} from '@influxdata/influx'
+import {Bucket} from 'src/types'
 import {
   ComponentSpacer,
   AlignItems,

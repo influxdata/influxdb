@@ -17,7 +17,7 @@ import {
 } from 'src/alerting/actions/notificationRules'
 
 // Types
-import {NotificationRule, NotificationRuleBase} from 'src/types'
+import {NotificationRule} from 'src/types'
 
 interface DispatchProps {
   updateNotificationRule: typeof updateNotificationRule
@@ -50,10 +50,8 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
   const onClone = () => {}
 
   const onToggle = () => {
-    const status =
-      notificationRule.status == NotificationRuleBase.StatusEnum.Active
-        ? NotificationRuleBase.StatusEnum.Inactive
-        : NotificationRuleBase.StatusEnum.Active
+    const status = notificationRule.status === 'active' ? 'inactive' : 'active'
+
     updateNotificationRule({id: notificationRule.id, status})
   }
 
@@ -78,9 +76,7 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
       }
       toggle={
         <SlideToggle
-          active={
-            notificationRule.status == NotificationRuleBase.StatusEnum.Active
-          }
+          active={notificationRule.status === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
           testID="notificationRule-card--slide-toggle"
@@ -88,9 +84,7 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
       }
       // description
       // labels
-      disabled={
-        notificationRule.status == NotificationRuleBase.StatusEnum.Inactive
-      }
+      disabled={notificationRule.status === 'inactive'}
       contextMenu={
         <NotificationRuleCardContext
           onDelete={onDelete}

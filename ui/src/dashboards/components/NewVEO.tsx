@@ -20,7 +20,7 @@ import {createView} from 'src/shared/utils/view'
 import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 // Types
-import {AppState, ViewType, XYView, RemoteDataState, View} from 'src/types'
+import {AppState, XYViewProperties, RemoteDataState, View} from 'src/types'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -45,7 +45,7 @@ const NewViewVEO: FunctionComponent<Props> = ({
   view,
 }) => {
   useEffect(() => {
-    const view = createView<XYView>(ViewType.XY)
+    const view = createView<XYViewProperties>('xy')
     onSetActiveTimeMachine(TimeMachineEnum.VEO, {view})
   }, [])
 

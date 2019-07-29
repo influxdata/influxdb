@@ -1,4 +1,4 @@
-import {Organization} from '@influxdata/influx'
+import {Organization} from '../../src/types'
 
 describe('labels', () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe('labels', () => {
 
   function hex2BgColor(hex: string): string {
     hex = hex.replace('#', '')
-    let subvals: string[] = hex.match(/.{1,2}/g)
+    let subvals = hex.match(/.{1,2}/g) as string[]
     let red: number = parseInt(subvals[0], 16)
     let green: number = parseInt(subvals[1], 16)
     let blue: number = parseInt(subvals[2], 16)

@@ -1,5 +1,11 @@
-import {ILabel as LabelAPI} from '@influxdata/influx'
+import {Label as GenLabel} from 'src/client'
 
-export type LabelProperties = LabelAPI['properties']
+export interface Label extends GenLabel {
+  properties: LabelProperties
+}
 
-export type Label = LabelAPI
+export interface LabelProperties {
+  color: string
+  description: string
+  [k: string]: string
+}

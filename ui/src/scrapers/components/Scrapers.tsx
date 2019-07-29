@@ -18,7 +18,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SortTypes} from 'src/shared/utils/sort'
 
 // Types
-import {ScraperTargetResponse, Bucket} from '@influxdata/influx'
+import {ScraperTargetResponse} from '@influxdata/influx'
 import {
   IconFont,
   InputType,
@@ -26,7 +26,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState} from 'src/types'
+import {AppState, Bucket} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
 interface StateProps {

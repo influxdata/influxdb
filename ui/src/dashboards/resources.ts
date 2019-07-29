@@ -3,7 +3,6 @@ import {
   Cell,
   Color,
   Dashboard,
-  TableOptions,
   FieldOption,
   DecimalPlaces,
   Service,
@@ -12,7 +11,7 @@ import {
   SourceLinks,
   TimeRange,
   QueryConfig,
-  Scale,
+  TableOptions,
 } from 'src/types'
 
 export const dashboard: Dashboard = {
@@ -133,7 +132,7 @@ export const axes: Axes = {
     prefix: '',
     suffix: '',
     base: '10',
-    scale: Scale.Linear,
+    scale: 'linear',
   },
   y: {
     bounds: ['', ''],
@@ -141,7 +140,7 @@ export const axes: Axes = {
     prefix: '',
     suffix: '',
     base: '10',
-    scale: Scale.Linear,
+    scale: 'linear',
   },
 }
 

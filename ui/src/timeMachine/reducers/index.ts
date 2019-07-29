@@ -21,11 +21,10 @@ import {
   ViewType,
   DashboardDraftQuery,
   BuilderConfig,
-  QueryEditMode,
+  BuilderConfigAggregateWindow,
   QueryView,
   QueryViewProperties,
   ExtractWorkingView,
-  BuilderConfigAggregateWindow,
 } from 'src/types/dashboards'
 import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
@@ -267,7 +266,7 @@ export const timeMachineReducer = (
       const {prefix, axis} = action.payload
       const viewType = state.view.properties.type
 
-      if (viewType === ViewType.Heatmap || viewType == ViewType.Scatter) {
+      if (viewType === 'heatmap' || viewType == 'scatter') {
         if (axis === 'x') {
           return setViewProperties(state, {xPrefix: prefix})
         }
@@ -280,7 +279,7 @@ export const timeMachineReducer = (
       const {suffix, axis} = action.payload
       const viewType = state.view.properties.type
 
-      if (viewType === ViewType.Heatmap || viewType === ViewType.Scatter) {
+      if (viewType === 'heatmap' || viewType === 'scatter') {
         if (axis === 'x') {
           return setViewProperties(state, {xSuffix: suffix})
         }
@@ -317,9 +316,9 @@ export const timeMachineReducer = (
       const {xAxisLabel} = action.payload
 
       switch (state.view.properties.type) {
-        case ViewType.Histogram:
-        case ViewType.Heatmap:
-        case ViewType.Scatter:
+        case 'histogram':
+        case 'heatmap':
+        case 'scatter':
           return setViewProperties(state, {xAxisLabel})
         default:
           return setYAxis(state, {label: xAxisLabel})
@@ -330,9 +329,9 @@ export const timeMachineReducer = (
       const {yAxisLabel} = action.payload
 
       switch (state.view.properties.type) {
-        case ViewType.Histogram:
-        case ViewType.Heatmap:
-        case ViewType.Scatter:
+        case 'histogram':
+        case 'heatmap':
+        case 'scatter':
           return setViewProperties(state, {yAxisLabel})
         default:
           return setYAxis(state, {label: yAxisLabel})
@@ -391,11 +390,11 @@ export const timeMachineReducer = (
       const {prefix} = action.payload
 
       switch (state.view.properties.type) {
-        case ViewType.Gauge:
-        case ViewType.SingleStat:
-        case ViewType.LinePlusSingleStat:
+        case 'gauge':
+        case 'single-stat':
+        case 'line-plus-single-stat':
           return setViewProperties(state, {prefix})
-        case ViewType.XY:
+        case 'xy':
           return setYAxis(state, {prefix})
         default:
           return state
@@ -406,11 +405,11 @@ export const timeMachineReducer = (
       const {suffix} = action.payload
 
       switch (state.view.properties.type) {
-        case ViewType.Gauge:
-        case ViewType.SingleStat:
-        case ViewType.LinePlusSingleStat:
+        case 'gauge':
+        case 'single-stat':
+        case 'line-plus-single-stat':
           return setViewProperties(state, {suffix})
-        case ViewType.XY:
+        case 'xy':
           return setYAxis(state, {suffix})
         default:
           return state
@@ -421,13 +420,13 @@ export const timeMachineReducer = (
       const {colors} = action.payload
 
       switch (state.view.properties.type) {
-        case ViewType.Gauge:
-        case ViewType.SingleStat:
-        case ViewType.Scatter:
-        case ViewType.XY:
-        case ViewType.Histogram:
+        case 'gauge':
+        case 'single-stat':
+        case 'scatter':
+        case 'xy':
+        case 'histogram':
           return setViewProperties(state, {colors})
-        case ViewType.LinePlusSingleStat:
+        case 'line-plus-single-stat':
           return setViewProperties(state, {
             colors: updateCorrectColors(state, colors),
           })
@@ -491,7 +490,7 @@ export const timeMachineReducer = (
       return produce(state, draftState => {
         const query = draftState.draftQueries[draftState.activeQueryIndex]
 
-        query.editMode = QueryEditMode.Builder
+        query.editMode = 'builder'
         query.hidden = false
 
         buildAllQueries(draftState)
@@ -504,7 +503,7 @@ export const timeMachineReducer = (
 
       draftQueries[activeQueryIndex] = {
         ...draftQueries[activeQueryIndex],
-        editMode: QueryEditMode.Advanced,
+        editMode: 'advanced',
       }
 
       return {
@@ -909,7 +908,7 @@ const buildActiveQuery = (draftState: TimeMachineState) => {
 
 const buildAllQueries = (draftState: TimeMachineState) => {
   draftState.draftQueries
-    .filter(query => query.editMode === QueryEditMode.Builder)
+    .filter(query => query.editMode === 'builder')
     .forEach(query => {
       if (isConfigValid(query.builderConfig)) {
         query.text = buildQuery(query.builderConfig)

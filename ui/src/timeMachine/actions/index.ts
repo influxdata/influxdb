@@ -15,7 +15,7 @@ import {
   ViewType,
   Axes,
   DecimalPlaces,
-  XYViewGeom,
+  XYGeom,
   FieldOption,
   TableOptions,
   TimeMachineTab,
@@ -174,10 +174,10 @@ export const setIsViewingRawData = (
 
 interface SetGeomAction {
   type: 'SET_GEOM'
-  payload: {geom: XYViewGeom}
+  payload: {geom: XYGeom}
 }
 
-export const setGeom = (geom: XYViewGeom): SetGeomAction => ({
+export const setGeom = (geom: XYGeom): SetGeomAction => ({
   type: 'SET_GEOM',
   payload: {geom},
 })

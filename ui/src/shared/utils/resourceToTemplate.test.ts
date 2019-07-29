@@ -51,7 +51,7 @@ describe('resourceToTemplate', () => {
         labels: [myfavelabel],
       }
       const b = createVariable('b', '9000')
-      const dependencies = [a, b]
+      const dependencies: any = [a, b]
 
       const actual = variableToTemplate(myVariable, dependencies)
 
@@ -215,7 +215,7 @@ describe('resourceToTemplate', () => {
     it('can convert a dashboard to template', () => {
       const myLabeledVar = {
         ...createVariable('var_1', 'labeled var!'),
-        labels: [myfavelabel],
+        labels: [myfavelabel as any],
       }
 
       const dashboardWithDupeLabel = {

@@ -60,8 +60,8 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  xDomain: [number, number]
-  yDomain: [number, number]
+  xDomain: number[]
+  yDomain: number[]
   xAxisLabel: string
   yAxisLabel: string
   xPrefix: string
@@ -143,7 +143,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
         </Grid.Column>
       </Grid.Row>
       <AutoDomainInput
-        domain={props.xDomain}
+        domain={props.xDomain as [number, number]}
         onSetDomain={props.onSetXDomain}
         label="X Axis Domain"
       />
@@ -173,7 +173,7 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
         </Grid.Column>
       </Grid.Row>
       <AutoDomainInput
-        domain={props.yDomain}
+        domain={props.yDomain as [number, number]}
         onSetDomain={props.onSetYDomain}
         label="Y Axis Domain"
       />

@@ -7,13 +7,13 @@ import memoizeOne from 'memoize-one'
 import {transformTableData} from 'src/dashboards/utils/tableGraph'
 
 // Types
-import {TableView, SortOptions} from 'src/types/dashboards'
+import {TableViewProperties, SortOptions} from 'src/types/dashboards'
 import {TransformTableDataReturnType} from 'src/dashboards/utils/tableGraph'
 
 interface Props {
   data: string[][]
   dataTypes: {[x: string]: string}
-  properties: TableView
+  properties: TableViewProperties
   sortOptions: SortOptions
   children: (transformedDataBundle: TransformTableDataReturnType) => JSX.Element
 }

@@ -1,4 +1,4 @@
-import {Bucket, Organization} from '@influxdata/influx'
+import {Bucket, Organization} from '../../src/types'
 
 describe('Buckets', () => {
   beforeEach(() => {
