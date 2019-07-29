@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {orderBy} from 'lodash'
 import React, {PureComponent} from 'react'
 
 // Types
@@ -33,7 +33,9 @@ export default class TaskTokenDropdown extends PureComponent<Props> {
     const {tokens, onTokenChange} = this.props
 
     if (tokens.length) {
-      return tokens.map(t => (
+      return orderBy(tokens, [
+        ({description}) => description.toLocaleLowerCase(),
+      ]).map(t => (
         <Dropdown.Item
           id={t.id}
           key={t.id}
