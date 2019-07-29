@@ -7,7 +7,7 @@ import memoizeOne from 'memoize-one'
 
 // Components
 import BucketCard, {PrettyBucket} from 'src/buckets/components/BucketCard'
-import {ResourceList} from 'src/clockface'
+import {ResourceList} from '@influxdata/clockface'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
