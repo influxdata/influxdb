@@ -73,11 +73,10 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
     const {
       variable,
       params: {orgID},
+      router,
     } = this.props
 
-    const url = `/orgs/${orgID}/variables/${variable.id}/edit`
-
-    window.location.assign(url)
+    router.push(`/orgs/${orgID}/variables/${variable.id}/edit`)
   }
 
   private get labels(): JSX.Element {
