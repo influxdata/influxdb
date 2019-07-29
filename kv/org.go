@@ -614,6 +614,12 @@ func (s *Service) FindResourceOrganizationID(ctx context.Context, rt influxdb.Re
 			return influxdb.InvalidID(), err
 		}
 		return r.OrganizationID, nil
+	case influxdb.TasksResourceType:
+		r, err := s.FindTaskByID(ctx, id)
+		if err != nil {
+			return influxdb.InvalidID(), err
+		}
+		return r.OrganizationID, nil
 	case influxdb.TelegrafsResourceType:
 		r, err := s.FindTelegrafConfigByID(ctx, id)
 		if err != nil {
