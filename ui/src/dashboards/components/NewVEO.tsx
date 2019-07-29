@@ -55,8 +55,10 @@ const NewViewVEO: FunctionComponent<Props> = ({
   }
 
   const handleSave = () => {
-    onSaveView(params.dashboardID)
-    handleClose()
+    try {
+      onSaveView(params.dashboardID)
+      handleClose()
+    } catch (e) {}
   }
 
   return (
