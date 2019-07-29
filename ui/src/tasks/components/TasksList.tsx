@@ -4,7 +4,7 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceList} from '@influxdata/clockface'
 import TaskCard from 'src/tasks/components/TaskCard'
 
 // Types
@@ -37,7 +37,7 @@ interface Props {
   onAddTaskLabels: typeof addTaskLabelsAsync
   onRunTask: typeof runTask
   onUpdate: (task: Task) => void
-  filterComponent?: () => JSX.Element
+  filterComponent?: JSX.Element
   onImportTask: () => void
   sortKey: string
   sortDirection: Sort
