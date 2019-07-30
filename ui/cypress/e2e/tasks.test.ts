@@ -128,9 +128,7 @@ from(bucket: "${name}")
   })
 
   it('fails to create a task without a valid script', () => {
-    createFirstTask('Task', ({}) => {
-      return '{}'
-    })
+    createFirstTask('Task', () => '{}')
 
     cy.contains('Save').click()
 
