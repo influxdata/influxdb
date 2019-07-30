@@ -160,7 +160,7 @@
   "dependencies": {
     "@influxdata/clockface": "0.0.19",
     "@influxdata/flux-parser": "^0.3.0",
-    "@influxdata/giraffe": "0.16.1",
+    "@influxdata/giraffe": "0.16.2",
     "@influxdata/influx": "0.5.5",
     "@influxdata/influxdb-templates": "0.5.0",
     "@influxdata/react-custom-scrollbars": "4.3.8",
