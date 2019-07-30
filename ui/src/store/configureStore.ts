@@ -32,7 +32,7 @@ import {membersReducer} from 'src/members/reducers'
 import {autoRefreshReducer} from 'src/shared/reducers/autoRefresh'
 import {limitsReducer, LimitsState} from 'src/cloud/reducers/limits'
 import checksReducer from 'src/alerting/reducers/checks'
-import notificationRulesReducer from 'src/alerting/reducers/notificationRules'
+import rulesReducer from 'src/alerting/reducers/notifications/rules'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -65,7 +65,7 @@ export const rootReducer = combineReducers<ReducerState>({
   members: membersReducer,
   cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
   checks: checksReducer,
-  notificationRules: notificationRulesReducer,
+  rules: rulesReducer,
   VERSION: () => '',
 })
 

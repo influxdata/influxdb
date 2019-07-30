@@ -5,7 +5,7 @@ import React, {FunctionComponent} from 'react'
 import {Page, Grid, GridRow, GridColumn} from '@influxdata/clockface'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import ChecksColumn from 'src/alerting/components/ChecksColumn'
-import NotificationRulesColumn from 'src/alerting/components/NotificationRulesColumn'
+import RulesColumn from 'src/alerting/components/notifications/RulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
@@ -28,7 +28,7 @@ const AlertingIndex: FunctionComponent = ({children}) => {
               </GridColumn>
               <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
                 <GetResources resource={ResourceTypes.NotificationRules}>
-                  <NotificationRulesColumn />
+                  <RulesColumn />
                 </GetResources>
               </GridColumn>
               <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>

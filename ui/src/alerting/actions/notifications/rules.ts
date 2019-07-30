@@ -25,28 +25,28 @@ export type Action =
 
 export const setAllNotificationRules = (
   status: RemoteDataState,
-  notificationRules?: NotificationRule[]
+  rules?: NotificationRule[]
 ) => ({
   type: 'SET_ALL_NOTIFICATION_RULES' as 'SET_ALL_NOTIFICATION_RULES',
-  payload: {status, notificationRules},
+  payload: {status, rules},
 })
 
-export const setNotificationRule = (notificationRule: NotificationRule) => ({
+export const setNotificationRule = (rule: NotificationRule) => ({
   type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
-  payload: {notificationRule},
+  payload: {rule},
 })
 
 export const setCurrentNotificationRule = (
   status: RemoteDataState,
-  notificationRule?: NotificationRule
+  rule?: NotificationRule
 ) => ({
   type: 'SET_CURRENT_NOTIFICATION_RULE' as 'SET_CURRENT_NOTIFICATION_RULE',
-  payload: {status, notificationRule},
+  payload: {status, rule},
 })
 
-export const removeNotificationRule = (notificationRuleID: string) => ({
+export const removeNotificationRule = (ruleID: string) => ({
   type: 'REMOVE_NOTIFICATION_RULE' as 'REMOVE_NOTIFICATION_RULE',
-  payload: {notificationRuleID},
+  payload: {ruleID},
 })
 
 export const getNotificationRules = () => async (
@@ -67,9 +67,7 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(
-      setAllNotificationRules(RemoteDataState.Done, resp.data.notificationRules)
-    )
+    dispatch(setAllNotificationRules(RemoteDataState.Done, resp.data.rules))
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))
@@ -77,13 +75,13 @@ export const getNotificationRules = () => async (
   }
 }
 
-export const getCurrentNotificationRule = (
-  notificationRuleID: string
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const getCurrentNotificationRule = (ruleID: string) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   try {
     dispatch(setCurrentNotificationRule(RemoteDataState.Loading))
 
-    const resp = await api.getNotificationRule({ruleID: notificationRuleID})
+    const resp = await api.getNotificationRule({ruleID})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -98,11 +96,11 @@ export const getCurrentNotificationRule = (
 }
 
 export const createNotificationRule = (
-  notificationRule: Partial<NotificationRule>
+  rule: Partial<NotificationRule>
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
   try {
     const resp = await api.postNotificationRule({
-      data: notificationRule as NotificationRule,
+      data: rule as NotificationRule,
     })
 
     if (resp.status !== 201) {
@@ -115,12 +113,12 @@ export const createNotificationRule = (
 }
 
 export const updateNotificationRule = (
-  notificationRule: Partial<NotificationRule>
+  rule: Partial<NotificationRule>
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
   try {
     const resp = await api.putNotificationRule({
-      ruleID: notificationRule.id,
-      data: notificationRule as NotificationRule,
+      ruleID: rule.id,
+      data: rule as NotificationRule,
     })
 
     if (resp.status !== 200) {
@@ -134,17 +132,17 @@ export const updateNotificationRule = (
   }
 }
 
-export const deleteNotificationRule = (notificationRuleID: string) => async (
+export const deleteNotificationRule = (ruleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    const resp = await api.deleteNotificationRule({ruleID: notificationRuleID})
+    const resp = await api.deleteNotificationRule({ruleID: ruleID})
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(removeNotificationRule(notificationRuleID))
+    dispatch(removeNotificationRule(ruleID))
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.deleteNotificationRuleFailed(e.message)))

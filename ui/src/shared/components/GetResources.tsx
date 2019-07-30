@@ -15,7 +15,7 @@ import {getAuthorizations} from 'src/authorizations/actions'
 import {getTemplates} from 'src/templates/actions'
 import {getMembers, getUsers} from 'src/members/actions'
 import {getChecks} from 'src/alerting/actions/checks'
-import {getNotificationRules} from 'src/alerting/actions/notificationRules'
+import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
 
 // Types
 import {AppState} from 'src/types'
@@ -30,7 +30,7 @@ import {VariablesState} from 'src/variables/reducers'
 import {TemplatesState} from 'src/templates/reducers'
 import {MembersState, UsersMap} from 'src/members/reducers'
 import {ChecksState} from 'src/alerting/reducers/checks'
-import {NotificationRulesState} from 'src/alerting/reducers/notificationRules'
+import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -53,7 +53,7 @@ interface StateProps {
   members: MembersState
   users: {status: RemoteDataState; item: UsersMap}
   checks: ChecksState
-  notificationRules: NotificationRulesState
+  rules: NotificationRulesState
 }
 
 interface DispatchProps {
@@ -91,7 +91,7 @@ export enum ResourceTypes {
   Members = 'members',
   Users = 'users',
   Checks = 'checks',
-  NotificationRules = 'notificationRules',
+  NotificationRules = 'rules',
 }
 
 @ErrorHandling
@@ -182,7 +182,7 @@ const mstp = ({
   templates,
   members,
   checks,
-  notificationRules,
+  rules,
 }: AppState): StateProps => {
   return {
     labels,
@@ -197,7 +197,7 @@ const mstp = ({
     members,
     users: members.users,
     checks,
-    notificationRules,
+    rules,
   }
 }
 

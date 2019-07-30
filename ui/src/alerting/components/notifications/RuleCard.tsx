@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
-import NotificationRuleCardContext from 'src/alerting/components/NotificationRuleCardContext'
+import NotificationRuleCardContext from 'src/alerting/components/notifications/RuleCardContext'
 
 // Constants
 import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
@@ -14,7 +14,7 @@ import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
 import {
   updateNotificationRule,
   deleteNotificationRule,
-} from 'src/alerting/actions/notificationRules'
+} from 'src/alerting/actions/notifications/rules'
 
 // Types
 import {NotificationRule} from 'src/types'
@@ -25,24 +25,24 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  notificationRule: NotificationRule
+  rule: NotificationRule
 }
 
 type Props = OwnProps & DispatchProps & WithRouterProps
 
-const NotificationRuleCard: FunctionComponent<Props> = ({
-  notificationRule,
+const RuleCard: FunctionComponent<Props> = ({
+  rule,
   updateNotificationRule,
   deleteNotificationRule,
   params: {orgID},
   router,
 }) => {
   const onUpdateName = (name: string) => {
-    updateNotificationRule({id: notificationRule.id, name})
+    updateNotificationRule({id: rule.id, name})
   }
 
   const onDelete = () => {
-    deleteNotificationRule(notificationRule.id)
+    deleteNotificationRule(rule.id)
   }
 
   const onExport = () => {}
@@ -50,41 +50,41 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
   const onClone = () => {}
 
   const onToggle = () => {
-    const status = notificationRule.status === 'active' ? 'inactive' : 'active'
+    const status = rule.status === 'active' ? 'inactive' : 'active'
 
-    updateNotificationRule({id: notificationRule.id, status})
+    updateNotificationRule({id: rule.id, status})
   }
 
   const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/notificationRules/${notificationRule.id}`)
+    router.push(`/orgs/${orgID}/rules/${rule.id}`)
   }
 
   return (
     <ResourceCard
-      key={`notificationRule-id--${notificationRule.id}`}
-      testID="notificationRule-card"
+      key={`rule-id--${rule.id}`}
+      testID="rule-card"
       name={
         <ResourceCard.EditableName
           onUpdate={onUpdateName}
           onClick={onRuleClick}
-          name={notificationRule.name}
+          name={rule.name}
           noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
-          testID="notificationRule-card--name"
-          buttonTestID="notificationRule-card--name-button"
-          inputTestID="notificationRule-card--input"
+          testID="rule-card--name"
+          buttonTestID="rule-card--name-button"
+          inputTestID="rule-card--input"
         />
       }
       toggle={
         <SlideToggle
-          active={notificationRule.status === 'active'}
+          active={rule.status === 'active'}
           size={ComponentSize.ExtraSmall}
           onChange={onToggle}
-          testID="notificationRule-card--slide-toggle"
+          testID="rule-card--slide-toggle"
         />
       }
       // description
       // labels
-      disabled={notificationRule.status === 'inactive'}
+      disabled={rule.status === 'inactive'}
       contextMenu={
         <NotificationRuleCardContext
           onDelete={onDelete}
@@ -92,7 +92,7 @@ const NotificationRuleCard: FunctionComponent<Props> = ({
           onClone={onClone}
         />
       }
-      metaData={[<>{notificationRule.updatedAt.toString()}</>]}
+      metaData={[<>{rule.updatedAt.toString()}</>]}
     />
   )
 }
@@ -105,4 +105,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, {}>(
   null,
   mdtp
-)(withRouter(NotificationRuleCard))
+)(withRouter(RuleCard))
