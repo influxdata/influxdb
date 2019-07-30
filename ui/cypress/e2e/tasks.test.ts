@@ -47,7 +47,10 @@ describe('Tasks', () => {
 
       cy.contains('Save').click()
 
-      cy.getByTestID('notification-error').should('contain', 'error calling function "to": missing required keyword argument "orgID"')
+      cy.getByTestID('notification-error').should(
+        'contain',
+        'error calling function "to": missing required keyword argument "orgID"'
+      )
     })
   })
 
