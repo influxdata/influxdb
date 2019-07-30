@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -12,6 +13,114 @@ import (
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxql"
 )
+
+func TestEngine_CancelContext(t *testing.T) {
+	e, err := NewEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Open(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+
+	var (
+		org    influxdb.ID = 0x6000
+		bucket influxdb.ID = 0x6100
+	)
+
+	e.MustWritePointsString(org, bucket, `
+cpuB,host=0B,os=linux value=1.1 101
+cpuB,host=AB,os=linux value=1.2 102
+cpuB,host=AB,os=linux value=1.3 104
+cpuB,host=CB,os=linux value=1.3 104
+cpuB,host=CB,os=linux value=1.3 105
+cpuB,host=DB,os=macOS value=1.3 106
+memB,host=DB,os=macOS value=1.3 101`)
+
+	// send some points to TSM data
+	e.MustWriteSnapshot()
+
+	e.MustWritePointsString(org, bucket, `
+cpuB,host=0B,os=linux value=1.1 201
+cpuB,host=AB,os=linux value=1.2 202
+cpuB,host=AB,os=linux value=1.3 204
+cpuB,host=BB,os=linux value=1.3 204
+cpuB,host=BB,os=linux value=1.3 205
+cpuB,host=EB,os=macOS value=1.3 206
+memB,host=EB,os=macOS value=1.3 201`)
+
+	t.Run("cancel tag values no predicate", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		key := "host"
+
+		iter, err := e.TagValues(ctx, org, bucket, key, 0, math.MaxInt64, nil)
+		if err == nil {
+			t.Fatal("TagValues: expected error but got nothing")
+		} else if err.Error() != "context canceled" {
+			t.Fatalf("TagValues: error %v", err)
+		}
+
+		if got := iter.Stats(); !cmp.Equal(got, cursors.CursorStats{}) {
+			t.Errorf("unexpected Stats: -got/+exp\n%v", cmp.Diff(got, cursors.CursorStats{}))
+		}
+	})
+
+	t.Run("cancel tag values with predicate", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		key := "host"
+		predicate := influxql.MustParseExpr(`os = 'linux'`)
+
+		iter, err := e.TagValues(ctx, org, bucket, key, 0, math.MaxInt64, predicate)
+		if err == nil {
+			t.Fatal("TagValues: expected error but got nothing")
+		} else if err.Error() != "context canceled" {
+			t.Fatalf("TagValues: error %v", err)
+		}
+
+		if got := iter.Stats(); !cmp.Equal(got, cursors.CursorStats{}) {
+			t.Errorf("unexpected Stats: -got/+exp\n%v", cmp.Diff(got, cursors.CursorStats{}))
+		}
+	})
+
+	t.Run("cancel tag keys no predicate", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		iter, err := e.TagKeys(ctx, org, bucket, 0, math.MaxInt64, nil)
+		if err == nil {
+			t.Fatal("TagKeys: expected error but got nothing")
+		} else if err.Error() != "context canceled" {
+			t.Fatalf("TagKeys: error %v", err)
+		}
+
+		if got := iter.Stats(); !cmp.Equal(got, cursors.CursorStats{}) {
+			t.Errorf("unexpected Stats: -got/+exp\n%v", cmp.Diff(got, cursors.CursorStats{}))
+		}
+	})
+
+	t.Run("cancel tag keys with predicate", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		predicate := influxql.MustParseExpr(`os = 'linux'`)
+
+		iter, err := e.TagKeys(ctx, org, bucket, 0, math.MaxInt64, predicate)
+		if err == nil {
+			t.Fatal("TagKeys: expected error but got nothing")
+		} else if err.Error() != "context canceled" {
+			t.Fatalf("TagKeys: error %v", err)
+		}
+
+		if got := iter.Stats(); !cmp.Equal(got, cursors.CursorStats{}) {
+			t.Errorf("unexpected Stats: -got/+exp\n%v", cmp.Diff(got, cursors.CursorStats{}))
+		}
+	})
+}
 
 func TestEngine_TagValues(t *testing.T) {
 	e, err := NewEngine()
