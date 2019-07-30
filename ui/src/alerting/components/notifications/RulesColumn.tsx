@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 // Types
 import {NotificationRule, AppState} from 'src/types'
 import NotificationRuleCards from 'src/alerting/components/notifications/RuleCards'
-import AlertsColumnHeader from 'src/alerting/components/AlertColumnHeader'
+import AlertsColumnHeader from 'src/alerting/components/AlertsColumnHeader'
 
 interface StateProps {
   rules: NotificationRule[]
