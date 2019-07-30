@@ -81,6 +81,7 @@ import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
 import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
 import NewCheckEO from 'src/alerting/components/NewCheckEO'
 import EditCheckEO from 'src/alerting/components/EditCheckEO'
+import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay'
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -321,6 +322,14 @@ class Root extends PureComponent {
                               <Route
                                 path="checks/:checkID/edit"
                                 component={EditCheckEO}
+                              />
+                              <Route
+                                path="rules/new"
+                                component={NewRuleOverlay}
+                              />
+                              <Route
+                                path="rules/:ruleID/edit"
+                                component={null}
                               />
                             </Route>
                             <Route

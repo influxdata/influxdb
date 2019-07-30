@@ -19,34 +19,34 @@ import {NotificationRule, GetState} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllNotificationRules>
-  | ReturnType<typeof setNotificationRule>
-  | ReturnType<typeof setCurrentNotificationRule>
-  | ReturnType<typeof removeNotificationRule>
+  | ReturnType<typeof setRule>
+  | ReturnType<typeof setCurrentRule>
+  | ReturnType<typeof removeRule>
 
 export const setAllNotificationRules = (
   status: RemoteDataState,
-  notificationRules?: NotificationRule[]
+  rules?: NotificationRule[]
 ) => ({
   type: 'SET_ALL_NOTIFICATION_RULES' as 'SET_ALL_NOTIFICATION_RULES',
-  payload: {status, notificationRules},
+  payload: {status, rules},
 })
 
-export const setNotificationRule = (notificationRule: NotificationRule) => ({
+export const setRule = (rule: NotificationRule) => ({
   type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
-  payload: {notificationRule},
+  payload: {rule},
 })
 
-export const setCurrentNotificationRule = (
+export const setCurrentRule = (
   status: RemoteDataState,
-  notificationRule?: NotificationRule
+  rule?: NotificationRule
 ) => ({
   type: 'SET_CURRENT_NOTIFICATION_RULE' as 'SET_CURRENT_NOTIFICATION_RULE',
-  payload: {status, notificationRule},
+  payload: {status, rule},
 })
 
-export const removeNotificationRule = (notificationRuleID: string) => ({
+export const removeRule = (ruleID: string) => ({
   type: 'REMOVE_NOTIFICATION_RULE' as 'REMOVE_NOTIFICATION_RULE',
-  payload: {notificationRuleID},
+  payload: {ruleID},
 })
 
 export const getNotificationRules = () => async (
@@ -67,9 +67,7 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(
-      setAllNotificationRules(RemoteDataState.Done, resp.data.notificationRules)
-    )
+    dispatch(setAllNotificationRules(RemoteDataState.Done, resp.data.rules))
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))
@@ -77,32 +75,32 @@ export const getNotificationRules = () => async (
   }
 }
 
-export const getCurrentNotificationRule = (
-  notificationRuleID: string
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const getCurrentRule = (ruleID: string) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   try {
-    dispatch(setCurrentNotificationRule(RemoteDataState.Loading))
+    dispatch(setCurrentRule(RemoteDataState.Loading))
 
-    const resp = await api.getNotificationRule({ruleID: notificationRuleID})
+    const resp = await api.getNotificationRule({ruleID})
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCurrentNotificationRule(RemoteDataState.Done, resp.data))
+    dispatch(setCurrentRule(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(setCurrentNotificationRule(RemoteDataState.Error))
+    dispatch(setCurrentRule(RemoteDataState.Error))
     dispatch(notify(copy.getNotificationRuleFailed(e.message)))
   }
 }
 
-export const createNotificationRule = (
-  notificationRule: Partial<NotificationRule>
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const createRule = (rule: Partial<NotificationRule>) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   try {
     const resp = await api.postNotificationRule({
-      data: notificationRule as NotificationRule,
+      data: rule as NotificationRule,
     })
 
     if (resp.status !== 201) {
@@ -110,43 +108,43 @@ export const createNotificationRule = (
     }
   } catch (e) {
     console.error(e)
-    dispatch(notify(copy.createNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.createRuleFailed(e.message)))
   }
 }
 
-export const updateNotificationRule = (
-  notificationRule: Partial<NotificationRule>
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const updateRule = (rule: Partial<NotificationRule>) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   try {
     const resp = await api.putNotificationRule({
-      ruleID: notificationRule.id,
-      data: notificationRule as NotificationRule,
+      ruleID: rule.id,
+      data: rule as NotificationRule,
     })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(setNotificationRule(resp.data))
+    dispatch(setRule(resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(notify(copy.updateNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.updateRuleFailed(e.message)))
   }
 }
 
-export const deleteNotificationRule = (notificationRuleID: string) => async (
+export const deleteRule = (ruleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    const resp = await api.deleteNotificationRule({ruleID: notificationRuleID})
+    const resp = await api.deleteNotificationRule({ruleID: ruleID})
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
 
-    dispatch(removeNotificationRule(notificationRuleID))
+    dispatch(removeRule(ruleID))
   } catch (e) {
     console.error(e)
-    dispatch(notify(copy.deleteNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.deleteRuleFailed(e.message)))
   }
 }

@@ -1377,7 +1377,7 @@ export interface Checks {
 }
 
 export interface NotificationRules {
-  notificationRules?: NotificationRule[]
+  rules?: NotificationRule[]
   links?: Links
 }
 

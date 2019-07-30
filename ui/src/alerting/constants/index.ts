@@ -69,7 +69,7 @@ export const check2: Check = {
 
 export const checks: Array<Check> = [check1, check2]
 
-export const notificationRule: NotificationRule = {
+export const rule: NotificationRule = {
   id: '3',
   notifyEndpointID: '2',
   orgID: 'lala',
