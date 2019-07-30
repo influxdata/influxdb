@@ -53,24 +53,25 @@ export const updateCurrentCheck = (checkUpdate: Partial<Check>) => ({
 })
 
 export const getChecks = () => async (
-  dispatch: Dispatch<Action | NotificationAction>,
-  getState: GetState
+  dispatch: Dispatch<Action | NotificationAction>
+  // getState: GetState
 ) => {
   try {
     dispatch(setAllChecks(RemoteDataState.Loading))
-    const {
-      orgs: {
-        org: {id: orgID},
-      },
-    } = getState()
+    // TODO: use this when its actually implemented
+    // const {
+    //   orgs: {
+    //     org: {id: orgID},
+    //   },
+    // } = getState()
 
-    const resp = await api.getChecks({query: {orgID}})
+    // const resp = await api.getChecks({query: {orgID}})
 
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
+    // if (resp.status !== 200) {
+    //   throw new Error(resp.data.message)
+    // }
 
-    dispatch(setAllChecks(RemoteDataState.Done, resp.data.checks))
+    dispatch(setAllChecks(RemoteDataState.Done, []))
   } catch (e) {
     console.error(e)
     dispatch(setAllChecks(RemoteDataState.Error))

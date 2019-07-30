@@ -29,6 +29,7 @@ describe('rulesReducer', () => {
       expect(actual).toEqual(expected)
     })
   })
+
   describe('setRule', () => {
     it('adds rule to list if it is new', () => {
       const initialState = defaultNotificationRulesState
@@ -42,6 +43,7 @@ describe('rulesReducer', () => {
 
       expect(actual).toEqual(expected)
     })
+
     it('updates rule in list if it exists', () => {
       let initialState = defaultNotificationRulesState
       initialState.list = [rule]
@@ -62,6 +64,7 @@ describe('rulesReducer', () => {
       expect(actual).toEqual(expected)
     })
   })
+
   describe('removeRule', () => {
     it('removes rule from list', () => {
       const initialState = defaultNotificationRulesState
@@ -76,6 +79,7 @@ describe('rulesReducer', () => {
       expect(actual).toEqual(expected)
     })
   })
+
   describe('setCurrentRule', () => {
     it('sets current rule and status.', () => {
       const initialState = defaultNotificationRulesState

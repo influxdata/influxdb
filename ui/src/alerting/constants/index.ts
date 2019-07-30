@@ -69,6 +69,19 @@ export const check2: Check = {
 
 export const checks: Array<Check> = [check1, check2]
 
+export const newRule: NotificationRule = {
+  id: '',
+  type: 'slack',
+  every: '',
+  messageTemplate: '',
+  orgID: '',
+  name: '',
+  status: 'active',
+  tagRules: [],
+  statusRules: [],
+  description: 'description',
+}
+
 export const rule: NotificationRule = {
   id: '3',
   notifyEndpointID: '2',
