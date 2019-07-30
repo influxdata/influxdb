@@ -16,6 +16,7 @@ type NotificationRuleStore struct {
 	FindNotificationRulesF    func(ctx context.Context, filter influxdb.NotificationRuleFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error)
 	CreateNotificationRuleF   func(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error
 	UpdateNotificationRuleF   func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error)
+	PatchNotificationRuleF    func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error)
 	DeleteNotificationRuleF   func(ctx context.Context, id influxdb.ID) error
 }
 
@@ -39,6 +40,12 @@ func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr i
 // Returns the new notification rule after update.
 func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
 	return s.UpdateNotificationRuleF(ctx, id, nr, userID)
+}
+
+// PatchNotificationRule updates a single  notification rule with changeset.
+// Returns the new notification rule after update.
+func (s *NotificationRuleStore) PatchNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+	return s.PatchNotificationRuleF(ctx, id, upd)
 }
 
 // DeleteNotificationRule removes a notification rule by ID.

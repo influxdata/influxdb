@@ -4,7 +4,7 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {ResourceList} from 'src/clockface'
+import {ResourceList} from '@influxdata/clockface'
 import CollectorRow from 'src/telegrafs/components/CollectorCard'
 
 // Types

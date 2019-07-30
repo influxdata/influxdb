@@ -101,13 +101,13 @@ class DashboardIndex extends PureComponent<Props, State> {
                       limitStatus={limitStatus}
                     />
                     <DashboardsIndexContents
-                      filterComponent={() => (
+                      filterComponent={
                         <SearchWidget
                           placeholderText="Filter dashboards..."
                           onSearch={this.handleFilterDashboards}
                           searchTerm={searchTerm}
                         />
-                      )}
+                      }
                       onDeleteDashboard={handleDeleteDashboard}
                       onCreateDashboard={createDashboard}
                       onCloneDashboard={cloneDashboard}

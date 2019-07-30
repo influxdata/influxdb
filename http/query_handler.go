@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/complete"
@@ -88,7 +89,9 @@ func NewFluxHandler(b *FluxBackend) *FluxHandler {
 		EventRecorder:       b.QueryEventRecorder,
 	}
 
-	h.HandlerFunc("POST", fluxPath, h.handleQuery)
+	// query reponses can optionally be gzip encoded
+	qh := gziphandler.GzipHandler(http.HandlerFunc(h.handleQuery))
+	h.Handler("POST", fluxPath, qh)
 	h.HandlerFunc("POST", "/api/v2/query/ast", h.postFluxAST)
 	h.HandlerFunc("POST", "/api/v2/query/analyze", h.postQueryAnalyze)
 	h.HandlerFunc("GET", "/api/v2/query/suggestions", h.getFluxSuggestions)

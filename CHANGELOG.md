@@ -1,13 +1,15 @@
 ## v2.0.0-alpha.17 [unreleased]
 
 ### Features
+1. [14495](https://github.com/influxdata/influxdb/pull/14495): optional gzip compression of the query CSV response.
 
 ### UI Improvements
 
 ### Bug Fixes
 
 1. [14480](https://github.com/influxdata/influxdb/pull/14480): Fix authentication when updating a task with invalid org or bucket.
-2. [14492](https://github.com/influxdata/influxdb/pull/14492): Fix to surface errors properly as task notifications on create.
+1. [14497](https://github.com/influxdata/influxdb/pull/14497): Update the documentation link for Telegraf.
+1. [14492](https://github.com/influxdata/influxdb/pull/14492): Fix to surface errors properly as task notifications on create.
 
 ## v2.0.0-alpha.16 [2019-07-25]
 

@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {SlideToggle, ComponentSize} from '@influxdata/clockface'
-import {ResourceList, Context} from 'src/clockface'
+import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
+import {Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
@@ -52,34 +52,34 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     const {task} = this.props
 
     return (
-      <ResourceList.Card
+      <ResourceCard
         testID="task-card"
         disabled={!this.isTaskActive}
-        labels={() => this.labels}
-        contextMenu={() => this.contextMenu}
-        name={() => (
-          <ResourceList.EditableName
+        labels={this.labels}
+        contextMenu={this.contextMenu}
+        name={
+          <ResourceCard.EditableName
             onClick={this.handleNameClick}
             onUpdate={this.handleRenameTask}
             name={task.name}
             noNameString={DEFAULT_TASK_NAME}
-            parentTestID="task-card--name"
+            testID="task-card--name"
             buttonTestID="task-card--name-button"
             inputTestID="task-card--input"
           />
-        )}
-        metaData={() => [
+        }
+        metaData={[
           <>Last completed at {task.latestCompleted}</>,
           <>{`Scheduled to run ${this.schedule}`}</>,
         ]}
-        toggle={() => (
+        toggle={
           <SlideToggle
             active={this.isTaskActive}
             size={ComponentSize.ExtraSmall}
             onChange={this.changeToggle}
             testID="task-card--slide-toggle"
           />
-        )}
+        }
       />
     )
   }

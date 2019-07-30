@@ -125,6 +125,20 @@ func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id i
 	return s.s.UpdateNotificationRule(ctx, id, upd, userID)
 }
 
+// PatchNotificationRule checks to see if the authorizer on context has write access to the notification rule provided.
+func (s *NotificationRuleStore) PatchNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+	nr, err := s.FindNotificationRuleByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := authorizeWriteNotificationRule(ctx, nr.GetOrgID(), id); err != nil {
+		return nil, err
+	}
+
+	return s.s.PatchNotificationRule(ctx, id, upd)
+}
+
 // DeleteNotificationRule checks to see if the authorizer on context has write access to the notification rule provided.
 func (s *NotificationRuleStore) DeleteNotificationRule(ctx context.Context, id influxdb.ID) error {
 	nr, err := s.FindNotificationRuleByID(ctx, id)

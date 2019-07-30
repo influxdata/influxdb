@@ -154,7 +154,7 @@ class TasksPage extends PureComponent<Props, State> {
                           onRemoveTaskLabels={onRemoveTaskLabels}
                           onRunTask={onRunTask}
                           onFilterChange={setSearchTerm}
-                          filterComponent={() => this.search}
+                          filterComponent={this.search}
                           onUpdate={updateTaskName}
                           onImportTask={this.summonImportOverlay}
                           onImportFromTemplate={

@@ -3074,6 +3074,16 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: header
+          name: Accept-Encoding
+          description: The Accept-Encoding request HTTP header advertises which content encoding, usually a compression algorithm, the client is able to understand.
+          schema:
+            type: string
+            description: specifies that the query response in the body should be encoded with gzip or not encoded with identity.
+            default: identity
+            enum:
+              - gzip
+              - identity
+        - in: header
           name: Content-Type
           schema:
             type: string
@@ -3102,6 +3112,16 @@ paths:
       responses:
           '200':
             description: query results
+            headers:
+              Content-Encoding:
+                description: The Content-Encoding entity header is used to compress the media-type.  When present, its value indicates which encodings were applied to the entity-body
+                schema:
+                    type: string
+                    description: specifies that the response in the body is encoded with gzip or not encoded with identity.
+                    default: identity
+                    enum:
+                    - gzip
+                    - identity
             content:
               text/csv:
                 schema:
@@ -5323,6 +5343,45 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/NotificationRule"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of notification rule
+      responses:
+        '200':
+          description: An updated notification rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationRule"
+        '404':
+          description: The notification rule was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    patch:
+      operationId: PatchNotificationRulesID
+      tags:
+        - NotificationRules
+      summary: Update a notification rule
+      requestBody:
+        description: notification rule update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRuleUpdate"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -8593,12 +8652,7 @@ components:
           description: The name of the organization that owns this Task.
           type: string
         status:
-          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
+          $ref: "#/components/schemas/TaskStatusType"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -8610,12 +8664,7 @@ components:
       type: object
       properties:
         status:
-          description: Starting state of the task. 'inactive' tasks are not run until they are updated to 'active'
-          default: active
-          type: string
-          enum:
-            - active
-            - inactive
+          $ref: "#/components/schemas/TaskStatusType"
         flux:
           description: The Flux script to run for this task.
           type: string
@@ -8788,6 +8837,18 @@ components:
       description: the state to record if check matches a criteria
       type: string
       enum: ["UNKNOWN", "OK", "INFO", "CRIT", "WARN"]
+    NotificationRuleUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
     NotificationRule:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationRule"

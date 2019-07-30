@@ -4,7 +4,7 @@ import _ from 'lodash'
 import moment from 'moment'
 
 // Components
-import {IndexList} from 'src/clockface'
+import {IndexList} from '@influxdata/clockface'
 
 // Types
 import {LogEvent} from '@influxdata/influx'

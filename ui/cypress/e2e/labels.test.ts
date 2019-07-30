@@ -110,12 +110,6 @@ describe('labels', () => {
     cy.getByTestID('input-error').should($ie => {
       expect($ie).to.have.class('alert-triangle')
     })
-    cy.getByTestID('input-error')
-      .parent()
-      .parent()
-      .children('div.cf-color-picker--selected')
-      .invoke('attr', 'style')
-      .should('equal', undefined)
 
     //Type nonsense string - color input
     cy.getByTestID('color-picker--input').type('zzzzzz')
@@ -126,12 +120,6 @@ describe('labels', () => {
     cy.getByTestID('input-error').should($ie => {
       expect($ie).to.have.class('alert-triangle')
     })
-    cy.getByTestID('input-error')
-      .parent()
-      .parent()
-      .children('div.cf-color-picker--selected')
-      .invoke('attr', 'style')
-      .should('equal', undefined)
 
     //feel lucky
     cy.getByTestID('color-picker--randomize').click()
@@ -171,7 +159,8 @@ describe('labels', () => {
       .contains(newLabelDescription)
       .should('be.visible')
     cy.getByTestID('label-card')
-      .children('div.resource-list--name-meta')
+      .children('div.resource-card--contents')
+      .children('div.resource-card--row')
       .children('div.cf-label')
       .invoke('attr', 'style')
       .should('contain', hex2BgColor(newLabelColor))
@@ -208,7 +197,8 @@ describe('labels', () => {
       .should('be.visible')
 
     cy.getByTestID('label-card')
-      .children('div.resource-list--name-meta')
+      .children('div.resource-card--contents')
+      .children('div.resource-card--row')
       .children('div.cf-label')
       .invoke('attr', 'style')
       .should('contain', hex2BgColor(oldLabelColor))
@@ -252,7 +242,8 @@ describe('labels', () => {
       .contains(newLabelDescription)
       .should('be.visible')
     cy.getByTestID('label-card')
-      .children('div.resource-list--name-meta')
+      .children('div.resource-card--contents')
+      .children('div.resource-card--row')
       .children('div.cf-label')
       .invoke('attr', 'style')
       .should('contain', hex2BgColor(newLabelColor))

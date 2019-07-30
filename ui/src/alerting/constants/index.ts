@@ -9,10 +9,18 @@ import {
   NotificationRuleType,
   CheckStatusLevel,
   ThresholdType,
+  ThresholdCheck,
 } from 'src/types'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
+
+export const DEFAULT_CHECK: Partial<ThresholdCheck> = {
+  name: DEFAULT_CHECK_NAME,
+  type: CheckType.Threshold,
+  status: CheckBase.StatusEnum.Active,
+  thresholds: [],
+}
 
 export const query: DashboardQuery = {
   text: 'this is query',

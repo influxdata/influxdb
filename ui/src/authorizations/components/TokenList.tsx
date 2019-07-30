@@ -4,8 +4,7 @@ import _ from 'lodash'
 import memoizeOne from 'memoize-one'
 
 // Components
-import {EmptyState, Overlay} from '@influxdata/clockface'
-import {IndexList} from 'src/clockface'
+import {EmptyState, Overlay, IndexList} from '@influxdata/clockface'
 import TokenRow from 'src/authorizations/components/TokenRow'
 import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
@@ -59,12 +58,14 @@ export default class TokenList extends PureComponent<Props, State> {
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
               columnName="Description"
               onClick={onClickColumn}
+              width="50%"
             />
             <IndexList.HeaderCell
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
               columnName="Status"
               onClick={onClickColumn}
+              width="50%"
             />
           </IndexList.Header>
           <IndexList.Body emptyState={this.emptyState} columnCount={2}>

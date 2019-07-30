@@ -2,8 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {ComponentSize, Label} from '@influxdata/clockface'
-import {ResourceList} from 'src/clockface'
+import {ComponentSize, Label, ResourceCard} from '@influxdata/clockface'
 
 // Types
 import {ILabel} from '@influxdata/influx'
@@ -25,12 +24,10 @@ export default class LabelCard extends PureComponent<Props> {
 
     return (
       <>
-        <ResourceList.Card
+        <ResourceCard
           testID="label-card"
-          contextMenu={() => (
-            <LabelContextMenu label={label} onDelete={onDelete} />
-          )}
-          name={() => (
+          contextMenu={<LabelContextMenu label={label} onDelete={onDelete} />}
+          name={
             <Label
               id={label.id}
               name={label.name}
@@ -39,8 +36,8 @@ export default class LabelCard extends PureComponent<Props> {
               size={ComponentSize.Small}
               onClick={this.handleClick}
             />
-          )}
-          metaData={() => [<>Description: {label.properties.description}</>]}
+          }
+          metaData={[<>Description: {label.properties.description}</>]}
         />
       </>
     )
