@@ -2,10 +2,10 @@
 import {get} from 'lodash'
 
 // APIs
-import {getAST} from 'src/shared/apis/ast'
+import {postQueryAst} from 'src/client'
 
 // Types
-import {ImportDeclaration, Statement} from 'src/types/ast'
+import {Package, ImportDeclaration, Statement} from 'src/types/ast'
 
 export const insertPreambleInScript = async (
   script: string,
@@ -15,10 +15,13 @@ export const insertPreambleInScript = async (
     return `${preamble}\n\n${script}`
   }
 
-  // TODO: replace this with `import {parse} from '@influxdata/flux-parser'`
-  // when the flux team adds location.source data to the rust implementation
-  // https://github.com/influxdata/influxdb/issues/14467
-  const ast = await getAST(script)
+  const resp = await postQueryAst({data: {query: script}})
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  const ast = resp.data.ast as Package
 
   const imports: ImportDeclaration[] = get(ast, 'files.0.imports', [])
   const body: Statement[] = get(ast, 'files.0.body', [])
