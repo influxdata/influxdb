@@ -14,9 +14,7 @@ interface StateProps {
 type Props = StateProps
 
 const NotificationRulesColumn: FunctionComponent<Props> = ({rules}) => {
-  const handleClick = () => {
-    console.log('creating rules: ')
-  }
+  const handleClick = () => {}
 
   return (
     <>
