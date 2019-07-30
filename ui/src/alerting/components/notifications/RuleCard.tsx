@@ -11,17 +11,14 @@ import NotificationRuleCardContext from 'src/alerting/components/notifications/R
 import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
 
 // Actions
-import {
-  updateNotificationRule,
-  deleteNotificationRule,
-} from 'src/alerting/actions/notifications/rules'
+import {updateRule, deleteRule} from 'src/alerting/actions/notifications/rules'
 
 // Types
 import {NotificationRule} from 'src/types'
 
 interface DispatchProps {
-  updateNotificationRule: typeof updateNotificationRule
-  deleteNotificationRule: typeof deleteNotificationRule
+  updateRule: typeof updateRule
+  deleteNotificationRule: typeof deleteRule
 }
 
 interface OwnProps {
@@ -32,13 +29,13 @@ type Props = OwnProps & DispatchProps & WithRouterProps
 
 const RuleCard: FunctionComponent<Props> = ({
   rule,
-  updateNotificationRule,
+  updateRule,
   deleteNotificationRule,
   params: {orgID},
   router,
 }) => {
   const onUpdateName = (name: string) => {
-    updateNotificationRule({id: rule.id, name})
+    updateRule({id: rule.id, name})
   }
 
   const onDelete = () => {
@@ -52,7 +49,7 @@ const RuleCard: FunctionComponent<Props> = ({
   const onToggle = () => {
     const status = rule.status === 'active' ? 'inactive' : 'active'
 
-    updateNotificationRule({id: rule.id, status})
+    updateRule({id: rule.id, status})
   }
 
   const onRuleClick = () => {
@@ -98,8 +95,8 @@ const RuleCard: FunctionComponent<Props> = ({
 }
 
 const mdtp: DispatchProps = {
-  updateNotificationRule: updateNotificationRule,
-  deleteNotificationRule: deleteNotificationRule,
+  updateRule: updateRule,
+  deleteNotificationRule: deleteRule,
 }
 
 export default connect<{}, DispatchProps, {}>(

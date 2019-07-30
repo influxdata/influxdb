@@ -19,9 +19,9 @@ import {NotificationRule, GetState} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllNotificationRules>
-  | ReturnType<typeof setNotificationRule>
-  | ReturnType<typeof setCurrentNotificationRule>
-  | ReturnType<typeof removeNotificationRule>
+  | ReturnType<typeof setRule>
+  | ReturnType<typeof setCurrentRule>
+  | ReturnType<typeof removeRule>
 
 export const setAllNotificationRules = (
   status: RemoteDataState,
@@ -31,12 +31,12 @@ export const setAllNotificationRules = (
   payload: {status, rules},
 })
 
-export const setNotificationRule = (rule: NotificationRule) => ({
+export const setRule = (rule: NotificationRule) => ({
   type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
   payload: {rule},
 })
 
-export const setCurrentNotificationRule = (
+export const setCurrentRule = (
   status: RemoteDataState,
   rule?: NotificationRule
 ) => ({
@@ -44,7 +44,7 @@ export const setCurrentNotificationRule = (
   payload: {status, rule},
 })
 
-export const removeNotificationRule = (ruleID: string) => ({
+export const removeRule = (ruleID: string) => ({
   type: 'REMOVE_NOTIFICATION_RULE' as 'REMOVE_NOTIFICATION_RULE',
   payload: {ruleID},
 })
@@ -75,11 +75,11 @@ export const getNotificationRules = () => async (
   }
 }
 
-export const getCurrentNotificationRule = (ruleID: string) => async (
+export const getCurrentRule = (ruleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    dispatch(setCurrentNotificationRule(RemoteDataState.Loading))
+    dispatch(setCurrentRule(RemoteDataState.Loading))
 
     const resp = await api.getNotificationRule({ruleID})
 
@@ -87,17 +87,17 @@ export const getCurrentNotificationRule = (ruleID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCurrentNotificationRule(RemoteDataState.Done, resp.data))
+    dispatch(setCurrentRule(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(setCurrentNotificationRule(RemoteDataState.Error))
+    dispatch(setCurrentRule(RemoteDataState.Error))
     dispatch(notify(copy.getNotificationRuleFailed(e.message)))
   }
 }
 
-export const createNotificationRule = (
-  rule: Partial<NotificationRule>
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const createRule = (rule: Partial<NotificationRule>) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   try {
     const resp = await api.postNotificationRule({
       data: rule as NotificationRule,
@@ -108,13 +108,13 @@ export const createNotificationRule = (
     }
   } catch (e) {
     console.error(e)
-    dispatch(notify(copy.createNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.createRuleFailed(e.message)))
   }
 }
 
-export const updateNotificationRule = (
-  rule: Partial<NotificationRule>
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const updateRule = (rule: Partial<NotificationRule>) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   try {
     const resp = await api.putNotificationRule({
       ruleID: rule.id,
@@ -125,14 +125,14 @@ export const updateNotificationRule = (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setNotificationRule(resp.data))
+    dispatch(setRule(resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(notify(copy.updateNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.updateRuleFailed(e.message)))
   }
 }
 
-export const deleteNotificationRule = (ruleID: string) => async (
+export const deleteRule = (ruleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
@@ -142,9 +142,9 @@ export const deleteNotificationRule = (ruleID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(removeNotificationRule(ruleID))
+    dispatch(removeRule(ruleID))
   } catch (e) {
     console.error(e)
-    dispatch(notify(copy.deleteNotificationRuleFailed(e.message)))
+    dispatch(notify(copy.deleteRuleFailed(e.message)))
   }
 }
