@@ -58,6 +58,10 @@ type ServiceConfig struct {
 // Initialize creates Buckets needed.
 func (s *Service) Initialize(ctx context.Context) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
+		if err := s.initializeID(ctx, tx); err != nil {
+			return err
+		}
+
 		if err := s.initializeAuths(ctx, tx); err != nil {
 			return err
 		}
