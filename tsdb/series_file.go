@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,6 +37,8 @@ type SeriesFile struct {
 	path       string
 	partitions []*SeriesPartition
 
+	maxSnapshotConcurrency int
+
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
 	Logger *zap.Logger
@@ -42,10 +46,27 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
-	return &SeriesFile{
-		path:   path,
-		Logger: zap.NewNop(),
+	maxSnapshotConcurrency := runtime.GOMAXPROCS(0)
+	if maxSnapshotConcurrency < 1 {
+		maxSnapshotConcurrency = 1
 	}
+
+	return &SeriesFile{
+		path:                   path,
+		maxSnapshotConcurrency: maxSnapshotConcurrency,
+		Logger:                 zap.NewNop(),
+	}
+}
+
+func (f *SeriesFile) WithMaxCompactionConcurrency(maxCompactionConcurrency int) {
+	if maxCompactionConcurrency < 1 {
+		maxCompactionConcurrency = runtime.GOMAXPROCS(0)
+		if maxCompactionConcurrency < 1 {
+			maxCompactionConcurrency = 1
+		}
+	}
+
+	f.maxSnapshotConcurrency = maxCompactionConcurrency
 }
 
 // Open memory maps the data file at the file's path.
@@ -59,10 +80,13 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
+	// Limit concurrent series file compactions
+	compactionLimiter := limiter.NewFixed(f.maxSnapshotConcurrency)
+
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
-		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
+		p := NewSeriesPartition(i, f.SeriesPartitionPath(i), compactionLimiter)
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {
 			f.Logger.Error("Unable to open series file",

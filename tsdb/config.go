@@ -69,6 +69,11 @@ const (
 
 	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
 	DefaultSeriesIDSetCacheSize = 100
+
+	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
+	// partition snapshot compactions that can run at one time.
+	// A value of 0 results in runtime.GOMAXPROCS(0).
+	DefaultSeriesFileMaxConcurrentSnapshotCompactions = 0
 )
 
 // Config holds the configuration for the tsbd package.
@@ -128,6 +133,13 @@ type Config struct {
 	// Setting series-id-set-cache-size to 0 disables the cache.
 	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
 
+	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
+	// that can be running at one time across all series partitions in a database. Snapshots scheduled
+	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
+	// compactions are affected by this limit. A value of 0 limits snapshot compactions to the lesser of
+	// 8 (series file partition quantity) and runtime.GOMAXPROCS(0).
+	SeriesFileMaxConcurrentSnapshotCompactions int `toml:"series-file-max-concurrent-snapshot-compactions"`
+
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 
 	// TSMWillNeed controls whether we hint to the kernel that we intend to
@@ -159,6 +171,8 @@ func NewConfig() Config {
 		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
 		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
 
+		SeriesFileMaxConcurrentSnapshotCompactions: DefaultSeriesFileMaxConcurrentSnapshotCompactions,
+
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
 	}
@@ -178,6 +192,10 @@ func (c *Config) Validate() error {
 
 	if c.SeriesIDSetCacheSize < 0 {
 		return errors.New("series-id-set-cache-size must be non-negative")
+	}
+
+	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
+		return errors.New("series-file-max-concurrent-compactions must be non-negative")
 	}
 
 	valid := false
@@ -208,17 +226,18 @@ func (c *Config) Validate() error {
 // Diagnostics returns a diagnostics representation of a subset of the Config.
 func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
-		"dir":                                c.Dir,
-		"wal-dir":                            c.WALDir,
-		"wal-fsync-delay":                    c.WALFsyncDelay,
-		"cache-max-memory-size":              c.CacheMaxMemorySize,
-		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
-		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
-		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
-		"max-series-per-database":            c.MaxSeriesPerDatabase,
-		"max-values-per-tag":                 c.MaxValuesPerTag,
-		"max-concurrent-compactions":         c.MaxConcurrentCompactions,
-		"max-index-log-file-size":            c.MaxIndexLogFileSize,
-		"series-id-set-cache-size":           c.SeriesIDSetCacheSize,
+		"dir":                                    c.Dir,
+		"wal-dir":                                c.WALDir,
+		"wal-fsync-delay":                        c.WALFsyncDelay,
+		"cache-max-memory-size":                  c.CacheMaxMemorySize,
+		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
+		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
+		"compact-full-write-cold-duration":       c.CompactFullWriteColdDuration,
+		"max-series-per-database":                c.MaxSeriesPerDatabase,
+		"max-values-per-tag":                     c.MaxValuesPerTag,
+		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
+		"max-index-log-file-size":                c.MaxIndexLogFileSize,
+		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
+		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
 	}), nil
 }
