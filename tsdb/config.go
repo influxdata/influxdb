@@ -70,9 +70,10 @@ const (
 	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
 	DefaultSeriesIDSetCacheSize = 100
 
-	// DefaultSeriesFileMaxConcurrentCompactions is the maximum number of concurrent series partition compactions
-	// that can run at one time.  A value of 0 results in runtime.GOMAXPROCS(0).
-	DefaultSeriesFileMaxConcurrentCompactions = 0
+	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
+	// partition snapshot compactions that can run at one time.
+	// A value of 0 results in runtime.GOMAXPROCS(0).
+	DefaultSeriesFileMaxConcurrentSnapshotCompactions = 0
 )
 
 // Config holds the configuration for the tsbd package.
@@ -132,12 +133,12 @@ type Config struct {
 	// Setting series-id-set-cache-size to 0 disables the cache.
 	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
 
-	// SeriesFileMaxConcurrentCompactions is the maximum number of concurrent compactions
-	// that can be running at one time across all series partitions in a database.  Compactions scheduled
-	// to run when the limit is reached are blocked until a running compaction completes.  Only snapshot
-	// compactions are affected by this limit.  A value of 0 limits compactions to the lesser of
+	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
+	// that can be running at one time across all series partitions in a database. Snapshots scheduled
+	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
+	// compactions are affected by this limit. A value of 0 limits snapshot compactions to the lesser of
 	// 8 (series file partition quantity) and runtime.GOMAXPROCS(0).
-	SeriesFileMaxConcurrentCompactions int `toml:"series-file-max-concurrent-compactions"`
+	SeriesFileMaxConcurrentSnapshotCompactions int `toml:"series-file-max-concurrent-snapshot-compactions"`
 
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 
@@ -170,7 +171,7 @@ func NewConfig() Config {
 		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
 		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
 
-		SeriesFileMaxConcurrentCompactions: DefaultSeriesFileMaxConcurrentCompactions,
+		SeriesFileMaxConcurrentSnapshotCompactions: DefaultSeriesFileMaxConcurrentSnapshotCompactions,
 
 		TraceLoggingEnabled: false,
 		TSMWillNeed:         false,
@@ -193,7 +194,7 @@ func (c *Config) Validate() error {
 		return errors.New("series-id-set-cache-size must be non-negative")
 	}
 
-	if c.SeriesFileMaxConcurrentCompactions < 0 {
+	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
 		return errors.New("series-file-max-concurrent-compactions must be non-negative")
 	}
 
@@ -237,6 +238,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
 		"max-index-log-file-size":                c.MaxIndexLogFileSize,
 		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
-		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentCompactions,
+		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
 	}), nil
 }

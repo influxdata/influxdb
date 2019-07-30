@@ -511,7 +511,7 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	}
 
 	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileDirectory))
-	sfile.WithMaxCompactionConcurrency(s.EngineOptions.Config.SeriesFileMaxConcurrentCompactions)
+	sfile.WithMaxCompactionConcurrency(s.EngineOptions.Config.SeriesFileMaxConcurrentSnapshotCompactions)
 	sfile.Logger = s.baseLogger
 	if err := sfile.Open(); err != nil {
 		return nil, err
