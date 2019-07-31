@@ -162,6 +162,7 @@
     "@influxdata/influx": "0.5.5",
     "@influxdata/influxdb-templates": "0.5.0",
     "@influxdata/react-custom-scrollbars": "4.3.8",
+    "abortcontroller-polyfill": "^1.3.0",
     "axios": "^0.19.0",
     "babel-polyfill": "^6.26.0",
     "bignumber.js": "^4.0.2",

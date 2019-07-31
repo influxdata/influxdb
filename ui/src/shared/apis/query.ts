@@ -1,14 +1,35 @@
 // Constants
 import {FLUX_RESPONSE_BYTES_LIMIT} from 'src/shared/constants'
+import {
+  RATE_LIMIT_ERROR_STATUS,
+  RATE_LIMIT_ERROR_TEXT,
+} from 'src/cloud/constants'
 
 // Types
 import {CancelBox} from 'src/types/promises'
 import {File, Query, CancellationError} from 'src/types'
 
-export interface RunQueryResult {
+export type RunQueryResult =
+  | RunQuerySuccessResult
+  | RunQueryLimitResult
+  | RunQueryErrorResult
+
+export interface RunQuerySuccessResult {
+  type: 'SUCCESS'
   csv: string
   didTruncate: boolean
   bytesRead: number
+}
+
+export interface RunQueryLimitResult {
+  type: 'RATE_LIMIT_ERROR'
+  retryAfter: number
+  message: string
+}
+
+export interface RunQueryErrorResult {
+  type: 'UNKNOWN_ERROR'
+  message: string
 }
 
 export const runQuery = (
@@ -53,6 +74,19 @@ export const runQuery = (
 }
 
 const processResponse = async (response: Response): Promise<RunQueryResult> => {
+  switch (response.status) {
+    case 200:
+      return processSuccessResponse(response)
+    case RATE_LIMIT_ERROR_STATUS:
+      return processRateLimitResponse(response)
+    default:
+      return processErrorResponse(response)
+  }
+}
+
+const processSuccessResponse = async (
+  response: Response
+): Promise<RunQuerySuccessResult> => {
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
 
@@ -80,9 +114,36 @@ const processResponse = async (response: Response): Promise<RunQueryResult> => {
   reader.cancel()
 
   return {
+    type: 'SUCCESS',
     csv,
     bytesRead,
     didTruncate,
+  }
+}
+
+const processRateLimitResponse = async (
+  response: Response
+): Promise<RunQueryLimitResult> => {
+  const retryAfter = response.headers.get('Retry-After')
+
+  return {
+    type: 'RATE_LIMIT_ERROR',
+    retryAfter: retryAfter ? parseInt(retryAfter) : null,
+    message: RATE_LIMIT_ERROR_TEXT,
+  }
+}
+
+const processErrorResponse = async (
+  response: Response
+): Promise<RunQueryErrorResult> => {
+  try {
+    const body = await response.text()
+    const json = JSON.parse(body)
+    const message = json.message || json.error
+
+    return {type: 'UNKNOWN_ERROR', message}
+  } catch {
+    return {type: 'UNKNOWN_ERROR', message: 'Failed to execute Flux query'}
   }
 }
 

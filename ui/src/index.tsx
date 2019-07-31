@@ -1,5 +1,6 @@
 import 'babel-polyfill'
 import 'src/cloud/utils/overrides'
+import 'abortcontroller-polyfill/dist/polyfill-patch-fetch'
 
 import React, {PureComponent} from 'react'
 import {render} from 'react-dom'

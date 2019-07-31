@@ -67,7 +67,9 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setAllNotificationRules(RemoteDataState.Done, resp.data.rules))
+    dispatch(
+      setAllNotificationRules(RemoteDataState.Done, resp.data.notificationRules)
+    )
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))

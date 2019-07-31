@@ -1,7 +1,9 @@
-import {get} from 'lodash'
-
 // API
-import {runQuery, RunQueryResult} from 'src/shared/apis/query'
+import {
+  runQuery,
+  RunQueryResult,
+  RunQuerySuccessResult,
+} from 'src/shared/apis/query'
 
 // Actions
 import {refreshVariableValues, selectValue} from 'src/variables/actions'
@@ -9,7 +11,6 @@ import {notify} from 'src/shared/actions/notifications'
 
 // Constants
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
-import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -121,24 +122,29 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     const duration = Date.now() - startTime
 
     for (const result of results) {
-      checkQueryResult(result.csv)
+      if (result.type === 'UNKNOWN_ERROR') {
+        throw new Error(result.message)
+      }
+
+      if (result.type === 'RATE_LIMIT_ERROR') {
+        dispatch(notify(rateLimitReached(result.retryAfter)))
+
+        throw new Error(result.message)
+      }
 
       if (result.didTruncate) {
         dispatch(notify(resultTooLarge(result.bytesRead)))
       }
+
+      checkQueryResult(result.csv)
     }
 
-    const files = results.map(r => r.csv)
+    const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
 
     dispatch(setQueryResults(RemoteDataState.Done, files, duration))
   } catch (e) {
     if (e.name === 'CancellationError') {
       return
-    }
-
-    if (get(e, 'status') === RATE_LIMIT_ERROR_STATUS) {
-      const retryAfter = get(e, 'headers.Retry-After')
-      dispatch(notify(rateLimitReached(retryAfter)))
     }
 
     console.error(e)
