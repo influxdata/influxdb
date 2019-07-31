@@ -8,7 +8,7 @@ import {refreshVariableValues, selectValue} from 'src/variables/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
-import {rateLimitReached} from 'src/shared/copy/notifications'
+import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 // Utils
@@ -113,16 +113,22 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     pendingResults = queries.map(({text}) => {
       const windowVars = getWindowVars(text, variableAssignments)
       const extern = buildVarsOption([...variableAssignments, ...windowVars])
+
       return runQuery(orgID, text, extern)
     })
 
-    const files = await Promise.all(
-      pendingResults.map(r => r.promise.then(({csv}) => csv))
-    )
-
+    const results = await Promise.all(pendingResults.map(r => r.promise))
     const duration = Date.now() - startTime
 
-    files.forEach(checkQueryResult)
+    for (const result of results) {
+      checkQueryResult(result.csv)
+
+      if (result.didTruncate) {
+        dispatch(notify(resultTooLarge(result.bytesRead)))
+      }
+    }
+
+    const files = results.map(r => r.csv)
 
     dispatch(setQueryResults(RemoteDataState.Done, files, duration))
   } catch (e) {

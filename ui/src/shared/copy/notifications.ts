@@ -1,15 +1,24 @@
-// All copy for notifications should be stored here for easy editing
-// and ensuring stylistic consistency
+// Libraries
+import {binaryPrefixFormatter} from '@influxdata/giraffe'
+
+// Types
 import {Notification} from 'src/types'
 import {NotificationStyle} from 'src/types/notifications'
+
+// Constants
+import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
+import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
+
+const bytesFormatter = binaryPrefixFormatter({
+  suffix: 'B',
+  significantDigits: 2,
+  trimZeros: true,
+})
 
 type NotificationExcludingMessage = Pick<
   Notification,
   Exclude<keyof Notification, 'message'>
 >
-
-import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
-import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 const defaultErrorNotification: NotificationExcludingMessage = {
   style: NotificationStyle.Error,
@@ -56,6 +65,15 @@ export const sessionTimedOut = (): Notification => ({
   icon: 'triangle',
   duration: INFINITE,
   message: 'Your session has timed out. Log in again to continue.',
+})
+
+export const resultTooLarge = (bytesRead: number): Notification => ({
+  style: NotificationStyle.Error,
+  icon: 'triangle',
+  duration: FIVE_SECONDS,
+  message: `Large Flux response truncated to first ${bytesFormatter(
+    bytesRead
+  )}`,
 })
 
 // Onboarding notifications
