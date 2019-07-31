@@ -4,6 +4,7 @@ import {push, RouterAction} from 'react-router-redux'
 
 // APIs
 import {client, getErrorMessage} from 'src/utils/api'
+import {postBucket} from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -22,8 +23,12 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {Bucket} from '@influxdata/influx'
-import {Organization, RemoteDataState, NotificationAction} from 'src/types'
+import {
+  Organization,
+  RemoteDataState,
+  NotificationAction,
+  Bucket,
+} from 'src/types'
 
 export enum ActionTypes {
   SetOrgs = 'SET_ORGS',
@@ -168,10 +173,13 @@ export const createOrgWithBucket = (
     dispatch(addOrg(createdOrg))
     dispatch(push(`/orgs/${createdOrg.id}`))
 
-    await client.buckets.create({
-      ...bucket,
-      orgID: createdOrg.id,
-    })
+    bucket.orgID = createdOrg.id
+
+    const resp = await postBucket({data: bucket})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(notify(bucketCreateSuccess()))
   } catch (e) {
