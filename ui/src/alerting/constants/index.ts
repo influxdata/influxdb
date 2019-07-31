@@ -9,11 +9,18 @@ import {
 export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
 
+export const CHECK_NAME_MAX_LENGTH = 68
+export const DEFAULT_CHECK_CRON = '1h'
+export const DEFAULT_CHECK_EVERY = '1h'
+export const DEFAULT_CHECK_OFFSET = '0s'
+
 export const DEFAULT_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
   status: 'active',
   thresholds: [],
+  cron: DEFAULT_CHECK_EVERY,
+  offset: DEFAULT_CHECK_OFFSET,
 }
 
 export const query: DashboardQuery = {
