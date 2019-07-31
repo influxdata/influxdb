@@ -11,10 +11,10 @@ import {
 } from '@influxdata/clockface'
 import RemoveButton from 'src/alerting/components/builder/RemoveButton'
 import HelpButton from 'src/alerting/components/builder/HelpButton'
-import {TimeMachineEnum} from 'src/timeMachine/constants'
+import {TimeMachineIDs} from 'src/timeMachine/constants'
 
 interface Props {
-  activeTimeMachineID: TimeMachineEnum
+  activeTimeMachineID: TimeMachineIDs
 }
 
 const TimeMachineAlerting: FunctionComponent<Props> = ({

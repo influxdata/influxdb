@@ -25,9 +25,6 @@ import {
 // Utils
 import {createView} from 'src/shared/utils/view'
 
-// Constants
-import {TimeMachineEnum} from 'src/timeMachine/constants'
-
 // Types
 import {DashboardDraftQuery, QueryViewProperties} from 'src/types/dashboards'
 import {selectAggregateWindow} from '../actions/queryBuilder'
@@ -35,17 +32,17 @@ import {selectAggregateWindow} from '../actions/queryBuilder'
 describe('timeMachinesReducer', () => {
   test('it directs actions to the currently active timeMachine', () => {
     const state = initialState()
-    const de = state.timeMachines[TimeMachineEnum.DE]
-    const veo = state.timeMachines[TimeMachineEnum.VEO]
+    const de = state.timeMachines['de']
+    const veo = state.timeMachines['veo']
 
-    expect(state.activeTimeMachineID).toEqual(TimeMachineEnum.DE)
+    expect(state.activeTimeMachineID).toEqual('de')
     expect(de.activeTab).toEqual('queries')
     expect(veo.activeTab).toEqual('queries')
 
     const nextState = timeMachinesReducer(state, setActiveTab('visualization'))
 
-    const nextDE = nextState.timeMachines[TimeMachineEnum.DE]
-    const nextVEO = nextState.timeMachines[TimeMachineEnum.VEO]
+    const nextDE = nextState.timeMachines['de']
+    const nextVEO = nextState.timeMachines['veo']
 
     expect(nextDE.activeTab).toEqual('visualization')
     expect(nextVEO.activeTab).toEqual('queries')
@@ -54,7 +51,7 @@ describe('timeMachinesReducer', () => {
   test('it resets tab and draftScript state on a timeMachine when activated', () => {
     const state = initialState()
 
-    expect(state.activeTimeMachineID).toEqual(TimeMachineEnum.DE)
+    expect(state.activeTimeMachineID).toEqual('de')
 
     const activeTimeMachine = state.timeMachines[state.activeTimeMachineID]
 
@@ -89,10 +86,10 @@ describe('timeMachinesReducer', () => {
 
     const nextState = timeMachinesReducer(
       state,
-      setActiveTimeMachine(TimeMachineEnum.VEO, {view})
+      setActiveTimeMachine('veo', {view})
     )
 
-    expect(nextState.activeTimeMachineID).toEqual(TimeMachineEnum.VEO)
+    expect(nextState.activeTimeMachineID).toEqual('veo')
 
     const nextTimeMachine =
       nextState.timeMachines[nextState.activeTimeMachineID]

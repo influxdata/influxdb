@@ -16,7 +16,6 @@ import {saveVEOView} from 'src/dashboards/actions'
 import {setView, getViewForTimeMachine} from 'src/dashboards/actions/views'
 
 // Utils
-import {TimeMachineEnum} from 'src/timeMachine/constants'
 import {getView} from 'src/dashboards/selectors'
 
 // Types
@@ -52,9 +51,9 @@ const EditViewVEO: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     if (view) {
-      onSetActiveTimeMachine(TimeMachineEnum.VEO, {view})
+      onSetActiveTimeMachine('veo', {view})
     } else {
-      getViewForTimeMachine(dashboardID, cellID, TimeMachineEnum.VEO)
+      getViewForTimeMachine(dashboardID, cellID, 'veo')
     }
   }, [view, orgID, cellID, dashboardID])
 
@@ -105,7 +104,7 @@ const mstp = (state: AppState, {params: {cellID}}): StateProps => {
 
   let loadingState = RemoteDataState.Loading
 
-  if (activeTimeMachineID === TimeMachineEnum.VEO && viewMatchesRoute) {
+  if (activeTimeMachineID === 'veo' && viewMatchesRoute) {
     loadingState = RemoteDataState.Done
   }
 

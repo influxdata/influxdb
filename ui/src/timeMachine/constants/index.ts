@@ -1,5 +1,1 @@
-export enum TimeMachineEnum {
-  DE = 'de',
-  VEO = 'veo',
-  Alerting = 'alerting',
-}
+export type TimeMachineIDs = 'de' | 'veo' | 'alerting'

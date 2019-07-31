@@ -15,13 +15,13 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState, TimeMachineTab} from 'src/types'
-import {TimeMachineEnum} from 'src/timeMachine/constants'
+import {TimeMachineIDs} from 'src/timeMachine/constants'
 
 const INITIAL_RESIZER_HANDLE = 0.5
 
 interface StateProps {
   activeTab: TimeMachineTab
-  activeTimeMachineID: TimeMachineEnum
+  activeTimeMachineID: TimeMachineIDs
 }
 
 const TimeMachine: FunctionComponent<StateProps> = ({

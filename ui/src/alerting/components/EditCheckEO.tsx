@@ -29,7 +29,6 @@ import {
   XYViewProperties,
   DashboardDraftQuery,
 } from 'src/types'
-import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -57,13 +56,13 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     getCurrentCheck(params.checkID)
-    onSetActiveTimeMachine(TimeMachineEnum.Alerting)
+    onSetActiveTimeMachine('alerting')
   }, [params.checkID])
 
   useEffect(() => {
     const view = createView<XYViewProperties>('xy')
     //getView here
-    onSetActiveTimeMachine(TimeMachineEnum.Alerting, {
+    onSetActiveTimeMachine('alerting', {
       view,
       activeTab: 'alerting',
       isViewingRawData: false,

@@ -8,7 +8,7 @@ import {createView, defaultViewQuery} from 'src/shared/utils/view'
 import {isConfigValid, buildQuery} from 'src/timeMachine/utils/queryBuilder'
 
 // Constants
-import {TimeMachineEnum} from 'src/timeMachine/constants'
+import {TimeMachineIDs} from 'src/timeMachine/constants'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {
   THRESHOLD_TYPE_TEXT,
@@ -67,11 +67,11 @@ export interface TimeMachineState {
 }
 
 export interface TimeMachinesState {
-  activeTimeMachineID: TimeMachineEnum
+  activeTimeMachineID: TimeMachineIDs
   timeMachines: {
-    [TimeMachineEnum.DE]: TimeMachineState
-    [TimeMachineEnum.VEO]: TimeMachineState
-    [TimeMachineEnum.Alerting]: TimeMachineState
+    ['de']: TimeMachineState
+    ['veo']: TimeMachineState
+    ['alerting']: TimeMachineState
   }
 }
 
@@ -103,11 +103,11 @@ export const initialStateHelper = (): TimeMachineState => ({
 })
 
 export const initialState = (): TimeMachinesState => ({
-  activeTimeMachineID: TimeMachineEnum.DE,
+  activeTimeMachineID: 'de',
   timeMachines: {
-    [TimeMachineEnum.VEO]: initialStateHelper(),
-    [TimeMachineEnum.DE]: initialStateHelper(),
-    [TimeMachineEnum.Alerting]: initialStateHelper(),
+    ['veo']: initialStateHelper(),
+    ['de']: initialStateHelper(),
+    ['alerting']: initialStateHelper(),
   },
 })
 

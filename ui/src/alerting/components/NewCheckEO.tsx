@@ -30,7 +30,6 @@ import {
   DashboardDraftQuery,
 } from 'src/types'
 import {DEFAULT_CHECK} from 'src/alerting/constants'
-import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -62,7 +61,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   useEffect(() => {
     setCurrentCheck(RemoteDataState.Done, DEFAULT_CHECK)
     const view = createView<XYViewProperties>('xy')
-    onSetActiveTimeMachine(TimeMachineEnum.Alerting, {
+    onSetActiveTimeMachine('alerting', {
       view,
       activeTab: 'queries',
     })
