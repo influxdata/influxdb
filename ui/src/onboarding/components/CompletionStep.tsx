@@ -21,6 +21,7 @@ import {QUICKSTART_DASHBOARD_NAME} from 'src/onboarding/constants'
 import {getDashboards} from 'src/organizations/apis'
 import {client} from 'src/utils/api'
 import {createDashboardFromTemplate as createDashboardFromTemplateAJAX} from 'src/templates/api'
+import * as api from 'src/client'
 
 // Types
 import {
@@ -30,8 +31,8 @@ import {
   Columns,
   Grid,
 } from '@influxdata/clockface'
-import {DashboardTemplate} from 'src/types'
-import {Organization, Dashboard, ScraperTargetRequest} from '@influxdata/influx'
+import {DashboardTemplate, Organization} from 'src/types'
+import {Dashboard, ScraperTargetRequest} from '@influxdata/influx'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
@@ -40,7 +41,14 @@ interface Props extends OnboardingStepProps {
   bucketID: string
 }
 
-const getOrganizations = () => client.organizations.getAll()
+const getOrganizations = async () => {
+  const resp = await api.getOrgs({})
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  return resp.data.orgs
+}
 
 @ErrorHandling
 class CompletionStep extends PureComponent<Props> {

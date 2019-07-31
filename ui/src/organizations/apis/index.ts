@@ -4,8 +4,7 @@ import _ from 'lodash'
 import {client} from 'src/utils/api'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {Dashboard} from 'src/types'
+import {Dashboard, Organization} from 'src/types'
 
 // CRUD APIs for Organizations and Organization resources
 // i.e. Organization Members, Buckets, Dashboards etc

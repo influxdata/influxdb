@@ -13,8 +13,7 @@ import VariablesTab from 'src/variables/components/VariablesTab'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, Organization} from 'src/types'
 
 interface StateProps {
   org: Organization

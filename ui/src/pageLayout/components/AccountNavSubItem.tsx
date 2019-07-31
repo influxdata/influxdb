@@ -4,9 +4,11 @@ import {Link} from 'react-router'
 
 // Components
 import {NavMenu} from '@influxdata/clockface'
-import {Organization} from '@influxdata/influx'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
+
+// Types
+import {Organization} from 'src/types'
 
 interface Props {
   orgs: Organization[]

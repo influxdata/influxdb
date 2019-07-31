@@ -4,7 +4,7 @@ import {push, RouterAction} from 'react-router-redux'
 
 // APIs
 import {client, getErrorMessage} from 'src/utils/api'
-import {postBucket} from 'src/client'
+import * as api from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -137,9 +137,17 @@ export const getOrganizations = () => async (
   try {
     dispatch(setOrgsStatus(RemoteDataState.Loading))
 
-    const organizations = await client.organizations.getAll()
-    dispatch(setOrgs(organizations, RemoteDataState.Done))
-    return organizations
+    const resp = await api.getOrgs({})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const {orgs} = resp.data
+
+    dispatch(setOrgs(orgs, RemoteDataState.Done))
+
+    return orgs
   } catch (e) {
     console.error(e)
     dispatch(setOrgs(null, RemoteDataState.Error))
@@ -155,7 +163,12 @@ export const createOrgWithBucket = (
   let createdOrg: Organization
 
   try {
-    createdOrg = await client.organizations.create(org)
+    const orgResp = await api.postOrg({data: org})
+    if (orgResp.status !== 201) {
+      throw new Error(orgResp.data.message)
+    }
+    createdOrg = orgResp.data
+
     await client.templates.create({
       ...defaultTemplates.systemTemplate(),
       orgID: createdOrg.id,
@@ -175,10 +188,10 @@ export const createOrgWithBucket = (
 
     bucket.orgID = createdOrg.id
 
-    const resp = await postBucket({data: bucket})
+    const bucketResp = await api.postBucket({data: bucket})
 
-    if (resp.status !== 201) {
-      throw new Error(resp.data.message)
+    if (bucketResp.status !== 201) {
+      throw new Error(bucketResp.data.message)
     }
 
     dispatch(notify(bucketCreateSuccess()))
@@ -197,7 +210,14 @@ export const createOrg = (org: Organization) => async (
   dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ): Promise<void> => {
   try {
-    const createdOrg = await client.organizations.create(org)
+    const resp = await api.postOrg({data: org})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const createdOrg = resp.data
+
     await client.templates.create({
       ...defaultTemplates.systemTemplate(),
       orgID: createdOrg.id,
@@ -217,7 +237,12 @@ export const deleteOrg = (org: Organization) => async (
   dispatch: Dispatch<RemoveOrg>
 ): Promise<void> => {
   try {
-    await client.organizations.delete(org.id)
+    const resp = await api.deleteOrg({orgID: org.id})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
     dispatch(removeOrg(org))
   } catch (e) {
     console.error(e)
@@ -228,8 +253,16 @@ export const updateOrg = (org: Organization) => async (
   dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {
-    const updatedOrg = await client.organizations.update(org.id, org)
+    const resp = await api.patchOrg({orgID: org.id, data: org})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const updatedOrg = resp.data
+
     dispatch(editOrg(updatedOrg))
+
     dispatch(notify(orgEditSuccess()))
   } catch (e) {
     dispatch(notify(orgEditFailed()))
@@ -241,8 +274,16 @@ export const renameOrg = (originalName: string, org: Organization) => async (
   dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {
-    const updatedOrg = await client.organizations.update(org.id, org)
+    const resp = await api.patchOrg({orgID: org.id, data: org})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const updatedOrg = resp.data
+
     dispatch(editOrg(updatedOrg))
+
     dispatch(notify(orgRenameSuccess(updatedOrg.name)))
   } catch (e) {
     dispatch(notify(orgRenameFailed(originalName)))

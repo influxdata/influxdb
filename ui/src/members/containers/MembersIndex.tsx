@@ -13,8 +13,7 @@ import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import Members from 'src/members/components/Members'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, Organization} from 'src/types'
 
 interface StateProps {
   org: Organization

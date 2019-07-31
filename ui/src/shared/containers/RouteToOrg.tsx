@@ -4,8 +4,7 @@ import {connect} from 'react-redux'
 import {WithRouterProps} from 'react-router'
 
 // Types
-import {AppState} from 'src/types'
-import {Organization} from '@influxdata/influx'
+import {AppState, Organization} from 'src/types'
 
 // Decorators
 
