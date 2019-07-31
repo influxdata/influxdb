@@ -1,0 +1,15 @@
+.rule-eo {
+  width: calc(100vw - #{$ix-marg-e});
+  height: calc(100vh - #{$ix-marg-d});
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+  border-radius: 0 0 $radius $radius;
+
+  .page-header--container,
+  .veo-contents {
+    padding-left: $ix-marg-d;
+    padding-right: $ix-marg-d;
+  }
+}

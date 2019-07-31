@@ -15,7 +15,7 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {Check, GetState} from 'src/types'
+import {Check} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllChecks>

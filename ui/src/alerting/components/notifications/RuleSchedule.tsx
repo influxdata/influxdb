@@ -14,13 +14,11 @@ import {
 // Types
 import {Actions, State} from './NewRuleOverlay.reducer'
 
-interface OwnProps {
+interface Props {
   rule: State
   dispatch: Dispatch<Actions>
   onChange: (e: ChangeEvent) => void
 }
-
-type Props = State & OwnProps
 
 const RuleSchedule: FC<Props> = ({rule, dispatch, onChange}) => {
   const {schedule, cron, every, offset} = rule

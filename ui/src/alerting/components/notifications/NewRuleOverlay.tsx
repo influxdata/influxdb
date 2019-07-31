@@ -14,7 +14,7 @@ import {newRule} from 'src/alerting/constants'
 
 type Props = WithRouterProps
 
-const initialState: State = {
+export const newRuleState: State = {
   ...newRule,
   schedule: 'every',
 }
@@ -24,7 +24,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const [rule, dispatch] = useReducer(reducer, initialState)
+  const [rule, dispatch] = useReducer(reducer, newRuleState)
 
   const handleChange = e => {
     const {name, value} = e.target
@@ -36,7 +36,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
 
   return (
     <Overlay visible={true}>
-      <Overlay.Container>
+      <Overlay.Container maxWidth={Infinity} className="rule-eo">
         <Overlay.Header
           title="Create a Notification Rule"
           onDismiss={handleDismiss}
@@ -49,14 +49,13 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
                   <Form.Element label="Name">
                     <Input
                       placeholder="Name this new rule"
-                      value={name}
+                      value={rule.name}
                       name="name"
                       onChange={handleChange}
                     />
                   </Form.Element>
                 </Grid.Column>
               </Grid.Row>
-
               <RuleSchedule
                 rule={rule}
                 onChange={handleChange}
