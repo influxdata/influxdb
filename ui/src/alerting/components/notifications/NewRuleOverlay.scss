@@ -14,6 +14,7 @@
 
   .condition-row {
     display: flex;
+    flex-direction: column;
     background-color: $g5-pepper;
     border-radius: $radius;
     margin-bottom: 4px;
@@ -22,23 +23,29 @@
     .period-count--container {
       display: flex;
       flex-direction: row;
+      margin-bottom: 4px;
       align-items: center;
       .count-input,
       .period-input {
         flex: 100px;
       }
-
-      .sentence-frag {
-        background-color: $g7-graphite;
-        border-radius: $radius;
-        flex: 150px;
-        font-size: 12px;
-        padding: 0 9px;
-        height: 30px;
-        line-height: 26px;
-        text-align: center;
-        font-weight: bold;
-      }
     }
+
+    .status-levels--container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+  }
+
+  .sentence-frag {
+    background-color: $g7-graphite;
+    border-radius: $radius;
+    font-size: 12px;
+    padding: 0 9px;
+    height: 30px;
+    line-height: 26px;
+    text-align: center;
+    font-weight: bold;
   }
 }

@@ -3,6 +3,7 @@ import React, {FC, Dispatch} from 'react'
 
 // Components
 import PeriodCount from 'src/alerting/components/notifications/PeriodCount'
+import StatusLevels from 'src/alerting/components/notifications/StatusLevels'
 
 // Types
 import {StatusRuleItem} from 'src/types'
@@ -31,6 +32,7 @@ const StatusRuleComponent: FC<Props> = ({status, dispatch}) => {
   return (
     <div className="condition-row">
       <PeriodCount period={period} count={count} onChange={onChange} />
+      <StatusLevels status={status} />
     </div>
   )
 }
