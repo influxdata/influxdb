@@ -8,7 +8,8 @@ import CellHeader from 'src/shared/components/cells/CellHeader'
 import CellContext from 'src/shared/components/cells/CellContext'
 import ViewComponent from 'src/shared/components/cells/View'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
+import {SpinnerContainer} from '@influxdata/clockface'
+import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Utils
 import {getView} from 'src/dashboards/selectors'
@@ -130,7 +131,7 @@ class CellComponent extends Component<Props, State> {
     return (
       <SpinnerContainer
         loading={viewsStatus}
-        spinnerComponent={<TechnoSpinner />}
+        spinnerComponent={<EmptyGraphMessage message="Loading..." />}
       >
         <ViewComponent
           view={view}
