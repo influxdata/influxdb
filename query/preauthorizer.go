@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+
 	"github.com/pkg/errors"
 
 	"github.com/influxdata/flux/ast"
@@ -31,7 +32,10 @@ type preAuthorizer struct {
 func (a *preAuthorizer) PreAuthorize(ctx context.Context, ast *ast.Package, auth platform.Authorizer, orgID *platform.ID) error {
 	readBuckets, writeBuckets, err := BucketsAccessed(ast, orgID)
 	if err != nil {
-		return errors.Wrap(err, "could not retrieve buckets for query.Spec")
+		return platform.NewError(
+			platform.WithErrorErr(err),
+			platform.WithErrorMsg("Failed to compile flux script."),
+			platform.WithErrorCode(platform.EInvalid))
 	}
 
 	for _, readBucketFilter := range readBuckets {

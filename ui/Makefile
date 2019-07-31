@@ -5,7 +5,7 @@ all: build
 node_modules:
 	yarn install
 
- e2e: node_modules
+e2e: node_modules
 	yarn test:junit
 
 build: node_modules $(UISOURCES)

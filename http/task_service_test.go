@@ -487,6 +487,66 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 `,
 			},
 		},
+		{
+			name: "create task - platform error creating task",
+			args: args{
+				taskCreate: platform.TaskCreate{
+					OrganizationID: 1,
+					Token:          "mytoken",
+					Flux:           "abc",
+				},
+			},
+			fields: fields{
+				taskService: &mock.TaskService{
+					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+						return nil, platform.NewError(
+							platform.WithErrorErr(errors.New("something went wrong")),
+							platform.WithErrorMsg("something really went wrong"),
+							platform.WithErrorCode(platform.EInvalid),
+						)
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusBadRequest,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+    "code": "invalid",
+    "message": "something really went wrong",
+    "error": "something went wrong"
+}
+`,
+			},
+		},
+		{
+			name: "create task - error creating task",
+			args: args{
+				taskCreate: platform.TaskCreate{
+					OrganizationID: 1,
+					Token:          "mytoken",
+					Flux:           "abc",
+				},
+			},
+			fields: fields{
+				taskService: &mock.TaskService{
+					CreateTaskFn: func(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
+						return nil, errors.New("something bad happened")
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusInternalServerError,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+    "code": "internal error",
+    "message": "failed to create task",
+    "error": "something bad happened"
+}
+`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

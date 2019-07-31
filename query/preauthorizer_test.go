@@ -93,7 +93,6 @@ func TestPreAuthorizer_PreAuthorize(t *testing.T) {
 }
 
 func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
-	t.Skip("Re-enable when pre-authorizer works again")
 	ctx := context.Background()
 
 	i := inmem.NewService()
@@ -135,5 +134,44 @@ func TestPreAuthorizer_RequiredPermissions(t *testing.T) {
 	exp := []platform.Permission{*pRead, *pWrite}
 	if diff := cmp.Diff(exp, perms); diff != "" {
 		t.Fatalf("unexpected permissions: %s", diff)
+	}
+}
+
+func TestPreAuthorizer_PreAuthorize_FailToParse(t *testing.T) {
+	var (
+		pid                platform.ID
+		ctx                = context.Background()
+		auth               = &platform.Authorization{Status: platform.Active}
+		emptyBucketService = mock.NewBucketService()
+		authorizer         = query.NewPreAuthorizer(emptyBucketService)
+		errfmt             = "Expected %q, Got %q"
+		// inputs
+		q = `from(bucket:"foo") |> range(start:-2h) |> to(bucket: "bar")`
+		// expectations
+		msg    = "Failed to compile flux script."
+		errMsg = `error calling function "to": missing required keyword argument "orgID"`
+		code   = platform.EInvalid
+	)
+
+	ast, err := flux.Parse(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	perr, ok := authorizer.PreAuthorize(ctx, ast, auth, &pid).(*platform.Error)
+	if !ok {
+		t.Fatalf(errfmt, "*platform.Error", perr)
+	}
+
+	if msg != perr.Msg {
+		t.Fatalf(errfmt, msg, perr.Msg)
+	}
+
+	if errMsg != perr.Err.Error() {
+		t.Fatalf(errfmt, errMsg, perr.Err.Error())
+	}
+
+	if code != perr.Code {
+		t.Fatalf(errfmt, code, perr.Code)
 	}
 }

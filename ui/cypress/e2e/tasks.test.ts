@@ -25,32 +25,39 @@ describe('Tasks', () => {
     })
   })
 
+  it('cannot create a task with an invalid to() function', () => {
+    const taskName = 'Bad Task'
+
+    createFirstTask(taskName, ({name}) => {
+      return `import "influxdata/influxdb/v1"
+v1.tagValues(bucket: "${name}", tag: "_field")
+from(bucket: "${name}")
+  |> range(start: -2m)
+  |> to(bucket: "${name}")`
+    })
+
+    cy.contains('Save').click()
+
+    cy.getByTestID('notification-error').should(
+      'contain',
+      'error calling function "to": missing required keyword argument "orgID"'
+    )
+  })
+
   it('can create a task', () => {
     const taskName = 'Task'
-    cy.getByTestID('empty-tasks-list').within(() => {
-      cy.getByTestID('add-resource-dropdown--button').click()
+    createFirstTask(taskName, ({name}) => {
+      return `import "influxdata/influxdb/v1"
+v1.tagValues(bucket: "${name}", tag: "_field")
+from(bucket: "${name}")
+  |> range(start: -2m)`
     })
 
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.contains('Save').click()
 
-    cy.getByInputName('name').type(taskName)
-    cy.getByInputName('interval').type('24h')
-    cy.getByInputName('offset').type('20m')
-
-    cy.get<Bucket>('@bucket').then(({name}) => {
-      cy.getByTestID('flux-editor').within(() => {
-        cy.get('textarea').type(
-          `import "influxdata/influxdb/v1"\nv1.tagValues(bucket: "${name}", tag: "_field")\nfrom(bucket: "${name}")\n|> range(start: -2m)`,
-          {force: true}
-        )
-      })
-
-      cy.contains('Save').click()
-
-      cy.getByTestID('task-card')
-        .should('have.length', 1)
-        .and('contain', taskName)
-    })
+    cy.getByTestID('task-card')
+      .should('have.length', 1)
+      .and('contain', taskName)
   })
 
   it('can delete a task', () => {
@@ -121,19 +128,7 @@ describe('Tasks', () => {
   })
 
   it('fails to create a task without a valid script', () => {
-    cy.getByTestID('empty-tasks-list').within(() => {
-      cy.getByTestID('add-resource-dropdown--button').click()
-    })
-
-    cy.getByTestID('add-resource-dropdown--new').click()
-
-    cy.getByInputName('name').type('Task')
-    cy.getByInputName('interval').type('24h')
-    cy.getByInputName('offset').type('20m')
-
-    cy.getByTestID('flux-editor').within(() => {
-      cy.get('textarea').type('{}', {force: true})
-    })
+    createFirstTask('Task', () => '{}')
 
     cy.contains('Save').click()
 
@@ -192,3 +187,21 @@ describe('Tasks', () => {
     })
   })
 })
+
+function createFirstTask(name: string, flux: (bucket: Bucket) => string) {
+  cy.getByTestID('empty-tasks-list').within(() => {
+    cy.getByTestID('add-resource-dropdown--button').click()
+  })
+
+  cy.getByTestID('add-resource-dropdown--new').click()
+
+  cy.getByInputName('name').type(name)
+  cy.getByInputName('interval').type('24h')
+  cy.getByInputName('offset').type('20m')
+
+  cy.get<Bucket>('@bucket').then(bucket => {
+    cy.getByTestID('flux-editor').within(() => {
+      cy.get('textarea').type(flux(bucket), {force: true})
+    })
+  })
+}
