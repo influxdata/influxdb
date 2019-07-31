@@ -127,6 +127,8 @@ const (
 	NotificationRuleResourceType = ResourceType("notificationRules") // 14
 	// NotificationEndpointResourceType gives permission to one or more notificationEndpoints.
 	NotificationEndpointResourceType = ResourceType("notificationEndpoints") // 15
+	// ChecksResourceType gives permission to one or more Checks.
+	ChecksResourceType = ResourceType("checks") // 16
 )
 
 // AllResourceTypes is the list of all known resource types.
@@ -147,6 +149,7 @@ var AllResourceTypes = []ResourceType{
 	DocumentsResourceType,            // 13
 	NotificationRuleResourceType,     // 14
 	NotificationEndpointResourceType, // 15
+	ChecksResourceType,               // 16
 	// NOTE: when modifying this list, please update the swagger for components.schemas.Permission resource enum.
 }
 
@@ -163,6 +166,7 @@ var OrgResourceTypes = []ResourceType{
 	DocumentsResourceType,            // 13
 	NotificationRuleResourceType,     // 14
 	NotificationEndpointResourceType, // 15
+	ChecksResourceType,               // 16
 }
 
 // Valid checks if the resource type is a member of the ResourceType enum.
@@ -189,6 +193,7 @@ func (t ResourceType) Valid() (err error) {
 	case DocumentsResourceType: // 13
 	case NotificationRuleResourceType: // 14
 	case NotificationEndpointResourceType: // 15
+	case ChecksResourceType: // 16
 	default:
 		err = ErrInvalidResourceType
 	}

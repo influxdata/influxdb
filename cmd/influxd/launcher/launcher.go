@@ -456,6 +456,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		secretSvc           platform.SecretService                   = m.kvService
 		lookupSvc           platform.LookupService                   = m.kvService
 		notificationRuleSvc platform.NotificationRuleStore           = m.kvService
+		checkSvc            platform.CheckService                    = m.kvService
 	)
 
 	switch m.secretStore {
@@ -627,6 +628,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
+		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
 		SecretService:                   secretSvc,
