@@ -9,6 +9,7 @@ import {
   ILabelProperties,
 } from '@influxdata/influx'
 import {createAuthorization} from 'src/authorizations/apis'
+import {postWrite} from 'src/client'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -46,7 +47,6 @@ import {
   TelegrafConfigCreationSuccess,
   writeLimitReached,
 } from 'src/shared/copy/notifications'
-import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 
 type GetState = () => AppState
 
@@ -552,16 +552,20 @@ export const writeLineProtocolAction = (
 ) => async dispatch => {
   try {
     dispatch(setLPStatus(RemoteDataState.Loading))
-    await client.write.create(org, bucket, body, {precision})
-    dispatch(setLPStatus(RemoteDataState.Done))
-  } catch (error) {
-    const errorMessage = _.get(error, 'response.data.message', '')
-    console.error(errorMessage || error)
-    dispatch(setLPStatus(RemoteDataState.Error, errorMessage))
 
-    if (error.response.status === RATE_LIMIT_ERROR_STATUS) {
+    const resp = await postWrite({data: body, query: {org, bucket, precision}})
+
+    if (resp.status === 204) {
+      dispatch(setLPStatus(RemoteDataState.Done))
+    } else if (resp.status === 429) {
       dispatch(notify(writeLimitReached()))
+      dispatch(setLPStatus(RemoteDataState.Error))
+    } else {
+      throw new Error(_.get(resp, 'data.message', 'Failed to write data'))
     }
+  } catch (error) {
+    console.error(error)
+    dispatch(setLPStatus(RemoteDataState.Error, error.message))
   }
 }
 
