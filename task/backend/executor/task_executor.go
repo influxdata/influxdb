@@ -32,13 +32,8 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 // LimitFunc is a function the executor will use to
 type LimitFunc func(*influxdb.Run) error
 
-type Metrics interface {
-	StartRun(influxdb.ID, time.Duration)
-	FinishRun(influxdb.ID, backend.RunStatus)
-}
-
 // NewExecutor creates a new task executor
-func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService, metrics Metrics) *TaskExecutor {
+func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService) (*TaskExecutor, *ExecutorMetrics) {
 	te := &TaskExecutor{
 		logger: logger,
 		ts:     ts,
@@ -46,19 +41,20 @@ func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.Authoriz
 		qs:     qs,
 		as:     as,
 
-		metrics:         metrics,
 		currentPromises: sync.Map{},
 		promiseQueue:    make(chan *Promise, 1000),                //TODO(lh): make this configurable
 		workerLimit:     make(chan struct{}, 100),                 //TODO(lh): make this configurable
 		limitFunc:       func(*influxdb.Run) error { return nil }, // noop
 	}
 
+	te.metrics = NewExecutorMetrics(te)
+
 	wm := &workerMaker{
 		te: te,
 	}
 
 	te.workerPool = sync.Pool{New: wm.new}
-	return te
+	return te, te.metrics
 }
 
 // TaskExecutor it a task specific executor that works with the new scheduler system.
@@ -70,7 +66,7 @@ type TaskExecutor struct {
 	qs query.QueryService
 	as influxdb.AuthorizationService
 
-	metrics Metrics
+	metrics *ExecutorMetrics
 
 	// currentPromises are all the promises we are made that have not been fulfilled
 	currentPromises sync.Map
@@ -101,14 +97,17 @@ func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt
 	var err error
 
 	// look for manual run by scheduledAt
+
 	p, err = e.startManualRun(ctx, iid, scheduledAt)
 	if err == nil && p != nil {
+		e.metrics.manualRunsCounter.WithLabelValues(string(iid)).Inc()
 		goto PROMISEMADE
 	}
 
 	// look in currentlyrunning
 	p, err = e.resumeRun(ctx, iid, scheduledAt)
 	if err == nil && p != nil {
+		e.metrics.resumeRunsCounter.WithLabelValues(string(iid)).Inc()
 		goto PROMISEMADE
 	}
 
@@ -155,7 +154,6 @@ func (e *TaskExecutor) startManualRun(ctx context.Context, id influxdb.ID, sched
 		if err == nil && sa.UTC() == scheduledAt.UTC() {
 			r, err := e.tcs.StartManualRun(ctx, id, run.ID)
 			if err != nil {
-				fmt.Println("err", err)
 				return nil, err
 			}
 			return e.createPromise(ctx, r)
@@ -334,11 +332,14 @@ func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
 
 	// add to metrics
-	w.te.metrics.FinishRun(p.task.ID, rs)
+	s, _ := p.run.ScheduledForTime()
+	rd := time.Since(s)
+	w.te.metrics.FinishRun(p.task.ID, rs, rd)
 
 	// log error
 	if err != nil {
 		w.te.logger.Debug("execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
+		w.te.metrics.LogError()
 		p.err = err
 	} else {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
@@ -405,6 +406,22 @@ func (w *worker) executeQuery(p *Promise) {
 	}
 
 	w.finish(p, backend.RunSuccess, runErr)
+}
+
+// RunsActive returns the current number of workers, which is equivalent to
+// the number of runs actively running
+func (e *TaskExecutor) RunsActive() int {
+	return len(e.workerLimit)
+}
+
+// WorkersBusy returns the percent of total workers that are busy
+func (e *TaskExecutor) WorkersBusy() float64 {
+	return float64(len(e.workerLimit)) / float64(cap(e.workerLimit))
+}
+
+// PromiseQueueUsage returns the percent of the Promise Queue that is currently filled
+func (e *TaskExecutor) PromiseQueueUsage() float64 {
+	return float64(len(e.promiseQueue)) / float64(cap(e.promiseQueue))
 }
 
 // Promise represents a promise the executor makes to finish a run's execution asynchronously.

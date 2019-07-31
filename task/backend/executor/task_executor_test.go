@@ -17,22 +17,17 @@ import (
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
-	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"go.uber.org/zap/zaptest"
 )
 
 type tes struct {
-	svc *fakeQueryService
-	ex  *TaskExecutor
-	i   *kv.Service
-	tc  testCreds
+	svc     *fakeQueryService
+	ex      *TaskExecutor
+	metrics *ExecutorMetrics
+	i       *kv.Service
+	tc      testCreds
 }
-
-type noopMetrics struct{}
-
-func (*noopMetrics) StartRun(influxdb.ID, time.Duration)      {}
-func (*noopMetrics) FinishRun(influxdb.ID, backend.RunStatus) {}
 
 func taskExecutorSystem(t *testing.T) tes {
 	aqs := newFakeQueryService()
@@ -42,12 +37,13 @@ func taskExecutorSystem(t *testing.T) tes {
 
 	i := kv.NewService(inmem.NewKVStore())
 
-	ex := NewExecutor(zaptest.NewLogger(t), qs, i, i, i, &noopMetrics{})
+	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, i)
 	return tes{
-		svc: aqs,
-		ex:  ex,
-		i:   i,
-		tc:  createCreds(t, i),
+		svc:     aqs,
+		ex:      ex,
+		metrics: metrics,
+		i:       i,
+		tc:      createCreds(t, i),
 	}
 }
 
@@ -302,8 +298,7 @@ func testLimitFunc(t *testing.T) {
 func testMetrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
-	metrics := NewExecutorMetrics()
-	tes.ex.metrics = metrics
+	metrics := tes.metrics
 	reg := prom.NewRegistry()
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
@@ -360,6 +355,31 @@ func testMetrics(t *testing.T) {
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
 	}
+
+	// manual runs metrics
+	mt, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, Token: tes.tc.Auth.Token, Flux: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scheduledFor := int64(123)
+
+	_, err = tes.i.ForceRun(ctx, mt.ID, scheduledFor)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	scheduledForTime := time.Unix(scheduledFor, 0).UTC()
+
+	tes.ex.Execute(ctx, scheduler.ID(mt.ID), scheduledForTime)
+
+	mg = promtest.MustGather(t, reg)
+
+	m = promtest.MustFindMetric(t, mg, "task_executor_manual_runs_counter", map[string]string{"taskID": string(mt.ID)})
+	if got := *m.Counter.Value; got != 1 {
+		t.Fatalf("expected 1 manual run, got %v", got)
+	}
+
 }
 
 func testIteratorFailure(t *testing.T) {
