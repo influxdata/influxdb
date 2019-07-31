@@ -51,8 +51,8 @@ export const CLOUD_CHECKOUT_PATH = process.env.CLOUD_CHECKOUT_PATH
 export const CLOUD_BILLING_PATH = process.env.CLOUD_BILLING_PATH
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
-  ? 10 * 1024 * 1024
-  : 100 * 1024 * 1024
+  ? 10 * 1024 * 1024 // 10 MiB
+  : 100 * 1024 * 1024 // 100 MiB
 
 export const VIS_SIG_DIGITS = 4
 

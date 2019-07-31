@@ -15,7 +15,7 @@ import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Constants
 import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
-import {rateLimitReached} from 'src/shared/copy/notifications'
+import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 import {RATE_LIMIT_ERROR_TEXT} from 'src/cloud/constants'
 
 // Actions
@@ -139,17 +139,24 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       this.pendingResults = queries.map(({text}) => {
         const windowVars = getWindowVars(text, variables)
         const extern = buildVarsOption([...variables, ...windowVars])
+
         return runQuery(orgID, text, extern)
       })
 
       // Wait for new queries to complete
-      const files = await Promise.all(
-        this.pendingResults.map(r => r.promise.then(({csv}) => csv))
-      )
+      const results = await Promise.all(this.pendingResults.map(r => r.promise))
       const duration = Date.now() - startTime
-      const giraffeResult = fromFlux(files.join('\n\n'))
 
-      files.forEach(checkQueryResult)
+      for (const result of results) {
+        checkQueryResult(result.csv)
+
+        if (result.didTruncate) {
+          notify(resultTooLarge(result.bytesRead))
+        }
+      }
+
+      const files = results.map(r => r.csv)
+      const giraffeResult = fromFlux(files.join('\n\n'))
 
       this.setState({
         giraffeResult,
