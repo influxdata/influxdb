@@ -122,7 +122,10 @@ class DataListening extends PureComponent<OwnProps & WithRouterProps, State> {
     let timePassed: number
 
     try {
-      const response = await runQuery(orgID, script).promise
+      const response = await runQuery(orgID, script).promise.then(
+        ({csv}) => csv
+      )
+
       responseLength = response.length
       timePassed = Number(new Date()) - this.startTime
     } catch (err) {
