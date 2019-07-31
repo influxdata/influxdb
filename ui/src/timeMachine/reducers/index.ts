@@ -81,7 +81,7 @@ export const initialStateHelper = (): TimeMachineState => ({
   view: createView(),
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
-  activeTab: TimeMachineTab.Queries,
+  activeTab: 'queries',
   activeQueryIndex: 0,
   queryResults: initialQueryResultsState(),
   queryBuilder: {
@@ -134,7 +134,7 @@ export const timeMachinesReducer = (
         [activeTimeMachineID]: {
           ...activeTimeMachine,
           ...initialState,
-          activeTab: TimeMachineTab.Queries,
+          activeTab: 'queries',
           isViewingRawData: false,
           activeQueryIndex: 0,
           draftQueries,

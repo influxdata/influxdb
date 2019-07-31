@@ -25,7 +25,7 @@ const TimeMachine: FunctionComponent<StateProps> = ({activeTab}) => {
   const [dragPosition, setDragPosition] = useState([INITIAL_RESIZER_HANDLE])
 
   const containerClassName = classnames('time-machine', {
-    'time-machine--split': activeTab === TimeMachineTab.Visualization,
+    'time-machine--split': activeTab === 'visualization',
   })
 
   return (
@@ -53,7 +53,7 @@ const TimeMachine: FunctionComponent<StateProps> = ({activeTab}) => {
           </DraggableResizer.Panel>
         </DraggableResizer>
       </div>
-      {activeTab === TimeMachineTab.Visualization && <ViewOptions />}
+      {activeTab === 'visualization' && <ViewOptions />}
     </>
   )
 }

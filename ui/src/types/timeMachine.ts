@@ -1,4 +1,1 @@
-export enum TimeMachineTab {
-  Queries = 'queries',
-  Visualization = 'visualization',
-}
+export type TimeMachineTab = 'queries' | 'visualization' | 'alerting'

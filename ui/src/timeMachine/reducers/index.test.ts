@@ -29,7 +29,6 @@ import {createView} from 'src/shared/utils/view'
 import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 // Types
-import {TimeMachineTab} from 'src/types/timeMachine'
 import {DashboardDraftQuery, QueryViewProperties} from 'src/types/dashboards'
 import {selectAggregateWindow} from '../actions/queryBuilder'
 
@@ -40,19 +39,16 @@ describe('timeMachinesReducer', () => {
     const veo = state.timeMachines[TimeMachineEnum.VEO]
 
     expect(state.activeTimeMachineID).toEqual(TimeMachineEnum.DE)
-    expect(de.activeTab).toEqual(TimeMachineTab.Queries)
-    expect(veo.activeTab).toEqual(TimeMachineTab.Queries)
+    expect(de.activeTab).toEqual('queries')
+    expect(veo.activeTab).toEqual('queries')
 
-    const nextState = timeMachinesReducer(
-      state,
-      setActiveTab(TimeMachineTab.Visualization)
-    )
+    const nextState = timeMachinesReducer(state, setActiveTab('visualization'))
 
     const nextDE = nextState.timeMachines[TimeMachineEnum.DE]
     const nextVEO = nextState.timeMachines[TimeMachineEnum.VEO]
 
-    expect(nextDE.activeTab).toEqual(TimeMachineTab.Visualization)
-    expect(nextVEO.activeTab).toEqual(TimeMachineTab.Queries)
+    expect(nextDE.activeTab).toEqual('visualization')
+    expect(nextVEO.activeTab).toEqual('queries')
   })
 
   test('it resets tab and draftScript state on a timeMachine when activated', () => {
@@ -101,7 +97,7 @@ describe('timeMachinesReducer', () => {
     const nextTimeMachine =
       nextState.timeMachines[nextState.activeTimeMachineID]
 
-    expect(nextTimeMachine.activeTab).toEqual(TimeMachineTab.Queries)
+    expect(nextTimeMachine.activeTab).toEqual('queries')
     expect(nextTimeMachine.activeQueryIndex).toEqual(0)
     expect(
       _.map(nextTimeMachine.draftQueries, q => _.omit(q, ['hidden']))

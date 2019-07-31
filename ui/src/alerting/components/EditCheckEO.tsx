@@ -5,11 +5,12 @@ import {connect} from 'react-redux'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
-import VEOHeader from 'src/dashboards/components/VEOHeader'
+import CheckEOHeader from 'src/alerting/components/CheckEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
 import {
@@ -21,7 +22,13 @@ import {
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Types
-import {Check, AppState, RemoteDataState, XYViewProperties} from 'src/types'
+import {
+  Check,
+  AppState,
+  RemoteDataState,
+  XYViewProperties,
+  DashboardDraftQuery,
+} from 'src/types'
 import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 interface DispatchProps {
@@ -33,16 +40,20 @@ interface DispatchProps {
 
 interface StateProps {
   check: Partial<Check>
-  status: RemoteDataState
+  query: DashboardDraftQuery
+  loadingStatus: RemoteDataState
 }
 
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
+  loadingStatus,
+  updateCheck,
+  router,
   params,
+  query,
   check,
-  status,
 }) => {
   useEffect(() => {
     getCurrentCheck(params.checkID)
@@ -50,32 +61,41 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }, [params.checkID])
 
   useEffect(() => {
-    // create view properties from check
     const view = createView<XYViewProperties>('xy')
-    onSetActiveTimeMachine(TimeMachineEnum.Alerting, {view})
+    //getView here
+    onSetActiveTimeMachine(TimeMachineEnum.Alerting, {
+      view,
+      activeTab: 'alerting',
+      isViewingRawData: false,
+    })
   }, [check.id])
 
   const handleUpdateName = (name: string) => {
     updateCurrentCheck({name})
   }
 
-  const handleCancel = () => {}
+  const handleClose = () => {
+    router.push(`/orgs/${params.orgID}/alerting`)
+  }
 
-  const handleSave = () => {}
-  // dont render time machine until active time machine is what we expect
+  const handleSave = () => {
+    // update view
+    updateCheck({...check, query})
+    handleClose()
+  }
 
   return (
     <Overlay visible={true} className="veo-overlay">
       <div className="veo">
         <SpinnerContainer
           spinnerComponent={<TechnoSpinner />}
-          loading={status || RemoteDataState.Loading}
+          loading={loadingStatus}
         >
-          <VEOHeader
+          <CheckEOHeader
             key={check && check.name}
             name={check && check.name}
             onSetName={handleUpdateName}
-            onCancel={handleCancel}
+            onCancel={handleClose}
             onSave={handleSave}
           />
           <div className="veo-contents">
@@ -87,14 +107,30 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState, {params}): StateProps => {
   const {
     checks: {
-      current: {check, status},
+      current: {check, status: checkStatus},
     },
+    timeMachines: {activeTimeMachineID},
   } = state
 
-  return {check, status}
+  const {draftQueries} = getActiveTimeMachine(state)
+
+  let loadingStatus = RemoteDataState.Loading
+
+  if (checkStatus === RemoteDataState.Error) {
+    loadingStatus = RemoteDataState.Error
+  }
+  if (
+    checkStatus === RemoteDataState.Done &&
+    activeTimeMachineID === 'alerting' &&
+    check.id === params.checkID
+  ) {
+    loadingStatus = RemoteDataState.Done
+  }
+
+  return {check, loadingStatus, query: draftQueries[0]}
 }
 
 const mdtp: DispatchProps = {
