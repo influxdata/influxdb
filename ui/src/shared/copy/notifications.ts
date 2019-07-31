@@ -71,9 +71,7 @@ export const resultTooLarge = (bytesRead: number): Notification => ({
   style: NotificationStyle.Error,
   icon: 'triangle',
   duration: FIVE_SECONDS,
-  message: `Large Flux response truncated to first ${bytesFormatter(
-    bytesRead
-  )}`,
+  message: `Large response truncated to first ${bytesFormatter(bytesRead)}`,
 })
 
 // Onboarding notifications
@@ -435,7 +433,7 @@ export const readLimitReached = (): Notification => ({
   type: 'readLimitReached',
 })
 
-export const rateLimitReached = (secs?: string): Notification => {
+export const rateLimitReached = (secs?: number): Notification => {
   const retryText = ` Please try again in ${secs} seconds`
   return {
     ...defaultErrorNotification,

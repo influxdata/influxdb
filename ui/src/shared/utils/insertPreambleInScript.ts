@@ -15,6 +15,9 @@ export const insertPreambleInScript = async (
     return `${preamble}\n\n${script}`
   }
 
+  // TODO: Replace this with `import {parse} from '@influxdata/flux-parser'`
+  // when the Flux team adds location.source data to the rust implementation
+  // https://github.com/influxdata/influxdb/issues/14467
   const resp = await postQueryAst({data: {query: script}})
 
   if (resp.status !== 200) {

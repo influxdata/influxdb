@@ -3157,6 +3157,14 @@ paths:
                 schema:
                     type: string
                     format: binary
+          '429':
+            description: token is temporarily over quota. The Retry-After header describes when to try the read again.
+            headers:
+              Retry-After:
+                description: A non-negative decimal integer indicating the seconds to delay after the response is received.
+                schema:
+                  type: integer
+                  format: int32
           default:
             description: internal server error
             headers:

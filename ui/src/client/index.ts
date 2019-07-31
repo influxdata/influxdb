@@ -1377,7 +1377,7 @@ export interface Checks {
 }
 
 export interface NotificationRules {
-  rules?: NotificationRule[]
+  notificationRules?: NotificationRule[]
   links?: Links
 }
 
@@ -5228,6 +5228,7 @@ export interface PostQueryParams {
 type PostQueryResult =
   | PostQueryOKResult
   | PostQueryBadRequestResult
+  | PostQueryTooManyRequestsResult
   | PostQueryDefaultResult
 
 interface PostQueryOKResult {
@@ -5240,6 +5241,12 @@ interface PostQueryBadRequestResult {
   status: 400
   headers: Headers
   data: string
+}
+
+interface PostQueryTooManyRequestsResult {
+  status: 429
+  headers: Headers
+  data: any
 }
 
 interface PostQueryDefaultResult {

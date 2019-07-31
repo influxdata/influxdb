@@ -1,12 +1,16 @@
 // Library
 import {Component} from 'react'
-import {isEqual, get} from 'lodash'
+import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import {fromFlux, FromFluxResult} from '@influxdata/giraffe'
 
 // API
-import {runQuery, RunQueryResult} from 'src/shared/apis/query'
+import {
+  runQuery,
+  RunQueryResult,
+  RunQuerySuccessResult,
+} from 'src/shared/apis/query'
 
 // Utils
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
@@ -14,9 +18,7 @@ import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
 
 // Constants
-import {RATE_LIMIT_ERROR_STATUS} from 'src/cloud/constants/index'
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
-import {RATE_LIMIT_ERROR_TEXT} from 'src/cloud/constants'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -148,14 +150,24 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       const duration = Date.now() - startTime
 
       for (const result of results) {
-        checkQueryResult(result.csv)
+        if (result.type === 'UNKNOWN_ERROR') {
+          throw new Error(result.message)
+        }
+
+        if (result.type === 'RATE_LIMIT_ERROR') {
+          notify(rateLimitReached(result.retryAfter))
+
+          throw new Error(result.message)
+        }
 
         if (result.didTruncate) {
           notify(resultTooLarge(result.bytesRead))
         }
+
+        checkQueryResult(result.csv)
       }
 
-      const files = results.map(r => r.csv)
+      const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
       const giraffeResult = fromFlux(files.join('\n\n'))
 
       this.setState({
@@ -169,17 +181,10 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         return
       }
 
-      let errorMessage = get(error, 'message', '')
-
-      if (get(error, 'status') === RATE_LIMIT_ERROR_STATUS) {
-        const retryAfter = get(error, 'headers.Retry-After')
-
-        notify(rateLimitReached(retryAfter))
-        errorMessage = RATE_LIMIT_ERROR_TEXT
-      }
+      console.error(error)
 
       this.setState({
-        errorMessage,
+        errorMessage: error.message,
         giraffeResult: null,
         loading: RemoteDataState.Error,
       })
