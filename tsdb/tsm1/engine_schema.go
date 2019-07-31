@@ -14,11 +14,20 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// cancelCheckInterval represents the period at which TagKeys and TagValues
+// will check for a canceled context. Specifically after every 64 series
+// scanned, the query context will be checked for cancellation, and if canceled,
+// the calls will immediately return.
+const cancelCheckInterval = 64
+
 // TagValues returns an iterator which enumerates the values for the specific
 // tagKey in the given bucket matching the predicate within the
 // time range (start, end].
 //
 // TagValues will always return a StringIterator if there is no error.
+//
+// If the context is canceled before TagValues has finished processing, a non-nil
+// error will be returned along with a partial result of the already scanned values.
 func (e *Engine) TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	encoded := tsdb.EncodeName(orgID, bucketID)
 
@@ -180,9 +189,8 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes 
 	)
 
 	for i := range keys {
-		// to keep cache scans fast,
-		// check context every 64 iteratons.
-		if i%64 == 0 {
+		// to keep cache scans fast, check context every 'cancelCheckInterval' iteratons
+		if i%cancelCheckInterval == 0 {
 			select {
 			case <-ctx.Done():
 				stats = statsFromIters(stats, iters)
@@ -214,13 +222,6 @@ func (e *Engine) tagValuesPredicate(ctx context.Context, orgBucket, tagKeyBytes 
 		}
 
 		for _, iter := range iters {
-			// Always check context before performing a tsm file scan
-			select {
-			case <-ctx.Done():
-				stats = statsFromIters(stats, iters)
-				return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
-			default:
-			}
 
 			if exact, _ := iter.Seek(sfkey); !exact {
 				continue
@@ -256,8 +257,8 @@ func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predic
 	var keys [][]byte
 	for i := 0; ; i++ {
 		// to keep series file index scans fast,
-		// check context every 64 iteratons.
-		if i%64 == 0 {
+		// check context every 'cancelCheckInterval' iteratons
+		if i%cancelCheckInterval == 0 {
 			select {
 			case <-ctx.Done():
 				return keys, ctx.Err()
@@ -286,6 +287,9 @@ func (e *Engine) findCandidateKeys(ctx context.Context, orgBucket []byte, predic
 // bucket matching the predicate within the time range (start, end].
 //
 // TagKeys will always return a StringIterator if there is no error.
+//
+// If the context is canceled before TagKeys has finished processing, a non-nil
+// error will be returned along with a partial result of the already scanned keys.
 func (e *Engine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
 	encoded := tsdb.EncodeName(orgID, bucketID)
 
@@ -432,9 +436,8 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgBucket []byte, start, 
 	)
 
 	for i := range keys {
-		// to keep cache scans fast,
-		// check context every 64 iteratons.
-		if i%64 == 0 {
+		// to keep cache scans fast, check context every 'cancelCheckInterval' iteratons
+		if i%cancelCheckInterval == 0 {
 			select {
 			case <-ctx.Done():
 				stats = statsFromIters(stats, iters)
@@ -461,13 +464,6 @@ func (e *Engine) tagKeysPredicate(ctx context.Context, orgBucket []byte, start, 
 		}
 
 		for _, iter := range iters {
-			// Always check context before performing a tsm file scan
-			select {
-			case <-ctx.Done():
-				stats = statsFromIters(stats, iters)
-				return cursors.NewStringSliceIteratorWithStats(nil, stats), ctx.Err()
-			default:
-			}
 
 			if exact, _ := iter.Seek(sfkey); !exact {
 				continue
