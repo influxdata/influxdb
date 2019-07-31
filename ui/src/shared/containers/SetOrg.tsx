@@ -3,8 +3,7 @@ import React, {useEffect, useState, FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Types
-import {AppState} from 'src/types'
-import {Organization} from '@influxdata/influx'
+import {AppState, Organization} from 'src/types'
 
 // Actions
 import {setOrg as setOrgAction} from 'src/organizations/actions/orgs'

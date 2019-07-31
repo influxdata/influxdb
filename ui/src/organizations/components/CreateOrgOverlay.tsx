@@ -9,8 +9,7 @@ import _ from 'lodash'
 import {Form, Input, Button, Overlay} from '@influxdata/clockface'
 
 // Types
-import {Organization} from '@influxdata/influx'
-import {Bucket} from 'src/types'
+import {Bucket, Organization} from 'src/types'
 import {
   ButtonType,
   ComponentColor,

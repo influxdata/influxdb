@@ -7,7 +7,6 @@ import {withRouter, WithRouterProps, Link} from 'react-router'
 import {Context} from 'src/clockface'
 import {ResourceCard, IconFont} from '@influxdata/clockface'
 import {ComponentColor} from '@influxdata/clockface'
-import {ITelegraf as Telegraf, Organization} from '@influxdata/influx'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Actions
@@ -24,8 +23,8 @@ import {viewableLabels} from 'src/labels/selectors'
 import {DEFAULT_COLLECTOR_NAME} from 'src/dashboards/constants'
 
 // Types
-import {AppState} from 'src/types'
-import {ILabel} from '@influxdata/influx'
+import {AppState, Organization} from 'src/types'
+import {ILabel, ITelegraf as Telegraf} from '@influxdata/influx'
 
 interface OwnProps {
   collector: Telegraf

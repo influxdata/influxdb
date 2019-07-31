@@ -49,6 +49,7 @@ import {
   AppState,
   AutoRefresh,
   AutoRefreshStatus,
+  Organization,
 } from 'src/types'
 import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
@@ -57,7 +58,6 @@ import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
-import {Organization} from '@influxdata/influx'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {

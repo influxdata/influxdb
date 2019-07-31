@@ -3,6 +3,7 @@ import _ from 'lodash'
 
 // API
 import {client} from 'src/utils/api'
+import * as api from 'src/client'
 
 // Types
 import {RemoteDataState, GetState} from 'src/types'
@@ -88,10 +89,22 @@ export const getMembers = () => async (
     } = getState()
     dispatch(setMembers(RemoteDataState.Loading))
 
-    const [owners, members] = await Promise.all([
-      client.organizations.owners(id),
-      client.organizations.members(id),
+    const [ownersResp, membersResp] = await Promise.all([
+      api.getOrgsOwners({orgID: id}),
+      api.getOrgsMembers({orgID: id}),
     ])
+
+    if (ownersResp.status !== 200) {
+      throw new Error(ownersResp.data.message)
+    }
+
+    if (membersResp.status !== 200) {
+      throw new Error(membersResp.data.message)
+    }
+
+    const owners = ownersResp.data.users
+
+    const members = membersResp.data.users
 
     const users = [...owners, ...members]
 
@@ -113,7 +126,13 @@ export const addNewMember = (member: AddResourceMemberRequestBody) => async (
       },
     } = getState()
 
-    const newMember = await client.organizations.addMember(id, member)
+    const resp = await api.postOrgsMember({orgID: id, data: member})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    const newMember = resp.data
 
     dispatch(addMember(newMember))
     dispatch(notify(memberAddSuccess(member.name)))
@@ -136,7 +155,12 @@ export const deleteMember = (member: Member) => async (
       },
     } = getState()
 
-    await client.organizations.removeMember(id, member.id)
+    const resp = await api.deleteOrgsMember({orgID: id, userID: member.id})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
     dispatch(removeMember(member.id))
 
     dispatch(notify(memberRemoveSuccess(member.name)))

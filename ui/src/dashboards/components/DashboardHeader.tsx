@@ -27,8 +27,8 @@ import {
 // Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
-import {Dashboard, Organization} from '@influxdata/influx'
-import {AutoRefresh, AutoRefreshStatus} from 'src/types'
+import {Dashboard} from '@influxdata/influx'
+import {AutoRefresh, AutoRefreshStatus, Organization} from 'src/types'
 
 interface Props {
   org: Organization
