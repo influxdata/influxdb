@@ -31,7 +31,7 @@ export function findBuckets({orgID}: FindBucketsOptions): CancelableQuery {
   const {promise, cancel} = runQuery(orgID, query)
 
   return {
-    promise: promise.then(resp => extractCol(resp, 'name')),
+    promise: promise.then(({csv}) => extractCol(csv, 'name')),
     cancel,
   }
 }
@@ -74,7 +74,7 @@ export function findKeys({
   const {promise, cancel} = runQuery(orgID, query)
 
   return {
-    promise: promise.then(resp => extractCol(resp, '_value')),
+    promise: promise.then(({csv}) => extractCol(csv, '_value')),
     cancel,
   }
 }
@@ -117,7 +117,7 @@ export function findValues({
   const {promise, cancel} = runQuery(orgID, query)
 
   return {
-    promise: promise.then(resp => extractCol(resp, '_value')),
+    promise: promise.then(({csv}) => extractCol(csv, '_value')),
     cancel,
   }
 }

@@ -1,7 +1,7 @@
 import {get} from 'lodash'
 
 // API
-import {runQuery} from 'src/shared/apis/query'
+import {runQuery, RunQueryResult} from 'src/shared/apis/query'
 
 // Actions
 import {refreshVariableValues, selectValue} from 'src/variables/actions'
@@ -84,7 +84,7 @@ export const refreshTimeMachineVariableValues = () => async (
   await dispatch(refreshVariableValues(contextID, variablesToRefresh))
 }
 
-let pendingResults: Array<CancelBox<string>> = []
+let pendingResults: Array<CancelBox<RunQueryResult>> = []
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
   const {view, timeRange} = getActiveTimeMachine(getState())
@@ -116,7 +116,9 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
       return runQuery(orgID, text, extern)
     })
 
-    const files = await Promise.all(pendingResults.map(r => r.promise))
+    const files = await Promise.all(
+      pendingResults.map(r => r.promise.then(({csv}) => csv))
+    )
 
     const duration = Date.now() - startTime
 
