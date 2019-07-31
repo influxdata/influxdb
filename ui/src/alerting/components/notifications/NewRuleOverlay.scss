@@ -7,9 +7,38 @@
   @include gradient-v($g2-kevlar, $g0-obsidian);
   border-radius: 0 0 $radius $radius;
 
-  .page-header--container,
-  .veo-contents {
+  .rule-eo-contents {
     padding-left: $ix-marg-d;
     padding-right: $ix-marg-d;
+  }
+
+  .condition-row {
+    display: flex;
+    background-color: $g5-pepper;
+    border-radius: $radius;
+    margin-bottom: 4px;
+    padding: 10px;
+
+    .period-count--container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      .count-input,
+      .period-input {
+        flex: 100px;
+      }
+
+      .sentence-frag {
+        background-color: $g7-graphite;
+        border-radius: $radius;
+        flex: 150px;
+        font-size: 12px;
+        padding: 0 9px;
+        height: 30px;
+        line-height: 26px;
+        text-align: center;
+        font-weight: bold;
+      }
+    }
   }
 }

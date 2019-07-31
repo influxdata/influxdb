@@ -12,10 +12,10 @@ import {
 } from '@influxdata/clockface'
 
 // Types
-import {Actions, State} from './NewRuleOverlay.reducer'
+import {Actions, RuleState} from './NewRuleOverlay.reducer'
 
 interface Props {
-  rule: State
+  rule: RuleState
   dispatch: Dispatch<Actions>
   onChange: (e: ChangeEvent) => void
 }

@@ -4,6 +4,9 @@ import {
   NotificationRule,
   GreaterThreshold,
   ThresholdCheck,
+  StatusRuleItem,
+  TagRuleItem,
+  NotificationRuleUI,
 } from 'src/types'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
@@ -69,17 +72,42 @@ export const check2: Check = {
 
 export const checks: Array<Check> = [check1, check2]
 
-export const newRule: NotificationRule = {
+export const newStatusRule: StatusRuleItem = {
+  id: '',
+  value: {
+    currentLevel: {
+      operation: 'equal',
+      level: 'WARN',
+    },
+    previousLevel: {
+      operation: 'equal',
+      level: 'WARN',
+    },
+    period: '1h',
+    count: 1,
+  },
+}
+
+export const newTagRule: TagRuleItem = {
+  id: '',
+  value: {
+    key: '',
+    value: '',
+    operator: 'equal',
+  },
+}
+
+export const newRule: NotificationRuleUI = {
   id: '',
   type: 'slack',
   every: '',
-  messageTemplate: '',
   orgID: '',
   name: '',
+  schedule: 'every',
   status: 'active',
-  tagRules: [],
-  statusRules: [],
-  description: 'description',
+  tagRules: [newTagRule],
+  statusRules: [newStatusRule],
+  description: '',
 }
 
 export const rule: NotificationRule = {

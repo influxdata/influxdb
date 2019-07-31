@@ -4,17 +4,21 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
+import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
 import {Overlay, Form, Input, Grid} from '@influxdata/clockface'
 
 // Reducers
-import {reducer, State} from './NewRuleOverlay.reducer'
+import {reducer, RuleState} from './NewRuleOverlay.reducer'
 
 // Constants
 import {newRule} from 'src/alerting/constants'
 
+// Types
+import {NotificationRuleUI} from 'src/types'
+
 type Props = WithRouterProps
 
-export const newRuleState: State = {
+export const newRuleState: RuleState = {
   ...newRule,
   schedule: 'every',
 }
@@ -30,7 +34,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
     const {name, value} = e.target
     dispatch({
       type: 'UPDATE_RULE',
-      rule: {...rule, [name]: value},
+      rule: {...rule, [name]: value} as NotificationRuleUI,
     })
   }
 
@@ -61,6 +65,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
                 onChange={handleChange}
                 dispatch={dispatch}
               />
+              <RuleConditions rule={rule} dispatch={dispatch} />
             </Form>
           </Grid>
         </Overlay.Body>
