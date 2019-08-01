@@ -132,6 +132,11 @@ v1.6.0 [2018-07-05]
 -	[#13540](https://github.com/influxdata/influxdb/pull/13540): Use the timezone when evaluating time literals in subqueries.
 -	[#13567](https://github.com/influxdata/influxdb/pull/13567): Fix csv decoder bug where empty tag values cause an array index panic.
 -	[#14232](https://github.com/influxdata/influxdb/pull/14232): Prevent data from re-appearing on startup in some cases.
+-	[#14270](https://github.com/influxdata/influxdb/pull/14270): Remove stray fmt.Println in tsm1.StringArrayEncodeAll.
+-	[#14266](https://github.com/influxdata/influxdb/pull/14266): fix(storage): Fix issue where fields re-appear.
+-	[#14357](https://github.com/influxdata/influxdb/pull/14357): Subquery ordering with aggregates in descending mode was wrong.
+-	[#14421](https://github.com/influxdata/influxdb/pull/14421): Fix the http handler to not mislabel series as partial.
+-	[#14444](https://github.com/influxdata/influxdb/pull/14444): fix(query): make show series exact cardinality count only distinct series.
 
 v1.5.4 [2018-06-21]
 -------------------
