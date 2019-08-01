@@ -186,9 +186,9 @@ export const createOrgWithBucket = (
     dispatch(addOrg(createdOrg))
     dispatch(push(`/orgs/${createdOrg.id}`))
 
-    bucket.orgID = createdOrg.id
-
-    const bucketResp = await api.postBucket({data: bucket})
+    const bucketResp = await api.postBucket({
+      data: {...bucket, orgID: createdOrg.id},
+    })
 
     if (bucketResp.status !== 201) {
       throw new Error(bucketResp.data.message)
