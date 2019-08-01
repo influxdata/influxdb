@@ -81,7 +81,7 @@ export const newStatusRule: StatusRuleItem = {
     },
     previousLevel: {
       operation: 'equal',
-      level: 'WARN',
+      level: 'OK',
     },
     period: '1h',
     count: 1,

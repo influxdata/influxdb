@@ -32,7 +32,7 @@ const StatusRuleComponent: FC<Props> = ({status, dispatch}) => {
   return (
     <div className="condition-row">
       <PeriodCount period={period} count={count} onChange={onChange} />
-      <StatusLevels status={status} />
+      <StatusLevels status={status} dispatch={dispatch} />
     </div>
   )
 }

@@ -43,6 +43,7 @@ const RuleConditions: FC<Props> = ({rule, dispatch}) => {
   const statuses = statusRules.map(status => (
     <StatusRuleComponent key={status.id} status={status} dispatch={dispatch} />
   ))
+
   const tags = tagRules.map(_ => <div key={v4()}>im a tag rule</div>)
 
   return (
