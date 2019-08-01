@@ -160,18 +160,21 @@ export enum BucketTab {
 
 /*
   Given a list of authorizations, return only those that allow performing the
-  supplied `action` to the supplied `bucketName`.
+  supplied `action` to all of the supplied `bucketNames`.
 */
 export const filterIrrelevantAuths = (
   auths: Authorization[],
   action: 'read' | 'write',
-  bucketName: string
-): Authorization[] =>
-  auths.filter(auth =>
-    auth.permissions.some(
-      permission =>
-        permission.action === action &&
-        permission.resource.type === 'buckets' &&
-        (!permission.resource.name || permission.resource.name === bucketName)
+  bucketNames: string[]
+): Authorization[] => {
+  return auths.filter(auth =>
+    bucketNames.every(bucketName =>
+      auth.permissions.some(
+        permission =>
+          permission.action === action &&
+          permission.resource.type === 'buckets' &&
+          (!permission.resource.name || permission.resource.name === bucketName)
+      )
     )
   )
+}
