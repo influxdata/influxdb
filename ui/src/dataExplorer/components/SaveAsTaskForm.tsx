@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {get, intersectionBy} from 'lodash'
+import {intersectionBy} from 'lodash'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -19,7 +19,7 @@ import {getAuthorizations} from 'src/authorizations/actions'
 
 // Utils
 import {filterIrrelevantAuths} from 'src/authorizations/utils/permissions'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {formatVarsOption} from 'src/variables/utils/formatVarsOption'
@@ -54,8 +54,7 @@ interface DispatchProps {
 
 interface StateProps {
   taskOptions: TaskOptions
-  draftQueries: DashboardDraftQuery[]
-  activeQueryIndex: number
+  activeQuery: DashboardDraftQuery
   newScript: string
   timeRange: TimeRange
   tokens: Authorization[]
@@ -130,19 +129,16 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   private get readBucketName() {
-    const {draftQueries, activeQueryIndex} = this.props
+    const {activeQuery} = this.props
 
-    const query = draftQueries[activeQueryIndex]
-
-    let readBucketName = ''
-    if (query.editMode === 'builder') {
-      readBucketName = query.builderConfig.buckets[0] || ''
-    } else {
-      const text = query.text
-      const splitBucket = text.split('bucket:')
-      const splitQuotes = splitBucket[1].split('"')
-      readBucketName = splitQuotes[1]
+    if (activeQuery.editMode === 'builder') {
+      return activeQuery.builderConfig.buckets[0] || ''
     }
+
+    const text = activeQuery.text
+    const splitBucket = text.split('bucket:')
+    const splitQuotes = splitBucket[1].split('"')
+    const readBucketName = splitQuotes[1]
 
     return readBucketName
   }
@@ -158,9 +154,9 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   private get activeScript(): string {
-    const {draftQueries, activeQueryIndex} = this.props
+    const {activeQuery} = this.props
 
-    return get(draftQueries, `${activeQueryIndex}.text`)
+    return activeQuery.text
   }
 
   private handleSubmit = async () => {
@@ -227,16 +223,14 @@ const mstp = (state: AppState): StateProps => {
     orgs: {org},
   } = state
 
-  const {draftQueries, activeQueryIndex, timeRange} = getActiveTimeMachine(
-    state
-  )
+  const {timeRange} = getActiveTimeMachine(state)
+  const activeQuery = getActiveQuery(state)
 
   return {
     newScript,
     taskOptions: {...taskOptions, toOrgName: org.name},
     timeRange,
-    draftQueries,
-    activeQueryIndex,
+    activeQuery,
     tokens: tokens.list,
     tokenStatus: tokens.status,
     selectedToken: taskToken,
