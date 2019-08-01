@@ -22,7 +22,7 @@ const StatusRuleComponent: FC<Props> = ({status}) => {
 
     dispatch({
       type: 'UPDATE_STATUS_RULES',
-      status: {
+      statusRule: {
         ...status,
         [name]: value,
       },

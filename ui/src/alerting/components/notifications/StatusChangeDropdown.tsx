@@ -21,7 +21,7 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
   const statusChange = (s, c) =>
     dispatch({
       type: 'UPDATE_STATUS_RULES',
-      status: changeStatusRule(s, c),
+      statusRule: changeStatusRule(s, c),
     })
 
   const items = changes.map(change => (

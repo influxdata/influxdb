@@ -7,17 +7,25 @@ import {Dropdown, ComponentColor} from '@influxdata/clockface'
 // Types
 import {CheckStatusLevel} from 'src/types'
 
-type Levels = CheckStatusLevel | 'ANY'
+type Levels = CheckStatusLevel
+type levelType = 'currentLevel' | 'previousLevel'
 
-const levels: Levels[] = ['CRIT', 'INFO', 'WARN', 'UNKNOWN', 'ANY']
+const levels: Levels[] = ['CRIT', 'INFO', 'WARN', 'UNKNOWN']
 
 interface Props {
   level: Levels
+  type: levelType
+  onClickLevel: (type: levelType, level: Levels) => void
 }
 
-const LevelsDropdown: FC<Props> = ({level}) => {
+const LevelsDropdown: FC<Props> = ({type, level, onClickLevel}) => {
   const items = levels.map(l => (
-    <Dropdown.Item key={l} id={l} value={l}>
+    <Dropdown.Item
+      key={l}
+      id={l}
+      value={l}
+      onClick={() => onClickLevel(type, l)}
+    >
       {l}
     </Dropdown.Item>
   ))
