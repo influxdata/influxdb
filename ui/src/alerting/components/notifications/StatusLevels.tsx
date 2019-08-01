@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, Dispatch} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import LevelsDropdown from 'src/alerting/components/notifications/LevelsDropdown'
@@ -7,20 +7,18 @@ import StatusChangeDropdown from 'src/alerting/components/notifications/StatusCh
 
 // Types
 import {StatusRuleItem} from 'src/types'
-import {Actions} from 'src/alerting/components/notifications/NewRuleOverlay.reducer'
 
 interface Props {
   status: StatusRuleItem
-  dispatch: Dispatch<Actions>
 }
 
-const StatusLevels: FC<Props> = ({status, dispatch}) => {
+const StatusLevels: FC<Props> = ({status}) => {
   const {currentLevel, previousLevel} = status.value
 
   return (
     <div className="status-levels--container">
       <div className="sentence-frag">When status</div>
-      <StatusChangeDropdown status={status} dispatch={dispatch} />
+      <StatusChangeDropdown status={status} />
       {!!previousLevel && <LevelsDropdown level={previousLevel.level} />}
       {!!previousLevel && <div className="sentence-frag">to</div>}
       <LevelsDropdown level={currentLevel.level} />

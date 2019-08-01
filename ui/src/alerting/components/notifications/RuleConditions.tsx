@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, Dispatch} from 'react'
+import React, {FC, useContext} from 'react'
 import {v4} from 'uuid'
 
 // Components
@@ -12,19 +12,20 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
+import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 
 // Constants
 import {newStatusRule, newTagRule} from 'src/alerting/constants'
 
 // Types
-import {Actions, RuleState} from './NewRuleOverlay.reducer'
+import {RuleState} from './NewRuleOverlay.reducer'
 
 interface Props {
   rule: RuleState
-  dispatch: Dispatch<Actions>
 }
 
-const RuleConditions: FC<Props> = ({rule, dispatch}) => {
+const RuleConditions: FC<Props> = ({rule}) => {
+  const dispatch = useContext(NewRuleDispatch)
   const {statusRules, tagRules} = rule
   const addStatusRule = () => {
     dispatch({
@@ -41,7 +42,7 @@ const RuleConditions: FC<Props> = ({rule, dispatch}) => {
   }
 
   const statuses = statusRules.map(status => (
-    <StatusRuleComponent key={status.id} status={status} dispatch={dispatch} />
+    <StatusRuleComponent key={status.id} status={status} />
   ))
 
   const tags = tagRules.map(_ => <div key={v4()}>im a tag rule</div>)

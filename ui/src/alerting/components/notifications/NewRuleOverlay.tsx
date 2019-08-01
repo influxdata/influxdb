@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useReducer} from 'react'
+import React, {FC, useReducer, Dispatch} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
@@ -8,7 +8,7 @@ import RuleConditions from 'src/alerting/components/notifications/RuleConditions
 import {Overlay, Form, Input, Grid} from '@influxdata/clockface'
 
 // Reducers
-import {reducer, RuleState} from './NewRuleOverlay.reducer'
+import {reducer, RuleState, Actions} from './NewRuleOverlay.reducer'
 
 // Constants
 import {newRule} from 'src/alerting/constants'
@@ -22,6 +22,8 @@ export const newRuleState: RuleState = {
   ...newRule,
   schedule: 'every',
 }
+
+export const NewRuleDispatch = React.createContext<Dispatch<Actions>>(null)
 
 const NewRuleOverlay: FC<Props> = ({params, router}) => {
   const handleDismiss = () => {
@@ -39,38 +41,36 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
   }
 
   return (
-    <Overlay visible={true}>
-      <Overlay.Container maxWidth={Infinity} className="rule-eo">
-        <Overlay.Header
-          title="Create a Notification Rule"
-          onDismiss={handleDismiss}
-        />
-        <Overlay.Body>
-          <Grid>
-            <Form>
-              <Grid.Row>
-                <Grid.Column>
-                  <Form.Element label="Name">
-                    <Input
-                      placeholder="Name this new rule"
-                      value={rule.name}
-                      name="name"
-                      onChange={handleChange}
-                    />
-                  </Form.Element>
-                </Grid.Column>
-              </Grid.Row>
-              <RuleSchedule
-                rule={rule}
-                onChange={handleChange}
-                dispatch={dispatch}
-              />
-              <RuleConditions rule={rule} dispatch={dispatch} />
-            </Form>
-          </Grid>
-        </Overlay.Body>
-      </Overlay.Container>
-    </Overlay>
+    <NewRuleDispatch.Provider value={dispatch}>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={Infinity} className="rule-eo">
+          <Overlay.Header
+            title="Create a Notification Rule"
+            onDismiss={handleDismiss}
+          />
+          <Overlay.Body>
+            <Grid>
+              <Form>
+                <Grid.Row>
+                  <Grid.Column>
+                    <Form.Element label="Name">
+                      <Input
+                        placeholder="Name this new rule"
+                        value={rule.name}
+                        name="name"
+                        onChange={handleChange}
+                      />
+                    </Form.Element>
+                  </Grid.Column>
+                </Grid.Row>
+                <RuleSchedule rule={rule} onChange={handleChange} />
+                <RuleConditions rule={rule} />
+              </Form>
+            </Grid>
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
+    </NewRuleDispatch.Provider>
   )
 }
 

@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, Dispatch, ChangeEvent} from 'react'
+import React, {FC, ChangeEvent, useContext} from 'react'
 
 // Components
 import {
@@ -10,21 +10,22 @@ import {
   Grid,
   Columns,
 } from '@influxdata/clockface'
+import {NewRuleDispatch} from './NewRuleOverlay'
 
 // Types
-import {Actions, RuleState} from './NewRuleOverlay.reducer'
+import {RuleState} from './NewRuleOverlay.reducer'
 
 interface Props {
   rule: RuleState
-  dispatch: Dispatch<Actions>
   onChange: (e: ChangeEvent) => void
 }
 
-const RuleSchedule: FC<Props> = ({rule, dispatch, onChange}) => {
+const RuleSchedule: FC<Props> = ({rule, onChange}) => {
   const {schedule, cron, every, offset} = rule
   const label = schedule === 'every' ? 'Every' : 'Cron'
   const placeholder = schedule === 'every' ? '1d3h30s' : '0 2 * * *'
   const value = schedule === 'every' ? every : cron
+  const dispatch = useContext(NewRuleDispatch)
 
   return (
     <Grid.Row>
