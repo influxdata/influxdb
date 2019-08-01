@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {get, intersectionBy} from 'lodash'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -18,6 +18,7 @@ import {
 import {getAuthorizations} from 'src/authorizations/actions'
 
 // Utils
+import {filterIrrelevantAuths} from 'src/authorizations/utils/permissions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
@@ -74,9 +75,11 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     })
 
     setNewScript(this.activeScript)
+
     await this.props.getTokens()
 
-    const relevantTokens = this.getRelevantTokens
+    const relevantTokens = this.relevantTokens
+
     if (relevantTokens.length > 0) {
       this.props.setTaskToken(relevantTokens[0])
     }
@@ -105,7 +108,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
           onSubmit={this.handleSubmit}
           canSubmit={this.isFormValid}
           dismiss={dismiss}
-          tokens={this.getRelevantTokens}
+          tokens={this.relevantTokens}
           selectedToken={selectedToken}
           onTokenChange={this.handleTokenChange}
         />
@@ -113,15 +116,15 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private get getRelevantTokens() {
-    const readAuthorizations = this.getReadAuthorizations
-    const writeAuthorizations = this.getWriteAuthorizations
+  private get relevantTokens() {
+    const {
+      tokens,
+      taskOptions: {toBucketName},
+    } = this.props
 
-    const relevantAuthorizations = _.intersectionBy(
-      readAuthorizations,
-      writeAuthorizations,
-      'id'
-    )
+    const readAuths = filterIrrelevantAuths(tokens, 'read', this.readBucketName)
+    const writeAuths = filterIrrelevantAuths(tokens, 'write', toBucketName)
+    const relevantAuthorizations = intersectionBy(readAuths, writeAuths, 'id')
 
     return relevantAuthorizations
   }
@@ -144,42 +147,11 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     return readBucketName
   }
 
-  private get getReadAuthorizations() {
-    const authorizations = this.props.tokens
-    const readBucketName = this.readBucketName
-
-    return authorizations.filter(auth =>
-      auth.permissions.some(
-        permission =>
-          permission.action === 'read' &&
-          permission.resource.type === 'buckets' &&
-          (!permission.resource.name ||
-            permission.resource.name === readBucketName)
-      )
-    )
-  }
-
-  private get getWriteAuthorizations() {
-    const authorizations = this.props.tokens
-    const {
-      taskOptions: {toBucketName},
-    } = this.props
-
-    return authorizations.filter(auth =>
-      auth.permissions.some(
-        permission =>
-          permission.action === 'write' &&
-          permission.resource.type === 'buckets' &&
-          (!permission.resource.name ||
-            permission.resource.name === toBucketName)
-      )
-    )
-  }
-
   private get isFormValid(): boolean {
     const {
       taskOptions: {name, cron, interval},
     } = this.props
+
     const hasSchedule = !!cron || !!interval
 
     return hasSchedule && !!name && !!this.activeScript
@@ -188,7 +160,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   private get activeScript(): string {
     const {draftQueries, activeQueryIndex} = this.props
 
-    return _.get(draftQueries, `${activeQueryIndex}.text`)
+    return get(draftQueries, `${activeQueryIndex}.text`)
   }
 
   private handleSubmit = async () => {
