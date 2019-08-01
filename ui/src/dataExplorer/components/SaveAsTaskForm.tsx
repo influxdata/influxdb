@@ -19,6 +19,7 @@ import {getAuthorizations} from 'src/authorizations/actions'
 
 // Utils
 import {filterIrrelevantAuths} from 'src/authorizations/utils/permissions'
+import {getReadBuckets} from 'src/shared/utils/getReadBuckets'
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
@@ -121,26 +122,26 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
       taskOptions: {toBucketName},
     } = this.props
 
-    const readAuths = filterIrrelevantAuths(tokens, 'read', this.readBucketName)
-    const writeAuths = filterIrrelevantAuths(tokens, 'write', toBucketName)
-    const relevantAuthorizations = intersectionBy(readAuths, writeAuths, 'id')
+    const readAuths = filterIrrelevantAuths(
+      tokens,
+      'read',
+      this.readBucketNames
+    )
 
-    return relevantAuthorizations
+    const writeAuths = filterIrrelevantAuths(tokens, 'write', [toBucketName])
+    const relevantAuths = intersectionBy(readAuths, writeAuths, 'id')
+
+    return relevantAuths
   }
 
-  private get readBucketName() {
+  private get readBucketNames(): string[] {
     const {activeQuery} = this.props
 
     if (activeQuery.editMode === 'builder') {
-      return activeQuery.builderConfig.buckets[0] || ''
+      return activeQuery.builderConfig.buckets
     }
 
-    const text = activeQuery.text
-    const splitBucket = text.split('bucket:')
-    const splitQuotes = splitBucket[1].split('"')
-    const readBucketName = splitQuotes[1]
-
-    return readBucketName
+    return getReadBuckets(this.activeScript)
   }
 
   private get isFormValid(): boolean {

@@ -1,5 +1,8 @@
 // Libraries
-import {get, isObject, isArray} from 'lodash'
+import {get} from 'lodash'
+
+// Utils
+import {findNodes} from 'src/shared/utils/ast'
 
 // Types
 import {
@@ -12,7 +15,7 @@ import {
   ObjectExpression,
   DateTimeLiteral,
   DurationLiteral,
-} from 'src/types/ast'
+} from 'src/types'
 
 export function getMinDurationFromAST(ast: Package): number {
   // We can't take the minimum of durations of each range individually, since
@@ -41,7 +44,7 @@ export function getMinDurationFromAST(ast: Package): number {
 }
 
 function allRangeTimes(ast: any): Array<[number, number]> {
-  return findNodes(isRangeNode, ast).map(node => rangeTimes(ast, node))
+  return findNodes(ast, isRangeNode).map(node => rangeTimes(ast, node))
 }
 
 /*
@@ -138,7 +141,7 @@ function lookupVariable(ast: any, name: string): Expression {
     )
   }
 
-  const declarator = findNodes(isDeclarator, ast)
+  const declarator = findNodes(ast, isDeclarator)
 
   if (!declarator.length) {
     throw new Error(`unable to lookup variable "${name}"`)
@@ -159,31 +162,4 @@ function isRangeNode(node: Node) {
     get(node, 'callee.type') === 'Identifier' &&
     get(node, 'callee.name') === 'range'
   )
-}
-
-/*
-  Find all nodes in a tree matching the `predicate` function. Each node in the
-  tree is an object, which may contain objects or arrays of objects as children
-  under any key.
-*/
-function findNodes(
-  predicate: (node: Node) => boolean,
-  node: any,
-  acc: any[] = []
-) {
-  if (predicate(node)) {
-    acc.push(node)
-  }
-
-  for (const value of Object.values(node)) {
-    if (isObject(value)) {
-      findNodes(predicate, value, acc)
-    } else if (isArray(value)) {
-      for (const innerValue of value) {
-        findNodes(predicate, innerValue, acc)
-      }
-    }
-  }
-
-  return acc
 }
