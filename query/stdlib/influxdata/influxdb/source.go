@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
@@ -10,6 +11,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
+	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -34,10 +36,17 @@ type Source struct {
 	stats cursors.CursorStats
 
 	runner runner
+
+	m     *metrics
+	orgID platform.ID
+	op    string
 }
 
 func (s *Source) Run(ctx context.Context) {
+	labelValues := s.m.getLabelValues(ctx, s.orgID, s.op)
+	start := time.Now()
 	err := s.runner.run(ctx)
+	s.m.recordMetrics(labelValues, start)
 	for _, t := range s.ts {
 		t.Finish(s.id, err)
 	}
@@ -105,14 +114,18 @@ type readFilterSource struct {
 	readSpec ReadFilterSpec
 }
 
-func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, alloc *memory.Allocator) execute.Source {
+func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a execute.Administration) execute.Source {
 	src := new(readFilterSource)
 
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
 
 	src.reader = r
 	src.readSpec = readSpec
+
+	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.orgID = readSpec.OrganizationID
+	src.op = "readFilter"
 
 	src.runner = src
 	return src
@@ -174,7 +187,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 			Bounds:         *bounds,
 			Predicate:      filter,
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -184,14 +197,18 @@ type readGroupSource struct {
 	readSpec ReadGroupSpec
 }
 
-func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, alloc *memory.Allocator) execute.Source {
+func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a execute.Administration) execute.Source {
 	src := new(readGroupSource)
 
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
 
 	src.reader = r
 	src.readSpec = readSpec
+
+	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.orgID = readSpec.OrganizationID
+	src.op = "readGroup"
 
 	src.runner = src
 	return src
@@ -252,7 +269,7 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -290,7 +307,7 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 				Predicate:      filter,
 			},
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -301,13 +318,18 @@ type readTagKeysSource struct {
 	readSpec ReadTagKeysSpec
 }
 
-func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, alloc *memory.Allocator) execute.Source {
+func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, a execute.Administration) execute.Source {
 	src := &readTagKeysSource{
 		reader:   r,
 		readSpec: readSpec,
 	}
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
+
+	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.orgID = readSpec.OrganizationID
+	src.op = "readTagKeys"
+
 	src.runner = src
 	return src
 }
@@ -355,7 +377,7 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 			},
 			TagKey: spec.TagKey,
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -366,13 +388,18 @@ type readTagValuesSource struct {
 	readSpec ReadTagValuesSpec
 }
 
-func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesSpec, alloc *memory.Allocator) execute.Source {
+func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesSpec, a execute.Administration) execute.Source {
 	src := &readTagValuesSource{
 		reader:   r,
 		readSpec: readSpec,
 	}
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
+
+	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.orgID = readSpec.OrganizationID
+	src.op = "readTagValues"
+
 	src.runner = src
 	return src
 }

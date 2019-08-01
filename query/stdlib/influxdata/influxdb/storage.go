@@ -11,6 +11,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type HostLookup interface {
@@ -32,6 +33,7 @@ type Dependencies struct {
 	Reader             Reader
 	BucketLookup       BucketLookup
 	OrganizationLookup OrganizationLookup
+	Metrics            *metrics
 }
 
 func (d Dependencies) Validate() error {
@@ -43,6 +45,14 @@ func (d Dependencies) Validate() error {
 	}
 	if d.OrganizationLookup == nil {
 		return errors.New("missing organization lookup dependency")
+	}
+	return nil
+}
+
+// PrometheusCollectors satisfies the PrometheusCollector interface.
+func (d Dependencies) PrometheusCollectors() []prometheus.Collector {
+	if d.Metrics != nil {
+		return d.Metrics.PrometheusCollectors()
 	}
 	return nil
 }
