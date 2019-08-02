@@ -55,6 +55,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
                   <Grid.Column>
                     <Form.Element label="Name">
                       <Input
+                        testID="rule-name--input"
                         placeholder="Name this new rule"
                         value={rule.name}
                         name="name"

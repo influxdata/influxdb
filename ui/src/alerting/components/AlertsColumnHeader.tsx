@@ -19,7 +19,12 @@ const AlertsColumnHeader: FC<Props> = ({onCreate, title}) => {
   return (
     <div style={style}>
       {title}
-      <Button text="Create" icon={IconFont.AddCell} onClick={onCreate} />
+      <Button
+        text="Create"
+        icon={IconFont.AddCell}
+        onClick={onCreate}
+        testID="open-create-rule--button"
+      />
     </div>
   )
 }

@@ -20,6 +20,7 @@ const PeriodCount: FC<Props> = ({period, count, onChange}) => {
         value={count}
         placeholder="1"
         onChange={onChange}
+        testID="count--input"
       />
       <div className="sentence-frag">instances in the last</div>
       <Input
@@ -28,6 +29,7 @@ const PeriodCount: FC<Props> = ({period, count, onChange}) => {
         value={period}
         placeholder="1h"
         onChange={onChange}
+        testID="period--input"
       />
     </div>
   )

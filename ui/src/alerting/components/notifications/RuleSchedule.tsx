@@ -34,6 +34,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
           <Radio>
             <Radio.Button
               id="every"
+              testID="rule-schedule-every"
               active={schedule === 'every'}
               value="every"
               titleText="Run task at regular intervals"
@@ -48,6 +49,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
             </Radio.Button>
             <Radio.Button
               id="cron"
+              testID="rule-schedule-cron"
               active={schedule === 'cron'}
               value="cron"
               titleText="Use cron syntax for more control over scheduling"
@@ -71,6 +73,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
             type={InputType.Text}
             placeholder={placeholder}
             onChange={onChange}
+            testID={`rule-schedule-${schedule}--input`}
           />
         </Form.Element>
       </Grid.Column>
@@ -83,6 +86,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
             value={offset}
             placeholder="20m"
             onChange={onChange}
+            testID="rule-schedule-offset--input"
           />
         </Form.Element>
       </Grid.Column>

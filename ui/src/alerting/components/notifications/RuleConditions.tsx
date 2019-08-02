@@ -56,7 +56,11 @@ const RuleConditions: FC<Props> = ({rule}) => {
             direction={FlexDirection.Row}
             justifyContent={JustifyContent.SpaceBetween}
           >
-            <Button text="+ Status Rule" onClick={addStatusRule} />
+            <Button
+              text="+ Status Rule"
+              onClick={addStatusRule}
+              testID="add-status-rule--button"
+            />
             <Button text="+ Tag Rule" onClick={addTagRule} />
           </ComponentSpacer>
         </Grid.Column>

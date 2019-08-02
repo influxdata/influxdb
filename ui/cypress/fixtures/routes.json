@@ -1,5 +1,6 @@
 {
   "orgs": "/orgs",
   "dashboards": "/dashboards",
-  "explorer": "/data-explorer"
+  "explorer": "/data-explorer",
+  "alerting": "/alerting"
 }

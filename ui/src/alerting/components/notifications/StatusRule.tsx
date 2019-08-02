@@ -24,13 +24,16 @@ const StatusRuleComponent: FC<Props> = ({status}) => {
       type: 'UPDATE_STATUS_RULES',
       statusRule: {
         ...status,
-        [name]: value,
+        value: {
+          ...status.value,
+          [name]: value,
+        },
       },
     })
   }
 
   return (
-    <div className="condition-row">
+    <div className="condition-row" data-testid="status-rule">
       <PeriodCount period={period} count={count} onChange={onChange} />
       <StatusLevels status={status} />
     </div>
