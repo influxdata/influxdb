@@ -29,7 +29,7 @@ import {
   XYViewProperties,
   DashboardDraftQuery,
 } from 'src/types'
-import {DEFAULT_CHECK} from 'src/alerting/constants'
+import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -59,7 +59,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   check,
 }) => {
   useEffect(() => {
-    setCurrentCheck(RemoteDataState.Done, DEFAULT_CHECK)
+    setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
     const view = createView<XYViewProperties>('xy')
     onSetActiveTimeMachine('alerting', {
       view,

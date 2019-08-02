@@ -29,14 +29,13 @@ type Props = DispatchProps & StateProps
 
 class ViewTypeDropdown extends PureComponent<Props> {
   public render() {
-    const {view} = this.props
     return (
       <Dropdown
         widthPixels={215}
         className="view-type-dropdown"
         button={(active, onClick) => (
           <Dropdown.Button active={active} onClick={onClick}>
-            {this.getVewTypeGraphic(view.properties.type as ViewType)}
+            {this.getVewTypeGraphic(this.selectedView)}
           </Dropdown.Button>
         )}
         menu={onCollapse => (
@@ -68,10 +67,14 @@ class ViewTypeDropdown extends PureComponent<Props> {
     ))
   }
 
-  private get selectedView(): string {
+  private get selectedView(): typeof view.properties.type {
     const {view} = this.props
 
-    return `${view.properties.type}`
+    if (view.properties.type === 'check') {
+      return 'xy'
+    }
+
+    return view.properties.type
   }
 
   private getVewTypeGraphic = (viewType: ViewType): JSX.Element => {

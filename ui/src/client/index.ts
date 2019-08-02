@@ -846,7 +846,17 @@ export interface CheckViewProperties {
   type: 'check'
   shape: 'chronograf-v2'
   checkID: string
-  check: Check
+  check?: Check
+  queries: DashboardQuery[]
+  colors: DashboardColor[]
+  note: string
+  showNoteWhenEmpty: boolean
+  axes: Axes
+  legend: Legend
+  xColumn?: string
+  yColumn?: string
+  shadeBelow?: boolean
+  geom: XYGeom
 }
 
 export type Check = DeadmanCheck | ThresholdCheck

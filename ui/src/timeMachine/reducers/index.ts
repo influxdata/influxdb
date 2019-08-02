@@ -394,6 +394,7 @@ export const timeMachineReducer = (
         case 'single-stat':
         case 'line-plus-single-stat':
           return setViewProperties(state, {prefix})
+        case 'check':
         case 'xy':
           return setYAxis(state, {prefix})
         default:
@@ -409,6 +410,7 @@ export const timeMachineReducer = (
         case 'single-stat':
         case 'line-plus-single-stat':
           return setViewProperties(state, {suffix})
+        case 'check':
         case 'xy':
           return setYAxis(state, {suffix})
         default:
@@ -423,6 +425,7 @@ export const timeMachineReducer = (
         case 'gauge':
         case 'single-stat':
         case 'scatter':
+        case 'check':
         case 'xy':
         case 'histogram':
           return setViewProperties(state, {colors})
