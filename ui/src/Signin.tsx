@@ -37,24 +37,26 @@ const FETCH_WAIT = 60000
 
 @ErrorHandling
 export class Signin extends PureComponent<Props, State> {
-  private intervalID: NodeJS.Timer
-  constructor(props: Props) {
-    super(props)
+  public state: State = {loading: RemoteDataState.NotStarted}
 
-    this.state = {
-      loading: RemoteDataState.NotStarted,
-    }
-  }
+  private hasMounted = false
+  private intervalID: NodeJS.Timer
 
   public async componentDidMount() {
+    this.hasMounted = true
     this.setState({loading: RemoteDataState.Loading})
+
     await this.checkForLogin()
-    this.setState({loading: RemoteDataState.Done})
-    this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
+
+    if (this.hasMounted) {
+      this.setState({loading: RemoteDataState.Done})
+      this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
+    }
   }
 
   public componentWillUnmount() {
     clearInterval(this.intervalID)
+    this.hasMounted = false
   }
 
   public render() {
@@ -74,6 +76,7 @@ export class Signin extends PureComponent<Props, State> {
       const {
         location: {pathname},
       } = this.props
+
       clearInterval(this.intervalID)
 
       // TODO: add returnTo to CLOUD signin
