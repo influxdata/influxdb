@@ -111,10 +111,19 @@ export const getCurrentCheck = (checkID: string) => async (
 }
 
 export const createCheck = (check: Partial<Check>) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
 ) => {
   try {
-    const resp = await api.postCheck({data: check as Check})
+    const {
+      orgs: {
+        org: {id: orgID},
+      },
+    } = getState()
+
+    const checkWithOrg = {...check, orgID}
+
+    const resp = await api.postCheck({data: checkWithOrg as Check})
 
     if (resp.status !== 201) {
       throw new Error(resp.data.message)
