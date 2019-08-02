@@ -58,7 +58,9 @@ const AlertingButton: FunctionComponent<Props> = ({
 const mstp = (state: AppState): StateProps => {
   const {
     activeTab,
-    view: {type: viewType},
+    view: {
+      properties: {type: viewType},
+    },
   } = getActiveTimeMachine(state)
   let status = ComponentStatus.Default
   if (activeTab === 'alerting') {

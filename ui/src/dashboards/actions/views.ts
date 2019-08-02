@@ -101,8 +101,8 @@ export const getViewForTimeMachine = (
   dispatch(setView(cellID, null, RemoteDataState.Loading))
   try {
     const view = (await getViewAJAX(dashboardID, cellID)) as QueryView
-    if (view.type === 'check') {
-      dispatch(setCurrentCheck(RemoteDataState.Done, view.check))
+    if (view.properties.type === 'check') {
+      dispatch(setCurrentCheck(RemoteDataState.Done, view.properties.check))
     }
     dispatch(setView(cellID, view, RemoteDataState.Done))
     dispatch(setActiveTimeMachine(timeMachineID, {view}))
