@@ -4,6 +4,6 @@
 # Here is information about how to configure this file:
 # https://help.github.com/en/articles/about-code-owners
 
-# API team will help to review swagger.yml changes.
+# API and monitoring team will help to review swagger.yml changes.
 #
-http/swagger.yml @influxdata/api
+http/swagger.yml @influxdata/api @influxdata/monitoring-team
