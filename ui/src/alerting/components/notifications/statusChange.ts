@@ -1,8 +1,8 @@
 import {omit} from 'lodash'
 import {StatusRuleItem, LevelRule} from 'src/types'
 
-type Changes = 'changes from' | 'equal' | 'notequal'
-export const changes: Changes[] = ['changes from', 'equal', 'notequal']
+type Changes = 'changes from' | 'equal'
+export const changes: Changes[] = ['changes from', 'equal']
 
 export const activeChange = (status: StatusRuleItem) => {
   const {currentLevel, previousLevel} = status.value
@@ -15,10 +15,6 @@ export const activeChange = (status: StatusRuleItem) => {
     return 'equal'
   }
 
-  if (currentLevel.operation === 'notequal') {
-    return 'notequal'
-  }
-
   throw new Error(
     'Changed statusRule.currentLevel.operation to unknown operator'
   )
@@ -29,7 +25,7 @@ export const changeStatusRule = (
   status: StatusRuleItem,
   change: Changes
 ): StatusRuleItem => {
-  if (change === 'equal' || change === 'notequal') {
+  if (change === 'equal') {
     return omit(status, 'value.previousLevel') as StatusRuleItem
   }
 

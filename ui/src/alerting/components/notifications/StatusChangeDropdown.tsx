@@ -29,6 +29,7 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
       key={change}
       id={change}
       value={change}
+      testID={`status-change--dropdown-item ${change}`}
       onClick={() => statusChange(status, change)}
     >
       {change}
@@ -38,7 +39,11 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
   const buttonText = activeChange(status)
 
   const button = (active, onClick) => (
-    <Dropdown.Button active={active} onClick={onClick}>
+    <Dropdown.Button
+      testID="status-change--dropdown--button"
+      active={active}
+      onClick={onClick}
+    >
       {buttonText}
     </Dropdown.Button>
   )
@@ -47,7 +52,14 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
     <Dropdown.Menu onCollapse={onCollapse}>{items}</Dropdown.Menu>
   )
 
-  return <Dropdown button={button} menu={menu} widthPixels={160} />
+  return (
+    <Dropdown
+      button={button}
+      menu={menu}
+      widthPixels={160}
+      testID="status-change--dropdown"
+    />
+  )
 }
 
 export default StatusChangeDropdown

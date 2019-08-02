@@ -42,14 +42,14 @@ const StatusLevels: FC<Props> = ({status}) => {
       {!!previousLevel && (
         <LevelsDropdown
           type="previousLevel"
-          level={previousLevel.level}
+          selectedLevel={previousLevel.level}
           onClickLevel={onClickLevel}
         />
       )}
       {!!previousLevel && <div className="sentence-frag">to</div>}
       <LevelsDropdown
         type="currentLevel"
-        level={currentLevel.level}
+        selectedLevel={currentLevel.level}
         onClickLevel={onClickLevel}
       />
     </div>
