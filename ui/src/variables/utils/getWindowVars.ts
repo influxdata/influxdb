@@ -37,7 +37,8 @@ export const getWindowVars = (
   // Use the duration of the query to compute the value of `windowPeriod`
   try {
     windowPeriod = getWindowInterval(getMinDurationFromAST(substitutedAST))
-  } catch {
+  } catch (error) {
+    console.warn(error)
     windowPeriod = FALLBACK_WINDOW_PERIOD
   }
 

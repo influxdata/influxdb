@@ -1,5 +1,11 @@
 import {getMinDurationFromAST} from 'src/shared/utils/getMinDurationFromAST'
 
+import {File} from 'src/types'
+
+// TODO(chnn): Figure out how to run WASM in Jest, then compute these ASTs from
+// source code rather than storing them as fixtures. The AST changes over time,
+// but we don't catch regressions when it does.
+
 const AST_1 = {
   type: 'Program',
   location: {
@@ -1755,16 +1761,156 @@ const AST_8 = {
   ],
 }
 
+const AST_9: File = {
+  type: 'File',
+  package: null,
+  imports: [],
+  body: [
+    {
+      type: 'OptionStatement',
+      assignment: {
+        type: 'VariableAssignment',
+        id: {
+          type: 'Identifier',
+          name: 'v',
+        },
+        init: {
+          type: 'ObjectExpression',
+          properties: [
+            {
+              type: 'Property',
+              key: {
+                type: 'Identifier',
+                name: 'timeRangeStart',
+              },
+              value: {
+                type: 'UnaryExpression',
+                operator: '-',
+                argument: {
+                  type: 'DurationLiteral',
+                  values: [
+                    {
+                      magnitude: 1,
+                      unit: 'h',
+                    },
+                  ],
+                },
+              },
+            },
+            {
+              type: 'Property',
+              key: {
+                type: 'Identifier',
+                name: 'timeRangeStop',
+              },
+              value: {
+                type: 'CallExpression',
+                callee: {
+                  type: 'Identifier',
+                  name: 'now',
+                },
+                arguments: [],
+              },
+            },
+          ],
+        },
+      },
+    },
+    {
+      type: 'ExpressionStatement',
+      expression: {
+        type: 'PipeExpression',
+        argument: {
+          type: 'CallExpression',
+          callee: {
+            type: 'Identifier',
+            name: 'from',
+          },
+          arguments: [
+            {
+              type: 'ObjectExpression',
+              properties: [
+                {
+                  type: 'Property',
+                  key: {
+                    type: 'Identifier',
+                    name: 'bucket',
+                  },
+                  value: {
+                    type: 'StringLiteral',
+                    value: 'telegraf',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        call: {
+          type: 'CallExpression',
+          callee: {
+            type: 'Identifier',
+            name: 'range',
+          },
+          arguments: [
+            {
+              type: 'ObjectExpression',
+              properties: [
+                {
+                  type: 'Property',
+                  key: {
+                    type: 'Identifier',
+                    name: 'start',
+                  },
+                  value: {
+                    type: 'MemberExpression',
+                    object: {
+                      type: 'Identifier',
+                      name: 'v',
+                    },
+                    property: {
+                      type: 'Identifier',
+                      name: 'timeRangeStart',
+                    },
+                  },
+                },
+                {
+                  type: 'Property',
+                  key: {
+                    type: 'Identifier',
+                    name: 'stop',
+                  },
+                  value: {
+                    type: 'MemberExpression',
+                    object: {
+                      type: 'Identifier',
+                      name: 'v',
+                    },
+                    property: {
+                      type: 'Identifier',
+                      name: 'timeRangeStop',
+                    },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ],
+}
+
 // prettier-ignore
 export const AST_TESTS = [
-  ['basic relative query'                               , 'from(bucket: "b") |> range(start: -1m)'                                                          , 1000 * 60                , AST_1],
-  ['query with start time assigned to variable'         , 'foo = -1m\n\nfrom(bucket: "b") |> range(start: foo)'                                             , 1000 * 60                , AST_2],
-  ['query with relative start and stop times'           , 'from(bucket: "b") |> range(start: -1h, stop: -3m)'                                               , 1000 * 60 * 57           , AST_3],
-  ['query with absolute start and stop times'           , 'from(bucket: "b") |> range(start: 2010-01-01T00:00:00Z, stop: 2010-01-02T00:00:00Z)'             , 1000 * 60 * 60 * 24      , AST_4],
-  ['query with duration literal added to absolute time' , 'from(bucket: "b") |> range(start: 2010-01-01T00:00:00Z + 1h, stop: 2010-01-02T00:00:00Z)'        , 1000 * 60 * 60 * 23      , AST_5],
-  ['query with two range calls'                         , 'from(bucket: "b") |> range(start: -1m)\nfrom(bucket: "b") |> range(start: -2m) '                 , 1000 * 60                , AST_6],
-  ['query with two large ranges overlapping slightly'   , 'from(bucket: "b") |> range(start: -200d, stop: -100d)\nfrom(bucket: "b") |> range(start: -101d)' , 1000 * 60 * 60 * 24      , AST_7],
-  ['query with three nonoverlapping ranges'             , 'range(start: -3s, stop: -2s)\nrange(start: -2s, stop: -1s)\nrange(start: -1s)'                   , 1000                     , AST_8]
+  ['basic relative query'                               , 'from(bucket: "b") |> range(start: -1m)'                                                                                                     , 1000 * 60                , AST_1],
+  ['query with start time assigned to variable'         , 'foo = -1m\n\nfrom(bucket: "b") |> range(start: foo)'                                                                                        , 1000 * 60                , AST_2],
+  ['query with relative start and stop times'           , 'from(bucket: "b") |> range(start: -1h, stop: -3m)'                                                                                          , 1000 * 60 * 57           , AST_3],
+  ['query with absolute start and stop times'           , 'from(bucket: "b") |> range(start: 2010-01-01T00:00:00Z, stop: 2010-01-02T00:00:00Z)'                                                        , 1000 * 60 * 60 * 24      , AST_4],
+  ['query with duration literal added to absolute time' , 'from(bucket: "b") |> range(start: 2010-01-01T00:00:00Z + 1h, stop: 2010-01-02T00:00:00Z)'                                                   , 1000 * 60 * 60 * 23      , AST_5],
+  ['query with two range calls'                         , 'from(bucket: "b") |> range(start: -1m)\nfrom(bucket: "b") |> range(start: -2m) '                                                            , 1000 * 60                , AST_6],
+  ['query with two large ranges overlapping slightly'   , 'from(bucket: "b") |> range(start: -200d, stop: -100d)\nfrom(bucket: "b") |> range(start: -101d)'                                            , 1000 * 60 * 60 * 24      , AST_7],
+  ['query with three nonoverlapping ranges'             , 'range(start: -3s, stop: -2s)\nrange(start: -2s, stop: -1s)\nrange(start: -1s)'                                                              , 1000                     , AST_8],
+  ['query with start/end times using option member'     , 'option v = {timeRangeStart: -1h, timeRangeStop: now()}\n\nfrom(bucket: "telegraf") |> range(start: v.timeRangeStart, stop: v.timeRangeStop)', 1000 * 60 * 60           , AST_9],
 ]
 
 describe('getMinDurationFromAST', () => {

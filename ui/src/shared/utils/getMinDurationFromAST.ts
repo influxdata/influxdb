@@ -83,12 +83,16 @@ function propertyTime(ast: any, value: Expression, now: number): number {
   switch (value.type) {
     case 'UnaryExpression':
       return now - durationDuration(value.argument as DurationLiteral)
+
     case 'DurationLiteral':
       return now + durationDuration(value)
+
     case 'DateTimeLiteral':
       return Date.parse(value.value)
+
     case 'Identifier':
       return propertyTime(ast, lookupVariable(ast, value.name), now)
+
     case 'BinaryExpression':
       const leftTime = Date.parse((value.left as DateTimeLiteral).value)
       const rightDuration = durationDuration(value.right as DurationLiteral)
@@ -101,6 +105,24 @@ function propertyTime(ast: any, value: Expression, now: number): number {
         default:
           throw new Error(`unexpected operator ${value.operator}`)
       }
+
+    case 'MemberExpression':
+      const objName = get(value, 'object.name')
+      const propertyName = get(value, 'property.name')
+      const objExpr = lookupVariable(ast, objName) as ObjectExpression
+      const property = objExpr.properties.find(
+        p => get(p, 'key.name') === propertyName
+      )
+
+      return propertyTime(ast, property.value, now)
+
+    case 'CallExpression':
+      if (isNowCall(value)) {
+        return now
+      }
+
+      throw new Error('unexpected CallExpression')
+
     default:
       throw new Error(`unexpected expression type ${value.type}`)
   }
@@ -154,6 +176,10 @@ function lookupVariable(ast: any, name: string): Expression {
   const init = declarator[0].init
 
   return init
+}
+
+function isNowCall(node: CallExpression): boolean {
+  return get(node, 'callee.name') === 'now'
 }
 
 function isRangeNode(node: Node) {
