@@ -35,9 +35,11 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
     </Dropdown.Item>
   ))
 
+  const buttonText = activeChange(status)
+
   const button = (active, onClick) => (
     <Dropdown.Button active={active} onClick={onClick}>
-      {activeChange(status)}
+      {buttonText}
     </Dropdown.Button>
   )
 

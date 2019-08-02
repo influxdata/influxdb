@@ -1,20 +1,21 @@
 import {omit} from 'lodash'
-import {StatusRuleItem} from 'src/types'
+import {StatusRuleItem, LevelRule} from 'src/types'
 
-export const changes = ['changes from', 'equal', 'notequal']
-export const previousLevel = {level: 'OK'}
+type Changes = 'changes from' | 'equal' | 'notequal'
+export const changes: Changes[] = ['changes from', 'equal', 'notequal']
 
 export const activeChange = (status: StatusRuleItem) => {
-  const {value} = status
-  if (!!value.previousLevel) {
+  const {currentLevel, previousLevel} = status.value
+
+  if (!!previousLevel) {
     return 'changes from'
   }
 
-  if (value.currentLevel.operation === 'equal') {
+  if (currentLevel.operation === 'equal') {
     return 'equal'
   }
 
-  if (value.currentLevel.operation === 'notequal') {
+  if (currentLevel.operation === 'notequal') {
     return 'notequal'
   }
 
@@ -23,9 +24,13 @@ export const activeChange = (status: StatusRuleItem) => {
   )
 }
 
-export const changeStatusRule = (status, change) => {
-  if (change === 'equals' && status.value.previousLevel) {
-    return omit(status, 'value.previousLevel')
+export const previousLevel: LevelRule = {level: 'OK'}
+export const changeStatusRule = (
+  status: StatusRuleItem,
+  change: Changes
+): StatusRuleItem => {
+  if (change === 'equal' || change === 'notequal') {
+    return omit(status, 'value.previousLevel') as StatusRuleItem
   }
 
   const {value} = status
