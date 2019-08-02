@@ -33,6 +33,7 @@ import {
 interface DispatchProps {
   updateCheck: typeof updateCheck
   setCurrentCheck: typeof setCurrentCheck
+  getCurrentCheck: typeof getCurrentCheck
   updateCurrentCheck: typeof updateCurrentCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
@@ -47,6 +48,7 @@ type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
+  getCurrentCheck,
   loadingStatus,
   updateCheck,
   router,
@@ -67,7 +69,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
       activeTab: 'alerting',
       isViewingRawData: false,
     })
-  }, [check.id])
+  }, [check && check.id])
 
   const handleUpdateName = (name: string) => {
     updateCurrentCheck({name})
@@ -138,6 +140,7 @@ const mdtp: DispatchProps = {
   setCurrentCheck: setCurrentCheck,
   updateCurrentCheck: updateCurrentCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
+  getCurrentCheck: getCurrentCheck,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
