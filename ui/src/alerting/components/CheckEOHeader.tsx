@@ -12,7 +12,7 @@ import {
 } from '@influxdata/clockface'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
-import AlertingButton from 'src/timeMachine/components/AlertingButton'
+import CheckAlertingButton from 'src/alerting/components/CheckAlertingButton'
 
 // Constants
 import {DEFAULT_CHECK_NAME, CHECK_NAME_MAX_LENGTH} from 'src/alerting/constants'
@@ -50,7 +50,7 @@ const CheckEOHeader: FC<Props> = ({name, onSetName, onCancel, onSave}) => {
           />
         </Page.Header.Left>
         <Page.Header.Right>
-          <AlertingButton />
+          <CheckAlertingButton />
           <ViewTypeDropdown />
           <VisOptionsButton />
           <SquareButton
