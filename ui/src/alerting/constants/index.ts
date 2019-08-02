@@ -2,7 +2,7 @@ import {
   Check,
   DashboardQuery,
   NotificationRule,
-  GreaterThreshold,
+  Threshold,
   ThresholdCheck,
   DeadmanCheck,
 } from 'src/types'
@@ -56,10 +56,10 @@ export const check1: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'WARN',
+      level: 'UNKNOWN',
+      lowerBound: 20,
       allValues: false,
-      type: 'greater',
-    } as GreaterThreshold,
+    } as Threshold,
   ],
 }
 
@@ -78,10 +78,10 @@ export const check2: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'WARN',
+      level: 'UNKNOWN',
+      lowerBound: 20,
       allValues: false,
-      type: 'greater',
-    } as GreaterThreshold,
+    } as Threshold,
   ],
 }
 

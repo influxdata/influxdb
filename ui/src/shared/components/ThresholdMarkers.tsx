@@ -36,18 +36,6 @@ const ThresholdMarkers: FunctionComponent<Props> = ({
       [field]: yValue,
     }
 
-    if (
-      nextThreshold.type === 'range' &&
-      nextThreshold.min > nextThreshold.max
-    ) {
-      // If the user drags the min past the max or vice versa, we swap the
-      // values that are set so that the min is always at most the max
-      const maxValue = nextThreshold.min
-
-      nextThreshold.min = nextThreshold.max
-      nextThreshold.max = maxValue
-    }
-
     const nextThresholds = thresholds.map((t, i) =>
       i === index ? nextThreshold : t
     )
@@ -62,40 +50,41 @@ const ThresholdMarkers: FunctionComponent<Props> = ({
         const onChangeMaxPos = ({y}) => handleDrag(index, 'maxValue', y)
         const onChangeMinPos = ({y}) => handleDrag(index, 'minValue', y)
 
-        switch (threshold.type) {
-          case 'greater':
-            return (
-              <GreaterThresholdMarker
-                key={index}
-                yScale={yScale}
-                yDomain={yDomain}
-                threshold={threshold}
-                onChangePos={onChangePos}
-              />
-            )
-          case 'lesser':
-            return (
-              <LessThresholdMarker
-                key={index}
-                yScale={yScale}
-                yDomain={yDomain}
-                threshold={threshold}
-                onChangePos={onChangePos}
-              />
-            )
-          case 'range':
-            return (
-              <RangeThresholdMarkers
-                key={index}
-                yScale={yScale}
-                yDomain={yDomain}
-                threshold={threshold}
-                onChangeMinPos={onChangeMinPos}
-                onChangeMaxPos={onChangeMaxPos}
-              />
-            )
-          default:
-            return null
+        if (threshold.lowerBound && threshold.upperBound) {
+          return (
+            <RangeThresholdMarkers
+              key={index}
+              yScale={yScale}
+              yDomain={yDomain}
+              threshold={threshold}
+              onChangeMinPos={onChangeMinPos}
+              onChangeMaxPos={onChangeMaxPos}
+            />
+          )
+        }
+
+        if (threshold.lowerBound) {
+          return (
+            <GreaterThresholdMarker
+              key={index}
+              yScale={yScale}
+              yDomain={yDomain}
+              threshold={threshold}
+              onChangePos={onChangePos}
+            />
+          )
+        }
+
+        if (threshold.upperBound) {
+          return (
+            <LessThresholdMarker
+              key={index}
+              yScale={yScale}
+              yDomain={yDomain}
+              threshold={threshold}
+              onChangePos={onChangePos}
+            />
+          )
         }
       })}
     </div>
