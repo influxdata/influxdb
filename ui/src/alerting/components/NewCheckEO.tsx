@@ -72,10 +72,12 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   }
 
   const handleClose = () => {
+    setCurrentCheck(RemoteDataState.NotStarted, null)
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
   const handleSave = () => {
+    // todo: when check has own view
     // save view as view
     // put view.id on check.viewID
     createCheck({...check, query})

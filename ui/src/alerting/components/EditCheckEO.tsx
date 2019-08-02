@@ -74,11 +74,12 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }
 
   const handleClose = () => {
+    setCurrentCheck(RemoteDataState.NotStarted, null)
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
   const handleSave = () => {
-    // update view
+    // todo: update view when check has own view
     updateCheck({...check, query})
     handleClose()
   }
