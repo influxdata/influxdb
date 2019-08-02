@@ -26,8 +26,8 @@ import {
   Check,
   AppState,
   RemoteDataState,
-  XYViewProperties,
   DashboardDraftQuery,
+  CheckViewProperties,
 } from 'src/types'
 import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
 
@@ -60,7 +60,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
-    const view = createView<XYViewProperties>('xy')
+    const view = createView<CheckViewProperties>('check')
     onSetActiveTimeMachine('alerting', {
       view,
       activeTab: 'queries',

@@ -26,8 +26,8 @@ import {
   Check,
   AppState,
   RemoteDataState,
-  XYViewProperties,
   DashboardDraftQuery,
+  CheckViewProperties,
 } from 'src/types'
 
 interface DispatchProps {
@@ -60,8 +60,8 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }, [params.checkID])
 
   useEffect(() => {
-    const view = createView<XYViewProperties>('xy')
-    //getView here
+    const view = createView<CheckViewProperties>('check')
+    // todo: when check has own view get view here
     onSetActiveTimeMachine('alerting', {
       view,
       activeTab: 'alerting',
