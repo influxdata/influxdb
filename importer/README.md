@@ -184,7 +184,7 @@ See below for more information.
  If you need to throttle the import so the database has time to ingest, you can use the `-pps` flag.  This will limit the points per second that will be sent to the server.
  
   ```sh
- influx -import -path=metrics-default.gz -compressed -pps 50000 > failures
+ influx -import -path=metrics-default.gz -compressed -pps 50000 > failures 2>&1
  ```
  
  Which is stating that you don't want MORE than 50,000 points per second to write to the database. Due to the processing that is taking place however, you will likely never get exactly 50,000 pps, more like 35,000 pps, etc. 
