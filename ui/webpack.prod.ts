@@ -7,7 +7,10 @@ module.exports = merge(common, {
   mode: 'production',
   devtool: 'source-map',
   optimization: {
-    minimizer: [new TerserJSPlugin({}), new OptimizeCSSAssetsPlugin({})],
+    minimizer: [
+      new TerserJSPlugin({sourceMap: true}),
+      new OptimizeCSSAssetsPlugin({}),
+    ],
     splitChunks: {
       chunks: 'all',
     },
