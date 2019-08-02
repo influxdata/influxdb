@@ -7,6 +7,9 @@ import * as copy from 'src/shared/copy/notifications'
 // APIs
 import * as api from 'src/client'
 
+// Utils
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+
 //Actions
 import {
   notify,
@@ -110,22 +113,30 @@ export const getCurrentCheck = (checkID: string) => async (
   }
 }
 
-export const createCheck = (check: Partial<Check>) => async (
+export const saveCurrentCheck = () => async (
   dispatch: Dispatch<Action | NotificationAction>,
   getState: GetState
 ) => {
   try {
+    const state = getState()
     const {
+      checks: {
+        current: {check},
+      },
       orgs: {
         org: {id: orgID},
       },
-    } = getState()
+    } = state
 
-    const checkWithOrg = {...check, orgID}
+    const {draftQueries} = getActiveTimeMachine(state)
 
-    const resp = await api.postCheck({data: checkWithOrg as Check})
+    const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
 
-    if (resp.status !== 201) {
+    const resp = check.id
+      ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
+      : await api.postCheck({data: checkWithOrg})
+
+    if (!(resp.status === 201 || resp.status === 200)) {
       throw new Error(resp.data.message)
     }
   } catch (e) {

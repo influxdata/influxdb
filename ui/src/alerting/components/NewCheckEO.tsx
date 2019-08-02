@@ -13,22 +13,15 @@ import {
   updateCheck,
   setCurrentCheck,
   updateCurrentCheck,
-  createCheck,
+  saveCurrentCheck,
 } from 'src/alerting/actions/checks'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {
-  Check,
-  AppState,
-  RemoteDataState,
-  DashboardDraftQuery,
-  CheckViewProperties,
-} from 'src/types'
+import {Check, AppState, RemoteDataState, CheckViewProperties} from 'src/types'
 import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
 
 interface DispatchProps {
@@ -36,13 +29,12 @@ interface DispatchProps {
   setCurrentCheck: typeof setCurrentCheck
   updateCurrentCheck: typeof updateCurrentCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
-  createCheck: typeof createCheck
+  saveCurrentCheck: typeof saveCurrentCheck
 }
 
 interface StateProps {
   check: Partial<Check>
   status: RemoteDataState
-  query: DashboardDraftQuery
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
@@ -51,8 +43,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
   updateCurrentCheck,
   setCurrentCheck,
-  createCheck,
-  query,
+  saveCurrentCheck,
   params,
   router,
   status,
@@ -80,7 +71,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     // todo: when check has own view
     // save view as view
     // put view.id on check.viewID
-    createCheck({...check, query})
+    saveCurrentCheck()
     handleClose()
   }
 
@@ -114,9 +105,7 @@ const mstp = (state: AppState): StateProps => {
     },
   } = state
 
-  const {draftQueries} = getActiveTimeMachine(state)
-
-  return {check, status, query: draftQueries[0]}
+  return {check, status}
 }
 
 const mdtp: DispatchProps = {
@@ -124,7 +113,7 @@ const mdtp: DispatchProps = {
   setCurrentCheck: setCurrentCheck,
   updateCurrentCheck: updateCurrentCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  createCheck: createCheck,
+  saveCurrentCheck: saveCurrentCheck,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

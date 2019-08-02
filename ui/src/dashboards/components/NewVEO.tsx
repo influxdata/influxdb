@@ -10,6 +10,7 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
+import {saveCurrentCheck} from 'src/alerting/actions/checks'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
@@ -23,6 +24,7 @@ import {AppState, XYViewProperties, RemoteDataState, View} from 'src/types'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
+  saveCurrentCheck: typeof saveCurrentCheck
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
 }
@@ -36,6 +38,7 @@ type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewViewVEO: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
+  saveCurrentCheck,
   loadingState,
   onSaveView,
   onSetName,
@@ -55,6 +58,9 @@ const NewViewVEO: FunctionComponent<Props> = ({
 
   const handleSave = () => {
     try {
+      if (view.properties.type === 'check') {
+        saveCurrentCheck()
+      }
       onSaveView(params.dashboardID)
       handleClose()
     } catch (e) {}
@@ -101,6 +107,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onSetName: setName,
   onSaveView: saveVEOView,
+  saveCurrentCheck: saveCurrentCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
