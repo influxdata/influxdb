@@ -38,6 +38,10 @@ const CheckCard: FunctionComponent<Props> = ({
     updateCheck({id: check.id, name})
   }
 
+  const onUpdateDescription = (description: string) => {
+    updateCheck({id: check.id, description})
+  }
+
   const onDelete = () => {
     deleteCheck(check.id)
   }
@@ -79,7 +83,13 @@ const CheckCard: FunctionComponent<Props> = ({
           testID="check-card--slide-toggle"
         />
       }
-      // description
+      description={
+        <ResourceCard.Description
+          onUpdate={onUpdateDescription}
+          description={check.description}
+          placeholder={`Describe ${check.name}`}
+        />
+      }
       // labels
       disabled={check.status === 'inactive'}
       contextMenu={
