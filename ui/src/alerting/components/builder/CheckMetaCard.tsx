@@ -150,51 +150,57 @@ const CheckMetaCard: FC<Props> = ({updateCurrentCheck, check}) => {
           </Radio.Button>
         </Radio>
       </Form.Element>
-      <Form.Element label="Every">
-        <Input
-          autoFocus={false}
-          maxLength={24}
-          name="Name"
-          onChange={handleChangeName}
-          placeholder="Name this check"
-          size={ComponentSize.Small}
-          spellCheck={false}
-          testID="input-field"
-          titleText="Title Text"
-          type={InputType.Text}
-          value={check.name}
-        />
-      </Form.Element>
-      <Form.Element label="Offset">
-        <Input
-          autoFocus={false}
-          maxLength={24}
-          name="Name"
-          onChange={handleChangeName}
-          placeholder="Name this check"
-          size={ComponentSize.Small}
-          spellCheck={false}
-          testID="input-field"
-          titleText="Title Text"
-          type={InputType.Text}
-          value={check.name}
-        />
-      </Form.Element>
-      <Form.Element label="Range">
-        <Input
-          autoFocus={false}
-          maxLength={24}
-          name="Name"
-          onChange={handleChangeName}
-          placeholder="Name this check"
-          size={ComponentSize.Small}
-          spellCheck={false}
-          testID="input-field"
-          titleText="Title Text"
-          type={InputType.Text}
-          value={check.name}
-        />
-      </Form.Element>
+      {check.every != null && (
+        <Form.Element label="Every">
+          <Input
+            autoFocus={false}
+            maxLength={24}
+            name="Name"
+            onChange={handleChangeName}
+            placeholder="Name this check"
+            size={ComponentSize.Small}
+            spellCheck={false}
+            testID="input-field"
+            titleText="Title Text"
+            type={InputType.Text}
+            value={check.every}
+          />
+        </Form.Element>
+      )}
+      {check.offset != null && (
+        <Form.Element label="Offset">
+          <Input
+            autoFocus={false}
+            maxLength={24}
+            name="Offset"
+            onChange={handleChangeName}
+            placeholder="offset"
+            size={ComponentSize.Small}
+            spellCheck={false}
+            testID="input-field"
+            titleText="Title Text"
+            type={InputType.Text}
+            value={check.offset}
+          />
+        </Form.Element>
+      )}
+      {check.cron != null && (
+        <Form.Element label="Cron">
+          <Input
+            autoFocus={false}
+            maxLength={24}
+            name="Cron"
+            onChange={handleChangeName}
+            placeholder="cron"
+            size={ComponentSize.Small}
+            spellCheck={false}
+            testID="input-field"
+            titleText="Title Text"
+            type={InputType.Text}
+            value={check.cron}
+          />
+        </Form.Element>
+      )}
     </>
   )
 }
