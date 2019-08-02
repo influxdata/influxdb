@@ -9,10 +9,12 @@ import {RemoteDataState, QueryView} from 'src/types'
 import {Dispatch} from 'redux'
 import {View} from 'src/types'
 import {Action as TimeMachineAction} from 'src/timeMachine/actions'
+import {Action as CheckAction} from 'src/alerting/actions/checks'
 
 //Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {TimeMachineIDs} from 'src/timeMachine/constants'
+import {setCurrentCheck} from 'src/alerting/actions/checks'
 
 export type Action = SetViewAction | SetViewsAction | ResetViewsAction
 
@@ -93,11 +95,15 @@ export const getViewForTimeMachine = (
   dashboardID: string,
   cellID: string,
   timeMachineID: TimeMachineIDs
-) => async (dispatch: Dispatch<Action | TimeMachineAction>): Promise<void> => {
+) => async (
+  dispatch: Dispatch<Action | TimeMachineAction | CheckAction>
+): Promise<void> => {
   dispatch(setView(cellID, null, RemoteDataState.Loading))
   try {
     const view = (await getViewAJAX(dashboardID, cellID)) as QueryView
-
+    if (view.type === 'check') {
+      dispatch(setCurrentCheck(RemoteDataState.Done, view.check))
+    }
     dispatch(setView(cellID, view, RemoteDataState.Done))
     dispatch(setActiveTimeMachine(timeMachineID, {view}))
   } catch {

@@ -16,7 +16,10 @@ import {
 import {Input} from '@influxdata/clockface'
 
 // Actions
-import {updateCurrentCheck} from 'src/alerting/actions/checks'
+import {
+  updateCurrentCheck,
+  changeCurrentCheckType,
+} from 'src/alerting/actions/checks'
 
 // Types
 import {Check, AppState} from 'src/types'
@@ -38,7 +41,7 @@ type Props = DispatchProps & StateProps
 
 const CheckMetaCard: FC<Props> = ({updateCurrentCheck, check}) => {
   const handleChangeType = (type: typeof check.type) => {
-    updateCurrentCheck({type})
+    changeCurrentCheckType(type)
   }
 
   const handleChangeName = (e: React.ChangeEvent<HTMLInputElement>) => {

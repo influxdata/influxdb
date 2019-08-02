@@ -22,7 +22,9 @@ export type Action =
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
   | ReturnType<typeof setCurrentCheck>
+  | ReturnType<typeof setCurrentCheckStatus>
   | ReturnType<typeof updateCurrentCheck>
+  | ReturnType<typeof changeCurrentCheckType>
 
 export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
@@ -41,15 +43,25 @@ export const removeCheck = (checkID: string) => ({
 
 export const setCurrentCheck = (
   status: RemoteDataState,
-  check?: Partial<Check>
+  check: Partial<Check>
 ) => ({
   type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
   payload: {status, check},
 })
 
+export const setCurrentCheckStatus = (status: RemoteDataState) => ({
+  type: 'SET_CURRENT_CHECK_STATUS' as 'SET_CURRENT_CHECK_STATUS',
+  payload: {status},
+})
+
 export const updateCurrentCheck = (checkUpdate: Partial<Check>) => ({
   type: 'UPDATE_CURRENT_CHECK' as 'UPDATE_CURRENT_CHECK',
   payload: {status, checkUpdate},
+})
+
+export const changeCurrentCheckType = (type: 'deadman' | 'threshold') => ({
+  type: 'CHANGE_CURRENT_CHECK_TYPE' as 'CHANGE_CURRENT_CHECK_TYPE',
+  payload: {status, type},
 })
 
 export const getChecks = () => async (
@@ -82,7 +94,7 @@ export const getCurrentCheck = (checkID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    dispatch(setCurrentCheck(RemoteDataState.Loading))
+    dispatch(setCurrentCheckStatus(RemoteDataState.Loading))
 
     const resp = await api.getCheck({checkID})
 
@@ -93,7 +105,7 @@ export const getCurrentCheck = (checkID: string) => async (
     dispatch(setCurrentCheck(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(setCurrentCheck(RemoteDataState.Error))
+    dispatch(setCurrentCheckStatus(RemoteDataState.Error))
     dispatch(notify(copy.getCheckFailed(e.message)))
   }
 }
