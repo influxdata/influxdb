@@ -137,26 +137,13 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	logger := h.Logger.With(zap.String("org", req.Org), zap.String("bucket", req.Bucket))
 
 	var org *platform.Organization
-	if id, err := platform.IDFromString(req.Org); err == nil {
-		// Decoded ID successfully. Make sure it's a real org.
-		o, err := h.OrganizationService.FindOrganizationByID(ctx, *id)
-		if err == nil {
-			org = o
-		} else if platform.ErrorCode(err) != platform.ENotFound {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
+	org, err = queryOrganization(ctx, r, h.OrganizationService)
+	if err != nil {
+		logger.Info("Failed to find organization", zap.Error(err))
+		h.HandleHTTPError(ctx, err, w)
+		return
 	}
-	if org == nil {
-		o, err := h.OrganizationService.FindOrganization(ctx, platform.OrganizationFilter{Name: &req.Org})
-		if err != nil {
-			logger.Info("Failed to find organization", zap.Error(err))
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
 
-		org = o
-	}
 	orgID = org.ID
 
 	var bucket *platform.Bucket

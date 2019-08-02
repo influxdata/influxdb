@@ -79,6 +79,29 @@ func Test_queryOrganization(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "org id as org finds organization",
+			want: &platform.Organization{
+				ID: platform.ID(1),
+			},
+			args: args{
+				ctx: context.Background(),
+				r:   httptest.NewRequest(http.MethodPost, "/api/v2/query?org=0000000000000001", nil),
+				svc: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
+						if *filter.ID == platform.ID(1) {
+							return &platform.Organization{
+								ID: platform.ID(1),
+							}, nil
+						}
+						return nil, &platform.Error{
+							Code: platform.EInvalid,
+							Msg:  "unknown org name",
+						}
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
