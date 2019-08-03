@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"sync"
 
 	"github.com/influxdata/influxdb/models"
 )
@@ -13,7 +12,6 @@ type PointsWriter interface {
 }
 
 type BufferedPointsWriter struct {
-	sync.Mutex
 	buf []models.Point
 	n   int
 	wr  PointsWriter
@@ -30,15 +28,15 @@ func NewBufferedPointsWriter(size int, pointswriter PointsWriter) *BufferedPoint
 // WritePoints writes the points to the underlying PointsWriter.
 func (b *BufferedPointsWriter) WritePoints(ctx context.Context, p []models.Point) error {
 	for len(p) > b.Available() && b.err == nil {
-		var n int
 		if b.Buffered() == 0 {
 			// Large write, empty buffer.
 			// Write directly from p to avoid copy.
 			b.err = b.wr.WritePoints(ctx, p)
-		} else {
-			b.n += copy(b.buf[b.n:], p)
-			b.err = b.Flush(ctx)
+			return b.err
 		}
+		n := copy(b.buf[b.n:], p)
+		b.n += n
+		b.err = b.Flush(ctx)
 		p = p[n:]
 	}
 	if b.err != nil {
@@ -52,7 +50,7 @@ func (b *BufferedPointsWriter) WritePoints(ctx context.Context, p []models.Point
 func (b *BufferedPointsWriter) Available() int { return len(b.buf) - b.n }
 
 // Buffered returns the number of models.Points that have been written into the current buffer.
-func (b *BufferedPointsWriter) Buffered() int { return len(b.buf) }
+func (b *BufferedPointsWriter) Buffered() int { return b.n }
 
 // Flush writes any buffered data to the underlying PointsWriter.
 func (b *BufferedPointsWriter) Flush(ctx context.Context) error {
