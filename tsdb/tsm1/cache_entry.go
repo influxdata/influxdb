@@ -19,22 +19,22 @@ type entry struct {
 // newEntryValues returns a new instance of entry with the given values.  If the
 // values are not valid, an error is returned.
 func newEntryValues(values []Value) (*entry, error) {
-	e := &entry{}
-	e.values = make(Values, 0, len(values))
-	e.values = append(e.values, values...)
-
 	// No values, don't check types and ordering
 	if len(values) == 0 {
-		return e, nil
+		return &entry{}, nil
 	}
 
 	et := valueType(values[0])
-	for _, v := range values {
+	for _, v := range values[1:] {
 		// Make sure all the values are the same type
 		if et != valueType(v) {
 			return nil, tsdb.ErrFieldTypeConflict
 		}
 	}
+
+	e := &entry{}
+	e.values = make(Values, 0, len(values))
+	e.values = append(e.values, values...)
 
 	// Set the type of values stored.
 	e.vtype = et
