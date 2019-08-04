@@ -13,7 +13,7 @@ import {Action as CheckAction} from 'src/alerting/actions/checks'
 
 //Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {TimeMachineIDs} from 'src/timeMachine/constants'
+import {TimeMachineID} from 'src/timeMachine/constants'
 import {setCurrentCheck} from 'src/alerting/actions/checks'
 
 export type Action = SetViewAction | SetViewsAction | ResetViewsAction
@@ -94,7 +94,7 @@ export const updateView = (dashboardID: string, view: View) => async (
 export const getViewForTimeMachine = (
   dashboardID: string,
   cellID: string,
-  timeMachineID: TimeMachineIDs
+  timeMachineID: TimeMachineID
 ) => async (
   dispatch: Dispatch<Action | TimeMachineAction | CheckAction>
 ): Promise<void> => {

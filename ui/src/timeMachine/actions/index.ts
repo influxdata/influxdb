@@ -23,7 +23,7 @@ import {
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
-import {TimeMachineIDs} from 'src/timeMachine/constants'
+import {TimeMachineID} from 'src/timeMachine/constants'
 
 export type Action =
   | QueryBuilderAction
@@ -77,13 +77,13 @@ export type Action =
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
   payload: {
-    activeTimeMachineID: TimeMachineIDs
+    activeTimeMachineID: TimeMachineID
     initialState: Partial<TimeMachineState>
   }
 }
 
 export const setActiveTimeMachine = (
-  activeTimeMachineID: TimeMachineIDs,
+  activeTimeMachineID: TimeMachineID,
   initialState: Partial<TimeMachineState> = {}
 ): SetActiveTimeMachineAction => ({
   type: 'SET_ACTIVE_TIME_MACHINE',

@@ -8,7 +8,7 @@ import {createView, defaultViewQuery} from 'src/shared/utils/view'
 import {isConfigValid, buildQuery} from 'src/timeMachine/utils/queryBuilder'
 
 // Constants
-import {TimeMachineIDs} from 'src/timeMachine/constants'
+import {TimeMachineID} from 'src/timeMachine/constants'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {
   THRESHOLD_TYPE_TEXT,
@@ -67,7 +67,7 @@ export interface TimeMachineState {
 }
 
 export interface TimeMachinesState {
-  activeTimeMachineID: TimeMachineIDs
+  activeTimeMachineID: TimeMachineID
   timeMachines: {
     ['de']: TimeMachineState
     ['veo']: TimeMachineState

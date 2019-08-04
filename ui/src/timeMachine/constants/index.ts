@@ -1,1 +1,1 @@
-export type TimeMachineIDs = 'de' | 'veo' | 'alerting'
+export type TimeMachineID = 'de' | 'veo' | 'alerting'
