@@ -105,9 +105,9 @@ export const initialStateHelper = (): TimeMachineState => ({
 export const initialState = (): TimeMachinesState => ({
   activeTimeMachineID: 'de',
   timeMachines: {
-    ['veo']: initialStateHelper(),
-    ['de']: initialStateHelper(),
-    ['alerting']: initialStateHelper(),
+    veo: initialStateHelper(),
+    de: initialStateHelper(),
+    alerting: initialStateHelper(),
   },
 })
 
