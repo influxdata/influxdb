@@ -12,22 +12,27 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {setActiveTab} from 'src/timeMachine/actions'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, TimeMachineTab} from 'src/types'
 
 interface DispatchProps {
   setActiveTab: typeof setActiveTab
 }
 
 interface StateProps {
-  status: ComponentStatus
+  activeTab: TimeMachineTab
 }
 
 type Props = DispatchProps & StateProps
 
 const CheckAlertingButton: FunctionComponent<Props> = ({
   setActiveTab,
-  status,
+  activeTab,
 }) => {
+  let buttonStatus = ComponentStatus.Default
+  if (activeTab === 'alerting') {
+    buttonStatus = ComponentStatus.Disabled
+  }
+
   const handleClick = () => {
     setActiveTab('alerting')
   }
@@ -37,18 +42,15 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
       titleText="Add alerting to this query"
       text="Alerting"
       onClick={handleClick}
-      status={status}
+      status={buttonStatus}
     />
   )
 }
 
 const mstp = (state: AppState): StateProps => {
   const {activeTab} = getActiveTimeMachine(state)
-  let status = ComponentStatus.Default
-  if (activeTab === 'alerting') {
-    status = ComponentStatus.Disabled
-  }
-  return {status}
+
+  return {activeTab}
 }
 
 const mdtp: DispatchProps = {

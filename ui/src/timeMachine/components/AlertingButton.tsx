@@ -14,7 +14,7 @@ import {setCurrentCheck} from 'src/alerting/actions/checks'
 import {setActiveTab} from 'src/timeMachine/actions'
 
 // Types
-import {AppState, RemoteDataState, ViewType} from 'src/types'
+import {AppState, RemoteDataState, ViewType, TimeMachineTab} from 'src/types'
 import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
 
 interface DispatchProps {
@@ -24,7 +24,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  status: ComponentStatus
+  activeTab: TimeMachineTab
   viewType: ViewType
 }
 
@@ -32,7 +32,7 @@ type Props = DispatchProps & StateProps
 
 const AlertingButton: FunctionComponent<Props> = ({
   setActiveTab,
-  status,
+  activeTab,
   setCurrentCheck,
   viewType,
   setViewType,
@@ -43,6 +43,11 @@ const AlertingButton: FunctionComponent<Props> = ({
       setViewType('check')
     }
     setActiveTab('alerting')
+  }
+
+  let status = ComponentStatus.Default
+  if (activeTab === 'alerting') {
+    status = ComponentStatus.Disabled
   }
 
   return (
@@ -62,11 +67,8 @@ const mstp = (state: AppState): StateProps => {
       properties: {type: viewType},
     },
   } = getActiveTimeMachine(state)
-  let status = ComponentStatus.Default
-  if (activeTab === 'alerting') {
-    status = ComponentStatus.Disabled
-  }
-  return {status, viewType}
+
+  return {activeTab, viewType}
 }
 
 const mdtp: DispatchProps = {

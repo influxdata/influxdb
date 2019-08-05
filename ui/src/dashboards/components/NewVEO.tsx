@@ -21,6 +21,7 @@ import {createView} from 'src/shared/utils/view'
 
 // Types
 import {AppState, XYViewProperties, RemoteDataState, View} from 'src/types'
+import {TimeMachineID} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -30,19 +31,19 @@ interface DispatchProps {
 }
 
 interface StateProps {
+  activeTimeMachineID: TimeMachineID
   view: View
-  loadingState: RemoteDataState
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewViewVEO: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
+  activeTimeMachineID,
   saveCurrentCheck,
-  loadingState,
   onSaveView,
   onSetName,
-  params,
+  params: {orgID, dashboardID},
   router,
   view,
 }) => {
@@ -52,7 +53,6 @@ const NewViewVEO: FunctionComponent<Props> = ({
   }, [])
 
   const handleClose = () => {
-    const {orgID, dashboardID} = params
     router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
   }
 
@@ -61,9 +61,15 @@ const NewViewVEO: FunctionComponent<Props> = ({
       if (view.properties.type === 'check') {
         saveCurrentCheck()
       }
-      onSaveView(params.dashboardID)
+      onSaveView(dashboardID)
       handleClose()
     } catch (e) {}
+  }
+
+  let loadingState = RemoteDataState.Loading
+  const viewIsNew = !get(view, 'id', null)
+  if (activeTimeMachineID === 'veo' && viewIsNew) {
+    loadingState = RemoteDataState.Done
   }
 
   return (
@@ -93,15 +99,7 @@ const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
-  const viewIsNew = !get(view, 'id', null)
-
-  let loadingState = RemoteDataState.Loading
-
-  if (activeTimeMachineID === 'veo' && viewIsNew) {
-    loadingState = RemoteDataState.Done
-  }
-
-  return {view, loadingState}
+  return {view, activeTimeMachineID}
 }
 
 const mdtp: DispatchProps = {

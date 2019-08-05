@@ -29,6 +29,7 @@ import {
   DashboardDraftQuery,
   CheckViewProperties,
 } from 'src/types'
+import {TimeMachineID} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -41,15 +42,17 @@ interface DispatchProps {
 interface StateProps {
   check: Partial<Check>
   query: DashboardDraftQuery
-  loadingStatus: RemoteDataState
+  checkStatus: RemoteDataState
+  activeTimeMachineID: TimeMachineID
 }
 
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
+  activeTimeMachineID,
   getCurrentCheck,
-  loadingStatus,
+  checkStatus,
   updateCheck,
   router,
   params: {checkID, orgID},
@@ -85,6 +88,19 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
     handleClose()
   }
 
+  let loadingStatus = RemoteDataState.Loading
+
+  if (checkStatus === RemoteDataState.Error) {
+    loadingStatus = RemoteDataState.Error
+  }
+  if (
+    checkStatus === RemoteDataState.Done &&
+    activeTimeMachineID === 'alerting' &&
+    check.id === checkID
+  ) {
+    loadingStatus = RemoteDataState.Done
+  }
+
   return (
     <Overlay visible={true} className="veo-overlay">
       <div className="veo">
@@ -108,7 +124,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState, {params}): StateProps => {
+const mstp = (state: AppState): StateProps => {
   const {
     checks: {
       current: {check, status: checkStatus},
@@ -118,20 +134,7 @@ const mstp = (state: AppState, {params}): StateProps => {
 
   const {draftQueries} = getActiveTimeMachine(state)
 
-  let loadingStatus = RemoteDataState.Loading
-
-  if (checkStatus === RemoteDataState.Error) {
-    loadingStatus = RemoteDataState.Error
-  }
-  if (
-    checkStatus === RemoteDataState.Done &&
-    activeTimeMachineID === 'alerting' &&
-    check.id === params.checkID
-  ) {
-    loadingStatus = RemoteDataState.Done
-  }
-
-  return {check, loadingStatus, query: draftQueries[0]}
+  return {check, checkStatus, activeTimeMachineID, query: draftQueries[0]}
 }
 
 const mdtp: DispatchProps = {

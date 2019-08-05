@@ -22,6 +22,7 @@ import {getView} from 'src/dashboards/selectors'
 // Types
 import {AppState, RemoteDataState, QueryView} from 'src/types'
 import {executeQueries} from 'src/timeMachine/actions/queries'
+import {TimeMachineID} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -35,7 +36,7 @@ interface DispatchProps {
 
 interface StateProps {
   view: QueryView | null
-  loadingState: RemoteDataState
+  activeTimeMachineID: TimeMachineID
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
@@ -43,9 +44,9 @@ type Props = DispatchProps & StateProps & WithRouterProps
 const EditViewVEO: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
   getViewForTimeMachine,
+  activeTimeMachineID,
   saveCurrentCheck,
   executeQueries,
-  loadingState,
   onSaveView,
   onSetName,
   params: {orgID, cellID, dashboardID},
@@ -78,6 +79,13 @@ const EditViewVEO: FunctionComponent<Props> = ({
     } catch (e) {}
   }
 
+  const viewMatchesRoute = get(view, 'id', null) === cellID
+
+  let loadingState = RemoteDataState.Loading
+  if (activeTimeMachineID === 'veo' && viewMatchesRoute) {
+    loadingState = RemoteDataState.Done
+  }
+
   return (
     <Overlay visible={true} className="veo-overlay">
       <div className="veo">
@@ -106,15 +114,7 @@ const mstp = (state: AppState, {params: {cellID}}): StateProps => {
 
   const view = getView(state, cellID) as QueryView
 
-  const viewMatchesRoute = get(view, 'id', null) === cellID
-
-  let loadingState = RemoteDataState.Loading
-
-  if (activeTimeMachineID === 'veo' && viewMatchesRoute) {
-    loadingState = RemoteDataState.Done
-  }
-
-  return {view, loadingState}
+  return {view, activeTimeMachineID}
 }
 
 const mdtp: DispatchProps = {
