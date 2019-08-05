@@ -67,7 +67,7 @@ class ViewTypeDropdown extends PureComponent<Props> {
     ))
   }
 
-  private get selectedView(): typeof view.properties.type {
+  private get selectedView(): ViewType {
     const {view} = this.props
 
     if (view.properties.type === 'check') {
