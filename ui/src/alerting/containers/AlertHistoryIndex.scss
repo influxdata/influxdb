@@ -1,0 +1,37 @@
+// TODO: Fix this in clockface
+.alert-history-page .cf-page-contents.full-height .cf-page-contents--padding {
+  width: 100%;
+  height: 100%;
+  padding: 0 54px 54px 54px;
+}
+
+.alert-history-page--header,
+.alert-history-page--controls {
+  display: flex;
+  align-items: center;
+}
+
+.alert-history-page--header {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.alert-history-page--controls {
+  flex-grow: 1;
+  justify-content: flex-end;
+
+  > * {
+    margin-left: $ix-marg-a;
+  }
+}
+
+.alert-history-page .status-search-bar {
+  flex-basis: 300px;
+}
+
+.alert-history {
+  width: 100%;
+  height: 100%;
+  padding-top: $ix-marg-c;
+  overflow: hidden;
+}

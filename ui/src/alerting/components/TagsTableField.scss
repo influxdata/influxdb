@@ -1,0 +1,26 @@
+.tags-table-field {
+  display: flex
+}
+
+.tags-table-field--tag {
+  color: $g12-forge;
+  margin-right: $ix-marg-b;
+
+  &:after {
+    content: ", "
+  }
+
+  &:last-child:after {
+    content: ""
+  }
+}
+
+.tags-table-field--key {
+  color: red;
+  color: $g12-forge;
+}
+
+.tags-table-field--value {
+  color: pink;
+  color: $g16-pearl;
+}
