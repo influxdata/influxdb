@@ -136,7 +136,9 @@ export const saveCurrentCheck = () => async (
       ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
       : await api.postCheck({data: checkWithOrg})
 
-    if (!(resp.status === 201 || resp.status === 200)) {
+    if (resp.status === 201 || resp.status === 200) {
+      dispatch(setCheck(resp.data))
+    } else {
       throw new Error(resp.data.message)
     }
   } catch (e) {
@@ -151,7 +153,9 @@ export const updateCheck = (check: Partial<Check>) => async (
   try {
     const resp = await api.patchCheck({checkID: check.id, data: check as Check})
 
-    if (resp.status !== 200) {
+    if (resp.status === 200) {
+      dispatch(setCheck(resp.data))
+    } else {
       throw new Error(resp.data.message)
     }
 
@@ -168,7 +172,9 @@ export const deleteCheck = (checkID: string) => async (
   try {
     const resp = await api.deleteCheck({checkID})
 
-    if (resp.status !== 204) {
+    if (resp.status === 204) {
+      dispatch(removeCheck(checkID))
+    } else {
       throw new Error(resp.data.message)
     }
 
