@@ -248,15 +248,11 @@ const NEW_VIEW_CREATORS = {
   check: (): NewView<CheckViewProperties> => ({
     name: 'check',
     properties: {
-      ...defaultLineViewProperties(),
       type: 'check',
       shape: 'chronograf-v2',
       checkID: '',
       queries: [defaultViewQuery()],
-      colors: DEFAULT_LINE_COLORS as Color[],
-      geom: 'line',
-      xColumn: null,
-      yColumn: null,
+      colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
 }

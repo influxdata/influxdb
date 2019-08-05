@@ -69,7 +69,6 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           )}
         </LatestValueTransform>
       )
-    case 'check':
     case 'xy':
       return (
         <XYPlot

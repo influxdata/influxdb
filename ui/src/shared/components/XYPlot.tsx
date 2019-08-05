@@ -23,19 +23,14 @@ import {DEFAULT_LINE_COLORS} from 'src/shared/constants/graphColorPalettes'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 
 // Types
-import {
-  RemoteDataState,
-  XYViewProperties,
-  TimeZone,
-  CheckViewProperties,
-} from 'src/types'
+import {RemoteDataState, XYViewProperties, TimeZone} from 'src/types'
 
 interface Props {
   table: Table
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
   timeZone: TimeZone
-  viewProperties: XYViewProperties | CheckViewProperties
+  viewProperties: XYViewProperties
   children: (config: Config) => JSX.Element
 }
 

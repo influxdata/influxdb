@@ -29,7 +29,6 @@ class OptionsSwitcher extends PureComponent<Props> {
             <SingleStatOptions />
           </>
         )
-      case 'check':
       case 'xy':
         return <LineOptions {...view.properties} />
       case 'gauge':

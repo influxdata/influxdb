@@ -848,15 +848,7 @@ export interface CheckViewProperties {
   checkID: string
   check?: Check
   queries: DashboardQuery[]
-  colors: DashboardColor[]
-  note: string
-  showNoteWhenEmpty: boolean
-  axes: Axes
-  legend: Legend
-  xColumn?: string
-  yColumn?: string
-  shadeBelow?: boolean
-  geom: XYGeom
+  colors: string[]
 }
 
 export type Check = DeadmanCheck | ThresholdCheck
@@ -8147,3 +8139,4 @@ export const deleteNotificationEndpoint = (
     params,
     options
   ) as Promise<DeleteNotificationEndpointResult>
+
