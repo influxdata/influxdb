@@ -125,6 +125,18 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT _seriesKey AS "key" FROM mydb.myrp1./c.*/ WHERE time > 0`,
 		},
 		{
+			stmt: `SHOW SERIES CARDINALITY FROM m`,
+			s:    `SELECT count(distinct(_seriesKey)) AS count FROM m`,
+		},
+		{
+			stmt: `SHOW SERIES EXACT CARDINALITY`,
+			s:    `SELECT count(distinct(_seriesKey)) AS count FROM /.+/`,
+		},
+		{
+			stmt: `SHOW SERIES EXACT CARDINALITY FROM m`,
+			s:    `SELECT count(distinct(_seriesKey)) AS count FROM m`,
+		},
+		{
 			stmt: `SHOW TAG KEYS`,
 			s:    `SHOW TAG KEYS`,
 		},
