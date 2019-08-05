@@ -252,3 +252,32 @@ func BenchmarkIntegerArray_IncludeFirst_10000(b *testing.B) {
 func BenchmarkIntegerArray_IncludeLast_10000(b *testing.B) {
 	benchInclude(b, makeIntegerArray(10000, 10000, 20000), 19999, 20000)
 }
+
+func BenchmarkIntegerArray_FindRange_10000(b *testing.B) {
+	vals := makeIntegerArray(10000, 10000, 20000)
+	cases := []struct {
+		min, max       int64
+		expId1, expId2 int
+	}{
+		{11000, 12000, 1000, 2000},
+		{12000, 13000, 2000, 3000},
+		{13000, 14000, 3000, 4000},
+		{14000, 15000, 4000, 5000},
+		{15000, 16000, 5000, 6000},
+		{16000, 17000, 6000, 7000},
+		{17000, 18000, 7000, 8000},
+		{18000, 19000, 8000, 9000},
+	}
+
+	b.ResetTimer()
+	b.ResetAllocs()
+
+	for j := 0; j < b.N; j++ {
+		for _, c := range cases {
+			id1, id2 := vals.FindRange(c.min, c.max)
+			if !cmp.Equal(id1, c.expId1) || !cmp.Equal(id2, c.expId2) {
+				t.Errorf("unexpected ids [%d, %d] -got [%d, %d]\n%s", c.expId1, c.expId2, id1, id2)
+			}
+		}
+	}
+}
