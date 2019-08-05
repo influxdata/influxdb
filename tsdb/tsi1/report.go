@@ -1,19 +1,19 @@
 package tsi1
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"math"
 	"os"
-	"path/filepath"
 	"sort"
 	"text/tabwriter"
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
-	"go.uber.org/zap"
 )
 
 const (
@@ -27,7 +27,6 @@ type ReportCommand struct {
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
 	Stdout io.Writer
-	Logger *zap.Logger
 
 	// Filters
 	DataPath        string
@@ -51,7 +50,6 @@ type ReportCommand struct {
 // NewReportCommand returns a new instance of ReportCommand with default setting applied.
 func NewReportCommand() *ReportCommand {
 	return &ReportCommand{
-		Logger:              zap.NewNop(),
 		byOrgBucket:         make(map[influxdb.ID]map[influxdb.ID]*cardinality),
 		byBucketMeasurement: make(map[influxdb.ID]map[string]*cardinality),
 		orgToBucket:         make(map[influxdb.ID][]influxdb.ID),
@@ -83,22 +81,17 @@ func (report *ReportCommand) Run(print bool) (*Summary, error) {
 	report.start = time.Now()
 
 	report.Stdout = os.Stdout
-
-	if report.SeriesDirPath == "" {
-		report.SeriesDirPath = filepath.Join(report.DataPath, "_series")
-	}
+	report.Stderr = os.Stderr
 
 	sfile := tsdb.NewSeriesFile(report.SeriesDirPath)
 
 	if err := sfile.Open(context.Background()); err != nil {
-		report.Logger.Error("failed to open series")
 		return nil, err
 	}
 	defer sfile.Close()
 	report.sfile = sfile
 
-	indexPath := filepath.Join(report.DataPath, "index")
-	report.indexFile = NewIndex(sfile, NewConfig(), WithPath(indexPath))
+	report.indexFile = NewIndex(sfile, NewConfig(), WithPath(report.DataPath))
 	if err := report.indexFile.Open(context.Background()); err != nil {
 		return nil, err
 	}
@@ -238,6 +231,9 @@ func (report *ReportCommand) calculateMeasurementCardinalities(name []byte) erro
 		}
 
 		// measurement name should be first tag
+		if !bytes.Equal(tags[0].Key, models.MeasurementTagKeyBytes) {
+			return fmt.Errorf("corrupted data: first tag should be measurement name, got: %v", string(tags[0].Value))
+		}
 		mName := string(tags[0].Value)
 
 		// update measurement-level cardinality if tracking by measurement
