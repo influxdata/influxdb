@@ -67,7 +67,12 @@ func TestTaskService(t *testing.T) {
 				Token: auth.Token,
 			}
 
-			cFunc := func() (servicetest.TestCreds, error) {
+			cFunc := func(t *testing.T) (servicetest.TestCreds, error) {
+				org := &platform.Organization{Name: t.Name() + "_org"}
+				if err := service.CreateOrganization(ctx, org); err != nil {
+					t.Fatal(err)
+				}
+
 				return servicetest.TestCreds{
 					OrgID:           org.ID,
 					Org:             org.Name,

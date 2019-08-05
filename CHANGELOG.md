@@ -2,6 +2,7 @@
 
 ### Features
 1. [14495](https://github.com/influxdata/influxdb/pull/14495): optional gzip compression of the query CSV response.
+1. [14567](https://github.com/influxdata/influxdb/pull/14567): Add task types.
 
 ### UI Improvements
 

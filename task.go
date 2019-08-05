@@ -20,11 +20,14 @@ const (
 
 	TaskStatusActive   = "active"
 	TaskStatusInactive = "inactive"
+
+	TaskTypeWildcard = "*"
 )
 
 // Task is a task. 🎊
 type Task struct {
 	ID              ID     `json:"id"`
+	Type            string `json:"type,omitempty"`
 	OrganizationID  ID     `json:"orgID"`
 	Organization    string `json:"org"`
 	AuthorizationID ID     `json:"authorizationID"`
@@ -134,6 +137,7 @@ type TaskService interface {
 
 // TaskCreate is the set of values to create a task.
 type TaskCreate struct {
+	Type           string `json:"type,omitempty"`
 	Flux           string `json:"flux"`
 	Description    string `json:"description,omitempty"`
 	Status         string `json:"status,omitempty"`
@@ -374,6 +378,7 @@ func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
 
 // TaskFilter represents a set of filters that restrict the returned results
 type TaskFilter struct {
+	Type           *string
 	After          *ID
 	OrganizationID *ID
 	Organization   string
