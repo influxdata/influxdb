@@ -57,6 +57,20 @@ func (a *FloatArray) search(v int64) int {
 	return lo
 }
 
+func (a *FloatArray) boundSearch(v int64, lo, hi int) int {
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
 // FindRange returns the positions where min and max would be
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
@@ -75,7 +89,8 @@ func (a *FloatArray) FindRange(min, max int64) (int, int) {
 		return -1, -1
 	}
 
-	return a.search(min), a.search(max)
+	lo := a.search(min)
+	return lo, a.boundSearch(max, lo, a.Len())
 }
 
 // Exclude removes the subset of values in [min, max]. The values must
@@ -258,6 +273,20 @@ func (a *IntegerArray) search(v int64) int {
 	return lo
 }
 
+func (a *IntegerArray) boundSearch(v int64, lo, hi int) int {
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
 // FindRange returns the positions where min and max would be
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
@@ -276,7 +305,8 @@ func (a *IntegerArray) FindRange(min, max int64) (int, int) {
 		return -1, -1
 	}
 
-	return a.search(min), a.search(max)
+	lo := a.search(min)
+	return lo, a.boundSearch(max, lo, a.Len())
 }
 
 // Exclude removes the subset of values in [min, max]. The values must
@@ -459,6 +489,20 @@ func (a *UnsignedArray) search(v int64) int {
 	return lo
 }
 
+func (a *UnsignedArray) boundSearch(v int64, lo, hi int) int {
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
 // FindRange returns the positions where min and max would be
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
@@ -477,7 +521,8 @@ func (a *UnsignedArray) FindRange(min, max int64) (int, int) {
 		return -1, -1
 	}
 
-	return a.search(min), a.search(max)
+	lo := a.search(min)
+	return lo, a.boundSearch(max, lo, a.Len())
 }
 
 // Exclude removes the subset of values in [min, max]. The values must
@@ -660,6 +705,20 @@ func (a *StringArray) search(v int64) int {
 	return lo
 }
 
+func (a *StringArray) boundSearch(v int64, lo, hi int) int {
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
 // FindRange returns the positions where min and max would be
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
@@ -678,7 +737,8 @@ func (a *StringArray) FindRange(min, max int64) (int, int) {
 		return -1, -1
 	}
 
-	return a.search(min), a.search(max)
+	lo := a.search(min)
+	return lo, a.boundSearch(max, lo, a.Len())
 }
 
 // Exclude removes the subset of values in [min, max]. The values must
@@ -861,6 +921,20 @@ func (a *BooleanArray) search(v int64) int {
 	return lo
 }
 
+func (a *BooleanArray) boundSearch(v int64, lo, hi int) int {
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
 // FindRange returns the positions where min and max would be
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
@@ -879,7 +953,8 @@ func (a *BooleanArray) FindRange(min, max int64) (int, int) {
 		return -1, -1
 	}
 
-	return a.search(min), a.search(max)
+	lo := a.search(min)
+	return lo, a.boundSearch(max, lo, a.Len())
 }
 
 // Exclude removes the subset of values in [min, max]. The values must
@@ -1060,6 +1135,20 @@ func (a *TimestampArray) search(v int64) int {
 	return lo
 }
 
+func (a *TimestampArray) boundSearch(v int64, lo, hi int) int {
+	for lo < hi {
+		mid := int(uint(lo+hi) >> 1)
+		if a.Timestamps[mid] < v {
+			lo = mid + 1 // preserves f(lo-1) == true
+		} else {
+			hi = mid // preserves f(hi) == false
+		}
+	}
+
+	// lo == hi
+	return lo
+}
+
 // FindRange returns the positions where min and max would be
 // inserted into the array. If a[0].UnixNano() > max or
 // a[len-1].UnixNano() < min then FindRange returns (-1, -1)
@@ -1078,7 +1167,8 @@ func (a *TimestampArray) FindRange(min, max int64) (int, int) {
 		return -1, -1
 	}
 
-	return a.search(min), a.search(max)
+	lo := a.search(min)
+	return lo, a.boundSearch(max, lo, a.Len())
 }
 
 // Exclude removes the subset of timestamps in [min, max]. The timestamps must
