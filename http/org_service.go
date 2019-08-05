@@ -327,7 +327,7 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 		req.filter.ID = id
 	}
 
-	if name := qp.Get(OrgName); name != "" {
+	if name := qp.Get(Org); name != "" {
 		req.filter.Name = &name
 	}
 
@@ -660,7 +660,7 @@ func (s *OrganizationService) FindOrganizations(ctx context.Context, filter infl
 	qp := url.Query()
 
 	if filter.Name != nil {
-		qp.Add(OrgName, *filter.Name)
+		qp.Add(Org, *filter.Name)
 	}
 	if filter.ID != nil {
 		qp.Add(OrgID, filter.ID.String())

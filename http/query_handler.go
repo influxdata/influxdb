@@ -472,7 +472,7 @@ func SimpleQuery(addr, flux, org, token string) ([]byte, error) {
 		return nil, err
 	}
 	params := url.Values{}
-	params.Set(OrgName, org)
+	params.Set(Org, org)
 	u.RawQuery = params.Encode()
 
 	header := true
