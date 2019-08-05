@@ -9,7 +9,7 @@ import {Button, ComponentStatus} from '@influxdata/clockface'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
-import {setType as setViewType} from 'src/timeMachine/actions'
+import {setType as setViewType, addCheck} from 'src/timeMachine/actions'
 import {setCurrentCheck} from 'src/alerting/actions/checks'
 import {setActiveTab} from 'src/timeMachine/actions'
 
@@ -21,6 +21,7 @@ interface DispatchProps {
   setActiveTab: typeof setActiveTab
   setViewType: typeof setViewType
   setCurrentCheck: typeof setCurrentCheck
+  addCheck: typeof addCheck
 }
 
 interface StateProps {
@@ -32,17 +33,18 @@ type Props = DispatchProps & StateProps
 
 const AlertingButton: FunctionComponent<Props> = ({
   setActiveTab,
+  addCheck,
   activeTab,
   setCurrentCheck,
   viewType,
-  setViewType,
 }) => {
   const handleClick = () => {
     if (viewType !== 'check') {
       setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
-      setViewType('check')
+      addCheck()
+    } else {
+      setActiveTab('alerting')
     }
-    setActiveTab('alerting')
   }
 
   let status = ComponentStatus.Default
@@ -75,6 +77,7 @@ const mdtp: DispatchProps = {
   setActiveTab: setActiveTab,
   setViewType: setViewType,
   setCurrentCheck: setCurrentCheck,
+  addCheck: addCheck,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

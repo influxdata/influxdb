@@ -6,30 +6,26 @@ import {connect} from 'react-redux'
 import {Button} from '@influxdata/clockface'
 
 // Actions
-import {setType as setViewType} from 'src/timeMachine/actions'
+import {removeCheck} from 'src/timeMachine/actions'
 import {setCurrentCheck} from 'src/alerting/actions/checks'
-import {setActiveTab} from 'src/timeMachine/actions'
 
 //Types
 import {RemoteDataState} from 'src/types'
 
 interface DispatchProps {
-  setActiveTab: typeof setActiveTab
-  setViewType: typeof setViewType
+  removeCheck: typeof removeCheck
   setCurrentCheck: typeof setCurrentCheck
 }
 
 type Props = DispatchProps
 
 const RemoveButton: FunctionComponent<Props> = ({
-  setActiveTab,
-  setViewType,
   setCurrentCheck,
+  removeCheck,
 }) => {
   const handleClick = () => {
     setCurrentCheck(RemoteDataState.NotStarted, null)
-    setViewType('xy')
-    setActiveTab('queries')
+    removeCheck()
   }
 
   return (
@@ -42,8 +38,7 @@ const RemoveButton: FunctionComponent<Props> = ({
 }
 
 const mdtp: DispatchProps = {
-  setActiveTab: setActiveTab,
-  setViewType: setViewType,
+  removeCheck: removeCheck,
   setCurrentCheck: setCurrentCheck,
 }
 

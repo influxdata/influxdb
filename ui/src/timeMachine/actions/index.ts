@@ -73,6 +73,8 @@ export type Action =
   | SetYDomainAction
   | SetXAxisLabelAction
   | SetShadeBelowAction
+  | ReturnType<typeof removeCheck>
+  | ReturnType<typeof addCheck>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -592,4 +594,12 @@ interface SetXAxisLabelAction {
 export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   type: 'SET_X_AXIS_LABEL',
   payload: {xAxisLabel},
+})
+
+export const removeCheck = () => ({
+  type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
+})
+
+export const addCheck = () => ({
+  type: 'ADD_CHECK' as 'ADD_CHECK',
 })
