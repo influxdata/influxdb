@@ -8139,4 +8139,3 @@ export const deleteNotificationEndpoint = (
     params,
     options
   ) as Promise<DeleteNotificationEndpointResult>
-
