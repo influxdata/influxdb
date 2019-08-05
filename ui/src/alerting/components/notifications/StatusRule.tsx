@@ -8,6 +8,7 @@ import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOver
 
 // Types
 import {StatusRuleItem} from 'src/types'
+import {IconFont} from '@influxdata/clockface'
 
 interface Props {
   status: StatusRuleItem
@@ -32,8 +33,25 @@ const StatusRuleComponent: FC<Props> = ({status}) => {
     })
   }
 
+  const onDelete = () => {
+    dispatch({
+      type: 'DELETE_STATUS_RULE',
+      statusRuleID: status.id,
+    })
+  }
+
   return (
     <div className="condition-row" data-testid="status-rule">
+      <div
+        style={{
+          position: 'absolute',
+          right: '0',
+          cursor: 'pointer',
+        }}
+        onClick={onDelete}
+      >
+        <span className={`icon ${IconFont.Remove}`} />
+      </div>
       <PeriodCount period={period} count={count} onChange={onChange} />
       <StatusLevels status={status} />
     </div>
