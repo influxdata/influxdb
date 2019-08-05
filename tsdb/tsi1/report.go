@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"sort"
 	"text/tabwriter"
 	"time"
@@ -79,9 +78,6 @@ func newSummary() *Summary {
 // the cardinality of a bucket or org based on its influxdb.ID
 func (report *ReportCommand) Run(print bool) (*Summary, error) {
 	report.start = time.Now()
-
-	report.Stdout = os.Stdout
-	report.Stderr = os.Stderr
 
 	sfile := tsdb.NewSeriesFile(report.SeriesDirPath)
 
