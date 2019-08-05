@@ -2,7 +2,7 @@
 import React, {FC, useContext} from 'react'
 
 // Components
-import {Input, Form} from '@influxdata/clockface'
+import {Input, Form, IconFont} from '@influxdata/clockface'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import TagRuleOperatorDropdown, {
   Operator,
@@ -49,8 +49,25 @@ const TagRule: FC<Props> = ({tagRule}) => {
     })
   }
 
+  const onDelete = () => {
+    dispatch({
+      type: 'DELETE_TAG_RULE',
+      tagRuleID: tagRule.id,
+    })
+  }
+
   return (
     <div className="condition-row tag-rule" data-testid="tag-rule">
+      <div
+        style={{
+          position: 'absolute',
+          right: '0',
+          cursor: 'pointer',
+        }}
+        onClick={onDelete}
+      >
+        <span className={`icon ${IconFont.Remove}`} />
+      </div>
       <Form.Element label="Key">
         <Input
           testID="tag-rule-key--input"

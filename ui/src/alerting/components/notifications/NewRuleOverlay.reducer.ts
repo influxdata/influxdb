@@ -13,6 +13,7 @@ export type Actions =
   | {type: 'ADD_TAG_RULE'; tagRule: TagRuleItem}
   | {type: 'DELETE_STATUS_RULE'; statusRuleID: string}
   | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleItem}
+  | {type: 'DELETE_TAG_RULE'; tagRuleID: string}
 
 export const reducer = (state: RuleState, action: Actions) => {
   switch (action.type) {
@@ -78,6 +79,16 @@ export const reducer = (state: RuleState, action: Actions) => {
         ...state,
         statusRules,
       }
+    }
+
+    case 'DELETE_TAG_RULE': {
+      const {tagRuleID} = action
+
+      const tagRules = state.tagRules.filter(tr => {
+        return tr.id !== tagRuleID
+      })
+
+      return {...state, tagRules}
     }
 
     default:
