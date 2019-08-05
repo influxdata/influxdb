@@ -718,7 +718,10 @@ c _hello=4 41`),
 				tc.want.tables,
 				nil,
 				func(d execute.Dataset, c execute.TableBuilderCache) execute.Transformation {
-					newT, _ := influxdb.NewToTransformation(context.Background(), d, c, tc.spec, deps)
+					newT, err := influxdb.NewToTransformation(context.Background(), d, c, tc.spec, deps)
+					if err != nil {
+						t.Error(err)
+					}
 					return newT
 				},
 			)
