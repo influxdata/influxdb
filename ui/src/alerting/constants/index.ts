@@ -2,7 +2,6 @@ import {
   Check,
   DashboardQuery,
   NotificationRule,
-  Threshold,
   ThresholdCheck,
   DeadmanCheck,
 } from 'src/types'
@@ -59,7 +58,7 @@ export const check1: Check = {
       level: 'UNKNOWN',
       lowerBound: 20,
       allValues: false,
-    } as Threshold,
+    },
   ],
 }
 
@@ -81,7 +80,7 @@ export const check2: Check = {
       level: 'UNKNOWN',
       lowerBound: 20,
       allValues: false,
-    } as Threshold,
+    },
   ],
 }
 
