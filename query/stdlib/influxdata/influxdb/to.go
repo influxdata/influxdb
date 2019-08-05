@@ -268,7 +268,9 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 
 // ToTransformation is the transformation for the `to` flux function.
 type ToTransformation struct {
-	ctx                context.Context
+	Ctx                context.Context
+	OrgID              platform.ID
+	BucketID           platform.ID
 	d                  execute.Dataset
 	fn                 *execute.RowMapFn
 	cache              execute.TableBuilderCache
@@ -284,23 +286,62 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 }
 
 // NewToTransformation returns a new *ToTransformation with the appropriate fields set.
-func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, spec *ToProcedureSpec, deps ToDependencies) (*ToTransformation, error) {
+func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
 	var fn *execute.RowMapFn
-	var err error
-
-	if spec.Spec.FieldFn != nil {
-		if fn, err = execute.NewRowMapFn(spec.Spec.FieldFn); err != nil {
+	//var err error
+	spec := toSpec.Spec
+	var bucketID, orgID *platform.ID
+	if spec.FieldFn != nil {
+		if fn, err = execute.NewRowMapFn(spec.FieldFn); err != nil {
 			return nil, err
 		}
 	}
+	// Get organization ID
+	if spec.Org != "" {
+		oID, ok := deps.OrganizationLookup.Lookup(ctx, spec.Org)
+		if !ok {
+			return nil, &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("failed to look up organization %q", spec.Org),
+			}
+		}
+		orgID = &oID
+	} else if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
+		return nil, err
+	}
 
+	// Get bucket ID
+	if spec.Bucket != "" {
+		bID, ok := deps.BucketLookup.Lookup(ctx, *orgID, spec.Bucket)
+		if !ok {
+			return nil, &flux.Error{
+				Code: codes.NotFound,
+				Msg:  fmt.Sprintf("failed to look up bucket %q in org %q", spec.Bucket, spec.Org),
+			}
+		}
+		bucketID = &bID
+	} else if bucketID, err = platform.IDFromString(spec.BucketID); err != nil {
+		return nil, &flux.Error{
+			Code: codes.Invalid,
+			Msg:  "invalid bucket id",
+			Err:  err,
+		}
+	}
+	if orgID == nil || bucketID == nil {
+		return nil, &flux.Error{
+			Code: codes.Unknown,
+			Msg:  "You must specify org and bucket",
+		}
+	}
 	return &ToTransformation{
-		ctx:                ctx,
+		Ctx:                ctx,
+		OrgID:              *orgID,
+		BucketID:           *bucketID,
 		d:                  d,
 		fn:                 fn,
 		cache:              cache,
-		spec:               spec,
-		implicitTagColumns: spec.Spec.TagColumns == nil,
+		spec:               toSpec,
+		implicitTagColumns: spec.TagColumns == nil,
 		deps:               deps,
 		buf:                storage.NewBufferedPointsWriter(DefaultBufferSize, deps.PointsWriter),
 	}, nil
@@ -332,7 +373,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 
 		addTagsFromTable(t.spec.Spec, tbl, excludeColumns)
 	}
-	return writeTable(t.ctx, t, tbl)
+	return writeTable(t.Ctx, t, tbl)
 }
 
 // fieldFunctionVisitor implements semantic.Visitor.
@@ -407,7 +448,7 @@ func (t *ToTransformation) UpdateProcessingTime(id execute.DatasetID, pt execute
 // Finish is called after the `to` flux function's transformation is done processing.
 func (t *ToTransformation) Finish(id execute.DatasetID, err error) {
 	if err == nil {
-		err = t.buf.Flush(t.ctx)
+		err = t.buf.Flush(t.Ctx)
 	}
 	t.d.Finish(err)
 }
@@ -469,47 +510,11 @@ func (s Stats) Update(o Stats) {
 	}
 }
 
-func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) error {
+func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	var bucketID, orgID *platform.ID
-	var err error
-
-	d := t.deps
 	spec := t.spec.Spec
-
-	// Get organization ID
-	if spec.Org != "" {
-		oID, ok := d.OrganizationLookup.Lookup(ctx, spec.Org)
-		if !ok {
-			return &flux.Error{
-				Code: codes.NotFound,
-				Msg:  fmt.Sprintf("failed to look up organization %q", spec.Org),
-			}
-		}
-		orgID = &oID
-	} else if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
-		return err
-	}
-
-	// Get bucket ID
-	if spec.Bucket != "" {
-		bID, ok := d.BucketLookup.Lookup(ctx, *orgID, spec.Bucket)
-		if !ok {
-			return &flux.Error{
-				Code: codes.NotFound,
-				Msg:  fmt.Sprintf("failed to look up bucket %q in org %q", spec.Bucket, spec.Org),
-			}
-		}
-		bucketID = &bID
-	} else if bucketID, err = platform.IDFromString(spec.BucketID); err != nil {
-		return &flux.Error{
-			Code: codes.Invalid,
-			Msg:  "invalid bucket id",
-			Err:  err,
-		}
-	}
 
 	// cache tag columns
 	columns := tbl.Cols()
@@ -518,7 +523,6 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) error 
 		tagIdx := sort.SearchStrings(spec.TagColumns, col.Label)
 		isTag[i] = tagIdx < len(spec.TagColumns) && spec.TagColumns[tagIdx] == col.Label
 	}
-
 	// do time
 	timeColLabel := spec.TimeColumn
 	timeColIdx := execute.ColIdx(timeColLabel, columns)
@@ -635,7 +639,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) error 
 				measurementStats[measurementName].Update(mstats)
 			}
 
-			name := tsdb.EncodeNameString(*orgID, *bucketID)
+			name := tsdb.EncodeNameString(t.OrgID, t.BucketID)
 
 			fieldNames := make([]string, 0, len(fields))
 			for k := range fields {
@@ -660,6 +664,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) error 
 				return err
 			}
 		}
+
 		return t.buf.WritePoints(ctx, points)
 	})
 }
