@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC, useContext} from 'react'
-import {v4} from 'uuid'
 
 // Components
 import {
@@ -12,6 +11,7 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
+import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 
 // Constants
@@ -45,7 +45,9 @@ const RuleConditions: FC<Props> = ({rule}) => {
     <StatusRuleComponent key={status.id} status={status} />
   ))
 
-  const tags = tagRules.map(_ => <div key={v4()}>im a tag rule</div>)
+  const tags = tagRules.map(tagRule => (
+    <TagRuleComponent key={tagRule.id} tagRule={tagRule} />
+  ))
 
   return (
     <>

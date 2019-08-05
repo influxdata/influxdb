@@ -12,6 +12,7 @@ export type Actions =
   | {type: 'ADD_STATUS_RULE'; statusRule: StatusRuleItem}
   | {type: 'ADD_TAG_RULE'; tagRule: TagRuleItem}
   | {type: 'DELETE_STATUS_RULE'; statusRuleID: string}
+  | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleItem}
 
 export const reducer = (state: RuleState, action: Actions) => {
   switch (action.type) {
@@ -52,6 +53,19 @@ export const reducer = (state: RuleState, action: Actions) => {
         ...state,
         tagRules: [...state.tagRules, {...tagRule, id: v4()}],
       }
+    }
+
+    case 'UPDATE_TAG_RULES': {
+      const {tagRule} = action
+      const tagRules = state.tagRules.map(t => {
+        if (t.id !== tagRule.id) {
+          return t
+        }
+
+        return tagRule
+      })
+
+      return {...state, tagRules}
     }
 
     case 'DELETE_STATUS_RULE': {
