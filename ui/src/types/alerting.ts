@@ -10,7 +10,7 @@ export type TagRuleItem = AddID<TagRule>
 
 type ExcludeKeys<T> = Pick<T, Exclude<keyof T, 'statusRules' | 'tagRules'>>
 
-export interface NotificationRuleUI extends ExcludeKeys<NotificationRule> {
+export interface NotificationRuleBox extends ExcludeKeys<NotificationRule> {
   schedule: 'cron' | 'every'
   statusRules: StatusRuleItem[]
   tagRules: TagRuleItem[]
@@ -28,6 +28,7 @@ export {
   LesserThreshold,
   RangeThreshold,
   DeadmanCheck,
+  NotificationEndpoint,
   NotificationRuleBase,
   NotificationRule,
   SMTPNotificationRule,

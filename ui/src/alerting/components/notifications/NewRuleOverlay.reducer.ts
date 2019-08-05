@@ -2,11 +2,11 @@
 import {v4} from 'uuid'
 
 // Types
-import {NotificationRuleUI, StatusRuleItem, TagRuleItem} from 'src/types'
+import {NotificationRuleBox, StatusRuleItem, TagRuleItem} from 'src/types'
 
-export type RuleState = NotificationRuleUI
+export type RuleState = NotificationRuleBox
 export type Actions =
-  | {type: 'UPDATE_RULE'; rule: NotificationRuleUI}
+  | {type: 'UPDATE_RULE'; rule: NotificationRuleBox}
   | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
   | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleItem}
   | {type: 'ADD_STATUS_RULE'; statusRule: StatusRuleItem}

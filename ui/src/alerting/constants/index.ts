@@ -6,8 +6,9 @@ import {
   ThresholdCheck,
   StatusRuleItem,
   TagRuleItem,
-  NotificationRuleUI,
+  NotificationRuleBox,
 } from 'src/types'
+import {NotificationEndpoint} from 'src/client'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
@@ -97,8 +98,9 @@ export const newTagRule: TagRuleItem = {
   },
 }
 
-export const newRule: NotificationRuleUI = {
+export const newRule: NotificationRuleBox = {
   id: '',
+  notifyEndpointID: '3',
   type: 'slack',
   every: '',
   orgID: '',
@@ -109,6 +111,45 @@ export const newRule: NotificationRuleUI = {
   statusRules: [newStatusRule],
   description: '',
 }
+
+export const endpoints: NotificationEndpoint[] = [
+  {
+    id: '1',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt everyone at work',
+    name: 'slack endpoint',
+    status: 'active',
+    type: 'slack',
+  },
+  {
+    id: '2',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt someone by email',
+    name: 'smtp endpoint',
+    status: 'active',
+    type: 'smtp',
+  },
+  {
+    id: '3',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt someone by all means known to man',
+    name: 'pagerditty endpoint',
+    status: 'active',
+    type: 'pagerduty',
+  },
+  {
+    id: '4',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt someone with a webhook!',
+    name: 'webhook endpoint',
+    status: 'active',
+    type: 'webhook',
+  },
+]
 
 export const rule: NotificationRule = {
   id: '3',
