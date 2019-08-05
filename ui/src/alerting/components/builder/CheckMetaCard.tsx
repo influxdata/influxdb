@@ -22,7 +22,7 @@ import {
 } from 'src/alerting/actions/checks'
 
 // Types
-import {Check, AppState} from 'src/types'
+import {Check, AppState, CheckType} from 'src/types'
 import {
   DEFAULT_CHECK_EVERY,
   DEFAULT_CHECK_OFFSET,
@@ -40,7 +40,7 @@ interface StateProps {
 type Props = DispatchProps & StateProps
 
 const CheckMetaCard: FC<Props> = ({updateCurrentCheck, check}) => {
-  const handleChangeType = (type: typeof check.type) => {
+  const handleChangeType = (type: CheckType) => {
     changeCurrentCheckType(type)
   }
 

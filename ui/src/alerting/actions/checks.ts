@@ -18,7 +18,7 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {Check, GetState} from 'src/types'
+import {Check, GetState, CheckType} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -62,7 +62,7 @@ export const updateCurrentCheck = (checkUpdate: Partial<Check>) => ({
   payload: {status, checkUpdate},
 })
 
-export const changeCurrentCheckType = (type: 'deadman' | 'threshold') => ({
+export const changeCurrentCheckType = (type: CheckType) => ({
   type: 'CHANGE_CURRENT_CHECK_TYPE' as 'CHANGE_CURRENT_CHECK_TYPE',
   payload: {status, type},
 })
