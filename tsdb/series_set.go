@@ -31,11 +31,11 @@ func NewSeriesIDSet(a ...SeriesID) *SeriesIDSet {
 // that are not present in b. That is, the set difference between a and b.
 func NewSeriesIDSetNegate(a, b *SeriesIDSet) *SeriesIDSet {
 	a.RLock()
-	defer a.RUnlock()
 	b.RLock()
-	defer b.RUnlock()
-
-	return &SeriesIDSet{bitmap: roaring.AndNot(a.bitmap, b.bitmap)}
+	result := &SeriesIDSet{bitmap: roaring.AndNot(a.bitmap, b.bitmap)}
+	a.RUnlock()
+	b.RUnlock()
+	return result
 }
 
 // Bytes estimates the memory footprint of this SeriesIDSet, in bytes.
@@ -51,8 +51,8 @@ func (s *SeriesIDSet) Bytes() int {
 // Add adds the series id to the set.
 func (s *SeriesIDSet) Add(id SeriesID) {
 	s.Lock()
-	defer s.Unlock()
 	s.AddNoLock(id)
+	s.Unlock()
 }
 
 // AddNoLock adds the series id to the set. Add is not safe for use from multiple
@@ -74,16 +74,16 @@ func (s *SeriesIDSet) AddMany(ids ...SeriesID) {
 	}
 
 	s.Lock()
-	defer s.Unlock()
 	s.bitmap.AddMany(a32)
+	s.Unlock()
 }
 
 // Contains returns true if the id exists in the set.
 func (s *SeriesIDSet) Contains(id SeriesID) bool {
 	s.RLock()
-	x := s.ContainsNoLock(id)
+	contains := s.ContainsNoLock(id)
 	s.RUnlock()
-	return x
+	return contains
 }
 
 // ContainsNoLock returns true if the id exists in the set. ContainsNoLock is
@@ -95,8 +95,8 @@ func (s *SeriesIDSet) ContainsNoLock(id SeriesID) bool {
 // Remove removes the id from the set.
 func (s *SeriesIDSet) Remove(id SeriesID) {
 	s.Lock()
-	defer s.Unlock()
 	s.RemoveNoLock(id)
+	s.Unlock()
 }
 
 // RemoveNoLock removes the id from the set. RemoveNoLock is not safe for use
@@ -108,8 +108,9 @@ func (s *SeriesIDSet) RemoveNoLock(id SeriesID) {
 // Cardinality returns the cardinality of the SeriesIDSet.
 func (s *SeriesIDSet) Cardinality() uint64 {
 	s.RLock()
-	defer s.RUnlock()
-	return s.bitmap.GetCardinality()
+	cardinality := s.bitmap.GetCardinality()
+	s.RUnlock()
+	return cardinality
 }
 
 // Merge merged the contents of others into s. The caller does not need to
@@ -124,11 +125,14 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	// Add other bitsets.
 	for _, other := range others {
 		other.RLock()
-		defer other.RUnlock() // Hold until we have merged all the bitmaps
 		bms = append(bms, other.bitmap)
 	}
 
 	result := roaring.FastOr(bms...)
+
+	for _, other := range others {
+		other.RUnlock()
+	}
 	s.RUnlock()
 
 	s.Lock()
@@ -156,39 +160,38 @@ func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
 	}
 
 	s.RLock()
-	defer s.RUnlock()
 	other.RLock()
-	defer other.RUnlock()
-	return s.bitmap.Equals(other.bitmap)
+	equals := s.bitmap.Equals(other.bitmap)
+	s.RUnlock()
+	other.RUnlock()
+	return equals
 }
 
 // And returns a new SeriesIDSet containing elements that were present in s and other.
 func (s *SeriesIDSet) And(other *SeriesIDSet) *SeriesIDSet {
 	s.RLock()
-	defer s.RUnlock()
 	other.RLock()
-	defer other.RUnlock()
-	return &SeriesIDSet{bitmap: roaring.And(s.bitmap, other.bitmap)}
+	result := &SeriesIDSet{bitmap: roaring.And(s.bitmap, other.bitmap)}
+	s.RUnlock()
+	other.RUnlock()
+	return result
 }
 
 // RemoveSet removes all values in other from s, if they exist.
 func (s *SeriesIDSet) RemoveSet(other *SeriesIDSet) {
 	s.RLock()
-	defer s.RUnlock()
 	other.RLock()
-	defer other.RUnlock()
 	s.bitmap.AndNot(other.bitmap)
+	s.RUnlock()
+	other.RUnlock()
 }
 
 // ForEach calls f for each id in the set. The function is applied to the IDs
 // in ascending order.
 func (s *SeriesIDSet) ForEach(f func(id SeriesID)) {
 	s.RLock()
-	defer s.RUnlock()
-	itr := s.bitmap.Iterator()
-	for itr.HasNext() {
-		f(NewSeriesID(uint64(itr.Next())))
-	}
+	s.ForEachNoLock(f)
+	s.RUnlock()
 }
 
 // ForEachNoLock calls f for each id in the set without taking a lock.
@@ -201,18 +204,18 @@ func (s *SeriesIDSet) ForEachNoLock(f func(id SeriesID)) {
 
 func (s *SeriesIDSet) String() string {
 	s.RLock()
-	defer s.RUnlock()
-	return s.bitmap.String()
+	strValue := s.bitmap.String()
+	s.RUnlock()
+	return strValue
 }
 
 // Diff removes from s any elements also present in other.
 func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 	other.RLock()
-	defer other.RUnlock()
-
 	s.Lock()
-	defer s.Unlock()
 	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
+	s.Unlock()
+	other.RUnlock()
 }
 
 // Clone returns a new SeriesIDSet with a deep copy of the underlying bitmap.
@@ -223,8 +226,9 @@ func (s *SeriesIDSet) Clone() *SeriesIDSet {
 	// For now, we'll just hold a write lock for clone; if this shows up as a bottleneck later,
 	// we can conditionally RLock if we are not COW.
 	s.Lock()
-	defer s.Unlock()
-	return s.CloneNoLock()
+	clone := s.CloneNoLock()
+	s.Unlock()
+	return clone
 }
 
 // CloneNoLock calls Clone without taking a lock.
@@ -243,31 +247,33 @@ func (s *SeriesIDSet) Iterator() SeriesIDSetIterable {
 // UnmarshalBinary unmarshals data into the set.
 func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 	s.Lock()
-	defer s.Unlock()
-	return s.bitmap.UnmarshalBinary(data)
+	err := s.bitmap.UnmarshalBinary(data)
+	s.Unlock()
+	return err
 }
 
 // UnmarshalBinaryUnsafe unmarshals data into the set.
 // References to the underlying data are used so data should not be reused by caller.
 func (s *SeriesIDSet) UnmarshalBinaryUnsafe(data []byte) error {
 	s.Lock()
-	defer s.Unlock()
 	_, err := s.bitmap.FromBuffer(data)
+	s.Unlock()
 	return err
 }
 
 // WriteTo writes the set to w.
 func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
-	defer s.RUnlock()
-	return s.bitmap.WriteTo(w)
+	n, err := s.bitmap.WriteTo(w)
+	s.RUnlock()
+	return n, err
 }
 
 // Clear clears the underlying bitmap for re-use. Clear is safe for use by multiple goroutines.
 func (s *SeriesIDSet) Clear() {
 	s.Lock()
-	defer s.Unlock()
 	s.ClearNoLock()
+	s.Unlock()
 }
 
 // ClearNoLock clears the underlying bitmap for re-use without taking a lock.
@@ -278,12 +284,11 @@ func (s *SeriesIDSet) ClearNoLock() {
 // Slice returns a slice of series ids.
 func (s *SeriesIDSet) Slice() []uint64 {
 	s.RLock()
-	defer s.RUnlock()
-
 	a := make([]uint64, 0, s.bitmap.GetCardinality())
 	for _, seriesID := range s.bitmap.ToArray() {
 		a = append(a, uint64(seriesID))
 	}
+	s.RUnlock()
 	return a
 }
 
