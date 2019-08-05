@@ -52,24 +52,23 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   loadingStatus,
   updateCheck,
   router,
-  params,
+  params: {checkID, orgID},
   query,
   check,
 }) => {
   useEffect(() => {
-    getCurrentCheck(params.checkID)
-    onSetActiveTimeMachine('alerting')
-  }, [params.checkID])
-
-  useEffect(() => {
-    const view = createView<CheckViewProperties>('check')
-    // todo: when check has own view get view here
-    onSetActiveTimeMachine('alerting', {
-      view,
-      activeTab: 'alerting',
-      isViewingRawData: false,
-    })
-  }, [check && check.id])
+    if (check) {
+      const view = createView<CheckViewProperties>('check')
+      // todo: when check has own view get view here
+      onSetActiveTimeMachine('alerting', {
+        view,
+        activeTab: 'alerting',
+        isViewingRawData: false,
+      })
+    } else {
+      getCurrentCheck(checkID)
+    }
+  }, [check, checkID])
 
   const handleUpdateName = (name: string) => {
     updateCurrentCheck({name})
@@ -77,7 +76,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 
   const handleClose = () => {
     setCurrentCheck(RemoteDataState.NotStarted, null)
-    router.push(`/orgs/${params.orgID}/alerting`)
+    router.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleSave = () => {
