@@ -2,6 +2,12 @@
 import React, {FC, useContext} from 'react'
 
 // Components
+import {
+  ComponentSpacer,
+  TextBlock,
+  FlexDirection,
+  ComponentSize,
+} from '@influxdata/clockface'
 import LevelsDropdown from 'src/alerting/components/notifications/LevelsDropdown'
 import StatusChangeDropdown from 'src/alerting/components/notifications/StatusChangeDropdown'
 import {NewRuleDispatch} from './NewRuleOverlay'
@@ -36,23 +42,29 @@ const StatusLevels: FC<Props> = ({status}) => {
   }
 
   return (
-    <div className="status-levels--container">
-      <div className="sentence-frag">When status</div>
-      <StatusChangeDropdown status={status} />
+    <ComponentSpacer direction={FlexDirection.Row} margin={ComponentSize.Small}>
+      <TextBlock text="When status" />
+      <ComponentSpacer.FlexChild grow={0} basis={140}>
+        <StatusChangeDropdown status={status} />
+      </ComponentSpacer.FlexChild>
       {!!previousLevel && (
+        <ComponentSpacer.FlexChild grow={0} basis={140}>
+          <LevelsDropdown
+            type="previousLevel"
+            selectedLevel={previousLevel.level}
+            onClickLevel={onClickLevel}
+          />
+        </ComponentSpacer.FlexChild>
+      )}
+      {!!previousLevel && <TextBlock text="to" />}
+      <ComponentSpacer.FlexChild grow={0} basis={140}>
         <LevelsDropdown
-          type="previousLevel"
-          selectedLevel={previousLevel.level}
+          type="currentLevel"
+          selectedLevel={currentLevel.level}
           onClickLevel={onClickLevel}
         />
-      )}
-      {!!previousLevel && <div className="sentence-frag">to</div>}
-      <LevelsDropdown
-        type="currentLevel"
-        selectedLevel={currentLevel.level}
-        onClickLevel={onClickLevel}
-      />
-    </div>
+      </ComponentSpacer.FlexChild>
+    </ComponentSpacer>
   )
 }
 

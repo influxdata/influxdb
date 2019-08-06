@@ -53,12 +53,7 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
   )
 
   return (
-    <Dropdown
-      button={button}
-      menu={menu}
-      widthPixels={160}
-      testID="status-change--dropdown"
-    />
+    <Dropdown button={button} menu={menu} testID="status-change--dropdown" />
   )
 }
 

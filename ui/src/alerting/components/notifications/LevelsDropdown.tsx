@@ -47,12 +47,7 @@ const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
   )
 
   return (
-    <Dropdown
-      button={button}
-      menu={menu}
-      widthPixels={160}
-      testID={`levels--dropdown ${type}`}
-    />
+    <Dropdown button={button} menu={menu} testID={`levels--dropdown ${type}`} />
   )
 }
 

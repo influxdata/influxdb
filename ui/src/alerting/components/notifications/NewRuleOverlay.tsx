@@ -44,7 +44,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
   return (
     <NewRuleDispatch.Provider value={dispatch}>
       <Overlay visible={true}>
-        <Overlay.Container maxWidth={Infinity} className="rule-eo">
+        <Overlay.Container maxWidth={1000} className="rule-eo">
           <Overlay.Header
             title="Create a Notification Rule"
             onDismiss={handleDismiss}
