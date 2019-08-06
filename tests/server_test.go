@@ -6716,6 +6716,10 @@ func TestServer_Query_ImplicitFill(t *testing.T) {
 	s := OpenServer(config)
 	defer s.Close()
 
+       if _, ok := s.(*RemoteServer); ok {
+	        t.Skip("Skipping. Cannot change config remotely")
+	}
+
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
