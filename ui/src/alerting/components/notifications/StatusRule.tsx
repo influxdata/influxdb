@@ -14,7 +14,7 @@ interface Props {
 
 const StatusRuleComponent: FC<Props> = ({status}) => {
   return (
-    <Panel size={ComponentSize.ExtraSmall}>
+    <Panel size={ComponentSize.ExtraSmall} testID="status-rule">
       <Panel.Body>
         <StatusLevels status={status} />
       </Panel.Body>

@@ -28,6 +28,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
     <>
       <AlertsColumnHeader
         title="Notification Rules"
+        testID="create-rule"
         onCreate={handleOpenOverlay}
       />
       <NotificationRuleCards rules={rules} />
