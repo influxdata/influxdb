@@ -2,7 +2,12 @@
 import React, {FC} from 'react'
 
 // Components
-import {Dropdown, ComponentColor} from '@influxdata/clockface'
+import {
+  Dropdown,
+  ComponentColor,
+  InfluxColors,
+  DropdownMenuTheme,
+} from '@influxdata/clockface'
 
 // Types
 import {CheckStatusLevel} from 'src/types'
@@ -10,7 +15,15 @@ import {CheckStatusLevel} from 'src/types'
 type Levels = CheckStatusLevel
 type levelType = 'currentLevel' | 'previousLevel'
 
-const levels: Levels[] = ['CRIT', 'INFO', 'WARN', 'UNKNOWN']
+type ColorLevels = {hex: InfluxColors; display: string; value: Levels}
+
+const levels: ColorLevels[] = [
+  {display: 'CRIT', hex: InfluxColors.Fire, value: 'CRIT'},
+  {display: 'INFO', hex: InfluxColors.Ocean, value: 'INFO'},
+  {display: 'WARN', hex: InfluxColors.Thunder, value: 'WARN'},
+  {display: 'OK', hex: InfluxColors.Viridian, value: 'OK'},
+  {display: 'UNKNOWN', hex: InfluxColors.Sidewalk, value: 'UNKNOWN'},
+]
 
 interface Props {
   selectedLevel: Levels
@@ -19,31 +32,51 @@ interface Props {
 }
 
 const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
+  const selected = levels.find(l => l.value === selectedLevel)
+
+  if (!selected) {
+    throw new Error('Unknown level type provided to <LevelsDropdown/>')
+  }
+
   const button = (active, onClick) => (
     <Dropdown.Button
-      color={ComponentColor.Primary}
+      color={ComponentColor.Default}
       active={active}
       onClick={onClick}
       testID={`levels--dropdown--button ${type}`}
     >
-      {selectedLevel}
+      <div className="color-dropdown--item">
+        <div
+          className="color-dropdown--swatch"
+          style={{backgroundColor: selected.hex}}
+        />
+        <div className="color-dropdown--name">{selected.value}</div>
+      </div>
     </Dropdown.Button>
   )
 
-  const items = levels.map(level => (
+  const items = levels.map(({value, display, hex}) => (
     <Dropdown.Item
-      key={level}
-      id={level}
-      value={level}
-      onClick={() => onClickLevel(type, level)}
-      testID={`levels--dropdown-item ${level}`}
+      key={value}
+      id={value}
+      value={value}
+      onClick={() => onClickLevel(type, value)}
+      testID={`levels--dropdown-item ${value}`}
     >
-      {level}
+      <div className="color-dropdown--item">
+        <div
+          className="color-dropdown--swatch"
+          style={{backgroundColor: hex}}
+        />
+        <div className="color-dropdown--name">{display}</div>
+      </div>
     </Dropdown.Item>
   ))
 
   const menu = onCollapse => (
-    <Dropdown.Menu onCollapse={onCollapse}>{items}</Dropdown.Menu>
+    <Dropdown.Menu theme={DropdownMenuTheme.Onyx} onCollapse={onCollapse}>
+      {items}
+    </Dropdown.Menu>
   )
 
   return (
