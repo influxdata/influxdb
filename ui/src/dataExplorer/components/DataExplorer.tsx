@@ -11,7 +11,6 @@ import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
-import {TimeMachineEnum} from 'src/timeMachine/constants'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {
@@ -37,7 +36,7 @@ class DataExplorer extends PureComponent<Props, {}> {
   constructor(props: Props) {
     super(props)
 
-    props.onSetActiveTimeMachine(TimeMachineEnum.DE)
+    props.onSetActiveTimeMachine('de')
     queryBuilderFetcher.clearCache()
   }
 

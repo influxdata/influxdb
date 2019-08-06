@@ -1,9 +1,11 @@
 // Libraries
 import {produce} from 'immer'
+import {omit} from 'lodash'
 
 // Types
-import {RemoteDataState, Check} from 'src/types'
+import {RemoteDataState, Check, ThresholdCheck, DeadmanCheck} from 'src/types'
 import {Action} from 'src/alerting/actions/checks'
+import {DEFAULT_THRESHOLD_CHECK, DEFAULT_DEADMAN_CHECK} from '../constants'
 
 export interface ChecksState {
   status: RemoteDataState
@@ -49,16 +51,34 @@ export default (
 
       case 'SET_CURRENT_CHECK':
         draftState.current.status = action.payload.status
-        if (action.payload.check) {
-          draftState.current.check = action.payload.check
-        }
+        draftState.current.check = action.payload.check
         return
+
+      case 'SET_CURRENT_CHECK_STATUS':
+        draftState.current.status = action.payload.status
+        return
+
       case 'UPDATE_CURRENT_CHECK':
         draftState.current.check = {
           ...draftState.current.check,
           ...action.payload.checkUpdate,
         } as Check
 
+        return
+      case 'CHANGE_CURRENT_CHECK_TYPE':
+        const exCheck = draftState.current.check
+        if (action.payload.type == 'deadman') {
+          draftState.current.check = {
+            ...DEFAULT_DEADMAN_CHECK,
+            ...omit(exCheck, 'thresholds'),
+          } as DeadmanCheck
+        }
+        if (action.payload.type == 'threshold') {
+          draftState.current.check = {
+            ...DEFAULT_THRESHOLD_CHECK,
+            ...omit(exCheck, ['timeSince', 'reportZero', 'level']),
+          } as ThresholdCheck
+        }
         return
     }
   })

@@ -51,9 +51,6 @@ export {
   TagRule,
   CheckStatusLevel,
   ThresholdCheck,
-  GreaterThreshold,
-  LesserThreshold,
-  RangeThreshold,
   DeadmanCheck,
   NotificationEndpoint,
   NotificationRuleBase,
@@ -62,3 +59,7 @@ export {
   SlackNotificationRule,
   PagerDutyNotificationRule,
 } from '../client'
+
+import {Check} from '../client'
+
+export type CheckType = Check['type']

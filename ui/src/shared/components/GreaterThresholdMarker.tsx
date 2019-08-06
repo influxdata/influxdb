@@ -11,29 +11,29 @@ import {isInDomain, clamp} from 'src/shared/utils/vis'
 import {DragEvent} from 'src/shared/utils/useDragBehavior'
 
 // Types
-import {GreaterThreshold} from 'src/types'
+import {Threshold} from 'src/types'
 
 interface Props {
   yScale: Scale<number, number>
   yDomain: number[]
-  threshold: GreaterThreshold
+  threshold: Threshold
   onChangePos: (e: DragEvent) => void
 }
 
 const GreaterThresholdMarker: FunctionComponent<Props> = ({
   yDomain,
   yScale,
-  threshold: {level, value},
+  threshold: {level, lowerBound},
   onChangePos,
 }) => {
-  const y = yScale(clamp(value, yDomain))
+  const y = yScale(clamp(lowerBound, yDomain))
 
   return (
     <>
-      {isInDomain(value, yDomain) && (
+      {isInDomain(lowerBound, yDomain) && (
         <ThresholdMarker level={level} y={y} onDrag={onChangePos} />
       )}
-      {value <= yDomain[1] && (
+      {lowerBound <= yDomain[1] && (
         <ThresholdMarkerArea
           level={level}
           top={yScale(yDomain[1])}

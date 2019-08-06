@@ -284,10 +284,6 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 
 	tasks, _, err := h.TaskService.FindTasks(ctx, req.filter)
 	if err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to find tasks",
-		}
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -360,6 +356,10 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs platform.O
 		req.filter.Limit = lim
 	} else {
 		req.filter.Limit = platform.TaskDefaultPageSize
+	}
+
+	if ttype := qp.Get("type"); ttype != "" {
+		req.filter.Type = &ttype
 	}
 
 	return req, nil
@@ -1311,6 +1311,10 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 	}
 	if filter.Limit != 0 {
 		val.Add("limit", strconv.Itoa(filter.Limit))
+	}
+
+	if filter.Type != nil {
+		val.Add("type", *filter.Type)
 	}
 
 	u.RawQuery = val.Encode()

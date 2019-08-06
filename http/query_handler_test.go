@@ -98,7 +98,7 @@ func TestFluxService_Query(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if reqID := r.URL.Query().Get(OrgID); reqID == "" {
-					if name := r.URL.Query().Get(OrgName); name == "" {
+					if name := r.URL.Query().Get(Org); name == "" {
 						// Request must have org or orgID.
 						ErrorHandler(0).HandleHTTPError(context.TODO(), influxdb.ErrInvalidOrgFilter, w)
 						return

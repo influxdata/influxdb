@@ -122,6 +122,10 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 		return nil, influxdb.ErrMissingToken
 	}
 
+	if t.Type == influxdb.TaskTypeWildcard {
+		return nil, influxdb.ErrInvalidTaskType
+	}
+
 	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.OrganizationID)
 	if err != nil {
 		return nil, err

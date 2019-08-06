@@ -846,7 +846,9 @@ export interface CheckViewProperties {
   type: 'check'
   shape: 'chronograf-v2'
   checkID: string
-  check: Check
+  check?: Check
+  queries: DashboardQuery[]
+  colors: string[]
 }
 
 export type Check = DeadmanCheck | ThresholdCheck
@@ -888,28 +890,11 @@ export type ThresholdCheck = CheckBase & {
   thresholds?: Threshold[]
 }
 
-export type Threshold = GreaterThreshold | LesserThreshold | RangeThreshold
-
-export type GreaterThreshold = ThresholdBase & {
-  type: 'greater'
-  value: number
-}
-
-export interface ThresholdBase {
+export interface Threshold {
   level?: CheckStatusLevel
   allValues?: boolean
-}
-
-export type LesserThreshold = ThresholdBase & {
-  type: 'lesser'
-  value: number
-}
-
-export type RangeThreshold = ThresholdBase & {
-  type: 'range'
-  min: number
-  max: number
-  within: boolean
+  lowerBound?: number
+  upperBound?: number
 }
 
 export interface ScatterViewProperties {

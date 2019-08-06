@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 
@@ -134,7 +134,8 @@ class MapVariableBuilder extends PureComponent<Props, State> {
     onChange(update)
   }
 
-  private handleChange = (templateValuesString: string): void => {
+  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    const templateValuesString = e.target.value
     this.setState({templateValuesString})
   }
 

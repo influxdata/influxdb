@@ -119,7 +119,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     const name = _.get(template, 'meta.name', '')
 
     return (
-      <ResourceCard.Description
+      <ResourceCard.EditableDescription
         onUpdate={this.handleUpdateTemplateDescription}
         description={description}
         placeholder={`Describe ${name} Template`}

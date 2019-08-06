@@ -85,12 +85,8 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
     const {template} = this.props
     const description = _.get(template, 'content.data.attributes.description')
 
-    // TODO: Replace this with the view only description component when it is available
     return (
-      <ResourceCard.Description
-        description={description || 'No description'}
-        onUpdate={() => {}}
-      />
+      <ResourceCard.Description description={description || 'No description'} />
     )
   }
 
