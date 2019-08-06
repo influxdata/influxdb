@@ -83,6 +83,12 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 					t.Parallel()
 					testManualRun(t, sys)
 				})
+
+				t.Run("Task Type", func(t *testing.T) {
+					t.Parallel()
+					testTaskType(t, sys)
+				})
+
 			})
 		case "analytical":
 			t.Run("AnalyticalTaskService", func(t *testing.T) {
@@ -149,7 +155,7 @@ type System struct {
 	// However, if the system needs to verify credentials,
 	// the caller should set this value and return valid IDs and a valid token.
 	// It is safe if this returns the same values every time it is called.
-	CredsFunc func() (TestCreds, error)
+	CredsFunc func(*testing.T) (TestCreds, error)
 }
 
 func testTaskCRUD(t *testing.T, sys *System) {
@@ -1405,7 +1411,7 @@ func creds(t *testing.T, s *System) TestCreds {
 		}
 	}
 
-	c, err := s.CredsFunc()
+	c, err := s.CredsFunc(t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1437,3 +1443,86 @@ option task = {
 from(bucket: "b")
 	|> http.to(url: "http://example.com")`
 )
+
+func testTaskType(t *testing.T, sys *System) {
+	cr := creds(t, sys)
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+
+	// Create a tasks
+	ts := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+
+	tsk, err := sys.TaskService.CreateTask(authorizedCtx, ts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tsk.ID.Valid() {
+		t.Fatal("no task ID set")
+	}
+
+	tc := influxdb.TaskCreate{
+		Type:           "cows",
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+
+	tskCow, err := sys.TaskService.CreateTask(authorizedCtx, tc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tskCow.ID.Valid() {
+		t.Fatal("no task ID set")
+	}
+
+	tp := influxdb.TaskCreate{
+		Type:           "pigs",
+		OrganizationID: cr.OrgID,
+		Flux:           fmt.Sprintf(scriptFmt, 0),
+		Token:          cr.Token,
+	}
+
+	tskPig, err := sys.TaskService.CreateTask(authorizedCtx, tp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tskPig.ID.Valid() {
+		t.Fatal("no task ID set")
+	}
+
+	// get default tasks
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, task := range tasks {
+		if task.Type != "" {
+			t.Fatal("recieved a task with a type when sending no type restriction")
+		}
+	}
+
+	// get filtered tasks
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Type: &tc.Type})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tasks) != 1 {
+		t.Fatalf("failed to return tasks by type, expected 1, got %d", len(tasks))
+	}
+
+	// get all tasks
+	wc := influxdb.TaskTypeWildcard
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Type: &wc})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tasks) != 3 {
+		t.Fatalf("failed to return tasks with wildcard, expected 3, got %d", len(tasks))
+	}
+}

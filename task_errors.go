@@ -36,6 +36,11 @@ var (
 		Msg:  "invalid id",
 	}
 
+	// ErrInvalidTaskType error object for bad id's
+	ErrInvalidTaskType = &Error{
+		Code: EInvalid,
+		Msg:  "invalid task type",
+	}
 	// ErrTaskNotFound indicates no task could be found for given parameters.
 	ErrTaskNotFound = &Error{
 		Code: ENotFound,
