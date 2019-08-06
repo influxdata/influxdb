@@ -1,4 +1,4 @@
-import {StatusRule, NotificationRule, TagRule} from 'src/client'
+import {StatusRule, NotificationRuleBase, TagRule} from 'src/client'
 
 export interface AddID<T> {
   id: string
@@ -10,11 +10,38 @@ export type TagRuleItem = AddID<TagRule>
 
 type ExcludeKeys<T> = Pick<T, Exclude<keyof T, 'statusRules' | 'tagRules'>>
 
-export interface NotificationRuleBox extends ExcludeKeys<NotificationRule> {
+export interface NotificationRuleBaseBox
+  extends ExcludeKeys<NotificationRuleBase> {
   schedule: 'cron' | 'every'
   statusRules: StatusRuleItem[]
   tagRules: TagRuleItem[]
 }
+
+export type NotificationRuleBox = SlackRule | SMTPRule | PagerDutyRule
+
+export type SlackBase = {
+  type: 'slack'
+  channel?: string
+  messageTemplate: string
+}
+
+type SlackRule = NotificationRuleBaseBox & SlackBase
+
+export type SMTPBase = {
+  type: 'smtp'
+  to: string
+  bodyTemplate?: string
+  subjectTemplate: string
+}
+
+type SMTPRule = NotificationRuleBaseBox & SMTPBase
+
+export type PagerDutyBase = {
+  type: 'pagerduty'
+  messageTemplate: string
+}
+
+type PagerDutyRule = NotificationRuleBaseBox & PagerDutyBase
 
 export {
   Check,

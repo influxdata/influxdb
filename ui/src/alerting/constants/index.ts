@@ -107,6 +107,7 @@ export const newRule: NotificationRuleBox = {
   name: '',
   schedule: 'every',
   status: 'active',
+  messageTemplate: '',
   tagRules: [newTagRule],
   statusRules: [newStatusRule],
   description: '',
@@ -139,15 +140,6 @@ export const endpoints: NotificationEndpoint[] = [
     name: 'pagerditty endpoint',
     status: 'active',
     type: 'pagerduty',
-  },
-  {
-    id: '4',
-    orgID: '1',
-    userID: '1',
-    description: 'interrupt someone with a webhook!',
-    name: 'webhook endpoint',
-    status: 'active',
-    type: 'webhook',
   },
 ]
 

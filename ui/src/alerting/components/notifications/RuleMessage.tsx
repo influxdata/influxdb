@@ -5,9 +5,13 @@ import React, {FC, useContext} from 'react'
 import {Form} from '@influxdata/clockface'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import RuleEndpointDropdown from 'src/alerting/components/notifications/RuleEndpointDropdown'
+import RuleMessageContents from 'src/alerting/components/notifications/RuleMessageContents'
 
 // Types
 import {NotificationEndpoint, NotificationRuleBox} from 'src/types'
+
+// Utils
+import {getEndpointBase} from './endpointBase'
 
 interface Props {
   endpoints: NotificationEndpoint[]
@@ -17,10 +21,13 @@ interface Props {
 const RuleMessage: FC<Props> = ({endpoints, rule}) => {
   const dispatch = useContext(NewRuleDispatch)
   const onSelectEndpoint = notifyEndpointID => {
+    const endpoint = getEndpointBase(endpoints, notifyEndpointID)
+
     dispatch({
       type: 'UPDATE_RULE',
       rule: {
         ...rule,
+        ...endpoint,
         notifyEndpointID,
       },
     })
@@ -36,6 +43,7 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
           selectedEndpointID={rule.notifyEndpointID}
         />
       </Form.Element>
+      <RuleMessageContents rule={rule} />
     </>
   )
 }
