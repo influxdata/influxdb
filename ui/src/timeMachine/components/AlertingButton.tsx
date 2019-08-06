@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, ComponentStatus} from '@influxdata/clockface'
+import {Button} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -38,7 +38,7 @@ const AlertingButton: FunctionComponent<Props> = ({
   setCurrentCheck,
   viewType,
 }) => {
-  const handleClick = () => {
+  const handleClickAlerting = () => {
     if (viewType !== 'check') {
       setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
       addCheck()
@@ -47,17 +47,19 @@ const AlertingButton: FunctionComponent<Props> = ({
     }
   }
 
-  let status = ComponentStatus.Default
+  const handleClickQueries = () => {
+    setActiveTab('queries')
+  }
+
   if (activeTab === 'alerting') {
-    status = ComponentStatus.Disabled
+    return <Button text="Queries" onClick={handleClickQueries} />
   }
 
   return (
     <Button
       titleText="Add alerting to this query"
       text="Alerting"
-      onClick={handleClick}
-      status={status}
+      onClick={handleClickAlerting}
     />
   )
 }
