@@ -67,7 +67,7 @@ class DashboardCard extends PureComponent<Props> {
           />
         }
         description={
-          <ResourceCard.Description
+          <ResourceCard.EditableDescription
             onUpdate={this.handleUpdateDescription}
             description={dashboard.description}
             placeholder={`Describe ${dashboard.name}`}

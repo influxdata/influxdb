@@ -67,7 +67,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
           />
         }
         description={
-          <ResourceCard.Description
+          <ResourceCard.EditableDescription
             onUpdate={this.handleUpdateDescription}
             description={collector.description}
             placeholder={`Describe ${collector.name}`}

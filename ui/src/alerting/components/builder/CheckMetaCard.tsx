@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -48,7 +48,8 @@ const CheckMetaCard: FC<Props> = ({updateCurrentCheck, check}) => {
     updateCurrentCheck({name: e.target.value})
   }
 
-  const handleChangeMessage = (statusMessageTemplate: string) => {
+  const handleChangeMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const statusMessageTemplate = e.target.value
     updateCurrentCheck({statusMessageTemplate})
   }
 
