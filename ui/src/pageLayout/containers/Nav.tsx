@@ -10,7 +10,6 @@ import CloudNav from 'src/pageLayout/components/CloudNav'
 import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
