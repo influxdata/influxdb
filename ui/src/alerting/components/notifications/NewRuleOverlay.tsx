@@ -6,7 +6,15 @@ import {withRouter, WithRouterProps} from 'react-router'
 import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
 import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
 import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
-import {Overlay, Form, Input, Grid, Columns} from '@influxdata/clockface'
+import {
+  Panel,
+  ComponentSize,
+  Overlay,
+  Form,
+  Input,
+  Grid,
+  Columns,
+} from '@influxdata/clockface'
 
 // Reducers
 import {reducer, RuleState, Actions} from './NewRuleOverlay.reducer'
@@ -55,16 +63,20 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
                 <Grid.Row>
                   <Grid.Column widthSM={Columns.Two}>About</Grid.Column>
                   <Grid.Column widthSM={Columns.Ten}>
-                    <Form.Element label="Name">
-                      <Input
-                        testID="rule-name--input"
-                        placeholder="Name this new rule"
-                        value={rule.name}
-                        name="name"
-                        onChange={handleChange}
-                      />
-                    </Form.Element>
-                    <RuleSchedule rule={rule} onChange={handleChange} />
+                    <Panel size={ComponentSize.ExtraSmall}>
+                      <Panel.Body>
+                        <Form.Element label="Name">
+                          <Input
+                            testID="rule-name--input"
+                            placeholder="Name this new rule"
+                            value={rule.name}
+                            name="name"
+                            onChange={handleChange}
+                          />
+                        </Form.Element>
+                        <RuleSchedule rule={rule} onChange={handleChange} />
+                      </Panel.Body>
+                    </Panel>
                   </Grid.Column>
                   <Grid.Column>
                     <hr />

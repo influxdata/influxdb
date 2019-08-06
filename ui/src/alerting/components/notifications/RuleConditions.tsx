@@ -5,16 +5,15 @@ import React, {FC, useContext} from 'react'
 import {
   Grid,
   Columns,
-  Button,
   ComponentSpacer,
   FlexDirection,
-  JustifyContent,
   ComponentSize,
   AlignItems,
 } from '@influxdata/clockface'
 import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
 import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
+import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 
 // Constants
 import {newTagRule} from 'src/alerting/constants'
@@ -50,18 +49,13 @@ const RuleConditions: FC<Props> = ({rule}) => {
       <Grid.Column widthSM={Columns.Two}>Conditions</Grid.Column>
       <Grid.Column widthSM={Columns.Ten}>
         <ComponentSpacer
-          direction={FlexDirection.Row}
-          justifyContent={JustifyContent.SpaceBetween}
-        >
-          <Button text="+ Tag Rule" onClick={addTagRule} />
-        </ComponentSpacer>
-        <ComponentSpacer
           direction={FlexDirection.Column}
           margin={ComponentSize.Small}
           alignItems={AlignItems.Stretch}
         >
           {statuses}
           {tags}
+          <DashedButton text="+ Tag Rule" onClick={addTagRule} />
         </ComponentSpacer>
       </Grid.Column>
       <Grid.Column>

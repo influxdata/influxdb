@@ -2,7 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import {Panel} from '@influxdata/clockface'
+import {Panel, ComponentSize} from '@influxdata/clockface'
 import StatusLevels from 'src/alerting/components/notifications/StatusLevels'
 
 // Types
@@ -14,7 +14,7 @@ interface Props {
 
 const StatusRuleComponent: FC<Props> = ({status}) => {
   return (
-    <Panel>
+    <Panel size={ComponentSize.ExtraSmall}>
       <Panel.Body>
         <StatusLevels status={status} />
       </Panel.Body>

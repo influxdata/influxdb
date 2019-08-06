@@ -9,6 +9,7 @@ import {
   InputType,
   Grid,
   Columns,
+  ButtonShape,
 } from '@influxdata/clockface'
 import {NewRuleDispatch} from './NewRuleOverlay'
 
@@ -29,9 +30,9 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
 
   return (
     <Grid.Row>
-      <Grid.Column widthXS={Columns.Two}>
+      <Grid.Column widthXS={Columns.Four}>
         <Form.Element label="Schedule">
-          <Radio>
+          <Radio shape={ButtonShape.StretchToFit}>
             <Radio.Button
               id="every"
               testID="rule-schedule-every"
@@ -65,7 +66,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
           </Radio>
         </Form.Element>
       </Grid.Column>
-      <Grid.Column widthXS={Columns.Five}>
+      <Grid.Column widthXS={Columns.Four}>
         <Form.Element label={label}>
           <Input
             value={value}
@@ -78,7 +79,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
         </Form.Element>
       </Grid.Column>
 
-      <Grid.Column widthXS={Columns.Five}>
+      <Grid.Column widthXS={Columns.Four}>
         <Form.Element label="Offset">
           <Input
             name="offset"

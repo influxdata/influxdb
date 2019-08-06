@@ -1,0 +1,25 @@
+.dashed-button {
+  width: 100%;
+  border: $ix-border dashed $g4-onyx;
+  background-color: rgba($g5-pepper, 0);
+  color: $g9-mountain;
+  height: 54px;
+  transition: background-color 0.25s ease, color 0.25s ease,
+    border-color 0.25s ease;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+  border-radius: $ix-radius;
+
+  &:hover {
+    cursor: pointer;
+    background-color: rgba($g5-pepper, 0.25);
+    border-color: $g6-smoke;
+    color: $g13-mist;
+  }
+
+  &:active {
+    border-color: $c-pool;
+    color: $c-pool;
+  }
+}
