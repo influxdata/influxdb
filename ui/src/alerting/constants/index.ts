@@ -117,7 +117,7 @@ export const newTagRule: TagRuleItem = {
 
 export const newRule: NotificationRuleBox = {
   id: '',
-  notifyEndpointID: '3',
+  notifyEndpointID: '1',
   type: 'slack',
   every: '',
   orgID: '',
