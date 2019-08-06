@@ -114,6 +114,7 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
 
     if (ruleType === null) {
       onUpdateBucket({...bucket, retentionRules: []})
+      this.handleClose()
       return
     }
 

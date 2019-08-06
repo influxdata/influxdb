@@ -20,7 +20,7 @@ describe('Buckets', () => {
   describe('from the org view', () => {
     it('can create a bucket', () => {
       const newBucket = '🅱️ucket'
-      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('bucket--card').should('have.length', 1)
 
       cy.getByTestID('Create Bucket').click()
       cy.getByTestID('overlay--container').within(() => {
@@ -30,19 +30,17 @@ describe('Buckets', () => {
           .click()
       })
 
-      cy.getByTestID('resource-card')
+      cy.getByTestID('bucket--card')
         .should('have.length', 2)
         .and('contain', newBucket)
     })
 
-    it("can update a bucket's retention rules", () => {
-      cy.get<Bucket>('@bucket').then(({name}) => {
-        cy.contains(name).click()
+    it.only("can update a bucket's retention rules", () => {
+      cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
+        cy.getByTestID(`bucket--card ${name}`).click()
       })
 
-      cy.contains('Periodically').click()
-      // Switch back to line 47 when radio buttons from clockface support testID
-      // cy.get('retention-intervals').click()
+      cy.getByTestID('retention-intervals--button').click()
 
       cy.getByInputName('days').type('{uparrow}')
       cy.getByInputName('hours').type('{uparrow}')
@@ -53,22 +51,33 @@ describe('Buckets', () => {
         cy.contains('Save').click()
       })
 
-      cy.getByTestID('resource-card').should('contain', '1 day')
+      cy.getByTestID('bucket--card').should('contain', '1 day')
+
+      cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
+        cy.getByTestID(`bucket--card ${name}`).click()
+      })
+
+      cy.getByTestID('retention-never--button').click()
+      cy.getByTestID('overlay--container').within(() => {
+        cy.contains('Save').click()
+      })
+
+      cy.getByTestID('overlay--container').should('not.be.visible')
     })
 
     it.skip('can delete a bucket', () => {
-      cy.get<Organization>('@org').then(({id, name}) => {
+      cy.get<Organization>('@org').then(({id, name}: Organization) => {
         cy.createBucket(id, name, 'newbucket1')
         cy.createBucket(id, name, 'newbucket2')
       })
 
-      cy.getByTestID('resource-card').should('have.length', 3)
+      cy.getByTestID('bucket--card').should('have.length', 3)
 
       cy.getByTestID('confirmation-button')
         .last()
         .click({force: true})
 
-      cy.getByTestID('resource-card').should('have.length', 2)
+      cy.getByTestID('bucket--card').should('have.length', 2)
     })
   })
 })

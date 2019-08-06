@@ -31,7 +31,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
     return (
       <>
         <ResourceCard
-          testID="resource-card"
+          testID="bucket--card"
           contextMenu={
             <BucketContextMenu
               bucket={bucket}
@@ -45,6 +45,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           }
           name={
             <ResourceCard.Name
+              testID={`bucket--card ${bucket.name}`}
               onClick={this.handleNameClick}
               name={bucket.name}
             />
