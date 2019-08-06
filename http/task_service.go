@@ -284,10 +284,6 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 
 	tasks, _, err := h.TaskService.FindTasks(ctx, req.filter)
 	if err != nil {
-		err = &platform.Error{
-			Err: err,
-			Msg: "failed to find tasks",
-		}
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
