@@ -2,7 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
+import {Form, TextArea} from '@influxdata/clockface'
 
 interface Props {
   messageTemplate: string
@@ -10,10 +10,9 @@ interface Props {
 }
 
 const PagerDutyMessage: FC<Props> = ({messageTemplate, onChange}) => {
-  // TODO: change this to a TextArea once clockface is fixed
   return (
     <Form.Element label="message">
-      <Input
+      <TextArea
         name="messageTemplate"
         onChange={onChange}
         value={messageTemplate}

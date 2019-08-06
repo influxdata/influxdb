@@ -2,7 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
+import {Form, Input, TextArea} from '@influxdata/clockface'
 
 interface Props {
   channel: string
@@ -17,8 +17,7 @@ const SlackMessage: FC<Props> = ({channel, messageTemplate, onChange}) => {
         <Input value={channel} name="channel" onChange={onChange} />
       </Form.Element>
       <Form.Element label="message">
-        {/*  TODO: change this to a TextArea once clockface is fixed */}
-        <Input
+        <TextArea
           name="messageTemplate"
           value={messageTemplate}
           onChange={onChange}

@@ -2,7 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {Form, Input} from '@influxdata/clockface'
+import {Form, Input, TextArea} from '@influxdata/clockface'
 
 interface Props {
   to: string
@@ -30,8 +30,11 @@ const SMTPMessage: FC<Props> = ({
         />
       </Form.Element>
       <Form.Element label="body">
-        {/*  TODO: change this to a TextArea once clockface is fixed */}
-        <Input name="bodyTemplate" value={bodyTemplate} onChange={onChange} />
+        <TextArea
+          name="bodyTemplate"
+          value={bodyTemplate}
+          onChange={onChange}
+        />
       </Form.Element>
     </>
   )
