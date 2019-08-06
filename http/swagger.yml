@@ -1561,11 +1561,16 @@ paths:
               - application/json
         - in: query
           name: org
-          description: specifies the destination organization for writes
+          description: specifies the destination organization for writes; take either the ID or Name interchangeably; if both orgID and org are specified, org takes precedence.
           required: true
           schema:
             type: string
             description: all points within batch are written to this organization.
+        - in: query
+          name: orgID
+          description: specifies the ID of the destination organization for writes; if both orgID and org are specified, org takes precedence.
+          schema:
+            type: string
         - in: query
           name: bucket
           description: specifies the destination bucket for writes
@@ -3092,12 +3097,12 @@ paths:
               - application/vnd.flux
         - in: query
           name: org
-          description: specifies the name of the organization executing the query; if both orgID and org are specified, orgID takes precedence.
+          description: specifies the name of the organization executing the query; take either the ID or Name interchangeably; if both orgID and org are specified, org takes precedence.
           schema:
             type: string
         - in: query
           name: orgID
-          description: specifies the ID of the organization executing the query; if both orgID and org are specified, orgID takes precedence.
+          description: specifies the ID of the organization executing the query; if both orgID and org are specified, org takes precedence.
           schema:
             type: string
       requestBody:
