@@ -80,9 +80,9 @@ export default class extends PureComponent<Props> {
     this.props.onURLChange(value)
   }
 
-  private handleTextChange = async (lpBody: string) => {
+  private handleTextChange = async (e: ChangeEvent<HTMLTextAreaElement>) => {
     const {setLineProtocolBody} = this.props
-    setLineProtocolBody(lpBody)
+    setLineProtocolBody(e.target.value)
   }
 
   private handleSetLineProtocol = (lpBody: string) => {

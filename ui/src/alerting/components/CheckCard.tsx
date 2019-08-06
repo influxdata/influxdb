@@ -84,7 +84,7 @@ const CheckCard: FunctionComponent<Props> = ({
         />
       }
       description={
-        <ResourceCard.Description
+        <ResourceCard.EditableDescription
           onUpdate={onUpdateDescription}
           description={check.description}
           placeholder={`Describe ${check.name}`}
