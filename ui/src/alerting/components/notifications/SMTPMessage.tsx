@@ -19,17 +19,17 @@ const SMTPMessage: FC<Props> = ({
 }) => {
   return (
     <>
-      <Form.Element label="to">
+      <Form.Element label="To">
         <Input value={to} name="to" onChange={onChange} />
       </Form.Element>
-      <Form.Element label="subject">
+      <Form.Element label="Subject">
         <Input
           value={subjectTemplate}
           name="subjectTemplate"
           onChange={onChange}
         />
       </Form.Element>
-      <Form.Element label="body">
+      <Form.Element label="Body">
         <TextArea
           name="bodyTemplate"
           value={bodyTemplate}

@@ -9,13 +9,15 @@ import {
   ComponentSpacer,
   FlexDirection,
   JustifyContent,
+  ComponentSize,
+  AlignItems,
 } from '@influxdata/clockface'
 import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
 import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 
 // Constants
-import {newStatusRule, newTagRule} from 'src/alerting/constants'
+import {newTagRule} from 'src/alerting/constants'
 
 // Types
 import {RuleState} from './NewRuleOverlay.reducer'
@@ -27,12 +29,6 @@ interface Props {
 const RuleConditions: FC<Props> = ({rule}) => {
   const dispatch = useContext(NewRuleDispatch)
   const {statusRules, tagRules} = rule
-  const addStatusRule = () => {
-    dispatch({
-      type: 'ADD_STATUS_RULE',
-      statusRule: newStatusRule,
-    })
-  }
 
   const addTagRule = () => {
     dispatch({
@@ -50,26 +46,28 @@ const RuleConditions: FC<Props> = ({rule}) => {
   ))
 
   return (
-    <>
-      <h2 className="cf-overlay--title">Rule Conditions</h2>
-      <Grid.Row>
-        <Grid.Column widthSM={Columns.Three}>
-          <ComponentSpacer
-            direction={FlexDirection.Row}
-            justifyContent={JustifyContent.SpaceBetween}
-          >
-            <Button
-              text="+ Status Rule"
-              onClick={addStatusRule}
-              testID="add-status-rule--button"
-            />
-            <Button text="+ Tag Rule" onClick={addTagRule} />
-          </ComponentSpacer>
-        </Grid.Column>
-      </Grid.Row>
-      <Grid.Row>{statuses}</Grid.Row>
-      <Grid.Row>{tags}</Grid.Row>
-    </>
+    <Grid.Row>
+      <Grid.Column widthSM={Columns.Two}>Conditions</Grid.Column>
+      <Grid.Column widthSM={Columns.Ten}>
+        <ComponentSpacer
+          direction={FlexDirection.Row}
+          justifyContent={JustifyContent.SpaceBetween}
+        >
+          <Button text="+ Tag Rule" onClick={addTagRule} />
+        </ComponentSpacer>
+        <ComponentSpacer
+          direction={FlexDirection.Column}
+          margin={ComponentSize.Small}
+          alignItems={AlignItems.Stretch}
+        >
+          {statuses}
+          {tags}
+        </ComponentSpacer>
+      </Grid.Column>
+      <Grid.Column>
+        <hr />
+      </Grid.Column>
+    </Grid.Row>
   )
 }
 

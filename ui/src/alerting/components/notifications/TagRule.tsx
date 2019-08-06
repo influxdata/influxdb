@@ -2,7 +2,16 @@
 import React, {FC, useContext} from 'react'
 
 // Components
-import {Input, Form, IconFont} from '@influxdata/clockface'
+import {
+  Input,
+  Panel,
+  DismissButton,
+  TextBlock,
+  ComponentSpacer,
+  ComponentSize,
+  FlexDirection,
+  ComponentColor,
+} from '@influxdata/clockface'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import TagRuleOperatorDropdown, {
   Operator,
@@ -57,40 +66,41 @@ const TagRule: FC<Props> = ({tagRule}) => {
   }
 
   return (
-    <div className="condition-row tag-rule" data-testid="tag-rule">
-      <div
-        style={{
-          position: 'absolute',
-          right: '0',
-          cursor: 'pointer',
-        }}
-        onClick={onDelete}
-      >
-        <span className={`icon ${IconFont.Remove}`} />
-      </div>
-      <Form.Element label="Key">
-        <Input
-          testID="tag-rule-key--input"
-          placeholder="Key"
-          value={key}
-          name="key"
-          onChange={onChange}
-        />
-      </Form.Element>
-      <TagRuleOperatorDropdown
-        selectedOperator={operator}
-        onSelect={onSelectOperator}
-      />
-      <Form.Element label="Value">
-        <Input
-          testID="tag-rule-key--input"
-          placeholder="Value"
-          value={value}
-          name="value"
-          onChange={onChange}
-        />
-      </Form.Element>
-    </div>
+    <Panel testID="tag-rule" size={ComponentSize.ExtraSmall}>
+      <DismissButton onClick={onDelete} color={ComponentColor.Default} />
+      <Panel.Body>
+        <ComponentSpacer
+          direction={FlexDirection.Row}
+          margin={ComponentSize.Small}
+        >
+          <TextBlock text="When tag" />
+          <ComponentSpacer.FlexChild grow={1}>
+            <Input
+              testID="tag-rule-key--input"
+              placeholder="Key"
+              value={key}
+              name="key"
+              onChange={onChange}
+            />
+          </ComponentSpacer.FlexChild>
+          <ComponentSpacer.FlexChild grow={0} basis={60}>
+            <TagRuleOperatorDropdown
+              selectedOperator={operator}
+              onSelect={onSelectOperator}
+            />
+          </ComponentSpacer.FlexChild>
+          <ComponentSpacer.FlexChild grow={1}>
+            <Input
+              testID="tag-rule-key--input"
+              placeholder="Value"
+              value={value}
+              name="value"
+              onChange={onChange}
+            />
+          </ComponentSpacer.FlexChild>
+        </ComponentSpacer>
+      </Panel.Body>
+    </Panel>
   )
 }
 

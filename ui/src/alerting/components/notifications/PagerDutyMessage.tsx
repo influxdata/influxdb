@@ -11,7 +11,7 @@ interface Props {
 
 const PagerDutyMessage: FC<Props> = ({messageTemplate, onChange}) => {
   return (
-    <Form.Element label="message">
+    <Form.Element label="Message">
       <TextArea
         name="messageTemplate"
         onChange={onChange}

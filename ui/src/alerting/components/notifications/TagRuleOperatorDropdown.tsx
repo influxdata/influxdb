@@ -30,7 +30,7 @@ const TagRuleOperatorDropdown: FC<Props> = ({selectedOperator, onSelect}) => {
       testID={`tag-rule--dropdown-item ${operator}`}
       onClick={() => onSelect(operator)}
     >
-      {operator}
+      {display}
     </Dropdown.Item>
   ))
 
@@ -50,14 +50,7 @@ const TagRuleOperatorDropdown: FC<Props> = ({selectedOperator, onSelect}) => {
     <Dropdown.Menu onCollapse={onCollapse}>{items}</Dropdown.Menu>
   )
 
-  return (
-    <Dropdown
-      menu={menu}
-      button={button}
-      widthPixels={160}
-      testID="tag-rule--dropdown"
-    />
-  )
+  return <Dropdown menu={menu} button={button} testID="tag-rule--dropdown" />
 }
 
 export default TagRuleOperatorDropdown

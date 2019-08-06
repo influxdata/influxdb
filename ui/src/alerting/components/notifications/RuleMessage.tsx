@@ -2,7 +2,7 @@
 import React, {FC, useContext} from 'react'
 
 // Components
-import {Form} from '@influxdata/clockface'
+import {Form, Panel, Grid, Columns} from '@influxdata/clockface'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import RuleEndpointDropdown from 'src/alerting/components/notifications/RuleEndpointDropdown'
 import RuleMessageContents from 'src/alerting/components/notifications/RuleMessageContents'
@@ -34,17 +34,23 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
   }
 
   return (
-    <>
-      <h2 className="cf-overlay--title">Rule Message</h2>
-      <Form.Element label="Endpoint">
-        <RuleEndpointDropdown
-          endpoints={endpoints}
-          onSelectEndpoint={onSelectEndpoint}
-          selectedEndpointID={rule.notifyEndpointID}
-        />
-      </Form.Element>
-      <RuleMessageContents rule={rule} />
-    </>
+    <Grid.Row>
+      <Grid.Column widthSM={Columns.Two}>Message</Grid.Column>
+      <Grid.Column widthSM={Columns.Ten}>
+        <Panel>
+          <Panel.Body>
+            <Form.Element label="Endpoint">
+              <RuleEndpointDropdown
+                endpoints={endpoints}
+                onSelectEndpoint={onSelectEndpoint}
+                selectedEndpointID={rule.notifyEndpointID}
+              />
+            </Form.Element>
+            <RuleMessageContents rule={rule} />
+          </Panel.Body>
+        </Panel>
+      </Grid.Column>
+    </Grid.Row>
   )
 }
 

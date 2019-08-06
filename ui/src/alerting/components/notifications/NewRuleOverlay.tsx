@@ -6,7 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
 import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
 import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
-import {Overlay, Form, Input, Grid} from '@influxdata/clockface'
+import {Overlay, Form, Input, Grid, Columns} from '@influxdata/clockface'
 
 // Reducers
 import {reducer, RuleState, Actions} from './NewRuleOverlay.reducer'
@@ -44,7 +44,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
   return (
     <NewRuleDispatch.Provider value={dispatch}>
       <Overlay visible={true}>
-        <Overlay.Container maxWidth={1000} className="rule-eo">
+        <Overlay.Container maxWidth={800}>
           <Overlay.Header
             title="Create a Notification Rule"
             onDismiss={handleDismiss}
@@ -53,7 +53,8 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
             <Grid>
               <Form>
                 <Grid.Row>
-                  <Grid.Column>
+                  <Grid.Column widthSM={Columns.Two}>About</Grid.Column>
+                  <Grid.Column widthSM={Columns.Ten}>
                     <Form.Element label="Name">
                       <Input
                         testID="rule-name--input"
@@ -63,9 +64,12 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
                         onChange={handleChange}
                       />
                     </Form.Element>
+                    <RuleSchedule rule={rule} onChange={handleChange} />
+                  </Grid.Column>
+                  <Grid.Column>
+                    <hr />
                   </Grid.Column>
                 </Grid.Row>
-                <RuleSchedule rule={rule} onChange={handleChange} />
                 <RuleConditions rule={rule} />
                 <RuleMessage rule={rule} endpoints={endpoints} />
               </Form>

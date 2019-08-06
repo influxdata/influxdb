@@ -13,10 +13,10 @@ interface Props {
 const SlackMessage: FC<Props> = ({channel, messageTemplate, onChange}) => {
   return (
     <>
-      <Form.Element label="channel">
+      <Form.Element label="Channel">
         <Input value={channel} name="channel" onChange={onChange} />
       </Form.Element>
-      <Form.Element label="message">
+      <Form.Element label="Message">
         <TextArea
           name="messageTemplate"
           value={messageTemplate}

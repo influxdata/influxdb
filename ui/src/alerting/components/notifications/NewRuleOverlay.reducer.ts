@@ -9,7 +9,6 @@ export type Actions =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleBox}
   | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
   | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleItem}
-  | {type: 'ADD_STATUS_RULE'; statusRule: StatusRuleItem}
   | {type: 'ADD_TAG_RULE'; tagRule: TagRuleItem}
   | {type: 'DELETE_STATUS_RULE'; statusRuleID: string}
   | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleItem}
@@ -38,14 +37,6 @@ export const reducer = (state: RuleState, action: Actions) => {
       })
 
       return {...state, statusRules}
-    }
-
-    case 'ADD_STATUS_RULE': {
-      const {statusRule} = action
-      return {
-        ...state,
-        statusRules: [...state.statusRules, {...statusRule, id: v4()}],
-      }
     }
 
     case 'ADD_TAG_RULE': {
