@@ -30,7 +30,7 @@ class VisOptionsButton extends Component<Props> {
     const {activeTab} = this.props
 
     const color =
-      activeTab === TimeMachineTab.Visualization
+      activeTab === 'visualization'
         ? ComponentColor.Primary
         : ComponentColor.Default
 
@@ -46,10 +46,10 @@ class VisOptionsButton extends Component<Props> {
   private handleClick = (): void => {
     const {onSetActiveTab, activeTab} = this.props
 
-    if (activeTab === TimeMachineTab.Queries) {
-      onSetActiveTab(TimeMachineTab.Visualization)
+    if (activeTab !== 'visualization') {
+      onSetActiveTab('visualization')
     } else {
-      onSetActiveTab(TimeMachineTab.Queries)
+      onSetActiveTab('queries')
     }
   }
 }

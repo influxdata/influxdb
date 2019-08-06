@@ -26,6 +26,7 @@ import {
   BuilderConfig,
   Axis,
   Color,
+  CheckViewProperties,
 } from 'src/types'
 
 function defaultView() {
@@ -244,6 +245,16 @@ const NEW_VIEW_CREATORS = {
       ySuffix: '',
     },
   }),
+  check: (): NewView<CheckViewProperties> => ({
+    name: 'check',
+    properties: {
+      type: 'check',
+      shape: 'chronograf-v2',
+      checkID: '',
+      queries: [defaultViewQuery()],
+      colors: NINETEEN_EIGHTY_FOUR,
+    },
+  }),
 }
 
 export function createView<T extends ViewProperties = ViewProperties>(
@@ -255,5 +266,5 @@ export function createView<T extends ViewProperties = ViewProperties>(
     throw new Error(`no view creator implemented for view of type ${viewType}`)
   }
 
-  return creator()
+  return creator() as NewView<T>
 }

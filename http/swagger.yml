@@ -7506,7 +7506,8 @@ components:
         - type
         - shape
         - checkID
-        - check
+        - queries
+        - colors
       properties:
         type:
           type: string
@@ -7518,6 +7519,15 @@ components:
           type: string
         check:
           $ref: '#/components/schemas/Check'
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            type: string
     Axes:
       description: The viewport for a View's visualizations
       type: object

@@ -2,18 +2,35 @@ import {
   Check,
   DashboardQuery,
   NotificationRule,
-  GreaterThreshold,
   ThresholdCheck,
+  DeadmanCheck,
 } from 'src/types'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
 
-export const DEFAULT_CHECK: Partial<ThresholdCheck> = {
+export const CHECK_NAME_MAX_LENGTH = 68
+export const DEFAULT_CHECK_CRON = '1h'
+export const DEFAULT_CHECK_EVERY = '1h'
+export const DEFAULT_CHECK_OFFSET = '0s'
+export const DEFAULT_CHECK_REPORT_ZERO = false
+
+export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
   status: 'active',
   thresholds: [],
+  every: DEFAULT_CHECK_EVERY,
+  offset: DEFAULT_CHECK_OFFSET,
+}
+
+export const DEFAULT_DEADMAN_CHECK: Partial<DeadmanCheck> = {
+  name: DEFAULT_CHECK_NAME,
+  type: 'deadman',
+  status: 'active',
+  every: DEFAULT_CHECK_EVERY,
+  offset: DEFAULT_CHECK_OFFSET,
+  reportZero: DEFAULT_CHECK_REPORT_ZERO,
 }
 
 export const query: DashboardQuery = {
@@ -38,10 +55,10 @@ export const check1: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'WARN',
+      level: 'UNKNOWN',
+      lowerBound: 20,
       allValues: false,
-      type: 'greater',
-    } as GreaterThreshold,
+    },
   ],
 }
 
@@ -60,10 +77,10 @@ export const check2: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'WARN',
+      level: 'UNKNOWN',
+      lowerBound: 20,
       allValues: false,
-      type: 'greater',
-    } as GreaterThreshold,
+    },
   ],
 }
 

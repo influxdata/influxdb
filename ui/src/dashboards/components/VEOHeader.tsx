@@ -12,6 +12,7 @@ import {
 import {Page} from 'src/pageLayout'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
+import AlertingButton from 'src/timeMachine/components/AlertingButton'
 
 // Constants
 import {
@@ -44,6 +45,7 @@ class VEOHeader extends PureComponent<Props> {
             />
           </Page.Header.Left>
           <Page.Header.Right>
+            <AlertingButton />
             <ViewTypeDropdown />
             <VisOptionsButton />
             <SquareButton

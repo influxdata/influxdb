@@ -10,6 +10,7 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
+import {saveCurrentCheck} from 'src/alerting/actions/checks'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
@@ -17,48 +18,58 @@ import {saveVEOView} from 'src/dashboards/actions'
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {createView} from 'src/shared/utils/view'
-import {TimeMachineEnum} from 'src/timeMachine/constants'
 
 // Types
 import {AppState, XYViewProperties, RemoteDataState, View} from 'src/types'
+import {TimeMachineID} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
+  saveCurrentCheck: typeof saveCurrentCheck
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
 }
 
 interface StateProps {
+  activeTimeMachineID: TimeMachineID
   view: View
-  loadingState: RemoteDataState
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewViewVEO: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
-  loadingState,
+  activeTimeMachineID,
+  saveCurrentCheck,
   onSaveView,
   onSetName,
-  params,
+  params: {orgID, dashboardID},
   router,
   view,
 }) => {
   useEffect(() => {
     const view = createView<XYViewProperties>('xy')
-    onSetActiveTimeMachine(TimeMachineEnum.VEO, {view})
+    onSetActiveTimeMachine('veo', {view})
   }, [])
 
   const handleClose = () => {
-    const {orgID, dashboardID} = params
     router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
   }
 
   const handleSave = () => {
     try {
-      onSaveView(params.dashboardID)
+      if (view.properties.type === 'check') {
+        saveCurrentCheck()
+      }
+      onSaveView(dashboardID)
       handleClose()
     } catch (e) {}
+  }
+
+  let loadingState = RemoteDataState.Loading
+  const viewIsNew = !get(view, 'id', null)
+  if (activeTimeMachineID === 'veo' && viewIsNew) {
+    loadingState = RemoteDataState.Done
   }
 
   return (
@@ -88,20 +99,13 @@ const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
   const {view} = getActiveTimeMachine(state)
 
-  const viewIsNew = !get(view, 'id', null)
-
-  let loadingState = RemoteDataState.Loading
-
-  if (activeTimeMachineID === TimeMachineEnum.VEO && viewIsNew) {
-    loadingState = RemoteDataState.Done
-  }
-
-  return {view, loadingState}
+  return {view, activeTimeMachineID}
 }
 
 const mdtp: DispatchProps = {
   onSetName: setName,
   onSaveView: saveVEOView,
+  saveCurrentCheck: saveCurrentCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
 }
 

@@ -7,6 +7,9 @@ import * as copy from 'src/shared/copy/notifications'
 // APIs
 import * as api from 'src/client'
 
+// Utils
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+
 //Actions
 import {
   notify,
@@ -15,14 +18,16 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {Check, GetState} from 'src/types'
+import {Check, GetState, CheckType} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
   | ReturnType<typeof setCurrentCheck>
+  | ReturnType<typeof setCurrentCheckStatus>
   | ReturnType<typeof updateCurrentCheck>
+  | ReturnType<typeof changeCurrentCheckType>
 
 export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
@@ -41,15 +46,25 @@ export const removeCheck = (checkID: string) => ({
 
 export const setCurrentCheck = (
   status: RemoteDataState,
-  check?: Partial<Check>
+  check: Partial<Check>
 ) => ({
   type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
   payload: {status, check},
 })
 
+export const setCurrentCheckStatus = (status: RemoteDataState) => ({
+  type: 'SET_CURRENT_CHECK_STATUS' as 'SET_CURRENT_CHECK_STATUS',
+  payload: {status},
+})
+
 export const updateCurrentCheck = (checkUpdate: Partial<Check>) => ({
   type: 'UPDATE_CURRENT_CHECK' as 'UPDATE_CURRENT_CHECK',
   payload: {status, checkUpdate},
+})
+
+export const changeCurrentCheckType = (type: CheckType) => ({
+  type: 'CHANGE_CURRENT_CHECK_TYPE' as 'CHANGE_CURRENT_CHECK_TYPE',
+  payload: {status, type},
 })
 
 export const getChecks = () => async (
@@ -82,7 +97,7 @@ export const getCurrentCheck = (checkID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    dispatch(setCurrentCheck(RemoteDataState.Loading))
+    dispatch(setCurrentCheckStatus(RemoteDataState.Loading))
 
     const resp = await api.getCheck({checkID})
 
@@ -93,18 +108,37 @@ export const getCurrentCheck = (checkID: string) => async (
     dispatch(setCurrentCheck(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(setCurrentCheck(RemoteDataState.Error))
+    dispatch(setCurrentCheckStatus(RemoteDataState.Error))
     dispatch(notify(copy.getCheckFailed(e.message)))
   }
 }
 
-export const createCheck = (check: Partial<Check>) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+export const saveCurrentCheck = () => async (
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
 ) => {
   try {
-    const resp = await api.postCheck({data: check as Check})
+    const state = getState()
+    const {
+      checks: {
+        current: {check},
+      },
+      orgs: {
+        org: {id: orgID},
+      },
+    } = state
 
-    if (resp.status !== 201) {
+    const {draftQueries} = getActiveTimeMachine(state)
+
+    const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
+
+    const resp = check.id
+      ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
+      : await api.postCheck({data: checkWithOrg})
+
+    if (resp.status === 201 || resp.status === 200) {
+      dispatch(setCheck(resp.data))
+    } else {
       throw new Error(resp.data.message)
     }
   } catch (e) {
@@ -119,7 +153,9 @@ export const updateCheck = (check: Partial<Check>) => async (
   try {
     const resp = await api.patchCheck({checkID: check.id, data: check as Check})
 
-    if (resp.status !== 200) {
+    if (resp.status === 200) {
+      dispatch(setCheck(resp.data))
+    } else {
       throw new Error(resp.data.message)
     }
 
@@ -136,7 +172,9 @@ export const deleteCheck = (checkID: string) => async (
   try {
     const resp = await api.deleteCheck({checkID})
 
-    if (resp.status !== 204) {
+    if (resp.status === 204) {
+      dispatch(removeCheck(checkID))
+    } else {
       throw new Error(resp.data.message)
     }
 

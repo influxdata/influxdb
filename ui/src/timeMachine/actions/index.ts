@@ -23,7 +23,7 @@ import {
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
-import {TimeMachineEnum} from 'src/timeMachine/constants'
+import {TimeMachineID} from 'src/timeMachine/constants'
 
 export type Action =
   | QueryBuilderAction
@@ -73,17 +73,19 @@ export type Action =
   | SetYDomainAction
   | SetXAxisLabelAction
   | SetShadeBelowAction
+  | ReturnType<typeof removeCheck>
+  | ReturnType<typeof addCheck>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
   payload: {
-    activeTimeMachineID: TimeMachineEnum
+    activeTimeMachineID: TimeMachineID
     initialState: Partial<TimeMachineState>
   }
 }
 
 export const setActiveTimeMachine = (
-  activeTimeMachineID: TimeMachineEnum,
+  activeTimeMachineID: TimeMachineID,
   initialState: Partial<TimeMachineState> = {}
 ): SetActiveTimeMachineAction => ({
   type: 'SET_ACTIVE_TIME_MACHINE',
@@ -592,4 +594,12 @@ interface SetXAxisLabelAction {
 export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   type: 'SET_X_AXIS_LABEL',
   payload: {xAxisLabel},
+})
+
+export const removeCheck = () => ({
+  type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
+})
+
+export const addCheck = () => ({
+  type: 'ADD_CHECK' as 'ADD_CHECK',
 })

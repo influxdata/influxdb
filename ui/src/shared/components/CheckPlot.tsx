@@ -29,10 +29,9 @@ const Y_COLUMN = '_value'
 
 const THRESHOLDS: Threshold[] = [
   {
-    type: 'greater',
-    allValues: false,
     level: 'UNKNOWN',
-    value: 20,
+    lowerBound: 20,
+    allValues: false,
   },
 ]
 
