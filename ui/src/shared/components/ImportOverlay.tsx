@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
@@ -102,12 +102,16 @@ class ImportOverlay extends PureComponent<Props, State> {
     }
     if (selectedImportOption === ImportOption.Paste) {
       return (
-        <TextArea
-          value={importContent}
-          onChange={this.handleSetImportContent}
-        />
+        <TextArea value={importContent} onChange={this.handleChangeTextArea} />
       )
     }
+  }
+
+  private handleChangeTextArea = (
+    e: ChangeEvent<HTMLTextAreaElement>
+  ): void => {
+    const importContent = e.target.value
+    this.handleSetImportContent(importContent)
   }
 
   private get submitButton(): JSX.Element {
@@ -142,7 +146,7 @@ class ImportOverlay extends PureComponent<Props, State> {
   }
 
   private clearImportContent = () => {
-    this.handleSetImportContent('')
+    this.setState({importContent: ''})
   }
 
   private onDismiss = () => {
@@ -156,7 +160,7 @@ class ImportOverlay extends PureComponent<Props, State> {
     this.setState({selectedImportOption})
   }
 
-  private handleSetImportContent = (importContent: string): void => {
+  private handleSetImportContent = (importContent: string) => {
     this.setState({importContent})
   }
 }

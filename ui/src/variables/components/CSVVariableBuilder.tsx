@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 import Papa from 'papaparse'
 import _ from 'lodash'
 
@@ -87,7 +87,8 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
     onChange(update)
   }
 
-  private handleChange = (csv: string): void => {
+  private handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    const csv = e.target.value
     this.setState({csv})
   }
 

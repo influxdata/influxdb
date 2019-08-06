@@ -10,7 +10,7 @@ import {
 interface Props {
   fileTypesToAccept?: string
   containerClass?: string
-  handleSubmit: (uploadContent: string | ArrayBuffer, fileName: string) => void
+  handleSubmit: (uploadContent: string) => void
   submitText: string
   submitOnDrop: boolean
   submitOnUpload: boolean
@@ -171,9 +171,9 @@ class DragAndDrop extends PureComponent<Props, State> {
 
   private handleSubmit = () => {
     const {handleSubmit} = this.props
-    const {uploadContent, fileName} = this.state
+    const {uploadContent} = this.state
 
-    handleSubmit(uploadContent, fileName)
+    handleSubmit(uploadContent as string)
   }
 
   private handleFileClick = (e: any): void => {
