@@ -15,6 +15,11 @@ const (
 type Check interface {
 	Valid() error
 	Type() string
+	ClearPrivateData()
+	SetTaskID(ID)
+	GetTaskID() ID
+	GenerateFlux() (string, error)
+	GetAuthID() ID
 	json.Marshaler
 	Updator
 	Getter

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/notification"
 
 	"github.com/influxdata/influxdb/mock"
@@ -147,6 +149,15 @@ func TestValidCheck(t *testing.T) {
 var timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
 var timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
 
+func mustDuration(d string) *check.Duration {
+	dur, err := parser.ParseDuration(d)
+	if err != nil {
+		panic(err)
+	}
+
+	return (*check.Duration)(dur)
+}
+
 func TestJSON(t *testing.T) {
 	cases := []struct {
 		name string
@@ -161,7 +172,7 @@ func TestJSON(t *testing.T) {
 					Name:            "name1",
 					OrgID:           influxTesting.MustIDBase16(id3),
 					Status:          influxdb.Active,
-					Every:           influxdb.Duration{Duration: time.Hour},
+					Every:           mustDuration("1h"),
 					Tags: []notification.Tag{
 						{
 							Key:   "k1",
@@ -191,7 +202,7 @@ func TestJSON(t *testing.T) {
 					AuthorizationID: influxTesting.MustIDBase16(id2),
 					OrgID:           influxTesting.MustIDBase16(id3),
 					Status:          influxdb.Active,
-					Every:           influxdb.Duration{Duration: time.Hour},
+					Every:           mustDuration("1h"),
 					Tags: []notification.Tag{
 						{
 							Key:   "k1",
@@ -223,7 +234,7 @@ func TestJSON(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s unmarshal failed, err: %s", c.name, err.Error())
 		}
-		if diff := cmp.Diff(got, c.src); diff != "" {
+		if diff := cmp.Diff(got, c.src, cmpopts.IgnoreFields(check.Duration{}, "BaseNode")); diff != "" {
 			t.Errorf("failed %s, Check are different -got/+want\ndiff %s", c.name, diff)
 		}
 	}

@@ -160,6 +160,9 @@ type checksResponse struct {
 }
 
 func newCheckResponse(chk influxdb.Check, labels []*influxdb.Label) *checkResponse {
+	// Ensure that we don't expose that this creates a task behind the scene
+	chk.ClearPrivateData()
+
 	res := &checkResponse{
 		Check: chk,
 		Links: checkLinks{

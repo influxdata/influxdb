@@ -24,6 +24,16 @@ func (c Deadman) Type() string {
 	return "deadman"
 }
 
+// GenerateFlux returns a flux script for the Deadman provided.
+func (c Deadman) GenerateFlux() (string, error) {
+	// TODO(desa): needs implementation
+	return `package main
+data = from(bucket: "telegraf")
+	|> range(start: -1m)
+
+option task = {name: "name1", every: 1m}`, nil
+}
+
 type deadmanAlias Deadman
 
 // MarshalJSON implement json.Marshaler interface.
