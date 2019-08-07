@@ -50,6 +50,7 @@ var FluxEndToEndSkipList = map[string]string{
 	"integral":         "unbounded test",
 	"integral_columns": "unbounded test",
 	"map":              "unbounded test",
+	"buckets":          "unbounded test",
 
 	// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
 	"columns":            "group key mismatch",
@@ -89,4 +90,8 @@ var FluxEndToEndSkipList = map[string]string{
 	"regexp_replaceAllString":        "Reason TBD",
 	"extract_regexp_findStringIndex": "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
 	"partition_strings_splitN":       "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
+
+	"holt_winters": "problem with big `inData`: https://github.com/influxdata/influxdb/issues/14574",
+	"to_int":       "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
+	"to_uint":      "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 }
