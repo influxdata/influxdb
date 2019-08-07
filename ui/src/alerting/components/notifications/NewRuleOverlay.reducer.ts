@@ -83,6 +83,7 @@ export const reducer = (state: RuleState, action: Actions) => {
     }
 
     default:
-      throw new Error('unhandled reducer action in <NewRuleOverlay/>')
+      const neverAction: never = action
+      throw new Error(`Unhandled action: "${neverAction}" in <NewRuleOverlay/>`)
   }
 }
