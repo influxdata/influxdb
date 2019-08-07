@@ -5,14 +5,21 @@ import {omit} from 'lodash'
 import {
   StatusRuleDraft,
   LevelRule,
-  SlackBase,
-  SMTPBase,
-  PagerDutyBase,
+  SlackNotificationRuleBase,
+  SMTPNotificationRuleBase,
+  PagerDutyNotificationRuleBase,
+  NotificationEndpoint,
 } from 'src/types'
 
-type EndpointBase = SlackBase | SMTPBase | PagerDutyBase
+type EndpointBase =
+  | SlackNotificationRuleBase
+  | SMTPNotificationRuleBase
+  | PagerDutyNotificationRuleBase
 
-export const getEndpointBase = (endpoints, id: string): EndpointBase => {
+export const getEndpointBase = (
+  endpoints: NotificationEndpoint[],
+  id: string
+): EndpointBase => {
   const endpoint = endpoints.find(e => e.id === id)
 
   switch (endpoint.type) {

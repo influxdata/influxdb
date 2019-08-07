@@ -2,6 +2,9 @@ UISOURCES := $(shell find . -type f -not \( -path ./build/\* -o -path ./node_mod
 
 all: build
 
+client:
+	yarn generate
+
 node_modules:
 	yarn install
 
@@ -23,4 +26,4 @@ clean:
 run:
 	yarn start
 
-.PHONY: all clean test run lint junit
+.PHONY: all clean test run lint junit client

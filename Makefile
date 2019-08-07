@@ -86,6 +86,9 @@ chronograf_lint:
 ui/node_modules:
 	make -C ui node_modules
 
+ui_client:
+	make -C ui client
+
 #
 # Define action only targets
 #
@@ -142,7 +145,7 @@ nightly:
 
 release:
 	$(GO_INSTALL) github.com/goreleaser/goreleaser
-	git checkout -- go.sum # avoid dirty git repository caused by go install 
+	git checkout -- go.sum # avoid dirty git repository caused by go install
 	goreleaser release --rm-dist
 
 clean:
