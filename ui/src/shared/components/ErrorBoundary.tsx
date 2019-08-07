@@ -1,8 +1,11 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, ErrorInfo} from 'react'
 
 // Components
 import DefaultErrorMessage from 'src/shared/components/DefaultErrorMessage'
+
+// Utils
+import {reportError, parseComponentName} from 'src/shared/utils/errors'
 
 // Types
 import {ErrorMessageComponent} from 'src/types'
@@ -22,6 +25,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   public static getDerivedStateFromError(error: Error) {
     return {error}
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    reportError(error, {component: parseComponentName(errorInfo)})
   }
 
   public render() {
