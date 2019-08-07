@@ -32,6 +32,10 @@ export const FeatureFlag: FunctionComponent<{name: string}> = ({
   name,
   children,
 }) => {
+  if (process.env.NODE_ENV === 'development') {
+    return children as any
+  }
+
   if (!isFlagEnabled(name)) {
     return null
   }
