@@ -12,12 +12,12 @@ import {
 // Types
 import {CheckStatusLevel} from 'src/types'
 
-type Levels = CheckStatusLevel
+type Level = CheckStatusLevel
 type LevelType = 'currentLevel' | 'previousLevel'
 
-type ColorLevels = {hex: InfluxColors; display: string; value: Levels}
+type ColorLevel = {hex: InfluxColors; display: string; value: Level}
 
-const levels: ColorLevels[] = [
+const levels: ColorLevel[] = [
   {display: 'CRIT', hex: InfluxColors.Fire, value: 'CRIT'},
   {display: 'INFO', hex: InfluxColors.Ocean, value: 'INFO'},
   {display: 'WARN', hex: InfluxColors.Thunder, value: 'WARN'},
@@ -26,9 +26,9 @@ const levels: ColorLevels[] = [
 ]
 
 interface Props {
-  selectedLevel: Levels
+  selectedLevel: Level
   type: LevelType
-  onClickLevel: (type: LevelType, level: Levels) => void
+  onClickLevel: (type: LevelType, level: Level) => void
 }
 
 const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {

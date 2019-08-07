@@ -8,12 +8,13 @@ import {
   FlexDirection,
   ComponentSize,
 } from '@influxdata/clockface'
+import {NewRuleDispatch} from './NewRuleOverlay'
 import LevelsDropdown from 'src/alerting/components/notifications/LevelsDropdown'
 import StatusChangeDropdown from 'src/alerting/components/notifications/StatusChangeDropdown'
-import {NewRuleDispatch} from './NewRuleOverlay'
+import {LevelType} from 'src/alerting/components/notifications/NewRuleOverlay.reducer'
 
 // Types
-import {StatusRuleDraft} from 'src/types'
+import {StatusRuleDraft, CheckStatusLevel} from 'src/types'
 
 interface Props {
   status: StatusRuleDraft
@@ -23,21 +24,12 @@ const StatusLevels: FC<Props> = ({status}) => {
   const {currentLevel, previousLevel} = status.value
   const dispatch = useContext(NewRuleDispatch)
 
-  const onClickLevel = (type, level) => {
-    const value = {
-      ...status.value,
-      [type]: {
-        ...status.value[type],
-        level,
-      },
-    }
-
+  const onClickLevel = (levelType: LevelType, level: CheckStatusLevel) => {
     dispatch({
-      type: 'UPDATE_STATUS_RULES',
-      statusRule: {
-        ...status,
-        value,
-      },
+      type: 'UPDATE_STATUS_LEVEL',
+      statusID: status.id,
+      levelType,
+      level,
     })
   }
 

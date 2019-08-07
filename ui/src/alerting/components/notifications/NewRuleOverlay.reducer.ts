@@ -2,11 +2,24 @@
 import {v4} from 'uuid'
 
 // Types
-import {NotificationRuleDraft, StatusRuleDraft, TagRuleDraft} from 'src/types'
+import {
+  NotificationRuleDraft,
+  StatusRuleDraft,
+  TagRuleDraft,
+  CheckStatusLevel,
+} from 'src/types'
+
+export type LevelType = 'currentLevel' | 'previousLevel'
 
 export type RuleState = NotificationRuleDraft
 export type Action =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
+  | {
+      type: 'UPDATE_STATUS_LEVEL'
+      statusID: string
+      levelType: LevelType
+      level: CheckStatusLevel
+    }
   | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
   | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleDraft}
   | {type: 'ADD_TAG_RULE'; tagRule: TagRuleDraft}
@@ -82,8 +95,32 @@ export const reducer = (state: RuleState, action: Action) => {
       return {...state, tagRules}
     }
 
+    case 'UPDATE_STATUS_LEVEL': {
+      const {levelType, level, statusID} = action
+
+      const statusRules = state.statusRules.map(status => {
+        if (status.id !== statusID) {
+          return status
+        }
+
+        const value = {
+          ...status.value,
+          [levelType]: {
+            ...status.value[levelType],
+            level,
+          },
+        }
+
+        return {...status, value}
+      })
+
+      return {...state, statusRules}
+    }
+
     default:
       const neverAction: never = action
-      throw new Error(`Unhandled action: "${neverAction}" in <NewRuleOverlay/>`)
+      throw new Error(
+        `Unhandled action: "${neverAction}" in NewRuleOverlay.reducer.ts`
+      )
   }
 }
