@@ -1,5 +1,36 @@
+// Libraries
 import {omit} from 'lodash'
-import {StatusRuleDraft, LevelRule} from 'src/types'
+
+// Types
+import {
+  StatusRuleDraft,
+  LevelRule,
+  SlackBase,
+  SMTPBase,
+  PagerDutyBase,
+} from 'src/types'
+
+type EndpointBase = SlackBase | SMTPBase | PagerDutyBase
+
+export const getEndpointBase = (endpoints, id: string): EndpointBase => {
+  const endpoint = endpoints.find(e => e.id === id)
+
+  switch (endpoint.type) {
+    case 'slack': {
+      return {messageTemplate: '', channel: '', type: 'slack'}
+    }
+    case 'smtp': {
+      return {to: '', bodyTemplate: '', subjectTemplate: '', type: 'smtp'}
+    }
+    case 'pagerduty': {
+      return {messageTemplate: '', type: 'pagerduty'}
+    }
+
+    default: {
+      throw new Error('Unknown endpoint type in <RuleMessage />')
+    }
+  }
+}
 
 type Change = 'changes from' | 'equal'
 export const CHANGES: Change[] = ['changes from', 'equal']

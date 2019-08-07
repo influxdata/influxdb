@@ -9,7 +9,7 @@ import {Dropdown} from '@influxdata/clockface'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 
 // Utils
-import {CHANGES, changeStatusRule, activeChange} from './statusChange'
+import {CHANGES, changeStatusRule, activeChange} from './NewRule.utils'
 
 interface Props {
   status: StatusRuleDraft

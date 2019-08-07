@@ -11,7 +11,7 @@ import RuleMessageContents from 'src/alerting/components/notifications/RuleMessa
 import {NotificationEndpoint, NotificationRuleDraft} from 'src/types'
 
 // Utils
-import {getEndpointBase} from './endpointBase'
+import {getEndpointBase} from './NewRule.utils'
 
 interface Props {
   endpoints: NotificationEndpoint[]
