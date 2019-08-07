@@ -10,7 +10,6 @@ import {
 } from 'src/types'
 
 export type LevelType = 'currentLevel' | 'previousLevel'
-
 export type RuleState = NotificationRuleDraft
 export type Action =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
@@ -26,6 +25,11 @@ export type Action =
   | {type: 'DELETE_STATUS_RULE'; statusRuleID: string}
   | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleDraft}
   | {type: 'DELETE_TAG_RULE'; tagRuleID: string}
+  | {
+      type: 'SET_TAG_RULE_OPERATOR'
+      tagRuleID: string
+      operator: TagRuleDraft['value']['operator']
+    }
 
 export const reducer = (state: RuleState, action: Action) => {
   switch (action.type) {
@@ -115,6 +119,25 @@ export const reducer = (state: RuleState, action: Action) => {
       })
 
       return {...state, statusRules}
+    }
+
+    case 'SET_TAG_RULE_OPERATOR': {
+      const {tagRuleID, operator} = action
+      const tagRules = state.tagRules.map(tagRule => {
+        if (tagRule.id !== tagRuleID) {
+          return tagRule
+        }
+
+        return {
+          ...tagRule,
+          value: {
+            ...tagRule.value,
+            operator,
+          },
+        }
+      })
+
+      return {...state, tagRules}
     }
 
     default:

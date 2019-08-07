@@ -47,14 +47,9 @@ const TagRule: FC<Props> = ({tagRule}) => {
 
   const onSelectOperator = (operator: Operator) => {
     dispatch({
-      type: 'UPDATE_TAG_RULES',
-      tagRule: {
-        ...tagRule,
-        value: {
-          ...tagRule.value,
-          operator,
-        },
-      },
+      type: 'SET_TAG_RULE_OPERATOR',
+      tagRuleID: tagRule.id,
+      operator,
     })
   }
 
