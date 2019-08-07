@@ -28,14 +28,11 @@ export const isFlagEnabled = (flagName: string) => {
   )
 }
 
+// type influx.toggleFeature('myFlag') to disable / enable any feature flag
 export const FeatureFlag: FunctionComponent<{name: string}> = ({
   name,
   children,
 }) => {
-  if (process.env.NODE_ENV === 'development') {
-    return children as any
-  }
-
   if (!isFlagEnabled(name)) {
     return null
   }
