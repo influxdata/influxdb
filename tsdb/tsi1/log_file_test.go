@@ -15,6 +15,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bloom"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/slices"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
@@ -598,7 +599,7 @@ func MustStartCPUProfile(name string) {
 	name = regexp.MustCompile(`\W+`).ReplaceAllString(name, "-")
 
 	// Open file and start pprof.
-	f, err := os.Create(filepath.Join("/tmp", fmt.Sprintf("cpu-%s.pprof", name)))
+	f, err := fs.CreateFile(filepath.Join("/tmp", fmt.Sprintf("cpu-%s.pprof", name)))
 	if err != nil {
 		panic(err)
 	}

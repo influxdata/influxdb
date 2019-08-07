@@ -75,6 +75,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/fs"
 )
 
 const (
@@ -826,7 +827,7 @@ func (t *tsmWriter) writeStatsFile() error {
 		return nil
 	}
 
-	f, err := os.Create(StatsFilename(fw.Name()))
+	f, err := fs.CreateFile(StatsFilename(fw.Name()))
 	if err != nil {
 		return err
 	}

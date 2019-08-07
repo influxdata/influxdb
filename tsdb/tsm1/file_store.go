@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/pkg/file"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/pkg/metrics"
 	"github.com/influxdata/influxdb/query"
@@ -663,7 +663,7 @@ func (f *FileStore) Open(ctx context.Context) error {
 			// the file, and continue loading the shard without it.
 			if err != nil {
 				f.logger.Error("Cannot read corrupt tsm file, renaming", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(err))
-				if e := os.Rename(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
+				if e := fs.RenameFile(file.Name(), file.Name()+"."+BadTSMFileExtension); e != nil {
 					f.logger.Error("Cannot rename corrupt tsm file", zap.String("path", file.Name()), zap.Int("id", idx), zap.Error(e))
 					readerC <- &res{r: df, err: fmt.Errorf("cannot rename corrupt file %s: %v", file.Name(), e)}
 					return
@@ -875,7 +875,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		if strings.HasSuffix(file, tsmTmpExt) {
 			// The new TSM files have a tmp extension.  First rename them.
 			newName = file[:len(file)-4]
-			if err := os.Rename(file, newName); err != nil {
+			if err := fs.RenameFile(file, newName); err != nil {
 				return err
 			}
 		}
@@ -995,7 +995,7 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 		}
 	}
 
-	if err := file.SyncDir(f.dir); err != nil {
+	if err := fs.SyncDir(f.dir); err != nil {
 		return err
 	}
 

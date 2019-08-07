@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/pkg/lifecycle"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -1030,7 +1031,7 @@ func (p *Partition) compactToLevel(files []*IndexFile, frefs lifecycle.Reference
 	// Create new index file.
 	path := filepath.Join(p.path, FormatIndexFileName(p.NextSequence(), level))
 	var f *os.File
-	if f, err = os.Create(path); err != nil {
+	if f, err = fs.CreateFile(path); err != nil {
 		log.Error("Cannot create compaction files", zap.Error(err))
 		return
 	}
@@ -1197,7 +1198,7 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interr
 
 	// Create new index file.
 	path := filepath.Join(p.path, FormatIndexFileName(id, 1))
-	f, err := os.Create(path)
+	f, err := fs.CreateFile(path)
 	if err != nil {
 		log.Error("Cannot create index file", zap.Error(err))
 		return

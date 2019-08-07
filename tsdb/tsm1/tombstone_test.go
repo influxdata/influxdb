@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
@@ -413,7 +414,7 @@ func TestTombstoner_Existing(t *testing.T) {
 	}
 
 	name := f.Name() + ".tombstone"
-	if err := os.Rename(f.Name(), name); err != nil {
+	if err := fs.RenameFile(f.Name(), name); err != nil {
 		panic(err)
 	}
 

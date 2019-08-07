@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/influxdata/influxdb/chronograf"
+	"github.com/influxdata/influxdb/pkg/fs"
 )
 
 // AppExt is the the file extension searched for in the directory for layout files
@@ -58,7 +59,7 @@ func loadFile(name string) (chronograf.Layout, error) {
 }
 
 func createLayout(file string, layout chronograf.Layout) error {
-	h, err := os.Create(file)
+	h, err := fs.CreateFile(file)
 	if err != nil {
 		return err
 	}

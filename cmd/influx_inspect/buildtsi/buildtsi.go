@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/fs"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/toml"
@@ -327,7 +328,7 @@ func IndexShard(sfile *tsdb.SeriesFile, indexPath, dataDir, walDir string, maxLo
 
 	// Rename TSI to standard path.
 	log.Info("Moving tsi to permanent location")
-	return os.Rename(tmpPath, indexPath)
+	return fs.RenameFile(tmpPath, indexPath)
 }
 
 func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger, verboseLogging bool) error {
