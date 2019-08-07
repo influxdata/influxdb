@@ -16,8 +16,8 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "yarn install && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && webpack-dev-server --config ./webpack.dev.ts",
-    "build": "yarn install --silent && webpack --config webpack.prod.ts",
+    "start": "yarn install && yarn generate && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && webpack-dev-server --config ./webpack.dev.ts",
+    "build": "yarn install --silent && yarn generate && webpack --config webpack.prod.ts",
     "build:vendor": "webpack --config webpack.vendor.ts",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
