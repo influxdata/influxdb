@@ -1155,8 +1155,9 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
 	}
 
-	// Unspecified limit returns all three runs.
+	// Unspecified limit returns all three runs, sorted by most recently scheduled first.
 	runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1176,17 +1177,17 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
 	}
 
-	if runs[1].ID != rc1.Created.RunID {
-		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.Created.RunID, runs[1].ID)
+	if runs[2].ID != rc1.Created.RunID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc2.Created.RunID, runs[1].ID)
 	}
-	if runs[1].StartedAt != startedAt.Add(time.Second).Format(time.RFC3339Nano) {
-		t.Fatalf("unexpected StartedAt; want %s, got %s", runs[0].StartedAt, startedAt.Add(time.Second))
+	if runs[2].StartedAt != startedAt.Add(time.Second).Format(time.RFC3339Nano) {
+		t.Fatalf("unexpected StartedAt; want %s, got %s", runs[1].StartedAt, startedAt.Add(time.Second))
 	}
-	if runs[1].Status != backend.RunSuccess.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[0].Status)
+	if runs[2].Status != backend.RunSuccess.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[2].Status)
 	}
-	if exp := startedAt.Add(time.Second * 2).Format(time.RFC3339Nano); runs[1].FinishedAt != exp {
-		t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
+	if exp := startedAt.Add(time.Second * 2).Format(time.RFC3339Nano); runs[2].FinishedAt != exp {
+		t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[2].FinishedAt)
 	}
 
 	// Look for a run that doesn't exist.

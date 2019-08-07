@@ -181,6 +181,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	  |> group(columns: ["taskID"])
 	  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
 	  |> limit(n:%d)
+	  |> sort(columns:["scheduledFor"], desc: true)
 
 	  `, filter.Task.String(), filterPart, filter.Limit-len(runs))
 
