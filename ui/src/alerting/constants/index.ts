@@ -3,8 +3,12 @@ import {
   DashboardQuery,
   NotificationRule,
   ThresholdCheck,
+  StatusRuleDraft,
+  TagRuleDraft,
+  NotificationRuleDraft,
   DeadmanCheck,
 } from 'src/types'
+import {NotificationEndpoint} from 'src/client'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
@@ -85,6 +89,76 @@ export const check2: Check = {
 }
 
 export const checks: Array<Check> = [check1, check2]
+
+export const newStatusRule: StatusRuleDraft = {
+  id: '',
+  value: {
+    currentLevel: {
+      operation: 'equal',
+      level: 'WARN',
+    },
+    previousLevel: {
+      operation: 'equal',
+      level: 'OK',
+    },
+    period: '1h',
+    count: 1,
+  },
+}
+
+export const newTagRule: TagRuleDraft = {
+  id: '',
+  value: {
+    key: '',
+    value: '',
+    operator: 'equal',
+  },
+}
+
+export const newRule: NotificationRuleDraft = {
+  id: '',
+  notifyEndpointID: '1',
+  type: 'slack',
+  every: '',
+  orgID: '',
+  name: '',
+  schedule: 'every',
+  status: 'active',
+  messageTemplate: '',
+  tagRules: [newTagRule],
+  statusRules: [newStatusRule],
+  description: '',
+}
+
+export const endpoints: NotificationEndpoint[] = [
+  {
+    id: '1',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt everyone at work',
+    name: 'slack endpoint',
+    status: 'active',
+    type: 'slack',
+  },
+  {
+    id: '2',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt someone by email',
+    name: 'smtp endpoint',
+    status: 'active',
+    type: 'smtp',
+  },
+  {
+    id: '3',
+    orgID: '1',
+    userID: '1',
+    description: 'interrupt someone by all means known to man',
+    name: 'pagerditty endpoint',
+    status: 'active',
+    type: 'pagerduty',
+  },
+]
 
 export const rule: NotificationRule = {
   id: '3',

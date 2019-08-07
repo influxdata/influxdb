@@ -1,6 +1,6 @@
 // Libraries
-import React, {SFC} from 'react'
-import _ from 'lodash'
+import React, {FC} from 'react'
+import {capitalize} from 'lodash'
 
 // Components
 import {
@@ -26,7 +26,7 @@ interface DefaultProps {
 
 type Props = PassedProps & DefaultProps
 
-const ColorDropdown: SFC<Props> = props => {
+const ColorDropdown: FC<Props> = props => {
   const {
     selected,
     colors,
@@ -50,7 +50,7 @@ const ColorDropdown: SFC<Props> = props => {
               style={{backgroundColor: selected.hex}}
             />
             <div className="color-dropdown--name">
-              {_.capitalize(selected.name)}
+              {capitalize(selected.name)}
             </div>
           </div>
         </Dropdown.Button>
@@ -71,7 +71,7 @@ const ColorDropdown: SFC<Props> = props => {
                   style={{backgroundColor: color.hex}}
                 />
                 <div className="color-dropdown--name">
-                  {_.capitalize(color.name)}
+                  {capitalize(color.name)}
                 </div>
               </div>
             </Dropdown.Item>

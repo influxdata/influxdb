@@ -2,25 +2,36 @@
 import React, {FC} from 'react'
 
 // Components
-import {Button, IconFont} from '@influxdata/clockface'
-
-const style = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-}
+import {
+  Button,
+  IconFont,
+  ComponentSpacer,
+  JustifyContent,
+  AlignItems,
+  FlexDirection,
+} from '@influxdata/clockface'
 
 interface Props {
   title: string
+  testID?: string
   onCreate: () => void
 }
 
-const AlertsColumnHeader: FC<Props> = ({onCreate, title}) => {
+const AlertsColumnHeader: FC<Props> = ({onCreate, title, testID = ''}) => {
   return (
-    <div style={style}>
-      {title}
-      <Button text="Create" icon={IconFont.AddCell} onClick={onCreate} />
-    </div>
+    <ComponentSpacer
+      direction={FlexDirection.Row}
+      justifyContent={JustifyContent.SpaceBetween}
+      alignItems={AlignItems.Center}
+    >
+      <div>{title}</div>
+      <Button
+        text="Create"
+        icon={IconFont.AddCell}
+        onClick={onCreate}
+        testID={`alert-column--header ${testID}`}
+      />
+    </ComponentSpacer>
   )
 }
 
