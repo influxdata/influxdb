@@ -87,6 +87,7 @@ jobs:
     steps:
       - checkout
       - run: make node_modules
+      - run: make ui_client
       - run: make test-js
       - run: make chronograf_lint
 
