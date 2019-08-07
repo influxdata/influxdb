@@ -23,7 +23,7 @@ import {reducer, RuleState, Actions} from './NewRuleOverlay.reducer'
 import {newRule, endpoints} from 'src/alerting/constants'
 
 // Types
-import {NotificationRuleBox} from 'src/types'
+import {NotificationRuleDraft} from 'src/types'
 
 type Props = WithRouterProps
 
@@ -45,7 +45,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
     const {name, value} = e.target
     dispatch({
       type: 'UPDATE_RULE',
-      rule: {...rule, [name]: value} as NotificationRuleBox,
+      rule: {...rule, [name]: value} as NotificationRuleDraft,
     })
   }
 

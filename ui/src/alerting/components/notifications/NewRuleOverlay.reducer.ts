@@ -2,16 +2,16 @@
 import {v4} from 'uuid'
 
 // Types
-import {NotificationRuleBox, StatusRuleItem, TagRuleItem} from 'src/types'
+import {NotificationRuleDraft, StatusRuleDraft, TagRuleDraft} from 'src/types'
 
-export type RuleState = NotificationRuleBox
+export type RuleState = NotificationRuleDraft
 export type Actions =
-  | {type: 'UPDATE_RULE'; rule: NotificationRuleBox}
+  | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
   | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
-  | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleItem}
-  | {type: 'ADD_TAG_RULE'; tagRule: TagRuleItem}
+  | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleDraft}
+  | {type: 'ADD_TAG_RULE'; tagRule: TagRuleDraft}
   | {type: 'DELETE_STATUS_RULE'; statusRuleID: string}
-  | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleItem}
+  | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleDraft}
   | {type: 'DELETE_TAG_RULE'; tagRuleID: string}
 
 export const reducer = (state: RuleState, action: Actions) => {

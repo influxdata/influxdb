@@ -2,7 +2,7 @@
 import React, {FC, useContext} from 'react'
 
 // Types
-import {StatusRuleItem} from 'src/types'
+import {StatusRuleDraft} from 'src/types'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
@@ -12,7 +12,7 @@ import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOver
 import {changes, changeStatusRule, activeChange} from './statusChange'
 
 interface Props {
-  status: StatusRuleItem
+  status: StatusRuleDraft
 }
 
 const StatusChangeDropdown: FC<Props> = ({status}) => {

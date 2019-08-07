@@ -5,19 +5,19 @@ export interface AddID<T> {
   value: T
 }
 
-export type StatusRuleItem = AddID<StatusRule>
-export type TagRuleItem = AddID<TagRule>
+export type StatusRuleDraft = AddID<StatusRule>
+export type TagRuleDraft = AddID<TagRule>
 
 type ExcludeKeys<T> = Pick<T, Exclude<keyof T, 'statusRules' | 'tagRules'>>
 
 export interface NotificationRuleBaseBox
   extends ExcludeKeys<NotificationRuleBase> {
   schedule: 'cron' | 'every'
-  statusRules: StatusRuleItem[]
-  tagRules: TagRuleItem[]
+  statusRules: StatusRuleDraft[]
+  tagRules: TagRuleDraft[]
 }
 
-export type NotificationRuleBox = SlackRule | SMTPRule | PagerDutyRule
+export type NotificationRuleDraft = SlackRule | SMTPRule | PagerDutyRule
 
 export type SlackBase = {
   type: 'slack'

@@ -3,9 +3,9 @@ import {
   DashboardQuery,
   NotificationRule,
   ThresholdCheck,
-  StatusRuleItem,
-  TagRuleItem,
-  NotificationRuleBox,
+  StatusRuleDraft,
+  TagRuleDraft,
+  NotificationRuleDraft,
   DeadmanCheck,
 } from 'src/types'
 import {NotificationEndpoint} from 'src/client'
@@ -90,7 +90,7 @@ export const check2: Check = {
 
 export const checks: Array<Check> = [check1, check2]
 
-export const newStatusRule: StatusRuleItem = {
+export const newStatusRule: StatusRuleDraft = {
   id: '',
   value: {
     currentLevel: {
@@ -106,7 +106,7 @@ export const newStatusRule: StatusRuleItem = {
   },
 }
 
-export const newTagRule: TagRuleItem = {
+export const newTagRule: TagRuleDraft = {
   id: '',
   value: {
     key: '',
@@ -115,7 +115,7 @@ export const newTagRule: TagRuleItem = {
   },
 }
 
-export const newRule: NotificationRuleBox = {
+export const newRule: NotificationRuleDraft = {
   id: '',
   notifyEndpointID: '1',
   type: 'slack',

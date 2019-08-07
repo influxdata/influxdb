@@ -6,10 +6,10 @@ import {Panel, ComponentSize} from '@influxdata/clockface'
 import StatusLevels from 'src/alerting/components/notifications/StatusLevels'
 
 // Types
-import {StatusRuleItem} from 'src/types'
+import {StatusRuleDraft} from 'src/types'
 
 interface Props {
-  status: StatusRuleItem
+  status: StatusRuleDraft
 }
 
 const StatusRuleComponent: FC<Props> = ({status}) => {

@@ -13,10 +13,10 @@ import StatusChangeDropdown from 'src/alerting/components/notifications/StatusCh
 import {NewRuleDispatch} from './NewRuleOverlay'
 
 // Types
-import {StatusRuleItem} from 'src/types'
+import {StatusRuleDraft} from 'src/types'
 
 interface Props {
-  status: StatusRuleItem
+  status: StatusRuleDraft
 }
 
 const StatusLevels: FC<Props> = ({status}) => {

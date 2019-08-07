@@ -8,10 +8,10 @@ import PagerDutyMessage from './PagerDutyMessage'
 import {NewRuleDispatch} from './NewRuleOverlay'
 
 // Types
-import {NotificationRuleBox} from 'src/types'
+import {NotificationRuleDraft} from 'src/types'
 
 interface Props {
-  rule: NotificationRuleBox
+  rule: NotificationRuleDraft
 }
 
 const RuleMessageContents: FC<Props> = ({rule}) => {

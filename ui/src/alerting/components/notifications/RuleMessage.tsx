@@ -8,14 +8,14 @@ import RuleEndpointDropdown from 'src/alerting/components/notifications/RuleEndp
 import RuleMessageContents from 'src/alerting/components/notifications/RuleMessageContents'
 
 // Types
-import {NotificationEndpoint, NotificationRuleBox} from 'src/types'
+import {NotificationEndpoint, NotificationRuleDraft} from 'src/types'
 
 // Utils
 import {getEndpointBase} from './endpointBase'
 
 interface Props {
   endpoints: NotificationEndpoint[]
-  rule: NotificationRuleBox
+  rule: NotificationRuleDraft
 }
 
 const RuleMessage: FC<Props> = ({endpoints, rule}) => {

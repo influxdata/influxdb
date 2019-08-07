@@ -5,14 +5,14 @@ import React, {FC} from 'react'
 import {Dropdown} from '@influxdata/clockface'
 
 // Types
-import {TagRuleItem} from 'src/types'
+import {TagRuleDraft} from 'src/types'
 
 interface Props {
   selectedOperator: Operator
   onSelect: (operator: Operator) => void
 }
 
-export type Operator = TagRuleItem['value']['operator']
+export type Operator = TagRuleDraft['value']['operator']
 
 const operators: {operator: Operator; display: string}[] = [
   {operator: 'equal', display: '=='},

@@ -18,10 +18,10 @@ import TagRuleOperatorDropdown, {
 } from 'src/alerting/components/notifications/TagRuleOperatorDropdown'
 
 // Types
-import {TagRuleItem} from 'src/types'
+import {TagRuleDraft} from 'src/types'
 
 interface Props {
-  tagRule: TagRuleItem
+  tagRule: TagRuleDraft
 }
 
 const TagRule: FC<Props> = ({tagRule}) => {
