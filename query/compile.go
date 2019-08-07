@@ -1127,9 +1127,19 @@ func (c *compiledStatement) Prepare(shardMapper ShardMapper, sopt SelectOptions)
 	// Modify the time range if there are extra intervals and an interval.
 	if !c.Interval.IsZero() && c.ExtraIntervals > 0 {
 		if c.Ascending {
-			timeRange.Min = timeRange.Min.Add(time.Duration(-c.ExtraIntervals) * c.Interval.Duration)
+			newTime := timeRange.Min.Add(time.Duration(-c.ExtraIntervals) * c.Interval.Duration)
+			if !newTime.Before(time.Unix(0, influxql.MinTime).UTC()) {
+				timeRange.Min = newTime
+			} else {
+				timeRange.Min = time.Unix(0, influxql.MinTime).UTC()
+			}
 		} else {
-			timeRange.Max = timeRange.Max.Add(time.Duration(c.ExtraIntervals) * c.Interval.Duration)
+			newTime := timeRange.Max.Add(time.Duration(c.ExtraIntervals) * c.Interval.Duration)
+			if !newTime.After(time.Unix(0, influxql.MaxTime).UTC()) {
+				timeRange.Max = newTime
+			} else {
+				timeRange.Max = time.Unix(0, influxql.MaxTime).UTC()
+			}
 		}
 	}
 
