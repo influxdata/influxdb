@@ -5,7 +5,7 @@ import {v4} from 'uuid'
 import {NotificationRuleDraft, StatusRuleDraft, TagRuleDraft} from 'src/types'
 
 export type RuleState = NotificationRuleDraft
-export type Actions =
+export type Action =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
   | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
   | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleDraft}
@@ -14,7 +14,7 @@ export type Actions =
   | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleDraft}
   | {type: 'DELETE_TAG_RULE'; tagRuleID: string}
 
-export const reducer = (state: RuleState, action: Actions) => {
+export const reducer = (state: RuleState, action: Action) => {
   switch (action.type) {
     case 'UPDATE_RULE': {
       const {rule} = action

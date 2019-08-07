@@ -10,7 +10,7 @@ import NotificationRuleCardContext from 'src/alerting/components/notifications/R
 // Constants
 import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
 
-// Actions
+// Action
 import {updateRule, deleteRule} from 'src/alerting/actions/notifications/rules'
 
 // Types

@@ -1,8 +1,8 @@
 import {omit} from 'lodash'
 import {StatusRuleDraft, LevelRule} from 'src/types'
 
-type Changes = 'changes from' | 'equal'
-export const changes: Changes[] = ['changes from', 'equal']
+type Change = 'changes from' | 'equal'
+export const CHANGES: Change[] = ['changes from', 'equal']
 
 export const activeChange = (status: StatusRuleDraft) => {
   const {currentLevel, previousLevel} = status.value
@@ -23,7 +23,7 @@ export const activeChange = (status: StatusRuleDraft) => {
 export const previousLevel: LevelRule = {level: 'OK'}
 export const changeStatusRule = (
   status: StatusRuleDraft,
-  change: Changes
+  change: Change
 ): StatusRuleDraft => {
   if (change === 'equal') {
     return omit(status, 'value.previousLevel') as StatusRuleDraft

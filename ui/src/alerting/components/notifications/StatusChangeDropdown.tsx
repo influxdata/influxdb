@@ -9,7 +9,7 @@ import {Dropdown} from '@influxdata/clockface'
 import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 
 // Utils
-import {changes, changeStatusRule, activeChange} from './statusChange'
+import {CHANGES, changeStatusRule, activeChange} from './statusChange'
 
 interface Props {
   status: StatusRuleDraft
@@ -24,7 +24,7 @@ const StatusChangeDropdown: FC<Props> = ({status}) => {
       statusRule: changeStatusRule(s, c),
     })
 
-  const items = changes.map(change => (
+  const items = CHANGES.map(change => (
     <Dropdown.Item
       key={change}
       id={change}

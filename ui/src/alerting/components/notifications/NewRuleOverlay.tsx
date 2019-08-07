@@ -17,7 +17,7 @@ import {
 } from '@influxdata/clockface'
 
 // Reducers
-import {reducer, RuleState, Actions} from './NewRuleOverlay.reducer'
+import {reducer, RuleState, Action} from './NewRuleOverlay.reducer'
 
 // Constants
 import {newRule, endpoints} from 'src/alerting/constants'
@@ -32,7 +32,7 @@ export const newRuleState: RuleState = {
   schedule: 'every',
 }
 
-export const NewRuleDispatch = React.createContext<Dispatch<Actions>>(null)
+export const NewRuleDispatch = React.createContext<Dispatch<Action>>(null)
 
 const NewRuleOverlay: FC<Props> = ({params, router}) => {
   const handleDismiss = () => {
