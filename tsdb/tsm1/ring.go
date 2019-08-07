@@ -183,7 +183,6 @@ func (r *ring) applySerial(f func([]byte, *entry) error) error {
 }
 
 func (r *ring) split(n int) []*ring {
-	var keys int
 	storers := make([]*ring, n)
 	for i := 0; i < n; i++ {
 		storers[i] = newRing()
@@ -191,7 +190,6 @@ func (r *ring) split(n int) []*ring {
 
 	for i, p := range r.partitions {
 		storers[i%n].partitions[i] = p
-		keys += len(p.store)
 	}
 	return storers
 }
