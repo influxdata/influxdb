@@ -4,10 +4,13 @@ tslint:disable max-classes-per-file
 */
 
 // Libraries
-import React, {Component} from 'react'
+import React, {Component, ErrorInfo} from 'react'
 
 // Components
 import DefaultErrorMessage from 'src/shared/components/DefaultErrorMessage'
+
+// Utils
+import {reportError, parseComponentName} from 'src/shared/utils/errors'
 
 // Types
 import {ErrorMessageComponent} from 'src/types'
@@ -23,9 +26,11 @@ export function ErrorHandlingWith(Error: ErrorMessageComponent) {
 
       private error: Error = null
 
-      public componentDidCatch(error) {
+      public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         this.error = error
         this.forceUpdate()
+
+        reportError(error, {component: parseComponentName(errorInfo)})
       }
 
       public render() {
