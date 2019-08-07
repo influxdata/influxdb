@@ -1,4 +1,11 @@
-import {StatusRule, NotificationRuleBase, TagRule} from 'src/client'
+import {
+  StatusRule,
+  NotificationRuleBase,
+  TagRule,
+  SlackNotificationRuleBase,
+  SMTPNotificationRuleBase,
+  PagerDutyNotificationRuleBase,
+} from 'src/client'
 
 export interface AddID<T> {
   id: string
@@ -19,29 +26,9 @@ export interface NotificationRuleBaseBox
 
 export type NotificationRuleDraft = SlackRule | SMTPRule | PagerDutyRule
 
-export type SlackBase = {
-  type: 'slack'
-  channel?: string
-  messageTemplate: string
-}
-
-type SlackRule = NotificationRuleBaseBox & SlackBase
-
-export type SMTPBase = {
-  type: 'smtp'
-  to: string
-  bodyTemplate?: string
-  subjectTemplate: string
-}
-
-type SMTPRule = NotificationRuleBaseBox & SMTPBase
-
-export type PagerDutyBase = {
-  type: 'pagerduty'
-  messageTemplate: string
-}
-
-type PagerDutyRule = NotificationRuleBaseBox & PagerDutyBase
+type SlackRule = NotificationRuleBaseBox & SlackNotificationRuleBase
+type SMTPRule = NotificationRuleBaseBox & SMTPNotificationRuleBase
+type PagerDutyRule = NotificationRuleBaseBox & PagerDutyNotificationRuleBase
 
 export {
   Check,
@@ -55,6 +42,9 @@ export {
   NotificationEndpoint,
   NotificationRuleBase,
   NotificationRule,
+  SMTPNotificationRuleBase,
+  SlackNotificationRuleBase,
+  PagerDutyNotificationRuleBase,
   SMTPNotificationRule,
   SlackNotificationRule,
   PagerDutyNotificationRule,

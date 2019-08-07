@@ -1264,6 +1264,7 @@ export interface Tasks {
 
 export interface Task {
   readonly id: string
+  type?: string
   orgID: string
   org?: string
   name: string
@@ -1289,6 +1290,7 @@ export interface Task {
 }
 
 export interface TaskCreateRequest {
+  type?: string
   orgID?: string
   org?: string
   status?: TaskStatusType
@@ -1371,11 +1373,8 @@ export type NotificationRule =
   | SMTPNotificationRule
   | PagerDutyNotificationRule
 
-export type SlackNotificationRule = NotificationRuleBase & {
-  type: 'slack'
-  channel?: string
-  messageTemplate: string
-}
+export type SlackNotificationRule = NotificationRuleBase &
+  SlackNotificationRuleBase
 
 export interface NotificationRuleBase {
   readonly id: string
@@ -1417,14 +1416,26 @@ export interface LevelRule {
   operation?: 'equal' | 'notequal'
 }
 
-export type SMTPNotificationRule = NotificationRuleBase & {
+export interface SlackNotificationRuleBase {
+  type: 'slack'
+  channel?: string
+  messageTemplate: string
+}
+
+export type SMTPNotificationRule = NotificationRuleBase &
+  SMTPNotificationRuleBase
+
+export interface SMTPNotificationRuleBase {
   type: 'smtp'
   subjectTemplate: string
   bodyTemplate?: string
   to: string
 }
 
-export type PagerDutyNotificationRule = NotificationRuleBase & {
+export type PagerDutyNotificationRule = NotificationRuleBase &
+  PagerDutyNotificationRuleBase
+
+export interface PagerDutyNotificationRuleBase {
   type: 'pagerduty'
   messageTemplate: string
 }
@@ -3390,6 +3401,7 @@ export interface PostWriteParams {
 
   query: {
     org: string
+    orgID?: string
     bucket: string
     precision?: any
   }

@@ -9099,42 +9099,48 @@ components:
     SlackNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
-        - type: object
-          required: [type, messageTemplate]
-          properties:
-            type:
-              type: string
-              enum: [slack]
-            channel:
-              type: string
-            messageTemplate:
-              type: string
+        - $ref: "#/components/schemas/SlackNotificationRuleBase"
+    SlackNotificationRuleBase:
+      type: object
+      required: [type, messageTemplate]
+      properties:
+        type:
+          type: string
+          enum: [slack]
+        channel:
+          type: string
+        messageTemplate:
+          type: string
     SMTPNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
-        - type: object
-          required: [type, subjectTemplate, to]
-          properties:
-            type:
-              type: string
-              enum: [smtp]
-            subjectTemplate:
-              type: string
-            bodyTemplate:
-              type: string
-            to:
-              type: string
+        - $ref: "#/components/schemas/SMTPNotificationRuleBase"
+    SMTPNotificationRuleBase:
+      type: object
+      required: [type, subjectTemplate, to]
+      properties:
+        type:
+          type: string
+          enum: [smtp]
+        subjectTemplate:
+          type: string
+        bodyTemplate:
+          type: string
+        to:
+          type: string
     PagerDutyNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
-        - type: object
-          required: [type, messageTemplate]
-          properties:
-            type:
-              type: string
-              enum: [pagerduty]
-            messageTemplate:
-              type: string
+        - $ref: "#/components/schemas/PagerDutyNotificationRuleBase"
+    PagerDutyNotificationRuleBase:
+      type: object
+      required: [type, messageTemplate]
+      properties:
+        type:
+          type: string
+          enum: [pagerduty]
+        messageTemplate:
+          type: string
     NotificationEndpoint:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
