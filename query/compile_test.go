@@ -399,6 +399,11 @@ func TestPrepare_MapShardsTimeRange(t *testing.T) {
 			start: "2018-09-03T14:30:00Z",
 			end:   "2018-09-03T16:00:00Z",
 		},
+		{
+			s:     `SELECT moving_average(mean(value), 3) FROM cpu WHERE time <= '2018-09-03T16:00:00Z' GROUP BY time(10m)`,
+			start: "1677-09-21T00:12:43.145224194Z",
+			end:   "2018-09-03T16:00:00Z",
+		},
 	} {
 		t.Run(tt.s, func(t *testing.T) {
 			stmt, err := influxql.ParseStatement(tt.s)
