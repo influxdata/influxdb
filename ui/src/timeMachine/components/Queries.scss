@@ -58,3 +58,12 @@
   bottom: 0;
   left: 0;
 }
+
+.time-machine--editor-title {
+  height: 38px;
+  user-select: none;
+  font-weight: 500;
+  line-height: 30px;
+  padding-left: 6px;
+  color: $g13-mist;
+}

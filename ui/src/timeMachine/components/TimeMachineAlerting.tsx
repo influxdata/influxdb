@@ -23,7 +23,7 @@ const TimeMachineAlerting: FunctionComponent<Props> = ({
   return (
     <div className="time-machine-queries">
       <div className="time-machine-queries--controls">
-        Check Builder
+        <div className="time-machine--editor-title">Check Builder</div>
         <div className="time-machine-queries--buttons">
           <ComponentSpacer
             direction={FlexDirection.Row}
