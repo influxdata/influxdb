@@ -108,7 +108,10 @@ const CheckMetaCard: FC<Props> = ({updateCurrentCheck, check}) => {
           value={check.name}
         />
       </Form.Element>
-      <Form.Element label="Status Message Template">
+      <Form.Element
+        label="Status Message Template"
+        className="alert-builder--message-template"
+      >
         <TextArea
           autoFocus={false}
           autocomplete={AutoComplete.Off}

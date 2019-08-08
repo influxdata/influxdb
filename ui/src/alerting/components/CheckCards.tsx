@@ -29,7 +29,7 @@ const CheckCards: FunctionComponent<Props> = ({checks}) => {
 
 const EmptyChecksList: FunctionComponent = () => {
   return (
-    <EmptyState size={ComponentSize.ExtraSmall}>
+    <EmptyState size={ComponentSize.ExtraSmall} className="alert-column--empty">
       <EmptyState.Text
         text="Looks like you don’t have any Checks , why not create one?"
         highlightWords={['Checks']}

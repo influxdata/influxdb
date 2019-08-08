@@ -5,8 +5,10 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Types
 import {NotificationRuleDraft, AppState} from 'src/types'
+
+// Components
 import NotificationRuleCards from 'src/alerting/components/notifications/RuleCards'
-import AlertsColumnHeader from 'src/alerting/components/AlertsColumnHeader'
+import AlertsColumn from 'src/alerting/components/AlertsColumn'
 
 interface StateProps {
   rules: NotificationRuleDraft[]
@@ -25,14 +27,13 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
   }
 
   return (
-    <>
-      <AlertsColumnHeader
-        title="Notification Rules"
-        testID="create-rule"
-        onCreate={handleOpenOverlay}
-      />
+    <AlertsColumn
+      title="Notification Rules"
+      testID="create-rule"
+      onCreate={handleOpenOverlay}
+    >
       <NotificationRuleCards rules={rules} />
-    </>
+    </AlertsColumn>
   )
 }
 

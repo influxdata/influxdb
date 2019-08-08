@@ -1,12 +1,10 @@
 .dashed-button {
   width: 100%;
-  border: $ix-border dashed $g4-onyx;
+  border: $ix-border dashed $g5-pepper;
   background-color: rgba($g5-pepper, 0);
   color: $g9-mountain;
-  height: 54px;
   transition: background-color 0.25s ease, color 0.25s ease,
-    border-color 0.25s ease;
-  font-size: 13px;
+  border-color 0.25s ease;
   font-weight: 700;
   outline: none;
   border-radius: $ix-radius;
@@ -17,9 +15,64 @@
     border-color: $g6-smoke;
     color: $g13-mist;
   }
+}
 
-  &:active {
-    border-color: $c-pool;
-    color: $c-pool;
-  }
+/*
+  Colors
+  ------------------------------------------------------------------------------
+*/
+
+.dashed-button__default:active {
+  border-color: $g9-mountain;
+  color: $g16-pearl;
+}
+
+.dashed-button__primary:active {
+  border-color: $c-pool;
+  color: $c-pool;
+}
+
+.dashed-button__secondary:active {
+  border-color: $c-star;
+  color: $c-star;
+}
+
+.dashed-button__success:active {
+  border-color: $c-rainforest;
+  color: $c-rainforest;
+}
+
+.dashed-button__warning:active {
+  border-color: $c-thunder;
+  color: $c-thunder;
+}
+
+.dashed-button__danger:active {
+  border-color: $c-dreamsicle;
+  color: $c-dreamsicle;
+}
+
+/*
+  Sizes
+  ------------------------------------------------------------------------------
+*/
+
+.dashed-button__xs {
+  height: 32px;
+  font-size: 11px;
+}
+
+.dashed-button__sm {
+  height: 54px;
+  font-size: 12px;
+}
+
+.dashed-button__md {
+  height: 76px;
+  font-size: 13px;
+}
+
+.dashed-button__lg {
+  height: 98px;
+  font-size: 14px;
 }

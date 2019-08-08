@@ -8,6 +8,7 @@ import {
   ComponentSpacer,
   FlexDirection,
   ComponentSize,
+  ComponentColor,
   AlignItems,
 } from '@influxdata/clockface'
 import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
@@ -57,7 +58,12 @@ const RuleConditions: FC<Props> = ({rule}) => {
         >
           {statuses}
           {tags}
-          <DashedButton text="+ Tag Rule" onClick={addTagRule} />
+          <DashedButton
+            text="+ Tag Rule"
+            onClick={addTagRule}
+            color={ComponentColor.Primary}
+            size={ComponentSize.Small}
+          />
         </ComponentSpacer>
       </Grid.Column>
       <Grid.Column>

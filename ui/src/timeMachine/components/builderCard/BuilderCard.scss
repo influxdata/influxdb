@@ -1,4 +1,3 @@
-$builder-card--width: 228px;
 $builder-card--margin: $ix-marg-b;
 $builder-card--header-height: 30px;
 $builder-card--header-margin: $ix-marg-b + $ix-border;
@@ -31,7 +30,6 @@ $builder-card--header-margin: $ix-marg-b + $ix-border;
   flex-direction: column;
   align-items: stretch;
   position: relative;
-  flex: 0 0 $builder-card--width;
 }
 
 .builder-card--header {
