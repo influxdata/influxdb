@@ -14,19 +14,31 @@ const AlertBuilder: FC = () => {
       <div className="query-builder--cards">
         <FancyScrollbar>
           <div className="builder-card--list">
-            <BuilderCard testID="builder-meta">
+            <BuilderCard
+              testID="builder-meta"
+              widthPixels={340}
+              className="alert-builder--card"
+            >
               <BuilderCard.Header title="Meta" />
-              <BuilderCard.Body addPadding={true}>
+              <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
                 <CheckMetaCard />
               </BuilderCard.Body>
             </BuilderCard>
-            <BuilderCard testID="builder-meta">
+            <BuilderCard
+              testID="builder-meta"
+              widthPixels={510}
+              className="alert-builder--card"
+            >
               <BuilderCard.Header title="Thresholds" />
               <BuilderCard.Body addPadding={true}>
                 <CheckThresholdsCard />
               </BuilderCard.Body>
             </BuilderCard>
-            <BuilderCard testID="builder-meta">
+            <BuilderCard
+              testID="builder-meta"
+              widthPixels={420}
+              className="alert-builder--card"
+            >
               <BuilderCard.Header title="Matching Notification Rules" />
               <BuilderCard.Body addPadding={true}>
                 <CheckMatchingRulesCard />
