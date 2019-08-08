@@ -11,3 +11,11 @@
     justify-content: center;
   }
 }
+.alert-builder--message-template {
+  .cf-text-area--container.cf-input-md {
+    height: auto;
+  }
+  textarea {
+    height: 180px;
+  }
+}
