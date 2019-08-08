@@ -95,7 +95,7 @@ const ThresholdMarkers: FunctionComponent<Props> = ({
               />
             )
           default:
-            return null
+            throw new Error('Unknown threshold type in <ThresholdMarkers /> ')
         }
       })}
     </div>

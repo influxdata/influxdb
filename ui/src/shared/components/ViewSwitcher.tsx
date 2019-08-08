@@ -170,7 +170,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
       )
 
     default:
-      return <div />
+      throw new Error('Unknown view type in <ViewSwitcher /> ')
   }
 }
 
