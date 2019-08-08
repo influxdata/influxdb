@@ -151,7 +151,7 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   let thresholds = []
-  if (check.type == 'threshold') {
+  if (check.type === 'threshold') {
     thresholds = check.thresholds
   }
 
