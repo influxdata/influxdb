@@ -23,7 +23,10 @@ export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
   status: 'active',
-  thresholds: [],
+  thresholds: [
+    {type: 'greater', value: 40, level: 'INFO'},
+    {type: 'lesser', value: 20, level: 'OK'},
+  ],
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
 }
@@ -59,9 +62,9 @@ export const check1: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'UNKNOWN',
-      lowerBound: 20,
-      allValues: false,
+      level: 'CRIT',
+      type: 'lesser',
+      value: 10,
     },
   ],
 }
@@ -81,9 +84,9 @@ export const check2: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'UNKNOWN',
-      lowerBound: 20,
-      allValues: false,
+      level: 'INFO',
+      type: 'greater',
+      value: 10,
     },
   ],
 }

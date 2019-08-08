@@ -1,5 +1,6 @@
 // Libraries
-import React, {useState, FunctionComponent} from 'react'
+import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
 import {Config, Table} from '@influxdata/giraffe'
 import {flatMap} from 'lodash'
 
@@ -21,21 +22,25 @@ import {
   RemoteDataState,
   CheckViewProperties,
   TimeZone,
+  AppState,
+  Check,
   Threshold,
 } from 'src/types'
+import {updateCurrentCheck} from 'src/alerting/actions/checks'
 
 const X_COLUMN = '_time'
 const Y_COLUMN = '_value'
 
-const THRESHOLDS: Threshold[] = [
-  {
-    level: 'UNKNOWN',
-    lowerBound: 20,
-    allValues: false,
-  },
-]
+interface DispatchProps {
+  updateCurrentCheck: typeof updateCurrentCheck
+}
 
-interface Props {
+interface StateProps {
+  check: Partial<Check>
+  thresholds: Threshold[]
+}
+
+interface OwnProps {
   table: Table
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
@@ -44,14 +49,20 @@ interface Props {
   children: (config: Config) => JSX.Element
 }
 
+type Props = OwnProps & DispatchProps & StateProps
+
 const CheckPlot: FunctionComponent<Props> = ({
+  updateCurrentCheck,
   table,
+  thresholds,
   fluxGroupKeyUnion,
   loading,
   children,
   timeZone,
 }) => {
-  const [thresholds, setThresholds] = useState(THRESHOLDS)
+  const updateCheckThresholds = (thresholds: Threshold[]) => {
+    updateCurrentCheck({thresholds})
+  }
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
     [0, 100],
@@ -115,7 +126,7 @@ const CheckPlot: FunctionComponent<Props> = ({
           <ThresholdMarkers
             key="custom"
             thresholds={thresholds}
-            onSetThresholds={setThresholds}
+            onSetThresholds={updateCheckThresholds}
             yScale={yScale}
             yDomain={yDomain}
           />
@@ -132,4 +143,26 @@ const CheckPlot: FunctionComponent<Props> = ({
   )
 }
 
-export default CheckPlot
+const mstp = (state: AppState): StateProps => {
+  const {
+    checks: {
+      current: {check},
+    },
+  } = state
+
+  let thresholds = []
+  if (check.type === 'threshold') {
+    thresholds = check.thresholds
+  }
+
+  return {check, thresholds}
+}
+
+const mdtp: DispatchProps = {
+  updateCurrentCheck: updateCurrentCheck,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(CheckPlot)

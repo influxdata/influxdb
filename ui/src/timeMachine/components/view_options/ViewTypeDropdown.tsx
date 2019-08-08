@@ -16,6 +16,7 @@ import {VIS_GRAPHICS} from 'src/timeMachine/constants/visGraphics'
 
 // Types
 import {View, NewView, AppState, ViewType} from 'src/types'
+import {ComponentStatus} from 'src/clockface'
 
 interface DispatchProps {
   onUpdateType: typeof setType
@@ -34,7 +35,11 @@ class ViewTypeDropdown extends PureComponent<Props> {
         widthPixels={215}
         className="view-type-dropdown"
         button={(active, onClick) => (
-          <Dropdown.Button active={active} onClick={onClick}>
+          <Dropdown.Button
+            active={active}
+            onClick={onClick}
+            status={this.dropdownStatus}
+          >
             {this.getVewTypeGraphic(this.selectedView)}
           </Dropdown.Button>
         )}
@@ -65,6 +70,15 @@ class ViewTypeDropdown extends PureComponent<Props> {
         {this.getVewTypeGraphic(g.type)}
       </Dropdown.Item>
     ))
+  }
+
+  private get dropdownStatus(): ComponentStatus {
+    const {view} = this.props
+
+    if (view.properties.type === 'check') {
+      return ComponentStatus.Disabled
+    }
+    return ComponentStatus.Valid
   }
 
   private get selectedView(): ViewType {

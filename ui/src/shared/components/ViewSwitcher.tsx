@@ -12,6 +12,7 @@ import FluxTablesTransform from 'src/shared/components/FluxTablesTransform'
 import XYPlot from 'src/shared/components/XYPlot'
 import ScatterPlot from 'src/shared/components/ScatterPlot'
 import LatestValueTransform from 'src/shared/components/LatestValueTransform'
+import CheckPlot from 'src/shared/components/CheckPlot'
 
 // Types
 import {
@@ -155,8 +156,21 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         </ScatterPlot>
       )
 
+    case 'check':
+      return (
+        <CheckPlot
+          table={table}
+          fluxGroupKeyUnion={fluxGroupKeyUnion}
+          loading={loading}
+          timeZone={timeZone}
+          viewProperties={properties}
+        >
+          {config => <Plot config={config} />}
+        </CheckPlot>
+      )
+
     default:
-      return <div />
+      throw new Error('Unknown view type in <ViewSwitcher /> ')
   }
 }
 
