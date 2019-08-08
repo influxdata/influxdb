@@ -1,4 +1,5 @@
 // Libraries
+import {useCallback, useReducer} from 'react'
 import {v4} from 'uuid'
 import {omit} from 'lodash'
 
@@ -170,4 +171,9 @@ export const reducer = (mode: RuleMode) => (
         `Unhandled action: "${neverAction}" in RuleOverlay.reducer.ts`
       )
   }
+}
+
+export const memoizedReducer = (mode: RuleMode, state) => {
+  const memo = useCallback(reducer(mode), [mode])
+  return useReducer(memo, state)
 }

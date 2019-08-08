@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useReducer} from 'react'
+import React, {FC} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
@@ -8,7 +8,7 @@ import {Overlay} from '@influxdata/clockface'
 import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverlayContents'
 
 // Reducers
-import {reducer, ActionPayload} from './RuleOverlay.reducer'
+import {memoizedReducer, ActionPayload} from './RuleOverlay.reducer'
 
 // Constants
 import {RuleModeContext, EditRuleDispatch, RuleMode} from 'src/shared/hooks'
@@ -32,7 +32,7 @@ const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
   }
 
   const mode = RuleMode.Edit
-  const [rule, dispatch] = useReducer(reducer(mode), stateRule)
+  const [rule, dispatch] = memoizedReducer(mode, stateRule)
   const ruleDispatch = (action: ActionPayload): void => {
     dispatch({...action, mode})
   }

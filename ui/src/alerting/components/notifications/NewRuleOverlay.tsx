@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useReducer} from 'react'
+import React, {FC, useReducer, useCallback} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
@@ -23,7 +23,8 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
   }
 
   const mode = RuleMode.New
-  const [rule, dispatch] = useReducer(reducer(mode), newRule)
+  const memoizedReducer = useCallback(reducer(mode), [])
+  const [rule, dispatch] = useReducer(memoizedReducer, newRule)
 
   const ruleDispatch = (action: ActionPayload) => {
     dispatch({...action, mode})
