@@ -17,8 +17,8 @@ const EndpointsColumn: FunctionComponent = () => {
         className="alert-column--empty"
       >
         <EmptyState.Text
-          text="Looks like you don’t have any Checks , why not create one?"
-          highlightWords={['Checks']}
+          text="Looks like you don’t have any Endpoints , why not create one?"
+          highlightWords={['Endpoints']}
         />
       </EmptyState>
     </AlertsColumn>
