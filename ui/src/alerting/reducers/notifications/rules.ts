@@ -2,13 +2,13 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState, NotificationRule} from 'src/types'
+import {RemoteDataState, NotificationRuleDraft} from 'src/types'
 import {Action} from 'src/alerting/actions/notifications/rules'
 
 export interface NotificationRulesState {
   status: RemoteDataState
-  list: NotificationRule[]
-  current: {status: RemoteDataState; rule: NotificationRule}
+  list: NotificationRuleDraft[]
+  current: {status: RemoteDataState; rule: NotificationRuleDraft}
 }
 
 export const defaultNotificationRulesState: NotificationRulesState = {

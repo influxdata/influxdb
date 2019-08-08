@@ -1,6 +1,7 @@
 // Libraries
-import React, {FC, useReducer} from 'react'
+import React, {FC, useReducer, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
@@ -20,24 +21,30 @@ import {
 import {reducer} from './RuleOverlay.reducer'
 
 // Constants
-import {newRule, endpoints} from 'src/alerting/constants'
+import {endpoints} from 'src/alerting/constants' // Hooks
+import {RuleMode, EditRuleDispatch} from 'src/shared/hooks'
 
 // Types
-import {NotificationRuleDraft} from 'src/types'
+import {NotificationRuleDraft, AppState} from 'src/types'
 
-// Hooks
-import {RuleMode, NewRuleDispatch} from 'src/shared/hooks'
+interface StateProps {
+  stateRule: NotificationRuleDraft
+}
 
-type Props = WithRouterProps
+type Props = WithRouterProps & StateProps
 
-const NewRuleOverlay: FC<Props> = ({params, router}) => {
+const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
+  if (!stateRule) {
+    return null
+  }
+
   const handleDismiss = () => {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const [rule, dispatch] = useReducer(reducer, newRule)
+  const [rule, dispatch] = useReducer(reducer, stateRule)
 
-  const handleChange = e => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {name, value} = e.target
     dispatch({
       type: 'UPDATE_RULE',
@@ -46,12 +53,12 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
   }
 
   return (
-    <RuleMode.Provider value="NewRuleDispatch">
-      <NewRuleDispatch.Provider value={dispatch}>
+    <RuleMode.Provider value="EditRuleDispatch">
+      <EditRuleDispatch.Provider value={dispatch}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={800}>
             <Overlay.Header
-              title="Create a Notification Rule"
+              title="Edit this Notification Rule"
               onDismiss={handleDismiss}
             />
             <Overlay.Body>
@@ -86,9 +93,17 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
             </Overlay.Body>
           </Overlay.Container>
         </Overlay>
-      </NewRuleDispatch.Provider>
+      </EditRuleDispatch.Provider>
     </RuleMode.Provider>
   )
 }
 
-export default withRouter<Props>(NewRuleOverlay)
+const mstp = ({rules}: AppState, {params}: Props): StateProps => {
+  const stateRule = rules.list.find(r => r.id === params.ruleID)
+
+  return {
+    stateRule,
+  }
+}
+
+export default connect<StateProps>(mstp)(withRouter<Props>(EditRuleOverlay))

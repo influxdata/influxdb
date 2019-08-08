@@ -1,7 +1,6 @@
 import {
   Check,
   DashboardQuery,
-  NotificationRule,
   ThresholdCheck,
   StatusRuleDraft,
   TagRuleDraft,
@@ -122,7 +121,6 @@ export const newRule: NotificationRuleDraft = {
   every: '',
   orgID: '',
   name: '',
-  schedule: 'every',
   status: 'active',
   messageTemplate: '',
   tagRules: [newTagRule],
@@ -160,7 +158,7 @@ export const endpoints: NotificationEndpoint[] = [
   },
 ]
 
-export const rule: NotificationRule = {
+export const rule: NotificationRuleDraft = {
   id: '3',
   notifyEndpointID: '2',
   orgID: 'lala',
@@ -175,7 +173,7 @@ export const rule: NotificationRule = {
   limitEvery: 1,
   limit: 5,
   tagRules: [],
-  statusRules: [],
+  statusRules: [newStatusRule],
   channel: '#monitoring-team',
   messageTemplate: 'hello, this is a NotificationRule fixture speaking :)',
 }

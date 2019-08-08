@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import {
@@ -12,21 +12,23 @@ import {
 } from '@influxdata/clockface'
 import StatusRuleComponent from 'src/alerting/components/notifications/StatusRule'
 import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
-import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 
 // Constants
 import {newTagRule} from 'src/alerting/constants'
 
 // Types
-import {RuleState} from './NewRuleOverlay.reducer'
+import {RuleState} from './RuleOverlay.reducer'
+
+// Hooks
+import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   rule: RuleState
 }
 
 const RuleConditions: FC<Props> = ({rule}) => {
-  const dispatch = useContext(NewRuleDispatch)
+  const dispatch = useRuleDispatch()
   const {statusRules, tagRules} = rule
 
   const addTagRule = () => {

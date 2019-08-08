@@ -1,5 +1,6 @@
 // Libraries
 import {v4} from 'uuid'
+import {omit} from 'lodash'
 
 // Types
 import {
@@ -40,7 +41,17 @@ export const reducer = (state: RuleState, action: Action) => {
 
     case 'SET_ACTIVE_SCHEDULE': {
       const {schedule} = action
-      return {...state, schedule}
+      let newState: RuleState = state
+
+      if (schedule === 'every') {
+        newState = omit(state, 'cron') as RuleState
+      }
+
+      if (schedule === 'cron') {
+        newState = omit<RuleState>(state, 'every') as RuleState
+      }
+
+      return {...newState, schedule}
     }
 
     case 'UPDATE_STATUS_RULES': {
@@ -143,7 +154,7 @@ export const reducer = (state: RuleState, action: Action) => {
     default:
       const neverAction: never = action
       throw new Error(
-        `Unhandled action: "${neverAction}" in NewRuleOverlay.reducer.ts`
+        `Unhandled action: "${neverAction}" in RuleOverlay.reducer.ts`
       )
   }
 }

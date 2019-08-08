@@ -1,22 +1,28 @@
 // Libraries
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 
 // Types
 import {StatusRuleDraft} from 'src/types'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
-import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 
 // Utils
-import {CHANGES, changeStatusRule, activeChange} from './NewRule.utils'
+import {
+  CHANGES,
+  changeStatusRule,
+  activeChange,
+} from 'src/alerting/components/notifications/utils'
+
+// Hooks
+import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   status: StatusRuleDraft
 }
 
 const StatusChangeDropdown: FC<Props> = ({status}) => {
-  const dispatch = useContext(NewRuleDispatch)
+  const dispatch = useRuleDispatch()
 
   const statusChange = (s, c) =>
     dispatch({

@@ -17,18 +17,17 @@ export type TagRuleDraft = AddID<TagRule>
 
 type ExcludeKeys<T> = Pick<T, Exclude<keyof T, 'statusRules' | 'tagRules'>>
 
-export interface NotificationRuleBaseBox
+export interface NotificationRuleBaseDraft
   extends ExcludeKeys<NotificationRuleBase> {
-  schedule: 'cron' | 'every'
   statusRules: StatusRuleDraft[]
   tagRules: TagRuleDraft[]
 }
 
 export type NotificationRuleDraft = SlackRule | SMTPRule | PagerDutyRule
 
-type SlackRule = NotificationRuleBaseBox & SlackNotificationRuleBase
-type SMTPRule = NotificationRuleBaseBox & SMTPNotificationRuleBase
-type PagerDutyRule = NotificationRuleBaseBox & PagerDutyNotificationRuleBase
+type SlackRule = NotificationRuleBaseDraft & SlackNotificationRuleBase
+type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase
+type PagerDutyRule = NotificationRuleBaseDraft & PagerDutyNotificationRuleBase
 
 export {
   Check,
