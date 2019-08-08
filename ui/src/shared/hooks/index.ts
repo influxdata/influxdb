@@ -1,12 +1,19 @@
-import React, {Dispatch, useContext} from 'react'
+import React, {useContext} from 'react'
 
-import * as Rule from 'src/alerting/components/notifications/RuleOverlay.reducer'
+import {ActionPayload} from 'src/alerting/components/notifications/RuleOverlay.reducer'
 
-type RuleMode = 'NewRuleDispatch' | 'EditRuleDispatch'
+export enum RuleMode {
+  New = 'NewRuleDispatch',
+  Edit = 'EditRuleDispatch',
+}
 
-export const RuleMode = React.createContext<RuleMode>(null)
-export const NewRuleDispatch = React.createContext<Dispatch<Rule.Action>>(null)
-export const EditRuleDispatch = React.createContext<Dispatch<Rule.Action>>(null)
+export const RuleModeContext = React.createContext<RuleMode>(null)
+export const NewRuleDispatch = React.createContext<
+  (action: ActionPayload) => void
+>(null)
+export const EditRuleDispatch = React.createContext<
+  (action: ActionPayload) => void
+>(null)
 
 interface Contexts {
   NewRuleDispatch: typeof NewRuleDispatch
@@ -19,7 +26,7 @@ export const contexts: Contexts = {
 }
 
 export const useRuleDispatch = () => {
-  const mode = useContext(RuleMode)
+  const mode = useContext(RuleModeContext)
 
   return useContext(contexts[mode])
 }

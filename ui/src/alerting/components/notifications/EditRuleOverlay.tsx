@@ -18,11 +18,11 @@ import {
 } from '@influxdata/clockface'
 
 // Reducers
-import {reducer} from './RuleOverlay.reducer'
+import {reducer, ActionPayload} from './RuleOverlay.reducer'
 
 // Constants
 import {endpoints} from 'src/alerting/constants' // Hooks
-import {RuleMode, EditRuleDispatch} from 'src/shared/hooks'
+import {RuleModeContext, EditRuleDispatch, RuleMode} from 'src/shared/hooks'
 
 // Types
 import {NotificationRuleDraft, AppState} from 'src/types'
@@ -42,19 +42,24 @@ const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const [rule, dispatch] = useReducer(reducer, stateRule)
+  const mode = RuleMode.Edit
+  const [rule, dispatch] = useReducer(reducer(mode), stateRule)
+  const ruleDispatch = (action: ActionPayload): void => {
+    dispatch({...action, mode})
+  }
 
   const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {name, value} = e.target
     dispatch({
       type: 'UPDATE_RULE',
+      mode,
       rule: {...rule, [name]: value} as NotificationRuleDraft,
     })
   }
 
   return (
-    <RuleMode.Provider value="EditRuleDispatch">
-      <EditRuleDispatch.Provider value={dispatch}>
+    <RuleModeContext.Provider value={mode}>
+      <EditRuleDispatch.Provider value={ruleDispatch}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={800}>
             <Overlay.Header
@@ -94,7 +99,7 @@ const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
           </Overlay.Container>
         </Overlay>
       </EditRuleDispatch.Provider>
-    </RuleMode.Provider>
+    </RuleModeContext.Provider>
   )
 }
 

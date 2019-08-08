@@ -10,9 +10,13 @@ import {
   CheckStatusLevel,
 } from 'src/types'
 
+// Hooks
+import {RuleMode} from 'src/shared/hooks'
+
 export type LevelType = 'currentLevel' | 'previousLevel'
 export type RuleState = NotificationRuleDraft
-export type Action =
+export type ActionMode = {mode: RuleMode}
+export type ActionPayload =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
   | {
       type: 'UPDATE_STATUS_LEVEL'
@@ -32,7 +36,16 @@ export type Action =
       operator: TagRuleDraft['value']['operator']
     }
 
-export const reducer = (state: RuleState, action: Action) => {
+export type Action = ActionPayload & ActionMode
+
+export const reducer = (mode: RuleMode) => (
+  state: RuleState,
+  action: Action
+) => {
+  if (mode !== action.mode) {
+    return state
+  }
+
   switch (action.type) {
     case 'UPDATE_RULE': {
       const {rule} = action
@@ -51,7 +64,7 @@ export const reducer = (state: RuleState, action: Action) => {
         newState = omit<RuleState>(state, 'every') as RuleState
       }
 
-      return {...newState, schedule}
+      return {...newState, [schedule]: ''}
     }
 
     case 'UPDATE_STATUS_RULES': {
