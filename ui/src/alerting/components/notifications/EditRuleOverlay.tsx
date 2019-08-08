@@ -1,27 +1,16 @@
 // Libraries
-import React, {FC, useReducer, ChangeEvent} from 'react'
+import React, {FC, useReducer} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
-import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
-import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
-import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
-import {
-  Panel,
-  ComponentSize,
-  Overlay,
-  Form,
-  Input,
-  Grid,
-  Columns,
-} from '@influxdata/clockface'
+import {Overlay} from '@influxdata/clockface'
+import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverlayContents'
 
 // Reducers
 import {reducer, ActionPayload} from './RuleOverlay.reducer'
 
 // Constants
-import {endpoints} from 'src/alerting/constants' // Hooks
 import {RuleModeContext, EditRuleDispatch, RuleMode} from 'src/shared/hooks'
 
 // Types
@@ -48,15 +37,6 @@ const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
     dispatch({...action, mode})
   }
 
-  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const {name, value} = e.target
-    dispatch({
-      type: 'UPDATE_RULE',
-      mode,
-      rule: {...rule, [name]: value} as NotificationRuleDraft,
-    })
-  }
-
   return (
     <RuleModeContext.Provider value={mode}>
       <EditRuleDispatch.Provider value={ruleDispatch}>
@@ -67,34 +47,7 @@ const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
               onDismiss={handleDismiss}
             />
             <Overlay.Body>
-              <Grid>
-                <Form>
-                  <Grid.Row>
-                    <Grid.Column widthSM={Columns.Two}>About</Grid.Column>
-                    <Grid.Column widthSM={Columns.Ten}>
-                      <Panel size={ComponentSize.ExtraSmall}>
-                        <Panel.Body>
-                          <Form.Element label="Name">
-                            <Input
-                              testID="rule-name--input"
-                              placeholder="Name this new rule"
-                              value={rule.name}
-                              name="name"
-                              onChange={handleChange}
-                            />
-                          </Form.Element>
-                          <RuleSchedule rule={rule} onChange={handleChange} />
-                        </Panel.Body>
-                      </Panel>
-                    </Grid.Column>
-                    <Grid.Column>
-                      <hr />
-                    </Grid.Column>
-                  </Grid.Row>
-                  <RuleConditions rule={rule} />
-                  <RuleMessage rule={rule} endpoints={endpoints} />
-                </Form>
-              </Grid>
+              <RuleOverlayContents rule={rule} />
             </Overlay.Body>
           </Overlay.Container>
         </Overlay>
