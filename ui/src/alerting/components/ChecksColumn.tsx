@@ -9,7 +9,6 @@ import AlertsColumnHeader from 'src/alerting/components/AlertsColumn'
 
 // Types
 import {Check, AppState} from 'src/types'
-import {check1, check2} from '../constants'
 
 interface StateProps {
   checks: Check[]
@@ -33,11 +32,11 @@ const ChecksColumn: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
-  // const {
-  //   checks: {list: checks},
-  // } = state
+  const {
+    checks: {list: checks},
+  } = state
 
-  return {checks: [check1, check2]}
+  return {checks}
 }
 
 export default connect<StateProps, {}, {}>(
