@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import {
@@ -12,7 +12,6 @@ import {
   FlexDirection,
   ComponentColor,
 } from '@influxdata/clockface'
-import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import TagRuleOperatorDropdown, {
   Operator,
 } from 'src/alerting/components/notifications/TagRuleOperatorDropdown'
@@ -20,13 +19,16 @@ import TagRuleOperatorDropdown, {
 // Types
 import {TagRuleDraft} from 'src/types'
 
+// Hooks
+import {useRuleDispatch} from 'src/shared/hooks'
+
 interface Props {
   tagRule: TagRuleDraft
 }
 
 const TagRule: FC<Props> = ({tagRule}) => {
   const {key, value, operator} = tagRule.value
-  const dispatch = useContext(NewRuleDispatch)
+  const dispatch = useRuleDispatch()
 
   const onChange = ({target}) => {
     const {name, value} = target

@@ -14,7 +14,7 @@ import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
 import {updateRule, deleteRule} from 'src/alerting/actions/notifications/rules'
 
 // Types
-import {NotificationRule} from 'src/types'
+import {NotificationRuleDraft} from 'src/types'
 
 interface DispatchProps {
   updateRule: typeof updateRule
@@ -22,7 +22,7 @@ interface DispatchProps {
 }
 
 interface OwnProps {
-  rule: NotificationRule
+  rule: NotificationRuleDraft
 }
 
 type Props = OwnProps & DispatchProps & WithRouterProps
@@ -53,7 +53,7 @@ const RuleCard: FunctionComponent<Props> = ({
   }
 
   const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/rules/${rule.id}`)
+    router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/edit`)
   }
 
   return (

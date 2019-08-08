@@ -8938,6 +8938,11 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Threshold"
+    Threshold:
+      oneOf:
+        - $ref: "#/components/schemas/GreaterThreshold"
+        - $ref: "#/components/schemas/LesserThreshold"
+        - $ref: "#/components/schemas/RangeThreshold"
     DeadmanCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
@@ -8954,19 +8959,54 @@ components:
               type: boolean
             level:
               $ref: "#/components/schemas/CheckStatusLevel"
-    Threshold:
+    ThresholdBase:
       properties:
         level:
          $ref: "#/components/schemas/CheckStatusLevel"
         allValues:
           description: if true, only alert if all values meet threshold
           type: boolean
-        lowerBound:
-          type: number
-          format: float
-        upperBound:
-          type: number
-          format: float
+    GreaterThreshold:
+      allOf:
+        - $ref: "#/components/schemas/ThresholdBase"
+        - type: object
+          required: [type, value]
+          properties:
+            type:
+              type: string
+              enum: [greater]
+            value:
+              type: number
+              format: float
+    LesserThreshold:
+      allOf:
+        - $ref: "#/components/schemas/ThresholdBase"
+        - type: object
+          required: [type, value]
+          properties:
+            type:
+              type: string
+              enum: [lesser]
+            value:
+              type: number
+              format: float
+    RangeThreshold:
+      allOf:
+        - $ref: "#/components/schemas/ThresholdBase"
+        - type: object
+          required: [type, min, max, within]
+          properties:
+            type:
+              type: string
+              enum: [range]
+            min:
+              type: number
+              format: float
+            max:
+              type: number
+              format: float
+            within:
+              type: boolean
     CheckStatusLevel:
       description: the state to record if check matches a criteria
       type: string

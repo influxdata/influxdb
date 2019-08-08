@@ -6,11 +6,11 @@ import NotificationRuleCard from 'src/alerting/components/notifications/RuleCard
 import {EmptyState, ResourceList} from '@influxdata/clockface'
 
 // Types
-import {NotificationRule} from 'src/types'
+import {NotificationRuleDraft} from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
 
 interface Props {
-  rules: NotificationRule[]
+  rules: NotificationRuleDraft[]
 }
 
 const NotificationRuleCards: FunctionComponent<Props> = ({rules}) => {

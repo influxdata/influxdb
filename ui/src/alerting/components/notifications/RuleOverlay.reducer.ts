@@ -1,5 +1,7 @@
 // Libraries
+import {useCallback, useReducer} from 'react'
 import {v4} from 'uuid'
+import {omit} from 'lodash'
 
 // Types
 import {
@@ -9,9 +11,13 @@ import {
   CheckStatusLevel,
 } from 'src/types'
 
+// Hooks
+import {RuleMode} from 'src/shared/hooks'
+
 export type LevelType = 'currentLevel' | 'previousLevel'
 export type RuleState = NotificationRuleDraft
-export type Action =
+export type ActionMode = {mode: RuleMode}
+export type ActionPayload =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
   | {
       type: 'UPDATE_STATUS_LEVEL'
@@ -31,7 +37,16 @@ export type Action =
       operator: TagRuleDraft['value']['operator']
     }
 
-export const reducer = (state: RuleState, action: Action) => {
+export type Action = ActionPayload & ActionMode
+
+export const reducer = (mode: RuleMode) => (
+  state: RuleState,
+  action: Action
+) => {
+  if (mode !== action.mode) {
+    return state
+  }
+
   switch (action.type) {
     case 'UPDATE_RULE': {
       const {rule} = action
@@ -40,7 +55,17 @@ export const reducer = (state: RuleState, action: Action) => {
 
     case 'SET_ACTIVE_SCHEDULE': {
       const {schedule} = action
-      return {...state, schedule}
+      let newState: RuleState = state
+
+      if (schedule === 'every') {
+        newState = omit(state, 'cron') as RuleState
+      }
+
+      if (schedule === 'cron') {
+        newState = omit<RuleState>(state, 'every') as RuleState
+      }
+
+      return {...newState, [schedule]: ''}
     }
 
     case 'UPDATE_STATUS_RULES': {
@@ -143,7 +168,12 @@ export const reducer = (state: RuleState, action: Action) => {
     default:
       const neverAction: never = action
       throw new Error(
-        `Unhandled action: "${neverAction}" in NewRuleOverlay.reducer.ts`
+        `Unhandled action: "${neverAction}" in RuleOverlay.reducer.ts`
       )
   }
+}
+
+export const memoizedReducer = (mode: RuleMode, state) => {
+  const memo = useCallback(reducer(mode), [mode])
+  return useReducer(memo, state)
 }

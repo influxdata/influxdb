@@ -1,7 +1,6 @@
 import {
   Check,
   DashboardQuery,
-  NotificationRule,
   ThresholdCheck,
   StatusRuleDraft,
   TagRuleDraft,
@@ -23,7 +22,10 @@ export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
   status: 'active',
-  thresholds: [],
+  thresholds: [
+    {type: 'greater', value: 40, level: 'INFO'},
+    {type: 'lesser', value: 20, level: 'OK'},
+  ],
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
 }
@@ -59,9 +61,9 @@ export const check1: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'UNKNOWN',
-      lowerBound: 20,
-      allValues: false,
+      level: 'CRIT',
+      type: 'lesser',
+      value: 10,
     },
   ],
 }
@@ -81,9 +83,9 @@ export const check2: Check = {
   statusMessageTemplate: 'this is a great message template',
   thresholds: [
     {
-      level: 'UNKNOWN',
-      lowerBound: 20,
-      allValues: false,
+      level: 'INFO',
+      type: 'greater',
+      value: 10,
     },
   ],
 }
@@ -122,7 +124,6 @@ export const newRule: NotificationRuleDraft = {
   every: '',
   orgID: '',
   name: '',
-  schedule: 'every',
   status: 'active',
   messageTemplate: '',
   tagRules: [newTagRule],
@@ -160,7 +161,7 @@ export const endpoints: NotificationEndpoint[] = [
   },
 ]
 
-export const rule: NotificationRule = {
+export const rule: NotificationRuleDraft = {
   id: '3',
   notifyEndpointID: '2',
   orgID: 'lala',
@@ -175,7 +176,7 @@ export const rule: NotificationRule = {
   limitEvery: 1,
   limit: 5,
   tagRules: [],
-  statusRules: [],
+  statusRules: [newStatusRule],
   channel: '#monitoring-team',
   messageTemplate: 'hello, this is a NotificationRule fixture speaking :)',
 }

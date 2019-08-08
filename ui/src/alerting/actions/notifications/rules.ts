@@ -3,6 +3,7 @@ import {Dispatch} from 'react'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
+import {rule as mockRule} from 'src/alerting/constants'
 
 // APIs
 import * as api from 'src/client'
@@ -15,7 +16,7 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {NotificationRule, GetState} from 'src/types'
+import {NotificationRule, GetState, NotificationRuleDraft} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllNotificationRules>
@@ -25,20 +26,20 @@ export type Action =
 
 export const setAllNotificationRules = (
   status: RemoteDataState,
-  rules?: NotificationRule[]
+  rules?: NotificationRuleDraft[]
 ) => ({
   type: 'SET_ALL_NOTIFICATION_RULES' as 'SET_ALL_NOTIFICATION_RULES',
   payload: {status, rules},
 })
 
-export const setRule = (rule: NotificationRule) => ({
+export const setRule = (rule: NotificationRuleDraft) => ({
   type: 'SET_NOTIFICATION_RULE' as 'SET_NOTIFICATION_RULE',
   payload: {rule},
 })
 
 export const setCurrentRule = (
   status: RemoteDataState,
-  rule?: NotificationRule
+  rule?: NotificationRuleDraft
 ) => ({
   type: 'SET_CURRENT_NOTIFICATION_RULE' as 'SET_CURRENT_NOTIFICATION_RULE',
   payload: {status, rule},
@@ -67,9 +68,8 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(
-      setAllNotificationRules(RemoteDataState.Done, resp.data.notificationRules)
-    )
+    // TODO(watts): replace with resp.data.notificationRules when implemented
+    dispatch(setAllNotificationRules(RemoteDataState.Done, [mockRule]))
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))
@@ -89,7 +89,11 @@ export const getCurrentRule = (ruleID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCurrentRule(RemoteDataState.Done, resp.data))
+    // TODO(watts): normalize this data to conform to NotificationRuleDraft
+    dispatch(
+      // @ts-ignore
+      setCurrentRule(RemoteDataState.Done, resp.data as NotificationRuleDraft)
+    )
   } catch (e) {
     console.error(e)
     dispatch(setCurrentRule(RemoteDataState.Error))
@@ -127,7 +131,9 @@ export const updateRule = (rule: Partial<NotificationRule>) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setRule(resp.data))
+    // TODO(watts): normalize this data to conform to NotificationRuleDraft
+    // @ts-ignore
+    dispatch(setRule(resp.data as NotificationRuleDraft))
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.updateRuleFailed(e.message)))
