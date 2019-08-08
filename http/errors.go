@@ -7,7 +7,9 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"strings"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/pkg/errors"
@@ -60,7 +62,13 @@ func CheckError(resp *http.Response) (err error) {
 			Msg:  fmt.Sprintf("unexpected status code: %d %s", resp.StatusCode, resp.Status),
 		}
 	}
-	pe := new(platform.Error)
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		// Assume JSON if there is no content-type.
+		contentType = "application/json"
+	}
+	mediatype, _, _ := mime.ParseMediaType(contentType)
 
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, resp.Body); err != nil {
@@ -69,11 +77,21 @@ func CheckError(resp *http.Response) (err error) {
 			Msg:  err.Error(),
 		}
 	}
-	parseErr := json.Unmarshal(buf.Bytes(), pe)
-	if parseErr != nil {
-		return errors.Wrap(stderrors.New(buf.String()), parseErr.Error())
+
+	switch mediatype {
+	case "application/json":
+		pe := new(platform.Error)
+
+		parseErr := json.Unmarshal(buf.Bytes(), pe)
+		if parseErr != nil {
+			line, _ := buf.ReadString('\n')
+			return errors.Wrap(stderrors.New(strings.TrimSuffix(line, "\n")), parseErr.Error())
+		}
+		return pe
+	default:
+		line, _ := buf.ReadString('\n')
+		return stderrors.New(strings.TrimSuffix(line, "\n"))
 	}
-	return pe
 }
 
 // ErrorHandler is the error handler in http package.
