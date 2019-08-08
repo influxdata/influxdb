@@ -5,12 +5,20 @@
 
 .alert-builder--card {
   .builder-card--contents {
+    min-height: 100%;
     padding: 16px;
   }
   .builder-card--header {
     justify-content: center;
   }
 }
+
+.cf-empty-state.alert-builder--card__empty {
+  padding: 32px;
+  height: 100%;
+  justify-content: center;
+}
+
 .alert-builder--message-template {
   .cf-text-area--container.cf-input-md {
     height: auto;
