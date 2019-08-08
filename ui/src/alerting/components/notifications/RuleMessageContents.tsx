@@ -1,21 +1,23 @@
 // Libraries
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import SlackMessage from './SlackMessage'
 import SMTPMessage from './SMTPMessage'
 import PagerDutyMessage from './PagerDutyMessage'
-import {NewRuleDispatch} from './NewRuleOverlay'
 
 // Types
 import {NotificationRuleDraft} from 'src/types'
+
+// Hooks
+import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   rule: NotificationRuleDraft
 }
 
 const RuleMessageContents: FC<Props> = ({rule}) => {
-  const dispatch = useContext(NewRuleDispatch)
+  const dispatch = useRuleDispatch()
   const onChange = ({target}) => {
     const {name, value} = target
 

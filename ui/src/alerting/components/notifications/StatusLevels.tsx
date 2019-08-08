@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import {
@@ -8,13 +8,15 @@ import {
   FlexDirection,
   ComponentSize,
 } from '@influxdata/clockface'
-import {NewRuleDispatch} from './NewRuleOverlay'
 import LevelsDropdown from 'src/alerting/components/notifications/LevelsDropdown'
 import StatusChangeDropdown from 'src/alerting/components/notifications/StatusChangeDropdown'
-import {LevelType} from 'src/alerting/components/notifications/NewRuleOverlay.reducer'
+import {LevelType} from 'src/alerting/components/notifications/RuleOverlay.reducer'
 
 // Types
 import {StatusRuleDraft, CheckStatusLevel} from 'src/types'
+
+// Hooks
+import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   status: StatusRuleDraft
@@ -22,7 +24,7 @@ interface Props {
 
 const StatusLevels: FC<Props> = ({status}) => {
   const {currentLevel, previousLevel} = status.value
-  const dispatch = useContext(NewRuleDispatch)
+  const dispatch = useRuleDispatch()
 
   const onClickLevel = (levelType: LevelType, level: CheckStatusLevel) => {
     dispatch({

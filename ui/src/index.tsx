@@ -82,6 +82,7 @@ import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
 import NewCheckEO from 'src/alerting/components/NewCheckEO'
 import EditCheckEO from 'src/alerting/components/EditCheckEO'
 import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay'
+import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -329,7 +330,7 @@ class Root extends PureComponent {
                               />
                               <Route
                                 path="rules/:ruleID/edit"
-                                component={null}
+                                component={EditRuleOverlay}
                               />
                             </Route>
                             <Route

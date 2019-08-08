@@ -4,12 +4,12 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Types
-import {NotificationRule, AppState} from 'src/types'
+import {NotificationRuleDraft, AppState} from 'src/types'
 import NotificationRuleCards from 'src/alerting/components/notifications/RuleCards'
 import AlertsColumnHeader from 'src/alerting/components/AlertsColumnHeader'
 
 interface StateProps {
-  rules: NotificationRule[]
+  rules: NotificationRuleDraft[]
 }
 
 type Props = StateProps & WithRouterProps

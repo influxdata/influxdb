@@ -1,9 +1,8 @@
 // Libraries
-import React, {FC, useContext} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import {Form, Panel, Grid, Columns} from '@influxdata/clockface'
-import {NewRuleDispatch} from 'src/alerting/components/notifications/NewRuleOverlay'
 import RuleEndpointDropdown from 'src/alerting/components/notifications/RuleEndpointDropdown'
 import RuleMessageContents from 'src/alerting/components/notifications/RuleMessageContents'
 
@@ -11,7 +10,10 @@ import RuleMessageContents from 'src/alerting/components/notifications/RuleMessa
 import {NotificationEndpoint, NotificationRuleDraft} from 'src/types'
 
 // Utils
-import {getEndpointBase} from './NewRule.utils'
+import {getEndpointBase} from 'src/alerting/components/notifications/utils'
+
+// Hooks
+import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   endpoints: NotificationEndpoint[]
@@ -19,7 +21,7 @@ interface Props {
 }
 
 const RuleMessage: FC<Props> = ({endpoints, rule}) => {
-  const dispatch = useContext(NewRuleDispatch)
+  const dispatch = useRuleDispatch()
   const onSelectEndpoint = notifyEndpointID => {
     const endpoint = getEndpointBase(endpoints, notifyEndpointID)
 
