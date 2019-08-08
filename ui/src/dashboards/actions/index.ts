@@ -595,6 +595,7 @@ export const saveVEOView = (dashboardID: string) => async (
     } else {
       await dispatch(createCellWithView(dashboardID, view))
     }
+    //TODO- add checkID to view
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.cellAddFailed()))
