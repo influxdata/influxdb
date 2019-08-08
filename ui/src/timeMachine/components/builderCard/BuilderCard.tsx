@@ -11,6 +11,7 @@ import BuilderCardEmpty from 'src/timeMachine/components/builderCard/BuilderCard
 interface Props {
   testID: string
   className?: string
+  widthPixels: number
 }
 
 export default class BuilderCard extends PureComponent<Props> {
@@ -21,15 +22,18 @@ export default class BuilderCard extends PureComponent<Props> {
 
   public static defaultProps = {
     testID: 'builder-card',
+    widthPixels: 228,
   }
 
   public render() {
-    const {children, testID, className} = this.props
+    const {children, testID, className, widthPixels} = this.props
 
     const classname = classnames('builder-card', {[`${className}`]: className})
 
+    const style = {flex: `0 0 ${widthPixels}px`}
+
     return (
-      <div className={classname} data-testid={testID}>
+      <div className={classname} data-testid={testID} style={style}>
         {children}
       </div>
     )
