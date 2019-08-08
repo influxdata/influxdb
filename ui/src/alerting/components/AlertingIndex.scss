@@ -1,0 +1,30 @@
+.alerting-index {
+  > .page-contents > .container-fluid,
+  > .page-contents > .container-fluid > .row,
+  > .page-contents > .container-fluid > .row > .col-xs-12,
+  > .page-contents > .container-fluid > .row > .col-xs-12 > .cf-grid--container,
+  > .page-contents > .container-fluid > .row > .col-xs-12 > .cf-grid--container > .cf-grid--row,
+  > .page-contents > .container-fluid > .row > .col-xs-12 > .cf-grid--container > .cf-grid--row > .cf-grid--column {
+    height: 100%;
+  }
+}
+
+.alerting-index--column {
+  height: 100%;
+}
+
+.alert-column--empty {
+  min-height: 160px;
+  justify-content: center;
+}
+
+.alerting-index--column-body {
+  flex: 1 0 0;
+  position: relative;
+}
+
+.alerting-index--list,
+.alerting-index--search {
+  padding: 18px;
+  padding-top: 0;
+}

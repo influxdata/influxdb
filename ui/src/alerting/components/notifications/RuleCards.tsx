@@ -15,24 +15,22 @@ interface Props {
 
 const NotificationRuleCards: FunctionComponent<Props> = ({rules}) => {
   return (
-    <>
-      <ResourceList>
-        <ResourceList.Body emptyState={<EmptyNotificationRulesList />}>
-          {rules.map(nr => (
-            <NotificationRuleCard key={nr.id} rule={nr} />
-          ))}
-        </ResourceList.Body>
-      </ResourceList>
-    </>
+    <ResourceList>
+      <ResourceList.Body emptyState={<EmptyNotificationRulesList />}>
+        {rules.map(nr => (
+          <NotificationRuleCard key={nr.id} rule={nr} />
+        ))}
+      </ResourceList.Body>
+    </ResourceList>
   )
 }
 
 const EmptyNotificationRulesList: FunctionComponent = () => {
   return (
-    <EmptyState size={ComponentSize.ExtraSmall}>
+    <EmptyState size={ComponentSize.ExtraSmall} className="alert-column--empty">
       <EmptyState.Text
-        text="Looks like you don’t have any Notification Rules, why not create one?"
-        highlightWords={['Notification Rules']}
+        text="Looks like you don’t have any Notification  Rules , why not create one?"
+        highlightWords={['Notification', 'Rules']}
       />
     </EmptyState>
   )

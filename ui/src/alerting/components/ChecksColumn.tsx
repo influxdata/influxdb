@@ -5,10 +5,11 @@ import {connect} from 'react-redux'
 
 // Components
 import CheckCards from 'src/alerting/components/CheckCards'
-import AlertsColumnHeader from 'src/alerting/components/AlertsColumnHeader'
+import AlertsColumnHeader from 'src/alerting/components/AlertsColumn'
 
 // Types
 import {Check, AppState} from 'src/types'
+import {check1, check2} from '../constants'
 
 interface StateProps {
   checks: Check[]
@@ -25,19 +26,18 @@ const ChecksColumn: FunctionComponent<Props> = ({
     router.push(`/orgs/${orgID}/alerting/checks/new`)
   }
   return (
-    <>
-      <AlertsColumnHeader title="Checks" onCreate={handleClick} />
+    <AlertsColumnHeader title="Checks" onCreate={handleClick}>
       <CheckCards checks={checks} />
-    </>
+    </AlertsColumnHeader>
   )
 }
 
 const mstp = (state: AppState) => {
-  const {
-    checks: {list: checks},
-  } = state
+  // const {
+  //   checks: {list: checks},
+  // } = state
 
-  return {checks}
+  return {checks: [check1, check2]}
 }
 
 export default connect<StateProps, {}, {}>(
