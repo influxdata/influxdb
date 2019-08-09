@@ -108,8 +108,6 @@ class RefreshingView extends PureComponent<Props, State> {
       case 'single-stat':
       case 'gauge':
         return [properties.queries[0]]
-      case 'check':
-        return [properties.check.query]
       default:
         return properties.queries
     }
