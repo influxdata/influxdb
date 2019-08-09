@@ -3,7 +3,7 @@ import {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // APIs
-import {client} from 'src/utils/api'
+import {postSignout} from 'src/client'
 
 // Constants
 import {CLOUD, CLOUD_SIGNOUT_URL} from 'src/shared/constants'
@@ -28,7 +28,12 @@ export class Logout extends PureComponent<Props> {
       window.location.href = CLOUD_SIGNOUT_URL
       return
     } else {
-      await client.auth.signout()
+      const resp = await postSignout({})
+
+      if (resp.status !== 204) {
+        throw new Error(resp.data.message)
+      }
+
       this.props.router.push(`/signin`)
     }
   }
