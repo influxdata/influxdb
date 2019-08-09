@@ -11,6 +11,7 @@ import {notify} from 'src/shared/actions/notifications'
 
 // APIs
 import {client} from 'src/utils/api'
+import * as api from 'src/client'
 
 // Types
 import {ISetupParams} from '@influxdata/influx'
@@ -82,7 +83,11 @@ export const setupAdmin = (params: ISetupParams) => async (
 
     const {username, password} = params
 
-    await client.auth.signin(username, password)
+    const resp = await api.postSignin({auth: {username, password}})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
 
     await client.templates.create({...defaultTemplates.systemTemplate(), orgID})
     await client.templates.create({

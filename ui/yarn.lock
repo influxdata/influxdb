@@ -1036,10 +1036,10 @@
     lodash "^4.17.10"
     to-fast-properties "^2.0.0"
 
-"@chnn/oats@0.2.1":
-  version "0.2.1"
-  resolved "https://registry.yarnpkg.com/@chnn/oats/-/oats-0.2.1.tgz#ebbea5807687ce6c555158b87625a368e1fe4cbb"
-  integrity sha512-1WjsZ4XodmH+5pi1Fi5+bUkh4OHUYqpIW6X9Js594Zj9hy5CHAwo9RlAKqTKfbBFXA842MFkEAhOp7hQvc9lnA==
+"@chnn/oats@0.3.0":
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/@chnn/oats/-/oats-0.3.0.tgz#86c398f0ce5a248f45db6bdf490ac8141495f7e1"
+  integrity sha512-6zAsbx+TyQvLaukkpG102aB9Ki4yseRrb20xNDDVM/DXyj50zA1ivIf5cwo+mVeAUvXaxLnoR9PR3J8BRdrtrA==
   dependencies:
     commander "^2.20.0"
     humps "^2.0.1"

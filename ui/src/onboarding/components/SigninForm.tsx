@@ -8,7 +8,7 @@ import _, {get} from 'lodash'
 import {Form, Input, Button, Grid} from '@influxdata/clockface'
 
 // APIs
-import {client} from 'src/utils/api'
+import {postSignin} from 'src/client'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -107,7 +107,12 @@ class SigninForm extends PureComponent<Props, State> {
     const {username, password} = this.state
 
     try {
-      await client.auth.signin(username, password)
+      const resp = await postSignin({auth: {username, password}})
+
+      if (resp.status !== 204) {
+        throw new Error(resp.data.message)
+      }
+
       this.handleRedirect()
     } catch (error) {
       const message = get(error, 'response.data.msg', '')
