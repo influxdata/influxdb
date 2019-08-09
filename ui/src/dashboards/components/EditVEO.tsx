@@ -74,10 +74,10 @@ const EditViewVEO: FunctionComponent<Props> = ({
 
   const handleSave = () => {
     try {
+      onSaveView(dashboardID)
       if (draftView.properties.type === 'check') {
         saveCurrentCheck()
       }
-      onSaveView(dashboardID)
       handleClose()
     } catch (e) {}
   }
