@@ -60,6 +60,7 @@ class TokenRow extends PureComponent<Props> {
         </IndexList.Cell>
         <IndexList.Cell alignment={Alignment.Right} revealOnHover={true}>
           <ConfirmationButton
+            testID="delete-token"
             size={ComponentSize.ExtraSmall}
             text="Delete"
             confirmationLabel="Really delete this token?"

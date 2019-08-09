@@ -204,10 +204,10 @@ describe('tokens', () => {
       .contains('token test 03')
       .parents('[data-testid=table-row]')
       .within(() => {
-        cy.getByTestID('delete-button')
+        cy.getByTestID('delete-token--button')
           .click()
           .then(() => {
-            cy.getByTestID('confirmation-button').click({force: true})
+            cy.getByTestID('button').click({force: true})
           })
       })
 
