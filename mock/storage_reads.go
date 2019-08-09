@@ -1,6 +1,9 @@
 package mock
 
 import (
+	"context"
+
+	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -98,6 +101,38 @@ func (rs *GroupResultSet) Err() error {
 	return rs.ErrFunc()
 }
 
+type FloatArrayCursor struct {
+	CloseFunc func()
+	Errfunc   func() error
+	StatsFunc func() cursors.CursorStats
+	NextFunc  func() *cursors.FloatArray
+}
+
+func NewFloatArrayCursor() *FloatArrayCursor {
+	return &FloatArrayCursor{
+		CloseFunc: func() {},
+		Errfunc:   func() error { return nil },
+		StatsFunc: func() cursors.CursorStats { return cursors.CursorStats{} },
+		NextFunc:  func() *cursors.FloatArray { return &cursors.FloatArray{} },
+	}
+}
+
+func (c *FloatArrayCursor) Close() {
+	c.CloseFunc()
+}
+
+func (c *FloatArrayCursor) Err() error {
+	return c.Errfunc()
+}
+
+func (c *FloatArrayCursor) Stats() cursors.CursorStats {
+	return c.StatsFunc()
+}
+
+func (c *FloatArrayCursor) Next() *cursors.FloatArray {
+	return c.NextFunc()
+}
+
 type IntegerArrayCursor struct {
 	CloseFunc func()
 	Errfunc   func() error
@@ -184,4 +219,50 @@ func (c *GroupCursor) Err() error {
 
 func (c *GroupCursor) Stats() cursors.CursorStats {
 	return c.StatsFunc()
+}
+
+type StoreReader struct {
+	ReadFilterFunc func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
+	ReadGroupFunc  func(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error)
+	TagKeysFunc    func(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
+	TagValuesFunc  func(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
+}
+
+func NewStoreReader() *StoreReader {
+	return &StoreReader{}
+}
+
+func (s *StoreReader) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+	return s.ReadFilterFunc(ctx, req)
+}
+
+func (s *StoreReader) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
+	return s.ReadGroupFunc(ctx, req)
+}
+
+func (s *StoreReader) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
+	return s.TagKeysFunc(ctx, req)
+}
+
+func (s *StoreReader) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error) {
+	return s.TagValuesFunc(ctx, req)
+}
+
+// this is easier than fooling around with .proto files.
+
+type readSource struct {
+	BucketID       uint64 `protobuf:"varint,1,opt,name=bucket_id,proto3"`
+	OrganizationID uint64 `protobuf:"varint,2,opt,name=organization_id,proto3"`
+}
+
+func (r *readSource) XXX_MessageName() string { return "readSource" }
+func (r *readSource) Reset()                  { *r = readSource{} }
+func (r *readSource) String() string          { return "readSource{}" }
+func (r *readSource) ProtoMessage()           {}
+
+func (*StoreReader) GetSource(orgID, bucketID uint64) proto.Message {
+	return &readSource{
+		BucketID:       bucketID,
+		OrganizationID: orgID,
+	}
 }
