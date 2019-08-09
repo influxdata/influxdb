@@ -143,12 +143,12 @@ const CheckPlot: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState, {viewProperties}: OwnProps): StateProps => {
   const {
-    checks: {
-      current: {check},
-    },
+    checks: {list: checks},
   } = state
+
+  const check = checks.find(c => c.id === viewProperties.checkID)
 
   let thresholds = []
   if (check.type === 'threshold') {
