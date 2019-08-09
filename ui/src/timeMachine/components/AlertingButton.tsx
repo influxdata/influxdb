@@ -10,7 +10,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {setType as setViewType, addCheck} from 'src/timeMachine/actions'
+import {setType as setViewType, addCheckToView} from 'src/timeMachine/actions'
 import {setCurrentCheck} from 'src/alerting/actions/checks'
 import {setActiveTab} from 'src/timeMachine/actions'
 
@@ -22,7 +22,7 @@ interface DispatchProps {
   setActiveTab: typeof setActiveTab
   setViewType: typeof setViewType
   setCurrentCheck: typeof setCurrentCheck
-  addCheck: typeof addCheck
+  addCheckToView: typeof addCheckToView
 }
 
 interface StateProps {
@@ -34,7 +34,7 @@ type Props = DispatchProps & StateProps
 
 const AlertingButton: FunctionComponent<Props> = ({
   setActiveTab,
-  addCheck,
+  addCheckToView,
   activeTab,
   setCurrentCheck,
   viewType,
@@ -45,7 +45,7 @@ const AlertingButton: FunctionComponent<Props> = ({
     } else {
       if (viewType !== 'check') {
         setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
-        addCheck()
+        addCheckToView()
       } else {
         setActiveTab('alerting')
       }
@@ -84,7 +84,7 @@ const mdtp: DispatchProps = {
   setActiveTab: setActiveTab,
   setViewType: setViewType,
   setCurrentCheck: setCurrentCheck,
-  addCheck: addCheck,
+  addCheckToView: addCheckToView,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
