@@ -2210,6 +2210,13 @@ func (s *compactionStrategy) compactGroup() {
 		log.Info("Error replacing new TSM files", zap.Error(err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
+
+		// Remove the new snapshot files. We will try again.
+		for _, file := range files {
+			if err := os.Remove(file); err != nil {
+				log.Error("Unable to remove file", zap.String("path", file), zap.Error(err))
+			}
+		}
 		return
 	}
 
