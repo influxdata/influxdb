@@ -1,6 +1,5 @@
 // Import Components
 import AutoInput from './components/auto_input/AutoInput'
-import ConfirmationButton from './components/confirmation_button/ConfirmationButton'
 import Form from './components/form_layout/Form'
 import MultipleInput, {
   MultiInputType,
@@ -46,7 +45,6 @@ export {
   ComponentColor,
   ComponentSize,
   ComponentStatus,
-  ConfirmationButton,
   Context,
   DropdownChild,
   DropdownMenuColors,
