@@ -22,6 +22,7 @@ import {
   notify,
   PublishNotificationAction,
 } from 'src/shared/actions/notifications'
+import {getChecks} from 'src/alerting/actions/checks'
 import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
@@ -361,6 +362,8 @@ export const getDashboardAsync = (dashboardID: string) => async (
     )
 
     dispatch(setViews(RemoteDataState.Done, views))
+
+    dispatch(getChecks())
 
     // Ensure the values for the variables in use on the dashboard are populated
     await dispatch(refreshDashboardVariableValues(dashboard.id, views))
