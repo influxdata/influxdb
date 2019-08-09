@@ -7,6 +7,7 @@ import {Button} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {setType as setViewType, addCheck} from 'src/timeMachine/actions'
@@ -56,11 +57,13 @@ const AlertingButton: FunctionComponent<Props> = ({
   }
 
   return (
-    <Button
-      titleText="Add alerting to this query"
-      text="Alerting"
-      onClick={handleClickAlerting}
-    />
+    <FeatureFlag name="alerting">
+      <Button
+        titleText="Add alerting to this query"
+        text="Alerting"
+        onClick={handleClickAlerting}
+      />
+    </FeatureFlag>
   )
 }
 
