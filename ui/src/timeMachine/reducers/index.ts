@@ -8,7 +8,6 @@ import {createView, defaultViewQuery} from 'src/shared/utils/view'
 import {isConfigValid, buildQuery} from 'src/timeMachine/utils/queryBuilder'
 
 // Constants
-import {TimeMachineID} from 'src/timeMachine/constants'
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {
   THRESHOLD_TYPE_TEXT,
@@ -28,7 +27,7 @@ import {
 } from 'src/types/dashboards'
 import {Action} from 'src/timeMachine/actions'
 import {TimeMachineTab} from 'src/types/timeMachine'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, TimeMachineID} from 'src/types'
 import {Color} from 'src/types/colors'
 
 interface QueryBuilderState {

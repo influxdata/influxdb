@@ -11,10 +11,10 @@ import {View} from 'src/types'
 import {Action as TimeMachineAction} from 'src/timeMachine/actions'
 import {Action as CheckAction} from 'src/alerting/actions/checks'
 
-//Actions
+// Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {TimeMachineID} from 'src/timeMachine/constants'
 import {setCurrentCheck} from 'src/alerting/actions/checks'
+import {TimeMachineID} from 'src/types'
 
 export type Action = SetViewAction | SetViewsAction | ResetViewsAction
 

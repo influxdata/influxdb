@@ -20,8 +20,13 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {createView} from 'src/shared/utils/view'
 
 // Types
-import {AppState, XYViewProperties, RemoteDataState, View} from 'src/types'
-import {TimeMachineID} from 'src/timeMachine/constants'
+import {
+  AppState,
+  XYViewProperties,
+  RemoteDataState,
+  View,
+  TimeMachineID,
+} from 'src/types'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
