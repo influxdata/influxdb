@@ -1,5 +1,4 @@
 // Import Components
-import AutoInput from './components/auto_input/AutoInput'
 import MultipleInput, {
   MultiInputType,
 } from './components/inputs/multipleInput/MultipleInput'
@@ -36,7 +35,6 @@ import {
 // Fire de lazer
 export {
   Alignment,
-  AutoInput,
   ButtonType,
   ButtonShape,
   Columns,
