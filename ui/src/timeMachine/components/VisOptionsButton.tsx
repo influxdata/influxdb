@@ -1,67 +1,54 @@
 // Libraries
-import React, {Component} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 
 // Components
 import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Actions
-import {setActiveTab} from 'src/timeMachine/actions'
+import {toggleVisOptions} from 'src/timeMachine/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {TimeMachineTab} from 'src/types/timeMachine'
 import {AppState} from 'src/types'
 
 interface StateProps {
-  activeTab: TimeMachineTab
+  isViewingVisOptions: boolean
 }
 
 interface DispatchProps {
-  onSetActiveTab: typeof setActiveTab
+  onToggleVisOptions: typeof toggleVisOptions
 }
 
 type Props = StateProps & DispatchProps
 
-class VisOptionsButton extends Component<Props> {
-  public render() {
-    const {activeTab} = this.props
+export const VisOptionsButton: FC<Props> = ({
+  isViewingVisOptions,
+  onToggleVisOptions,
+}) => {
+  const color = isViewingVisOptions
+    ? ComponentColor.Primary
+    : ComponentColor.Default
 
-    const color =
-      activeTab === 'visualization'
-        ? ComponentColor.Primary
-        : ComponentColor.Default
-
-    return (
-      <SquareButton
-        color={color}
-        icon={IconFont.CogThick}
-        onClick={this.handleClick}
-      />
-    )
-  }
-
-  private handleClick = (): void => {
-    const {onSetActiveTab, activeTab} = this.props
-
-    if (activeTab !== 'visualization') {
-      onSetActiveTab('visualization')
-    } else {
-      onSetActiveTab('queries')
-    }
-  }
+  return (
+    <SquareButton
+      color={color}
+      icon={IconFont.CogThick}
+      onClick={onToggleVisOptions}
+    />
+  )
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {activeTab} = getActiveTimeMachine(state)
+  const {isViewingVisOptions} = getActiveTimeMachine(state)
 
-  return {activeTab}
+  return {isViewingVisOptions}
 }
 
 const mdtp: DispatchProps = {
-  onSetActiveTab: setActiveTab,
+  onToggleVisOptions: toggleVisOptions,
 }
 
 export default connect<StateProps, DispatchProps>(
