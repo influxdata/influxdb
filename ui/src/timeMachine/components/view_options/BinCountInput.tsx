@@ -50,12 +50,18 @@ class BinCountInput extends Component<Props, State> {
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const {onSetBinCount} = this.props
 
-    const binCount = Number(e.target.value) || 0
+    const binCount = e.target.value ? Number(e.target.value) : null
 
     onSetBinCount(binCount)
   }
 
   private handleChangeMode = (mode: AutoInputMode): void => {
+    const {onSetBinCount} = this.props
+
+    if (mode === AutoInputMode.Auto) {
+      onSetBinCount(null)
+    }
+
     this.setState({mode})
   }
 }
