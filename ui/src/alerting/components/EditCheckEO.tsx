@@ -28,8 +28,8 @@ import {
   RemoteDataState,
   DashboardDraftQuery,
   CheckViewProperties,
+  TimeMachineID,
 } from 'src/types'
-import {TimeMachineID} from 'src/timeMachine/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck

@@ -4,3 +4,5 @@ export type TimeMachineTab =
   | 'visualization'
   | 'alerting'
   | 'alertingNotice'
+
+export type TimeMachineID = 'de' | 'veo' | 'alerting'

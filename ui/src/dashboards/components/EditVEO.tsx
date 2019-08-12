@@ -18,12 +18,11 @@ import {setView, getViewForTimeMachine} from 'src/dashboards/actions/views'
 
 // Utils
 import {getView} from 'src/dashboards/selectors'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, RemoteDataState, QueryView} from 'src/types'
+import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
 import {executeQueries} from 'src/timeMachine/actions/queries'
-import {TimeMachineID} from 'src/timeMachine/constants'
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine

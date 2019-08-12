@@ -20,10 +20,10 @@ import {
   TableOptions,
   TimeMachineTab,
   AutoRefresh,
+  TimeMachineID,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
-import {TimeMachineID} from 'src/timeMachine/constants'
 
 export type Action =
   | QueryBuilderAction
