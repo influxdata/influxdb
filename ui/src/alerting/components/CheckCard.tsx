@@ -57,7 +57,7 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onCheckClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/${check.id}`)
+    router.push(`/orgs/${orgID}/alerting/checks/${check.id}/edit`)
   }
 
   return (
