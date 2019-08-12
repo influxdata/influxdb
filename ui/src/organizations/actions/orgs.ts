@@ -3,14 +3,13 @@ import {Dispatch} from 'redux'
 import {push, RouterAction} from 'react-router-redux'
 
 // APIs
-import {client, getErrorMessage} from 'src/utils/api'
+import {getErrorMessage} from 'src/utils/api'
 import * as api from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
-import {defaultTemplates} from 'src/templates/constants/'
 import {
   orgCreateSuccess,
   orgCreateFailed,
@@ -169,18 +168,6 @@ export const createOrgWithBucket = (
     }
     createdOrg = orgResp.data
 
-    await client.templates.create({
-      ...defaultTemplates.systemTemplate(),
-      orgID: createdOrg.id,
-    })
-    await client.templates.create({
-      ...defaultTemplates.gettingStartedWithFluxTemplate(),
-      orgID: createdOrg.id,
-    })
-    await client.templates.create({
-      ...defaultTemplates.localMetricsTemplate(),
-      orgID: createdOrg.id,
-    })
     dispatch(notify(orgCreateSuccess()))
 
     dispatch(addOrg(createdOrg))
@@ -217,11 +204,6 @@ export const createOrg = (org: Organization) => async (
     }
 
     const createdOrg = resp.data
-
-    await client.templates.create({
-      ...defaultTemplates.systemTemplate(),
-      orgID: createdOrg.id,
-    })
 
     dispatch(addOrg(createdOrg))
     dispatch(push(`/orgs/${createdOrg.id}`))

@@ -4,7 +4,6 @@ import _ from 'lodash'
 // Constants
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {SetupSuccess, SetupError} from 'src/shared/copy/notifications'
-import {defaultTemplates} from 'src/templates/constants/'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -88,16 +87,6 @@ export const setupAdmin = (params: ISetupParams) => async (
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }
-
-    await client.templates.create({...defaultTemplates.systemTemplate(), orgID})
-    await client.templates.create({
-      ...defaultTemplates.gettingStartedWithFluxTemplate(),
-      orgID,
-    })
-    await client.templates.create({
-      ...defaultTemplates.localMetricsTemplate(),
-      orgID,
-    })
 
     dispatch(notify(SetupSuccess))
     dispatch(setStepStatus(1, StepStatus.Complete))

@@ -1,41 +1,35 @@
 import {
-  system,
-  localMetrics,
-  gettingStarted,
+  apache,
   docker,
-  nginx,
-  redis,
+  gettingStarted,
+  github,
   kubernetes,
+  nginx,
+  ossMetrics,
+  redis,
+  system,
 } from '@influxdata/influxdb-templates'
 
-export const localMetricsTemplate = () => {
-  return localMetrics
-}
-
-export const systemTemplate = () => {
-  return system
-}
-
-export const gettingStartedWithFluxTemplate = () => {
-  return gettingStarted
-}
-
 export const staticTemplates = {
-  'getting-started': gettingStarted,
-  'local-metrics': localMetrics,
-  System: system,
+  Apache: apache,
   Docker: docker,
-  Redis: redis,
-  Nginx: nginx,
+  'getting-started': gettingStarted,
+  Github: github,
   Kubernetes: kubernetes,
+  Nginx: nginx,
+  'oss-metrics': ossMetrics,
+  Redis: redis,
+  System: system,
 }
 
 export const influxdbTemplateList = [
-  system,
-  localMetrics,
-  gettingStarted,
+  apache,
   docker,
-  nginx,
-  redis,
+  gettingStarted,
+  github,
   kubernetes,
+  nginx,
+  ossMetrics,
+  redis,
+  system,
 ].map((t, i) => ({...t, id: `influxdb-template-${i}`}))
