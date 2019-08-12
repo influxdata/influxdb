@@ -2,7 +2,6 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Form} from 'src/clockface'
 import {
   Alert,
   IconFont,
@@ -15,6 +14,7 @@ import {
   ButtonType,
   Input,
   Overlay,
+  Form,
 } from '@influxdata/clockface'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -47,7 +47,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
 
     return (
       <Overlay visible={true}>
-        <Overlay.Container>
+        <Overlay.Container maxWidth={500}>
           <Overlay.Header
             title="Generate All Access Token"
             onDismiss={this.handleDismiss}
@@ -74,11 +74,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                   />
                 </Form.Element>
 
-                <ComponentSpacer
-                  alignItems={AlignItems.Center}
-                  direction={FlexDirection.Row}
-                  margin={ComponentSize.Small}
-                >
+                <Form.Footer>
                   <Button
                     text="Cancel"
                     icon={IconFont.Remove}
@@ -91,7 +87,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                     color={ComponentColor.Success}
                     type={ButtonType.Submit}
                   />
-                </ComponentSpacer>
+                </Form.Footer>
               </ComponentSpacer>
             </Form>
           </Overlay.Body>

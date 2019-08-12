@@ -14,8 +14,8 @@ import {
   FlexDirection,
   ComponentSize,
   ButtonType,
+  Form,
 } from '@influxdata/clockface'
-import {Form} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
@@ -48,17 +48,13 @@ class DangerConfirmationForm extends PureComponent<Props> {
               </ul>
             </>
           </Form.Element>
-          <ComponentSpacer
-            alignItems={AlignItems.Center}
-            direction={FlexDirection.Row}
-            margin={ComponentSize.Small}
-          >
+          <Form.Footer>
             <Button
               color={ComponentColor.Danger}
               text={this.props.confirmButtonText}
               type={ButtonType.Submit}
             />
-          </ComponentSpacer>
+          </Form.Footer>
         </ComponentSpacer>
       </Form>
     )
