@@ -23,14 +23,15 @@ import {
   DashboardQuery,
   VariableAssignment,
   QueryViewProperties,
-  CheckViewProperties,
+  Check,
 } from 'src/types'
 
 interface OwnProps {
   timeRange: TimeRange
   manualRefresh: number
-  properties: QueryViewProperties | CheckViewProperties
+  properties: QueryViewProperties
   dashboardID: string
+  check: Partial<Check>
 }
 
 interface StateProps {
@@ -66,7 +67,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {properties, manualRefresh, timeZone} = this.props
+    const {properties, manualRefresh, timeZone, check} = this.props
     const {submitToken} = this.state
 
     return (
@@ -90,6 +91,7 @@ class RefreshingView extends PureComponent<Props, State> {
               <ViewSwitcher
                 giraffeResult={giraffeResult}
                 files={files}
+                check={check}
                 loading={loading}
                 properties={properties}
                 timeZone={timeZone}
@@ -108,8 +110,6 @@ class RefreshingView extends PureComponent<Props, State> {
       case 'single-stat':
       case 'gauge':
         return [properties.queries[0]]
-      case 'check':
-        return [properties.check.query]
       default:
         return properties.queries
     }

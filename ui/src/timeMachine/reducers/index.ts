@@ -808,12 +808,12 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'REMOVE_CHECK': {
+    case 'REMOVE_CHECK_FROM_VIEW': {
       const view = convertView(state.view, 'xy')
       return {...state, view, activeTab: 'queries'}
     }
 
-    case 'ADD_CHECK': {
+    case 'ADD_CHECK_TO_VIEW': {
       const view = convertView(state.view, 'check')
       return {...state, view, activeTab: 'alerting'}
     }

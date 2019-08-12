@@ -3,14 +3,14 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button} from '@influxdata/clockface'
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {setType as setViewType, addCheck} from 'src/timeMachine/actions'
+import {setType as setViewType, addCheckToView} from 'src/timeMachine/actions'
 import {setCurrentCheck} from 'src/alerting/actions/checks'
 import {setActiveTab} from 'src/timeMachine/actions'
 
@@ -22,7 +22,7 @@ interface DispatchProps {
   setActiveTab: typeof setActiveTab
   setViewType: typeof setViewType
   setCurrentCheck: typeof setCurrentCheck
-  addCheck: typeof addCheck
+  addCheckToView: typeof addCheckToView
 }
 
 interface StateProps {
@@ -34,34 +34,36 @@ type Props = DispatchProps & StateProps
 
 const AlertingButton: FunctionComponent<Props> = ({
   setActiveTab,
-  addCheck,
+  addCheckToView,
   activeTab,
   setCurrentCheck,
   viewType,
 }) => {
-  const handleClickAlerting = () => {
-    if (viewType !== 'check') {
-      setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
-      addCheck()
+  const handleClick = () => {
+    if (activeTab === 'alerting') {
+      setActiveTab('queries')
     } else {
-      setActiveTab('alerting')
+      if (viewType !== 'check') {
+        setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
+        addCheckToView()
+      } else {
+        setActiveTab('alerting')
+      }
     }
-  }
-
-  const handleClickQueries = () => {
-    setActiveTab('queries')
-  }
-
-  if (activeTab === 'alerting') {
-    return <Button text="Queries" onClick={handleClickQueries} />
   }
 
   return (
     <FeatureFlag name="alerting">
       <Button
+        icon={IconFont.BellSolid}
+        color={
+          activeTab === 'alerting'
+            ? ComponentColor.Secondary
+            : ComponentColor.Default
+        }
         titleText="Add alerting to this query"
         text="Alerting"
-        onClick={handleClickAlerting}
+        onClick={handleClick}
       />
     </FeatureFlag>
   )
@@ -82,7 +84,7 @@ const mdtp: DispatchProps = {
   setActiveTab: setActiveTab,
   setViewType: setViewType,
   setCurrentCheck: setCurrentCheck,
-  addCheck: addCheck,
+  addCheckToView: addCheckToView,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

@@ -58,10 +58,12 @@ const NewViewVEO: FunctionComponent<Props> = ({
 
   const handleSave = () => {
     try {
+      onSaveView(dashboardID)
+
       if (view.properties.type === 'check') {
         saveCurrentCheck()
       }
-      onSaveView(dashboardID)
+
       handleClose()
     } catch (e) {}
   }

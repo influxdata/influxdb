@@ -73,8 +73,8 @@ export type Action =
   | SetYDomainAction
   | SetXAxisLabelAction
   | SetShadeBelowAction
-  | ReturnType<typeof removeCheck>
-  | ReturnType<typeof addCheck>
+  | ReturnType<typeof removeCheckFromView>
+  | ReturnType<typeof addCheckToView>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -596,10 +596,10 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   payload: {xAxisLabel},
 })
 
-export const removeCheck = () => ({
-  type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
+export const removeCheckFromView = () => ({
+  type: 'REMOVE_CHECK_FROM_VIEW' as 'REMOVE_CHECK_FROM_VIEW',
 })
 
-export const addCheck = () => ({
-  type: 'ADD_CHECK' as 'ADD_CHECK',
+export const addCheckToView = () => ({
+  type: 'ADD_CHECK_TO_VIEW' as 'ADD_CHECK_TO_VIEW',
 })

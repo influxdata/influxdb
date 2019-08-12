@@ -1,6 +1,6 @@
 import {get} from 'lodash'
 
-import {AppState, View} from 'src/types'
+import {AppState, View, Check, ViewType} from 'src/types'
 
 import {
   getValuesForVariable,
@@ -10,6 +10,18 @@ import {
 
 export const getView = (state: AppState, id: string): View => {
   return get(state, `views.views.${id}.view`)
+}
+
+export const getCheckForView = (
+  state: AppState,
+  view: View
+): Partial<Check> => {
+  const viewType: ViewType = get(view, 'properties.type')
+  const checkID = get(view, 'properties.checkID')
+
+  return viewType === 'check'
+    ? state.checks.list.find(c => c.id === checkID)
+    : null
 }
 
 export const getViewsForDashboard = (

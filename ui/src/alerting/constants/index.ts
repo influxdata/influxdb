@@ -22,10 +22,7 @@ export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',
   status: 'active',
-  thresholds: [
-    {type: 'greater', value: 40, level: 'INFO'},
-    {type: 'lesser', value: 20, level: 'OK'},
-  ],
+  thresholds: [],
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
 }
