@@ -54,6 +54,7 @@ const CheckPlot: FunctionComponent<Props> = ({
   loading,
   children,
   timeZone,
+  viewProperties: {colors},
 }) => {
   let thresholds = []
   if (check && check.type === 'threshold') {
@@ -119,6 +120,7 @@ const CheckPlot: FunctionComponent<Props> = ({
         y: Y_COLUMN,
         fill: groupKey,
         interpolation: 'monotoneX',
+        colors,
       },
       {
         type: 'custom',

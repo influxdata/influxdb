@@ -1,5 +1,15 @@
 import _ from 'lodash'
-import {Config} from '@influxdata/giraffe'
+import {
+  Config,
+  NINETEEN_EIGHTY_FOUR,
+  ATLANTIS,
+  DO_ANDROIDS_DREAM,
+  DELOREAN,
+  CTHULHU,
+  ECTOPLASM,
+  T_MAX_400_FILM,
+} from '@influxdata/giraffe'
+
 import {AutoRefreshStatus} from 'src/types'
 
 export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss ZZ'
@@ -69,3 +79,13 @@ export const VIS_THEME: Partial<Config> = {
   legendBorder: '1px solid #202028',
   legendCrosshairColor: '#434453',
 }
+
+export const GIRAFFE_COLOR_SCHEMES = [
+  {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
+  {name: 'Atlantis', colors: ATLANTIS},
+  {name: 'Do Androids Dream of Electric Sheep?', colors: DO_ANDROIDS_DREAM},
+  {name: 'Delorean', colors: DELOREAN},
+  {name: 'Cthulhu', colors: CTHULHU},
+  {name: 'Ectoplasm', colors: ECTOPLASM},
+  {name: 'T-MAX 400 Film', colors: T_MAX_400_FILM},
+]

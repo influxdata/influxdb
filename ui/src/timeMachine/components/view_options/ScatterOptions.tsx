@@ -1,15 +1,6 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import {
-  NINETEEN_EIGHTY_FOUR,
-  ATLANTIS,
-  DO_ANDROIDS_DREAM,
-  DELOREAN,
-  CTHULHU,
-  ECTOPLASM,
-  T_MAX_400_FILM,
-} from '@influxdata/giraffe'
 
 // Components
 import {Form, Input, Grid, MultiSelectDropdown} from '@influxdata/clockface'
@@ -39,22 +30,15 @@ import {
   getNumericColumns,
 } from 'src/timeMachine/selectors'
 
+// Constants
+import {GIRAFFE_COLOR_SCHEMES} from 'src/shared/constants'
+
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
-
-const COLOR_SCHEMES = [
-  {name: 'Nineteen Eighty Four', colors: NINETEEN_EIGHTY_FOUR},
-  {name: 'Atlantis', colors: ATLANTIS},
-  {name: 'Do Androids Dream of Electric Sheep?', colors: DO_ANDROIDS_DREAM},
-  {name: 'Delorean', colors: DELOREAN},
-  {name: 'Cthulhu', colors: CTHULHU},
-  {name: 'Ectoplasm', colors: ECTOPLASM},
-  {name: 'T-MAX 400 Film', colors: T_MAX_400_FILM},
-]
 
 interface StateProps {
   fillColumns: string[]
@@ -187,7 +171,7 @@ const ScatterOptions: SFC<Props> = props => {
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <HexColorSchemeDropdown
-          colorSchemes={COLOR_SCHEMES}
+          colorSchemes={GIRAFFE_COLOR_SCHEMES}
           selectedColorScheme={colors}
           onSelectColorScheme={onSetColors}
         />
