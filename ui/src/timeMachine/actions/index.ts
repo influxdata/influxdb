@@ -73,8 +73,9 @@ export type Action =
   | SetYDomainAction
   | SetXAxisLabelAction
   | SetShadeBelowAction
-  | ReturnType<typeof removeCheckFromView>
-  | ReturnType<typeof addCheckToView>
+  | ReturnType<typeof convertToCheckView>
+  | ReturnType<typeof convertFromCheckView>
+  | ReturnType<typeof toggleAlertingPanel>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -596,10 +597,14 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
   payload: {xAxisLabel},
 })
 
-export const removeCheckFromView = () => ({
-  type: 'REMOVE_CHECK_FROM_VIEW' as 'REMOVE_CHECK_FROM_VIEW',
+export const convertToCheckView = () => ({
+  type: 'CONVERT_TO_CHECK_VIEW' as 'CONVERT_TO_CHECK_VIEW',
 })
 
-export const addCheckToView = () => ({
-  type: 'ADD_CHECK_TO_VIEW' as 'ADD_CHECK_TO_VIEW',
+export const convertFromCheckView = () => ({
+  type: 'CONVERT_FROM_CHECK_VIEW' as 'CONVERT_FROM_CHECK_VIEW',
+})
+
+export const toggleAlertingPanel = () => ({
+  type: 'TOGGLE_ALERTING_PANEL' as 'TOGGLE_ALERTING_PANEL',
 })

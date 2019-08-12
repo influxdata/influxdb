@@ -1,5 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import TimeMachineAlertBuilder from 'src/alerting/components/builder/AlertBuilder'
@@ -11,15 +12,15 @@ import {
 } from '@influxdata/clockface'
 import RemoveButton from 'src/alerting/components/builder/RemoveButton'
 import HelpButton from 'src/alerting/components/builder/HelpButton'
-import {TimeMachineID} from 'src/timeMachine/constants'
 
-interface Props {
-  activeTimeMachineID: TimeMachineID
+// Types
+import {AppState} from 'src/types'
+
+interface StateProps {
+  isInVEO: boolean
 }
 
-const TimeMachineAlerting: FunctionComponent<Props> = ({
-  activeTimeMachineID,
-}) => {
+const TimeMachineAlerting: FunctionComponent<StateProps> = ({isInVEO}) => {
   return (
     <div className="time-machine-queries">
       <div className="time-machine-queries--controls">
@@ -31,7 +32,7 @@ const TimeMachineAlerting: FunctionComponent<Props> = ({
             margin={ComponentSize.Small}
           >
             <HelpButton />
-            {activeTimeMachineID == 'veo' && <RemoveButton />}
+            {isInVEO && <RemoveButton />}
           </ComponentSpacer>
         </div>
       </div>
@@ -42,4 +43,10 @@ const TimeMachineAlerting: FunctionComponent<Props> = ({
   )
 }
 
-export default TimeMachineAlerting
+const mstp = (state: AppState) => {
+  const isInVEO = state.timeMachines.activeTimeMachineID === 'veo'
+
+  return {isInVEO}
+}
+
+export default connect<StateProps>(mstp)(TimeMachineAlerting)

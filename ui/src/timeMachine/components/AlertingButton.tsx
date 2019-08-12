@@ -10,81 +10,46 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {setType as setViewType, addCheckToView} from 'src/timeMachine/actions'
-import {setCurrentCheck} from 'src/alerting/actions/checks'
-import {setActiveTab} from 'src/timeMachine/actions'
+import {toggleAlertingPanel} from 'src/timeMachine/actions'
 
 // Types
-import {AppState, RemoteDataState, ViewType, TimeMachineTab} from 'src/types'
-import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
+import {AppState, TimeMachineTab} from 'src/types'
 
 interface DispatchProps {
-  setActiveTab: typeof setActiveTab
-  setViewType: typeof setViewType
-  setCurrentCheck: typeof setCurrentCheck
-  addCheckToView: typeof addCheckToView
+  onClick: typeof toggleAlertingPanel
 }
 
 interface StateProps {
   activeTab: TimeMachineTab
-  viewType: ViewType
 }
 
 type Props = DispatchProps & StateProps
 
-const AlertingButton: FunctionComponent<Props> = ({
-  setActiveTab,
-  addCheckToView,
-  activeTab,
-  setCurrentCheck,
-  viewType,
-}) => {
-  const handleClick = () => {
-    if (activeTab === 'alerting') {
-      setActiveTab('queries')
-    } else {
-      if (viewType !== 'check') {
-        setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
-        addCheckToView()
-      } else {
-        setActiveTab('alerting')
-      }
-    }
-  }
+const AlertingButton: FunctionComponent<Props> = ({activeTab, onClick}) => {
+  const color =
+    activeTab !== 'queries' ? ComponentColor.Secondary : ComponentColor.Default
 
   return (
     <FeatureFlag name="alerting">
       <Button
         icon={IconFont.BellSolid}
-        color={
-          activeTab === 'alerting'
-            ? ComponentColor.Secondary
-            : ComponentColor.Default
-        }
+        color={color}
         titleText="Add alerting to this query"
         text="Alerting"
-        onClick={handleClick}
+        onClick={onClick}
       />
     </FeatureFlag>
   )
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {
-    activeTab,
-    view: {
-      properties: {type: viewType},
-    },
-  } = getActiveTimeMachine(state)
+  const {activeTab} = getActiveTimeMachine(state)
 
-  return {activeTab, viewType}
+  return {activeTab}
 }
 
 const mdtp: DispatchProps = {
-  setActiveTab: setActiveTab,
-  setViewType: setViewType,
-  setCurrentCheck: setCurrentCheck,
-  addCheckToView: addCheckToView,
+  onClick: toggleAlertingPanel,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
