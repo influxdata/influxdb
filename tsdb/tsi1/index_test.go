@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
@@ -512,6 +514,116 @@ func TestIndex_CompactionConsistency(t *testing.T) {
 			t.Fatal("unexpected", string(m))
 		}
 	}
+}
+
+func BenchmarkIndex_CreateSeriesListIfNotExist(b *testing.B) {
+	// Read line-protocol and coerce into tsdb format.
+	// 1M series generated with:
+	// $inch -b 10000 -c 1 -t 10,10,10,10,10,10 -f 1 -m 5 -p 1
+	fd, err := os.Open("../testdata/line-protocol-1M.txt.gz")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	gzr, err := gzip.NewReader(fd)
+	if err != nil {
+		fd.Close()
+		b.Fatal(err)
+	}
+
+	data, err := ioutil.ReadAll(gzr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := fd.Close(); err != nil {
+		b.Fatal(err)
+	}
+
+	setup := func() (idx *tsi1.Index, points []models.Point, cleanup func(), err error) {
+		points, err = models.ParsePoints(data, []byte("org_bucket"))
+		if err != nil {
+			return nil, nil, func() {}, err
+		}
+
+		dataRoot, err := ioutil.TempDir("", "BenchmarkIndex_CreateSeriesListIfNotExist")
+		if err != nil {
+			return nil, nil, func() {}, err
+		}
+		rmdir := func() { os.RemoveAll(dataRoot) }
+
+		seriesPath, err := ioutil.TempDir(dataRoot, "_series")
+		if err != nil {
+			return nil, nil, rmdir, err
+		}
+
+		sfile := tsdb.NewSeriesFile(seriesPath)
+		if err := sfile.Open(context.Background()); err != nil {
+			return nil, nil, rmdir, err
+		}
+
+		config := tsi1.NewConfig()
+		idx = tsi1.NewIndex(sfile, config, tsi1.WithPath(filepath.Join(dataRoot, "index")))
+
+		if testing.Verbose() {
+			idx.WithLogger(logger.New(os.Stdout))
+		}
+
+		if err := idx.Open(context.Background()); err != nil {
+			return nil, nil, rmdir, err
+		}
+		return idx, points, func() { idx.Close(); rmdir() }, nil
+	}
+
+	b.ReportAllocs()
+	b.Run("create_series", func(b *testing.B) {
+		idx, points, cleanup, err := setup()
+		defer cleanup()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			for i := 0; i < len(points); i += 10000 {
+				b.StopTimer()
+				collection := tsdb.NewSeriesCollection(points[i : i+10000])
+				b.StartTimer()
+
+				if err := idx.CreateSeriesListIfNotExists(collection); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	})
+
+	b.Run("already_exist_series", func(b *testing.B) {
+		idx, points, cleanup, err := setup()
+		defer cleanup()
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		// Ensure all points already written.
+		for i := 0; i < len(points); i += 10000 {
+			collection := tsdb.NewSeriesCollection(points[i : i+10000])
+			if err := idx.CreateSeriesListIfNotExists(collection); err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			for i := 0; i < len(points); i += 10000 {
+				b.StopTimer()
+				collection := tsdb.NewSeriesCollection(points[i : i+10000])
+				b.StartTimer()
+				if err := idx.CreateSeriesListIfNotExists(collection); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}
+	})
 }
 
 func BenchmarkIndex_ComputeMeasurementCardinalityStats(b *testing.B) {
