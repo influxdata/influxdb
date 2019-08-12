@@ -435,28 +435,29 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg.MustRegister(m.boltClient)
 
 	var (
-		orgSvc              platform.OrganizationService             = m.kvService
-		authSvc             platform.AuthorizationService            = m.kvService
-		userSvc             platform.UserService                     = m.kvService
-		variableSvc         platform.VariableService                 = m.kvService
-		bucketSvc           platform.BucketService                   = m.kvService
-		sourceSvc           platform.SourceService                   = m.kvService
-		sessionSvc          platform.SessionService                  = m.kvService
-		passwdsSvc          platform.PasswordsService                = m.kvService
-		dashboardSvc        platform.DashboardService                = m.kvService
-		dashboardLogSvc     platform.DashboardOperationLogService    = m.kvService
-		userLogSvc          platform.UserOperationLogService         = m.kvService
-		bucketLogSvc        platform.BucketOperationLogService       = m.kvService
-		orgLogSvc           platform.OrganizationOperationLogService = m.kvService
-		onboardingSvc       platform.OnboardingService               = m.kvService
-		scraperTargetSvc    platform.ScraperTargetStoreService       = m.kvService
-		telegrafSvc         platform.TelegrafConfigStore             = m.kvService
-		userResourceSvc     platform.UserResourceMappingService      = m.kvService
-		labelSvc            platform.LabelService                    = m.kvService
-		secretSvc           platform.SecretService                   = m.kvService
-		lookupSvc           platform.LookupService                   = m.kvService
-		notificationRuleSvc platform.NotificationRuleStore           = m.kvService
-		checkSvc            platform.CheckService                    = m.kvService
+		orgSvc                  platform.OrganizationService             = m.kvService
+		authSvc                 platform.AuthorizationService            = m.kvService
+		userSvc                 platform.UserService                     = m.kvService
+		variableSvc             platform.VariableService                 = m.kvService
+		bucketSvc               platform.BucketService                   = m.kvService
+		sourceSvc               platform.SourceService                   = m.kvService
+		sessionSvc              platform.SessionService                  = m.kvService
+		passwdsSvc              platform.PasswordsService                = m.kvService
+		dashboardSvc            platform.DashboardService                = m.kvService
+		dashboardLogSvc         platform.DashboardOperationLogService    = m.kvService
+		userLogSvc              platform.UserOperationLogService         = m.kvService
+		bucketLogSvc            platform.BucketOperationLogService       = m.kvService
+		orgLogSvc               platform.OrganizationOperationLogService = m.kvService
+		onboardingSvc           platform.OnboardingService               = m.kvService
+		scraperTargetSvc        platform.ScraperTargetStoreService       = m.kvService
+		telegrafSvc             platform.TelegrafConfigStore             = m.kvService
+		userResourceSvc         platform.UserResourceMappingService      = m.kvService
+		labelSvc                platform.LabelService                    = m.kvService
+		secretSvc               platform.SecretService                   = m.kvService
+		lookupSvc               platform.LookupService                   = m.kvService
+		notificationRuleSvc     platform.NotificationRuleStore           = m.kvService
+		notificationEndpointSvc platform.NotificationEndpointService     = m.kvService
+		checkSvc                platform.CheckService                    = m.kvService
 	)
 
 	switch m.secretStore {
@@ -628,6 +629,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		TaskService:                     taskSvc,
 		TelegrafService:                 telegrafSvc,
 		NotificationRuleStore:           notificationRuleSvc,
+		NotificationEndpointService:     notificationEndpointSvc,
 		CheckService:                    checkSvc,
 		ScraperTargetStoreService:       scraperTargetSvc,
 		ChronografService:               chronografSvc,
