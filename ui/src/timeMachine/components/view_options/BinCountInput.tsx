@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ChangeEvent} from 'react'
+import React, {FunctionComponent, ChangeEvent} from 'react'
 
 // Components
 import {AutoInput, AutoInputMode, Input, InputType} from '@influxdata/clockface'
@@ -12,45 +12,37 @@ interface Props {
   onSetBinCount: typeof setBinCount
 }
 
-class BinCountInput extends Component<Props> {
-  render() {
-    const {binCount} = this.props
-
-    return (
-      <AutoInput
-        mode={binCount ? AutoInputMode.Custom : AutoInputMode.Auto}
-        onChangeMode={this.handleChangeMode}
-        inputComponent={
-          <Input
-            name="binCount"
-            value={binCount}
-            placeholder="Enter a number"
-            type={InputType.Number}
-            min={0}
-            onChange={this.handleInputChange}
-          />
-        }
-      />
-    )
-  }
-
-  private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    const {onSetBinCount} = this.props
-
+const BinCountInput: FunctionComponent<Props> = ({binCount, onSetBinCount}) => {
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const binCount = Number(e.target.value) || null
 
     onSetBinCount(binCount)
   }
 
-  private handleChangeMode = (mode: AutoInputMode): void => {
-    const {onSetBinCount} = this.props
-
+  const handleChangeMode = (mode: AutoInputMode): void => {
     if (mode === AutoInputMode.Auto) {
       onSetBinCount(null)
     } else {
       onSetBinCount(30)
     }
   }
+
+  return (
+    <AutoInput
+      mode={binCount ? AutoInputMode.Custom : AutoInputMode.Auto}
+      onChangeMode={handleChangeMode}
+      inputComponent={
+        <Input
+          name="binCount"
+          value={binCount}
+          placeholder="Enter a number"
+          type={InputType.Number}
+          min={0}
+          onChange={handleInputChange}
+        />
+      }
+    />
+  )
 }
 
 export default BinCountInput
