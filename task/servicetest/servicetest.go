@@ -1078,7 +1078,7 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("wrong task ID on created task: got %s, want %s", rc0.Created.TaskID, task.ID)
 	}
 
-	startedAt := time.Now().UTC()
+	startedAt := time.Now().UTC().Add(time.Second * -10)
 
 	// Update the run state to Started; normally the scheduler would do this.
 	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.Created.RunID, startedAt, backend.RunStarted); err != nil {
@@ -1094,12 +1094,12 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt, backend.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second*2), backend.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1128,13 +1128,40 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("expected empty FinishedAt, got %q", runs[0].FinishedAt)
 	}
 
-	// Unspecified limit returns both runs.
+	// Create 3rd run and test limiting to 2 runs
+	rc2, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, startedAt.Add(time.Second*3), backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, startedAt.Add(time.Second*4), backend.RunSuccess); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	runs2, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs2) != 2 {
+		t.Fatalf("expected 2 runs, got %v", runs2)
+	}
+	if runs2[0].ID != rc0.Created.RunID {
+		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
+	}
+
+	// Unspecified limit returns all three runs.
 	runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(runs) != 2 {
-		t.Fatalf("expected 2 runs, got %v", runs)
+	if len(runs) != 3 {
+		t.Fatalf("expected 3 runs, got %v", runs)
 	}
 	if runs[0].ID != rc0.Created.RunID {
 		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc0.Created.RunID, runs[0].ID)
@@ -1152,13 +1179,13 @@ func testRunStorage(t *testing.T, sys *System) {
 	if runs[1].ID != rc1.Created.RunID {
 		t.Fatalf("retrieved wrong run ID; want %s, got %s", rc1.Created.RunID, runs[1].ID)
 	}
-	if runs[1].StartedAt != runs[0].StartedAt {
-		t.Fatalf("unexpected StartedAt; want %s, got %s", runs[0].StartedAt, runs[1].StartedAt)
+	if runs[1].StartedAt != startedAt.Add(time.Second).Format(time.RFC3339Nano) {
+		t.Fatalf("unexpected StartedAt; want %s, got %s", runs[0].StartedAt, startedAt.Add(time.Second))
 	}
 	if runs[1].Status != backend.RunSuccess.String() {
 		t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[0].Status)
 	}
-	if exp := startedAt.Add(time.Second).Format(time.RFC3339Nano); runs[1].FinishedAt != exp {
+	if exp := startedAt.Add(time.Second * 2).Format(time.RFC3339Nano); runs[1].FinishedAt != exp {
 		t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[1].FinishedAt)
 	}
 
