@@ -14,13 +14,16 @@ export const getView = (state: AppState, id: string): View => {
 
 export const getCheckForView = (
   state: AppState,
-  {properties}: View
+  view: View
 ): Partial<Check> => {
-  if (properties.type === 'check') {
-    const checkList = state.checks.list
-    const check = checkList.find(c => c.id == properties.checkID)
+  if (view) {
+    const properties = view.properties
+    if (properties.type === 'check') {
+      const checkList = state.checks.list
+      const check = checkList.find(c => c.id == properties.checkID)
 
-    return check
+      return check
+    }
   }
   return null
 }
