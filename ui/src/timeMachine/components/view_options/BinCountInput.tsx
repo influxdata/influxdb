@@ -12,26 +12,13 @@ interface Props {
   onSetBinCount: typeof setBinCount
 }
 
-interface State {
-  mode: AutoInputMode
-}
-
-class BinCountInput extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      mode: this.props.binCount ? AutoInputMode.Custom : AutoInputMode.Auto,
-    }
-  }
-
+class BinCountInput extends Component<Props> {
   render() {
     const {binCount} = this.props
-    const {mode} = this.state
 
     return (
       <AutoInput
-        mode={mode}
+        mode={binCount ? AutoInputMode.Custom : AutoInputMode.Auto}
         onChangeMode={this.handleChangeMode}
         inputComponent={
           <Input
@@ -50,7 +37,7 @@ class BinCountInput extends Component<Props, State> {
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const {onSetBinCount} = this.props
 
-    const binCount = e.target.value ? Number(e.target.value) : null
+    const binCount = Number(e.target.value) || null
 
     onSetBinCount(binCount)
   }
@@ -60,9 +47,9 @@ class BinCountInput extends Component<Props, State> {
 
     if (mode === AutoInputMode.Auto) {
       onSetBinCount(null)
+    } else {
+      onSetBinCount(30)
     }
-
-    this.setState({mode})
   }
 }
 
