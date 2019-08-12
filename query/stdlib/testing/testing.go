@@ -91,7 +91,6 @@ var FluxEndToEndSkipList = map[string]string{
 	"extract_regexp_findStringIndex": "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
 	"partition_strings_splitN":       "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
 
-	"holt_winters": "problem with big `inData`: https://github.com/influxdata/influxdb/issues/14574",
-	"to_int":       "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
-	"to_uint":      "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
+	"to_int":  "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
+	"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 }

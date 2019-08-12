@@ -144,7 +144,9 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 		for r.More() {
 			v := r.Next()
 			if err := v.Tables().Do(func(tbl flux.Table) error {
-				return nil
+				return tbl.Do(func(reader flux.ColReader) error {
+					return nil
+				})
 			}); err != nil {
 				t.Error(err)
 			}
@@ -165,7 +167,9 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	for r.More() {
 		v := r.Next()
 		if err := v.Tables().Do(func(tbl flux.Table) error {
-			return nil
+			return tbl.Do(func(reader flux.ColReader) error {
+				return nil
+			})
 		}); err != nil {
 			t.Error(err)
 		}
