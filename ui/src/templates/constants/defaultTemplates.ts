@@ -9,12 +9,13 @@ import {
   redis,
   system,
 } from '@influxdata/influxdb-templates'
+import {DashboardTemplate} from 'src/types'
 
-export const ossMetricsTemplate = () => {
+export const ossMetricsTemplate = (): DashboardTemplate => {
   return ossMetrics
 }
 
-export const staticTemplates = {
+export const staticTemplates: {[k: string]: DashboardTemplate} = {
   Apache: apache,
   Docker: docker,
   'getting-started': gettingStarted,
@@ -26,7 +27,7 @@ export const staticTemplates = {
   System: system,
 }
 
-export const influxdbTemplateList = [
+export const influxdbTemplateList: DashboardTemplate[] = [
   apache,
   docker,
   gettingStarted,
