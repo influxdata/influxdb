@@ -10,6 +10,10 @@ import {
   system,
 } from '@influxdata/influxdb-templates'
 
+export const ossMetricsTemplate = () => {
+  return ossMetrics
+}
+
 export const staticTemplates = {
   Apache: apache,
   Docker: docker,

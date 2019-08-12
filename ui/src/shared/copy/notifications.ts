@@ -8,6 +8,7 @@ import {NotificationStyle} from 'src/types/notifications'
 // Constants
 import {FIVE_SECONDS, TEN_SECONDS, INFINITE} from 'src/shared/constants/index'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
+import {QUICKSTART_DASHBOARD_NAME} from 'src/onboarding/constants/index'
 
 const bytesFormatter = binaryPrefixFormatter({
   suffix: 'B',
@@ -102,12 +103,12 @@ export const QuickstartScraperCreationError: Notification = {
 
 export const QuickstartDashboardCreationSuccess: Notification = {
   ...defaultSuccessNotification,
-  message: `The Local Metrics Dashboard has been created`,
+  message: `The ${QUICKSTART_DASHBOARD_NAME} Dashboard has been created`,
 }
 
 export const QuickstartDashboardCreationError: Notification = {
   ...defaultErrorNotification,
-  message: `Failed to create the Local Metrics Dashboard`,
+  message: `Failed to create ${QUICKSTART_DASHBOARD_NAME} Dashboard`,
 }
 
 export const TelegrafConfigCreationSuccess: Notification = {
