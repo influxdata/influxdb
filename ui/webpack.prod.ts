@@ -48,8 +48,6 @@ module.exports = merge(common, {
       filename: '[name].[hash].css',
       chunkFilename: '[id].[hash].css',
     }),
-    new ForkTsCheckerWebpackPlugin({
-      eslint: false,
-    }),
+    new ForkTsCheckerWebpackPlugin(),
   ],
 })
