@@ -356,14 +356,14 @@ export const getDashboardAsync = (dashboardID: string) => async (
       dispatch(getVariables()),
     ])
 
+    dispatch(getChecks())
+
     // Fetch all the views in use on the dashboard
     const views = await Promise.all(
       dashboard.cells.map(cell => getViewAJAX(dashboard.id, cell.id))
     )
 
     dispatch(setViews(RemoteDataState.Done, views))
-
-    dispatch(getChecks())
 
     // Ensure the values for the variables in use on the dashboard are populated
     await dispatch(refreshDashboardVariableValues(dashboard.id, views))
