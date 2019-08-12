@@ -76,6 +76,7 @@ export type Action =
   | ReturnType<typeof convertToCheckView>
   | ReturnType<typeof convertFromCheckView>
   | ReturnType<typeof toggleAlertingPanel>
+  | ReturnType<typeof toggleVisOptions>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -103,6 +104,10 @@ export const setActiveTab = (
 ): SetActiveTabAction => ({
   type: 'SET_ACTIVE_TAB',
   payload: {activeTab},
+})
+
+export const toggleVisOptions = () => ({
+  type: 'TOGGLE_VIS_OPTIONS' as 'TOGGLE_VIS_OPTIONS',
 })
 
 interface SetNameAction {

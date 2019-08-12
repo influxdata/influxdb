@@ -21,13 +21,17 @@ const INITIAL_RESIZER_HANDLE = 0.5
 
 interface StateProps {
   activeTab: TimeMachineTab
+  isViewingVisOptions: boolean
 }
 
-const TimeMachine: FunctionComponent<StateProps> = ({activeTab}) => {
+const TimeMachine: FunctionComponent<StateProps> = ({
+  activeTab,
+  isViewingVisOptions,
+}) => {
   const [dragPosition, setDragPosition] = useState([INITIAL_RESIZER_HANDLE])
 
   const containerClassName = classnames('time-machine', {
-    'time-machine--split': activeTab === 'visualization',
+    'time-machine--split': isViewingVisOptions,
   })
 
   let bottomContents: JSX.Element = null
@@ -65,15 +69,15 @@ const TimeMachine: FunctionComponent<StateProps> = ({activeTab}) => {
           </DraggableResizer.Panel>
         </DraggableResizer>
       </div>
-      {activeTab === 'visualization' && <ViewOptions />}
+      {isViewingVisOptions && <ViewOptions />}
     </>
   )
 }
 
 const mstp = (state: AppState) => {
-  const {activeTab} = getActiveTimeMachine(state)
+  const {activeTab, isViewingVisOptions} = getActiveTimeMachine(state)
 
-  return {activeTab}
+  return {activeTab, isViewingVisOptions}
 }
 
 export default connect<StateProps>(mstp)(TimeMachine)

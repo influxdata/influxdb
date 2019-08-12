@@ -59,6 +59,7 @@ export interface TimeMachineState {
   autoRefresh: AutoRefresh
   draftQueries: DashboardDraftQuery[]
   isViewingRawData: boolean
+  isViewingVisOptions: boolean
   activeTab: TimeMachineTab
   activeQueryIndex: number | null
   queryBuilder: QueryBuilderState
@@ -80,6 +81,7 @@ export const initialStateHelper = (): TimeMachineState => ({
   view: createView(),
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
+  isViewingVisOptions: false,
   activeTab: 'queries',
   activeQueryIndex: 0,
   queryResults: initialQueryResultsState(),
@@ -242,6 +244,10 @@ export const timeMachineReducer = (
       const {activeTab} = action.payload
 
       return {...state, activeTab}
+    }
+
+    case 'TOGGLE_VIS_OPTIONS': {
+      return {...state, isViewingVisOptions: !state.isViewingVisOptions}
     }
 
     case 'SET_AXES': {
