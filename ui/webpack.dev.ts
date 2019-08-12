@@ -43,8 +43,6 @@ module.exports = merge(common, {
       context: path.join(__dirname, 'build'),
       manifest: require('./build/vendor-manifest.json'),
     }),
-    new ForkTsCheckerWebpackPlugin({
-      eslint: true,
-    }),
+    new ForkTsCheckerWebpackPlugin(),
   ],
 })
