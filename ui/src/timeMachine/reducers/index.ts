@@ -241,6 +241,7 @@ export const timeMachineReducer = (
 
     case 'SET_ACTIVE_TAB': {
       const {activeTab} = action.payload
+
       return {...state, activeTab}
     }
 
@@ -808,14 +809,29 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'REMOVE_CHECK_FROM_VIEW': {
+    case 'CONVERT_TO_CHECK_VIEW': {
+      const view = convertView(state.view, 'check')
+
+      return {...state, view, activeTab: 'alerting'}
+    }
+
+    case 'CONVERT_FROM_CHECK_VIEW': {
       const view = convertView(state.view, 'xy')
+
       return {...state, view, activeTab: 'queries'}
     }
 
-    case 'ADD_CHECK_TO_VIEW': {
-      const view = convertView(state.view, 'check')
-      return {...state, view, activeTab: 'alerting'}
+    case 'TOGGLE_ALERTING_PANEL': {
+      if (
+        state.activeTab === 'queries' &&
+        state.view.properties.type === 'check'
+      ) {
+        return {...state, activeTab: 'alerting'}
+      } else if (state.activeTab === 'queries') {
+        return {...state, activeTab: 'alertingNotice'}
+      } else {
+        return {...state, activeTab: 'queries'}
+      }
     }
   }
 
