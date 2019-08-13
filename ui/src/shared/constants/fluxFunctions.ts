@@ -2957,6 +2957,16 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/rename/',
   },
   {
+    name: 'runtime.version',
+    args: [],
+    package: 'runtime',
+    desc: 'Returns the current Flux version.',
+    example: 'runtime.version()',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/runtime/version/',
+  },
+  {
     name: 'sample',
     args: [
       {
