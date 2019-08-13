@@ -23,7 +23,10 @@ $event-table--field-margin: $ix-marg-b;
 
   > * {
     flex-grow: 1;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 }
 

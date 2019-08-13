@@ -30,7 +30,12 @@ const rowsRequest = (rows, delay) => {
   return {promise, cancel}
 }
 
-export const fakeLoadRows: LoadRows = ({offset, limit, since, filter}) => {
+export const fakeLoadStatusRows: LoadRows = ({
+  offset,
+  limit,
+  since,
+  filter,
+}) => {
   if (offset >= ROW_COUNT) {
     return rowsRequest([], 500)
   }
@@ -38,8 +43,8 @@ export const fakeLoadRows: LoadRows = ({offset, limit, since, filter}) => {
   const allRows = range(ROW_COUNT).map(i => ({
     time: since - 1000 * 30 * i,
     checkID: '123',
-    checkName: i % 5 === 0 ? 'high mem' : 'low CPU',
-    status: notFizzBuzz(i),
+    check: i % 5 === 0 ? 'high mem' : 'low CPU',
+    level: notFizzBuzz(i),
     message: `hello from row ${i}`,
     tags: {host: 'pt2ph8', environment: 'dev'},
   }))
@@ -50,8 +55,45 @@ export const fakeLoadRows: LoadRows = ({offset, limit, since, filter}) => {
     currentRows = currentRows.filter(
       row =>
         row.message.includes((filter as any).right.right) ||
-        row.checkName.includes((filter as any).left.right)
+        row.check.includes((filter as any).left.right)
     )
+  }
+
+  currentRows = currentRows.slice(offset, Math.min(ROW_COUNT, offset + limit))
+
+  return rowsRequest(currentRows, 1000)
+}
+
+export const fakeLoadNotificationRows: LoadRows = ({
+  offset,
+  limit,
+  since,
+  filter,
+}) => {
+  if (offset >= ROW_COUNT) {
+    return rowsRequest([], 500)
+  }
+
+  const allRows = range(ROW_COUNT).map(i => ({
+    time: since - 1000 * 30 * i,
+    level: notFizzBuzz(i),
+    check: 'some check',
+    checkID: '123',
+    notificationRule: 'notification rule for endpoint',
+    notificationRuleID: '123',
+    notificationEndpoint: 'Pager Duty',
+    notificationEndpointID: '123',
+    sent: Math.random() > 0.2,
+  }))
+
+  let currentRows = allRows
+
+  if (filter) {
+    // currentRows = currentRows.filter(
+    //   row =>
+    //     row.message.includes((filter as any).right.right) ||
+    //     row.check.includes((filter as any).left.right)
+    // )
   }
 
   currentRows = currentRows.slice(offset, Math.min(ROW_COUNT, offset + limit))

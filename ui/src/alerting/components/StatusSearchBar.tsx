@@ -1,6 +1,6 @@
 // Libraries
 import React, {useState, FC} from 'react'
-import {Input} from '@influxdata/clockface'
+import {Input, IconFont} from '@influxdata/clockface'
 import {isEqual} from 'lodash'
 
 // Actions
@@ -65,8 +65,9 @@ const StatusSearchBar: FC<Props> = ({state, dispatch, loadRows}) => {
 
   return (
     <Input
+      icon={IconFont.Search}
       className="status-search-bar"
-      placeholder="Status message or check name..."
+      placeholder='e.g. "crit" or "my check"'
       value={searchTerm}
       onChange={e => setSearchTerm(e.target.value)}
     />

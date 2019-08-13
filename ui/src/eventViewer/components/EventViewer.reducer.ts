@@ -45,8 +45,8 @@ export type Action =
   | {type: 'NEXT_ROWS_LOADING'; cancel: () => void; now?: number}
   | {type: 'SEARCH_ENTERED'; cancel: () => void; expr: SearchExpr; now: number}
   | {type: 'SEARCH_COMPLETED'; rows: Row[]; limit: number}
-  | {type: 'SEARCH_CLEARED'; now: number; cancel: () => void}
   | {type: 'SEARCH_FAILED'; errorMessage: string}
+  | {type: 'SEARCH_CLEARED'; now: number; cancel: () => void}
   | {type: 'SCROLLED'; scrollTop: number}
   | {type: 'CONSUMED_NEXT_SCROLL_INDEX'}
   | {type: 'CLICKED_BACK_TO_TOP'}
@@ -138,6 +138,7 @@ export const reducer = (state: State, action: Action): State => {
         offset: 0,
         now: action.now,
         nextRowsStatus: RemoteDataState.Loading,
+        nextScrollIndex: 0,
         hasReachedEnd: false,
         nextRowsCanceller: action.cancel,
         searchExpr: null,
@@ -169,6 +170,7 @@ export const reducer = (state: State, action: Action): State => {
         nextRowsStatus: RemoteDataState.Loading,
         hasReachedEnd: false,
         nextRowsCanceller: action.cancel,
+        nextScrollIndex: 0,
       }
     }
 
