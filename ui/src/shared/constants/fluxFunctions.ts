@@ -509,6 +509,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/monthday/',
   },
   {
+    name: 'date.nanosecond',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 
+      'Returns the nanosecond of a specified time. Results range from `[1-999999999]`.',
+    example: 'date.nanosecond(t: 2019-07-17T12:05:21.012934584Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/nanosecond/',
+  },
+  {
     name: 'date.second',
     args: [
       {
