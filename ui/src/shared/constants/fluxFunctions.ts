@@ -251,6 +251,30 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/buckets/',
   },
   {
+    name: 'chandeMomentumOscillator',
+    args: [
+      {
+        name: 'n',
+        desc: 
+          'The period or number of points to use in the calculation.',
+        type: 'Integer',
+      },
+      {
+        name: 'columns',
+        desc: 'Columns to operate on. Defaults to `["_value"]`.',
+        type: 'Array of Strings`',
+      },
+    ],
+    package: '',
+    desc: 
+      'Applies the technical momentum indicator developed by Tushar Chande.',
+    example: 
+      'chandeMomentumOscillator(n: 10, columns: ["_value"])',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/chandemomentumoscillator/',
+  },
+  {
     name: 'columns',
     args: [
       {
