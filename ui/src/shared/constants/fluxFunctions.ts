@@ -695,15 +695,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The number of points to average.',
         type: 'Integer',
       },
-      {
-        name: 'columns',
-        desc: 'Columns to operate on. Defaults to `["_value"]`.',
-        type: 'Array of Strings`',
-      },
     ],
     package: '',
     desc:
-      'Calculates the exponential moving average of values grouped into `n` number of points, giving more weight to recent data.',
+      'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data.',
     example: 'exponentialMovingAverage(n: 5)',
     category: 'Aggregates',
     link:
