@@ -600,6 +600,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/distinct/',
   },
   {
+    name: 'doubleEMA',
+    args: [
+      {
+        name: 'n',
+        desc: 'The number of points to average.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data at double the rate of `exponentialMovingAverage()`.',
+    example: 'doubleEMA(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/doubleema/',
+  },
+  {
     name: 'drop',
     args: [
       {
