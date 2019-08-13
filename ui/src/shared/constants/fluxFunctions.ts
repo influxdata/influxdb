@@ -617,6 +617,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/weekday/',
   },
   {
+    name: 'date.year',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 'Returns the year of a specified time.',
+    example: 'date.year(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/year/',
+  },
+  {
     name: 'date.yearDay',
     args: [
       {
