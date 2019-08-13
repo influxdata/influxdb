@@ -16,23 +16,14 @@ import {
 } from 'src/eventViewer/components/EventViewer.reducer'
 
 // Types
-import {EventViewerChildProps, FieldComponents} from 'src/eventViewer/types'
+import {EventViewerChildProps, Fields} from 'src/eventViewer/types'
 import {RemoteDataState} from 'src/types'
 
 type Props = EventViewerChildProps & {
-  fields: string[]
-  fieldWidths: {[field: string]: number}
-  fieldComponents: FieldComponents
+  fields: Fields
 }
 
-const EventTable: FC<Props> = ({
-  state,
-  dispatch,
-  loadRows,
-  fields,
-  fieldWidths,
-  fieldComponents,
-}) => {
+const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
   const rowCount = getRowCount(state)
 
   const isRowLoaded = ({index}) => !!state.rows[index]
@@ -60,8 +51,6 @@ const EventTable: FC<Props> = ({
         style={style}
         row={state.rows[index]}
         fields={fields}
-        fieldWidths={fieldWidths}
-        fieldComponents={fieldComponents}
       />
     )
   }
@@ -75,7 +64,7 @@ const EventTable: FC<Props> = ({
 
   return (
     <div className="event-table">
-      <Header fields={fields} fieldWidths={fieldWidths} />
+      <Header fields={fields} />
       <div className="event-table--table">
         <AutoSizer>
           {({width, height}) => {

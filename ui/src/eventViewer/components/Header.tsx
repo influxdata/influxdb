@@ -1,34 +1,22 @@
+// Libraries
 import React, {FC} from 'react'
 
-// Adds spaces to camelcased names, e.g. "checkName" to "check Name"
-const stylizeName = (name: string): string => {
-  let result = ''
-
-  for (const c of name) {
-    if (c === c.toUpperCase()) {
-      result = result + ' ' + c
-    } else {
-      result = result + c
-    }
-  }
-
-  return result.toUpperCase()
-}
+// Types
+import {Fields} from 'src/eventViewer/types'
 
 interface Props {
-  fields: string[]
-  fieldWidths: {[field: string]: number}
+  fields: Fields
 }
 
-const Header: FC<Props> = ({fields, fieldWidths}) => {
+const Header: FC<Props> = ({fields}) => {
   return (
     <div className="event-table-header">
-      {fields.map(field => {
-        const style = {flexBasis: `${fieldWidths[field]}px`}
+      {fields.map(({rowKey, columnWidth, columnName}) => {
+        const style = {flexBasis: `${columnWidth}px`}
 
         return (
-          <div key={field} className="event-table-header--field" style={style}>
-            {stylizeName(field)}
+          <div key={rowKey} className="event-table-header--field" style={style}>
+            {columnName}
           </div>
         )
       })}

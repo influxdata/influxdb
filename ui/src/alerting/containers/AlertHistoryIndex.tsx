@@ -10,11 +10,7 @@ import AlertHistoryControls from 'src/alerting/containers/AlertHistoryControls'
 // Constants
 import {
   STATUS_FIELDS,
-  STATUS_FIELD_COMPONENTS,
-  STATUS_FIELD_WIDTHS,
   NOTIFICATION_FIELDS,
-  NOTIFICATION_FIELD_COMPONENTS,
-  NOTIFICATION_FIELD_WIDTHS,
 } from 'src/alerting/constants/history'
 
 // Utils
@@ -37,14 +33,6 @@ const AlertHistoryIndex: FC = () => {
 
   const fields =
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
-
-  const fieldWidths =
-    historyType === 'statuses' ? STATUS_FIELD_WIDTHS : NOTIFICATION_FIELD_WIDTHS
-
-  const fieldComponents =
-    historyType === 'statuses'
-      ? STATUS_FIELD_COMPONENTS
-      : NOTIFICATION_FIELD_COMPONENTS
 
   return (
     <EventViewer loadRows={loadRows}>
@@ -70,12 +58,7 @@ const AlertHistoryIndex: FC = () => {
             className="alert-history-page--contents"
           >
             <div className="alert-history">
-              <EventTable
-                {...props}
-                fields={fields}
-                fieldWidths={fieldWidths}
-                fieldComponents={fieldComponents}
-              />
+              <EventTable {...props} fields={fields} />
             </div>
           </Page.Contents>
         </Page>

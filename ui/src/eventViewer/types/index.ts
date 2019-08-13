@@ -45,6 +45,11 @@ export interface EventViewerChildProps {
   loadRows: LoadRows
 }
 
-export interface FieldComponents {
-  [fieldName: string]: ComponentType<{row: Row}>
+export interface Field {
+  rowKey: string
+  columnName: string
+  columnWidth: number
+  component?: ComponentType<{row: Row}>
 }
+
+export type Fields = Field[]
