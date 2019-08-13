@@ -118,9 +118,11 @@
 @import 'src/alerting/components/builder/AlertBuilder.scss';
 @import 'src/eventViewer/components/EventTable.scss';
 @import 'src/alerting/containers/AlertHistoryIndex.scss';
-@import 'src/alerting/components/StatusTableField.scss';
+@import 'src/alerting/containers/AlertHistoryControls.scss';
+@import 'src/alerting/components/LevelTableField.scss';
 @import 'src/alerting/components/TagsTableField.scss';
 @import 'src/timeMachine/components/AddCheckDialog.scss';
+@import 'src/alerting/components/SentTableField.scss';
 
 // External
 @import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';

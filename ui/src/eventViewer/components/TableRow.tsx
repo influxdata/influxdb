@@ -24,13 +24,19 @@ const TableRow: FC<Props> = ({
           const Component = fieldComponents[field]
           const style = {flexBasis: `${fieldWidths[field]}px`}
 
+          let content
+
+          if (row[field] === undefined) {
+            content = null
+          } else if (Component) {
+            content = <Component key={field} row={row} />
+          } else {
+            content = String(row[field])
+          }
+
           return (
             <div key={field} className="event-row--field" style={style}>
-              {Component ? (
-                <Component key={field} row={row} />
-              ) : (
-                String(row[field])
-              )}
+              {content}
             </div>
           )
         })}

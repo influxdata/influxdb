@@ -55,3 +55,5 @@ export {
 import {Check} from '../client'
 
 export type CheckType = Check['type']
+
+export type AlertHistoryType = 'statuses' | 'notifications'
