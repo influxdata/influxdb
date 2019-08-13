@@ -678,14 +678,21 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
       {
-        name: 'column',
-        desc: 'The column on which to operate. Defaults to `"_value"`.',
-        type: 'String',
+        name: 'columns',
+        desc: 
+          'The columns to use to compute the difference. Defaults to `"_value"`.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'keepFirst',
+        desc: 
+          'Indicates the first row should be kept. If `true`, the difference will be `null`. Defaults to `false`.',
+        type: 'Boolean',
       },
     ],
     package: '',
     desc:
-      'Computes the difference between subsequent records in the specified column.',
+      'Computes the difference between subsequent non-null records in the specified columns.',
     example: 'difference(nonNegative: false, column: "_value")',
     category: 'Aggregates',
     link:
