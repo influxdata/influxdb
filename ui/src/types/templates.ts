@@ -29,7 +29,7 @@ interface DocumentMetaWithTemplateID extends DocumentMeta {
 export interface TemplateBase extends Document {
   meta: DocumentMetaWithTemplateID
   content: {data: TemplateData; included: TemplateIncluded[]}
-  labels?: ILabel[]
+  labels: ILabel[]
 }
 
 // TODO: be more specific about what attributes can be

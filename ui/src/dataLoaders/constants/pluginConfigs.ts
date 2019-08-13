@@ -170,7 +170,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputNginx.TypeEnum.Input,
       config: {urls: []},
     },
-    templateID:'0000000000000006',
+    templateID: '0000000000000006',
   },
   [TelegrafPluginInputProcesses.NameEnum.Processes]: {
     fields: null,
@@ -207,7 +207,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputRedis.TypeEnum.Input,
       config: {servers: [], password: ''},
     },
-    templateID:'0000000000000008',
+    templateID: '0000000000000008',
   },
   [TelegrafPluginInputSyslog.NameEnum.Syslog]: {
     fields: {server: {type: ConfigFieldType.String, isRequired: true}},

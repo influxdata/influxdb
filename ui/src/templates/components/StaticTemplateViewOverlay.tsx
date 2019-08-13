@@ -8,9 +8,9 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {DocumentCreate} from '@influxdata/influx'
 
 import {staticTemplates} from 'src/templates/constants/defaultTemplates'
+import {DashboardTemplate} from 'src/types'
 
 interface OwnProps {
   params: {id: string}
@@ -31,7 +31,7 @@ class TemplateExportOverlay extends PureComponent<Props> {
     )
   }
 
-  private get template(): DocumentCreate {
+  private get template(): DashboardTemplate {
     const {
       params: {id},
     } = this.props
