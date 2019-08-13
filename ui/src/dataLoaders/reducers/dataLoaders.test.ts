@@ -86,11 +86,13 @@ describe('dataLoader reducer', () => {
             name: TelegrafPluginInputCpu.NameEnum.Cpu,
             configured: ConfigurationState.Unconfigured,
             active: true,
+            templateID: '0000000000000009',
           },
           {
             name: TelegrafPluginInputDisk.NameEnum.Disk,
             configured: ConfigurationState.Unconfigured,
             active: false,
+            templateID: '0000000000000009',
           },
         ],
       },
@@ -126,11 +128,13 @@ describe('dataLoader reducer', () => {
             name: TelegrafPluginInputDisk.NameEnum.Disk,
             configured: ConfigurationState.Configured,
             active: false,
+            templateID: '0000000000000009',
           },
           {
             name: TelegrafPluginInputFile.NameEnum.File,
             configured: ConfigurationState.Configured,
             active: false,
+            templateID: '0000000000000009',
             plugin: {
               name: TelegrafPluginInputFile.NameEnum.File,
               type: TelegrafPluginInputFile.TypeEnum.Input,
@@ -178,6 +182,7 @@ describe('dataLoader reducer', () => {
           {
             name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,
             configured: ConfigurationState.Unconfigured,
+            templateID: '0000000000000005',
             active: false,
             plugin: {
               name: TelegrafPluginInputKubernetes.NameEnum.Kubernetes,

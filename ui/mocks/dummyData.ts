@@ -326,36 +326,42 @@ export const telegrafPlugin = {
 export const cpuTelegrafPlugin = {
   ...telegrafPlugin,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const diskTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputDisk.NameEnum.Disk,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const diskioTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputDiskio.NameEnum.Diskio,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const netTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputNet.NameEnum.Net,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const memTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputMem.NameEnum.Mem,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const processesTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputProcesses.NameEnum.Processes,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const procstatTelegrafPlugin = {
@@ -368,17 +374,20 @@ export const systemTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputSystem.NameEnum.System,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const redisTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputRedis.NameEnum.Redis,
+  templateID: '0000000000000008',
 }
 
 export const swapTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputSwap.NameEnum.Swap,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000009',
 }
 
 export const redisPlugin = {
@@ -394,6 +403,7 @@ export const dockerTelegrafPlugin = {
   ...telegrafPlugin,
   name: TelegrafPluginInputDocker.NameEnum.Docker,
   configured: ConfigurationState.Configured,
+  templateID: '0000000000000002',
 }
 
 export const influxDB2Plugin = {

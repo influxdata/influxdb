@@ -129,6 +129,7 @@ export interface TelegrafPlugin {
   configured: ConfigurationState
   active: boolean
   plugin?: Plugin
+  templateID?: string
 }
 
 export enum BundleName {
@@ -201,6 +202,7 @@ export interface TelegrafPluginInfo {
   [name: string]: {
     fields: ConfigFields
     defaults: Plugin
+    templateID?: string
   }
 }
 
