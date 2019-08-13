@@ -1190,6 +1190,37 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/holtwinters/',
   },
   {
+    name: 'hourSelection',
+    args: [
+      {
+        name: 'start',
+        desc: 
+          'The first hour of the hour range (inclusive). Hours range from `[0-23]`',
+        type: 'Integer',
+      },
+      {
+        name: 'stop',
+        desc: 
+          'The last hour of the hour range (inclusive). Hours range from `[0-23]`.',
+        type: 'Integer`',
+      },
+      {
+        name: 'timeColumn',
+        desc: 
+          'The column that contains the time value. Default is `"_time"`.',
+        type: 'String`',
+      },
+    ],
+    package: '',
+    desc: 
+      'Retains all rows with time values in a specified hour range. Hours are specified in military time.',
+    example: 
+      'hourSelection(start: 9, stop: 17, timeColumn: "_time")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/hourselection/',
+  },
+  {
     name: 'increase',
     args: [
       {
