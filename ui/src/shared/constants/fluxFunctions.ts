@@ -2757,6 +2757,29 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/splitregexp/',
   },
   {
+    name: 'relativeStrengthIndex',
+    args: [
+      {
+        name: 'n',
+        desc: 
+          'The number of values to use to calculate the relative strength index (RSI).',
+        type: 'Integer',
+      },
+      {
+        name: 'columns',
+        desc: 'Columns to operate on. Defaults to `["_value"]`.',
+        type: 'Array of Strings`',
+      },
+    ],
+    package: '',
+    desc:
+      'Measures the relative speed and change of values in an input table.',
+    example: 'relativeStrengthIndex(n: 5, columns: ["_value"])',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/relativestrengthindex/',
+  },
+  {
     name: 'rename',
     args: [
       {
