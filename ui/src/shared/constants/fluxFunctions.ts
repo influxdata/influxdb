@@ -990,6 +990,51 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/histogramquantile/',
   },
   {
+    name: 'holtWinters',
+    args: [
+      {
+        name: 'n',
+        desc: 'Number of values to predict.',
+        type: 'Integer',
+      },
+      {
+        name: 'seasonality',
+        desc: 'Number of points in a season. Defaults to `0`.',
+        type: 'Integer',
+      },
+      {
+        name: 'interval',
+        desc: 'The interval between two data points.',
+        type: 'Duration',
+      },
+      {
+        name: 'withFit',
+        desc: 
+          'Returns "fitted" data points in results when `withFit` is set to `true`. Defaults to `false`.',
+        type: 'Boolean',
+      },
+      {
+        name: 'timeColumn',
+        desc: 'The time column to use. Defaults to `"_time"`.',
+        type: 'String',
+      },
+      {
+        name: 'column',
+        desc:
+          'The column to operate on. Defaults to `"_value"`.',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Applies the Holt-Winters forecasting method to input tables. The Holt-Winters method predicts `n` seasonally-adjusted values for the specified `column` at the specified `interval`.',
+    example:
+      'holtWinters(n: 10, seasonality: 4, interval: 30d, withFit: false, column: "_value")',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/holtwinters/',
+  },
+  {
     name: 'increase',
     args: [
       {
