@@ -1,9 +1,7 @@
 package scheduler
 
 import (
-	"time"
-
-	"github.com/influxdata/influxdb/task/backend"
+	//"github.com/influxdata/influxdb/task/backend"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -58,7 +56,7 @@ func NewSchedulerMetrics(te *TreeScheduler) *SchedulerMetrics {
 			Namespace:  namespace,
 			Subsystem:  subsystem,
 			Name:       "schedule_delay",
-			Help:       "The duration between when a item should be scheduled and when it is told to execute.",
+			Help:       "The duration between when a Item should be scheduled and when it is told to execute.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 		}),
 
@@ -92,18 +90,6 @@ func (em *SchedulerMetrics) release(taskID ID) {
 	em.releaseCalls.Inc()
 }
 
-func (em *SchedulerMetrics) startExecution(taskID ID, scheduleDelay time.Duration) {
-	em.totalExecuteCalls.Inc()
-	em.scheduleDelay.Observe(scheduleDelay.Seconds())
-}
-
-func (em *SchedulerMetrics) finishExecution(taskID ID, failure bool, status backend.RunStatus, executeDelta time.Duration) {
-	em.executeDelta.Observe(executeDelta.Seconds())
-	if failure {
-		em.totalExecuteFailure.Inc()
-	}
-}
-
 func newExecutingTasks(ts *TreeScheduler) *executingTasks {
 	return &executingTasks{
 		desc: prometheus.NewDesc(
@@ -123,5 +109,6 @@ func (r *executingTasks) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the run collector.
 func (r *executingTasks) Collect(ch chan<- prometheus.Metric) {
-	ch <- prometheus.MustNewConstMetric(r.desc, prometheus.GaugeValue, float64(len(r.ts.sema)))
+	// TODO(docmerlin): fix this metric
+	ch <- prometheus.MustNewConstMetric(r.desc, prometheus.GaugeValue, float64(len(r.ts.workchans)))
 }
