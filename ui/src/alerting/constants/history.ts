@@ -8,48 +8,75 @@ import NotificationEndpointTableField from 'src/alerting/components/Notification
 import SentTableField from 'src/alerting/components/SentTableField'
 
 // Types
-import {FieldComponents} from 'src/eventViewer/types'
+import {Fields} from 'src/eventViewer/types'
 
-export const STATUS_FIELDS = ['time', 'level', 'check', 'message', 'tags']
-
-export const STATUS_FIELD_COMPONENTS: FieldComponents = {
-  time: TimeTableField,
-  level: LevelTableField,
-  tags: TagsTableField,
-  check: CheckTableField,
-}
-
-export const STATUS_FIELD_WIDTHS = {
-  time: 160,
-  check: 150,
-  message: 300,
-  level: 50,
-  tags: 300,
-}
-
-export const NOTIFICATION_FIELDS = [
-  'time',
-  'level',
-  'check',
-  'notificationRule',
-  'notificationEndpoint',
-  'sent',
+export const STATUS_FIELDS: Fields = [
+  {
+    rowKey: 'time',
+    columnName: 'Time',
+    columnWidth: 160,
+    component: TimeTableField,
+  },
+  {
+    rowKey: 'level',
+    columnName: 'Level',
+    columnWidth: 50,
+    component: LevelTableField,
+  },
+  {
+    rowKey: 'check',
+    columnName: 'Check',
+    columnWidth: 150,
+    component: CheckTableField,
+  },
+  {
+    rowKey: 'message',
+    columnName: 'Message',
+    columnWidth: 300,
+  },
+  {
+    rowKey: 'tags',
+    columnName: 'Tags',
+    columnWidth: 300,
+    component: TagsTableField,
+  },
 ]
 
-export const NOTIFICATION_FIELD_COMPONENTS: FieldComponents = {
-  time: TimeTableField,
-  level: LevelTableField,
-  check: CheckTableField,
-  notificationRule: NotificationRuleTableField,
-  notificationEndpoint: NotificationEndpointTableField,
-  sent: SentTableField,
-}
-
-export const NOTIFICATION_FIELD_WIDTHS = {
-  time: 160,
-  level: 50,
-  check: 150,
-  notificationRule: 200,
-  notificationEndpoint: 200,
-  sent: 50,
-}
+export const NOTIFICATION_FIELDS: Fields = [
+  {
+    rowKey: 'time',
+    columnName: 'Time',
+    columnWidth: 160,
+    component: TimeTableField,
+  },
+  {
+    rowKey: 'level',
+    columnName: 'Level',
+    columnWidth: 50,
+    component: LevelTableField,
+  },
+  {
+    rowKey: 'check',
+    columnName: 'Check',
+    columnWidth: 150,
+    component: CheckTableField,
+  },
+  {
+    rowKey: 'notificationRule',
+    columnName: 'Notification Rule',
+    columnWidth: 200,
+    component: NotificationRuleTableField,
+  },
+  {
+    rowKey: 'notificationEndpoint',
+    columnName: 'Notification Endpoint',
+    columnWidth: 200,
+    component: NotificationEndpointTableField,
+  },
+  {
+    rowKey: 'sent',
+    columnName: 'Sent',
+    columnWidth: 50,
+    component: SentTableField,
+  },
+]

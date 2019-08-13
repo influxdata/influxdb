@@ -1,41 +1,32 @@
 import React, {FC, CSSProperties} from 'react'
 
-import {Row, FieldComponents} from 'src/eventViewer/types'
+import {Row, Fields} from 'src/eventViewer/types'
 
 interface Props {
   row: Row
   style: CSSProperties
-  fields: string[]
-  fieldWidths: {[field: string]: number}
-  fieldComponents: FieldComponents
+  fields: Fields
 }
 
-const TableRow: FC<Props> = ({
-  row,
-  style,
-  fields,
-  fieldComponents,
-  fieldWidths,
-}) => {
+const TableRow: FC<Props> = ({row, style, fields}) => {
   return (
     <div style={style}>
       <div className="event-row">
-        {fields.map(field => {
-          const Component = fieldComponents[field]
-          const style = {flexBasis: `${fieldWidths[field]}px`}
+        {fields.map(({component: Component, columnWidth, rowKey}) => {
+          const style = {flexBasis: `${columnWidth}px`}
 
           let content
 
-          if (row[field] === undefined) {
+          if (row[rowKey] === undefined) {
             content = null
           } else if (Component) {
-            content = <Component key={field} row={row} />
+            content = <Component key={rowKey} row={row} />
           } else {
-            content = String(row[field])
+            content = String(row[rowKey])
           }
 
           return (
-            <div key={field} className="event-row--field" style={style}>
+            <div key={rowKey} className="event-row--field" style={style}>
               {content}
             </div>
           )
