@@ -4037,6 +4037,30 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/system/time/',
   },
   {
+    name: 'tail',
+    args: [
+      {
+        name: 'n',
+        desc: 'The maximum number of records to output.',
+        type: 'Integer',
+      },
+      {
+        name: 'offset',
+        desc:
+          'The number of records to skip at the end of a table before limiting to `n`. Defaults to `0`.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc: 
+      'Limits each output table to the last `n` records.',
+    example: 
+      'tail(n: 10, offset: 0)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/tail/',
+  },
+  {
     name: 'testing.assertEmpty',
     args: [],
     package: 'testing',
