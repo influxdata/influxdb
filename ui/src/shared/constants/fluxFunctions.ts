@@ -425,6 +425,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/hour/',
   },
   {
+    name: 'date.microsecond',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 
+      'Returns the microsecond of a specified time. Results range from `[1-999999]`.',
+    example: 'date.microsecond(t: 2019-07-17T12:05:21.012934584Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/microsecond/',
+  },
+  {
     name: 'date.minute',
     args: [
       {
