@@ -560,6 +560,29 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/second/',
   },
   {
+    name: 'date.truncate',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+      {
+        name: 'unit',
+        desc: 
+          'The unit time to truncate to. Only use `1` and the unit of time to specify the `unit`. For example, `1s`, `1m`, `1h`.',
+        type: 'Duration',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Truncates the time to a specified unit. Results range from `[0-59]`.',
+    example: 'date.truncate(t: 2019-07-17T12:05:21.012Z, unit: 1s)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/truncate/',
+  },
+  {
     name: 'date.weekDay',
     args: [
       {
