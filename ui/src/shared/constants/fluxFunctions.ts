@@ -583,6 +583,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/truncate/',
   },
   {
+    name: 'date.week',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 
+      'Returns the ISO week of the year for a specified time. Results range from `[1-53]`.',
+    example: 'date.week(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/week/',
+  },
+  {
     name: 'date.weekDay',
     args: [
       {
