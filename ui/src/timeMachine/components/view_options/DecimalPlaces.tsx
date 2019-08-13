@@ -1,9 +1,15 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {Form, Grid} from '@influxdata/clockface'
-import {AutoInput} from 'src/clockface'
+import {
+  Form,
+  Grid,
+  AutoInput,
+  AutoInputMode,
+  Input,
+  InputType,
+} from '@influxdata/clockface'
 
 // Constants
 import {MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES} from 'src/dashboards/constants'
@@ -18,30 +24,48 @@ interface Props extends DecimalPlaces {
   onDecimalPlacesChange: (decimalPlaces: DecimalPlaces) => void
 }
 
+interface State {
+  mode: AutoInputMode
+}
+
 @ErrorHandling
-class DecimalPlacesOption extends PureComponent<Props> {
+class DecimalPlacesOption extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
+
+    this.state = {
+      mode: this.props.digits ? AutoInputMode.Custom : AutoInputMode.Auto,
+    }
   }
 
   public render() {
+    const {mode} = this.state
+
     return (
       <Grid.Column>
         <Form.Element label="Decimal Places">
           <AutoInput
-            name="decimal-places"
-            inputPlaceholder="Enter a number"
-            onChange={this.handleSetValue}
-            value={this.value}
-            min={MIN_DECIMAL_PLACES}
-            max={MAX_DECIMAL_PLACES}
+            mode={mode}
+            onChangeMode={this.handleChangeMode}
+            inputComponent={
+              <Input
+                name="decimal-places"
+                placeholder="Enter a number"
+                onChange={this.handleSetValue}
+                value={this.value}
+                min={MIN_DECIMAL_PLACES}
+                max={MAX_DECIMAL_PLACES}
+                type={InputType.Number}
+              />
+            }
           />
         </Form.Element>
       </Grid.Column>
     )
   }
 
-  public handleSetValue = (value: number): void => {
+  public handleSetValue = (e: ChangeEvent<HTMLInputElement>): void => {
+    const value = Number(e.target.value) || 0
     const {digits, onDecimalPlacesChange} = this.props
 
     if (value === null) {
@@ -49,6 +73,10 @@ class DecimalPlacesOption extends PureComponent<Props> {
     } else {
       onDecimalPlacesChange({digits: value, isEnforced: true})
     }
+  }
+
+  private handleChangeMode = (mode: AutoInputMode): void => {
+    this.setState({mode})
   }
 
   private get value(): number {
