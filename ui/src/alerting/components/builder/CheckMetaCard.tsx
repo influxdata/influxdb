@@ -16,7 +16,7 @@ import {
 import {Input} from '@influxdata/clockface'
 
 // Actions
-import {updateTimeMachineCheck, changeCheckType} from 'src/TimeMachine/actions'
+import {updateTimeMachineCheck, changeCheckType} from 'src/timeMachine/actions'
 
 //Selectors
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
