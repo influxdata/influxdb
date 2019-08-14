@@ -11,7 +11,7 @@ import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {saveCurrentCheck} from 'src/alerting/actions/checks'
+import {saveCheckFromTimeMachine} from 'src/alerting/actions/checks'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
 import {setView, getViewForTimeMachine} from 'src/dashboards/actions/views'
@@ -26,7 +26,7 @@ import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
-  saveCurrentCheck: typeof saveCurrentCheck
+  saveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
   setView: typeof setView
@@ -46,7 +46,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
   getViewForTimeMachine,
   activeTimeMachineID,
-  saveCurrentCheck,
+  saveCheckFromTimeMachine,
   executeQueries,
   draftView,
   onSaveView,
@@ -75,7 +75,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
     try {
       onSaveView(dashboardID)
       if (draftView.properties.type === 'check') {
-        saveCurrentCheck()
+        saveCheckFromTimeMachine()
       }
       handleClose()
     } catch (e) {}
@@ -125,7 +125,7 @@ const mdtp: DispatchProps = {
   setView: setView,
   onSaveView: saveVEOView,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  saveCurrentCheck: saveCurrentCheck,
+  saveCheckFromTimeMachine: saveCheckFromTimeMachine,
   executeQueries: executeQueries,
   getViewForTimeMachine: getViewForTimeMachine,
 }

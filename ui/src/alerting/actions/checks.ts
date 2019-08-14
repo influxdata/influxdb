@@ -90,22 +90,22 @@ export const getCurrentCheck = (checkID: string) => async (
   }
 }
 
-export const saveCurrentCheck = () => async (
+export const saveCheckFromTimeMachine = () => async (
   dispatch: Dispatch<Action | NotificationAction>,
   getState: GetState
 ) => {
   try {
     const state = getState()
     const {
-      checks: {
-        current: {check},
-      },
       orgs: {
         org: {id: orgID},
       },
     } = state
 
-    const {draftQueries} = getActiveTimeMachine(state)
+    const {
+      draftQueries,
+      alerting: {check},
+    } = getActiveTimeMachine(state)
 
     const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
 
