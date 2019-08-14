@@ -175,12 +175,13 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	// the data will be stored for 7 days in the system bucket so pulling 14d's is sufficient.
 	runsScript := fmt.Sprintf(`from(bucketID: "000000000000000a")
 	  |> range(start: -14d)
+	  |> filter(fn: (r) => r._field != "status")
 	  |> filter(fn: (r) => r._measurement == "runs" and r.taskID == %q)
 	  %s
 	  |> group(columns: ["taskID", "status"])
 	  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-	  |> limit(n:%d)
 	  |> sort(columns:["scheduledFor"], desc: true)
+	  |> limit(n:%d)
 
 	  `, filter.Task.String(), filterPart, filter.Limit-len(runs))
 
@@ -248,6 +249,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	// the data will be stored for 7 days in the system bucket so pulling 14d's is sufficient.
 	findRunScript := fmt.Sprintf(`from(bucketID: "000000000000000a")
 	|> range(start: -14d)
+	|> filter(fn: (r) => r._field != "status")
 	|> filter(fn: (r) => r._measurement == "runs" and r.taskID == %q)
 	|> group(columns: ["taskID", "status"])
 	|> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
