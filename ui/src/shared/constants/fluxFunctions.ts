@@ -251,6 +251,28 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/buckets/',
   },
   {
+    name: 'chandeMomentumOscillator',
+    args: [
+      {
+        name: 'n',
+        desc: 'The period or number of points to use in the calculation.',
+        type: 'Integer',
+      },
+      {
+        name: 'columns',
+        desc: 'Columns to operate on. Defaults to `["_value"]`.',
+        type: 'Array of Strings`',
+      },
+    ],
+    package: '',
+    desc:
+      'Applies the technical momentum indicator developed by Tushar Chande.',
+    example: 'chandeMomentumOscillator(n: 10)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/chandemomentumoscillator/',
+  },
+  {
     name: 'columns',
     args: [
       {
@@ -425,6 +447,40 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/hour/',
   },
   {
+    name: 'date.microsecond',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the microsecond of a specified time. Results range from `[1-999999]`.',
+    example: 'date.microsecond(t: 2019-07-17T12:05:21.012934584Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/microsecond/',
+  },
+  {
+    name: 'date.millisecond',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the millisecond of a specified time. Results range from `[1-999]`.',
+    example: 'date.millisecond(t: 2019-07-17T12:05:21.012934584Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/millisecond/',
+  },
+  {
     name: 'date.minute',
     args: [
       {
@@ -475,6 +531,40 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/monthday/',
   },
   {
+    name: 'date.nanosecond',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the nanosecond of a specified time. Results range from `[1-999999999]`.',
+    example: 'date.nanosecond(t: 2019-07-17T12:05:21.012934584Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/nanosecond/',
+  },
+  {
+    name: 'date.quarter',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the quarter of the year for a specified time. Results range from `[1-4]`.',
+    example: 'date.quarter(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/quarter/',
+  },
+  {
     name: 'date.second',
     args: [
       {
@@ -492,6 +582,46 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/second/',
   },
   {
+    name: 'date.truncate',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+      {
+        name: 'unit',
+        desc:
+          'The unit time to truncate to. Only use `1` and the unit of time to specify the `unit`. For example, `1s`, `1m`, `1h`.',
+        type: 'Duration',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Truncates the time to a specified unit. Results range from `[0-59]`.',
+    example: 'date.truncate(t: 2019-07-17T12:05:21.012Z, unit: 1s)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/truncate/',
+  },
+  {
+    name: 'date.week',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc:
+      'Returns the ISO week of the year for a specified time. Results range from `[1-53]`.',
+    example: 'date.week(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/week/',
+  },
+  {
     name: 'date.weekDay',
     args: [
       {
@@ -507,6 +637,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/weekday/',
+  },
+  {
+    name: 'date.year',
+    args: [
+      {
+        name: 't',
+        desc: 'The time to operate on.',
+        type: 'Time',
+      },
+    ],
+    package: 'date',
+    desc: 'Returns the year of a specified time.',
+    example: 'date.year(t: 2019-07-17T12:05:21.012Z)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/date/year/',
   },
   {
     name: 'date.yearDay',
@@ -570,15 +716,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         type: 'Boolean',
       },
       {
-        name: 'column',
-        desc: 'The column on which to operate. Defaults to `"_value"`.',
-        type: 'String',
+        name: 'columns',
+        desc:
+          'The columns to use to compute the difference. Defaults to `"_value"`.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'keepFirst',
+        desc:
+          'Indicates the first row should be kept. If `true`, the difference will be `null`. Defaults to `false`.',
+        type: 'Boolean',
       },
     ],
     package: '',
     desc:
-      'Computes the difference between subsequent records in the specified column.',
-    example: 'difference(nonNegative: false, column: "_value")',
+      'Computes the difference between subsequent non-null records in the specified columns.',
+    example: 'difference(nonNegative: false, columns: "_value")',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/difference/',
@@ -598,6 +751,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Selectors',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/distinct/',
+  },
+  {
+    name: 'doubleEMA',
+    args: [
+      {
+        name: 'n',
+        desc: 'The number of points to average.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data at double the rate of `exponentialMovingAverage()`.',
+    example: 'doubleEMA(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/doubleema/',
   },
   {
     name: 'drop',
@@ -695,15 +865,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The number of points to average.',
         type: 'Integer',
       },
-      {
-        name: 'columns',
-        desc: 'Columns to operate on. Defaults to `["_value"]`.',
-        type: 'Array of Strings`',
-      },
     ],
     package: '',
     desc:
-      'Calculates the exponential moving average of values grouped into `n` number of points, giving more weight to recent data.',
+      'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data.',
     example: 'exponentialMovingAverage(n: 5)',
     category: 'Aggregates',
     link:
@@ -978,6 +1143,78 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/histogramquantile/',
   },
   {
+    name: 'holtWinters',
+    args: [
+      {
+        name: 'n',
+        desc: 'Number of values to predict.',
+        type: 'Integer',
+      },
+      {
+        name: 'seasonality',
+        desc: 'Number of points in a season. Defaults to `0`.',
+        type: 'Integer',
+      },
+      {
+        name: 'interval',
+        desc: 'The interval between two data points.',
+        type: 'Duration',
+      },
+      {
+        name: 'withFit',
+        desc:
+          'Returns "fitted" data points in results when `withFit` is set to `true`. Defaults to `false`.',
+        type: 'Boolean',
+      },
+      {
+        name: 'timeColumn',
+        desc: 'The time column to use. Defaults to `"_time"`.',
+        type: 'String',
+      },
+      {
+        name: 'column',
+        desc: 'The column to operate on. Defaults to `"_value"`.',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Applies the Holt-Winters forecasting method to input tables. The Holt-Winters method predicts `n` seasonally-adjusted values for the specified `column` at the specified `interval`.',
+    example: 'holtWinters(n: 10, interval: 1d)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/holtwinters/',
+  },
+  {
+    name: 'hourSelection',
+    args: [
+      {
+        name: 'start',
+        desc:
+          'The first hour of the hour range (inclusive). Hours range from `[0-23]`',
+        type: 'Integer',
+      },
+      {
+        name: 'stop',
+        desc:
+          'The last hour of the hour range (inclusive). Hours range from `[0-23]`.',
+        type: 'Integer`',
+      },
+      {
+        name: 'timeColumn',
+        desc: 'The column that contains the time value. Default is `"_time"`.',
+        type: 'String`',
+      },
+    ],
+    package: '',
+    desc:
+      'Retains all rows with time values in a specified hour range. Hours are specified in military time.',
+    example: 'hourSelection(start: 9, stop: 17)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/hourselection/',
+  },
+  {
     name: 'increase',
     args: [
       {
@@ -1184,13 +1421,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'offset',
         desc:
-          'The number of records to skip per table before limiting to n. Defaults to 0.',
+          'The number of records to skip at the beginning of a table before limiting to `n`. Defaults to `0`.',
         type: 'Integer',
       },
     ],
     package: '',
     desc:
-      'Limits the number of records in output tables to a fixed number `n` records after the `offset`. If the input table has less than `n` records, all records are be output.',
+      'Limits each output table to the first `n` records, excluding the offset.',
     example: 'limit(n:10, offset: 0)',
     category: 'Transformations',
     link:
@@ -1357,7 +1594,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Applies a function to each record in the input tables.',
-    example: 'map(fn: (r) => ({ _value: r._value * r._value }))',
+    example: 'map(fn: (r) => ({ r with _value: r._value * r._value }))',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/map/',
@@ -2745,6 +2982,28 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/regexp/splitregexp/',
   },
   {
+    name: 'relativeStrengthIndex',
+    args: [
+      {
+        name: 'n',
+        desc:
+          'The number of values to use to calculate the relative strength index (RSI).',
+        type: 'Integer',
+      },
+      {
+        name: 'columns',
+        desc: 'Columns to operate on. Defaults to `["_value"]`.',
+        type: 'Array of Strings`',
+      },
+    ],
+    package: '',
+    desc: 'Measures the relative speed and change of values in an input table.',
+    example: 'relativeStrengthIndex(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/relativestrengthindex/',
+  },
+  {
     name: 'rename',
     args: [
       {
@@ -2767,6 +3026,16 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/rename/',
+  },
+  {
+    name: 'runtime.version',
+    args: [],
+    package: 'runtime',
+    desc: 'Returns the current Flux version.',
+    example: 'runtime.version()',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/runtime/version/',
   },
   {
     name: 'sample',
@@ -3761,6 +4030,29 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/system/time/',
   },
   {
+    name: 'tail',
+    args: [
+      {
+        name: 'n',
+        desc: 'The maximum number of records to output.',
+        type: 'Integer',
+      },
+      {
+        name: 'offset',
+        desc:
+          'The number of records to skip at the end of a table before limiting to `n`. Defaults to `0`.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Limits each output table to the last `n` records, excluding the offset.',
+    example: 'tail(n: 10)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/tail/',
+  },
+  {
     name: 'testing.assertEmpty',
     args: [],
     package: 'testing',
@@ -4031,6 +4323,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Selectors',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/top/',
+  },
+  {
+    name: 'tripleEMA',
+    args: [
+      {
+        name: 'n',
+        desc: 'The number of points to average.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the exponential moving average of values in the `_value` column grouped into `n` number of points, giving more weight to recent data at triple the rate of `exponentialMovingAverage()`.',
+    example: 'tripleEMA(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/tripleema/',
   },
   {
     name: 'uint',
