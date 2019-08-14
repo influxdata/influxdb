@@ -16,12 +16,11 @@ import {
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
 import {Action as TimeMachineAction} from 'src/timeMachine/actions'
+import {setCheckStatus, setTimeMachineCheck} from 'src/timeMachine/actions'
 
 // Types
-import {RemoteDataState} from '@influxdata/clockface'
-import {Check, GetState} from 'src/types'
-import {check1, check2} from '../constants'
-import {setCheckStatus, setTimeMachineCheck} from 'src/timeMachine/actions'
+import {Check, GetState, RemoteDataState} from 'src/types'
+import {check1, check2} from 'src/alerting/constants'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
