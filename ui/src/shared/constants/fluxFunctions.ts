@@ -267,7 +267,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Applies the technical momentum indicator developed by Tushar Chande.',
-    example: 'chandeMomentumOscillator(n: 10, columns: ["_value"])',
+    example: 'chandeMomentumOscillator(n: 10)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/chandemomentumoscillator/',
@@ -731,7 +731,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Computes the difference between subsequent non-null records in the specified columns.',
-    example: 'difference(nonNegative: false, column: "_value")',
+    example: 'difference(nonNegative: false, columns: "_value")',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/difference/',
@@ -1181,7 +1181,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Applies the Holt-Winters forecasting method to input tables. The Holt-Winters method predicts `n` seasonally-adjusted values for the specified `column` at the specified `interval`.',
     example:
-      'holtWinters(n: 10, seasonality: 4, interval: 30d, withFit: false, column: "_value")',
+      'holtWinters(n: 10, interval: 1d)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/holtwinters/',
@@ -1210,7 +1210,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Retains all rows with time values in a specified hour range. Hours are specified in military time.',
-    example: 'hourSelection(start: 9, stop: 17, timeColumn: "_time")',
+    example: 'hourSelection(start: 9, stop: 17)',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/hourselection/',
@@ -2999,7 +2999,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Measures the relative speed and change of values in an input table.',
-    example: 'relativeStrengthIndex(n: 5, columns: ["_value"])',
+    example: 'relativeStrengthIndex(n: 5)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/relativestrengthindex/',
@@ -4048,7 +4048,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Limits each output table to the last `n` records, excluding the offset.',
-    example: 'tail(n: 10, offset: 0)',
+    example: 'tail(n: 10)',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/tail/',
