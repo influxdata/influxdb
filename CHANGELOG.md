@@ -9,6 +9,7 @@ v1.7.8 [unreleased]
 -	[#14286](https://github.com/influxdata/influxdb/pull/14286): Fix issue where fields re-appear after DROP MEASUREMENT.
 -	[#14402](https://github.com/influxdata/influxdb/pull/14402): Fix the http handler to not mislabel series as partial.
 -	[#14557](https://github.com/influxdata/influxdb/pull/14557): fix(query): make show series exact cardinality count only distinct series.
+-	[#14593](https://github.com/influxdata/influxdb/pull/14593): fix(query/compile.go): time range was exceeding min/max bounds under ….
 
 v1.7.7 [2019-06-26]
 -------------------
