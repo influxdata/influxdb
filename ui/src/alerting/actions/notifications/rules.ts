@@ -3,7 +3,7 @@ import {Dispatch} from 'react'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
-import {rule as mockRule} from 'src/alerting/constants'
+import {RULE_DRAFT_FIXTURE} from 'src/alerting/constants'
 
 // APIs
 import * as api from 'src/client'
@@ -69,7 +69,9 @@ export const getNotificationRules = () => async (
     }
 
     // TODO(watts): replace with resp.data.notificationRules when implemented
-    dispatch(setAllNotificationRules(RemoteDataState.Done, [mockRule]))
+    dispatch(
+      setAllNotificationRules(RemoteDataState.Done, [RULE_DRAFT_FIXTURE])
+    )
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))

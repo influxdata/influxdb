@@ -15,7 +15,7 @@ import RuleConditions from 'src/alerting/components/notifications/RuleConditions
 import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
 
 // Constants
-import {endpoints} from 'src/alerting/constants'
+import {NEW_ENDPOINT_FIXTURES} from 'src/alerting/constants'
 
 // Utils
 import {useRuleState, useRuleDispatch} from './RuleOverlay.reducer'
@@ -62,7 +62,7 @@ const RuleOverlayContents: FC = () => {
           </Grid.Column>
         </Grid.Row>
         <RuleConditions rule={rule} />
-        <RuleMessage rule={rule} endpoints={endpoints} />
+        <RuleMessage rule={rule} endpoints={NEW_ENDPOINT_FIXTURES} />
       </Form>
     </Grid>
   )
