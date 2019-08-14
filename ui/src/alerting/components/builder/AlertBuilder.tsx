@@ -25,7 +25,7 @@ const AlertBuilder: FC = () => {
               </BuilderCard.Body>
             </BuilderCard>
             <BuilderCard
-              testID="builder-meta"
+              testID="builder-conditions"
               widthPixels={510}
               className="alert-builder--card"
             >
@@ -35,7 +35,7 @@ const AlertBuilder: FC = () => {
               </BuilderCard.Body>
             </BuilderCard>
             <BuilderCard
-              testID="builder-meta"
+              testID="builder-matching-rules"
               widthPixels={420}
               className="alert-builder--card"
             >
