@@ -255,8 +255,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'n',
-        desc: 
-          'The period or number of points to use in the calculation.',
+        desc: 'The period or number of points to use in the calculation.',
         type: 'Integer',
       },
       {
@@ -266,10 +265,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: '',
-    desc: 
+    desc:
       'Applies the technical momentum indicator developed by Tushar Chande.',
-    example: 
-      'chandeMomentumOscillator(n: 10, columns: ["_value"])',
+    example: 'chandeMomentumOscillator(n: 10, columns: ["_value"])',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/chandemomentumoscillator/',
@@ -458,7 +456,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'date',
-    desc: 
+    desc:
       'Returns the microsecond of a specified time. Results range from `[1-999999]`.',
     example: 'date.microsecond(t: 2019-07-17T12:05:21.012934584Z)',
     category: 'Transformations',
@@ -475,7 +473,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'date',
-    desc: 
+    desc:
       'Returns the millisecond of a specified time. Results range from `[1-999]`.',
     example: 'date.millisecond(t: 2019-07-17T12:05:21.012934584Z)',
     category: 'Transformations',
@@ -542,7 +540,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'date',
-    desc: 
+    desc:
       'Returns the nanosecond of a specified time. Results range from `[1-999999999]`.',
     example: 'date.nanosecond(t: 2019-07-17T12:05:21.012934584Z)',
     category: 'Transformations',
@@ -593,7 +591,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'unit',
-        desc: 
+        desc:
           'The unit time to truncate to. Only use `1` and the unit of time to specify the `unit`. For example, `1s`, `1m`, `1h`.',
         type: 'Duration',
       },
@@ -616,7 +614,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'date',
-    desc: 
+    desc:
       'Returns the ISO week of the year for a specified time. Results range from `[1-53]`.',
     example: 'date.week(t: 2019-07-17T12:05:21.012Z)',
     category: 'Transformations',
@@ -719,13 +717,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'columns',
-        desc: 
+        desc:
           'The columns to use to compute the difference. Defaults to `"_value"`.',
         type: 'Array of Strings',
       },
       {
         name: 'keepFirst',
-        desc: 
+        desc:
           'Indicates the first row should be kept. If `true`, the difference will be `null`. Defaults to `false`.',
         type: 'Boolean',
       },
@@ -1164,7 +1162,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'withFit',
-        desc: 
+        desc:
           'Returns "fitted" data points in results when `withFit` is set to `true`. Defaults to `false`.',
         type: 'Boolean',
       },
@@ -1175,8 +1173,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
       {
         name: 'column',
-        desc:
-          'The column to operate on. Defaults to `"_value"`.',
+        desc: 'The column to operate on. Defaults to `"_value"`.',
         type: 'String',
       },
     ],
@@ -1194,28 +1191,26 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'start',
-        desc: 
+        desc:
           'The first hour of the hour range (inclusive). Hours range from `[0-23]`',
         type: 'Integer',
       },
       {
         name: 'stop',
-        desc: 
+        desc:
           'The last hour of the hour range (inclusive). Hours range from `[0-23]`.',
         type: 'Integer`',
       },
       {
         name: 'timeColumn',
-        desc: 
-          'The column that contains the time value. Default is `"_time"`.',
+        desc: 'The column that contains the time value. Default is `"_time"`.',
         type: 'String`',
       },
     ],
     package: '',
-    desc: 
+    desc:
       'Retains all rows with time values in a specified hour range. Hours are specified in military time.',
-    example: 
-      'hourSelection(start: 9, stop: 17, timeColumn: "_time")',
+    example: 'hourSelection(start: 9, stop: 17, timeColumn: "_time")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/hourselection/',
@@ -1427,13 +1422,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'offset',
         desc:
-          'The number of records to skip per table before limiting to n. Defaults to 0.',
+          'The number of records to skip at the beginning of a table before limiting to `n`. Defaults to `0`.',
         type: 'Integer',
       },
     ],
     package: '',
     desc:
-      'Limits the number of records in output tables to a fixed number `n` records after the `offset`. If the input table has less than `n` records, all records are be output.',
+      'Limits each output table to the first `n` records, excluding the offset.',
     example: 'limit(n:10, offset: 0)',
     category: 'Transformations',
     link:
@@ -2992,7 +2987,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     args: [
       {
         name: 'n',
-        desc: 
+        desc:
           'The number of values to use to calculate the relative strength index (RSI).',
         type: 'Integer',
       },
@@ -3003,8 +2998,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: '',
-    desc:
-      'Measures the relative speed and change of values in an input table.',
+    desc: 'Measures the relative speed and change of values in an input table.',
     example: 'relativeStrengthIndex(n: 5, columns: ["_value"])',
     category: 'Aggregates',
     link:
@@ -4052,10 +4046,9 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: '',
-    desc: 
-      'Limits each output table to the last `n` records.',
-    example: 
-      'tail(n: 10, offset: 0)',
+    desc:
+      'Limits each output table to the last `n` records, excluding the offset.',
+    example: 'tail(n: 10, offset: 0)',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/tail/',
