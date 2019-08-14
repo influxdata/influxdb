@@ -567,38 +567,6 @@ func (e *Engine) MustOpen() {
 	}
 }
 
-/*
-// Write1xPoints converts old style points into the new 2.0 engine format.
-// This allows us to use the old `models` package helper functions and still write
-// the points in the correct format.
-func (e *Engine) Write1xPoints(pts []models.Point) error {
-	points, err := tsdb.ExplodePoints(e.org, e.bucket, pts)
-	if err != nil {
-		return err
-	}
-	return e.Engine.WritePoints(context.TODO(), points)
-}
-
-// Write1xPointsWithOrgBucket writes 1.x points with the provided org and bucket id strings.
-func (e *Engine) Write1xPointsWithOrgBucket(pts []models.Point, org, bucket string) error {
-	o, err := influxdb.IDFromString(org)
-	if err != nil {
-		return err
-	}
-
-	b, err := influxdb.IDFromString(bucket)
-	if err != nil {
-		return err
-	}
-
-	points, err := tsdb.ExplodePoints(*o, *b, pts)
-	if err != nil {
-		return err
-	}
-	return e.Engine.WritePoints(context.TODO(), points)
-}
-*/
-
 // Close closes the engine and removes all temporary data.
 func (e *Engine) Close() error {
 	defer os.RemoveAll(e.path)
