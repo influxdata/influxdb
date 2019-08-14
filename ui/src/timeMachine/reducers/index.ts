@@ -837,7 +837,15 @@ export const timeMachineReducer = (
     case 'CONVERT_TO_CHECK_VIEW': {
       const view = convertView(state.view, 'check')
 
-      return {...state, view, activeTab: 'alerting'}
+      return {
+        ...state,
+        view,
+        activeTab: 'alerting',
+        alerting: {
+          checkStatus: RemoteDataState.Done,
+          check: DEFAULT_THRESHOLD_CHECK,
+        },
+      }
     }
 
     case 'CONVERT_FROM_CHECK_VIEW': {
