@@ -90,7 +90,7 @@ export const CHECK_FIXTURE_2: Check = {
 export const CHECK_FIXTURES: Array<Check> = [CHECK_FIXTURE_1, CHECK_FIXTURE_2]
 
 export const NEW_STATUS_RULE_DRAFT: StatusRuleDraft = {
-  id: '',
+  cid: '',
   value: {
     currentLevel: {
       operation: 'equal',
@@ -106,7 +106,7 @@ export const NEW_STATUS_RULE_DRAFT: StatusRuleDraft = {
 }
 
 export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
-  id: '',
+  cid: '',
   value: {
     key: '',
     value: '',

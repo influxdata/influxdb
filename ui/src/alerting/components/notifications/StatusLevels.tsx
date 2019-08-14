@@ -29,7 +29,7 @@ const StatusLevels: FC<Props> = ({status}) => {
   const onClickLevel = (levelType: LevelType, level: CheckStatusLevel) => {
     dispatch({
       type: 'UPDATE_STATUS_LEVEL',
-      statusID: status.id,
+      statusID: status.cid,
       levelType,
       level,
     })

@@ -51,7 +51,7 @@ const TagRule: FC<Props> = ({tagRule}) => {
   const onSelectOperator = (operator: Operator) => {
     dispatch({
       type: 'SET_TAG_RULE_OPERATOR',
-      tagRuleID: tagRule.id,
+      tagRuleID: tagRule.cid,
       operator,
     })
   }
@@ -59,7 +59,7 @@ const TagRule: FC<Props> = ({tagRule}) => {
   const onDelete = () => {
     dispatch({
       type: 'DELETE_TAG_RULE',
-      tagRuleID: tagRule.id,
+      tagRuleID: tagRule.cid,
     })
   }
 

@@ -40,11 +40,11 @@ const RuleConditions: FC<Props> = ({rule}) => {
   }
 
   const statuses = statusRules.map(status => (
-    <StatusRuleComponent key={status.id} status={status} />
+    <StatusRuleComponent key={status.cid} status={status} />
   ))
 
   const tags = tagRules.map(tagRule => (
-    <TagRuleComponent key={tagRule.id} tagRule={tagRule} />
+    <TagRuleComponent key={tagRule.cid} tagRule={tagRule} />
   ))
 
   return (

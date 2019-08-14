@@ -7,13 +7,13 @@ import {
   PagerDutyNotificationRuleBase,
 } from 'src/client'
 
-export interface AddID<T> {
-  id: string
+export interface WithClientID<T> {
+  cid: string
   value: T
 }
 
-export type StatusRuleDraft = AddID<StatusRule>
-export type TagRuleDraft = AddID<TagRule>
+export type StatusRuleDraft = WithClientID<StatusRule>
+export type TagRuleDraft = WithClientID<TagRule>
 
 type ExcludeKeys<T> = Pick<T, Exclude<keyof T, 'statusRules' | 'tagRules'>>
 

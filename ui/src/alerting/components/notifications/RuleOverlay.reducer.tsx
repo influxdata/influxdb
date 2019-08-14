@@ -67,7 +67,7 @@ const reducer = (state: RuleState, action: Action) => {
     case 'UPDATE_STATUS_RULES': {
       const {statusRule} = action
       const statusRules = state.statusRules.map(s => {
-        if (s.id !== statusRule.id) {
+        if (s.cid !== statusRule.cid) {
           return s
         }
 
@@ -88,7 +88,7 @@ const reducer = (state: RuleState, action: Action) => {
     case 'UPDATE_TAG_RULES': {
       const {tagRule} = action
       const tagRules = state.tagRules.map(t => {
-        if (t.id !== tagRule.id) {
+        if (t.cid !== tagRule.cid) {
           return t
         }
 
@@ -101,7 +101,7 @@ const reducer = (state: RuleState, action: Action) => {
     case 'DELETE_STATUS_RULE': {
       const {statusRuleID} = action
       const statusRules = state.statusRules.filter(s => {
-        return s.id !== statusRuleID
+        return s.cid !== statusRuleID
       })
 
       return {
@@ -114,7 +114,7 @@ const reducer = (state: RuleState, action: Action) => {
       const {tagRuleID} = action
 
       const tagRules = state.tagRules.filter(tr => {
-        return tr.id !== tagRuleID
+        return tr.cid !== tagRuleID
       })
 
       return {...state, tagRules}
@@ -124,7 +124,7 @@ const reducer = (state: RuleState, action: Action) => {
       const {levelType, level, statusID} = action
 
       const statusRules = state.statusRules.map(status => {
-        if (status.id !== statusID) {
+        if (status.cid !== statusID) {
           return status
         }
 
@@ -145,7 +145,7 @@ const reducer = (state: RuleState, action: Action) => {
     case 'SET_TAG_RULE_OPERATOR': {
       const {tagRuleID, operator} = action
       const tagRules = state.tagRules.map(tagRule => {
-        if (tagRule.id !== tagRuleID) {
+        if (tagRule.cid !== tagRuleID) {
           return tagRule
         }
 
