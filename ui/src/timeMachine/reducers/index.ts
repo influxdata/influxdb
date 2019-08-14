@@ -843,7 +843,12 @@ export const timeMachineReducer = (
     case 'CONVERT_FROM_CHECK_VIEW': {
       const view = convertView(state.view, 'xy')
 
-      return {...state, view, activeTab: 'queries'}
+      return {
+        ...state,
+        view,
+        activeTab: 'queries',
+        alerting: {checkStatus: RemoteDataState.NotStarted, check: null},
+      }
     }
 
     case 'TOGGLE_ALERTING_PANEL': {
