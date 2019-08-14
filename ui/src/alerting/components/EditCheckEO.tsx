@@ -13,7 +13,7 @@ import {createView} from 'src/shared/utils/view'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
-import {updateCheck, getCurrentCheck} from 'src/alerting/actions/checks'
+import {updateCheck, getCheckForTimeMachine} from 'src/alerting/actions/checks'
 import {
   setActiveTimeMachine,
   setTimeMachineCheck,
@@ -33,7 +33,7 @@ import {
 interface DispatchProps {
   updateCheck: typeof updateCheck
   setTimeMachineCheck: typeof setTimeMachineCheck
-  getCurrentCheck: typeof getCurrentCheck
+  getCheckForTimeMachine: typeof getCheckForTimeMachine
   updateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
@@ -50,7 +50,7 @@ type Props = WithRouterProps & DispatchProps & StateProps
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
   activeTimeMachineID,
-  getCurrentCheck,
+  getCheckForTimeMachine,
   checkStatus,
   updateCheck,
   router,
@@ -68,7 +68,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
         isViewingRawData: false,
       })
     } else {
-      getCurrentCheck(checkID)
+      getCheckForTimeMachine(checkID)
     }
   }, [check, checkID])
 
@@ -141,7 +141,7 @@ const mdtp: DispatchProps = {
   setTimeMachineCheck: setTimeMachineCheck,
   updateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  getCurrentCheck: getCurrentCheck,
+  getCheckForTimeMachine: getCheckForTimeMachine,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

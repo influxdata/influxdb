@@ -70,7 +70,7 @@ export const getChecks = () => async (
   }
 }
 
-export const getCurrentCheck = (checkID: string) => async (
+export const getCheckForTimeMachine = (checkID: string) => async (
   dispatch: Dispatch<TimeMachineAction | NotificationAction>
 ) => {
   try {
