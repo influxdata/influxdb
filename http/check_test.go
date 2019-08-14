@@ -50,6 +50,8 @@ func TestService_handleGetChecks(t *testing.T) {
 
 	fl1 := 100.32
 	fl2 := 200.64
+	fl4 := 100.1
+	fl5 := 3023.2
 
 	tests := []struct {
 		name   string
@@ -80,8 +82,15 @@ func TestService_handleGetChecks(t *testing.T) {
 									Status: influxdb.Inactive,
 								},
 								Thresholds: []check.ThresholdConfig{
-									{LowerBound: &fl1},
-									{UpperBound: &fl2},
+									&check.Greater{
+										Value:               fl1,
+										ThresholdConfigBase: check.ThresholdConfigBase{Level: notification.Critical},
+									},
+									&check.Lesser{
+										Value:               fl2,
+										ThresholdConfigBase: check.ThresholdConfigBase{Level: notification.Info},
+									},
+									&check.Range{Min: fl4, Max: fl5},
 								},
 							},
 						}, 2, nil
@@ -194,17 +203,27 @@ func TestService_handleGetChecks(t *testing.T) {
 	"thresholds": [
 	  {
 	    "allValues": false,
-	    "level": "UNKNOWN",
-	    "lowerBound": 100.32
+		"level": "CRIT",
+		"type": "greater",
+	    "value": 100.32
 	  },
 	  {
 	    "allValues": false,
-	    "level": "UNKNOWN",
-	    "upperBound": 200.64
-	  }
+		"level": "INFO",
+		"type": "lesser",
+	    "value": 200.64
+	  },
+	  {
+        "allValues": false,
+        "level": "UNKNOWN",
+        "max": 3023.2,
+        "min": 100.1,
+        "type": "range",
+        "within": false
+      }
 	],
 	"type": "threshold",
-	  "labels": [
+	"labels": [
         {
           "id": "fc3dc670a4be9b9a",
           "name": "label",
