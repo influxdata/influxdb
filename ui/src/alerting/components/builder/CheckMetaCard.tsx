@@ -16,10 +16,7 @@ import {
 import {Input} from '@influxdata/clockface'
 
 // Actions
-import {
-  updateCurrentCheck,
-  changeCurrentCheckType,
-} from 'src/alerting/actions/checks'
+import {updateTimeMachineCheck, changeCheckType} from 'src/TimeMachine/actions'
 
 // Types
 import {Check, AppState, CheckType} from 'src/types'
@@ -30,8 +27,8 @@ import {
 } from 'src/alerting/constants'
 
 interface DispatchProps {
-  updateCurrentCheck: typeof updateCurrentCheck
-  changeCurrentCheckType: typeof changeCurrentCheckType
+  updateTimeMachineCheck: typeof updateTimeMachineCheck
+  changeCheckType: typeof changeCheckType
 }
 
 interface StateProps {
@@ -41,30 +38,34 @@ interface StateProps {
 type Props = DispatchProps & StateProps
 
 const CheckMetaCard: FC<Props> = ({
-  updateCurrentCheck,
-  changeCurrentCheckType,
+  updateTimeMachineCheck,
+  changeCheckType,
   check,
 }) => {
   const handleChangeType = (type: CheckType) => {
-    changeCurrentCheckType(type)
+    changeCheckType(type)
   }
 
   const handleChangeName = (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateCurrentCheck({name: e.target.value})
+    updateTimeMachineCheck({name: e.target.value})
   }
 
   const handleChangeMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const statusMessageTemplate = e.target.value
-    updateCurrentCheck({statusMessageTemplate})
+    updateTimeMachineCheck({statusMessageTemplate})
   }
 
   const handleChangeSchedule = (scheduleType: 'cron' | 'every') => {
     if (scheduleType == 'cron' && !check.cron) {
-      updateCurrentCheck({cron: DEFAULT_CHECK_CRON, every: null, offset: null})
+      updateTimeMachineCheck({
+        cron: DEFAULT_CHECK_CRON,
+        every: null,
+        offset: null,
+      })
       return
     }
     if (scheduleType == 'every' && !check.every) {
-      updateCurrentCheck({
+      updateTimeMachineCheck({
         every: DEFAULT_CHECK_EVERY,
         offset: DEFAULT_CHECK_OFFSET,
         cron: null,
@@ -225,8 +226,8 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  updateCurrentCheck: updateCurrentCheck,
-  changeCurrentCheckType: changeCurrentCheckType,
+  updateTimeMachineCheck: updateTimeMachineCheck,
+  changeCheckType: changeCheckType,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

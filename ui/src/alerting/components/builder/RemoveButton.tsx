@@ -7,20 +7,20 @@ import {Button} from '@influxdata/clockface'
 
 // Actions
 import {convertFromCheckView} from 'src/timeMachine/actions'
-import {setCurrentCheck} from 'src/alerting/actions/checks'
+import {setTimeMachineCheck} from 'src/timeMachine/actions'
 
 //Types
 import {RemoteDataState} from 'src/types'
 
 interface DispatchProps {
   onConvertFromCheckView: typeof convertFromCheckView
-  onSetCurrentCheck: typeof setCurrentCheck
+  onSetTimeMachineCheck: typeof setTimeMachineCheck
 }
 
 type Props = DispatchProps
 
 const RemoveButton: FunctionComponent<Props> = ({
-  onSetCurrentCheck,
+  onSetTimeMachineCheck,
   onConvertFromCheckView,
 }) => {
   const handleClick = () => {
@@ -29,7 +29,7 @@ const RemoveButton: FunctionComponent<Props> = ({
     // TODO: Move the current check state into the time machine reducer, then
     // handle this state transition as part `CONVERT_FROM_CHECK_VIEW`
     // transition
-    onSetCurrentCheck(RemoteDataState.NotStarted, null)
+    onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
   }
 
   return (
@@ -43,7 +43,7 @@ const RemoveButton: FunctionComponent<Props> = ({
 
 const mdtp: DispatchProps = {
   onConvertFromCheckView: convertFromCheckView,
-  onSetCurrentCheck: setCurrentCheck,
+  onSetTimeMachineCheck: setTimeMachineCheck,
 }
 
 export default connect<{}, DispatchProps, {}>(

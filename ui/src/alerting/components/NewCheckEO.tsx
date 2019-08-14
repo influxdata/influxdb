@@ -9,13 +9,12 @@ import CheckEOHeader from 'src/alerting/components/CheckEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Actions
+import {updateCheck, saveCurrentCheck} from 'src/alerting/actions/checks'
 import {
-  updateCheck,
-  setCurrentCheck,
-  updateCurrentCheck,
-  saveCurrentCheck,
-} from 'src/alerting/actions/checks'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
+  setActiveTimeMachine,
+  updateTimeMachineCheck,
+  setTimeMachineCheck,
+} from 'src/timeMachine/actions'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
@@ -26,8 +25,8 @@ import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
-  setCurrentCheck: typeof setCurrentCheck
-  updateCurrentCheck: typeof updateCurrentCheck
+  setTimeMachineCheck: typeof setTimeMachineCheck
+  updateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
   saveCurrentCheck: typeof saveCurrentCheck
 }
@@ -41,8 +40,8 @@ type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
-  updateCurrentCheck,
-  setCurrentCheck,
+  updateTimeMachineCheck,
+  setTimeMachineCheck,
   saveCurrentCheck,
   params,
   router,
@@ -50,7 +49,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   check,
 }) => {
   useEffect(() => {
-    setCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
+    setTimeMachineCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
     const view = createView<CheckViewProperties>('check')
     onSetActiveTimeMachine('alerting', {
       view,
@@ -59,11 +58,11 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   }, [])
 
   const handleUpdateName = (name: string) => {
-    updateCurrentCheck({name})
+    updateTimeMachineCheck({name})
   }
 
   const handleClose = () => {
-    setCurrentCheck(RemoteDataState.NotStarted, null)
+    setTimeMachineCheck(RemoteDataState.NotStarted, null)
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
@@ -110,8 +109,8 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   updateCheck: updateCheck,
-  setCurrentCheck: setCurrentCheck,
-  updateCurrentCheck: updateCurrentCheck,
+  setTimeMachineCheck: setTimeMachineCheck,
+  updateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
   saveCurrentCheck: saveCurrentCheck,
 }

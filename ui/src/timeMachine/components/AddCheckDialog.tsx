@@ -5,8 +5,7 @@ import {Link} from 'react-router'
 import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
 
 // Actions
-import {setCurrentCheck} from 'src/alerting/actions/checks'
-import {convertToCheckView} from 'src/timeMachine/actions'
+import {convertToCheckView, setTimeMachineCheck} from 'src/timeMachine/actions'
 
 // Constants
 import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
@@ -19,7 +18,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSetCurrentCheck: typeof setCurrentCheck
+  onSetTimeMachineCheck: typeof setTimeMachineCheck
   onConvertToCheckView: typeof convertToCheckView
 }
 
@@ -27,13 +26,13 @@ type Props = StateProps & DispatchProps
 
 const AddCheckDialog: FC<Props> = ({
   orgID,
-  onSetCurrentCheck,
+  onSetTimeMachineCheck,
   onConvertToCheckView,
 }) => {
   const handleClick = () => {
     // TODO: Move the current check state into the time machine reducer, then
     // handle this state transition as part `CONVERT_TO_CHECK_VIEW` transition
-    onSetCurrentCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
+    onSetTimeMachineCheck(RemoteDataState.Done, DEFAULT_THRESHOLD_CHECK)
 
     onConvertToCheckView()
   }
@@ -60,7 +59,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp = {
-  onSetCurrentCheck: setCurrentCheck,
+  onSetTimeMachineCheck: setTimeMachineCheck,
   onConvertToCheckView: convertToCheckView,
 }
 

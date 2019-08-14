@@ -12,8 +12,10 @@ import {Action as TimeMachineAction} from 'src/timeMachine/actions'
 import {Action as CheckAction} from 'src/alerting/actions/checks'
 
 // Actions
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {setCurrentCheck} from 'src/alerting/actions/checks'
+import {
+  setActiveTimeMachine,
+  setTimeMachineCheck,
+} from 'src/timeMachine/actions'
 import {TimeMachineID} from 'src/types'
 
 export type Action = SetViewAction | SetViewsAction | ResetViewsAction
@@ -102,7 +104,7 @@ export const getViewForTimeMachine = (
   try {
     const view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     if (view.properties.type === 'check') {
-      dispatch(setCurrentCheck(RemoteDataState.Done, view.properties.check))
+      dispatch(setTimeMachineCheck(RemoteDataState.Done, view.properties.check))
     }
     dispatch(setView(cellID, view, RemoteDataState.Done))
     dispatch(setActiveTimeMachine(timeMachineID, {view}))

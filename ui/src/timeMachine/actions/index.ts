@@ -21,9 +21,12 @@ import {
   TimeMachineTab,
   AutoRefresh,
   TimeMachineID,
+  Check,
+  CheckType,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
+import {RemoteDataState} from '@influxdata/clockface'
 
 export type Action =
   | QueryBuilderAction
@@ -77,6 +80,10 @@ export type Action =
   | ReturnType<typeof convertFromCheckView>
   | ReturnType<typeof toggleAlertingPanel>
   | ReturnType<typeof toggleVisOptions>
+  | ReturnType<typeof setCheckStatus>
+  | ReturnType<typeof setTimeMachineCheck>
+  | ReturnType<typeof updateTimeMachineCheck>
+  | ReturnType<typeof changeCheckType>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -612,4 +619,27 @@ export const convertFromCheckView = () => ({
 
 export const toggleAlertingPanel = () => ({
   type: 'TOGGLE_ALERTING_PANEL' as 'TOGGLE_ALERTING_PANEL',
+})
+
+export const setCheckStatus = (checkStatus: RemoteDataState) => ({
+  type: 'SET_TIMEMACHINE_CHECK_STATUS' as 'SET_TIMEMACHINE_CHECK_STATUS',
+  payload: {checkStatus},
+})
+
+export const setTimeMachineCheck = (
+  checkStatus: RemoteDataState,
+  check: Partial<Check>
+) => ({
+  type: 'SET_TIMEMACHINE_CHECK' as 'SET_TIMEMACHINE_CHECK',
+  payload: {checkStatus, check},
+})
+
+export const updateTimeMachineCheck = (checkUpdate: Partial<Check>) => ({
+  type: 'UPDATE_TIMEMACHINE_CHECK' as 'UPDATE_TIMEMACHINE_CHECK',
+  payload: {checkUpdate},
+})
+
+export const changeCheckType = (toType: CheckType) => ({
+  type: 'CHANGE_TIMEMACHINE_CHECK_TYPE' as 'CHANGE_TIMEMACHINE_CHECK_TYPE',
+  payload: {toType},
 })

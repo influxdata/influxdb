@@ -13,13 +13,12 @@ import {createView} from 'src/shared/utils/view'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
+import {updateCheck, getCurrentCheck} from 'src/alerting/actions/checks'
 import {
-  updateCheck,
-  setCurrentCheck,
-  updateCurrentCheck,
-  getCurrentCheck,
-} from 'src/alerting/actions/checks'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
+  setActiveTimeMachine,
+  setTimeMachineCheck,
+  updateTimeMachineCheck,
+} from 'src/timeMachine/actions'
 
 // Types
 import {
@@ -33,9 +32,9 @@ import {
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
-  setCurrentCheck: typeof setCurrentCheck
+  setTimeMachineCheck: typeof setTimeMachineCheck
   getCurrentCheck: typeof getCurrentCheck
-  updateCurrentCheck: typeof updateCurrentCheck
+  updateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
@@ -74,11 +73,11 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }, [check, checkID])
 
   const handleUpdateName = (name: string) => {
-    updateCurrentCheck({name})
+    updateTimeMachineCheck({name})
   }
 
   const handleClose = () => {
-    setCurrentCheck(RemoteDataState.NotStarted, null)
+    setTimeMachineCheck(RemoteDataState.NotStarted, null)
     router.push(`/orgs/${orgID}/alerting`)
   }
 
@@ -139,8 +138,8 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   updateCheck: updateCheck,
-  setCurrentCheck: setCurrentCheck,
-  updateCurrentCheck: updateCurrentCheck,
+  setTimeMachineCheck: setTimeMachineCheck,
+  updateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
   getCurrentCheck: getCurrentCheck,
 }
