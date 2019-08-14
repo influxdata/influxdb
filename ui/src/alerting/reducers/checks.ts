@@ -8,13 +8,11 @@ import {Action} from 'src/alerting/actions/checks'
 export interface ChecksState {
   status: RemoteDataState
   list: Check[]
-  current: {status: RemoteDataState; check: Partial<Check>}
 }
 
 export const defaultChecksState: ChecksState = {
   status: RemoteDataState.NotStarted,
   list: [],
-  current: {status: RemoteDataState.NotStarted, check: null},
 }
 
 export default (

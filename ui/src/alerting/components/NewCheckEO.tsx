@@ -21,6 +21,7 @@ import {
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {Check, AppState, RemoteDataState, CheckViewProperties} from 'src/types'
@@ -36,7 +37,7 @@ interface DispatchProps {
 
 interface StateProps {
   check: Partial<Check>
-  status: RemoteDataState
+  checkStatus: RemoteDataState
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
@@ -48,7 +49,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   saveCheckFromTimeMachine,
   params,
   router,
-  status,
+  checkStatus,
   check,
 }) => {
   useEffect(() => {
@@ -85,7 +86,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
       <div className="veo">
         <SpinnerContainer
           spinnerComponent={<TechnoSpinner />}
-          loading={status || RemoteDataState.Loading}
+          loading={checkStatus || RemoteDataState.Loading}
         >
           <CheckEOHeader
             key={check && check.name}
@@ -105,12 +106,10 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   const {
-    checks: {
-      current: {check, status},
-    },
-  } = state
+    alerting: {check, checkStatus},
+  } = getActiveTimeMachine(state)
 
-  return {check, status}
+  return {check, checkStatus}
 }
 
 const mdtp: DispatchProps = {

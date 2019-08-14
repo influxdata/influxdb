@@ -121,13 +121,8 @@ const mstp = (state: AppState): StateProps => {
     isViewingRawData,
     view: {properties: viewProperties},
     queryResults: {status: loading, errorMessage, isInitialFetch, files},
+    alerting: {check},
   } = getActiveTimeMachine(state)
-
-  const {
-    checks: {
-      current: {check},
-    },
-  } = state
 
   const giraffeResult = getVisTable(state)
   const xColumn = getXColumnSelection(state)

@@ -125,13 +125,13 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   const {
-    checks: {
-      current: {check, status: checkStatus},
-    },
     timeMachines: {activeTimeMachineID},
   } = state
 
-  const {draftQueries} = getActiveTimeMachine(state)
+  const {
+    draftQueries,
+    alerting: {check, checkStatus},
+  } = getActiveTimeMachine(state)
 
   return {check, checkStatus, activeTimeMachineID, query: draftQueries[0]}
 }

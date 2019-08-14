@@ -18,6 +18,9 @@ import {Input} from '@influxdata/clockface'
 // Actions
 import {updateTimeMachineCheck, changeCheckType} from 'src/TimeMachine/actions'
 
+//Selectors
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+
 // Types
 import {Check, AppState, CheckType} from 'src/types'
 import {
@@ -217,10 +220,8 @@ const CheckMetaCard: FC<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   const {
-    checks: {
-      current: {check},
-    },
-  } = state
+    alerting: {check},
+  } = getActiveTimeMachine(state)
 
   return {check}
 }
