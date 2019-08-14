@@ -8,14 +8,12 @@ import {StatusRuleDraft} from 'src/types'
 import {Dropdown} from '@influxdata/clockface'
 
 // Utils
+import {useRuleDispatch} from './RuleOverlay.reducer'
 import {
   CHANGES,
   changeStatusRule,
   activeChange,
 } from 'src/alerting/components/notifications/utils'
-
-// Hooks
-import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   status: StatusRuleDraft

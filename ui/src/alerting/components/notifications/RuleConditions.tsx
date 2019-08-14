@@ -15,14 +15,14 @@ import StatusRuleComponent from 'src/alerting/components/notifications/StatusRul
 import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 
+// Utils
+import {useRuleDispatch} from './RuleOverlay.reducer'
+
 // Constants
 import {newTagRule} from 'src/alerting/constants'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'
-
-// Hooks
-import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   rule: RuleState

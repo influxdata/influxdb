@@ -14,23 +14,22 @@ import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
 import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
 import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
 
-// Types
-import {NotificationRuleDraft} from 'src/types'
-
 // Constants
 import {endpoints} from 'src/alerting/constants'
 
-// Hooks
-import {useRuleDispatch} from 'src/shared/hooks'
+// Utils
+import {useRuleState, useRuleDispatch} from './RuleOverlay.reducer'
 
-interface Props {
-  rule: NotificationRuleDraft
-}
+// Types
+import {NotificationRuleDraft} from 'src/types'
 
-const RuleOverlayContents: FC<Props> = ({rule}) => {
+const RuleOverlayContents: FC = () => {
+  const rule = useRuleState()
   const dispatch = useRuleDispatch()
+
   const handleChange = e => {
     const {name, value} = e.target
+
     dispatch({
       type: 'UPDATE_RULE',
       rule: {...rule, [name]: value} as NotificationRuleDraft,

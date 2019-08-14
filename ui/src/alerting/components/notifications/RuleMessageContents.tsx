@@ -6,11 +6,11 @@ import SlackMessage from './SlackMessage'
 import SMTPMessage from './SMTPMessage'
 import PagerDutyMessage from './PagerDutyMessage'
 
+// Utils
+import {useRuleDispatch} from './RuleOverlay.reducer'
+
 // Types
 import {NotificationRuleDraft} from 'src/types'
-
-// Hooks
-import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   rule: NotificationRuleDraft

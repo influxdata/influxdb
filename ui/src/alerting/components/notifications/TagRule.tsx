@@ -12,15 +12,16 @@ import {
   FlexDirection,
   ComponentColor,
 } from '@influxdata/clockface'
+
 import TagRuleOperatorDropdown, {
   Operator,
 } from 'src/alerting/components/notifications/TagRuleOperatorDropdown'
 
+// Utils
+import {useRuleDispatch} from './RuleOverlay.reducer'
+
 // Types
 import {TagRuleDraft} from 'src/types'
-
-// Hooks
-import {useRuleDispatch} from 'src/shared/hooks'
 
 interface Props {
   tagRule: TagRuleDraft
