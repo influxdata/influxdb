@@ -31,11 +31,11 @@ import {
 } from 'src/types'
 
 interface DispatchProps {
-  updateCheck: typeof updateCheck
-  setTimeMachineCheck: typeof setTimeMachineCheck
-  getCheckForTimeMachine: typeof getCheckForTimeMachine
-  updateTimeMachineCheck: typeof updateTimeMachineCheck
+  onUpdateCheck: typeof updateCheck
+  onGetCheckForTimeMachine: typeof getCheckForTimeMachine
+  onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
+  onSetTimeMachineCheck: typeof setTimeMachineCheck
 }
 
 interface StateProps {
@@ -48,11 +48,13 @@ interface StateProps {
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
+  onUpdateCheck,
+  onGetCheckForTimeMachine,
+  onUpdateTimeMachineCheck,
   onSetActiveTimeMachine,
+  onSetTimeMachineCheck,
   activeTimeMachineID,
-  getCheckForTimeMachine,
   checkStatus,
-  updateCheck,
   router,
   params: {checkID, orgID},
   query,
@@ -68,22 +70,22 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
         isViewingRawData: false,
       })
     } else {
-      getCheckForTimeMachine(checkID)
+      onGetCheckForTimeMachine(checkID)
     }
   }, [check, checkID])
 
   const handleUpdateName = (name: string) => {
-    updateTimeMachineCheck({name})
+    onUpdateTimeMachineCheck({name})
   }
 
   const handleClose = () => {
-    setTimeMachineCheck(RemoteDataState.NotStarted, null)
+    onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
     router.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleSave = () => {
     // todo: update view when check has own view
-    updateCheck({...check, query})
+    onUpdateCheck({...check, query})
     handleClose()
   }
 
@@ -137,11 +139,11 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  updateCheck: updateCheck,
-  setTimeMachineCheck: setTimeMachineCheck,
-  updateTimeMachineCheck: updateTimeMachineCheck,
+  onUpdateCheck: updateCheck,
+  onSetTimeMachineCheck: setTimeMachineCheck,
+  onUpdateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  getCheckForTimeMachine: getCheckForTimeMachine,
+  onGetCheckForTimeMachine: getCheckForTimeMachine,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
