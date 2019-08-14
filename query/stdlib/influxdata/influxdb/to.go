@@ -188,6 +188,12 @@ func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBucket
 	if o.Bucket != "" {
 		bf.Name = &o.Bucket
 	}
+	if o.BucketID != "" {
+		id, err := platform.IDFromString(o.BucketID)
+		if err == nil {
+			bf.ID = id
+		}
+	}
 	if o.Org != "" {
 		bf.Org = &o.Org
 	}
