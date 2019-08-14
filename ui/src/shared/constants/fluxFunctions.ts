@@ -1180,8 +1180,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Applies the Holt-Winters forecasting method to input tables. The Holt-Winters method predicts `n` seasonally-adjusted values for the specified `column` at the specified `interval`.',
-    example:
-      'holtWinters(n: 10, interval: 1d)',
+    example: 'holtWinters(n: 10, interval: 1d)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/holtwinters/',
