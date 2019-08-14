@@ -10,7 +10,7 @@ import {Overlay} from '@influxdata/clockface'
 import {RuleOverlayProvider} from './RuleOverlay.reducer'
 
 // Constants
-import {newRule} from 'src/alerting/constants'
+import {NEW_RULE_DRAFT} from 'src/alerting/constants'
 
 type Props = WithRouterProps
 
@@ -20,7 +20,7 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
   }
 
   return (
-    <RuleOverlayProvider initialState={newRule}>
+    <RuleOverlayProvider initialState={NEW_RULE_DRAFT}>
       <Overlay visible={true}>
         <Overlay.Container maxWidth={800}>
           <Overlay.Header

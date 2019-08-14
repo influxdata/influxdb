@@ -8,7 +8,7 @@ import {
   removeRule,
 } from 'src/alerting/actions/notifications/rules'
 import {RemoteDataState} from 'src/types'
-import {rule} from 'src/alerting/constants'
+import {NEW_RULE_DRAFT} from 'src/alerting/constants'
 
 describe('rulesReducer', () => {
   describe('setAllNotificationRules', () => {
@@ -17,12 +17,12 @@ describe('rulesReducer', () => {
 
       const actual = rulesReducer(
         initialState,
-        setAllNotificationRules(RemoteDataState.Done, [rule])
+        setAllNotificationRules(RemoteDataState.Done, [NEW_RULE_DRAFT])
       )
 
       const expected = {
         ...defaultNotificationRulesState,
-        list: [rule],
+        list: [NEW_RULE_DRAFT],
         status: RemoteDataState.Done,
       }
 
@@ -34,11 +34,11 @@ describe('rulesReducer', () => {
     it('adds rule to list if it is new', () => {
       const initialState = defaultNotificationRulesState
 
-      const actual = rulesReducer(initialState, setRule(rule))
+      const actual = rulesReducer(initialState, setRule(NEW_RULE_DRAFT))
 
       const expected = {
         ...defaultNotificationRulesState,
-        list: [rule],
+        list: [NEW_RULE_DRAFT],
       }
 
       expect(actual).toEqual(expected)
@@ -46,19 +46,19 @@ describe('rulesReducer', () => {
 
     it('updates rule in list if it exists', () => {
       let initialState = defaultNotificationRulesState
-      initialState.list = [rule]
+      initialState.list = [NEW_RULE_DRAFT]
 
       const actual = rulesReducer(
         initialState,
         setRule({
-          ...rule,
+          ...NEW_RULE_DRAFT,
           name: 'moo',
         })
       )
 
       const expected = {
         ...defaultNotificationRulesState,
-        list: [{...rule, name: 'moo'}],
+        list: [{...NEW_RULE_DRAFT, name: 'moo'}],
       }
 
       expect(actual).toEqual(expected)
@@ -68,8 +68,8 @@ describe('rulesReducer', () => {
   describe('removeRule', () => {
     it('removes rule from list', () => {
       const initialState = defaultNotificationRulesState
-      initialState.list = [rule]
-      const actual = rulesReducer(initialState, removeRule(rule.id))
+      initialState.list = [NEW_RULE_DRAFT]
+      const actual = rulesReducer(initialState, removeRule(NEW_RULE_DRAFT.id))
 
       const expected = {
         ...defaultNotificationRulesState,
@@ -86,14 +86,14 @@ describe('rulesReducer', () => {
 
       const actual = rulesReducer(
         initialState,
-        setCurrentRule(RemoteDataState.Done, rule)
+        setCurrentRule(RemoteDataState.Done, NEW_RULE_DRAFT)
       )
 
       const expected = {
         ...defaultNotificationRulesState,
         current: {
           status: RemoteDataState.Done,
-          rule: rule,
+          rule: NEW_RULE_DRAFT,
         },
       }
 
