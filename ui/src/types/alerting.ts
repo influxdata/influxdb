@@ -41,6 +41,7 @@ type PagerDutyRule = NotificationRuleBaseDraft & PagerDutyNotificationRuleBase
 
 export {
   Check,
+  Threshold,
   CheckBase,
   StatusRule,
   LevelRule,
