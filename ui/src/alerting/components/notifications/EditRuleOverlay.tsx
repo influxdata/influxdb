@@ -7,11 +7,8 @@ import {connect} from 'react-redux'
 import {Overlay} from '@influxdata/clockface'
 import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverlayContents'
 
-// Reducers
-import {memoizedReducer, ActionPayload} from './RuleOverlay.reducer'
-
-// Constants
-import {RuleModeContext, EditRuleDispatch, RuleMode} from 'src/shared/hooks'
+// Utils
+import {RuleOverlayProvider} from './RuleOverlay.reducer'
 
 // Types
 import {NotificationRuleDraft, AppState} from 'src/types'
@@ -31,28 +28,20 @@ const EditRuleOverlay: FC<Props> = ({params, router, stateRule}) => {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const mode = RuleMode.Edit
-  const [rule, dispatch] = memoizedReducer(mode, stateRule)
-  const ruleDispatch = (action: ActionPayload): void => {
-    dispatch({...action, mode})
-  }
-
   return (
-    <RuleModeContext.Provider value={mode}>
-      <EditRuleDispatch.Provider value={ruleDispatch}>
-        <Overlay visible={true}>
-          <Overlay.Container maxWidth={800}>
-            <Overlay.Header
-              title="Edit this Notification Rule"
-              onDismiss={handleDismiss}
-            />
-            <Overlay.Body>
-              <RuleOverlayContents rule={rule} />
-            </Overlay.Body>
-          </Overlay.Container>
-        </Overlay>
-      </EditRuleDispatch.Provider>
-    </RuleModeContext.Provider>
+    <RuleOverlayProvider initialState={stateRule}>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={800}>
+          <Overlay.Header
+            title="Edit this Notification Rule"
+            onDismiss={handleDismiss}
+          />
+          <Overlay.Body>
+            <RuleOverlayContents />
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
+    </RuleOverlayProvider>
   )
 }
 

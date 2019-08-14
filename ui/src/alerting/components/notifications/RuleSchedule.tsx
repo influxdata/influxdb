@@ -12,8 +12,8 @@ import {
   ButtonShape,
 } from '@influxdata/clockface'
 
-// Hooks
-import {useRuleDispatch} from 'src/shared/hooks'
+// Utils
+import {useRuleDispatch} from './RuleOverlay.reducer'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'

@@ -1,5 +1,12 @@
 // Libraries
-import {useCallback, useReducer} from 'react'
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useRef,
+  Dispatch,
+  FC,
+} from 'react'
 import {v4} from 'uuid'
 import {omit} from 'lodash'
 
@@ -11,13 +18,11 @@ import {
   CheckStatusLevel,
 } from 'src/types'
 
-// Hooks
-import {RuleMode} from 'src/shared/hooks'
-
 export type LevelType = 'currentLevel' | 'previousLevel'
+
 export type RuleState = NotificationRuleDraft
-export type ActionMode = {mode: RuleMode}
-export type ActionPayload =
+
+export type Action =
   | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
   | {
       type: 'UPDATE_STATUS_LEVEL'
@@ -37,16 +42,7 @@ export type ActionPayload =
       operator: TagRuleDraft['value']['operator']
     }
 
-export type Action = ActionPayload & ActionMode
-
-export const reducer = (mode: RuleMode) => (
-  state: RuleState,
-  action: Action
-) => {
-  if (mode !== action.mode) {
-    return state
-  }
-
+const reducer = (state: RuleState, action: Action) => {
   switch (action.type) {
     case 'UPDATE_RULE': {
       const {rule} = action
@@ -167,13 +163,47 @@ export const reducer = (mode: RuleMode) => (
 
     default:
       const neverAction: never = action
+
       throw new Error(
-        `Unhandled action: "${neverAction}" in RuleOverlay.reducer.ts`
+        `Unhandled action "${
+          (neverAction as any).type
+        }" in RuleOverlay.reducer.ts`
       )
   }
 }
 
-export const memoizedReducer = (mode: RuleMode, state) => {
-  const memo = useCallback(reducer(mode), [mode])
-  return useReducer(memo, state)
+const RuleStateContext = createContext<RuleState>(null)
+const RuleDispatchContext = createContext<Dispatch<Action>>(null)
+
+export const RuleOverlayProvider: FC<{initialState: RuleState}> = ({
+  initialState,
+  children,
+}) => {
+  const prevInitialStateRef = useRef(initialState)
+
+  const [state, dispatch] = useReducer((state: RuleState, action: Action) => {
+    if (prevInitialStateRef.current !== initialState) {
+      prevInitialStateRef.current = initialState
+
+      return initialState
+    }
+
+    return reducer(state, action)
+  }, initialState)
+
+  return (
+    <RuleStateContext.Provider value={state}>
+      <RuleDispatchContext.Provider value={dispatch}>
+        {children}
+      </RuleDispatchContext.Provider>
+    </RuleStateContext.Provider>
+  )
+}
+
+export const useRuleState = (): RuleState => {
+  return useContext(RuleStateContext)
+}
+
+export const useRuleDispatch = (): Dispatch<Action> => {
+  return useContext(RuleDispatchContext)
 }
