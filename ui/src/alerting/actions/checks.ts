@@ -20,7 +20,6 @@ import {setCheckStatus, setTimeMachineCheck} from 'src/timeMachine/actions'
 
 // Types
 import {Check, GetState, RemoteDataState} from 'src/types'
-import {check1, check2} from 'src/alerting/constants'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -61,7 +60,7 @@ export const getChecks = () => async (
     //   throw new Error(resp.data.message)
     // }
 
-    dispatch(setAllChecks(RemoteDataState.Done, [check1, check2]))
+    dispatch(setAllChecks(RemoteDataState.Done, []))
   } catch (e) {
     console.error(e)
     dispatch(setAllChecks(RemoteDataState.Error))
