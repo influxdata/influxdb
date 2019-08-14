@@ -13,13 +13,13 @@ import {Controlled as ReactCodeMirror} from 'react-codemirror2'
 import CopyButton from 'src/shared/components/CopyButton'
 
 // Types
-import {DocumentCreate} from '@influxdata/influx'
 import {ComponentColor} from '@influxdata/clockface'
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, DashboardTemplate} from 'src/types'
+import {DocumentCreate} from '@influxdata/influx'
 
 interface Props {
   onDismissOverlay: () => void
-  resource: DocumentCreate
+  resource: DashboardTemplate | DocumentCreate
   overlayHeading: string
   status: RemoteDataState
   isVisible: boolean

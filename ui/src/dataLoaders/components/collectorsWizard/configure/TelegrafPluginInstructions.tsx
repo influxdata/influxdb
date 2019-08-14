@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {includes} from 'lodash'
+import {includes, get} from 'lodash'
 
 // Components
 import {Form, Input} from '@influxdata/clockface'
@@ -33,14 +33,9 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {
-  AppState,
-  TelegrafPlugin,
-  ConfigurationState,
-  DashboardTemplate,
-} from 'src/types'
+import {AppState, TelegrafPlugin, ConfigurationState} from 'src/types'
 import {InputType, ComponentSize} from '@influxdata/clockface'
-import {client} from 'src/utils/api'
+import {influxdbTemplateList} from 'src/templates/constants/defaultTemplates'
 
 interface DispatchProps {
   onSetTelegrafConfigName: typeof setTelegrafConfigName
@@ -143,40 +138,34 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
 
   private async handleCreateDashboardsForPlugins() {
     const {notify, telegrafPlugins, orgID} = this.props
-
     try {
-      const templatesEntries = await client.templates.getAll(orgID)
-
       const configuredPlugins = telegrafPlugins.filter(
         tp => tp.configured === ConfigurationState.Configured
       )
 
-      const configuredPluginNames = configuredPlugins.map(t =>
-        `${t.name}-Template`.toLowerCase()
-      )
+      const configuredPluginTemplateIdentifiers = configuredPlugins
+        .map(t => t.templateID)
+        .filter(t => t)
 
-      const templatesToGet = templatesEntries.filter(t => {
-        return includes(configuredPluginNames, t.meta.name.toLowerCase())
+      const templatesToInstantiate = influxdbTemplateList.filter(t => {
+        return includes(
+          configuredPluginTemplateIdentifiers,
+          get(t, 'meta.templateID')
+        )
       })
 
-      const pluginsWithTemplates = templatesToGet.map(t => {
-        return t.meta.name.replace('-Template', '')
-      })
-
-      const pendingTemplates = templatesToGet.map(t =>
-        client.templates.get(t.id)
+      const pendingDashboards = templatesToInstantiate.map(t =>
+        createDashboardFromTemplateAJAX(t, orgID)
       )
 
-      const templates = await Promise.all(pendingTemplates)
-
-      const pendingDashboards = templates.map(t =>
-        createDashboardFromTemplateAJAX(t as DashboardTemplate, orgID)
+      const pendingDashboardNames = templatesToInstantiate.map(t =>
+        t.meta.name.toLowerCase()
       )
 
       const dashboards = await Promise.all(pendingDashboards)
 
       if (dashboards.length) {
-        notify(TelegrafDashboardCreated(pluginsWithTemplates))
+        notify(TelegrafDashboardCreated(pendingDashboardNames))
       }
     } catch (err) {
       notify(TelegrafDashboardFailed())

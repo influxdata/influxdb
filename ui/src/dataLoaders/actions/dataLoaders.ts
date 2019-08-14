@@ -320,6 +320,7 @@ export const addPluginBundleWithPlugins = (bundle: BundleName) => dispatch => {
           name: p,
           active: false,
           configured: isConfigured,
+          templateID: telegrafPluginsInfo[p].templateID,
         }
       })
     )

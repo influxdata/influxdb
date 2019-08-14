@@ -4,6 +4,7 @@ import {
   IDashboard,
   DocumentListEntry,
   Document,
+  DocumentMeta,
 } from '@influxdata/influx'
 import {View, Cell} from './index'
 
@@ -20,10 +21,15 @@ interface KeyValuePairs {
   [key: string]: any
 }
 
+interface DocumentMetaWithTemplateID extends DocumentMeta {
+  templateID?: string
+}
+
 // Templates
 export interface TemplateBase extends Document {
+  meta: DocumentMetaWithTemplateID
   content: {data: TemplateData; included: TemplateIncluded[]}
-  labels?: ILabel[]
+  labels: ILabel[]
 }
 
 // TODO: be more specific about what attributes can be

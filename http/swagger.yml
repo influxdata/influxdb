@@ -8045,6 +8045,8 @@ components:
           type: string
         type:
           type: string
+        templateID:
+          type: string
         description:
           type: string
         version:

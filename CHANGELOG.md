@@ -4,6 +4,9 @@
 1. [14495](https://github.com/influxdata/influxdb/pull/14495): optional gzip compression of the query CSV response.
 1. [14567](https://github.com/influxdata/influxdb/pull/14567): Add task types.
 1. [14604](https://github.com/influxdata/influxdb/pull/14604): When getting task runs from the API, runs will be returned in order of most recently scheduled first.
+1. [14631](https://github.com/influxdata/influxdb/pull/14631): Added Github and Apache templates
+1. [14631](https://github.com/influxdata/influxdb/pull/14631): Updated name of Local Metrics template
+1. [14631](https://github.com/influxdata/influxdb/pull/14631): Dashboards for all Telegraf config bundles now created
 
 ### UI Improvements
 

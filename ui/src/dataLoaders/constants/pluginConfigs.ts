@@ -60,6 +60,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputCpu.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputDisk.NameEnum.Disk]: {
     fields: null,
@@ -68,6 +69,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputDisk.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputDiskio.NameEnum.Diskio]: {
     fields: null,
@@ -76,6 +78,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputDiskio.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputDocker.NameEnum.Docker]: {
     fields: {
@@ -89,6 +92,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputDocker.TypeEnum.Input,
       config: {endpoint: ''},
     },
+    templateID: '0000000000000002',
   },
   [TelegrafPluginInputFile.NameEnum.File]: {
     fields: {
@@ -123,6 +127,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputKubernetes.TypeEnum.Input,
       config: {url: ''},
     },
+    templateID: '0000000000000005',
   },
   [TelegrafPluginInputLogParser.NameEnum.Logparser]: {
     fields: {files: {type: ConfigFieldType.StringArray, isRequired: true}},
@@ -139,6 +144,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputMem.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputNet.NameEnum.Net]: {
     fields: null,
@@ -147,6 +153,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputNet.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputNetResponse.NameEnum.NetResponse]: {
     fields: null,
@@ -163,6 +170,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputNginx.TypeEnum.Input,
       config: {urls: []},
     },
+    templateID: '0000000000000006',
   },
   [TelegrafPluginInputProcesses.NameEnum.Processes]: {
     fields: null,
@@ -171,6 +179,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputProcesses.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputProcstat.NameEnum.Procstat]: {
     fields: {exe: {type: ConfigFieldType.String, isRequired: true}},
@@ -198,6 +207,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputRedis.TypeEnum.Input,
       config: {servers: [], password: ''},
     },
+    templateID: '0000000000000008',
   },
   [TelegrafPluginInputSyslog.NameEnum.Syslog]: {
     fields: {server: {type: ConfigFieldType.String, isRequired: true}},
@@ -214,6 +224,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputSwap.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputSystem.NameEnum.System]: {
     fields: null,
@@ -222,6 +233,7 @@ export const telegrafPluginsInfo: TelegrafPluginInfo = {
       type: TelegrafPluginInputSystem.TypeEnum.Input,
       config: {},
     },
+    templateID: '0000000000000009',
   },
   [TelegrafPluginInputTail.NameEnum.Tail]: {
     fields: null,
