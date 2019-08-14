@@ -34,6 +34,7 @@ const SMTPMessage: FC<Props> = ({
           name="bodyTemplate"
           value={bodyTemplate}
           onChange={onChange}
+          rows={3}
         />
       </Form.Element>
     </>

@@ -21,6 +21,7 @@ const SlackMessage: FC<Props> = ({channel, messageTemplate, onChange}) => {
           name="messageTemplate"
           value={messageTemplate}
           onChange={onChange}
+          rows={3}
         />
       </Form.Element>
     </>
