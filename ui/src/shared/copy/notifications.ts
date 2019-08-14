@@ -794,3 +794,8 @@ export const deleteRuleFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete notification rule: ${message}`,
 })
+
+export const getVieworCheckFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to load resources for cell: ${message}`,
+})
