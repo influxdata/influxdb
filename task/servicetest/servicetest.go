@@ -1099,7 +1099,7 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second*2), backend.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.Created.RunID, startedAt.Add(time.Second*2), backend.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1183,7 +1183,7 @@ func testRunStorage(t *testing.T, sys *System) {
 	if runs[2].StartedAt != startedAt.Add(time.Second).Format(time.RFC3339Nano) {
 		t.Fatalf("unexpected StartedAt; want %s, got %s", runs[1].StartedAt, startedAt.Add(time.Second))
 	}
-	if runs[2].Status != backend.RunSuccess.String() {
+	if runs[2].Status != backend.RunFail.String() {
 		t.Fatalf("unexpected run status; want %s, got %s", backend.RunSuccess.String(), runs[2].Status)
 	}
 	if exp := startedAt.Add(time.Second * 2).Format(time.RFC3339Nano); runs[2].FinishedAt != exp {
