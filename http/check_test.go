@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/notification"
 
 	"github.com/influxdata/influxdb"
@@ -69,6 +69,7 @@ func TestService_handleGetChecks(t *testing.T) {
 									Name:   "hello",
 									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
 									Status: influxdb.Active,
+									TaskID: 3,
 								},
 								Level: notification.Info,
 							},
@@ -78,6 +79,7 @@ func TestService_handleGetChecks(t *testing.T) {
 									Name:   "example",
 									OrgID:  influxTesting.MustIDBase16("7e55e118dbabb1ed"),
 									Status: influxdb.Inactive,
+									TaskID: 3,
 								},
 								Thresholds: []check.ThresholdConfig{
 									{LowerBound: &fl1},
@@ -127,11 +129,9 @@ func TestService_handleGetChecks(t *testing.T) {
 	  "createdAt": "0001-01-01T00:00:00Z",
 	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "0b501e7e557ab1ed",
-	  "every": "0s",
 	  "orgID": "50f7ba1150f7ba11",
 	  "name": "hello",
 	  "level": "INFO",
-	  "offset": "0s",
 	  "query": {
 	    "builderConfig": {
 	      "aggregateWindow": {
@@ -173,8 +173,6 @@ func TestService_handleGetChecks(t *testing.T) {
       "id": "c0175f0077a77005",
       "orgID": "7e55e118dbabb1ed",
       "name": "example",
-	  "every": "0s",
-	  "offset": "0s",
 	  "query": {
 	  "builderConfig": {
 	    "aggregateWindow": {
@@ -286,6 +284,15 @@ func TestService_handleGetChecks(t *testing.T) {
 	}
 }
 
+func mustDuration(d string) *check.Duration {
+	dur, err := parser.ParseDuration(d)
+	if err != nil {
+		panic(err)
+	}
+
+	return (*check.Duration)(dur)
+}
+
 func TestService_handleGetCheck(t *testing.T) {
 	type fields struct {
 		CheckService influxdb.CheckService
@@ -317,7 +324,8 @@ func TestService_handleGetCheck(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Name:   "hello",
 									Status: influxdb.Active,
-									Every:  influxdb.Duration{Duration: time.Hour * 3},
+									Every:  mustDuration("3h"),
+									TaskID: 3,
 								},
 								Level: notification.Critical,
 							}, nil
@@ -342,8 +350,7 @@ func TestService_handleGetCheck(t *testing.T) {
 		  },
 		  "labels": [],
 		  "level": "CRIT",
-		  "every": "3h0m0s",
-		  "offset": "0s",
+		  "every": "3h",
 		  "createdAt": "0001-01-01T00:00:00Z",
 		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
@@ -482,7 +489,8 @@ func TestService_handlePostCheck(t *testing.T) {
 						Description:           "desc1",
 						StatusMessageTemplate: "msg1",
 						Status:                influxdb.Active,
-						Every:                 influxdb.Duration{Duration: time.Minute * 5},
+						Every:                 mustDuration("5m"),
+						TaskID:                3,
 						Tags: []notification.Tag{
 							{Key: "k1", Value: "v1"},
 							{Key: "k2", Value: "v2"},
@@ -530,7 +538,6 @@ func TestService_handlePostCheck(t *testing.T) {
   "name": "",
   "text": ""
 },
-  "offset": "0s",
   "type": "deadman",
   "timeSince": 13,
   "createdAt": "0001-01-01T00:00:00Z",
@@ -540,7 +547,7 @@ func TestService_handlePostCheck(t *testing.T) {
   "name": "hello",
   "authorizationID": "6f626f7274697321",
   "description": "desc1",
-  "every": "5m0s",
+  "every": "5m",
   "level": "WARN",
   "labels": []
 }
@@ -718,9 +725,10 @@ func TestService_handlePatchCheck(t *testing.T) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &check.Deadman{
 								Base: check.Base{
-									ID:    influxTesting.MustIDBase16("020f755c3c082000"),
-									Name:  "hello",
-									OrgID: influxTesting.MustIDBase16("020f755c3c082000"),
+									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
+									Name:   "hello",
+									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
+									TaskID: 3,
 								},
 								Level: notification.Critical,
 							}
@@ -756,9 +764,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 		  "id": "020f755c3c082000",
 		  "orgID": "020f755c3c082000",
 		  "level": "CRIT",
-		  "offset": "0s",
 		  "name": "example",
-		  "every": "0s",     
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
@@ -891,6 +897,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 									Name:   "hello",
 									Status: influxdb.Inactive,
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
+									TaskID: 3,
 								},
 							}
 
@@ -911,6 +918,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 					Base: check.Base{
 						Name:   "example",
 						Status: influxdb.Active,
+						TaskID: 3,
 					},
 					Level: notification.Critical,
 				},
@@ -931,9 +939,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		  "id": "020f755c3c082000",
 		  "orgID": "020f755c3c082000",
 		  "level": "CRIT",
-		  "offset": "0s",
 		  "name": "example",
-		  "every": "0s",     
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
