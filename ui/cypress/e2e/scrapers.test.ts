@@ -65,15 +65,15 @@ describe('Scrapers', () => {
         const url = 'http://google.com'
         const type = 'Prometheus'
 
-        cy.get<Organization>('@org').then(org => {
-          cy.get<Bucket>('@bucket').then(bucket => {
+        cy.get<Organization>('@org').then((org: Organization) => {
+          cy.get<Bucket>('@bucket').then((bucket: Bucket) => {
             cy.createScraper(scraperName, url, type, org.id, bucket.id)
             cy.createScraper(scraperName, url, type, org.id, bucket.id)
           })
         })
 
         cy.fixture('routes').then(({orgs}) => {
-          cy.get<Organization>('@org').then(({id}) => {
+          cy.get<Organization>('@org').then(({id}: Organization) => {
             cy.visit(`${orgs}/${id}/scrapers`)
           })
         })
@@ -81,21 +81,23 @@ describe('Scrapers', () => {
 
       it('can update scrapers name', () => {
         const newScraperName = 'This is new name'
-  
         cy.getByTestID('resource-card').within(() => {
-          cy.getByTestID('editable-name').click()
+          cy.getByTestID('editable-name')
+            .first()
+            .click()
           cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
         })
-      })
-  
-      it('can delete a scraper', () => {
 
+        cy.getByTestID('resource-card').contains(newScraperName)
+      })
+
+      it('can delete a scraper', () => {
         cy.getByTestID('resource-card').should('have.length', 2)
-  
+
         cy.getByTestID('confirmation-button')
           .last()
           .click({force: true})
-  
+
         cy.getByTestID('resource-card').should('have.length', 1)
       })
     })
