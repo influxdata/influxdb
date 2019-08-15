@@ -157,7 +157,7 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 									OrgID: 10,
 								},
 							},
-							&rule.SMTP{
+							&rule.PagerDuty{
 								Base: rule.Base{
 									ID:    3,
 									OrgID: 11,
@@ -189,7 +189,7 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 							OrgID: 10,
 						},
 					},
-					&rule.SMTP{
+					&rule.PagerDuty{
 						Base: rule.Base{
 							ID:    3,
 							OrgID: 11,
@@ -216,7 +216,7 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 									OrgID: 10,
 								},
 							},
-							&rule.SMTP{
+							&rule.PagerDuty{
 								Base: rule.Base{
 									ID:    3,
 									OrgID: 11,

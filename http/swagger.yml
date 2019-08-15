@@ -9057,8 +9057,8 @@ components:
         orgID:
           description: the ID of the organization that owns this notification rule.
           type: string
-        authorizationID:
-          description: The ID of the authorization used to create this notification rule.
+        ownerID:
+          description: The ID of creator used to create this notification rule.
           type: string
           readOnly: true
         createdAt:
