@@ -61,9 +61,8 @@ var threshold1 = &check.Threshold{
 		},
 	},
 	Thresholds: []check.ThresholdConfig{
-		&check.Lesser{Value: 1000},
-		&check.Greater{Value: 2000},
-		&check.Range{Min: 1500, Max: 1900, Within: true},
+		{LowerBound: FloatPtr(1000)},
+		{UpperBound: FloatPtr(2000)},
 	},
 }
 
@@ -283,9 +282,8 @@ func CreateCheck(
 						},
 					},
 					Thresholds: []check.ThresholdConfig{
-						&check.Lesser{Value: 1000},
-						&check.Greater{Value: 2000},
-						&check.Range{Min: 1500, Max: 1900, Within: true},
+						{LowerBound: FloatPtr(1000)},
+						{UpperBound: FloatPtr(2000)},
 					},
 				},
 			},

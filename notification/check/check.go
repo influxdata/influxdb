@@ -130,22 +130,22 @@ var typeToCheck = map[string](func() influxdb.Check){
 	"threshold": func() influxdb.Check { return &Threshold{} },
 }
 
-type rawJSON struct {
-	Type string `json:"type"`
+type rawRuleJSON struct {
+	Typ string `json:"type"`
 }
 
 // UnmarshalJSON will convert
 func UnmarshalJSON(b []byte) (influxdb.Check, error) {
-	var raw rawJSON
+	var raw rawRuleJSON
 	if err := json.Unmarshal(b, &raw); err != nil {
 		return nil, &influxdb.Error{
 			Msg: "unable to detect the check type from json",
 		}
 	}
-	convertedFunc, ok := typeToCheck[raw.Type]
+	convertedFunc, ok := typeToCheck[raw.Typ]
 	if !ok {
 		return nil, &influxdb.Error{
-			Msg: fmt.Sprintf("invalid check type %s", raw.Type),
+			Msg: fmt.Sprintf("invalid check type %s", raw.Typ),
 		}
 	}
 	converted := convertedFunc()
