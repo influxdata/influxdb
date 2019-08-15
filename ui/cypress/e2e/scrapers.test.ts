@@ -59,46 +59,45 @@ describe('Scrapers', () => {
       cy.getByTestID('resource-card').should('have.length', 1)
     })
 
-    it('can update scrapers name', () => {
-      const newScraperName = 'This is new name'
+    describe('Scrapers list', () => {
+      beforeEach(() => {
+        const scraperName = 'New Scraper'
+        const url = 'http://google.com'
+        const type = 'Prometheus'
 
-      const scraperName = 'New Scraper'
-      const url = 'http://google.com'
-      const type = 'Prometheus'
+        cy.get<Organization>('@org').then(org => {
+          cy.get<Bucket>('@bucket').then(bucket => {
+            cy.createScraper(scraperName, url, type, org.id, bucket.id)
+            cy.createScraper(scraperName, url, type, org.id, bucket.id)
+          })
+        })
 
-      cy.get<Organization>('@org').then(({id}) => {
-        let orgID = id
-        cy.get<Bucket>('@bucket').then(({id}) => {
-          cy.createScraper(scraperName, url, type, orgID, id)
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get<Organization>('@org').then(({id}) => {
+            cy.visit(`${orgs}/${id}/scrapers`)
+          })
         })
       })
 
-      cy.getByTestID('resource-card').within(() => {
-        cy.getByTestID('editable-name').click()
-        cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
-      })
-    })
-
-    it('can delete a scraper', () => {
-      const scraperName = 'New Scraper'
-      const url = 'http://google.com'
-      const type = 'Prometheus'
-
-      cy.get<Organization>('@org').then(({id}) => {
-        let orgID = id
-        cy.get<Bucket>('@bucket').then(({id}) => {
-          cy.createScraper(scraperName, url, type, orgID, id)
-          cy.createScraper(scraperName, url, type, orgID, id)
+      it('can update scrapers name', () => {
+        const newScraperName = 'This is new name'
+  
+        cy.getByTestID('resource-card').within(() => {
+          cy.getByTestID('editable-name').click()
+          cy.getByTestID('input-field').type(`${newScraperName}{enter}`)
         })
       })
+  
+      it('can delete a scraper', () => {
 
-      cy.getByTestID('resource-card').should('have.length', 2)
-
-      cy.getByTestID('confirmation-button')
-        .last()
-        .click({force: true})
-
-      cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('resource-card').should('have.length', 2)
+  
+        cy.getByTestID('confirmation-button')
+          .last()
+          .click({force: true})
+  
+        cy.getByTestID('resource-card').should('have.length', 1)
+      })
     })
   })
 })
