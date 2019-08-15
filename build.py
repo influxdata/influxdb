@@ -520,8 +520,8 @@ def build(version=None,
         # Handle variations in architecture output
         if arch == "i386" or arch == "i686":
             arch = "386"
-        elif "arm" in arch:
-            arch = "arm"
+        #elif "arm" in arch:
+        #    arch = "arm"
         build_command += "GOOS={} GOARCH={} ".format(platform, arch)
 
         if "arm" in arch:
