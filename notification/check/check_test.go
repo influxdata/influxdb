@@ -21,6 +21,12 @@ const (
 	id3 = "020f755c3c082002"
 )
 
+func numPtr(f float64) *float64 {
+	p := new(float64)
+	*p = f
+	return p
+}
+
 var goodBase = check.Base{
 	ID:                    influxTesting.MustIDBase16(id1),
 	Name:                  "name1",
@@ -123,14 +129,12 @@ func TestValidCheck(t *testing.T) {
 		{
 			name: "bad thredshold",
 			src: &check.Threshold{
-				Base: goodBase,
-				Thresholds: []check.ThresholdConfig{
-					&check.Range{Min: 200, Max: 100},
-				},
+				Base:       goodBase,
+				Thresholds: []check.ThresholdConfig{{}},
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "range threshold min can't be larger than max",
+				Msg:  "threshold must have at least one lowerBound or upperBound value",
 			},
 		},
 	}
@@ -204,9 +208,8 @@ func TestJSON(t *testing.T) {
 					},
 				},
 				Thresholds: []check.ThresholdConfig{
-					&check.Greater{ThresholdConfigBase: check.ThresholdConfigBase{AllValues: true}, Value: -1.36},
-					&check.Range{Min: -10000, Max: 500},
-					&check.Lesser{ThresholdConfigBase: check.ThresholdConfigBase{Level: notification.Critical}},
+					{AllValues: true, LowerBound: numPtr(-1.36)},
+					{LowerBound: numPtr(10000), UpperBound: numPtr(500)},
 				},
 			},
 		},
