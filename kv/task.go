@@ -112,6 +112,22 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		t.LatestCompleted = t.CreatedAt
 	}
 
+	if !t.OwnerID.Valid() {
+		authType := struct {
+			AuthorizationID influxdb.ID `json:"authorizationID"`
+		}{}
+		if err := json.Unmarshal(v, &authType); err != nil {
+			return nil, influxdb.ErrInternalTaskServiceError(err)
+		}
+
+		auth, err := s.findAuthorizationByID(ctx, tx, authType.AuthorizationID)
+		if err != nil {
+			return nil, influxdb.ErrInternalTaskServiceError(err)
+		}
+
+		t.OwnerID = auth.GetUserID()
+	}
+
 	// populate task Auth
 	ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
 	if err != nil {
