@@ -19,10 +19,7 @@ const GraphOptionsFixFirstColumn: SFC<Props> = ({
   <Grid.Column widthXS={Columns.Twelve}>
     <Form.Element label="First Column">
       <Form.Box>
-        <FlexBox
-          direction={FlexDirection.Row}
-          margin={ComponentSize.Small}
-        >
+        <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
           <SlideToggle.Label text="Scroll with table" />
           <SlideToggle
             active={fixed}

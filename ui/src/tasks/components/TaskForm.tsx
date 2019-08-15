@@ -3,14 +3,7 @@ import _ from 'lodash'
 import React, {PureComponent, ChangeEvent} from 'react'
 
 // Components
-import {
-  Form,
-  Radio,
-  Input,
-  Button,
-  FlexBox,
-  Grid,
-} from '@influxdata/clockface'
+import {Form, Radio, Input, Button, FlexBox, Grid} from '@influxdata/clockface'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'

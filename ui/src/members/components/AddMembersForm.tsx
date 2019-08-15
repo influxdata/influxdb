@@ -1,15 +1,8 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 
-// Components
-import {
-  Form,
-  Input,
-  Button,
-  Grid,
-  FlexBox,
-  Icon,
-} from '@influxdata/clockface'
+// Components 
+import {Form, Input, Button, Grid, FlexBox, Icon} from '@influxdata/clockface'
 import SelectUsers from 'src/members/components/SelectUsers'
 import {UsersMap} from 'src/members/reducers'
 

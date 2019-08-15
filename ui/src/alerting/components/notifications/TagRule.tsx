@@ -67,10 +67,7 @@ const TagRule: FC<Props> = ({tagRule}) => {
     <Panel testID="tag-rule" size={ComponentSize.ExtraSmall}>
       <DismissButton onClick={onDelete} color={ComponentColor.Default} />
       <Panel.Body>
-        <FlexBox
-          direction={FlexDirection.Row}
-          margin={ComponentSize.Small}
-        >
+        <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
           <TextBlock text="When tag" />
           <FlexBox.FlexChild grow={1}>
             <Input
