@@ -71,11 +71,11 @@ exports[`Account rendering renders! 1`] = `
                           justifyContent="flex-end"
                           stretchToFitHeight={false}
                           stretchToFitWidth={false}
-                          testID="component-spacer"
+                          testID="flex-box"
                         >
                           <div
-                            className="cf-component-spacer cf-component-spacer__row cf-component-spacer__justify-flex-end cf-component-spacer__align-center"
-                            data-testid="component-spacer"
+                            className="cf-flex-box cf-flex-box__row cf-flex-box__justify-flex-end cf-flex-box__align-center"
+                            data-testid="flex-box"
                           >
                             <Button
                               active={false}

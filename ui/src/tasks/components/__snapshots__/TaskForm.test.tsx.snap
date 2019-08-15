@@ -50,7 +50,7 @@ exports[`TaskForm rendering renders 1`] = `
             margin="sm"
             stretchToFitHeight={false}
             stretchToFitWidth={false}
-            testID="component-spacer"
+            testID="flex-box"
           >
             <Radio
               color="primary"
