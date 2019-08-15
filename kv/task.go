@@ -135,6 +135,7 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 	}
 
 	t.Authorization = &influxdb.Authorization{
+		Status:      influxdb.Active,
 		ID:          influxdb.ID(1),
 		OrgID:       t.OrganizationID,
 		Permissions: ps,
@@ -588,6 +589,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	// if we cant populate here we shouldn't error.
 	ps, _ := s.maxPermissions(ctx, tx, task.OwnerID)
 	task.Authorization = &influxdb.Authorization{
+		Status:      influxdb.Active,
 		ID:          influxdb.ID(1),
 		OrgID:       task.OrganizationID,
 		Permissions: ps,
