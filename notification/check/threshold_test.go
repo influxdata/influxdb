@@ -43,23 +43,33 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 						},
 					},
 					Thresholds: []check.ThresholdConfig{
-						check.ThresholdConfig{
-							Level:      notification.Ok,
-							LowerBound: &l,
+						check.Greater{
+							ThresholdConfigBase: check.ThresholdConfigBase{
+								Level: notification.Ok,
+							},
+							Value: l,
 						},
-						check.ThresholdConfig{
-							Level:      notification.Info,
-							UpperBound: &u,
+						check.Lesser{
+							ThresholdConfigBase: check.ThresholdConfigBase{
+								Level: notification.Info,
+							},
+							Value: u,
 						},
-						check.ThresholdConfig{
-							Level:      notification.Warn,
-							LowerBound: &l,
-							UpperBound: &u,
+						check.Range{
+							ThresholdConfigBase: check.ThresholdConfigBase{
+								Level: notification.Warn,
+							},
+							Min:    l,
+							Max:    u,
+							Within: true,
 						},
-						check.ThresholdConfig{
-							Level:      notification.Critical,
-							LowerBound: &l,
-							UpperBound: &u,
+						check.Range{
+							ThresholdConfigBase: check.ThresholdConfigBase{
+								Level: notification.Critical,
+							},
+							Min:    l,
+							Max:    u,
+							Within: true,
 						},
 					},
 				},
@@ -115,13 +125,18 @@ data
 						},
 					},
 					Thresholds: []check.ThresholdConfig{
-						check.ThresholdConfig{
-							Level:      notification.Warn,
-							UpperBound: &u,
+						check.Lesser{
+							ThresholdConfigBase: check.ThresholdConfigBase{
+
+								Level: notification.Warn,
+							},
+							Value: u,
 						},
-						check.ThresholdConfig{
-							Level:      notification.Critical,
-							LowerBound: &u,
+						check.Greater{
+							ThresholdConfigBase: check.ThresholdConfigBase{
+								Level: notification.Critical,
+							},
+							Value: u,
 						},
 					},
 				},

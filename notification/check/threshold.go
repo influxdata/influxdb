@@ -21,20 +21,73 @@ type Threshold struct {
 }
 
 // Type returns the type of the check.
-func (c Threshold) Type() string {
+func (t Threshold) Type() string {
 	return "threshold"
 }
 
 // Valid returns error if something is invalid.
-func (c Threshold) Valid() error {
-	if err := c.Base.Valid(); err != nil {
+func (t Threshold) Valid() error {
+	if err := t.Base.Valid(); err != nil {
 		return err
 	}
-	for _, cc := range c.Thresholds {
+	for _, cc := range t.Thresholds {
 		if err := cc.Valid(); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+type thresholdDecode struct {
+	Base
+	Thresholds []thresholdConfigDecode `json:"thresholds"`
+}
+
+type thresholdConfigDecode struct {
+	ThresholdConfigBase
+	Type   string  `json:"type"`
+	Value  float64 `json:"value"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	Within bool    `json:"within"`
+}
+
+// UnmarshalJSON implement json.Unmarshaler interface.
+func (t *Threshold) UnmarshalJSON(b []byte) error {
+	tdRaws := new(thresholdDecode)
+	if err := json.Unmarshal(b, tdRaws); err != nil {
+		return err
+	}
+	t.Base = tdRaws.Base
+	for _, tdRaw := range tdRaws.Thresholds {
+		switch tdRaw.Type {
+		case "lesser":
+			td := &Lesser{
+				ThresholdConfigBase: tdRaw.ThresholdConfigBase,
+				Value:               tdRaw.Value,
+			}
+			t.Thresholds = append(t.Thresholds, td)
+		case "greater":
+			td := &Greater{
+				ThresholdConfigBase: tdRaw.ThresholdConfigBase,
+				Value:               tdRaw.Value,
+			}
+			t.Thresholds = append(t.Thresholds, td)
+		case "range":
+			td := &Range{
+				ThresholdConfigBase: tdRaw.ThresholdConfigBase,
+				Min:                 tdRaw.Min,
+				Max:                 tdRaw.Max,
+				Within:              tdRaw.Within,
+			}
+			t.Thresholds = append(t.Thresholds, td)
+		default:
+			return &influxdb.Error{
+				Msg: fmt.Sprintf("invalid threshold type %s", tdRaw.Type),
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -60,7 +113,7 @@ func (t Threshold) GenerateFlux() (string, error) {
 	return ast.Format(p), nil
 }
 
-// GenerateFlux returns a flux AST for the threshold provided. If there
+// GenerateFluxAST returns a flux AST for the threshold provided. If there
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
 func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
@@ -150,7 +203,7 @@ func (t Threshold) generateFluxASTChecksCall() *ast.CallExpression {
 
 	// This assumes that the ThresholdConfigs we've been provided do not have duplicates.
 	for _, c := range t.Thresholds {
-		lvl := strings.ToLower(c.Level.String())
+		lvl := strings.ToLower(c.GetLevel().String())
 		objectProps = append(objectProps, flux.Property(lvl, flux.Identifier(lvl)))
 	}
 
@@ -170,48 +223,44 @@ func (t Threshold) generateFluxASTCheckDefinition() ast.Statement {
 }
 
 func (t Threshold) generateFluxASTThresholdFunctions() []ast.Statement {
-	thresholdStatements := []ast.Statement{}
+	thresholdStatements := make([]ast.Statement, len(t.Thresholds))
 
 	// This assumes that the ThresholdConfigs we've been provided do not have duplicates.
-	for _, c := range t.Thresholds {
-		if c.UpperBound == nil {
-			thresholdStatements = append(thresholdStatements, c.generateFluxASTGreaterThresholdFunction())
-		} else if c.LowerBound == nil {
-			thresholdStatements = append(thresholdStatements, c.generateFluxASTLesserThresholdFunction())
-		} else {
-			thresholdStatements = append(thresholdStatements, c.generateFluxASTRangeThresholdFunction())
-		}
-		//need without range here
+	for k, v := range t.Thresholds {
+		thresholdStatements[k] = v.generateFluxASTThresholdFunction()
 	}
 	return thresholdStatements
 }
 
-func (c ThresholdConfig) generateFluxASTGreaterThresholdFunction() ast.Statement {
-	fnBody := flux.GreaterThan(flux.Member("r", "_value"), flux.Float(*c.LowerBound))
+func (td Greater) generateFluxASTThresholdFunction() ast.Statement {
+	fnBody := flux.GreaterThan(flux.Member("r", "_value"), flux.Float(td.Value))
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
-	lvl := strings.ToLower(c.Level.String())
+	lvl := strings.ToLower(td.Level.String())
 
 	return flux.DefineVariable(lvl, fn)
 }
 
-func (c ThresholdConfig) generateFluxASTLesserThresholdFunction() ast.Statement {
-	fnBody := flux.LessThan(flux.Member("r", "_value"), flux.Float(*c.UpperBound))
+func (td Lesser) generateFluxASTThresholdFunction() ast.Statement {
+	fnBody := flux.LessThan(flux.Member("r", "_value"), flux.Float(td.Value))
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
-	lvl := strings.ToLower(c.Level.String())
+	lvl := strings.ToLower(td.Level.String())
 
 	return flux.DefineVariable(lvl, fn)
 }
 
-func (c ThresholdConfig) generateFluxASTRangeThresholdFunction() ast.Statement {
+func (td Range) generateFluxASTThresholdFunction() ast.Statement {
+	if !td.Within {
+		td.Min, td.Max = td.Max, td.Min
+	}
 	fnBody := flux.And(
-		flux.LessThan(flux.Member("r", "_value"), flux.Float(*c.UpperBound)),
-		flux.GreaterThan(flux.Member("r", "_value"), flux.Float(*c.LowerBound)),
+		flux.LessThan(flux.Member("r", "_value"), flux.Float(td.Max)),
+		flux.GreaterThan(flux.Member("r", "_value"), flux.Float(td.Min)),
 	)
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
-	lvl := strings.ToLower(c.Level.String())
+	lvl := strings.ToLower(td.Level.String())
 
 	return flux.DefineVariable(lvl, fn)
 }
@@ -219,32 +268,126 @@ func (c ThresholdConfig) generateFluxASTRangeThresholdFunction() ast.Statement {
 type thresholdAlias Threshold
 
 // MarshalJSON implement json.Marshaler interface.
-func (c Threshold) MarshalJSON() ([]byte, error) {
+func (t Threshold) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		struct {
 			thresholdAlias
 			Type string `json:"type"`
 		}{
-			thresholdAlias: thresholdAlias(c),
-			Type:           c.Type(),
+			thresholdAlias: thresholdAlias(t),
+			Type:           t.Type(),
 		})
 }
 
 // ThresholdConfig is the base of all threshold config.
-type ThresholdConfig struct {
-	// If true, only alert if all values meet threshold.
-	AllValues  bool                    `json:"allValues"`
-	Level      notification.CheckLevel `json:"level"`
-	LowerBound *float64                `json:"lowerBound,omitempty"`
-	UpperBound *float64                `json:"upperBound,omitempty"`
+type ThresholdConfig interface {
+	MarshalJSON() ([]byte, error)
+	Valid() error
+	Type() string
+	generateFluxASTThresholdFunction() ast.Statement
+	GetLevel() notification.CheckLevel
 }
 
 // Valid returns error if something is invalid.
-func (c ThresholdConfig) Valid() error {
-	if c.LowerBound == nil && c.UpperBound == nil {
+func (b ThresholdConfigBase) Valid() error {
+	return nil
+}
+
+// ThresholdConfigBase is the base of all threshold config.
+type ThresholdConfigBase struct {
+	// If true, only alert if all values meet threshold.
+	AllValues bool                    `json:"allValues"`
+	Level     notification.CheckLevel `json:"level"`
+}
+
+// GetLevel return the check level.
+func (b ThresholdConfigBase) GetLevel() notification.CheckLevel {
+	return b.Level
+}
+
+// Lesser threshold type.
+type Lesser struct {
+	ThresholdConfigBase
+	Value float64 `json:"value,omitempty"`
+}
+
+// Type of the threshold config.
+func (td Lesser) Type() string {
+	return "lesser"
+}
+
+type lesserAlias Lesser
+
+// MarshalJSON implement json.Marshaler interface.
+func (td Lesser) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+			lesserAlias
+			Type string `json:"type"`
+		}{
+			lesserAlias: lesserAlias(td),
+			Type:        "lesser",
+		})
+}
+
+// Greater threshold type.
+type Greater struct {
+	ThresholdConfigBase
+	Value float64 `json:"value,omitempty"`
+}
+
+// Type of the threshold config.
+func (td Greater) Type() string {
+	return "greater"
+}
+
+type greaterAlias Greater
+
+// MarshalJSON implement json.Marshaler interface.
+func (td Greater) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+			greaterAlias
+			Type string `json:"type"`
+		}{
+			greaterAlias: greaterAlias(td),
+			Type:         "greater",
+		})
+}
+
+// Range threshold type.
+type Range struct {
+	ThresholdConfigBase
+	Min    float64 `json:"min,omitempty"`
+	Max    float64 `json:"max,omitempty"`
+	Within bool    `json:"within"`
+}
+
+// Type of the threshold config.
+func (td Range) Type() string {
+	return "range"
+}
+
+type rangeAlias Range
+
+// MarshalJSON implement json.Marshaler interface.
+func (td Range) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		struct {
+			rangeAlias
+			Type string `json:"type"`
+		}{
+			rangeAlias: rangeAlias(td),
+			Type:       "range",
+		})
+}
+
+// Valid overwrite the base threshold.
+func (td Range) Valid() error {
+	if td.Min > td.Max {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "threshold must have at least one lowerBound or upperBound value",
+			Msg:  "range threshold min can't be larger than max",
 		}
 	}
 	return nil
