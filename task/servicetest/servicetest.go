@@ -500,6 +500,8 @@ func testUpdate(t *testing.T, sys *System) {
 	cr := creds(t, sys)
 
 	now := time.Now()
+	earliestCA := now.Add(-time.Second)
+
 	ct := influxdb.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
@@ -517,7 +519,6 @@ func testUpdate(t *testing.T, sys *System) {
 	}
 
 	after := time.Now()
-	earliestCA := now.Add(-time.Second)
 	latestCA := after.Add(time.Second)
 
 	ca, err := time.Parse(time.RFC3339, st.CreatedAt)
