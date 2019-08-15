@@ -75,6 +75,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 	id := s.IDGenerator.ID()
 	nr.SetID(id)
 	now := s.TimeGenerator.Now()
+	nr.SetOwnerID(userID)
 	nr.SetCreatedAt(now)
 	nr.SetUpdatedAt(now)
 	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
@@ -110,6 +111,7 @@ func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb
 	// ID and OrganizationID can not be updated
 	nr.SetID(current.GetID())
 	nr.SetOrgID(current.GetOrgID())
+	nr.SetOwnerID(current.GetOwnerID())
 	nr.SetCreatedAt(current.GetCRUDLog().CreatedAt)
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
 	err = s.putNotificationRule(ctx, tx, nr)
