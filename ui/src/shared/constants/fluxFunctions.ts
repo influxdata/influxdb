@@ -1493,7 +1493,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc: 'Generates a list of exponentially separated floats.',
     example:
-      'logarithmicBins(start: 1.0, factor: 2.0, count: 10, infinty: true)',
+      'logarithmicBins(start: 1.0, factor: 2.0, count: 10, infinity: true)',
     category: 'Miscellaneous',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/misc/logarithmicbins/',
