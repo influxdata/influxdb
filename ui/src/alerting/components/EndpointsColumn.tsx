@@ -1,16 +1,25 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {EmptyState, ComponentSize} from '@influxdata/clockface'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
 
-const EndpointsColumn: FunctionComponent = () => {
+type OwnProps = {}
+type Props = OwnProps & WithRouterProps
+
+const EndpointsColumn: FC<Props> = ({router, params}) => {
+  const handleOpenOverlay = () => {
+    const newRuleRoute = `/orgs/${params.orgID}/alerting/endpoints/new`
+    router.push(newRuleRoute)
+  }
+
   return (
     <AlertsColumn
       title="Notification Endpoints"
       testID="create-endpoint"
-      onCreate={() => {}}
+      onCreate={handleOpenOverlay}
     >
       <EmptyState size={ComponentSize.Small} className="alert-column--empty">
         <EmptyState.Text
@@ -26,4 +35,4 @@ const EndpointsColumn: FunctionComponent = () => {
   )
 }
 
-export default EndpointsColumn
+export default withRouter<OwnProps>(EndpointsColumn)

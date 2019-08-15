@@ -54,6 +54,7 @@ export {
   DeadmanCheck,
   NotificationEndpoint,
   NotificationRuleBase,
+  NotificationEndpointType,
   NotificationRule,
   SMTPNotificationRuleBase,
   SlackNotificationRuleBase,
