@@ -25,5 +25,14 @@ describe('Notification Endpoints', () => {
       .type(
         'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'
       )
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Pagerditty')
+        })
+      })
   })
 })

@@ -3,9 +3,13 @@ import React, {FC, ChangeEvent} from 'react'
 
 // Components
 import {Grid, Form, Panel, Input, TextArea} from '@influxdata/clockface'
+import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
 
 // Hooks
 import {useEndpointReducer} from './EndpointOverlayProvider'
+
+// Types
+import {NotificationEndpointType} from 'src/types'
 
 const EndpointOverlayContents: FC = () => {
   const [endpoint, dispatch] = useEndpointReducer()
@@ -16,6 +20,13 @@ const EndpointOverlayContents: FC = () => {
     dispatch({
       type: 'UPDATE_ENDPOINT',
       endpoint: {...endpoint, [name]: value},
+    })
+  }
+
+  const handleSelectType = (type: NotificationEndpointType) => {
+    dispatch({
+      type: 'UPDATE_ENDPOINT',
+      endpoint: {...endpoint, type},
     })
   }
 
@@ -42,6 +53,12 @@ const EndpointOverlayContents: FC = () => {
                     placeholder="Optional"
                     value={endpoint.description}
                     onChange={handleChange}
+                  />
+                </Form.Element>
+                <Form.Element label="Destination">
+                  <EndpointTypeDropdown
+                    onSelectType={handleSelectType}
+                    selectedType={endpoint.type}
                   />
                 </Form.Element>
               </Panel.Body>
