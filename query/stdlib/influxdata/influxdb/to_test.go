@@ -85,6 +85,11 @@ func TestTo_Query(t *testing.T) {
 
 func TestToOpSpec_BucketsAccessed(t *testing.T) {
 	bucketName := "my_bucket"
+	bucketIDString := "ddddccccbbbbaaaa"
+	bucketID, err := platform.IDFromString(bucketIDString)
+	if err != nil {
+		t.Fatal(err)
+	}
 	orgName := "my_org"
 	orgIDString := "aaaabbbbccccdddd"
 	orgID, err := platform.IDFromString(orgIDString)
@@ -103,6 +108,12 @@ func TestToOpSpec_BucketsAccessed(t *testing.T) {
 			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucket:"%s", orgID:"%s")`, bucketName, bucketName, orgIDString),
 			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
 			WantWriteBuckets: &[]platform.BucketFilter{{Name: &bucketName, OrganizationID: orgID}},
+		},
+		{
+			Name:             "from() with bucket and to with orgID and bucketID",
+			Raw:              fmt.Sprintf(`from(bucket:"%s") |> to(bucketID:"%s", orgID:"%s")`, bucketName, bucketIDString, orgIDString),
+			WantReadBuckets:  &[]platform.BucketFilter{{Name: &bucketName}},
+			WantWriteBuckets: &[]platform.BucketFilter{{ID: bucketID, OrganizationID: orgID}},
 		},
 	}
 
