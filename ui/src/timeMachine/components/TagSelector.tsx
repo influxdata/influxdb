@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import {
   Input,
-  ComponentSpacer,
+  FlexBox,
   ComponentSize,
   FlexDirection,
   AlignItems,
@@ -115,7 +115,7 @@ class TagSelector extends PureComponent<Props> {
     return (
       <>
         <BuilderCard.Menu testID={`tag-selector--container ${index}`}>
-          <ComponentSpacer
+          <FlexBox
             direction={FlexDirection.Row}
             alignItems={AlignItems.Center}
             margin={ComponentSize.Small}
@@ -134,7 +134,7 @@ class TagSelector extends PureComponent<Props> {
               options={keys}
             />
             {this.selectedCounter}
-          </ComponentSpacer>
+          </FlexBox>
           <Input
             value={valuesSearchTerm}
             placeholder={`Search ${selectedKey} tag values`}

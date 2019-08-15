@@ -11,7 +11,7 @@ import {
   ComponentSize,
   Panel,
   IconFont,
-  ComponentSpacer,
+  FlexBox,
   AlignItems,
   FlexDirection,
   Gradients,
@@ -39,7 +39,7 @@ class OrgProfileTab extends PureComponent<Props> {
             >
               <Panel.Header title="Danger Zone!" />
               <Panel.Body>
-                <ComponentSpacer
+                <FlexBox
                   stretchToFitWidth={true}
                   alignItems={AlignItems.Center}
                   direction={FlexDirection.Row}
@@ -57,7 +57,7 @@ class OrgProfileTab extends PureComponent<Props> {
                     icon={IconFont.Pencil}
                     type={ButtonType.Submit}
                   />
-                </ComponentSpacer>
+                </FlexBox>
               </Panel.Body>
             </Panel>
           </Form>

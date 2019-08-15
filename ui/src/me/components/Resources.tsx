@@ -7,7 +7,7 @@ import LogoutButton from 'src/me/components/LogoutButton'
 import DashboardsList from 'src/me/components/DashboardsList'
 import {
   Panel,
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   ComponentSize,
   AlignItems,
@@ -25,7 +25,7 @@ interface Props {
 class ResourceLists extends PureComponent<Props> {
   public render() {
     return (
-      <ComponentSpacer
+      <FlexBox
         direction={FlexDirection.Column}
         alignItems={AlignItems.Stretch}
         stretchToFitWidth={true}
@@ -53,7 +53,7 @@ class ResourceLists extends PureComponent<Props> {
             <VersionInfo />
           </Panel.Footer>
         </Panel>
-      </ComponentSpacer>
+      </FlexBox>
     )
   }
 }

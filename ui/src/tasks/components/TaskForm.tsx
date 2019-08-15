@@ -8,7 +8,7 @@ import {
   Radio,
   Input,
   Button,
-  ComponentSpacer,
+  FlexBox,
   Grid,
 } from '@influxdata/clockface'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
@@ -99,7 +99,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             </Grid.Column>
             <Grid.Column>
               <Form.Element label="Schedule Task">
-                <ComponentSpacer
+                <FlexBox
                   direction={FlexDirection.Column}
                   alignItems={AlignItems.FlexStart}
                   margin={ComponentSize.Small}
@@ -125,7 +125,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                     </Radio.Button>
                   </Radio>
                   {this.cronHelper}
-                </ComponentSpacer>
+                </FlexBox>
               </Form.Element>
             </Grid.Column>
             <TaskScheduleFormField

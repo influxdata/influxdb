@@ -12,7 +12,7 @@ import {
   Button,
   ComponentSize,
   IconFont,
-  ComponentSpacer,
+  FlexBox,
   ComponentColor,
   ButtonType,
   AlignItems,
@@ -63,7 +63,7 @@ class RenameOrgForm extends PureComponent<Props, State> {
         >
           {status => (
             <>
-              <ComponentSpacer
+              <FlexBox
                 alignItems={AlignItems.Center}
                 direction={FlexDirection.Column}
                 margin={ComponentSize.Large}
@@ -77,7 +77,7 @@ class RenameOrgForm extends PureComponent<Props, State> {
                   status={status}
                   testID="create-org-name-input"
                 />
-                <ComponentSpacer
+                <FlexBox
                   alignItems={AlignItems.Center}
                   direction={FlexDirection.Row}
                   margin={ComponentSize.Small}
@@ -94,8 +94,8 @@ class RenameOrgForm extends PureComponent<Props, State> {
                     color={ComponentColor.Success}
                     type={ButtonType.Submit}
                   />
-                </ComponentSpacer>
-              </ComponentSpacer>
+                </FlexBox>
+              </FlexBox>
             </>
           )}
         </Form.ValidationElement>

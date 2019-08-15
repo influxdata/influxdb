@@ -19,7 +19,7 @@ import {
   IconFont,
   ComponentSize,
   ComponentColor,
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   JustifyContent,
 } from '@influxdata/clockface'
@@ -80,7 +80,7 @@ class TimeMachineQueries extends PureComponent<Props> {
             />
           </div>
           <div className="time-machine-queries--buttons">
-            <ComponentSpacer
+            <FlexBox
               direction={FlexDirection.Row}
               justifyContent={JustifyContent.FlexEnd}
               margin={ComponentSize.Small}
@@ -95,7 +95,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               />
               <TimeMachineQueriesSwitcher />
               <SubmitQueryButton />
-            </ComponentSpacer>
+            </FlexBox>
           </div>
         </div>
         <div className="time-machine-queries--body">{this.queryEditor}</div>

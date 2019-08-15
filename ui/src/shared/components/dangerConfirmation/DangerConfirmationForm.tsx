@@ -9,7 +9,7 @@ import {
   IconFont,
   ComponentColor,
   Alert,
-  ComponentSpacer,
+  FlexBox,
   AlignItems,
   FlexDirection,
   ComponentSize,
@@ -30,7 +30,7 @@ class DangerConfirmationForm extends PureComponent<Props> {
   public render() {
     return (
       <Form onSubmit={this.props.onConfirm}>
-        <ComponentSpacer
+        <FlexBox
           alignItems={AlignItems.Center}
           direction={FlexDirection.Column}
           margin={ComponentSize.Large}
@@ -55,7 +55,7 @@ class DangerConfirmationForm extends PureComponent<Props> {
               type={ButtonType.Submit}
             />
           </Form.Footer>
-        </ComponentSpacer>
+        </FlexBox>
       </Form>
     )
   }

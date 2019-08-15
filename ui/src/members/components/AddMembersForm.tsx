@@ -7,7 +7,7 @@ import {
   Input,
   Button,
   Grid,
-  ComponentSpacer,
+  FlexBox,
   Icon,
 } from '@influxdata/clockface'
 import SelectUsers from 'src/members/components/SelectUsers'
@@ -74,13 +74,13 @@ export default class AddMembersForm extends PureComponent<Props> {
             </Grid.Column>
             <Grid.Column widthSM={Columns.Six}>
               <Form.Element label="Members to be added">
-                <ComponentSpacer
+                <FlexBox
                   direction={FlexDirection.Column}
                   alignItems={AlignItems.Stretch}
                   margin={ComponentSize.ExtraSmall}
                 >
                   {this.membersSelected}
-                </ComponentSpacer>
+                </FlexBox>
               </Form.Element>
             </Grid.Column>
           </Grid.Row>
