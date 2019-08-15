@@ -15,19 +15,16 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
+import {Action as TimeMachineAction} from 'src/timeMachine/actions'
+import {setCheckStatus, setTimeMachineCheck} from 'src/timeMachine/actions'
 
 // Types
-import {RemoteDataState} from '@influxdata/clockface'
-import {Check, GetState, CheckType} from 'src/types'
+import {Check, GetState, RemoteDataState} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
-  | ReturnType<typeof setCurrentCheck>
-  | ReturnType<typeof setCurrentCheckStatus>
-  | ReturnType<typeof updateCurrentCheck>
-  | ReturnType<typeof changeCurrentCheckType>
 
 export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
@@ -42,29 +39,6 @@ export const setCheck = (check: Check) => ({
 export const removeCheck = (checkID: string) => ({
   type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
   payload: {checkID},
-})
-
-export const setCurrentCheck = (
-  status: RemoteDataState,
-  check: Partial<Check>
-) => ({
-  type: 'SET_CURRENT_CHECK' as 'SET_CURRENT_CHECK',
-  payload: {status, check},
-})
-
-export const setCurrentCheckStatus = (status: RemoteDataState) => ({
-  type: 'SET_CURRENT_CHECK_STATUS' as 'SET_CURRENT_CHECK_STATUS',
-  payload: {status},
-})
-
-export const updateCurrentCheck = (checkUpdate: Partial<Check>) => ({
-  type: 'UPDATE_CURRENT_CHECK' as 'UPDATE_CURRENT_CHECK',
-  payload: {status, checkUpdate},
-})
-
-export const changeCurrentCheckType = (type: CheckType) => ({
-  type: 'CHANGE_CURRENT_CHECK_TYPE' as 'CHANGE_CURRENT_CHECK_TYPE',
-  payload: {status, type},
 })
 
 export const getChecks = () => async (
@@ -94,11 +68,11 @@ export const getChecks = () => async (
   }
 }
 
-export const getCurrentCheck = (checkID: string) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+export const getCheckForTimeMachine = (checkID: string) => async (
+  dispatch: Dispatch<TimeMachineAction | NotificationAction>
 ) => {
   try {
-    dispatch(setCurrentCheckStatus(RemoteDataState.Loading))
+    dispatch(setCheckStatus(RemoteDataState.Loading))
 
     const resp = await api.getCheck({checkID})
 
@@ -106,30 +80,30 @@ export const getCurrentCheck = (checkID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setCurrentCheck(RemoteDataState.Done, resp.data))
+    dispatch(setTimeMachineCheck(RemoteDataState.Done, resp.data))
   } catch (e) {
     console.error(e)
-    dispatch(setCurrentCheckStatus(RemoteDataState.Error))
+    dispatch(setCheckStatus(RemoteDataState.Error))
     dispatch(notify(copy.getCheckFailed(e.message)))
   }
 }
 
-export const saveCurrentCheck = () => async (
+export const saveCheckFromTimeMachine = () => async (
   dispatch: Dispatch<Action | NotificationAction>,
   getState: GetState
 ) => {
   try {
     const state = getState()
     const {
-      checks: {
-        current: {check},
-      },
       orgs: {
         org: {id: orgID},
       },
     } = state
 
-    const {draftQueries} = getActiveTimeMachine(state)
+    const {
+      draftQueries,
+      alerting: {check},
+    } = getActiveTimeMachine(state)
 
     const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
 

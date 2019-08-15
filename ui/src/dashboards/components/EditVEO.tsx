@@ -10,14 +10,12 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
-import {saveCurrentCheck} from 'src/alerting/actions/checks'
+import {saveCheckFromTimeMachine} from 'src/alerting/actions/checks'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
-import {setView, getViewForTimeMachine} from 'src/dashboards/actions/views'
+import {getViewForTimeMachine} from 'src/dashboards/actions/views'
 
 // Utils
-import {getView} from 'src/dashboards/selectors'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
@@ -25,11 +23,9 @@ import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface DispatchProps {
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
-  saveCurrentCheck: typeof saveCurrentCheck
+  saveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
-  setView: typeof setView
   executeQueries: typeof executeQueries
   getViewForTimeMachine: typeof getViewForTimeMachine
 }
@@ -37,18 +33,15 @@ interface DispatchProps {
 interface StateProps {
   view: QueryView | null
   activeTimeMachineID: TimeMachineID
-  draftView: QueryView
 }
 
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const EditViewVEO: FunctionComponent<Props> = ({
-  onSetActiveTimeMachine,
   getViewForTimeMachine,
   activeTimeMachineID,
-  saveCurrentCheck,
+  saveCheckFromTimeMachine,
   executeQueries,
-  draftView,
   onSaveView,
   onSetName,
   params: {orgID, cellID, dashboardID},
@@ -56,12 +49,8 @@ const EditViewVEO: FunctionComponent<Props> = ({
   view,
 }) => {
   useEffect(() => {
-    if (view) {
-      onSetActiveTimeMachine('veo', {view})
-    } else {
-      getViewForTimeMachine(dashboardID, cellID, 'veo')
-    }
-  }, [view, orgID, cellID, dashboardID])
+    getViewForTimeMachine(dashboardID, cellID, 'veo')
+  }, [cellID, dashboardID])
 
   useEffect(() => {
     executeQueries()
@@ -74,14 +63,14 @@ const EditViewVEO: FunctionComponent<Props> = ({
   const handleSave = () => {
     try {
       onSaveView(dashboardID)
-      if (draftView.properties.type === 'check') {
-        saveCurrentCheck()
+      if (view.properties.type === 'check') {
+        saveCheckFromTimeMachine()
       }
       handleClose()
     } catch (e) {}
   }
 
-  const viewMatchesRoute = get(draftView, 'id', null) === cellID
+  const viewMatchesRoute = get(view, 'id', null) === cellID
 
   let loadingState = RemoteDataState.Loading
   if (activeTimeMachineID === 'veo' && viewMatchesRoute) {
@@ -111,21 +100,18 @@ const EditViewVEO: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState, {params: {cellID}}): StateProps => {
+const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
 
-  const view = getView(state, cellID) as QueryView
-  const {view: draftView} = getActiveTimeMachine(state)
+  const {view} = getActiveTimeMachine(state)
 
-  return {view, draftView, activeTimeMachineID}
+  return {view, activeTimeMachineID}
 }
 
 const mdtp: DispatchProps = {
   onSetName: setName,
-  setView: setView,
   onSaveView: saveVEOView,
-  onSetActiveTimeMachine: setActiveTimeMachine,
-  saveCurrentCheck: saveCurrentCheck,
+  saveCheckFromTimeMachine: saveCheckFromTimeMachine,
   executeQueries: executeQueries,
   getViewForTimeMachine: getViewForTimeMachine,
 }

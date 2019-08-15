@@ -1,7 +1,6 @@
 // Libraries
-import {get, cloneDeep, isNumber} from 'lodash'
+import {omit, map, get, cloneDeep, isNumber} from 'lodash'
 import {produce} from 'immer'
-import _ from 'lodash'
 
 // Utils
 import {createView, defaultViewQuery} from 'src/shared/utils/view'
@@ -13,9 +12,20 @@ import {
   THRESHOLD_TYPE_TEXT,
   THRESHOLD_TYPE_BG,
 } from 'src/shared/constants/thresholds'
+import {
+  DEFAULT_THRESHOLD_CHECK,
+  DEFAULT_DEADMAN_CHECK,
+} from 'src/alerting/constants'
 
 // Types
-import {TimeRange, View, AutoRefresh} from 'src/types'
+import {
+  TimeRange,
+  View,
+  AutoRefresh,
+  Check,
+  DeadmanCheck,
+  ThresholdCheck,
+} from 'src/types'
 import {
   ViewType,
   DashboardDraftQuery,
@@ -53,8 +63,14 @@ interface QueryResultsState {
   errorMessage: string
 }
 
+interface AlertingState {
+  check: Partial<Check>
+  checkStatus: RemoteDataState
+}
+
 export interface TimeMachineState {
   view: QueryView
+  alerting: AlertingState
   timeRange: TimeRange
   autoRefresh: AutoRefresh
   draftQueries: DashboardDraftQuery[]
@@ -79,6 +95,10 @@ export const initialStateHelper = (): TimeMachineState => ({
   timeRange: {lower: 'now() - 1h'},
   autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
+  alerting: {
+    check: DEFAULT_THRESHOLD_CHECK,
+    checkStatus: RemoteDataState.NotStarted,
+  },
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   isViewingVisOptions: false,
@@ -120,7 +140,7 @@ export const timeMachinesReducer = (
     const {activeTimeMachineID, initialState} = action.payload
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
     const view = initialState.view || activeTimeMachine.view
-    const draftQueries = _.map(cloneDeep(view.properties.queries), q => ({
+    const draftQueries = map(cloneDeep(view.properties.queries), q => ({
       ...q,
       hidden: false,
     }))
@@ -817,13 +837,26 @@ export const timeMachineReducer = (
     case 'CONVERT_TO_CHECK_VIEW': {
       const view = convertView(state.view, 'check')
 
-      return {...state, view, activeTab: 'alerting'}
+      return {
+        ...state,
+        view,
+        activeTab: 'alerting',
+        alerting: {
+          checkStatus: RemoteDataState.Done,
+          check: DEFAULT_THRESHOLD_CHECK,
+        },
+      }
     }
 
     case 'CONVERT_FROM_CHECK_VIEW': {
       const view = convertView(state.view, 'xy')
 
-      return {...state, view, activeTab: 'queries'}
+      return {
+        ...state,
+        view,
+        activeTab: 'queries',
+        alerting: {checkStatus: RemoteDataState.NotStarted, check: null},
+      }
     }
 
     case 'TOGGLE_ALERTING_PANEL': {
@@ -838,6 +871,44 @@ export const timeMachineReducer = (
         return {...state, activeTab: 'queries'}
       }
     }
+
+    case 'SET_TIMEMACHINE_CHECK_STATUS': {
+      const {checkStatus} = action.payload
+
+      return {...state, alerting: {...state.alerting, checkStatus}}
+    }
+
+    case 'SET_TIMEMACHINE_CHECK':
+      const alerting = {
+        check: action.payload.check,
+        checkStatus: action.payload.checkStatus,
+      }
+      return {...state, alerting}
+
+    case 'UPDATE_TIMEMACHINE_CHECK':
+      const updatedCheck = {
+        ...state.alerting.check,
+        ...action.payload.checkUpdate,
+      } as Partial<Check>
+
+      return {...state, alerting: {...state.alerting, check: updatedCheck}}
+
+    case 'CHANGE_TIMEMACHINE_CHECK_TYPE':
+      return produce(state, draftState => {
+        const exCheck = draftState.alerting.check
+        if (action.payload.toType == 'deadman') {
+          draftState.alerting.check = {
+            ...DEFAULT_DEADMAN_CHECK,
+            ...omit(exCheck, ['thresholds', 'type']),
+          } as DeadmanCheck
+        }
+        if (action.payload.toType == 'threshold') {
+          draftState.alerting.check = {
+            ...DEFAULT_THRESHOLD_CHECK,
+            ...omit(exCheck, ['timeSince', 'reportZero', 'level', 'type']),
+          } as ThresholdCheck
+        }
+      })
   }
 
   return state
@@ -881,7 +952,7 @@ const updateCorrectColors = (
   const view: any = state.view
   const colors = view.properties.colors
 
-  if (_.get(update, '0.type', '') === 'scale') {
+  if (get(update, '0.type', '') === 'scale') {
     return [...colors.filter(c => c.type !== 'scale'), ...update]
   }
   return [...colors.filter(c => c.type === 'scale'), ...update]

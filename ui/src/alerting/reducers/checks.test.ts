@@ -1,10 +1,5 @@
 import checksReducer, {defaultChecksState} from 'src/alerting/reducers/checks'
-import {
-  setAllChecks,
-  setCheck,
-  setCurrentCheck,
-  removeCheck,
-} from 'src/alerting/actions/checks'
+import {setAllChecks, setCheck, removeCheck} from 'src/alerting/actions/checks'
 import {RemoteDataState} from 'src/types'
 import {CHECK_FIXTURE_1, CHECK_FIXTURE_2} from 'src/alerting/constants'
 
@@ -68,23 +63,6 @@ describe('checksReducer', () => {
       const expected = {
         ...defaultChecksState,
         list: [],
-      }
-
-      expect(actual).toEqual(expected)
-    })
-  })
-  describe('setCurrentCheck', () => {
-    it('sets current check and status.', () => {
-      const initialState = defaultChecksState
-
-      const actual = checksReducer(
-        initialState,
-        setCurrentCheck(RemoteDataState.Done, CHECK_FIXTURE_1)
-      )
-
-      const expected = {
-        ...defaultChecksState,
-        current: {status: RemoteDataState.Done, check: CHECK_FIXTURE_1},
       }
 
       expect(actual).toEqual(expected)
