@@ -45,9 +45,9 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 	defer l.ShutdownOrFail(t, ctx)
 	for _, pkg := range pkgs {
 		pkg := pkg.Copy().(*ast.Package)
-		name := pkg.Files[0].Name
+		name := strings.TrimSuffix(pkg.Files[0].Name, "_test.flux")
 		t.Run(name, func(t *testing.T) {
-			if reason, ok := itesting.FluxEndToEndSkipList[strings.TrimSuffix(name, ".flux")]; ok {
+			if reason, ok := itesting.FluxEndToEndSkipList[name]; ok {
 				t.Skip(reason)
 			}
 			testFlux(t, l, pkg)
