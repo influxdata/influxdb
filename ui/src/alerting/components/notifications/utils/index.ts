@@ -33,10 +33,6 @@ export const getRuleVariantDefaults = (
       return {messageTemplate: '', channel: '', type: 'slack'}
     }
 
-    case 'smtp': {
-      return {to: '', bodyTemplate: '', subjectTemplate: '', type: 'smtp'}
-    }
-
     case 'pagerduty': {
       return {messageTemplate: '', type: 'pagerduty'}
     }

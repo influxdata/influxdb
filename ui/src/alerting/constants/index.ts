@@ -103,6 +103,17 @@ export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
   },
 }
 
+export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
+  id: '',
+  orgID: '1',
+  userID: '1',
+  description: 'interrupt everyone at work',
+  name: 'Slack',
+  status: 'active',
+  type: 'slack',
+  url: 'insert.slack.url.here',
+}
+
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
   {
     id: '1',
@@ -112,15 +123,17 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     name: 'Slack',
     status: 'active',
     type: 'slack',
+    url: 'insert.slack.url.here',
   },
   {
     id: '2',
     orgID: '1',
     userID: '1',
     description: 'interrupt someone by email',
-    name: 'SMTP',
+    name: 'Webhook',
     status: 'active',
-    type: 'smtp',
+    type: 'webhook',
+    url: 'insert.webhook.url.here',
   },
   {
     id: '3',
@@ -130,5 +143,6 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     name: 'PagerDuty',
     status: 'active',
     type: 'pagerduty',
+    url: 'insert.pagerduty.url.here',
   },
 ]
