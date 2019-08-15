@@ -13,9 +13,7 @@ import {
 import RuleSchedule from 'src/alerting/components/notifications/RuleSchedule'
 import RuleConditions from 'src/alerting/components/notifications/RuleConditions'
 import RuleMessage from 'src/alerting/components/notifications/RuleMessage'
-
-// Constants
-import {NEW_ENDPOINT_FIXTURES} from 'src/alerting/constants'
+import RuleOverlayFooter from 'src/alerting/components/notifications/RuleOverlayFooter'
 
 // Utils
 import {useRuleState, useRuleDispatch} from './RuleOverlay.reducer'
@@ -23,7 +21,12 @@ import {useRuleState, useRuleDispatch} from './RuleOverlay.reducer'
 // Types
 import {NotificationRuleDraft} from 'src/types'
 
-const RuleOverlayContents: FC = () => {
+interface Props {
+  saveButtonText: string
+  onSave: (draftRule: NotificationRuleDraft) => Promise<void>
+}
+
+const RuleOverlayContents: FC<Props> = ({saveButtonText, onSave}) => {
   const rule = useRuleState()
   const dispatch = useRuleDispatch()
 
@@ -62,7 +65,9 @@ const RuleOverlayContents: FC = () => {
           </Grid.Column>
         </Grid.Row>
         <RuleConditions rule={rule} />
-        <RuleMessage rule={rule} endpoints={NEW_ENDPOINT_FIXTURES} />
+        {/* TODO: Connect to Redux endpoints once they exist */}
+        <RuleMessage rule={rule} endpoints={[]} />
+        <RuleOverlayFooter saveButtonText={saveButtonText} onSave={onSave} />
       </Form>
     </Grid>
   )

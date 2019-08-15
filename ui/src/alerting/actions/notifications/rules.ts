@@ -3,7 +3,6 @@ import {Dispatch} from 'react'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
-import {RULE_DRAFT_FIXTURE} from 'src/alerting/constants'
 
 // APIs
 import * as api from 'src/client'
@@ -13,6 +12,13 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
+
+// Utils
+import {
+  ruleToDraftRule,
+  draftRuleToNewRule,
+  draftRuleToRule,
+} from 'src/alerting/components/notifications/utils'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
@@ -68,10 +74,9 @@ export const getNotificationRules = () => async (
       throw new Error(resp.data.message)
     }
 
-    // TODO(watts): replace with resp.data.notificationRules when implemented
-    dispatch(
-      setAllNotificationRules(RemoteDataState.Done, [RULE_DRAFT_FIXTURE])
-    )
+    const draftRules = resp.data.notificationRules.map(ruleToDraftRule)
+
+    dispatch(setAllNotificationRules(RemoteDataState.Done, draftRules))
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))
@@ -91,11 +96,7 @@ export const getCurrentRule = (ruleID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    // TODO(watts): normalize this data to conform to NotificationRuleDraft
-    dispatch(
-      // @ts-ignore
-      setCurrentRule(RemoteDataState.Done, resp.data as NotificationRuleDraft)
-    )
+    dispatch(setCurrentRule(RemoteDataState.Done, ruleToDraftRule(resp.data)))
   } catch (e) {
     console.error(e)
     dispatch(setCurrentRule(RemoteDataState.Error))
@@ -103,58 +104,43 @@ export const getCurrentRule = (ruleID: string) => async (
   }
 }
 
-export const createRule = (rule: Partial<NotificationRule>) => async (
+export const createRule = (rule: NotificationRuleDraft) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  try {
-    const resp = await api.postNotificationRule({
-      data: rule as NotificationRule,
-    })
+  const data = draftRuleToNewRule(rule) as NotificationRule
 
-    if (resp.status !== 201) {
-      throw new Error(resp.data.message)
-    }
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.createRuleFailed(e.message)))
+  const resp = await api.postNotificationRule({data})
+
+  if (resp.status !== 201) {
+    throw new Error(resp.data.message)
   }
+
+  dispatch(setRule(ruleToDraftRule(resp.data)))
 }
 
-export const updateRule = (rule: Partial<NotificationRule>) => async (
+export const updateRule = (rule: NotificationRuleDraft) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  try {
-    const resp = await api.putNotificationRule({
-      ruleID: rule.id,
-      data: rule as NotificationRule,
-    })
+  const resp = await api.putNotificationRule({
+    ruleID: rule.id,
+    data: draftRuleToRule(rule),
+  })
 
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    // TODO(watts): normalize this data to conform to NotificationRuleDraft
-    // @ts-ignore
-    dispatch(setRule(resp.data as NotificationRuleDraft))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.updateRuleFailed(e.message)))
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
   }
+
+  dispatch(setRule(ruleToDraftRule(resp.data)))
 }
 
 export const deleteRule = (ruleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  try {
-    const resp = await api.deleteNotificationRule({ruleID: ruleID})
+  const resp = await api.deleteNotificationRule({ruleID})
 
-    if (resp.status !== 204) {
-      throw new Error(resp.data.message)
-    }
-
-    dispatch(removeRule(ruleID))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.deleteRuleFailed(e.message)))
+  if (resp.status !== 204) {
+    throw new Error(resp.data.message)
   }
+
+  dispatch(removeRule(ruleID))
 }
