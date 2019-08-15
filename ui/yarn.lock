@@ -1090,10 +1090,10 @@
   resolved "https://registry.yarnpkg.com/@iarna/toml/-/toml-2.2.3.tgz#f060bf6eaafae4d56a7dac618980838b0696e2ab"
   integrity sha512-FmuxfCuolpLl0AnQ2NHSzoUKWEJDFl63qXjzdoWBVyFCXzMGm1spBzk7LeHNoVCiWCF7mRVms9e6jEV9+MoPbg==
 
-"@influxdata/clockface@0.0.24":
-  version "0.0.24"
-  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-0.0.24.tgz#90b89471ef21e8a5c7fc7d19062c0c4a40b2a950"
-  integrity sha512-G3KRb0QwaTtSYZ4HDJlSForJ9oGyKknzc9ncwAJXinfc7R5rCoq3g2ix5g1w97JNTNAbsChTEBlEEZzQtu+rlw==
+"@influxdata/clockface@0.0.25":
+  version "0.0.25"
+  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-0.0.25.tgz#95beae4a6158ba3cac3a80a5ff7badff50eca83e"
+  integrity sha512-0AHf59PnOij8PvyrU691bC6g4dOqvbAaTC+0cxAv3/+9B9J4B3lEorIuBES/0vqS9kB/dXhra6Wt9Aueo2Y0OQ==
 
 "@influxdata/flux-parser@^0.3.0":
   version "0.3.0"
@@ -1112,10 +1112,10 @@
   dependencies:
     axios "^0.19.0"
 
-"@influxdata/influxdb-templates@0.6.0":
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.6.0.tgz#6766fdfbee0c1a670d00ed912250c78e66c04f84"
-  integrity sha512-eKqIhlo6QZSoMERW7+bdYyeYAyPejKKDOfsCBQMaiEIcDXnVQGNLOzo/AG4cIVPAafo2ojOOEDDzYCkMVvkJkg==
+"@influxdata/influxdb-templates@0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.7.0.tgz#c2d8061a8e1ed0ce4efffdab61f765518b0e4be3"
+  integrity sha512-iNRgGzM2/qqu1F8Ug1gyKh47EPHBVTEFeu8lY76XPWSzX9m8K+p+c9emVOR0BR0i2FymMKFqYJKBPQWMYAwWUg==
 
 "@influxdata/react-custom-scrollbars@4.3.8":
   version "4.3.8"
