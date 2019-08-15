@@ -481,10 +481,6 @@ func (s *Service) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*infl
 }
 
 func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate) (*influxdb.Task, error) {
-<<<<<<< HEAD
-=======
-
->>>>>>> fix(task): resolve conflict
 	var err error
 	var org *influxdb.Organization
 	if tc.OrganizationID.Valid() {

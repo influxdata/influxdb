@@ -151,7 +151,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
         }
       ],
       "orgID": "0000000000000001",
-	  "ownerID": "0000000000000001",
+      "ownerID": "0000000000000001",
       "org": "test",
       "status": "",
       "flux": ""
