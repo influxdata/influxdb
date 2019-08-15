@@ -9042,7 +9042,7 @@ components:
       type: object
       required:
         - id
-        - orgid
+        - orgID
         - status
         - name
         - tagRules

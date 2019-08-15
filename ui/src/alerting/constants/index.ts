@@ -2,9 +2,7 @@ import {
   Check,
   DashboardQuery,
   ThresholdCheck,
-  StatusRuleDraft,
   TagRuleDraft,
-  NotificationRuleDraft,
   DeadmanCheck,
 } from 'src/types'
 import {NotificationEndpoint} from 'src/client'
@@ -89,22 +87,6 @@ export const CHECK_FIXTURE_2: Check = {
 
 export const CHECK_FIXTURES: Array<Check> = [CHECK_FIXTURE_1, CHECK_FIXTURE_2]
 
-export const NEW_STATUS_RULE_DRAFT: StatusRuleDraft = {
-  cid: '',
-  value: {
-    currentLevel: {
-      operation: 'equal',
-      level: 'WARN',
-    },
-    previousLevel: {
-      operation: 'equal',
-      level: 'OK',
-    },
-    period: '1h',
-    count: 1,
-  },
-}
-
 export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
   cid: '',
   value: {
@@ -112,20 +94,6 @@ export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
     value: '',
     operator: 'equal',
   },
-}
-
-export const NEW_RULE_DRAFT: NotificationRuleDraft = {
-  id: '',
-  notifyEndpointID: '1',
-  type: 'slack',
-  every: '',
-  orgID: '',
-  name: '',
-  status: 'active',
-  messageTemplate: '',
-  tagRules: [NEW_TAG_RULE_DRAFT],
-  statusRules: [NEW_STATUS_RULE_DRAFT],
-  description: '',
 }
 
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
@@ -157,23 +125,3 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     type: 'pagerduty',
   },
 ]
-
-export const RULE_DRAFT_FIXTURE: NotificationRuleDraft = {
-  id: '3',
-  notifyEndpointID: '2',
-  orgID: 'lala',
-  createdAt: '2019-12-17T00:00',
-  updatedAt: '2019-05-17T00:00',
-  status: 'active',
-  description: '',
-  name: 'amazing notification rule',
-  type: 'slack',
-  every: '2d',
-  offset: '5m',
-  limitEvery: 1,
-  limit: 5,
-  tagRules: [],
-  statusRules: [NEW_STATUS_RULE_DRAFT],
-  channel: '#monitoring-team',
-  messageTemplate: 'hello, this is a NotificationRule fixture speaking :)',
-}
