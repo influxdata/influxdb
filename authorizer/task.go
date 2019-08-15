@@ -118,9 +118,10 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if t.Token == "" {
-		return nil, influxdb.ErrMissingToken
-	}
+	// TODO: add owner check
+	// if t.Token == "" {
+	// 	return nil, influxdb.ErrMissingToken
+	// }
 
 	if t.Type == influxdb.TaskTypeWildcard {
 		return nil, influxdb.ErrInvalidTaskType
