@@ -93,6 +93,9 @@ func (s *Service) findSession(ctx context.Context, tx Tx, key string) (*influxdb
 	}
 
 	ps, err := s.maxPermissions(ctx, tx, sn.UserID)
+	if err != nil {
+		return nil, err
+	}
 
 	sn.Permissions = ps
 	return sn, nil
