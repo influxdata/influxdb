@@ -104,35 +104,29 @@ const ThresholdCondition: FC<Props> = ({
       onUpdateCheckThreshold(rangeThreshold)
     }
   }
+
+  if (!threshold) {
+    return (
+      <DashedButton
+        text={`+ ${level}`}
+        color={ComponentColor.Success}
+        size={ComponentSize.Large}
+        onClick={addLevel}
+      />
+    )
+  }
   return (
-    <>
-      {threshold ? (
-        <ThresholdStatement
-          threshold={threshold}
-          removeLevel={removeLevel}
-          changeThresholdType={changeThresholdType}
-        >
-          {threshold.type === 'range' ? (
-            <ThresholdRangeInput
-              threshold={threshold}
-              changeRange={changeRange}
-            />
-          ) : (
-            <ThresholdValueInput
-              threshold={threshold}
-              changeValue={changeValue}
-            />
-          )}
-        </ThresholdStatement>
+    <ThresholdStatement
+      threshold={threshold}
+      removeLevel={removeLevel}
+      changeThresholdType={changeThresholdType}
+    >
+      {threshold.type === 'range' ? (
+        <ThresholdRangeInput threshold={threshold} changeRange={changeRange} />
       ) : (
-        <DashedButton
-          text={`+ ${level}`}
-          color={ComponentColor.Success}
-          size={ComponentSize.Large}
-          onClick={addLevel}
-        />
+        <ThresholdValueInput threshold={threshold} changeValue={changeValue} />
       )}
-    </>
+    </ThresholdStatement>
   )
 }
 
