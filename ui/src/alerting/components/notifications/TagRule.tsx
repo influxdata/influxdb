@@ -71,7 +71,7 @@ const TagRule: FC<Props> = ({tagRule}) => {
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
           <TextBlock
             text="AND"
-            textColor={InfluxColors.Honeydew} 
+            textColor={InfluxColors.Honeydew}
             backgroundColor={InfluxColors.Pepper}
           />
           <TextBlock text="When" />
