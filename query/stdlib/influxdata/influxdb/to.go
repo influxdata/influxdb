@@ -13,7 +13,6 @@ import (
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
-	"github.com/influxdata/flux/stdlib/http"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/kafka"
 	"github.com/influxdata/flux/values"
@@ -164,8 +163,6 @@ func createToOpSpec(args flux.Arguments, a *flux.Administration) (flux.Operation
 			Code: codes.Invalid,
 			Msg:  "specify at most one of url, brokers in the same `to` function",
 		}
-	case httpOK:
-		s = &http.ToHTTPOpSpec{}
 	case kafkaOK:
 		s = &kafka.ToKafkaOpSpec{}
 	default:
