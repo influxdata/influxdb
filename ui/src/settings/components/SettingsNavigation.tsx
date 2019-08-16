@@ -6,9 +6,9 @@ import chroma from 'chroma-js'
 
 // Components
 import {
-  Tabs, 
-  Orientation, 
-  ComponentSize, 
+  Tabs,
+  Orientation,
+  ComponentSize,
   InfluxColors,
 } from '@influxdata/clockface'
 
