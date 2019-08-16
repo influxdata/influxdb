@@ -1,10 +1,11 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Input, Sort} from '@influxdata/clockface'
+import {Sort} from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TokenList from 'src/authorizations/components/TokenList'
 import FilterList from 'src/shared/components/Filter'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
@@ -12,7 +13,6 @@ import GenerateTokenDropdown from 'src/authorizations/components/GenerateTokenDr
 
 // Types
 import {Authorization} from '@influxdata/influx'
-import {IconFont} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 
@@ -54,12 +54,10 @@ class TokensTab extends PureComponent<Props, State> {
     return (
       <>
         <TabbedPageHeader>
-          <Input
-            icon={IconFont.Search}
-            value={searchTerm}
-            placeholder="Filter Tokens..."
-            onChange={this.handleChangeSearchTerm}
-            widthPixels={256}
+          <SearchWidget
+            searchTerm={searchTerm}
+            placeholderText="Filter Tokens..."
+            onSearch={this.handleChangeSearchTerm}
             testID="input-field--filter"
           />
           <GenerateTokenDropdown
@@ -92,8 +90,8 @@ class TokensTab extends PureComponent<Props, State> {
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
-  private handleChangeSearchTerm = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleChangeSearchTerm = (searchTerm: string): void => {
+    this.setState({searchTerm})
   }
 
   private get searchKeys(): AuthSearchKeys[] {

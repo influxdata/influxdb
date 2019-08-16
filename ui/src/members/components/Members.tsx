@@ -1,12 +1,13 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
-import {Input, Button, EmptyState, Sort} from '@influxdata/clockface'
+import {Button, EmptyState, Sort} from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
@@ -53,13 +54,10 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
     return (
       <>
         <SettingsTabbedPageHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter members..."
-            widthPixels={290}
-            value={searchTerm}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterChange}
+          <SearchWidget
+            placeholderText="Filter members..."
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
           />
           <Button
             text="Add Member"
@@ -108,8 +106,8 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
     router.push(`/orgs/${orgID}/members/new`)
   }
 
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleFilterChange = (searchTerm: string): void => {
+    this.setState({searchTerm})
   }
 
   private get emptyState(): JSX.Element {

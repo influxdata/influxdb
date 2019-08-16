@@ -1,9 +1,10 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Input, Button, EmptyState} from '@influxdata/clockface'
+import {Button, EmptyState} from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import CreateLabelOverlay from 'src/labels/components/CreateLabelOverlay'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import LabelList from 'src/labels/components/LabelList'
@@ -23,7 +24,6 @@ import {AppState, Label} from 'src/types'
 import {ILabel} from '@influxdata/influx'
 import {
   IconFont,
-  InputType,
   ComponentSize,
   ComponentColor,
   Sort,
@@ -82,14 +82,10 @@ class Labels extends PureComponent<Props, State> {
     return (
       <>
         <TabbedPageHeader>
-          <Input
-            icon={IconFont.Search}
-            widthPixels={290}
-            type={InputType.Text}
-            value={searchTerm}
-            onBlur={this.handleFilterBlur}
-            onChange={this.handleFilterChange}
-            placeholder="Filter Labels..."
+          <SearchWidget
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
+            placeholderText="Filter Labels..."
           />
           <Button
             text="Create Label"
@@ -140,12 +136,8 @@ class Labels extends PureComponent<Props, State> {
     this.setState({isOverlayVisible: false})
   }
 
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
-  }
-
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleFilterChange = (searchTerm: string): void => {
+    this.setState({searchTerm})
   }
 
   private handleCreateLabel = (label: Label) => {

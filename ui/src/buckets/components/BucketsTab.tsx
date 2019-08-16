@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 
@@ -10,12 +10,12 @@ import {
   ComponentSize,
   ComponentColor,
   Sort,
-  Input,
   Button,
   EmptyState,
   ComponentStatus,
   Overlay,
 } from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/buckets/components/BucketList'
@@ -94,13 +94,10 @@ class BucketsTab extends PureComponent<Props, State> {
     return (
       <>
         <SettingsTabbedPageHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter buckets..."
-            widthPixels={290}
-            value={searchTerm}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
+          <SearchWidget
+            placeholderText="Filter buckets..."
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
           />
           <Button
             text="Create Bucket"
@@ -169,12 +166,8 @@ class BucketsTab extends PureComponent<Props, State> {
     this.setState({overlayState: OverlayState.Closed})
   }
 
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
-  }
-
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.handleFilterUpdate(e.target.value)
+  private handleFilterChange = (searchTerm: string): void => {
+    this.handleFilterUpdate(searchTerm)
   }
 
   private handleFilterUpdate = (searchTerm: string): void => {
