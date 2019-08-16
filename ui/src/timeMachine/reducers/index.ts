@@ -896,17 +896,44 @@ export const timeMachineReducer = (
     case 'CHANGE_TIMEMACHINE_CHECK_TYPE':
       return produce(state, draftState => {
         const exCheck = draftState.alerting.check
-        if (action.payload.toType == 'deadman') {
+        if (action.payload.toType === 'deadman') {
           draftState.alerting.check = {
             ...DEFAULT_DEADMAN_CHECK,
             ...omit(exCheck, ['thresholds', 'type']),
           } as DeadmanCheck
         }
-        if (action.payload.toType == 'threshold') {
+        if (action.payload.toType === 'threshold') {
           draftState.alerting.check = {
             ...DEFAULT_THRESHOLD_CHECK,
             ...omit(exCheck, ['timeSince', 'reportZero', 'level', 'type']),
           } as ThresholdCheck
+        }
+      })
+    case 'UPDATE_CHECK_THRESHOLD':
+      return produce(state, draftState => {
+        const check = draftState.alerting.check
+        if (check.type === 'threshold') {
+          const filteredThresholds = check.thresholds.filter(
+            t => t.level !== action.payload.threshold.level
+          )
+          const thresholds = [...filteredThresholds, action.payload.threshold]
+          draftState.alerting.check = {
+            ...check,
+            thresholds,
+          }
+        }
+      })
+    case 'REMOVE_CHECK_THRESHOLD':
+      return produce(state, draftState => {
+        const check = draftState.alerting.check
+        if (check.type === 'threshold') {
+          const thresholds = check.thresholds
+          draftState.alerting.check = {
+            ...check,
+            thresholds: thresholds.filter(
+              t => t.level !== action.payload.level
+            ),
+          }
         }
       })
   }

@@ -24,15 +24,15 @@ $threshold-marker--caret-width: 12px;
 }
 
 .threshold-marker--warn {
-  @include threshold-marker--color($c-tiger, $c-pineapple);
+  @include threshold-marker--color($c-thunder, $c-pineapple);
 }
 
 .threshold-marker--ok {
-  @include threshold-marker--color($c-rainforest, $c-honeydew);
+  @include threshold-marker--color($c-viridian, $c-honeydew);
 }
 
 .threshold-marker--info {
-  @include threshold-marker--color($c-pool, $c-laser);
+  @include threshold-marker--color($c-ocean, $c-laser);
 }
 
 .threshold-marker--unknown {

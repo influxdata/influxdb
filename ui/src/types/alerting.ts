@@ -63,8 +63,9 @@ export {
   PagerDutyNotificationRule,
 } from '../client'
 
-import {Check} from '../client'
+import {Check, Threshold} from '../client'
 
 export type CheckType = Check['type']
+export type ThresholdType = Threshold['type']
 
 export type AlertHistoryType = 'statuses' | 'notifications'
