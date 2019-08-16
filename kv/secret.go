@@ -207,8 +207,8 @@ func decodeSecretKey(key []byte) (influxdb.ID, string, error) {
 
 func decodeSecretValue(val []byte) (string, error) {
 	// store the secret value base64 encoded so that it's marginally better than plaintext
-	v := make([]byte, base64.StdEncoding.DecodedLen(len(val)))
-	if _, err := base64.StdEncoding.Decode(v, val); err != nil {
+	v, err := base64.StdEncoding.DecodeString(string(val))
+	if err != nil {
 		return "", err
 	}
 

@@ -22,10 +22,6 @@ type NotificationRuleFields struct {
 	UserResourceMappings []*influxdb.UserResourceMapping
 }
 
-var timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
-var timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
-var time3 = time.Date(2006, time.July, 15, 5, 23, 53, 10, time.UTC)
-
 var notificationRuleCmpOptions = cmp.Options{
 	cmp.Transformer("Sort", func(in []influxdb.NotificationRule) []influxdb.NotificationRule {
 		out := append([]influxdb.NotificationRule(nil), in...)

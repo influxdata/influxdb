@@ -18,27 +18,28 @@ import (
 // APIHandler is a collection of all the service handlers.
 type APIHandler struct {
 	influxdb.HTTPErrorHandler
-	BucketHandler           *BucketHandler
-	UserHandler             *UserHandler
-	OrgHandler              *OrgHandler
-	AuthorizationHandler    *AuthorizationHandler
-	DashboardHandler        *DashboardHandler
-	LabelHandler            *LabelHandler
-	AssetHandler            *AssetHandler
-	ChronografHandler       *ChronografHandler
-	ScraperHandler          *ScraperHandler
-	SourceHandler           *SourceHandler
-	VariableHandler         *VariableHandler
-	TaskHandler             *TaskHandler
-	CheckHandler            *CheckHandler
-	TelegrafHandler         *TelegrafHandler
-	QueryHandler            *FluxHandler
-	WriteHandler            *WriteHandler
-	DocumentHandler         *DocumentHandler
-	SetupHandler            *SetupHandler
-	SessionHandler          *SessionHandler
-	SwaggerHandler          http.Handler
-	NotificationRuleHandler *NotificationRuleHandler
+	BucketHandler               *BucketHandler
+	UserHandler                 *UserHandler
+	OrgHandler                  *OrgHandler
+	AuthorizationHandler        *AuthorizationHandler
+	DashboardHandler            *DashboardHandler
+	LabelHandler                *LabelHandler
+	AssetHandler                *AssetHandler
+	ChronografHandler           *ChronografHandler
+	ScraperHandler              *ScraperHandler
+	SourceHandler               *SourceHandler
+	VariableHandler             *VariableHandler
+	TaskHandler                 *TaskHandler
+	CheckHandler                *CheckHandler
+	TelegrafHandler             *TelegrafHandler
+	QueryHandler                *FluxHandler
+	WriteHandler                *WriteHandler
+	DocumentHandler             *DocumentHandler
+	SetupHandler                *SetupHandler
+	SessionHandler              *SessionHandler
+	SwaggerHandler              http.Handler
+	NotificationRuleHandler     *NotificationRuleHandler
+	NotificationEndpointHandler *NotificationEndpointHandler
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -84,6 +85,7 @@ type APIBackend struct {
 	OrgLookupService                authorizer.OrganizationService
 	DocumentService                 influxdb.DocumentService
 	NotificationRuleStore           influxdb.NotificationRuleStore
+	NotificationEndpointService     influxdb.NotificationEndpointService
 }
 
 // PrometheusCollectors exposes the prometheus collectors associated with an APIBackend.
@@ -167,6 +169,11 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 		b.UserResourceMappingService, b.OrganizationService)
 	h.NotificationRuleHandler = NewNotificationRuleHandler(notificationRuleBackend)
 
+	notificationEndpointBackend := NewNotificationEndpointBackend(b)
+	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
+		b.UserResourceMappingService, b.OrganizationService, b.SecretService)
+	h.NotificationEndpointHandler = NewNotificationEndpointHandler(notificationEndpointBackend)
+
 	checkBackend := NewCheckBackend(b)
 	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,
 		b.UserResourceMappingService, b.OrganizationService)
@@ -194,11 +201,12 @@ var apiLinks = map[string]interface{}{
 	"external": map[string]string{
 		"statusFeed": "https://www.influxdata.com/feed/json",
 	},
-	"labels":            "/api/v2/labels",
-	"variables":         "/api/v2/variables",
-	"me":                "/api/v2/me",
-	"notificationRules": "/api/v2/notificationRules",
-	"orgs":              "/api/v2/orgs",
+	"labels":                "/api/v2/labels",
+	"variables":             "/api/v2/variables",
+	"me":                    "/api/v2/me",
+	"notificationRules":     "/api/v2/notificationRules",
+	"notificationEndpoints": "/api/v2/notificationEndpoints",
+	"orgs":                  "/api/v2/orgs",
 	"query": map[string]string{
 		"self":        "/api/v2/query",
 		"ast":         "/api/v2/query/ast",
@@ -325,6 +333,11 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/notificationRules") {
 		h.NotificationRuleHandler.ServeHTTP(w, r)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/api/v2/notificationEndpoints") {
+		h.NotificationEndpointHandler.ServeHTTP(w, r)
 		return
 	}
 

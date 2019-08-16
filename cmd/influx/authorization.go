@@ -45,8 +45,14 @@ type AuthorizationCreateFlags struct {
 	writeDashboardsPermission bool
 	readDashboardsPermission  bool
 
+	writeCheckPermission bool
+	readCheckPermission  bool
+
 	writeNotificationRulePermission bool
 	readNotificationRulePermission  bool
+
+	writeNotificationEndpointPermission bool
+	readNotificationEndpointPermission  bool
 }
 
 var authorizationCreateFlags AuthorizationCreateFlags
@@ -86,6 +92,12 @@ func init() {
 
 	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeNotificationRulePermission, "write-notificationRules", "", false, "Grants the permission to create notificationRules")
 	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readNotificationRulePermission, "read-notificationRules", "", false, "Grants the permission to read notificationRules")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeNotificationEndpointPermission, "write-notificationEndpoints", "", false, "Grants the permission to create notificationEndpoints")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readNotificationEndpointPermission, "read-notificationEndpoints", "", false, "Grants the permission to read notificationEndpoints")
+
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeCheckPermission, "write-checks", "", false, "Grants the permission to create checks")
+	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readCheckPermission, "read-checks", "", false, "Grants the permission to read checks")
 
 	authorizationCmd.AddCommand(authorizationCreateCmd)
 }
@@ -237,6 +249,38 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 
 	if authorizationCreateFlags.readNotificationRulePermission {
 		p, err := platform.NewPermission(platform.ReadAction, platform.NotificationRuleResourceType, o.ID)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeNotificationEndpointPermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.NotificationEndpointResourceType, o.ID)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readNotificationEndpointPermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.NotificationEndpointResourceType, o.ID)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.writeCheckPermission {
+		p, err := platform.NewPermission(platform.WriteAction, platform.ChecksResourceType, o.ID)
+		if err != nil {
+			return err
+		}
+		permissions = append(permissions, *p)
+	}
+
+	if authorizationCreateFlags.readCheckPermission {
+		p, err := platform.NewPermission(platform.ReadAction, platform.ChecksResourceType, o.ID)
 		if err != nil {
 			return err
 		}

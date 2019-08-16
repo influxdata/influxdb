@@ -21,7 +21,7 @@ type Check interface {
 	GenerateFlux() (string, error)
 	GetAuthID() ID
 	json.Marshaler
-	Updator
+	Updater
 	Getter
 }
 
