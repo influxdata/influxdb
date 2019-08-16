@@ -16,6 +16,7 @@ interface Props {
   widthPixels: number
   placeholderText: string
   searchTerm: string
+  testID: string
 }
 
 interface State {
@@ -28,6 +29,7 @@ class SearchWidget extends Component<Props, State> {
     widthPixels: 440,
     placeholderText: 'Search...',
     searchTerm: '',
+    testID: 'search-widget',
   }
 
   public componentDidUpdate(prevProps: Props) {
@@ -48,7 +50,7 @@ class SearchWidget extends Component<Props, State> {
   }
 
   public render() {
-    const {placeholderText, widthPixels} = this.props
+    const {placeholderText, widthPixels, testID} = this.props
     const {searchTerm} = this.state
 
     return (
@@ -59,7 +61,7 @@ class SearchWidget extends Component<Props, State> {
         value={searchTerm}
         onChange={this.handleChange}
         onBlur={this.handleBlur}
-        testID="search-widget"
+        testID={testID}
       />
     )
   }
