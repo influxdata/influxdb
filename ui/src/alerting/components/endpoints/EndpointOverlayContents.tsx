@@ -3,16 +3,22 @@ import React, {FC, ChangeEvent} from 'react'
 
 // Components
 import {Grid, Form, Panel, Input, TextArea} from '@influxdata/clockface'
-import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
 import EndpointOptions from 'src/alerting/components/endpoints/EndpointOptions'
+import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
+import EndpointOverlayFooter from 'src/alerting/components/endpoints/EndpointOverlayFooter'
 
 // Hooks
 import {useEndpointReducer} from './EndpointOverlayProvider'
 
 // Types
-import {NotificationEndpointType} from 'src/types'
+import {NotificationEndpointType, NotificationEndpoint} from 'src/types'
 
-const EndpointOverlayContents: FC = () => {
+interface Props {
+  onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  saveButtonText: string
+}
+
+const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
   const [endpoint, dispatch] = useEndpointReducer()
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -64,6 +70,10 @@ const EndpointOverlayContents: FC = () => {
                   />
                 </Form.Element>
                 <EndpointOptions endpoint={endpoint} onChange={handleChange} />
+                <EndpointOverlayFooter
+                  onSave={onSave}
+                  saveButtonText={saveButtonText}
+                />
               </Panel.Body>
             </Panel>
           </Grid.Column>

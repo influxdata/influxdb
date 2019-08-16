@@ -14,17 +14,21 @@ describe('Notification Endpoints', () => {
   })
 
   it('can create a notification rule', () => {
+    const name = 'An Endpoint Has No Name'
+    const description =
+      'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'
+
     cy.getByTestID('alert-column--header create-endpoint').click()
 
     cy.getByTestID('endpoint-name--input')
       .clear()
-      .type('An Endpoint Has No Name')
+      .type(name)
+      .should('have.value', name)
 
     cy.getByTestID('endpoint-description--textarea')
       .clear()
-      .type(
-        'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'
-      )
+      .type(description)
+      .should('have.value', description)
 
     cy.getByTestID('endpoint-change--dropdown')
       .click()
@@ -72,5 +76,10 @@ describe('Notification Endpoints', () => {
       .clear()
       .type('another token')
       .should('have.value', 'another token')
+
+    cy.getByTestID('endpoint-save--button').click()
+
+    cy.getByTestID(`endpoint-card ${name}`).should('exist')
+    cy.getByTestID('endpoint--overlay').should('not.be.visible')
   })
 })

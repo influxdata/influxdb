@@ -1,6 +1,10 @@
 // Libraries
 import React, {FC} from 'react'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
+
+// Actions
+import {createEndpoint} from 'src/alerting/actions/notifications/endpoints'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -9,12 +13,23 @@ import EndpointOverlayContents from 'src/alerting/components/endpoints/EndpointO
 
 // Constants
 import {NEW_ENDPOINT_DRAFT} from 'src/alerting/constants'
+import {NotificationEndpoint} from 'src/types'
 
-type Props = WithRouterProps
+interface DispatchProps {
+  onCreateEndpoint: typeof createEndpoint
+}
 
-const NewRuleOverlay: FC<Props> = ({params, router}) => {
+type Props = WithRouterProps & DispatchProps
+
+const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
   const handleDismiss = () => {
     router.push(`/orgs/${params.orgID}/alerting`)
+  }
+
+  const handleCreateEndpoint = async (endpoint: NotificationEndpoint) => {
+    await onCreateEndpoint(endpoint)
+
+    handleDismiss()
   }
 
   return (
@@ -26,11 +41,21 @@ const NewRuleOverlay: FC<Props> = ({params, router}) => {
             onDismiss={handleDismiss}
           />
           <Overlay.Body />
-          <EndpointOverlayContents />
+          <EndpointOverlayContents
+            onSave={handleCreateEndpoint}
+            saveButtonText="Create Notification Endpoint"
+          />
         </Overlay.Container>
       </Overlay>
     </EndpointOverlayProvider>
   )
 }
 
-export default withRouter<Props>(NewRuleOverlay)
+const mdtp = {
+  onCreateEndpoint: createEndpoint,
+}
+
+export default connect<null, DispatchProps>(
+  null,
+  mdtp
+)(withRouter<Props>(NewRuleOverlay))

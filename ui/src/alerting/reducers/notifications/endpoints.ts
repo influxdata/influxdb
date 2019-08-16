@@ -1,0 +1,40 @@
+// Libraries
+import produce from 'immer'
+
+// Types
+import {NotificationEndpoint} from 'src/types'
+import {RemoteDataState} from '@influxdata/clockface'
+import {Action} from 'src/alerting/actions/notifications/endpoints'
+
+export interface NotificationEndpointsState {
+  status: RemoteDataState
+  list: NotificationEndpoint[]
+}
+
+const initialState = {
+  status: RemoteDataState.NotStarted,
+  list: [],
+}
+
+type State = NotificationEndpointsState
+
+export default (
+  state: State = initialState,
+  action: Action
+): NotificationEndpointsState =>
+  produce(state, draftState => {
+    switch (action.type) {
+      case 'SET_ENDPOINT': {
+        const {endpoint} = action
+        const index = state.list.findIndex(ep => ep.id === endpoint.id)
+
+        if (index === -1) {
+          draftState.list.push(endpoint)
+          return
+        }
+
+        draftState.list[index] = endpoint
+        return
+      }
+    }
+  })
