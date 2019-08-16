@@ -8,6 +8,10 @@ import (
 {{range .}}
 {{ $typename := print .name "Array" }}
 {{ $tsdbname := print .Name "Array" }}
+type {{.Name}}Values interface {
+	Copy(*tsdb.{{$tsdbname}})
+}
+
 type {{$typename}} struct {
 	tsdb.{{$tsdbname}}
 }
@@ -23,5 +27,10 @@ func new{{$tsdbname}}Len(sz int) *{{$typename}} {
 
 func (a *{{$typename}}) Encode(b []byte) ([]byte, error) {
 	return tsm1.Encode{{$tsdbname}}Block(&a.{{$tsdbname}}, b)
+}
+
+func (a *{{$typename}}) Copy(dst *tsdb.{{$tsdbname}}) {
+	dst.Timestamps = append(dst.Timestamps[:0], a.Timestamps...)
+	dst.Values = append(dst.Values[:0], a.Values...)
 }
 {{end}}
