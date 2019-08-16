@@ -57,39 +57,53 @@ func (w *ResponseWriter) streamFloatArrayPoints(cur cursors.FloatArrayCursor) {
 	frame := p.FloatPoints
 	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 
-	var (
-		seriesValueCount = 0
-		b                = 0
-	)
-
+	var seriesValueCount = 0
 	for {
+		// If the number of values produced by cur > 1000,
+		// cur.Next() will produce batches of values that are of
+		// length ≤ 1000.
+		// We attempt to limit the frame Timestamps / Values lengths
+		// the same to avoid allocations. These frames are recycled
+		// after flushing so that on repeated use there should be enough space
+		// to append values from a into frame without additional allocations.
 		a := cur.Next()
+
 		if len(a.Timestamps) == 0 {
 			break
 		}
 
+		seriesValueCount += a.Len()
+		// As specified in the struct definition, w.sz is an estimated
+		// size (in bytes) of the buffered data. It is therefore a
+		// deliberate choice to accumulate using the array Size, which is
+		// cheap to calculate. Calling frame.Size() can be expensive
+		// when using varint encoding for numbers.
+		w.sz += a.Size()
+
 		frame.Timestamps = append(frame.Timestamps, a.Timestamps...)
 		frame.Values = append(frame.Values, a.Values...)
 
-		b = len(frame.Timestamps)
-		if b >= batchSize {
-			seriesValueCount += b
-			b = 0
-			w.sz += frame.Size()
-			if w.sz >= writeSize {
-				w.Flush()
-				if w.err != nil {
-					break
-				}
-			}
+		// given the expectation of cur.Next, we attempt to limit
+		// the number of values appended to the frame to batchSize (1000)
+		needsFrame := len(frame.Timestamps) >= batchSize
 
+		if w.sz >= writeSize {
+			needsFrame = true
+			w.Flush()
+			if w.err != nil {
+				break
+			}
+		}
+
+		if needsFrame {
+			// new frames are returned with Timestamps and Values preallocated
+			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getFloatPointsFrame()
 			frame = p.FloatPoints
 			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
-	seriesValueCount += b
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
@@ -146,39 +160,53 @@ func (w *ResponseWriter) streamIntegerArrayPoints(cur cursors.IntegerArrayCursor
 	frame := p.IntegerPoints
 	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 
-	var (
-		seriesValueCount = 0
-		b                = 0
-	)
-
+	var seriesValueCount = 0
 	for {
+		// If the number of values produced by cur > 1000,
+		// cur.Next() will produce batches of values that are of
+		// length ≤ 1000.
+		// We attempt to limit the frame Timestamps / Values lengths
+		// the same to avoid allocations. These frames are recycled
+		// after flushing so that on repeated use there should be enough space
+		// to append values from a into frame without additional allocations.
 		a := cur.Next()
+
 		if len(a.Timestamps) == 0 {
 			break
 		}
 
+		seriesValueCount += a.Len()
+		// As specified in the struct definition, w.sz is an estimated
+		// size (in bytes) of the buffered data. It is therefore a
+		// deliberate choice to accumulate using the array Size, which is
+		// cheap to calculate. Calling frame.Size() can be expensive
+		// when using varint encoding for numbers.
+		w.sz += a.Size()
+
 		frame.Timestamps = append(frame.Timestamps, a.Timestamps...)
 		frame.Values = append(frame.Values, a.Values...)
 
-		b = len(frame.Timestamps)
-		if b >= batchSize {
-			seriesValueCount += b
-			b = 0
-			w.sz += frame.Size()
-			if w.sz >= writeSize {
-				w.Flush()
-				if w.err != nil {
-					break
-				}
-			}
+		// given the expectation of cur.Next, we attempt to limit
+		// the number of values appended to the frame to batchSize (1000)
+		needsFrame := len(frame.Timestamps) >= batchSize
 
+		if w.sz >= writeSize {
+			needsFrame = true
+			w.Flush()
+			if w.err != nil {
+				break
+			}
+		}
+
+		if needsFrame {
+			// new frames are returned with Timestamps and Values preallocated
+			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getIntegerPointsFrame()
 			frame = p.IntegerPoints
 			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
-	seriesValueCount += b
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
@@ -235,39 +263,53 @@ func (w *ResponseWriter) streamUnsignedArrayPoints(cur cursors.UnsignedArrayCurs
 	frame := p.UnsignedPoints
 	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 
-	var (
-		seriesValueCount = 0
-		b                = 0
-	)
-
+	var seriesValueCount = 0
 	for {
+		// If the number of values produced by cur > 1000,
+		// cur.Next() will produce batches of values that are of
+		// length ≤ 1000.
+		// We attempt to limit the frame Timestamps / Values lengths
+		// the same to avoid allocations. These frames are recycled
+		// after flushing so that on repeated use there should be enough space
+		// to append values from a into frame without additional allocations.
 		a := cur.Next()
+
 		if len(a.Timestamps) == 0 {
 			break
 		}
 
+		seriesValueCount += a.Len()
+		// As specified in the struct definition, w.sz is an estimated
+		// size (in bytes) of the buffered data. It is therefore a
+		// deliberate choice to accumulate using the array Size, which is
+		// cheap to calculate. Calling frame.Size() can be expensive
+		// when using varint encoding for numbers.
+		w.sz += a.Size()
+
 		frame.Timestamps = append(frame.Timestamps, a.Timestamps...)
 		frame.Values = append(frame.Values, a.Values...)
 
-		b = len(frame.Timestamps)
-		if b >= batchSize {
-			seriesValueCount += b
-			b = 0
-			w.sz += frame.Size()
-			if w.sz >= writeSize {
-				w.Flush()
-				if w.err != nil {
-					break
-				}
-			}
+		// given the expectation of cur.Next, we attempt to limit
+		// the number of values appended to the frame to batchSize (1000)
+		needsFrame := len(frame.Timestamps) >= batchSize
 
+		if w.sz >= writeSize {
+			needsFrame = true
+			w.Flush()
+			if w.err != nil {
+				break
+			}
+		}
+
+		if needsFrame {
+			// new frames are returned with Timestamps and Values preallocated
+			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getUnsignedPointsFrame()
 			frame = p.UnsignedPoints
 			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
-	seriesValueCount += b
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
@@ -324,39 +366,53 @@ func (w *ResponseWriter) streamStringArrayPoints(cur cursors.StringArrayCursor) 
 	frame := p.StringPoints
 	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 
-	var (
-		seriesValueCount = 0
-		b                = 0
-	)
-
+	var seriesValueCount = 0
 	for {
+		// If the number of values produced by cur > 1000,
+		// cur.Next() will produce batches of values that are of
+		// length ≤ 1000.
+		// We attempt to limit the frame Timestamps / Values lengths
+		// the same to avoid allocations. These frames are recycled
+		// after flushing so that on repeated use there should be enough space
+		// to append values from a into frame without additional allocations.
 		a := cur.Next()
+
 		if len(a.Timestamps) == 0 {
 			break
 		}
 
+		seriesValueCount += a.Len()
+		// As specified in the struct definition, w.sz is an estimated
+		// size (in bytes) of the buffered data. It is therefore a
+		// deliberate choice to accumulate using the array Size, which is
+		// cheap to calculate. Calling frame.Size() can be expensive
+		// when using varint encoding for numbers.
+		w.sz += a.Size()
+
 		frame.Timestamps = append(frame.Timestamps, a.Timestamps...)
 		frame.Values = append(frame.Values, a.Values...)
 
-		b = len(frame.Timestamps)
-		if b >= batchSize {
-			seriesValueCount += b
-			b = 0
-			w.sz += frame.Size()
-			if w.sz >= writeSize {
-				w.Flush()
-				if w.err != nil {
-					break
-				}
-			}
+		// given the expectation of cur.Next, we attempt to limit
+		// the number of values appended to the frame to batchSize (1000)
+		needsFrame := len(frame.Timestamps) >= batchSize
 
+		if w.sz >= writeSize {
+			needsFrame = true
+			w.Flush()
+			if w.err != nil {
+				break
+			}
+		}
+
+		if needsFrame {
+			// new frames are returned with Timestamps and Values preallocated
+			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getStringPointsFrame()
 			frame = p.StringPoints
 			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
-	seriesValueCount += b
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()
@@ -413,39 +469,53 @@ func (w *ResponseWriter) streamBooleanArrayPoints(cur cursors.BooleanArrayCursor
 	frame := p.BooleanPoints
 	w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 
-	var (
-		seriesValueCount = 0
-		b                = 0
-	)
-
+	var seriesValueCount = 0
 	for {
+		// If the number of values produced by cur > 1000,
+		// cur.Next() will produce batches of values that are of
+		// length ≤ 1000.
+		// We attempt to limit the frame Timestamps / Values lengths
+		// the same to avoid allocations. These frames are recycled
+		// after flushing so that on repeated use there should be enough space
+		// to append values from a into frame without additional allocations.
 		a := cur.Next()
+
 		if len(a.Timestamps) == 0 {
 			break
 		}
 
+		seriesValueCount += a.Len()
+		// As specified in the struct definition, w.sz is an estimated
+		// size (in bytes) of the buffered data. It is therefore a
+		// deliberate choice to accumulate using the array Size, which is
+		// cheap to calculate. Calling frame.Size() can be expensive
+		// when using varint encoding for numbers.
+		w.sz += a.Size()
+
 		frame.Timestamps = append(frame.Timestamps, a.Timestamps...)
 		frame.Values = append(frame.Values, a.Values...)
 
-		b = len(frame.Timestamps)
-		if b >= batchSize {
-			seriesValueCount += b
-			b = 0
-			w.sz += frame.Size()
-			if w.sz >= writeSize {
-				w.Flush()
-				if w.err != nil {
-					break
-				}
-			}
+		// given the expectation of cur.Next, we attempt to limit
+		// the number of values appended to the frame to batchSize (1000)
+		needsFrame := len(frame.Timestamps) >= batchSize
 
+		if w.sz >= writeSize {
+			needsFrame = true
+			w.Flush()
+			if w.err != nil {
+				break
+			}
+		}
+
+		if needsFrame {
+			// new frames are returned with Timestamps and Values preallocated
+			// to a minimum of batchSize length to reduce further allocations.
 			p = w.getBooleanPointsFrame()
 			frame = p.BooleanPoints
 			w.res.Frames = append(w.res.Frames, datatypes.ReadResponse_Frame{Data: p})
 		}
 	}
 
-	seriesValueCount += b
 	w.vc += seriesValueCount
 	if seriesValueCount == 0 {
 		w.sz -= w.sf.Size()

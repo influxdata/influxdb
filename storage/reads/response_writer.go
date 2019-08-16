@@ -31,7 +31,9 @@ type ResponseWriter struct {
 	// current series
 	sf *datatypes.ReadResponse_SeriesFrame
 	ss int // pointer to current series frame; used to skip writing if no points
-	sz int // estimated size in bytes for pending write
+	// sz is an estimated size in bytes for pending writes to flush periodically
+	// when the size exceeds writeSize.
+	sz int
 
 	vc int // total value count
 
