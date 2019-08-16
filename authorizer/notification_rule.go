@@ -25,36 +25,6 @@ func NewNotificationRuleStore(s influxdb.NotificationRuleStore, urm influxdb.Use
 	}
 }
 
-func newNotificationRulePermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
-	return influxdb.NewPermissionAtID(id, a, influxdb.NotificationRuleResourceType, orgID)
-}
-
-func authorizeReadNotificationRule(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newNotificationRulePermission(influxdb.ReadAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteNotificationRule(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newNotificationRulePermission(influxdb.WriteAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FindNotificationRuleByID checks to see if the authorizer on context has read access to the id provided.
 func (s *NotificationRuleStore) FindNotificationRuleByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
 	nr, err := s.s.FindNotificationRuleByID(ctx, id)
@@ -62,7 +32,7 @@ func (s *NotificationRuleStore) FindNotificationRuleByID(ctx context.Context, id
 		return nil, err
 	}
 
-	if err := authorizeReadNotificationRule(ctx, nr.GetOrgID(), nr.GetID()); err != nil {
+	if err := authorizeReadOrg(ctx, nr.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -82,7 +52,7 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rules := nrs[:0]
 	for _, nr := range nrs {
-		err := authorizeReadNotificationRule(ctx, nr.GetOrgID(), nr.GetID())
+		err := authorizeReadOrg(ctx, nr.GetOrgID())
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
 		}
@@ -99,7 +69,7 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 
 // CreateNotificationRule checks to see if the authorizer on context has write access to the global notification rule resource.
 func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.NotificationRuleResourceType, nr.GetOrgID())
+	p, err := newOrgPermission(influxdb.WriteAction, nr.GetOrgID())
 	if err != nil {
 		return err
 	}
@@ -118,7 +88,7 @@ func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id i
 		return nil, err
 	}
 
-	if err := authorizeWriteNotificationRule(ctx, nr.GetOrgID(), id); err != nil {
+	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -132,7 +102,7 @@ func (s *NotificationRuleStore) PatchNotificationRule(ctx context.Context, id in
 		return nil, err
 	}
 
-	if err := authorizeWriteNotificationRule(ctx, nr.GetOrgID(), id); err != nil {
+	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -146,7 +116,7 @@ func (s *NotificationRuleStore) DeleteNotificationRule(ctx context.Context, id i
 		return err
 	}
 
-	if err := authorizeWriteNotificationRule(ctx, nr.GetOrgID(), id); err != nil {
+	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
 		return err
 	}
 
