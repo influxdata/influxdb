@@ -6,16 +6,12 @@ import {
   FlexBox,
   Panel,
   ComponentSize,
-  ComponentStatus,
-  AlignItems,
   PanelBody,
   TextBlock,
   SelectDropdown,
   DismissButton,
   ButtonType,
-  ComponentColor,
   FlexDirection,
-  JustifyContent,
 } from '@influxdata/clockface'
 
 // Types

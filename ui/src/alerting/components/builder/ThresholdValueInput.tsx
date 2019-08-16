@@ -2,14 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import {
-  FlexBox,
-  ComponentSize,
-  ComponentStatus,
-  AutoComplete,
-  Input,
-  InputType,
-} from '@influxdata/clockface'
+import {FlexBox, Input, InputType} from '@influxdata/clockface'
 import {GreaterThreshold, LesserThreshold} from 'src/types'
 
 // Types
@@ -23,9 +16,7 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
     changeValue(Number(e.target.value))
   }
   return (
-    <FlexBox.FlexChild
-      testID="component-spacer--flex-child"
-    >
+    <FlexBox.FlexChild testID="component-spacer--flex-child">
       <Input
         onChange={onChangeValue}
         name=""
