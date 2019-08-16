@@ -16,7 +16,6 @@ import {
   ComponentColor,
   FlexDirection,
   JustifyContent,
-  DropdownMenuTheme,
 } from '@influxdata/clockface'
 
 // Types
@@ -48,114 +47,68 @@ const ThresholdStatement: FC<Props> = ({
   removeLevel,
   changeThresholdType,
 }) => {
-  const dropdownOptions = [
-    'is above',
-    'is below',
-    'is inside range',
-    'is outside range',
-  ]
+  const dropdownOptions = {
+    ['is above']: 'greater',
+    ['is below']: 'lesser',
+    ['is inside range']: 'range',
+    ['is outside range']: 'range',
+  }
 
   const levelColor: string = LEVEL_COLORS[threshold.level]
   const selectedOption = OptionSelector(threshold)
+
   const onChangeThresholdType = (option: string) => {
-    switch (option) {
-      case 'is above':
-        changeThresholdType('greater')
-        break
-      case 'is below':
-        changeThresholdType('lesser')
-        break
-      case 'is inside range':
-        changeThresholdType('range', true)
-        break
-      case 'is outside range':
-        changeThresholdType('range', false)
-        break
-    }
+    changeThresholdType(dropdownOptions[option], option === 'is inside range')
   }
+
   return (
     <div
       style={{
         width: '475px',
       }}
     >
-      <Panel
-        backgroundColor="#292933"
-        size={ComponentSize.Small}
-        testID="panel"
-      >
+      <Panel backgroundColor="#292933" testID="panel">
         <DismissButton
-          active={false}
-          color={ComponentColor.Warning}
           onClick={removeLevel}
-          size={ComponentSize.ExtraSmall}
-          status={ComponentStatus.Default}
           testID="dismiss-button"
           type={ButtonType.Button}
         />
         <PanelBody testID="panel--body">
           <FlexBox
-            alignItems={AlignItems.Center}
             direction={FlexDirection.Column}
-            justifyContent={JustifyContent.FlexStart}
             margin={ComponentSize.Small}
-            stretchToFitHeight={false}
-            stretchToFitWidth={false}
             testID="component-spacer"
           >
             <FlexBox
-              alignItems={AlignItems.Center}
               direction={FlexDirection.Row}
-              justifyContent={JustifyContent.FlexStart}
               margin={ComponentSize.Small}
-              stretchToFitHeight={false}
               stretchToFitWidth
               testID="component-spacer"
             >
-              <TextBlock
-                monospace={false}
-                size={ComponentSize.Small}
-                testID="text-block"
-                text="When value"
-              />
-              <FlexBox.FlexChild
-                grow={2}
-                shrink={0}
-                testID="component-spacer--flex-child"
-              >
+              <TextBlock testID="when-value-text-block" text="When value" />
+              <FlexBox.FlexChild grow={2} testID="component-spacer--flex-child">
                 <SelectDropdown
-                  buttonColor={ComponentColor.Default}
-                  buttonSize={ComponentSize.Small}
-                  buttonStatus={ComponentStatus.Default}
-                  menuTheme={DropdownMenuTheme.Sapphire}
-                  onSelect={onChangeThresholdType}
-                  options={dropdownOptions}
+                  options={Object.keys(dropdownOptions)}
                   selectedOption={selectedOption}
-                  testID="select-dropdown"
+                  onSelect={onChangeThresholdType}
+                  testID="select-option-dropdown"
                 />
               </FlexBox.FlexChild>
             </FlexBox>
             <FlexBox
-              alignItems={AlignItems.Center}
               direction={FlexDirection.Row}
-              justifyContent={JustifyContent.FlexStart}
               margin={ComponentSize.Small}
-              stretchToFitHeight={false}
               stretchToFitWidth
               testID="component-spacer"
             >
               {children}
               <TextBlock
-                monospace={false}
-                size={ComponentSize.Small}
-                testID="text-block"
+                testID="set-status-to-text-block"
                 text="set status to"
               />
               <TextBlock
                 backgroundColor={levelColor}
-                monospace={false}
-                size={ComponentSize.Small}
-                testID="text-block"
+                testID="threshold-level-text-block"
                 text={threshold.level}
               />
             </FlexBox>

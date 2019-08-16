@@ -24,22 +24,12 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
   }
   return (
     <FlexBox.FlexChild
-      grow={1}
-      shrink={0}
       testID="component-spacer--flex-child"
     >
       <Input
-        autoFocus={false}
         onChange={onChangeValue}
-        autocomplete={AutoComplete.Off}
-        disabledTitleText="This input is disabled"
         name=""
-        placeholder=""
-        size={ComponentSize.Small}
-        spellCheck={false}
-        status={ComponentStatus.Default}
         testID="input-field"
-        titleText=""
         type={InputType.Number}
         value={threshold.value}
       />

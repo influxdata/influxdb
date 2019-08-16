@@ -2,15 +2,7 @@
 import React, {FC} from 'react'
 
 // Components
-import {
-  FlexBox,
-  ComponentSize,
-  ComponentStatus,
-  AutoComplete,
-  TextBlock,
-  Input,
-  InputType,
-} from '@influxdata/clockface'
+import {FlexBox, TextBlock, Input, InputType} from '@influxdata/clockface'
 import {RangeThreshold} from 'src/types'
 
 // Types
@@ -32,50 +24,22 @@ const ThresholdRangeStatement: FC<Props> = ({threshold, changeRange}) => {
 
   return (
     <>
-      <FlexBox.FlexChild
-        grow={1}
-        shrink={0}
-        testID="component-spacer--flex-child"
-      >
+      <FlexBox.FlexChild testID="component-spacer--flex-child">
         <Input
           onChange={onChangeMin}
-          autoFocus={false}
-          autocomplete={AutoComplete.Off}
-          disabledTitleText="This input is disabled"
           name="min"
-          placeholder=""
-          size={ComponentSize.Small}
-          spellCheck={false}
-          status={ComponentStatus.Default}
           testID="input-field"
-          titleText=""
           type={InputType.Number}
           value={threshold.min}
         />
       </FlexBox.FlexChild>
-      <TextBlock
-        monospace={false}
-        size={ComponentSize.Small}
-        testID="text-block"
-        text="to"
-      />
-      <FlexBox.FlexChild
-        grow={1}
-        shrink={0}
-        testID="component-spacer--flex-child"
-      >
+      <TextBlock testID="text-block" text="to" />
+      <FlexBox.FlexChild testID="component-spacer--flex-child">
         <Input
           onChange={onChangeMax}
-          autoFocus={false}
-          autocomplete={AutoComplete.Off}
           disabledTitleText="This input is disabled"
           name="max"
-          placeholder=""
-          size={ComponentSize.Small}
-          spellCheck={false}
-          status={ComponentStatus.Default}
           testID="input-field"
-          titleText=""
           type={InputType.Number}
           value={threshold.max}
         />
