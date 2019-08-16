@@ -336,7 +336,7 @@ func TestResponseWriter_WriteResultSet(t *testing.T) {
 	})
 
 	t.Run("issues", func(t *testing.T) {
-		t.Run("#4321 short write", func(t *testing.T) {
+		t.Run("short write", func(t *testing.T) {
 			t.Run("single string series", func(t *testing.T) {
 				exp := sendSummary{seriesCount: 1, stringCount: 1020}
 				var ss sendSummary
