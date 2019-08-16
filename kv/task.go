@@ -112,6 +112,34 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		t.LatestCompleted = t.CreatedAt
 	}
 
+	if !t.OwnerID.Valid() {
+		authType := struct {
+			AuthorizationID influxdb.ID `json:"authorizationID"`
+		}{}
+		if err := json.Unmarshal(v, &authType); err != nil {
+			return nil, influxdb.ErrInternalTaskServiceError(err)
+		}
+
+		auth, err := s.findAuthorizationByID(ctx, tx, authType.AuthorizationID)
+		if err != nil {
+			return nil, influxdb.ErrInternalTaskServiceError(err)
+		}
+
+		t.OwnerID = auth.GetUserID()
+	}
+
+	// populate task Auth
+	ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+
+	t.Authorization = &influxdb.Authorization{
+		Status:      influxdb.Active,
+		ID:          influxdb.ID(1),
+		OrgID:       t.OrganizationID,
+		Permissions: ps,
+	}
 	return t, nil
 }
 
@@ -470,15 +498,7 @@ func (s *Service) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*infl
 }
 
 func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate) (*influxdb.Task, error) {
-	if tc.Token == "" {
-		return nil, influxdb.ErrMissingToken
-	}
-
-	auth, err := s.findAuthorizationByToken(ctx, tx, tc.Token)
-	if err != nil {
-		return nil, err
-	}
-
+	var err error
 	var org *influxdb.Organization
 	if tc.OrganizationID.Valid() {
 		org, err = s.findOrganizationByID(ctx, tx, tc.OrganizationID)
@@ -510,7 +530,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		Type:            tc.Type,
 		OrganizationID:  org.ID,
 		Organization:    org.Name,
-		AuthorizationID: auth.Identifier(),
+		OwnerID:         tc.OwnerID,
 		Name:            opt.Name,
 		Description:     tc.Description,
 		Status:          tc.Status,
@@ -565,6 +585,15 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		s.Logger.Info("error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
 	}
 
+	// populate permissions so the task can be used immediately
+	// if we cant populate here we shouldn't error.
+	ps, _ := s.maxPermissions(ctx, tx, task.OwnerID)
+	task.Authorization = &influxdb.Authorization{
+		Status:      influxdb.Active,
+		ID:          influxdb.ID(1),
+		OrgID:       task.OrganizationID,
+		Permissions: ps,
+	}
 	return task, nil
 }
 

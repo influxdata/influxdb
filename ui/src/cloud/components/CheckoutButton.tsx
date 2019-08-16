@@ -6,7 +6,7 @@ import {
   Button,
   ComponentColor,
   ComponentSize,
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   JustifyContent,
 } from '@influxdata/clockface'
@@ -20,7 +20,7 @@ const CheckoutButton: FunctionComponent<{}> = () => {
 
   return (
     <FeatureFlag name="cloudBilling">
-      <ComponentSpacer
+      <FlexBox
         direction={FlexDirection.Row}
         justifyContent={JustifyContent.SpaceAround}
         margin={ComponentSize.Small}
@@ -32,7 +32,7 @@ const CheckoutButton: FunctionComponent<{}> = () => {
           text="Upgrade Now"
           size={ComponentSize.Small}
         />
-      </ComponentSpacer>
+      </FlexBox>
     </FeatureFlag>
   )
 }

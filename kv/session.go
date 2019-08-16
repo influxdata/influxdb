@@ -92,8 +92,18 @@ func (s *Service) findSession(ctx context.Context, tx Tx, key string) (*influxdb
 		}
 	}
 
+	ps, err := s.maxPermissions(ctx, tx, sn.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	sn.Permissions = ps
+	return sn, nil
+}
+
+func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {
 	// TODO(desa): these values should be cached so it's not so expensive to lookup each time.
-	f := influxdb.UserResourceMappingFilter{UserID: sn.UserID}
+	f := influxdb.UserResourceMappingFilter{UserID: userID}
 	mappings, err := s.findUserResourceMappings(ctx, tx, f)
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -112,11 +122,11 @@ func (s *Service) findSession(ctx context.Context, tx Tx, key string) (*influxdb
 
 		ps = append(ps, p...)
 	}
-	ps = append(ps, influxdb.MePermissions(sn.UserID)...)
+	ps = append(ps, influxdb.MePermissions(userID)...)
 
 	// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
 	// we did this so that the oper token would be used in a users permissions.
-	af := influxdb.AuthorizationFilter{UserID: &sn.UserID}
+	af := influxdb.AuthorizationFilter{UserID: &userID}
 	as, err := s.findAuthorizations(ctx, tx, af)
 	if err != nil {
 		return nil, err
@@ -125,8 +135,7 @@ func (s *Service) findSession(ctx context.Context, tx Tx, key string) (*influxdb
 		ps = append(ps, a.Permissions...)
 	}
 
-	sn.Permissions = ps
-	return sn, nil
+	return ps, nil
 }
 
 // PutSession puts the session at key.

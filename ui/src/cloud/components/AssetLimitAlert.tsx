@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 
 // Components
 import {
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   AlignItems,
   ComponentSize,
@@ -32,7 +32,7 @@ export default class AssetLimitAlert extends PureComponent<Props> {
 
     if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
       return (
-        <ComponentSpacer
+        <FlexBox
           direction={FlexDirection.Column}
           alignItems={AlignItems.Center}
           margin={ComponentSize.Large}
@@ -40,7 +40,7 @@ export default class AssetLimitAlert extends PureComponent<Props> {
           className={className}
         >
           <Alert icon={IconFont.Cloud} color={ComponentColor.Primary}>
-            <ComponentSpacer
+            <FlexBox
               alignItems={AlignItems.Center}
               direction={FlexDirection.Row}
               justifyContent={JustifyContent.SpaceBetween}
@@ -52,9 +52,9 @@ export default class AssetLimitAlert extends PureComponent<Props> {
                 <br />
               </div>
               <CheckoutButton />
-            </ComponentSpacer>
+            </FlexBox>
           </Alert>
-        </ComponentSpacer>
+        </FlexBox>
       )
     }
 

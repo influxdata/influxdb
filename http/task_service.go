@@ -438,6 +438,13 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 		return nil, err
 	}
 
+	// pull auth from ctx, populate OwnerID
+	auth, err := pcontext.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tc.OwnerID = auth.GetUserID()
+
 	if err := tc.Validate(); err != nil {
 		return nil, err
 	}
@@ -1352,10 +1359,6 @@ func (t TaskService) FindTasks(ctx context.Context, filter platform.TaskFilter) 
 func (t TaskService) CreateTask(ctx context.Context, tc platform.TaskCreate) (*platform.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-
-	if tc.Token == "" {
-		return nil, influxdb.ErrMissingToken
-	}
 
 	u, err := NewURL(t.Addr, tasksPath)
 	if err != nil {

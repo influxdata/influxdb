@@ -22,11 +22,11 @@ const (
 )
 
 var goodBase = rule.Base{
-	ID:              influxTesting.MustIDBase16(id1),
-	Name:            "name1",
-	AuthorizationID: influxTesting.MustIDBase16(id2),
-	OrgID:           influxTesting.MustIDBase16(id3),
-	Status:          influxdb.Inactive,
+	ID:      influxTesting.MustIDBase16(id1),
+	Name:    "name1",
+	OwnerID: influxTesting.MustIDBase16(id2),
+	OrgID:   influxTesting.MustIDBase16(id3),
+	Status:  influxdb.Inactive,
 }
 
 func TestValidRule(t *testing.T) {
@@ -45,7 +45,7 @@ func TestValidRule(t *testing.T) {
 		},
 		{
 			name: "empty name",
-			src: &rule.SMTP{
+			src: &rule.PagerDuty{
 				Base: rule.Base{
 					ID: influxTesting.MustIDBase16(id1),
 				},
@@ -57,7 +57,7 @@ func TestValidRule(t *testing.T) {
 		},
 		{
 			name: "invalid auth id",
-			src: &rule.SMTP{
+			src: &rule.PagerDuty{
 				Base: rule.Base{
 					ID:   influxTesting.MustIDBase16(id1),
 					Name: "name1",
@@ -65,16 +65,16 @@ func TestValidRule(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "Notification Rule AuthorizationID is invalid",
+				Msg:  "Notification Rule OwnerID is invalid",
 			},
 		},
 		{
 			name: "invalid org id",
 			src: &rule.PagerDuty{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
+					ID:      influxTesting.MustIDBase16(id1),
+					Name:    "name1",
+					OwnerID: influxTesting.MustIDBase16(id2),
 				},
 			},
 			err: &influxdb.Error{
@@ -86,11 +86,11 @@ func TestValidRule(t *testing.T) {
 			name: "invalid org id",
 			src: &rule.Slack{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
-					EndpointID:      influxTesting.IDPtr(influxdb.InvalidID()),
+					ID:         influxTesting.MustIDBase16(id1),
+					Name:       "name1",
+					OwnerID:    influxTesting.MustIDBase16(id2),
+					OrgID:      influxTesting.MustIDBase16(id3),
+					EndpointID: influxTesting.IDPtr(influxdb.InvalidID()),
 				},
 			},
 			err: &influxdb.Error{
@@ -102,10 +102,10 @@ func TestValidRule(t *testing.T) {
 			name: "invalid status",
 			src: &rule.Slack{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
+					ID:      influxTesting.MustIDBase16(id1),
+					Name:    "name1",
+					OwnerID: influxTesting.MustIDBase16(id2),
+					OrgID:   influxTesting.MustIDBase16(id3),
 				},
 			},
 			err: &influxdb.Error{
@@ -125,38 +125,6 @@ func TestValidRule(t *testing.T) {
 			},
 		},
 		{
-			name: "empty smtp email",
-			src: &rule.SMTP{
-				Base: goodBase,
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "smtp email is empty",
-			},
-		},
-		{
-			name: "bad smtp email",
-			src: &rule.SMTP{
-				Base: goodBase,
-				To:   "bad@@dfa.com,good@dfa.com",
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "smtp invalid email address: bad@@dfa.com",
-			},
-		},
-		{
-			name: "bad smtp subject",
-			src: &rule.SMTP{
-				Base: goodBase,
-				To:   "good1@dfa.com, good2@dfa.com",
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "smtp empty subject template",
-			},
-		},
-		{
 			name: "empty pagerDuty message",
 			src: &rule.PagerDuty{
 				Base: goodBase,
@@ -168,13 +136,13 @@ func TestValidRule(t *testing.T) {
 		},
 		{
 			name: "bad tag rule",
-			src: &rule.SMTP{
+			src: &rule.PagerDuty{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					Name:            "name1",
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Status:          influxdb.Active,
+					ID:      influxTesting.MustIDBase16(id1),
+					OwnerID: influxTesting.MustIDBase16(id2),
+					Name:    "name1",
+					OrgID:   influxTesting.MustIDBase16(id3),
+					Status:  influxdb.Active,
 					TagRules: []notification.TagRule{
 						{
 							Tag: notification.Tag{
@@ -185,9 +153,7 @@ func TestValidRule(t *testing.T) {
 						},
 					},
 				},
-				SubjectTemp: "subject 1 {var1}",
-				BodyTemp:    "body {var2}",
-				To:          "good1@dfa.com, good2@dfa.com",
+				MessageTemp: "body {var2}",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -196,13 +162,13 @@ func TestValidRule(t *testing.T) {
 		},
 		{
 			name: "bad limit",
-			src: &rule.SMTP{
+			src: &rule.PagerDuty{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Name:            "name1",
-					Status:          influxdb.Active,
+					ID:      influxTesting.MustIDBase16(id1),
+					OwnerID: influxTesting.MustIDBase16(id2),
+					OrgID:   influxTesting.MustIDBase16(id3),
+					Name:    "name1",
+					Status:  influxdb.Active,
 					TagRules: []notification.TagRule{
 						{
 							Tag: notification.Tag{
@@ -216,9 +182,7 @@ func TestValidRule(t *testing.T) {
 						Rate: 3,
 					},
 				},
-				SubjectTemp: "subject 1 {var1}",
-				BodyTemp:    "body {var2}",
-				To:          "good1@dfa.com, good2@dfa.com",
+				MessageTemp: "body {var2}",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -245,14 +209,14 @@ func TestJSON(t *testing.T) {
 			name: "simple slack",
 			src: &rule.Slack{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					Name:            "name1",
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Status:          influxdb.Active,
-					RunbookLink:     "runbooklink1",
-					SleepUntil:      &time3,
-					Every:           influxdb.Duration{Duration: time.Hour},
+					ID:          influxTesting.MustIDBase16(id1),
+					OwnerID:     influxTesting.MustIDBase16(id2),
+					Name:        "name1",
+					OrgID:       influxTesting.MustIDBase16(id3),
+					Status:      influxdb.Active,
+					RunbookLink: "runbooklink1",
+					SleepUntil:  &time3,
+					Every:       influxdb.Duration{Duration: time.Hour},
 					TagRules: []notification.TagRule{
 						{
 							Tag: notification.Tag{
@@ -280,16 +244,16 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "simple smtp",
-			src: &rule.SMTP{
+			src: &rule.PagerDuty{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Status:          influxdb.Active,
-					RunbookLink:     "runbooklink1",
-					SleepUntil:      &time3,
-					Every:           influxdb.Duration{Duration: time.Hour},
+					ID:          influxTesting.MustIDBase16(id1),
+					Name:        "name1",
+					OwnerID:     influxTesting.MustIDBase16(id2),
+					OrgID:       influxTesting.MustIDBase16(id3),
+					Status:      influxdb.Active,
+					RunbookLink: "runbooklink1",
+					SleepUntil:  &time3,
+					Every:       influxdb.Duration{Duration: time.Hour},
 					TagRules: []notification.TagRule{
 						{
 							Tag: notification.Tag{
@@ -311,23 +275,21 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				SubjectTemp: "subject1",
-				To:          "example@host.com",
-				BodyTemp:    "msg1",
+				MessageTemp: "msg1",
 			},
 		},
 		{
 			name: "simple pagerDuty",
 			src: &rule.PagerDuty{
 				Base: rule.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Status:          influxdb.Active,
-					RunbookLink:     "runbooklink1",
-					SleepUntil:      &time3,
-					Every:           influxdb.Duration{Duration: time.Hour},
+					ID:          influxTesting.MustIDBase16(id1),
+					Name:        "name1",
+					OwnerID:     influxTesting.MustIDBase16(id2),
+					OrgID:       influxTesting.MustIDBase16(id3),
+					Status:      influxdb.Active,
+					RunbookLink: "runbooklink1",
+					SleepUntil:  &time3,
+					Every:       influxdb.Duration{Duration: time.Hour},
 					TagRules: []notification.TagRule{
 						{
 							Tag: notification.Tag{

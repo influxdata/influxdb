@@ -6,7 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {
   IconFont,
   ComponentColor,
-  ComponentSpacer,
+  FlexBox,
   AlignItems,
   FlexDirection,
   ComponentSize,
@@ -86,7 +86,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
           />
           <Overlay.Body>
             <Form onSubmit={this.handleSave}>
-              <ComponentSpacer
+              <FlexBox
                 alignItems={AlignItems.Center}
                 direction={FlexDirection.Column}
                 margin={ComponentSize.Large}
@@ -151,7 +151,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                     testID="button--save"
                   />
                 </Form.Footer>
-              </ComponentSpacer>
+              </FlexBox>
             </Form>
           </Overlay.Body>
         </Overlay.Container>

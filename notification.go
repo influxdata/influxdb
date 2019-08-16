@@ -36,6 +36,8 @@ type NotificationRule interface {
 	json.Marshaler
 	Updator
 	Getter
+	SetOwnerID(id ID)
+	GetOwnerID() ID
 	GetLimit() *Limit
 }
 
