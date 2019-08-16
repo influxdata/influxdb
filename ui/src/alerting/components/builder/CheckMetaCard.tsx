@@ -1,6 +1,7 @@
 // Libraries
 import React, {FC, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
+import {get} from 'lodash'
 
 // Components
 import {
@@ -51,6 +52,17 @@ const CheckMetaCard: FC<Props> = ({
 
   const handleChangeName = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateTimeMachineCheck({name: e.target.value})
+  }
+
+  const handleChangeKey = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateTimeMachineCheck({
+      tags: [{key: e.target.value, value: get(check, 'tags[0].value', '')}],
+    })
+  }
+  const handleChangeValue = (e: React.ChangeEvent<HTMLInputElement>) => {
+    updateTimeMachineCheck({
+      tags: [{value: e.target.value, key: get(check, 'tags[0].key', '')}],
+    })
   }
 
   const handleChangeMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
@@ -137,6 +149,30 @@ const CheckMetaCard: FC<Props> = ({
           testID="textarea"
           value={check.statusMessageTemplate}
           wrap={Wrap.Soft}
+        />
+      </Form.Element>
+      <Form.Element label="Tag-Key">
+        <Input
+          maxLength={24}
+          name="TagKey"
+          onChange={handleChangeKey}
+          placeholder="Key"
+          size={ComponentSize.Small}
+          spellCheck={false}
+          testID="input-field"
+          value={get(check, 'tags[0].key', '')}
+        />
+      </Form.Element>
+      <Form.Element label="Tag-Value">
+        <Input
+          maxLength={24}
+          name="TagValue"
+          onChange={handleChangeValue}
+          placeholder="Value"
+          size={ComponentSize.Small}
+          spellCheck={false}
+          testID="input-field"
+          value={get(check, 'tags[0].value', '')}
         />
       </Form.Element>
       <Form.Element label="Schedule">
