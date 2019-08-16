@@ -5,7 +5,7 @@ import React, {FC} from 'react'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import CheckMetaCard from 'src/alerting/components/builder/CheckMetaCard'
-import CheckThresholdsCard from 'src/alerting/components/builder/CheckThresholdsCard'
+import CheckConditionsCard from 'src/alerting/components/builder/CheckConditionsCard'
 import CheckMatchingRulesCard from 'src/alerting/components/builder/CheckMatchingRulesCard'
 
 const AlertBuilder: FC = () => {
@@ -25,17 +25,17 @@ const AlertBuilder: FC = () => {
               </BuilderCard.Body>
             </BuilderCard>
             <BuilderCard
-              testID="builder-meta"
+              testID="builder-conditions"
               widthPixels={510}
               className="alert-builder--card"
             >
-              <BuilderCard.Header title="Thresholds" />
+              <BuilderCard.Header title="Conditions" />
               <BuilderCard.Body addPadding={true}>
-                <CheckThresholdsCard />
+                <CheckConditionsCard />
               </BuilderCard.Body>
             </BuilderCard>
             <BuilderCard
-              testID="builder-meta"
+              testID="builder-matching-rules"
               widthPixels={420}
               className="alert-builder--card"
             >

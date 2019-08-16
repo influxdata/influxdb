@@ -16,6 +16,13 @@ export const DEFAULT_CHECK_EVERY = '1h'
 export const DEFAULT_CHECK_OFFSET = '0s'
 export const DEFAULT_CHECK_REPORT_ZERO = false
 
+export const LEVEL_COLORS = {
+  OK: '#32B08C',
+  INFO: '#4591ED',
+  WARN: '#FFD255',
+  CRIT: '#DC4E58',
+}
+
 export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   name: DEFAULT_CHECK_NAME,
   type: 'threshold',

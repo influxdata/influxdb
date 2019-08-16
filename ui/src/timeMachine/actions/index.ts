@@ -23,6 +23,8 @@ import {
   TimeMachineID,
   Check,
   CheckType,
+  Threshold,
+  CheckStatusLevel,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
@@ -84,6 +86,8 @@ export type Action =
   | ReturnType<typeof setTimeMachineCheck>
   | ReturnType<typeof updateTimeMachineCheck>
   | ReturnType<typeof changeCheckType>
+  | ReturnType<typeof updateCheckThreshold>
+  | ReturnType<typeof removeCheckThreshold>
 
 interface SetActiveTimeMachineAction {
   type: 'SET_ACTIVE_TIME_MACHINE'
@@ -642,4 +646,14 @@ export const updateTimeMachineCheck = (checkUpdate: Partial<Check>) => ({
 export const changeCheckType = (toType: CheckType) => ({
   type: 'CHANGE_TIMEMACHINE_CHECK_TYPE' as 'CHANGE_TIMEMACHINE_CHECK_TYPE',
   payload: {toType},
+})
+
+export const updateCheckThreshold = (threshold: Threshold) => ({
+  type: 'UPDATE_CHECK_THRESHOLD' as 'UPDATE_CHECK_THRESHOLD',
+  payload: {threshold},
+})
+
+export const removeCheckThreshold = (level: CheckStatusLevel) => ({
+  type: 'REMOVE_CHECK_THRESHOLD' as 'REMOVE_CHECK_THRESHOLD',
+  payload: {level},
 })
