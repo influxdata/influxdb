@@ -38,7 +38,7 @@ require (
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
-	github.com/influxdata/flux v0.39.1-0.20190815200827-04db64030428
+	github.com/influxdata/flux v0.39.1-0.20190816144340-ce8256db4378
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
@@ -89,7 +89,7 @@ require (
 	go.uber.org/multierr v1.1.0
 	go.uber.org/zap v1.9.1
 	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
-	golang.org/x/net v0.0.0-20190404232315-eb5bcb51f2a3
+	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4
 	golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6
 	golang.org/x/sys v0.0.0-20190403152447-81d4e9dc473e

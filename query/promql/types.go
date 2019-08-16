@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
@@ -256,12 +257,15 @@ func NewWhereOperation(metricName string, labels []*LabelMatcher) (*flux.Operati
 	return &flux.Operation{
 		ID: "where", // TODO: Change this to a UUID
 		Spec: &universe.FilterOpSpec{
-			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
+			Fn: interpreter.ResolvedFunction{
+				Scope: nil,
+				Fn: &semantic.FunctionExpression{
+					Block: &semantic.FunctionBlock{
+						Parameters: &semantic.FunctionParameters{
+							List: []*semantic.FunctionParameter{{Key: &semantic.Identifier{Name: "r"}}},
+						},
+						Body: node,
 					},
-					Body: node,
 				},
 			},
 		},
