@@ -42,10 +42,6 @@ const RuleCard: FC<Props> = ({
     deleteNotificationRule(rule.id)
   }
 
-  const onExport = () => {}
-
-  const onClone = () => {}
-
   const onToggle = () => {
     const status = rule.status === 'active' ? 'inactive' : 'active'
 
@@ -82,13 +78,7 @@ const RuleCard: FC<Props> = ({
       // description
       // labels
       disabled={rule.status === 'inactive'}
-      contextMenu={
-        <NotificationRuleCardContext
-          onDelete={onDelete}
-          onExport={onExport}
-          onClone={onClone}
-        />
-      }
+      contextMenu={<NotificationRuleCardContext onDelete={onDelete} />}
       metaData={[<>{rule.updatedAt.toString()}</>]}
     />
   )
