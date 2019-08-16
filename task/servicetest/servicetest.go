@@ -340,7 +340,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: just update an option.
 	newStatus = string(backend.TaskActive)
-	newFlux = "import \"http\"\n\noption task = {\n\tname: \"task-changed #98\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> http.to(url: \"http://example.com\")"
+	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
 	if err != nil {
 		t.Fatal(err)
@@ -355,7 +355,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: switch to every.
 	newStatus = string(backend.TaskActive)
-	newFlux = "import \"http\"\n\noption task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> http.to(url: \"http://example.com\")"
+	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
 		t.Fatal(err)
@@ -426,9 +426,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 //Retrieve the task again to ensure the options are now Every, without Cron or Offset
 func testTaskOptionsUpdateFull(t *testing.T, sys *System) {
 
-	script := `import "http"
-
-option task = {
+	script := `option task = {
 	name: "task-Options-Update",
 	cron: "* * * * *",
 	concurrency: 100,
@@ -436,7 +434,7 @@ option task = {
 }
 
 from(bucket: "b")
-	|> http.to(url: "http://example.com")`
+	|> to(bucket: "two", orgID: "000000000000000")`
 
 	cr := creds(t, sys)
 
@@ -451,12 +449,10 @@ from(bucket: "b")
 		t.Fatal(err)
 	}
 	t.Run("update task and delete offset", func(t *testing.T) {
-		expectedFlux := `import "http"
-
-option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
+		expectedFlux := `option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
 
 from(bucket: "b")
-	|> http.to(url: "http://example.com")`
+	|> to(bucket: "two", orgID: "000000000000000")`
 		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: &options.Duration{}, Every: *(options.MustParseDuration("10s"))}})
 		if err != nil {
 			t.Fatal(err)
@@ -471,9 +467,7 @@ from(bucket: "b")
 		}
 	})
 	t.Run("update task with different offset option", func(t *testing.T) {
-		expectedFlux := `import "http"
-
-option task = {
+		expectedFlux := `option task = {
 	name: "task-Options-Update",
 	every: 10s,
 	concurrency: 100,
@@ -481,7 +475,7 @@ option task = {
 }
 
 from(bucket: "b")
-	|> http.to(url: "http://example.com")`
+	|> to(bucket: "two", orgID: "000000000000000")`
 		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: options.MustParseDuration("10s")}})
 		if err != nil {
 			t.Fatal(err)
@@ -1450,9 +1444,7 @@ func creds(t *testing.T, s *System) TestCreds {
 }
 
 const (
-	scriptFmt = `import "http"
-
-option task = {
+	scriptFmt = `option task = {
 	name: "task #%d",
 	cron: "* * * * *",
 	offset: 5s,
@@ -1460,11 +1452,9 @@ option task = {
 }
 
 from(bucket:"b")
-	|> http.to(url: "http://example.com")`
+	|> to(bucket: "two", orgID: "000000000000000")`
 
-	scriptDifferentName = `import "http"
-
-option task = {
+	scriptDifferentName = `option task = {
 	name: "task-changed #%d",
 	cron: "* * * * *",
 	offset: 5s,
@@ -1472,7 +1462,7 @@ option task = {
 }
 
 from(bucket: "b")
-	|> http.to(url: "http://example.com")`
+	|> to(bucket: "two", orgID: "000000000000000")`
 )
 
 func testTaskType(t *testing.T, sys *System) {
