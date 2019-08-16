@@ -29,10 +29,48 @@ describe('Notification Endpoints', () => {
     cy.getByTestID('endpoint-change--dropdown')
       .click()
       .within(() => {
-        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
         cy.getByTestID('endpoint--dropdown--button').within(() => {
-          cy.contains('Pagerditty')
+          cy.contains('Slack')
+        })
+
+        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Pagerduty')
         })
       })
+
+    cy.getByTestID('pagerduty-url')
+      .clear()
+      .type('many-faced-god.gov')
+      .should('have.value', 'many-faced-god.gov')
+
+    cy.getByTestID('pagerduty-token')
+      .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
+      .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Pagerduty')
+        })
+
+        cy.getByTestID('endpoint--dropdown-item slack').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Slack')
+        })
+      })
+
+    cy.getByTestID('slack-url')
+      .clear()
+      .type('slack.url.us')
+      .should('have.value', 'slack.url.us')
+
+    cy.getByTestID('slack-token')
+      .clear()
+      .type('another token')
+      .should('have.value', 'another token')
   })
 })

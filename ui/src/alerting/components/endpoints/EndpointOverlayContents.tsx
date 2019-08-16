@@ -4,6 +4,7 @@ import React, {FC, ChangeEvent} from 'react'
 // Components
 import {Grid, Form, Panel, Input, TextArea} from '@influxdata/clockface'
 import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
+import EndpointOptions from 'src/alerting/components/endpoints/EndpointOptions'
 
 // Hooks
 import {useEndpointReducer} from './EndpointOverlayProvider'
@@ -48,6 +49,7 @@ const EndpointOverlayContents: FC = () => {
                 </Form.Element>
                 <Form.Element label="Description">
                   <TextArea
+                    className="endpoint-description--textarea"
                     testID="endpoint-description--textarea"
                     name="description"
                     placeholder="Optional"
@@ -61,6 +63,7 @@ const EndpointOverlayContents: FC = () => {
                     selectedType={endpoint.type}
                   />
                 </Form.Element>
+                <EndpointOptions endpoint={endpoint} onChange={handleChange} />
               </Panel.Body>
             </Panel>
           </Grid.Column>
