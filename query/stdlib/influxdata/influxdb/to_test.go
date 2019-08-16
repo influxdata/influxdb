@@ -10,8 +10,10 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/values/valuestest"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/models"
@@ -43,22 +45,25 @@ func TestTo_Query(t *testing.T) {
 							Token:             "auth-token",
 							TimeColumn:        execute.DefaultTimeColLabel,
 							MeasurementColumn: influxdb.DefaultMeasurementColLabel,
-							FieldFn: &semantic.FunctionExpression{
-								Block: &semantic.FunctionBlock{
-									Parameters: &semantic.FunctionParameters{
-										List: []*semantic.FunctionParameter{
-											{
-												Key: &semantic.Identifier{Name: "r"},
+							FieldFn: interpreter.ResolvedFunction{
+								Scope: valuestest.NowScope(),
+								Fn: &semantic.FunctionExpression{
+									Block: &semantic.FunctionBlock{
+										Parameters: &semantic.FunctionParameters{
+											List: []*semantic.FunctionParameter{
+												{
+													Key: &semantic.Identifier{Name: "r"},
+												},
 											},
 										},
-									},
-									Body: &semantic.ObjectExpression{
-										Properties: []*semantic.Property{
-											{
-												Key: &semantic.Identifier{Name: "col"},
-												Value: &semantic.MemberExpression{
-													Object:   &semantic.IdentifierExpression{Name: "r"},
-													Property: "col",
+										Body: &semantic.ObjectExpression{
+											Properties: []*semantic.Property{
+												{
+													Key: &semantic.Identifier{Name: "col"},
+													Value: &semantic.MemberExpression{
+														Object:   &semantic.IdentifierExpression{Name: "r"},
+														Property: "col",
+													},
 												},
 											},
 										},
@@ -409,22 +414,25 @@ m,tag1=c,tag2=ee _value=4 41`),
 					Bucket:            "my-bucket",
 					TimeColumn:        "_time",
 					MeasurementColumn: "_measurement",
-					FieldFn: &semantic.FunctionExpression{
-						Block: &semantic.FunctionBlock{
-							Parameters: &semantic.FunctionParameters{
-								List: []*semantic.FunctionParameter{
-									{
-										Key: &semantic.Identifier{Name: "r"},
+					FieldFn: interpreter.ResolvedFunction{
+						Scope: valuestest.NowScope(),
+						Fn: &semantic.FunctionExpression{
+							Block: &semantic.FunctionBlock{
+								Parameters: &semantic.FunctionParameters{
+									List: []*semantic.FunctionParameter{
+										{
+											Key: &semantic.Identifier{Name: "r"},
+										},
 									},
 								},
-							},
-							Body: &semantic.ObjectExpression{
-								Properties: []*semantic.Property{
-									{
-										Key: &semantic.Identifier{Name: "temperature"},
-										Value: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "temperature",
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "temperature"},
+											Value: &semantic.MemberExpression{
+												Object:   &semantic.IdentifierExpression{Name: "r"},
+												Property: "temperature",
+											},
 										},
 									},
 								},
@@ -479,49 +487,52 @@ c temperature=4 41`),
 					Bucket:            "my-bucket",
 					TimeColumn:        "_time",
 					MeasurementColumn: "tag",
-					FieldFn: &semantic.FunctionExpression{
-						Block: &semantic.FunctionBlock{
-							Parameters: &semantic.FunctionParameters{
-								List: []*semantic.FunctionParameter{
-									{
-										Key: &semantic.Identifier{Name: "r"},
+					FieldFn: interpreter.ResolvedFunction{
+						Scope: valuestest.NowScope(),
+						Fn: &semantic.FunctionExpression{
+							Block: &semantic.FunctionBlock{
+								Parameters: &semantic.FunctionParameters{
+									List: []*semantic.FunctionParameter{
+										{
+											Key: &semantic.Identifier{Name: "r"},
+										},
 									},
 								},
-							},
-							Body: &semantic.ObjectExpression{
-								Properties: []*semantic.Property{
-									{
-										Key: &semantic.Identifier{Name: "day"},
-										Value: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "day",
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "day"},
+											Value: &semantic.MemberExpression{
+												Object:   &semantic.IdentifierExpression{Name: "r"},
+												Property: "day",
+											},
 										},
-									},
-									{
-										Key: &semantic.Identifier{Name: "temperature"},
-										Value: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "temperature",
-										},
-									},
-									{
-										Key: &semantic.Identifier{Name: "humidity"},
-										Value: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "humidity",
-										},
-									},
-									{
-										Key: &semantic.Identifier{Name: "ratio"},
-										Value: &semantic.BinaryExpression{
-											Operator: ast.DivisionOperator,
-											Left: &semantic.MemberExpression{
+										{
+											Key: &semantic.Identifier{Name: "temperature"},
+											Value: &semantic.MemberExpression{
 												Object:   &semantic.IdentifierExpression{Name: "r"},
 												Property: "temperature",
 											},
-											Right: &semantic.MemberExpression{
+										},
+										{
+											Key: &semantic.Identifier{Name: "humidity"},
+											Value: &semantic.MemberExpression{
 												Object:   &semantic.IdentifierExpression{Name: "r"},
 												Property: "humidity",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "ratio"},
+											Value: &semantic.BinaryExpression{
+												Operator: ast.DivisionOperator,
+												Left: &semantic.MemberExpression{
+													Object:   &semantic.IdentifierExpression{Name: "r"},
+													Property: "temperature",
+												},
+												Right: &semantic.MemberExpression{
+													Object:   &semantic.IdentifierExpression{Name: "r"},
+													Property: "humidity",
+												},
 											},
 										},
 									},
@@ -582,29 +593,32 @@ c day="Friday",humidity=5,ratio=0.8,temperature=4 41`),
 					TimeColumn:        "_time",
 					MeasurementColumn: "tag1",
 					TagColumns:        []string{"tag2"},
-					FieldFn: &semantic.FunctionExpression{
-						Block: &semantic.FunctionBlock{
-							Parameters: &semantic.FunctionParameters{
-								List: []*semantic.FunctionParameter{
-									{
-										Key: &semantic.Identifier{Name: "r"},
-									},
-								},
-							},
-							Body: &semantic.ObjectExpression{
-								Properties: []*semantic.Property{
-									{
-										Key: &semantic.Identifier{Name: "temperature"},
-										Value: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "temperature",
+					FieldFn: interpreter.ResolvedFunction{
+						Scope: valuestest.NowScope(),
+						Fn: &semantic.FunctionExpression{
+							Block: &semantic.FunctionBlock{
+								Parameters: &semantic.FunctionParameters{
+									List: []*semantic.FunctionParameter{
+										{
+											Key: &semantic.Identifier{Name: "r"},
 										},
 									},
-									{
-										Key: &semantic.Identifier{Name: "humidity"},
-										Value: &semantic.MemberExpression{
-											Object:   &semantic.IdentifierExpression{Name: "r"},
-											Property: "humidity",
+								},
+								Body: &semantic.ObjectExpression{
+									Properties: []*semantic.Property{
+										{
+											Key: &semantic.Identifier{Name: "temperature"},
+											Value: &semantic.MemberExpression{
+												Object:   &semantic.IdentifierExpression{Name: "r"},
+												Property: "temperature",
+											},
+										},
+										{
+											Key: &semantic.Identifier{Name: "humidity"},
+											Value: &semantic.MemberExpression{
+												Object:   &semantic.IdentifierExpression{Name: "r"},
+												Property: "humidity",
+											},
 										},
 									},
 								},
