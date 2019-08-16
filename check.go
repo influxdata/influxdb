@@ -18,9 +18,9 @@ type Check interface {
 	ClearPrivateData()
 	SetTaskID(ID)
 	GetTaskID() ID
-	GenerateFlux() (string, error)
 	GetOwnerID() ID
-	SetOwnerID(id ID)
+	SetOwnerID(ID)
+	GenerateFlux() (string, error)
 	json.Marshaler
 	Updater
 	Getter

@@ -115,6 +115,11 @@ func (b Base) GetOrgID() influxdb.ID {
 	return b.OrgID
 }
 
+// GetOwnerID gets the ownerID associated with a Base.
+func (b Base) GetOwnerID() influxdb.ID {
+	return b.OwnerID
+}
+
 // GetTaskID retrieves the task ID for a check.
 func (b Base) GetTaskID() influxdb.ID {
 	return b.TaskID
@@ -123,11 +128,6 @@ func (b Base) GetTaskID() influxdb.ID {
 // GetCRUDLog implements influxdb.Getter interface.
 func (b Base) GetCRUDLog() influxdb.CRUDLog {
 	return b.CRUDLog
-}
-
-// GetOwnerID gets the authID for a check
-func (b Base) GetOwnerID() influxdb.ID {
-	return b.OwnerID
 }
 
 // GetName implements influxdb.Getter interface.
@@ -155,11 +155,6 @@ func (b *Base) SetOrgID(id influxdb.ID) {
 	b.OrgID = id
 }
 
-// SetOwnerID will set the org key.
-func (b *Base) SetOwnerID(id influxdb.ID) {
-	b.OwnerID = id
-}
-
 // ClearPrivateData remove any data that we don't want to be exposed publicly.
 func (b *Base) ClearPrivateData() {
 	b.TaskID = 0
@@ -168,6 +163,11 @@ func (b *Base) ClearPrivateData() {
 // SetTaskID sets the taskID for a check.
 func (b *Base) SetTaskID(id influxdb.ID) {
 	b.TaskID = id
+}
+
+// SetOwnerID sets the taskID for a check.
+func (b *Base) SetOwnerID(id influxdb.ID) {
+	b.OwnerID = id
 }
 
 // SetName implements influxdb.Updator interface.

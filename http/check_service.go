@@ -301,6 +301,7 @@ func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.Chec
 			Err:  err,
 		}
 	}
+
 	return chk, nil
 }
 
