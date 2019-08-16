@@ -6,7 +6,7 @@ import {get} from 'lodash'
 // Components
 import {
   Panel,
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   ComponentSize,
   AlignItems,
@@ -43,7 +43,7 @@ export class MePage extends PureComponent<StateProps> {
             <Grid>
               <Grid.Row>
                 <Grid.Column widthSM={Columns.Eight} widthMD={Columns.Nine}>
-                  <ComponentSpacer
+                  <FlexBox
                     direction={FlexDirection.Column}
                     margin={ComponentSize.Small}
                     alignItems={AlignItems.Stretch}
@@ -56,7 +56,7 @@ export class MePage extends PureComponent<StateProps> {
                       </Panel.Body>
                     </Panel>
                     <Docs />
-                  </ComponentSpacer>
+                  </FlexBox>
                 </Grid.Column>
                 <Grid.Column widthSM={Columns.Four} widthMD={Columns.Three}>
                   <Resources me={me} />

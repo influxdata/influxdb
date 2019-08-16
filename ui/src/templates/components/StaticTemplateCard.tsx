@@ -6,7 +6,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {
   Button,
   ComponentSize,
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   JustifyContent,
 } from '@influxdata/clockface'
@@ -66,7 +66,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private get contextMenu(): JSX.Element {
     return (
-      <ComponentSpacer
+      <FlexBox
         margin={ComponentSize.Medium}
         direction={FlexDirection.Row}
         justifyContent={JustifyContent.FlexEnd}
@@ -77,7 +77,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
           size={ComponentSize.ExtraSmall}
           onClick={this.handleCreate}
         />
-      </ComponentSpacer>
+      </FlexBox>
     )
   }
 

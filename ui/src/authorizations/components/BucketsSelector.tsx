@@ -10,7 +10,7 @@ import BucketsTabSelector from 'src/authorizations/components/BucketsTabSelector
 // Types
 import {Bucket} from 'src/types'
 import {
-  ComponentSpacer,
+  FlexBox,
   AlignItems,
   FlexDirection,
   Button,
@@ -34,7 +34,7 @@ class BucketsSelector extends PureComponent<Props> {
     const {title, activeTab, onTabClick} = this.props
 
     return (
-      <ComponentSpacer
+      <FlexBox
         alignItems={AlignItems.Stretch}
         direction={FlexDirection.Column}
         margin={ComponentSize.Medium}
@@ -46,7 +46,7 @@ class BucketsSelector extends PureComponent<Props> {
           onClick={onTabClick}
         />
         {this.builderCard}
-      </ComponentSpacer>
+      </FlexBox>
     )
   }
 
@@ -81,7 +81,7 @@ class BucketsSelector extends PureComponent<Props> {
           <SelectorList className="bucket-selectors">
             <SelectorList.Header title="Buckets">
               <div className="bucket-selectors--buttons">
-                <ComponentSpacer
+                <FlexBox
                   alignItems={AlignItems.Center}
                   direction={FlexDirection.Row}
                   margin={ComponentSize.Small}
@@ -98,7 +98,7 @@ class BucketsSelector extends PureComponent<Props> {
                     className="bucket-selectors--button"
                     onClick={onDeselectAll}
                   />
-                </ComponentSpacer>
+                </FlexBox>
               </div>
             </SelectorList.Header>
             <BucketsTabBody

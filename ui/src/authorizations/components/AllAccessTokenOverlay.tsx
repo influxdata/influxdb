@@ -6,7 +6,7 @@ import {
   Alert,
   IconFont,
   ComponentColor,
-  ComponentSpacer,
+  FlexBox,
   AlignItems,
   FlexDirection,
   ComponentSize,
@@ -54,7 +54,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
           />
           <Overlay.Body>
             <Form onSubmit={this.handleSave}>
-              <ComponentSpacer
+              <FlexBox
                 alignItems={AlignItems.Center}
                 direction={FlexDirection.Column}
                 margin={ComponentSize.Large}
@@ -88,7 +88,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                     type={ButtonType.Submit}
                   />
                 </Form.Footer>
-              </ComponentSpacer>
+              </FlexBox>
             </Form>
           </Overlay.Body>
         </Overlay.Container>

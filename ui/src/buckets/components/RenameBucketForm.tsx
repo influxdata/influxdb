@@ -11,7 +11,7 @@ import {
   Button,
   ButtonType,
   ComponentColor,
-  ComponentSpacer,
+  FlexBox,
   AlignItems,
   FlexDirection,
   ComponentSize,
@@ -55,7 +55,7 @@ class RenameBucketForm extends PureComponent<Props, State> {
         >
           {status => (
             <>
-              <ComponentSpacer
+              <FlexBox
                 alignItems={AlignItems.Center}
                 direction={FlexDirection.Column}
                 margin={ComponentSize.Large}
@@ -68,7 +68,7 @@ class RenameBucketForm extends PureComponent<Props, State> {
                   onChange={this.handleChangeInput}
                   status={status}
                 />
-                <ComponentSpacer
+                <FlexBox
                   alignItems={AlignItems.Center}
                   direction={FlexDirection.Row}
                   margin={ComponentSize.Small}
@@ -84,8 +84,8 @@ class RenameBucketForm extends PureComponent<Props, State> {
                     status={this.saveButtonStatus(status)}
                     type={ButtonType.Submit}
                   />
-                </ComponentSpacer>
-              </ComponentSpacer>
+                </FlexBox>
+              </FlexBox>
             </>
           )}
         </Form.ValidationElement>
