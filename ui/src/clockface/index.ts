@@ -11,7 +11,6 @@ import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveGridSizer'
 import Select from 'src/clockface/components/Select'
 import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
-import Tabs from './components/tabs/Tabs'
 
 // Import Types
 import {
@@ -57,7 +56,6 @@ export {
   Select,
   Sort,
   Stack,
-  Tabs,
   WizardFullScreen,
   WizardProgressHeader,
   WizardOverlay,
