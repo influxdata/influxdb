@@ -15,11 +15,15 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
-import {Action as TimeMachineAction} from 'src/timeMachine/actions'
-import {setCheckStatus, setTimeMachineCheck} from 'src/timeMachine/actions'
+import {
+  Action as TimeMachineAction,
+  setActiveTimeMachine,
+} from 'src/timeMachine/actions'
+import {setCheckStatus} from 'src/timeMachine/actions'
 
 // Types
-import {Check, GetState, RemoteDataState} from 'src/types'
+import {Check, GetState, RemoteDataState, CheckViewProperties} from 'src/types'
+import {createView} from 'src/shared/utils/view'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -79,7 +83,15 @@ export const getCheckForTimeMachine = (checkID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setTimeMachineCheck(RemoteDataState.Done, resp.data))
+    const view = createView<CheckViewProperties>('check')
+    // todo: when check has own view get view here
+    dispatch(
+      setActiveTimeMachine('alerting', {
+        view,
+        activeTab: 'alerting',
+        alerting: {check: resp.data, checkStatus: RemoteDataState.Done},
+      })
+    )
   } catch (e) {
     console.error(e)
     dispatch(setCheckStatus(RemoteDataState.Error))

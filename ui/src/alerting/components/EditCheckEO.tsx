@@ -9,7 +9,6 @@ import CheckEOHeader from 'src/alerting/components/CheckEOHeader'
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 
 // Utils
-import {createView} from 'src/shared/utils/view'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
@@ -26,7 +25,6 @@ import {
   AppState,
   RemoteDataState,
   DashboardDraftQuery,
-  CheckViewProperties,
   TimeMachineID,
 } from 'src/types'
 
@@ -51,7 +49,6 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateCheck,
   onGetCheckForTimeMachine,
   onUpdateTimeMachineCheck,
-  onSetActiveTimeMachine,
   onSetTimeMachineCheck,
   activeTimeMachineID,
   checkStatus,
@@ -61,26 +58,16 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   check,
 }) => {
   useEffect(() => {
-    if (check) {
-      const view = createView<CheckViewProperties>('check')
-      // todo: when check has own view get view here
-      onSetActiveTimeMachine('alerting', {
-        view,
-        activeTab: 'alerting',
-        isViewingRawData: false,
-      })
-    } else {
-      onGetCheckForTimeMachine(checkID)
-    }
-  }, [check, checkID])
+    onGetCheckForTimeMachine(checkID)
+  }, [checkID])
 
   const handleUpdateName = (name: string) => {
     onUpdateTimeMachineCheck({name})
   }
 
   const handleClose = () => {
-    onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
     router.push(`/orgs/${orgID}/alerting`)
+    onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
   }
 
   const handleSave = () => {
