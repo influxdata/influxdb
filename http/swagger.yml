@@ -4207,6 +4207,11 @@ paths:
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: query
+          name: name
+          description: only returns tasks with the specified name
+          schema:
+            type: string
+        - in: query
           name: after
           schema:
             type: string

@@ -203,7 +203,7 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 	if filter.User != nil {
 		return s.findTasksByUser(ctx, tx, filter)
 	} else if org != nil {
-		return s.findTaskByOrg(ctx, tx, filter)
+		return s.findTasksByOrg(ctx, tx, filter)
 	}
 
 	return s.findAllTasks(ctx, tx, filter)
@@ -270,11 +270,16 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 			break
 		}
 	}
+
+	if filter.Name != nil {
+		ts = filterByName(ts, *filter.Name)
+	}
+
 	return ts, len(ts), nil
 }
 
-// findTaskByOrg is a subset of the find tasks function. Used for cleanliness
-func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+// findTasksByOrg is a subset of the find tasks function. Used for cleanliness
+func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	var org *influxdb.Organization
 	var err error
 	if filter.OrganizationID != nil {
@@ -393,6 +398,11 @@ func (s *Service) findTaskByOrg(ctx context.Context, tx Tx, filter influxdb.Task
 			break
 		}
 	}
+
+	if filter.Name != nil {
+		ts = filterByName(ts, *filter.Name)
+	}
+
 	return ts, len(ts), err
 }
 
@@ -475,7 +485,24 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 			break
 		}
 	}
+
+	if filter.Name != nil {
+		ts = filterByName(ts, *filter.Name)
+	}
+
 	return ts, len(ts), err
+}
+
+func filterByName(ts []*influxdb.Task, taskName string) []*influxdb.Task {
+	filtered := []*influxdb.Task{}
+
+	for _, task := range ts {
+		if task.Name == taskName {
+			filtered = append(filtered, task)
+		}
+	}
+
+	return filtered
 }
 
 // CreateTask creates a new task.
