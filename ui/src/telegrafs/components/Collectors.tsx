@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Input, Button, EmptyState, Grid} from '@influxdata/clockface'
-import {Tabs, Sort} from 'src/clockface'
+import {Input, Button, EmptyState, Grid, Sort} from '@influxdata/clockface'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import FilterList from 'src/shared/components/Filter'
@@ -92,7 +92,7 @@ class Collectors extends PureComponent<Props, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
+        <SettingsTabbedPageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter telegraf configs..."
@@ -103,7 +103,7 @@ class Collectors extends PureComponent<Props, State> {
             onBlur={this.handleFilterBlur}
           />
           {this.createButton}
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={Columns.Twelve}>

@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import {Input, Button, EmptyState, Sort} from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
 import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
 
@@ -52,7 +52,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
+        <SettingsTabbedPageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter members..."
@@ -67,7 +67,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
             color={ComponentColor.Primary}
             onClick={this.handleOpenOverlay}
           />
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <FilterList<Member>
           list={this.props.members}
           searchKeys={['name']}

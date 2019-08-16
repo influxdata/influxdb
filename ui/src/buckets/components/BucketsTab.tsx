@@ -16,7 +16,7 @@ import {
   ComponentStatus,
   Overlay,
 } from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/buckets/components/BucketList'
 import {PrettyBucket} from 'src/buckets/components/BucketCard'
@@ -93,7 +93,7 @@ class BucketsTab extends PureComponent<Props, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
+        <SettingsTabbedPageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter buckets..."
@@ -111,7 +111,7 @@ class BucketsTab extends PureComponent<Props, State> {
             status={this.createButtonStatus}
             titleText={this.createButtonTitleText}
           />
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <AssetLimitAlert resourceName="buckets" limitStatus={limitStatus} />
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}

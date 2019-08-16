@@ -6,7 +6,7 @@ import {Page} from 'src/pageLayout'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Components
-import {Tabs} from 'src/clockface'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 
 interface Props {
@@ -40,10 +40,10 @@ export default class TemplatesHeader extends PureComponent<Props> {
     }
 
     return (
-      <Tabs.TabContentsHeader>
+      <SettingsTabbedPageHeader>
         {filterComponent()}
         {this.importButton}
-      </Tabs.TabContentsHeader>
+      </SettingsTabbedPageHeader>
     )
   }
 

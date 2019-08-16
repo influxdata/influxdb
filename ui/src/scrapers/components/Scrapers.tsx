@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Input, Button, EmptyState} from '@influxdata/clockface'
-import {Tabs, Sort} from 'src/clockface'
+import {Input, Button, EmptyState, Sort} from '@influxdata/clockface'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 
@@ -73,7 +73,7 @@ class Scrapers extends PureComponent<Props, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
+        <SettingsTabbedPageHeader>
           <Input
             icon={IconFont.Search}
             placeholder="Filter scrapers..."
@@ -84,7 +84,7 @@ class Scrapers extends PureComponent<Props, State> {
             onBlur={this.handleFilterBlur}
           />
           {this.createScraperButton('create-scraper-button-header')}
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
         <FilterList<ScraperTargetResponse>
           searchTerm={searchTerm}
