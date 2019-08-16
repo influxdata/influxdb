@@ -5,31 +5,25 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux/ast"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/flux"
 )
 
-// Slack is the notification rule config of slack.
-type Slack struct {
+// HTTP is the notification rule config of http.
+type HTTP struct {
 	Base
-	Channel         string `json:"channel"`
-	MessageTemplate string `json:"messageTemplate"`
+	URL string
 }
 
-// GenerateFlux generates a flux script for the slack notification rule.
-func (s *Slack) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
-	// TODO(desa): needs implementation
-	return `package main
-data = from(bucket: "telegraf")
-	|> range(start: -1m)
-
-option task = {name: "name1", every: 1m}`, nil
+// GenerateFlux generates a flux script for the http notification rule.
+func (s *HTTP) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
+	// TODO(desa): still needs full implementation
+	return s.GenerateFluxReal(e)
 }
 
-// GenerateFluxReal generates a flux script for the slack notification rule.
-func (s *Slack) GenerateFluxReal(e influxdb.NotificationEndpoint) (string, error) {
+// GenerateFluxReal generates a flux script for the http notification rule.
+func (s *HTTP) GenerateFluxReal(e influxdb.NotificationEndpoint) (string, error) {
 	p, err := s.GenerateFluxAST()
 	if err != nil {
 		return "", err
@@ -37,20 +31,19 @@ func (s *Slack) GenerateFluxReal(e influxdb.NotificationEndpoint) (string, error
 	return ast.Format(p), nil
 }
 
-// GenerateFluxAST generates a flux AST for the slack notification rule.
-func (s *Slack) GenerateFluxAST() (*ast.Package, error) {
+// GenerateFluxAST generates a flux AST for the http notification rule.
+func (s *HTTP) GenerateFluxAST() (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/alerts", "slack", "secrets"),
+		flux.Imports("influxdata/influxdb/alerts", "http"),
 		s.generateFluxASTBody(),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
 }
 
-func (s *Slack) generateFluxASTBody() []ast.Statement {
+func (s *HTTP) generateFluxASTBody() []ast.Statement {
 	var statements []ast.Statement
 	statements = append(statements, s.generateTaskOption())
-	statements = append(statements, s.generateFluxASTSecrets())
 	statements = append(statements, s.generateFluxASTEndpoint())
 	statements = append(statements, s.generateFluxASTNotificationDefinition())
 	statements = append(statements, s.generateFluxASTStatusPipe())
@@ -59,7 +52,7 @@ func (s *Slack) generateFluxASTBody() []ast.Statement {
 	return statements
 }
 
-func (s *Slack) generateTaskOption() ast.Statement {
+func (s *HTTP) generateTaskOption() ast.Statement {
 	props := []*ast.Property{}
 
 	props = append(props, flux.Property("name", flux.String(s.Name)))
@@ -79,7 +72,7 @@ func (s *Slack) generateTaskOption() ast.Statement {
 	return flux.DefineTaskOption(flux.Object(props...))
 }
 
-func (s *Slack) generateFluxASTNotificationDefinition() ast.Statement {
+func (s *HTTP) generateFluxASTNotificationDefinition() ast.Statement {
 	// TODO(desa): what else needs to be here?
 	id := flux.Property("notificationID", flux.String(s.ID.String()))
 	name := flux.Property("name", flux.String(s.Name))
@@ -87,21 +80,14 @@ func (s *Slack) generateFluxASTNotificationDefinition() ast.Statement {
 	return flux.DefineVariable("notification", flux.Object(id, name))
 }
 
-func (s *Slack) generateFluxASTSecrets() ast.Statement {
+func (s *HTTP) generateFluxASTEndpoint() ast.Statement {
 	// TODO(desa): where does <some key> come from
-	call := flux.Call(flux.Member("secrets", "get"), flux.Object(flux.Property("key", flux.String("<secrets key>"))))
+	call := flux.Call(flux.Member("http", "endpoint"), flux.Object(flux.Property("url", flux.String(s.URL))))
 
-	return flux.DefineVariable("slack_secret", call)
+	return flux.DefineVariable("http_endpoint", call)
 }
 
-func (s *Slack) generateFluxASTEndpoint() ast.Statement {
-	// TODO(desa): where does <some key> come from
-	call := flux.Call(flux.Member("slack", "endpoint"), flux.Object(flux.Property("token", flux.Identifier("slack_secret"))))
-
-	return flux.DefineVariable("slack_endpoint", call)
-}
-
-func (s *Slack) generateFluxASTStatusPipe() ast.Statement {
+func (s *HTTP) generateFluxASTStatusPipe() ast.Statement {
 	base := flux.Call(flux.Identifier("from"), flux.Object(flux.Property("bucket", flux.String("system_bucket"))))
 
 	calls := []*ast.CallExpression{}
@@ -123,53 +109,46 @@ func (s *Slack) generateFluxASTStatusPipe() ast.Statement {
 	return flux.DefineVariable("statuses", flux.Pipe(base, calls...))
 }
 
-func (s *Slack) generateFluxASTNotifyPipe() ast.Statement {
+func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 	endpointProps := []*ast.Property{}
-	endpointProps = append(endpointProps, flux.Property("channel", flux.String(s.Channel)))
-	// TODO(desa): are these values correct?
-	endpointProps = append(endpointProps, flux.Property("text", flux.String(s.MessageTemplate)))
+	endpointBody := flux.Call(flux.Member("json", "encode"), flux.Object(flux.Property("v", flux.Identifier("r"))))
+	endpointProps = append(endpointProps, flux.Property("data", endpointBody))
 	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
 
 	props := []*ast.Property{}
 	props = append(props, flux.Property("name", flux.String(s.Name)))
 	props = append(props, flux.Property("notification", flux.Identifier("notification")))
 	props = append(props, flux.Property("endpoint",
-		flux.Call(flux.Identifier("slack_endpoint"), flux.Object(flux.Property("mapFn", endpointFn)))))
+		flux.Call(flux.Identifier("http_endpoint"), flux.Object(flux.Property("mapFn", endpointFn)))))
 
 	call := flux.Call(flux.Member("alerts", "notify"), flux.Object(props...))
 
 	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("statuses"), call))
 }
 
-type slackAlias Slack
+type httpAlias HTTP
 
 // MarshalJSON implement json.Marshaler interface.
-func (c Slack) MarshalJSON() ([]byte, error) {
+func (c HTTP) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		struct {
-			slackAlias
+			httpAlias
 			Type string `json:"type"`
 		}{
-			slackAlias: slackAlias(c),
-			Type:       c.Type(),
+			httpAlias: httpAlias(c),
+			Type:      c.Type(),
 		})
 }
 
 // Valid returns where the config is valid.
-func (c Slack) Valid() error {
+func (c HTTP) Valid() error {
 	if err := c.Base.valid(); err != nil {
 		return err
-	}
-	if c.MessageTemplate == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "slack msg template is empty",
-		}
 	}
 	return nil
 }
 
 // Type returns the type of the rule config.
-func (c Slack) Type() string {
-	return "slack"
+func (c HTTP) Type() string {
+	return "http"
 }

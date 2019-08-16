@@ -12,6 +12,16 @@ type PagerDuty struct {
 	MessageTemp string `json:"messageTemplate"`
 }
 
+// GenerateFlux Generates the flux pager duty notification.
+func (d *PagerDuty) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
+	// TODO(desa): needs implementation
+	return `package main
+data = from(bucket: "telegraf")
+	|> range(start: -1m)
+
+option task = {name: "name1", every: 1m}`, nil
+}
+
 type pagerDutyAlias PagerDuty
 
 // MarshalJSON implement json.Marshaler interface.

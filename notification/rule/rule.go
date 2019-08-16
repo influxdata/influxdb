@@ -12,6 +12,7 @@ import (
 var typeToRule = map[string](func() influxdb.NotificationRule){
 	"slack":     func() influxdb.NotificationRule { return &Slack{} },
 	"pagerduty": func() influxdb.NotificationRule { return &PagerDuty{} },
+	"http":      func() influxdb.NotificationRule { return &HTTP{} },
 }
 
 type rawRuleJSON struct {
@@ -42,17 +43,18 @@ type Base struct {
 	ID          influxdb.ID     `json:"id,omitempty"`
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
-	EndpointID  *influxdb.ID    `json:"endpointID,omitempty"`
+	EndpointID  influxdb.ID     `json:"endpointID,omitempty"`
 	OrgID       influxdb.ID     `json:"orgID,omitempty"`
 	OwnerID     influxdb.ID     `json:"ownerID,omitempty"`
+	TaskID      influxdb.ID     `json:"taskID,omitempty"`
 	Status      influxdb.Status `json:"status"`
 	// SleepUntil is an optional sleeptime to start a task.
-	SleepUntil *time.Time        `json:"sleepUntil,omitempty"`
-	Cron       string            `json:"cron,omitempty"`
-	Every      influxdb.Duration `json:"every,omitempty"`
+	SleepUntil *time.Time             `json:"sleepUntil,omitempty"`
+	Cron       string                 `json:"cron,omitempty"`
+	Every      *notification.Duration `json:"every,omitempty"`
 	// Offset represents a delay before execution.
 	// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
-	Offset      influxdb.Duration         `json:"offset,omitempty"`
+	Offset      *notification.Duration    `json:"offset,omitempty"`
 	RunbookLink string                    `json:"runbookLink"`
 	TagRules    []notification.TagRule    `json:"tagRules,omitempty"`
 	StatusRules []notification.StatusRule `json:"statusRules,omitempty"`
@@ -85,7 +87,7 @@ func (b Base) valid() error {
 			Msg:  "Notification Rule OrgID is invalid",
 		}
 	}
-	if b.EndpointID != nil && !b.EndpointID.Valid() {
+	if !b.EndpointID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "Notification Rule EndpointID is invalid",
@@ -119,9 +121,29 @@ func (b Base) GetID() influxdb.ID {
 	return b.ID
 }
 
+// GetEndpointID gets the endpointID for a base.
+func (b Base) GetEndpointID() influxdb.ID {
+	return b.EndpointID
+}
+
 // GetOrgID implements influxdb.Getter interface.
 func (b Base) GetOrgID() influxdb.ID {
 	return b.OrgID
+}
+
+// GetTaskID gets the task ID for a base.
+func (b Base) GetTaskID() influxdb.ID {
+	return b.TaskID
+}
+
+// SetTaskID sets the task ID for a base.
+func (b *Base) SetTaskID(id influxdb.ID) {
+	b.TaskID = id
+}
+
+// Clears the task ID from the base.
+func (b *Base) ClearPrivateData() {
+	b.TaskID = 0
 }
 
 // GetOwnerID returns the owner id.

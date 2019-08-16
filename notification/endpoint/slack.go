@@ -55,6 +55,7 @@ func (s Slack) Valid() error {
 			Msg:  fmt.Sprintf("slack endpoint URL is invalid: %s", err.Error()),
 		}
 	}
+	// TODO(desa): this requirement seems odd
 	if s.Token.Key != s.ID.String()+slackTokenSuffix {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,

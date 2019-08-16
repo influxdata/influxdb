@@ -161,6 +161,7 @@ type notificationRulesResponse struct {
 }
 
 func newNotificationRuleResponse(nr influxdb.NotificationRule, labels []*influxdb.Label) *notificationRuleResponse {
+	nr.ClearPrivateData()
 	res := &notificationRuleResponse{
 		NotificationRule: nr,
 		Links: notificationRuleLinks{
