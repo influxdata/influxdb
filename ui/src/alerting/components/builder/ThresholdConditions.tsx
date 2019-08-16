@@ -4,7 +4,7 @@ import {connect} from 'react-redux'
 
 // Components
 import {
-  ComponentSpacer,
+  FlexBox,
   FlexDirection,
   AlignItems,
   ComponentSize,
@@ -27,7 +27,7 @@ interface StateProps {
 
 const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
   return (
-    <ComponentSpacer
+    <FlexBox
       direction={FlexDirection.Column}
       alignItems={AlignItems.Stretch}
       margin={ComponentSize.Medium}
@@ -36,7 +36,7 @@ const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
       <ThresholdCondition level="INFO" threshold={thresholds['INFO']} />
       <ThresholdCondition level="WARN" threshold={thresholds['WARN']} />
       <ThresholdCondition level="CRIT" threshold={thresholds['CRIT']} />
-    </ComponentSpacer>
+    </FlexBox>
   )
 }
 

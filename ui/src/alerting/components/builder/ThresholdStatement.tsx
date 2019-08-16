@@ -3,9 +3,8 @@ import React, {FC} from 'react'
 
 // Components
 import {
-  ComponentSpacer,
+  FlexBox,
   Panel,
-  ComponentSpacerFlexChild,
   ComponentSize,
   ComponentStatus,
   AlignItems,
@@ -95,7 +94,7 @@ const ThresholdStatement: FC<Props> = ({
           type={ButtonType.Button}
         />
         <PanelBody testID="panel--body">
-          <ComponentSpacer
+          <FlexBox
             alignItems={AlignItems.Center}
             direction={FlexDirection.Column}
             justifyContent={JustifyContent.FlexStart}
@@ -104,7 +103,7 @@ const ThresholdStatement: FC<Props> = ({
             stretchToFitWidth={false}
             testID="component-spacer"
           >
-            <ComponentSpacer
+            <FlexBox
               alignItems={AlignItems.Center}
               direction={FlexDirection.Row}
               justifyContent={JustifyContent.FlexStart}
@@ -119,7 +118,7 @@ const ThresholdStatement: FC<Props> = ({
                 testID="text-block"
                 text="When value"
               />
-              <ComponentSpacerFlexChild
+              <FlexBox.FlexChild
                 grow={2}
                 shrink={0}
                 testID="component-spacer--flex-child"
@@ -128,16 +127,15 @@ const ThresholdStatement: FC<Props> = ({
                   buttonColor={ComponentColor.Default}
                   buttonSize={ComponentSize.Small}
                   buttonStatus={ComponentStatus.Default}
-                  dropUp={false}
                   menuTheme={DropdownMenuTheme.Sapphire}
                   onSelect={onChangeThresholdType}
                   options={dropdownOptions}
                   selectedOption={selectedOption}
                   testID="select-dropdown"
                 />
-              </ComponentSpacerFlexChild>
-            </ComponentSpacer>
-            <ComponentSpacer
+              </FlexBox.FlexChild>
+            </FlexBox>
+            <FlexBox
               alignItems={AlignItems.Center}
               direction={FlexDirection.Row}
               justifyContent={JustifyContent.FlexStart}
@@ -160,8 +158,8 @@ const ThresholdStatement: FC<Props> = ({
                 testID="text-block"
                 text={threshold.level}
               />
-            </ComponentSpacer>
-          </ComponentSpacer>
+            </FlexBox>
+          </FlexBox>
         </PanelBody>
       </Panel>
     </div>

@@ -3,7 +3,7 @@ import React, {FC} from 'react'
 
 // Components
 import {
-  ComponentSpacerFlexChild,
+  FlexBox,
   ComponentSize,
   ComponentStatus,
   AutoComplete,
@@ -23,7 +23,7 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
     changeValue(Number(e.target.value))
   }
   return (
-    <ComponentSpacerFlexChild
+    <FlexBox.FlexChild
       grow={1}
       shrink={0}
       testID="component-spacer--flex-child"
@@ -43,7 +43,7 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
         type={InputType.Number}
         value={threshold.value}
       />
-    </ComponentSpacerFlexChild>
+    </FlexBox.FlexChild>
   )
 }
 
