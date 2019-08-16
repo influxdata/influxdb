@@ -640,7 +640,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			name: "authorized to create check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, chk influxdb.Check) error {
+					CreateCheckFn: func(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -663,7 +663,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			name: "unauthorized to create check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, chk influxdb.Check) error {
+					CreateCheckFn: func(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -697,7 +697,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			err := s.CreateCheck(ctx, &check.Deadman{
 				Base: check.Base{
 					OrgID: tt.args.orgID},
-			})
+			}, 3)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
