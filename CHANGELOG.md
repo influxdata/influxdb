@@ -7,6 +7,7 @@
 1. [14631](https://github.com/influxdata/influxdb/pull/14631): Added Github and Apache templates
 1. [14631](https://github.com/influxdata/influxdb/pull/14631): Updated name of Local Metrics template
 1. [14631](https://github.com/influxdata/influxdb/pull/14631): Dashboards for all Telegraf config bundles now created
+1. [14694](https://github.com/influxdata/influxdb/pull/14694): Add ability to find tasks by name.
 
 ### UI Improvements
 
