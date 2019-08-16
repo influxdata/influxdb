@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/compiler"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
@@ -42,7 +43,7 @@ type ToOpSpec struct {
 	TimeColumn        string                       `json:"timeColumn"`
 	MeasurementColumn string                       `json:"measurementColumn"`
 	TagColumns        []string                     `json:"tagColumns"`
-	FieldFn           *semantic.FunctionExpression `json:"fieldFn"`
+	FieldFn           interpreter.ResolvedFunction `json:"fieldFn"`
 }
 
 func init() {
@@ -218,10 +219,6 @@ func (o *ToProcedureSpec) Kind() plan.ProcedureKind {
 // Copy clones the procedure spec for `to` flux function.
 func (o *ToProcedureSpec) Copy() plan.ProcedureSpec {
 	s := o.Spec
-	var fn *semantic.FunctionExpression
-	if s.FieldFn != nil {
-		fn = s.FieldFn.Copy().(*semantic.FunctionExpression)
-	}
 	res := &ToProcedureSpec{
 		Spec: &ToOpSpec{
 			Bucket:            s.Bucket,
@@ -233,7 +230,7 @@ func (o *ToProcedureSpec) Copy() plan.ProcedureSpec {
 			TimeColumn:        s.TimeColumn,
 			MeasurementColumn: s.MeasurementColumn,
 			TagColumns:        append([]string(nil), s.TagColumns...),
-			FieldFn:           fn,
+			FieldFn:           s.FieldFn.Copy(),
 		},
 	}
 	return res
@@ -294,8 +291,8 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 	//var err error
 	spec := toSpec.Spec
 	var bucketID, orgID *platform.ID
-	if spec.FieldFn != nil {
-		if fn, err = execute.NewRowMapFn(spec.FieldFn); err != nil {
+	if spec.FieldFn.Fn != nil {
+		if fn, err = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope)); err != nil {
 			return nil, err
 		}
 	}
@@ -363,9 +360,9 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 
 		// If a field function is specified then we exclude any column that
 		// is referenced in the function expression from being a tag column.
-		if t.spec.Spec.FieldFn != nil {
-			recordParam := t.spec.Spec.FieldFn.Block.Parameters.List[0].Key.Name
-			exprNode := t.spec.Spec.FieldFn
+		if t.spec.Spec.FieldFn.Fn != nil {
+			recordParam := t.spec.Spec.FieldFn.Fn.Block.Parameters.List[0].Key.Name
+			exprNode := t.spec.Spec.FieldFn.Fn
 			colVisitor := newFieldFunctionVisitor(recordParam, tbl.Cols())
 
 			// Walk the field function expression and record which columns
@@ -544,7 +541,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 	}
 
 	// prepare field function if applicable and record the number of values to write per row
-	if spec.FieldFn != nil {
+	if spec.FieldFn.Fn != nil {
 		if err = t.fn.Prepare(columns); err != nil {
 			return err
 		}
@@ -599,7 +596,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				}
 			}
 
-			if spec.FieldFn == nil {
+			if spec.FieldFn.Fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
 				}
