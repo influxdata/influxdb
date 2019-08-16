@@ -16,9 +16,9 @@ interface StateProps {
 
 const CheckConditionsCard: FC<StateProps> = ({check}) => {
   return check.type === 'deadman' ? (
-    <DeadmanConditions />
+    <DeadmanConditions check={check} />
   ) : (
-    <ThresholdConditions />
+    <ThresholdConditions check={check} />
   )
 }
 

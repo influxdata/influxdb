@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC} from 'react'
-import {connect} from 'react-redux'
 
 // Components
 import {
@@ -11,21 +10,18 @@ import {
 } from '@influxdata/clockface'
 import ThresholdCondition from 'src/alerting/components/builder/ThresholdCondition'
 
-// Actions
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-
 // Types
-import {Threshold, AppState} from 'src/types'
+import {ThresholdCheck} from 'src/types'
 
-interface ThresholdsObject {
-  [k: string]: Threshold
+interface Props {
+  check: Partial<ThresholdCheck>
 }
 
-interface StateProps {
-  thresholds: ThresholdsObject
-}
-
-const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
+const ThresholdConditions: FC<Props> = ({check}) => {
+  const thresholds = {}
+  check.thresholds.forEach(t => {
+    thresholds[t.level] = t
+  })
   return (
     <FlexBox
       direction={FlexDirection.Column}
@@ -40,22 +36,4 @@ const ThresholdConditions: FC<StateProps> = ({thresholds}) => {
   )
 }
 
-const mstp = (state: AppState): StateProps => {
-  const {
-    alerting: {check},
-  } = getActiveTimeMachine(state)
-
-  const thresholds = {}
-  if (check.type === 'threshold') {
-    check.thresholds.forEach(t => {
-      thresholds[t.level] = t
-    })
-  }
-
-  return {thresholds}
-}
-
-export default connect<StateProps, {}, {}>(
-  mstp,
-  null
-)(ThresholdConditions)
+export default ThresholdConditions
