@@ -71,11 +71,11 @@ const TagRule: FC<Props> = ({tagRule}) => {
           direction={FlexDirection.Row}
           margin={ComponentSize.Small}
         >
-          <TextBlock text="When tag" />
+          <TextBlock text="When" />
           <ComponentSpacer.FlexChild grow={1}>
             <Input
               testID="tag-rule-key--input"
-              placeholder="Key"
+              placeholder="Tag"
               value={key}
               name="key"
               onChange={onChange}

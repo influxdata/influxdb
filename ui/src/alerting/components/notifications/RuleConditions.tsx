@@ -59,7 +59,7 @@ const RuleConditions: FC<Props> = ({rule}) => {
           {statuses}
           {tags}
           <DashedButton
-            text="+ Tag Rule"
+            text="+ Tag Filter"
             onClick={addTagRule}
             color={ComponentColor.Primary}
             size={ComponentSize.Small}
