@@ -51,24 +51,24 @@ const (
 	Unknown CheckLevel = iota
 	Ok
 	Info
-	Critical
 	Warn
+	Critical
 )
 
 var checkLevels = []string{
 	"UNKNOWN",
 	"OK",
 	"INFO",
-	"CRIT",
 	"WARN",
+	"CRIT",
 }
 
 var checkLevelMaps = map[string]CheckLevel{
 	"UNKNOWN": Unknown,
 	"OK":      Ok,
 	"INFO":    Info,
-	"CRIT":    Critical,
 	"WARN":    Warn,
+	"CRIT":    Critical,
 }
 
 // MarshalJSON implements json.Marshaller.
@@ -88,7 +88,7 @@ func (cl *CheckLevel) UnmarshalJSON(b []byte) error {
 
 // String returns the string value, invalid CheckLevel will return Unknown.
 func (cl CheckLevel) String() string {
-	if cl < Unknown || cl > Warn {
+	if cl < Unknown || cl > Critical {
 		cl = Unknown
 	}
 	return checkLevels[cl]
