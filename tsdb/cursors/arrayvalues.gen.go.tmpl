@@ -28,10 +28,6 @@ func (a *{{ $typename }}) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
 }
 
-func (a *{{ $typename }}) Size() int {
-	panic("not implemented")
-}
-
 func (a *{{ $typename}}) Len() int {
 	return len(a.Timestamps)
 }
