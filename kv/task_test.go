@@ -120,7 +120,7 @@ func TestNextRunDue(t *testing.T) {
 	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
-		Token:          authz.Token,
+		OwnerID:        u.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
