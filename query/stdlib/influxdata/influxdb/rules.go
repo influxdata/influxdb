@@ -100,17 +100,17 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	fromNode := pn.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
-	bodyExpr, ok := filterSpec.Fn.Block.Body.(semantic.Expression)
+	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
 	if !ok {
 		return pn, false, nil
 	}
 
-	if len(filterSpec.Fn.Block.Parameters.List) != 1 {
+	if len(filterSpec.Fn.Fn.Block.Parameters.List) != 1 {
 		// I would expect that type checking would catch this, but just to be safe...
 		return pn, false, nil
 	}
 
-	paramName := filterSpec.Fn.Block.Parameters.List[0].Key.Name
+	paramName := filterSpec.Fn.Fn.Block.Parameters.List[0].Key.Name
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
 		return isPushableExpr(paramName, e)
@@ -131,7 +131,8 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		newFromSpec.Filter.Block.Body = newBody
 	} else {
 		newFromSpec.FilterSet = true
-		newFromSpec.Filter = filterSpec.Fn.Copy().(*semantic.FunctionExpression)
+		// NOTE: We loose the scope here, but that is ok because we can't push down the scope to storage.
+		newFromSpec.Filter = filterSpec.Fn.Fn.Copy().(*semantic.FunctionExpression)
 		newFromSpec.Filter.Block.Body = pushable
 	}
 
@@ -150,7 +151,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	}
 
 	newFilterSpec := filterSpec.Copy().(*universe.FilterProcedureSpec)
-	newFilterSpec.Fn.Block.Body = notPushable
+	newFilterSpec.Fn.Fn.Block.Body = notPushable
 	if err := pn.ReplaceSpec(newFilterSpec); err != nil {
 		return nil, false, err
 	}
@@ -197,7 +198,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
 		return pn, false, nil
 	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
 		return pn, false, nil
-	} else if m.Predicate != nil || len(m.Columns) != 1 {
+	} else if m.Predicate.Fn != nil || len(m.Columns) != 1 {
 		// We have a keep mutator, but it uses a function or
 		// it retains more than one column so it does not match
 		// what we want.
@@ -273,7 +274,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(pn plan.Node) (plan.Node, bool, er
 		return pn, false, nil
 	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
 		return pn, false, nil
-	} else if m.Predicate != nil || len(m.Columns) != 1 {
+	} else if m.Predicate.Fn != nil || len(m.Columns) != 1 {
 		// We have a keep mutator, but it uses a function or
 		// it retains more than one column so it does not match
 		// what we want.
