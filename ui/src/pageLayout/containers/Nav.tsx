@@ -136,7 +136,7 @@ class SideNav extends PureComponent<Props, State> {
           <NavMenu.Item
             titleLink={className => (
               <Link className={className} to={alertingLink}>
-                Alerting
+                Monitoring & Alerting
               </Link>
             )}
             iconLink={className => (
@@ -149,7 +149,7 @@ class SideNav extends PureComponent<Props, State> {
             <NavMenu.SubItem
               titleLink={className => (
                 <Link to={alertHistoryLink} className={className}>
-                  History
+                  Check Statuses
                 </Link>
               )}
               active={false}

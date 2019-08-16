@@ -44,8 +44,8 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
           ? ComponentColor.Secondary
           : ComponentColor.Default
       }
-      titleText="Add alerting to this query"
-      text="Alerting"
+      titleText="Add a Check to monitor this data"
+      text="Monitoring & Alerting"
       onClick={handleClick}
     />
   )

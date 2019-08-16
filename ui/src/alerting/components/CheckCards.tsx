@@ -29,11 +29,15 @@ const CheckCards: FunctionComponent<Props> = ({checks}) => {
 
 const EmptyChecksList: FunctionComponent = () => {
   return (
-    <EmptyState size={ComponentSize.ExtraSmall} className="alert-column--empty">
+    <EmptyState size={ComponentSize.Small} className="alert-column--empty">
       <EmptyState.Text
-        text="Looks like you don’t have any Checks , why not create one?"
-        highlightWords={['Checks']}
+        text="A Check  is a periodic query that the system performs against your time series data that will generate a status"
+        highlightWords={['Check']}
       />
+      <br />
+      <a href="#" target="_blank">
+        Documentation
+      </a>
     </EmptyState>
   )
 }

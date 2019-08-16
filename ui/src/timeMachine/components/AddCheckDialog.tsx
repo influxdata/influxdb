@@ -27,16 +27,19 @@ const AddCheckDialog: FC<Props> = ({orgID, onConvertToCheckView}) => {
 
   return (
     <div className="add-alert-check-dialog">
-      <p>Dashboard Cells can optionally visualize a Check.</p>
+      <p>
+        Dashboard Cells can optionally visualize a <strong>Check</strong>
+      </p>
       <p>
         Checks can also be edited from the{' '}
-        <Link to={`/orgs/${orgID}/alerting`}>Alerting</Link> page.
+        <Link to={`/orgs/${orgID}/alerting`}>Monitoring & Alerting</Link> page
       </p>
       <Button
-        text="Create New Check"
+        text="Add a Check"
         onClick={handleClick}
         color={ComponentColor.Primary}
         icon={IconFont.Plus}
+        titleText="Add a Check to monitor this data"
       />
     </div>
   )

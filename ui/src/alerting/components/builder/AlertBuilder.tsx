@@ -19,7 +19,7 @@ const AlertBuilder: FC = () => {
               widthPixels={340}
               className="alert-builder--card"
             >
-              <BuilderCard.Header title="Meta" />
+              <BuilderCard.Header title="Properties" />
               <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
                 <CheckMetaCard />
               </BuilderCard.Body>
