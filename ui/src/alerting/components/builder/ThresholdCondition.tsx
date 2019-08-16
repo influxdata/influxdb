@@ -50,14 +50,14 @@ const ThresholdCondition: FC<Props> = ({
   onRemoveCheckThreshold,
 }) => {
   const [inputs, changeInputs] = useState([
-    get(threshold, 'value') || get(threshold, 'min' || 0),
-    get(threshold, 'max') || 100,
+    get(threshold, 'value') || get(threshold, 'min', 0),
+    get(threshold, 'max', 100),
   ])
 
   useEffect(() => {
     changeInputs([
-      get(threshold, 'value') || get(threshold, 'min' || inputs[0]),
-      get(threshold, 'max') || inputs[1],
+      get(threshold, 'value') || get(threshold, 'min', inputs[0]),
+      get(threshold, 'max', inputs[1]),
     ])
   }, [threshold])
 
