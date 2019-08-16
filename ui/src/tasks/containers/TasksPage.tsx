@@ -121,7 +121,6 @@ class TasksPage extends PureComponent<Props, State> {
             onCreateTask={this.handleCreateTask}
             setShowInactive={setShowInactive}
             showInactive={showInactive}
-            filterComponent={() => this.search}
             onImportTask={this.summonImportOverlay}
             onImportFromTemplate={this.summonImportFromTemplateOverlay}
             limitStatus={limitStatus}

@@ -6,11 +6,8 @@ import {Page} from 'src/pageLayout'
 import {
   SlideToggle,
   ComponentSize,
-  FlexBox,
-  FlexDirection,
-  JustifyContent,
+  ComponentStatus,
 } from '@influxdata/clockface'
-import {Tabs, ComponentStatus} from 'src/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
@@ -22,91 +19,43 @@ interface Props {
   setShowInactive: () => void
   showInactive: boolean
   onImportTask: () => void
-  showOrgDropdown?: boolean
-  isFullPage?: boolean
-  filterComponent: () => JSX.Element
   limitStatus: LimitStatus
   onImportFromTemplate: () => void
 }
 
 export default class TasksHeader extends PureComponent<Props> {
-  public static defaultProps: {
-    showOrgDropdown: boolean
-    isFullPage: boolean
-  } = {
-    showOrgDropdown: true,
-    isFullPage: true,
-  }
-
   public render() {
     const {
       onCreateTask,
       setShowInactive,
       showInactive,
       onImportTask,
-      isFullPage,
-      filterComponent,
       onImportFromTemplate,
     } = this.props
 
-    if (isFullPage) {
-      return (
-        <Page.Header fullWidth={false}>
-          <Page.Header.Left>
-            <PageTitleWithOrg title={this.pageTitle} />
-          </Page.Header.Left>
-          <Page.Header.Right>
-            <SlideToggle.Label text="Show Inactive" />
-            <SlideToggle
-              active={showInactive}
-              size={ComponentSize.ExtraSmall}
-              onChange={setShowInactive}
-            />
-            <AddResourceDropdown
-              canImportFromTemplate={true}
-              onSelectNew={onCreateTask}
-              onSelectImport={onImportTask}
-              onSelectTemplate={onImportFromTemplate}
-              resourceName="Task"
-              status={this.addResourceStatus}
-            />
-          </Page.Header.Right>
-        </Page.Header>
-      )
-    }
-
     return (
-      <Tabs.TabContentsHeader>
-        {filterComponent()}
-        <FlexBox
-          margin={ComponentSize.Small}
-          direction={FlexDirection.Row}
-          justifyContent={JustifyContent.FlexEnd}
-        >
+      <Page.Header fullWidth={false}>
+        <Page.Header.Left>
+          <PageTitleWithOrg title="Tasks" />
+        </Page.Header.Left>
+        <Page.Header.Right>
           <SlideToggle.Label text="Show Inactive" />
           <SlideToggle
             active={showInactive}
             size={ComponentSize.ExtraSmall}
             onChange={setShowInactive}
-            testID="tasks-header--toggle-active"
           />
           <AddResourceDropdown
+            canImportFromTemplate={true}
             onSelectNew={onCreateTask}
             onSelectImport={onImportTask}
+            onSelectTemplate={onImportFromTemplate}
             resourceName="Task"
+            status={this.addResourceStatus}
           />
-        </FlexBox>
-      </Tabs.TabContentsHeader>
+        </Page.Header.Right>
+      </Page.Header>
     )
-  }
-
-  private get pageTitle() {
-    const {showOrgDropdown} = this.props
-
-    if (showOrgDropdown) {
-      return 'Tasks'
-    }
-    return ''
   }
 
   private get addResourceStatus(): ComponentStatus {
