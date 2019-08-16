@@ -26,7 +26,7 @@ const (
 var goodBase = check.Base{
 	ID:                    influxTesting.MustIDBase16(id1),
 	Name:                  "name1",
-	AuthorizationID:       influxTesting.MustIDBase16(id2),
+	OwnerID:               influxTesting.MustIDBase16(id2),
 	OrgID:                 influxTesting.MustIDBase16(id3),
 	Status:                influxdb.Active,
 	StatusMessageTemplate: "temp1",
@@ -63,7 +63,7 @@ func TestValidCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid auth id",
+			name: "invalid owner id",
 			src: &check.Threshold{
 				Base: check.Base{
 					ID:   influxTesting.MustIDBase16(id1),
@@ -72,16 +72,16 @@ func TestValidCheck(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "Check AuthorizationID is invalid",
+				Msg:  "Check OwnerID is invalid",
 			},
 		},
 		{
 			name: "invalid org id",
 			src: &check.Threshold{
 				Base: check.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
+					ID:      influxTesting.MustIDBase16(id1),
+					Name:    "name1",
+					OwnerID: influxTesting.MustIDBase16(id2),
 				},
 			},
 			err: &influxdb.Error{
@@ -93,10 +93,10 @@ func TestValidCheck(t *testing.T) {
 			name: "invalid status",
 			src: &check.Deadman{
 				Base: check.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
+					ID:      influxTesting.MustIDBase16(id1),
+					Name:    "name1",
+					OwnerID: influxTesting.MustIDBase16(id2),
+					OrgID:   influxTesting.MustIDBase16(id3),
 				},
 			},
 			err: &influxdb.Error{
@@ -110,7 +110,7 @@ func TestValidCheck(t *testing.T) {
 				Base: check.Base{
 					ID:                    influxTesting.MustIDBase16(id1),
 					Name:                  "name1",
-					AuthorizationID:       influxTesting.MustIDBase16(id2),
+					OwnerID:               influxTesting.MustIDBase16(id2),
 					OrgID:                 influxTesting.MustIDBase16(id3),
 					Status:                influxdb.Active,
 					StatusMessageTemplate: "temp1",
@@ -163,12 +163,12 @@ func TestJSON(t *testing.T) {
 			name: "simple Deadman",
 			src: &check.Deadman{
 				Base: check.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					Name:            "name1",
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Status:          influxdb.Active,
-					Every:           mustDuration("1h"),
+					ID:      influxTesting.MustIDBase16(id1),
+					OwnerID: influxTesting.MustIDBase16(id2),
+					Name:    "name1",
+					OrgID:   influxTesting.MustIDBase16(id3),
+					Status:  influxdb.Active,
+					Every:   mustDuration("1h"),
 					Tags: []notification.Tag{
 						{
 							Key:   "k1",
@@ -193,12 +193,12 @@ func TestJSON(t *testing.T) {
 			name: "simple threshold",
 			src: &check.Threshold{
 				Base: check.Base{
-					ID:              influxTesting.MustIDBase16(id1),
-					Name:            "name1",
-					AuthorizationID: influxTesting.MustIDBase16(id2),
-					OrgID:           influxTesting.MustIDBase16(id3),
-					Status:          influxdb.Active,
-					Every:           mustDuration("1h"),
+					ID:      influxTesting.MustIDBase16(id1),
+					Name:    "name1",
+					OwnerID: influxTesting.MustIDBase16(id2),
+					OrgID:   influxTesting.MustIDBase16(id3),
+					Status:  influxdb.Active,
+					Every:   mustDuration("1h"),
 					Tags: []notification.Tag{
 						{
 							Key:   "k1",

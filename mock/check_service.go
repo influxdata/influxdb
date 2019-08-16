@@ -11,12 +11,13 @@ import (
 type CheckService struct {
 	OrganizationService
 	UserResourceMappingService
+	TaskService
 
 	// Methods for an influxdb.CheckService
 	FindCheckByIDFn func(context.Context, influxdb.ID) (influxdb.Check, error)
 	FindCheckFn     func(context.Context, influxdb.CheckFilter) (influxdb.Check, error)
 	FindChecksFn    func(context.Context, influxdb.CheckFilter, ...influxdb.FindOptions) ([]influxdb.Check, int, error)
-	CreateCheckFn   func(context.Context, influxdb.Check) error
+	CreateCheckFn   func(context.Context, influxdb.Check, influxdb.ID) error
 	UpdateCheckFn   func(context.Context, influxdb.ID, influxdb.Check) (influxdb.Check, error)
 	PatchCheckFn    func(context.Context, influxdb.ID, influxdb.CheckUpdate) (influxdb.Check, error)
 	DeleteCheckFn   func(context.Context, influxdb.ID) error
@@ -31,7 +32,7 @@ func NewCheckService() *CheckService {
 		FindChecksFn: func(context.Context, influxdb.CheckFilter, ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
 			return nil, 0, nil
 		},
-		CreateCheckFn: func(context.Context, influxdb.Check) error { return nil },
+		CreateCheckFn: func(context.Context, influxdb.Check, influxdb.ID) error { return nil },
 		UpdateCheckFn: func(context.Context, influxdb.ID, influxdb.Check) (influxdb.Check, error) { return nil, nil },
 		PatchCheckFn:  func(context.Context, influxdb.ID, influxdb.CheckUpdate) (influxdb.Check, error) { return nil, nil },
 		DeleteCheckFn: func(context.Context, influxdb.ID) error { return nil },
@@ -54,8 +55,8 @@ func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilt
 }
 
 // CreateCheck creates a new check and sets b.ID with the new identifier.
-func (s *CheckService) CreateCheck(ctx context.Context, check influxdb.Check) error {
-	return s.CreateCheckFn(ctx, check)
+func (s *CheckService) CreateCheck(ctx context.Context, check influxdb.Check, userID influxdb.ID) error {
+	return s.CreateCheckFn(ctx, check, userID)
 }
 
 // UpdateCheck updates everything except id orgID.

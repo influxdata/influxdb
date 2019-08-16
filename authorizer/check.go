@@ -14,6 +14,7 @@ type CheckService struct {
 	s influxdb.CheckService
 	influxdb.UserResourceMappingService
 	influxdb.OrganizationService
+	influxdb.TaskService
 }
 
 // NewCheckService constructs an instance of an authorizing check serivce.
@@ -112,7 +113,7 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 }
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
-func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check) error {
+func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
 	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.ChecksResourceType, chk.GetOrgID())
 	if err != nil {
 		return err
@@ -122,7 +123,7 @@ func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check) erro
 		return err
 	}
 
-	return s.s.CreateCheck(ctx, chk)
+	return s.s.CreateCheck(ctx, chk, userID)
 }
 
 // UpdateCheck checks to see if the authorizer on context has write access to the check provided.

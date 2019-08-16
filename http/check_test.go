@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/flux/parser"
+	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification"
 
 	"github.com/influxdata/influxdb"
@@ -470,7 +471,8 @@ func TestService_handlePostCheck(t *testing.T) {
 		OrganizationService influxdb.OrganizationService
 	}
 	type args struct {
-		check influxdb.Check
+		userID influxdb.ID
+		check  influxdb.Check
 	}
 	type wants struct {
 		statusCode  int
@@ -488,8 +490,9 @@ func TestService_handlePostCheck(t *testing.T) {
 			name: "create a new check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, c influxdb.Check) error {
+					CreateCheckFn: func(ctx context.Context, c influxdb.Check, userID influxdb.ID) error {
 						c.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
+						c.SetOwnerID(userID)
 						return nil
 					},
 				},
@@ -500,11 +503,11 @@ func TestService_handlePostCheck(t *testing.T) {
 				},
 			},
 			args: args{
+				userID: influxTesting.MustIDBase16("6f626f7274697321"),
 				check: &check.Deadman{
 					Base: check.Base{
 						Name:                  "hello",
 						OrgID:                 influxTesting.MustIDBase16("6f626f7274697320"),
-						AuthorizationID:       influxTesting.MustIDBase16("6f626f7274697321"),
 						Description:           "desc1",
 						StatusMessageTemplate: "msg1",
 						Status:                influxdb.Active,
@@ -564,7 +567,7 @@ func TestService_handlePostCheck(t *testing.T) {
   "id": "020f755c3c082000",
   "orgID": "6f626f7274697320",
   "name": "hello",
-  "authorizationID": "6f626f7274697321",
+  "ownerID": "6f626f7274697321",
   "description": "desc1",
   "every": "5m",
   "level": "WARN",
@@ -588,6 +591,7 @@ func TestService_handlePostCheck(t *testing.T) {
 			}
 			r := httptest.NewRequest("GET", "http://any.url?org=30", bytes.NewReader(b))
 			w := httptest.NewRecorder()
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Session{UserID: tt.args.userID}))
 
 			h.handlePostCheck(w, r)
 

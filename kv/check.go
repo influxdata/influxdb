@@ -285,16 +285,16 @@ func (s *Service) findChecks(ctx context.Context, tx Tx, filter influxdb.CheckFi
 }
 
 // CreateCheck creates a influxdb check and sets ID.
-func (s *Service) CreateCheck(ctx context.Context, c influxdb.Check) error {
+func (s *Service) CreateCheck(ctx context.Context, c influxdb.Check, userID influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.createCheck(ctx, tx, c)
+		return s.createCheck(ctx, tx, c, userID)
 	})
 }
 
-func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check) error {
+func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, userID influxdb.ID) error {
 	if c.GetOrgID().Valid() {
 		span, ctx := tracing.StartSpanFromContext(ctx)
 		defer span.Finish()
@@ -319,6 +319,7 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check) erro
 	}
 
 	c.SetID(s.IDGenerator.ID())
+	c.SetOwnerID(userID)
 	c.SetCreatedAt(s.Now())
 	c.SetUpdatedAt(s.Now())
 
@@ -340,11 +341,6 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check) erro
 }
 
 func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.Check) (*influxdb.Task, error) {
-	a, err := s.findAuthorizationByID(ctx, tx, c.GetAuthID())
-	if err != nil {
-		return nil, err
-	}
-
 	script, err := c.GenerateFlux()
 	if err != nil {
 		return nil, err
@@ -353,7 +349,7 @@ func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.Check) 
 	tc := influxdb.TaskCreate{
 		Type:           c.Type(),
 		Flux:           script,
-		Token:          a.Token,
+		OwnerID:        c.GetOwnerID(),
 		OrganizationID: c.GetOrgID(),
 	}
 
@@ -578,6 +574,9 @@ func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk in
 	if err := s.deleteTask(ctx, tx, chk.GetTaskID()); err != nil {
 		return nil, err
 	}
+
+	chk.SetOwnerID(current.GetOwnerID())
+
 	t, err := s.createCheckTask(ctx, tx, chk)
 	if err != nil {
 		return nil, err

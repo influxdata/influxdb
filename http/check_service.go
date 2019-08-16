@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/influxdata/influxdb"
+	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification/check"
 	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
@@ -387,7 +388,13 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.CheckService.CreateCheck(ctx, chk); err != nil {
+	auth, err := pctx.GetAuthorizer(ctx)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err := h.CheckService.CreateCheck(ctx, chk, auth.GetUserID()); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}

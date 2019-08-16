@@ -17,7 +17,7 @@ type Base struct {
 	ID                    influxdb.ID             `json:"id,omitempty"`
 	Name                  string                  `json:"name"`
 	Description           string                  `json:"description,omitempty"`
-	AuthorizationID       influxdb.ID             `json:"authorizationID,omitempty"`
+	OwnerID               influxdb.ID             `json:"ownerID,omitempty"`
 	OrgID                 influxdb.ID             `json:"orgID,omitempty"`
 	Status                influxdb.Status         `json:"status"`
 	Query                 influxdb.DashboardQuery `json:"query"`
@@ -78,10 +78,10 @@ func (b Base) Valid() error {
 			Msg:  "Check Name can't be empty",
 		}
 	}
-	if !b.AuthorizationID.Valid() {
+	if !b.OwnerID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "Check AuthorizationID is invalid",
+			Msg:  "Check OwnerID is invalid",
 		}
 	}
 	if !b.OrgID.Valid() {
@@ -125,9 +125,9 @@ func (b Base) GetCRUDLog() influxdb.CRUDLog {
 	return b.CRUDLog
 }
 
-// GetAuthID gets the authID for a check
-func (b Base) GetAuthID() influxdb.ID {
-	return b.AuthorizationID
+// GetOwnerID gets the authID for a check
+func (b Base) GetOwnerID() influxdb.ID {
+	return b.OwnerID
 }
 
 // GetName implements influxdb.Getter interface.
@@ -153,6 +153,11 @@ func (b *Base) SetID(id influxdb.ID) {
 // SetOrgID will set the org key.
 func (b *Base) SetOrgID(id influxdb.ID) {
 	b.OrgID = id
+}
+
+// SetOwnerID will set the org key.
+func (b *Base) SetOwnerID(id influxdb.ID) {
+	b.OwnerID = id
 }
 
 // ClearPrivateData remove any data that we don't want to be exposed publicly.
