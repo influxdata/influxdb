@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -9,7 +9,8 @@ import {updateVariable, deleteVariable} from 'src/variables/actions'
 import {extractVariablesList} from 'src/variables/selectors'
 
 // Components
-import {Input, EmptyState} from '@influxdata/clockface'
+import {EmptyState} from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader'
 import VariableList from 'src/variables/components/VariableList'
 import FilterList from 'src/shared/components/Filter'
@@ -21,7 +22,7 @@ import {Sort} from '@influxdata/clockface'
 import {OverlayState} from 'src/types'
 import {AppState} from 'src/types'
 import {IVariable as Variable} from '@influxdata/influx'
-import {IconFont, ComponentSize} from '@influxdata/clockface'
+import {ComponentSize} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 
 interface StateProps {
@@ -61,13 +62,10 @@ class VariablesTab extends PureComponent<Props, State> {
     return (
       <>
         <TabbedPageHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter variables..."
-            widthPixels={290}
-            value={searchTerm}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
+          <SearchWidget
+            placeholderText="Filter variables..."
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
           />
           <AddResourceDropdown
             resourceName="Variable"
@@ -131,12 +129,8 @@ class VariablesTab extends PureComponent<Props, State> {
     )
   }
 
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>) => {
-    this.handleFilterUpdate(e.target.value)
-  }
-
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleFilterChange = (searchTerm: string) => {
+    this.handleFilterUpdate(searchTerm)
   }
 
   private handleFilterUpdate = (searchTerm: string) => {

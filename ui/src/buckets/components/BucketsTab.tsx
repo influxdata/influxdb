@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 
@@ -10,13 +10,13 @@ import {
   ComponentSize,
   ComponentColor,
   Sort,
-  Input,
   Button,
   EmptyState,
   ComponentStatus,
   Overlay,
 } from '@influxdata/clockface'
-import {Tabs} from 'src/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import FilterList from 'src/shared/components/Filter'
 import BucketList from 'src/buckets/components/BucketList'
 import {PrettyBucket} from 'src/buckets/components/BucketCard'
@@ -93,14 +93,11 @@ class BucketsTab extends PureComponent<Props, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter buckets..."
-            widthPixels={290}
-            value={searchTerm}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
+        <SettingsTabbedPageHeader>
+          <SearchWidget
+            placeholderText="Filter buckets..."
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
           />
           <Button
             text="Create Bucket"
@@ -111,7 +108,7 @@ class BucketsTab extends PureComponent<Props, State> {
             status={this.createButtonStatus}
             titleText={this.createButtonTitleText}
           />
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <AssetLimitAlert resourceName="buckets" limitStatus={limitStatus} />
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
@@ -169,12 +166,8 @@ class BucketsTab extends PureComponent<Props, State> {
     this.setState({overlayState: OverlayState.Closed})
   }
 
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
-  }
-
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.handleFilterUpdate(e.target.value)
+  private handleFilterChange = (searchTerm: string): void => {
+    this.handleFilterUpdate(searchTerm)
   }
 
   private handleFilterUpdate = (searchTerm: string): void => {

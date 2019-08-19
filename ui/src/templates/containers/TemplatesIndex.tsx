@@ -4,11 +4,9 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Tabs} from 'src/clockface'
 import {Page} from 'src/pageLayout'
-import SettingsNavigation from 'src/settings/components/SettingsNavigation'
+import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
-import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
 
 // Types
@@ -24,31 +22,18 @@ type Props = WithRouterProps & StateProps
 @ErrorHandling
 class TemplatesIndex extends Component<Props> {
   public render() {
-    const {org} = this.props
+    const {org, children} = this.props
     return (
       <>
         <Page titleTag={org.name}>
           <SettingsHeader />
-          <Page.Contents fullWidth={false} scrollable={true}>
-            <div className="col-xs-12">
-              <Tabs>
-                <SettingsNavigation tab="templates" orgID={org.id} />
-                <Tabs.TabContents>
-                  <TabbedPageSection
-                    id="settings-tab--templates"
-                    url="templates"
-                    title="Templates"
-                  >
-                    <GetResources resource={ResourceTypes.Templates}>
-                      <TemplatesPage onImport={this.handleImport} />
-                    </GetResources>
-                  </TabbedPageSection>
-                </Tabs.TabContents>
-              </Tabs>
-            </div>
-          </Page.Contents>
+          <SettingsTabbedPage activeTab="templates" orgID={org.id}>
+            <GetResources resource={ResourceTypes.Templates}>
+              <TemplatesPage onImport={this.handleImport} />
+            </GetResources>
+          </SettingsTabbedPage>
         </Page>
-        {this.props.children}
+        {children}
       </>
     )
   }

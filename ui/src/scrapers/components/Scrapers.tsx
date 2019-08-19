@@ -1,12 +1,13 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
 // Components
-import {Input, Button, EmptyState} from '@influxdata/clockface'
-import {Tabs, Sort} from 'src/clockface'
+import {Button, EmptyState, Sort} from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import ScraperList from 'src/scrapers/components/ScraperList'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
 
@@ -21,7 +22,6 @@ import {SortTypes} from 'src/shared/utils/sort'
 import {ScraperTargetResponse} from '@influxdata/influx'
 import {
   IconFont,
-  InputType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,
@@ -73,18 +73,14 @@ class Scrapers extends PureComponent<Props, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter scrapers..."
-            widthPixels={290}
-            value={searchTerm}
-            type={InputType.Text}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
+        <SettingsTabbedPageHeader>
+          <SearchWidget
+            placeholderText="Filter scrapers..."
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
           />
           {this.createScraperButton('create-scraper-button-header')}
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <NoBucketsWarning visible={this.hasNoBuckets} resourceName="Scrapers" />
         <FilterList<ScraperTargetResponse>
           searchTerm={searchTerm}
@@ -191,12 +187,8 @@ class Scrapers extends PureComponent<Props, State> {
     router.push(`/orgs/${orgID}/scrapers/new`)
   }
 
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
-  }
-
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleFilterChange = (searchTerm: string): void => {
+    this.setState({searchTerm})
   }
 }
 

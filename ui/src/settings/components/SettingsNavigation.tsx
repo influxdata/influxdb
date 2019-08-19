@@ -1,87 +1,121 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
+import {withRouter, WithRouterProps} from 'react-router'
+import chroma from 'chroma-js'
 
 // Components
-import {Tabs} from 'src/clockface'
+import {
+  Tabs,
+  Orientation,
+  ComponentSize,
+  InfluxColors,
+} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 
-interface Props {
-  tab: string
+interface OwnProps {
+  activeTab: string
   orgID: string
 }
+
+type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
 class SettingsNavigation extends PureComponent<Props> {
   public render() {
-    const {tab, orgID} = this.props
+    const {activeTab, orgID, router} = this.props
 
-    const route = `/orgs/${orgID}`
+    const handleTabClick = (id: string): void => {
+      router.push(`/orgs/${orgID}/${id}`)
+    }
+
+    const tabs = [
+      {
+        text: 'Members',
+        id: 'members',
+        cloudExclude: false,
+      },
+      {
+        text: 'Buckets',
+        id: 'buckets',
+        cloudExclude: false,
+      },
+      {
+        text: 'Telegraf',
+        id: 'telegrafs',
+        cloudExclude: false,
+      },
+      {
+        text: 'Scrapers',
+        id: 'scrapers',
+        cloudExclude: true,
+      },
+      {
+        text: 'Variables',
+        id: 'variables',
+        cloudExclude: false,
+      },
+      {
+        text: 'Templates',
+        id: 'templates',
+        cloudExclude: false,
+      },
+      {
+        text: 'Labels',
+        id: 'labels',
+        cloudExclude: false,
+      },
+      {
+        text: 'Tokens',
+        id: 'tokens',
+        cloudExclude: false,
+      },
+      {
+        text: 'Org Profile',
+        id: 'profile',
+        cloudExclude: false,
+      },
+    ]
 
     return (
-      <Tabs.Nav>
-        <Tabs.Tab
-          title="Members"
-          id="members"
-          url={`${route}/members`}
-          active={'members' === tab}
-        />
-        <Tabs.Tab
-          title="Buckets"
-          id="buckets"
-          url={`${route}/buckets`}
-          active={'buckets' === tab}
-        />
-        <Tabs.Tab
-          title="Telegraf"
-          id="telegrafs"
-          url={`${route}/telegrafs`}
-          active={'telegrafs' === tab}
-        />
-        <CloudExclude>
-          <Tabs.Tab
-            title="Scrapers"
-            id="scrapers"
-            url={`${route}/scrapers`}
-            active={'scrapers' === tab}
-          />
-        </CloudExclude>
-        <Tabs.Tab
-          title="Variables"
-          id="variables"
-          url={`${route}/variables`}
-          active={'variables' === tab}
-        />
-        <Tabs.Tab
-          title="Templates"
-          id="templates"
-          url={`${route}/templates`}
-          active={'templates' === tab}
-        />
-        <Tabs.Tab
-          title="Labels"
-          id="labels"
-          url={`${route}/labels`}
-          active={'labels' === tab}
-        />
-        <Tabs.Tab
-          title="Tokens"
-          id="tokens"
-          url={`${route}/tokens`}
-          active={'tokens' === tab}
-        />
-        <Tabs.Tab
-          title="Org Profile"
-          id="profile"
-          url={`${route}/profile`}
-          active={'profile' === tab}
-        />
-      </Tabs.Nav>
+      <Tabs
+        orientation={Orientation.Vertical}
+        padding={ComponentSize.Large}
+        backgroundColor={`${chroma(`${InfluxColors.Castle}`).alpha(0.1)}`}
+      >
+        {tabs.map(t => {
+          if (t.cloudExclude) {
+            return (
+              <CloudExclude key={t.id}>
+                <Tabs.Tab
+                  text={t.text}
+                  id={t.id}
+                  onClick={handleTabClick}
+                  active={t.id === activeTab}
+                  size={ComponentSize.Medium}
+                  backgroundColor={InfluxColors.Castle}
+                />
+              </CloudExclude>
+            )
+          }
+          return (
+            <Tabs.Tab
+              key={t.id}
+              text={t.text}
+              id={t.id}
+              onClick={handleTabClick}
+              active={t.id === activeTab}
+              size={ComponentSize.Medium}
+              backgroundColor={InfluxColors.Castle}
+            />
+          )
+        })}
+      </Tabs>
     )
   }
 }
 
-export default SettingsNavigation
+export default withRouter(SettingsNavigation)

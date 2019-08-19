@@ -1,12 +1,13 @@
 // Libraries
 import _ from 'lodash'
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Input, Button, EmptyState, Grid} from '@influxdata/clockface'
-import {Tabs, Sort} from 'src/clockface'
+import {Button, EmptyState, Grid, Sort} from '@influxdata/clockface'
+import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import FilterList from 'src/shared/components/Filter'
@@ -25,7 +26,6 @@ import {ITelegraf as Telegraf} from '@influxdata/influx'
 import {
   Columns,
   IconFont,
-  InputType,
   ComponentSize,
   ComponentColor,
   ComponentStatus,
@@ -92,18 +92,14 @@ class Collectors extends PureComponent<Props, State> {
 
     return (
       <>
-        <Tabs.TabContentsHeader>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter telegraf configs..."
-            widthPixels={290}
-            value={searchTerm}
-            type={InputType.Text}
-            onChange={this.handleFilterChange}
-            onBlur={this.handleFilterBlur}
+        <SettingsTabbedPageHeader>
+          <SearchWidget
+            placeholderText="Filter telegraf configurations..."
+            searchTerm={searchTerm}
+            onSearch={this.handleFilterChange}
           />
           {this.createButton}
-        </Tabs.TabContentsHeader>
+        </SettingsTabbedPageHeader>
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={Columns.Twelve}>
@@ -234,12 +230,8 @@ class Collectors extends PureComponent<Props, State> {
     await this.props.onUpdateTelegraf(telegraf)
   }
 
-  private handleFilterChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.handleFilterUpdate(e.target.value)
-  }
-
-  private handleFilterBlur = (e: ChangeEvent<HTMLInputElement>): void => {
-    this.setState({searchTerm: e.target.value})
+  private handleFilterChange = (searchTerm: string): void => {
+    this.handleFilterUpdate(searchTerm)
   }
 
   private handleFilterUpdate = (searchTerm: string) => {
