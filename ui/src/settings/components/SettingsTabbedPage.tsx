@@ -29,7 +29,7 @@ class SettingsTabbedPage extends PureComponent<Props> {
       <Page.Contents fullWidth={false} scrollable={true}>
         <div className="col-xs-12">
           <Tabs.Container
-            orientation={Orientation.Vertical}
+            orientation={Orientation.Horizontal}
             className="tabs tabbed-page"
           >
             <SettingsNavigation activeTab={activeTab} orgID={orgID} />

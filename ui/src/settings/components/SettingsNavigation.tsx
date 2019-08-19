@@ -67,7 +67,7 @@ class SettingsNavigation extends PureComponent<Props> {
 
     return (
       <Tabs
-        orientation={Orientation.Vertical}
+        orientation={Orientation.Horizontal}
         padding={ComponentSize.Large}
         backgroundColor={`${chroma(`${InfluxColors.Castle}`).alpha(0.1)}`}
       >
@@ -80,7 +80,7 @@ class SettingsNavigation extends PureComponent<Props> {
                   id={t.id}
                   onClick={handleTabClick}
                   active={t.id === activeTab}
-                  size={ComponentSize.Medium}
+                  size={ComponentSize.Large}
                   backgroundColor={InfluxColors.Castle}
                 />
               </CloudExclude>
@@ -93,7 +93,7 @@ class SettingsNavigation extends PureComponent<Props> {
               id={t.id}
               onClick={handleTabClick}
               active={t.id === activeTab}
-              size={ComponentSize.Medium}
+              size={ComponentSize.Large}
               backgroundColor={InfluxColors.Castle}
             />
           )
