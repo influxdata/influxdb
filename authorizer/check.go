@@ -26,36 +26,6 @@ func NewCheckService(s influxdb.CheckService, urm influxdb.UserResourceMappingSe
 	}
 }
 
-func newChecksPermission(a influxdb.Action, orgID, id influxdb.ID) (*influxdb.Permission, error) {
-	return influxdb.NewPermissionAtID(id, a, influxdb.ChecksResourceType, orgID)
-}
-
-func authorizeReadChecks(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newChecksPermission(influxdb.ReadAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func authorizeWriteChecks(ctx context.Context, orgID, id influxdb.ID) error {
-	p, err := newChecksPermission(influxdb.WriteAction, orgID, id)
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // FindCheckByID checks to see if the authorizer on context has read access to the id provided.
 func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
 	chk, err := s.s.FindCheckByID(ctx, id)
@@ -63,7 +33,7 @@ func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (influ
 		return nil, err
 	}
 
-	if err := authorizeReadChecks(ctx, chk.GetOrgID(), chk.GetID()); err != nil {
+	if err := authorizeReadOrg(ctx, chk.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -83,13 +53,18 @@ func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilt
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rules := chks[:0]
 	for _, chk := range chks {
-		err := authorizeReadChecks(ctx, chk.GetOrgID(), chk.GetID())
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		p, err := influxdb.NewPermission(influxdb.ReadAction, influxdb.OrgsResourceType, chk.GetOrgID())
+		if err != nil {
 			return nil, 0, err
 		}
 
+		err = IsAllowed(ctx, *p)
 		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
 			continue
+		}
+
+		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+			return nil, 0, err
 		}
 
 		rules = append(rules, chk)
@@ -105,7 +80,7 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 		return nil, err
 	}
 
-	if err := authorizeReadChecks(ctx, chk.GetOrgID(), chk.GetID()); err != nil {
+	if err := authorizeReadOrg(ctx, chk.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -114,7 +89,7 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
 func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.ChecksResourceType, chk.GetOrgID())
+	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.OrgsResourceType, chk.GetOrgID())
 	if err != nil {
 		return err
 	}
@@ -133,7 +108,7 @@ func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, upd infl
 		return nil, err
 	}
 
-	if err := authorizeWriteChecks(ctx, chk.GetOrgID(), id); err != nil {
+	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -147,7 +122,7 @@ func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, upd influ
 		return nil, err
 	}
 
-	if err := authorizeWriteChecks(ctx, chk.GetOrgID(), id); err != nil {
+	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
 		return nil, err
 	}
 
@@ -161,7 +136,7 @@ func (s *CheckService) DeleteCheck(ctx context.Context, id influxdb.ID) error {
 		return err
 	}
 
-	if err := authorizeWriteChecks(ctx, chk.GetOrgID(), id); err != nil {
+	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
 		return err
 	}
 
