@@ -19,7 +19,7 @@ type PagerDuty struct {
 	URL string `json:"url"`
 	// RoutingKey is a version 4 UUID expressed as a 32-digit hexadecimal number.
 	// This is the Integration Key for an integration on any given service.
-	RoutingKey influxdb.SecretField `json:"routing-key"`
+	RoutingKey influxdb.SecretField `json:"routingKey"`
 }
 
 // BackfillSecretKeys fill back fill the secret field key during the unmarshalling
