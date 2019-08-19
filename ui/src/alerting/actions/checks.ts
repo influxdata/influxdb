@@ -15,11 +15,15 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
-import {Action as TimeMachineAction} from 'src/timeMachine/actions'
-import {setCheckStatus, setTimeMachineCheck} from 'src/timeMachine/actions'
+import {
+  Action as TimeMachineAction,
+  setActiveTimeMachine,
+} from 'src/timeMachine/actions'
+import {setCheckStatus} from 'src/timeMachine/actions'
 
 // Types
-import {Check, GetState, RemoteDataState} from 'src/types'
+import {Check, GetState, RemoteDataState, CheckViewProperties} from 'src/types'
+import {createView} from 'src/shared/utils/view'
 
 export type Action =
   | ReturnType<typeof setAllChecks>
@@ -42,25 +46,24 @@ export const removeCheck = (checkID: string) => ({
 })
 
 export const getChecks = () => async (
-  dispatch: Dispatch<Action | NotificationAction>
-  // getState: GetState
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
 ) => {
   try {
     dispatch(setAllChecks(RemoteDataState.Loading))
-    // TODO: use this when its actually implemented
-    // const {
-    //   orgs: {
-    //     org: {id: orgID},
-    //   },
-    // } = getState()
+    const {
+      orgs: {
+        org: {id: orgID},
+      },
+    } = getState()
 
-    // const resp = await api.getChecks({query: {orgID}})
+    const resp = await api.getChecks({query: {orgID}})
 
-    // if (resp.status !== 200) {
-    //   throw new Error(resp.data.message)
-    // }
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
-    dispatch(setAllChecks(RemoteDataState.Done, []))
+    dispatch(setAllChecks(RemoteDataState.Done, resp.data.checks))
   } catch (e) {
     console.error(e)
     dispatch(setAllChecks(RemoteDataState.Error))
@@ -80,7 +83,15 @@ export const getCheckForTimeMachine = (checkID: string) => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(setTimeMachineCheck(RemoteDataState.Done, resp.data))
+    const view = createView<CheckViewProperties>('check')
+    // todo: when check has own view get view here
+    dispatch(
+      setActiveTimeMachine('alerting', {
+        view,
+        activeTab: 'alerting',
+        alerting: {check: resp.data, checkStatus: RemoteDataState.Done},
+      })
+    )
   } catch (e) {
     console.error(e)
     dispatch(setCheckStatus(RemoteDataState.Error))

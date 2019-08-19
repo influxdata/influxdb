@@ -913,13 +913,17 @@ export const timeMachineReducer = (
       return produce(state, draftState => {
         const check = draftState.alerting.check
         if (check.type === 'threshold') {
-          const filteredThresholds = check.thresholds.filter(
+          const thresholds = check.thresholds || []
+          const filteredThresholds = thresholds.filter(
             t => t.level !== action.payload.threshold.level
           )
-          const thresholds = [...filteredThresholds, action.payload.threshold]
+          const updatedThresholds = [
+            ...filteredThresholds,
+            action.payload.threshold,
+          ]
           draftState.alerting.check = {
             ...check,
-            thresholds,
+            thresholds: updatedThresholds,
           }
         }
       })

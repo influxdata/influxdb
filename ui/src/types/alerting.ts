@@ -74,4 +74,6 @@ import {Check, Threshold} from '../client'
 export type CheckType = Check['type']
 export type ThresholdType = Threshold['type']
 
+export type CheckTagSet = Check['tags'][0]
+
 export type AlertHistoryType = 'statuses' | 'notifications'

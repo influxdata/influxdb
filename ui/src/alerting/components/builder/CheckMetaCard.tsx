@@ -1,7 +1,6 @@
 // Libraries
-import React, {FC, ChangeEvent} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {get} from 'lodash'
 
 // Components
 import {
@@ -13,8 +12,12 @@ import {
   TextArea,
   AutoComplete,
   Wrap,
+  ComponentColor,
+  Grid,
 } from '@influxdata/clockface'
 import {Input} from '@influxdata/clockface'
+import DashedButton from 'src/shared/components/dashed_button/DashedButton'
+import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
 
 // Actions
 import {updateTimeMachineCheck, changeCheckType} from 'src/timeMachine/actions'
@@ -23,7 +26,7 @@ import {updateTimeMachineCheck, changeCheckType} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {Check, AppState, CheckType} from 'src/types'
+import {Check, AppState, CheckType, CheckTagSet} from 'src/types'
 import {
   DEFAULT_CHECK_EVERY,
   DEFAULT_CHECK_OFFSET,
@@ -50,24 +53,15 @@ const CheckMetaCard: FC<Props> = ({
     changeCheckType(type)
   }
 
-  const handleChangeName = (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateTimeMachineCheck({name: e.target.value})
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    updateTimeMachineCheck({[e.target.name]: e.target.value})
   }
 
-  const handleChangeKey = (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateTimeMachineCheck({
-      tags: [{key: e.target.value, value: get(check, 'tags[0].value', '')}],
-    })
-  }
-  const handleChangeValue = (e: React.ChangeEvent<HTMLInputElement>) => {
-    updateTimeMachineCheck({
-      tags: [{value: e.target.value, key: get(check, 'tags[0].key', '')}],
-    })
-  }
-
-  const handleChangeMessage = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const statusMessageTemplate = e.target.value
-    updateTimeMachineCheck({statusMessageTemplate})
+  const addTagsRow = () => {
+    const tags = check.tags || []
+    updateTimeMachineCheck({tags: [...tags, {key: '', value: ''}]})
   }
 
   const handleChangeSchedule = (scheduleType: 'cron' | 'every') => {
@@ -88,6 +82,12 @@ const CheckMetaCard: FC<Props> = ({
       return
     }
   }
+  const handleChangeTagRow = (index: number, tagSet: CheckTagSet) => {
+    const tags = [...check.tags]
+    tags[index] = tagSet
+    updateTimeMachineCheck({tags})
+  }
+
   return (
     <>
       <Form.Element label="Check Type">
@@ -117,15 +117,10 @@ const CheckMetaCard: FC<Props> = ({
       <Form.Element label="Name">
         <Input
           autoFocus={true}
-          maxLength={24}
-          name="Name"
-          onChange={handleChangeName}
+          name="name"
+          onChange={handleChange}
           placeholder="Name this check"
           size={ComponentSize.Small}
-          spellCheck={false}
-          testID="input-field"
-          titleText="Title Text"
-          type={InputType.Text}
           value={check.name}
         />
       </Form.Element>
@@ -139,8 +134,8 @@ const CheckMetaCard: FC<Props> = ({
           form=""
           maxLength={50}
           minLength={5}
-          name=""
-          onChange={handleChangeMessage}
+          name="statusMessageTemplate"
+          onChange={handleChange}
           placeholder="Example: {tags.cpu} exceeded threshold: {value}%"
           readOnly={false}
           required={false}
@@ -149,30 +144,6 @@ const CheckMetaCard: FC<Props> = ({
           testID="textarea"
           value={check.statusMessageTemplate}
           wrap={Wrap.Soft}
-        />
-      </Form.Element>
-      <Form.Element label="Tag-Key">
-        <Input
-          maxLength={24}
-          name="TagKey"
-          onChange={handleChangeKey}
-          placeholder="Key"
-          size={ComponentSize.Small}
-          spellCheck={false}
-          testID="input-field"
-          value={get(check, 'tags[0].key', '')}
-        />
-      </Form.Element>
-      <Form.Element label="Tag-Value">
-        <Input
-          maxLength={24}
-          name="TagValue"
-          onChange={handleChangeValue}
-          placeholder="Value"
-          size={ComponentSize.Small}
-          spellCheck={false}
-          testID="input-field"
-          value={get(check, 'tags[0].value', '')}
         />
       </Form.Element>
       <Form.Element label="Schedule">
@@ -199,47 +170,41 @@ const CheckMetaCard: FC<Props> = ({
           </Radio.Button>
         </Radio>
       </Form.Element>
-      {check.every != null && (
-        <Form.Element label="Every">
-          <Input
-            autoFocus={false}
-            maxLength={24}
-            name="Name"
-            onChange={handleChangeName}
-            placeholder="Name this check"
-            size={ComponentSize.Small}
-            spellCheck={false}
-            testID="input-field"
-            titleText="Name of the check"
-            type={InputType.Text}
-            value={check.every}
-          />
-        </Form.Element>
-      )}
-      {check.offset != null && (
-        <Form.Element label="Offset">
-          <Input
-            autoFocus={false}
-            maxLength={24}
-            name="Offset"
-            onChange={handleChangeName}
-            placeholder="offset"
-            size={ComponentSize.Small}
-            spellCheck={false}
-            testID="input-field"
-            titleText="Offset check interval"
-            type={InputType.Text}
-            value={check.offset}
-          />
-        </Form.Element>
-      )}
+      <Grid>
+        <Grid.Row>
+          <Grid.Column widthSM={6}>
+            {check.every != null && (
+              <Form.Element label="Every">
+                <Input
+                  name="every"
+                  onChange={handleChange}
+                  titleText="Name of the check"
+                  value={check.every}
+                />
+              </Form.Element>
+            )}
+          </Grid.Column>
+          <Grid.Column widthSM={6}>
+            {check.offset != null && (
+              <Form.Element label="Offset">
+                <Input
+                  name="offset"
+                  onChange={handleChange}
+                  titleText="Offset check interval"
+                  value={check.offset}
+                />
+              </Form.Element>
+            )}
+          </Grid.Column>
+        </Grid.Row>
+      </Grid>
       {check.cron != null && (
         <Form.Element label="Cron">
           <Input
             autoFocus={false}
             maxLength={24}
-            name="Cron"
-            onChange={handleChangeName}
+            name="cron"
+            onChange={handleChange}
             placeholder="cron"
             size={ComponentSize.Small}
             spellCheck={false}
@@ -250,6 +215,21 @@ const CheckMetaCard: FC<Props> = ({
           />
         </Form.Element>
       )}
+      {check.tags &&
+        check.tags.map((t, i) => (
+          <CheckTagRow
+            key={i}
+            index={i}
+            tagSet={t}
+            handleChangeTagRow={handleChangeTagRow}
+          />
+        ))}
+      <DashedButton
+        text="+ Tags"
+        onClick={addTagsRow}
+        color={ComponentColor.Primary}
+        size={ComponentSize.Small}
+      />
     </>
   )
 }

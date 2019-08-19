@@ -19,9 +19,11 @@ interface Props {
 
 const ThresholdConditions: FC<Props> = ({check}) => {
   const thresholds = {}
-  check.thresholds.forEach(t => {
-    thresholds[t.level] = t
-  })
+  if (check.thresholds) {
+    check.thresholds.forEach(t => {
+      thresholds[t.level] = t
+    })
+  }
   return (
     <FlexBox
       direction={FlexDirection.Column}
