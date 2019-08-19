@@ -22,6 +22,7 @@ import {
   createDashboardTemplate,
   writeData,
   getByTestIDSubStr,
+  createEndpoint,
 } from './support/commands'
 
 declare global {
@@ -49,6 +50,7 @@ declare global {
       createTelegraf: typeof createTelegraf
       createToken: typeof createToken
       writeData: typeof writeData
+      createEndpoint: typeof createEndpoint
     }
   }
 }

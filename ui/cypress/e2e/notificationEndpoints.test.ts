@@ -13,7 +13,7 @@ describe('Notification Endpoints', () => {
     })
   })
 
-  it('can create a notification rule', () => {
+  it('can create a notification endpoint', () => {
     const name = 'An Endpoint Has No Name'
     const description =
       'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'

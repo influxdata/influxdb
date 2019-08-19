@@ -13,7 +13,7 @@ describe('Dashboards', () => {
     })
 
     cy.fixture('routes').then(({orgs}) => {
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.visit(`${orgs}/${id}/dashboards`)
       })
     })
@@ -27,7 +27,7 @@ describe('Dashboards', () => {
     cy.getByTestID('add-resource-dropdown--new').click()
 
     cy.fixture('routes').then(({orgs}) => {
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.visit(`${orgs}/${id}/dashboards`)
       })
     })
@@ -41,7 +41,7 @@ describe('Dashboards', () => {
     cy.getByTestID('add-resource-dropdown--new').click()
 
     cy.fixture('routes').then(({orgs}) => {
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.visit(`${orgs}/${id}/dashboards`)
       })
     })
@@ -51,7 +51,7 @@ describe('Dashboards', () => {
 
   it.only('can create a dashboard from a Template', () => {
     cy.getByTestID('dashboard-card').should('have.length', 0)
-    cy.get<Organization>('@org').then(({id}) => {
+    cy.get('@org').then(({id}: Organization) => {
       cy.createDashboardTemplate(id)
     })
 
@@ -70,7 +70,7 @@ describe('Dashboards', () => {
 
   describe('Dashboard List', () => {
     beforeEach(() => {
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.createDashboard(id, dashboardName).then(({body}) => {
           cy.createAndAddLabel('dashboards', id, body.id, newLabelName)
         })
@@ -81,7 +81,7 @@ describe('Dashboards', () => {
       })
 
       cy.fixture('routes').then(({orgs}) => {
-        cy.get<Organization>('@org').then(({id}) => {
+        cy.get('@org').then(({id}: Organization) => {
           cy.visit(`${orgs}/${id}/dashboards`)
         })
       })
@@ -152,7 +152,7 @@ describe('Dashboards', () => {
       it('can add an existing label to a dashboard', () => {
         const labelName = 'swogglez'
 
-        cy.get<Organization>('@org').then(({id}) => {
+        cy.get('@org').then(({id}: Organization) => {
           cy.createLabel(labelName, id).then(() => {
             cy.getByTestID(`inline-labels--add`)
               .first()

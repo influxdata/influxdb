@@ -1,3 +1,5 @@
+import {NotificationEndpoint} from '../../src/types'
+
 export const signin = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password}) => {
     return cy.setupUser().then(body => {
@@ -359,6 +361,27 @@ export const fluxEqual = (s1: string, s2: string): Cypress.Chainable => {
   return cy.wrap(strip1 === strip2)
 }
 
+// notification endpoints
+export const createEndpoint = (
+  name: string,
+  orgID: string
+): Cypress.Chainable<Cypress.Response> => {
+  const endpoint: NotificationEndpoint = {
+    orgID,
+    name,
+    userID: '',
+    description: 'interrupt everyone at work',
+    status: 'active',
+    type: 'slack',
+    url: 'insert.slack.url.here',
+  }
+
+  return cy.request('POST', 'api/v2/notificationEndpoints', endpoint)
+}
+
+// notification endpoints
+Cypress.Commands.add('createEndpoint', createEndpoint)
+
 // assertions
 Cypress.Commands.add('fluxEqual', fluxEqual)
 
@@ -397,15 +420,15 @@ Cypress.Commands.add('flush', flush)
 // tasks
 Cypress.Commands.add('createTask', createTask)
 
-//Tokems
+// tokens
 Cypress.Commands.add('createToken', createToken)
 
 // variables
 Cypress.Commands.add('createVariable', createVariable)
 
-// Labels
+// labels
 Cypress.Commands.add('createLabel', createLabel)
 Cypress.Commands.add('createAndAddLabel', createAndAddLabel)
 
-//Test
+// test
 Cypress.Commands.add('writeData', writeData)
