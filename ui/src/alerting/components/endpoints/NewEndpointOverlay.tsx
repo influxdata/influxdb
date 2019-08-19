@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useMemo} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -22,6 +22,7 @@ interface DispatchProps {
 type Props = WithRouterProps & DispatchProps
 
 const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
+  const {orgID} = params
   const handleDismiss = () => {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
@@ -32,8 +33,10 @@ const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
     handleDismiss()
   }
 
+  const initialState = useMemo(() => ({...NEW_ENDPOINT_DRAFT, orgID}), [orgID])
+
   return (
-    <EndpointOverlayProvider initialState={NEW_ENDPOINT_DRAFT}>
+    <EndpointOverlayProvider initialState={initialState}>
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
           <Overlay.Header

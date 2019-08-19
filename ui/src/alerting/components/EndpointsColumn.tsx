@@ -1,15 +1,20 @@
 // Libraries
 import React, {FC} from 'react'
+import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {EmptyState, ComponentSize} from '@influxdata/clockface'
+import EndpointCards from 'src/alerting/components/endpoints/EndpointCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
+import {AppState} from 'src/types'
 
+interface StateProps {
+  endpoints: AppState['endpoints']['list']
+}
 type OwnProps = {}
-type Props = OwnProps & WithRouterProps
+type Props = OwnProps & WithRouterProps & StateProps
 
-const EndpointsColumn: FC<Props> = ({router, params}) => {
+const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
   const handleOpenOverlay = () => {
     const newRuleRoute = `/orgs/${params.orgID}/alerting/endpoints/new`
     router.push(newRuleRoute)
@@ -21,18 +26,13 @@ const EndpointsColumn: FC<Props> = ({router, params}) => {
       testID="create-endpoint"
       onCreate={handleOpenOverlay}
     >
-      <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-        <EmptyState.Text
-          text="A Notification  Endpoint  stores the information to connect to a third party service that can receive notifications like Slack, PagerDuty, or an HTTP server"
-          highlightWords={['Notification', 'Endpoint']}
-        />
-        <br />
-        <a href="#" target="_blank">
-          Documentation
-        </a>
-      </EmptyState>
+      <EndpointCards endpoints={endpoints} />
     </AlertsColumn>
   )
 }
 
-export default withRouter<OwnProps>(EndpointsColumn)
+const mstp = ({endpoints}: AppState) => {
+  return {endpoints: endpoints.list}
+}
+
+export default connect<StateProps>(mstp)(withRouter<OwnProps>(EndpointsColumn))

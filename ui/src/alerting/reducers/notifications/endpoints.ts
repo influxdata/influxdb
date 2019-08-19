@@ -24,6 +24,17 @@ export default (
 ): NotificationEndpointsState =>
   produce(state, draftState => {
     switch (action.type) {
+      case 'SET_ALL_ENDPOINTS': {
+        const {status, endpoints} = action
+
+        if (endpoints) {
+          draftState.list = endpoints
+        }
+
+        draftState.status = status
+
+        return
+      }
       case 'SET_ENDPOINT': {
         const {endpoint} = action
         const index = state.list.findIndex(ep => ep.id === endpoint.id)

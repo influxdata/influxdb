@@ -104,7 +104,6 @@ export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
 }
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
-  id: '',
   orgID: '1',
   userID: '1',
   description: 'interrupt everyone at work',

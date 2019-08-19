@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
 
 // Components
 import NotificationRuleCard from 'src/alerting/components/notifications/RuleCard'
@@ -13,7 +13,7 @@ interface Props {
   rules: NotificationRuleDraft[]
 }
 
-const NotificationRuleCards: FunctionComponent<Props> = ({rules}) => {
+const NotificationRuleCards: FC<Props> = ({rules}) => {
   return (
     <ResourceList>
       <ResourceList.Body emptyState={<EmptyNotificationRulesList />}>
@@ -25,7 +25,7 @@ const NotificationRuleCards: FunctionComponent<Props> = ({rules}) => {
   )
 }
 
-const EmptyNotificationRulesList: FunctionComponent = () => {
+const EmptyNotificationRulesList: FC = () => {
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
       <EmptyState.Text

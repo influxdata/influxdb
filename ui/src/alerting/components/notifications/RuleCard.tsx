@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
@@ -27,7 +27,7 @@ interface OwnProps {
 
 type Props = OwnProps & DispatchProps & WithRouterProps
 
-const RuleCard: FunctionComponent<Props> = ({
+const RuleCard: FC<Props> = ({
   rule,
   updateRule,
   deleteNotificationRule,
