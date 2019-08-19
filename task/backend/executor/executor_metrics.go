@@ -13,7 +13,7 @@ type ExecutorMetrics struct {
 	activeRuns        prometheus.Collector
 	queueDelta        *prometheus.SummaryVec
 	runDuration       *prometheus.SummaryVec
-	errorsCounter     prometheus.Counter
+	errorsCounter     *prometheus.CounterVec
 	manualRunsCounter *prometheus.CounterVec
 	resumeRunsCounter *prometheus.CounterVec
 }
@@ -55,12 +55,12 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 		}, []string{"taskID"}),
 
-		errorsCounter: prometheus.NewCounter(prometheus.CounterOpts{
+		errorsCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "errors_counter",
-			Help:      "The number of errors thrown by the executor.",
-		}),
+			Help:      "The number of errors thrown by the executor with the type of error (ex. Flux compile, query, etc).",
+		}, []string{"errorType"}),
 
 		manualRunsCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -131,8 +131,8 @@ func (em *ExecutorMetrics) FinishRun(taskID influxdb.ID, status backend.RunStatu
 }
 
 // LogError increments the count of errors.
-func (em *ExecutorMetrics) LogError() {
-	em.errorsCounter.Inc()
+func (em *ExecutorMetrics) LogError(err *influxdb.Error) {
+	em.errorsCounter.WithLabelValues(err.Code)
 }
 
 // Describe returns all descriptions associated with the run collector.

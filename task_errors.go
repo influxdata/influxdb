@@ -86,6 +86,36 @@ var (
 	}
 )
 
+// ErrFluxParseError is returned when an error is thrown by Flux.Parse in the task executor
+func ErrFluxParseError(err error) *Error {
+	return &Error{
+		Code: EInvalid,
+		Msg:  fmt.Sprintf("could not parse Flux script; Err: %v", err),
+		Op:   "kv/taskExecutor",
+		Err:  err,
+	}
+}
+
+// ErrQueryError is returned when an error is thrown by Query service in the task executor
+func ErrQueryError(err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("unexpected error from queryd; Err: %v", err),
+		Op:   "kv/taskExecutor",
+		Err:  err,
+	}
+}
+
+// ErrResultIteratorError is returned when an error is thrown by exhaustResultIterators in the executor
+func ErrResultIteratorError(err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("Error exhausting result iterator; Err: %v", err),
+		Op:   "kv/taskExecutor",
+		Err:  err,
+	}
+}
+
 func ErrInternalTaskServiceError(err error) *Error {
 	return &Error{
 		Code: EInternal,
