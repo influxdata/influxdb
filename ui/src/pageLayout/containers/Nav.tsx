@@ -64,6 +64,10 @@ class SideNav extends PureComponent<Props, State> {
     const tasksLink = `${orgPrefix}/tasks`
     const alertingLink = `${orgPrefix}/alerting`
     const alertHistoryLink = `${orgPrefix}/alert-history`
+    const loadDataLink = `${orgPrefix}/load-data/buckets`
+    const bucketsLink = `${orgPrefix}/load-data/buckets`
+    const telegrafsLink = `${orgPrefix}/load-data/telegrafs`
+    const scrapersLink = `${orgPrefix}/load-data/scrapers`
     const settingsLink = `${orgPrefix}/settings`
     const feedbackLink =
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
@@ -152,11 +156,55 @@ class SideNav extends PureComponent<Props, State> {
                   Check Statuses
                 </Link>
               )}
-              active={false}
+              active={getNavItemActivation(
+                ['alert-history'],
+                location.pathname
+              )}
               key="alert-history"
             />
           </NavMenu.Item>
         </FeatureFlag>
+        <NavMenu.Item
+          titleLink={className => (
+            <Link className={className} to={loadDataLink}>
+              Load Data
+            </Link>
+          )}
+          iconLink={className => (
+            <Link to={loadDataLink} className={className}>
+              <Icon glyph={IconFont.Disks} />
+            </Link>
+          )}
+          active={getNavItemActivation(['load-data'], location.pathname)}
+        >
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={bucketsLink} className={className}>
+                Buckets
+              </Link>
+            )}
+            active={getNavItemActivation(['buckets'], location.pathname)}
+            key="buckets"
+          />
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={telegrafsLink} className={className}>
+                Telegrafs
+              </Link>
+            )}
+            active={getNavItemActivation(['telegrafs'], location.pathname)}
+            key="telegrafs"
+          />
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={scrapersLink} className={className}>
+                Scrapers
+              </Link>
+            )}
+            active={getNavItemActivation(['scrapers'], location.pathname)}
+            key="scrapers"
+          />
+        </NavMenu.Item>
         <NavMenu.Item
           titleLink={className => (
             <Link className={className} to={settingsLink}>
