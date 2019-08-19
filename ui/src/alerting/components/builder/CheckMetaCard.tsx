@@ -88,7 +88,6 @@ const CheckMetaCard: FC<Props> = ({
     updateTimeMachineCheck({tags})
   }
 
-  console.log(check.tags)
   return (
     <>
       <Form.Element label="Check Type">
