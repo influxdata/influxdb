@@ -152,6 +152,28 @@ func replaceDurationsWithEvery(pkg *ast.Package, every *notification.Duration) {
 	})
 }
 
+// TODO(desa): we'll likely want to remove all other arguments to range that are provided, but for now this should work.
+// When we decide to implement the full feature we'll have to do something more sophisticated.
+func removeStopFromRange(pkg *ast.Package) {
+	ast.Visit(pkg, func(n ast.Node) {
+		if call, ok := n.(*ast.CallExpression); ok {
+			if id, ok := call.Callee.(*ast.Identifier); ok && id.Name == "range" {
+				for _, args := range call.Arguments {
+					if obj, ok := args.(*ast.ObjectExpression); ok {
+						props := obj.Properties[:0]
+						for _, prop := range obj.Properties {
+							if prop.Key.Key() == "start" {
+								props = append(props, prop)
+							}
+						}
+						obj.Properties = props
+					}
+				}
+			}
+		}
+	})
+}
+
 func assignPipelineToData(f *ast.File) error {
 	if len(f.Body) != 1 {
 		return fmt.Errorf("expected there to be a single statement in the flux script body, recieved %d", len(f.Body))
@@ -164,7 +186,18 @@ func assignPipelineToData(f *ast.File) error {
 		return fmt.Errorf("statement is not an *ast.Expression statement, recieved %T", stmt)
 	}
 
-	f.Body[0] = flux.DefineVariable("data", e.Expression)
+	exp := e.Expression
+
+	pipe, ok := exp.(*ast.PipeExpression)
+	if !ok {
+		return fmt.Errorf("expression is not an *ast.PipeExpression statement, recieved %T", exp)
+	}
+
+	if id, ok := pipe.Call.Callee.(*ast.Identifier); ok && id.Name == "yield" {
+		exp = pipe.Argument
+	}
+
+	f.Body[0] = flux.DefineVariable("data", exp)
 	return nil
 }
 
@@ -173,6 +206,7 @@ func assignPipelineToData(f *ast.File) error {
 func (t Threshold) GenerateFluxASTReal() (*ast.Package, error) {
 	p := parser.ParseSource(t.Query.Text)
 	replaceDurationsWithEvery(p, t.Every)
+	removeStopFromRange(p)
 
 	if errs := ast.GetErrors(p); len(errs) != 0 {
 		return nil, multiError(errs)
