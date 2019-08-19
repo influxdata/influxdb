@@ -24,7 +24,7 @@ const DashedButton: FC<Props> = ({
   })
 
   return (
-    <button className={classname} onClick={onClick}>
+    <button className={classname} onClick={onClick} type="button">
       {text}
     </button>
   )

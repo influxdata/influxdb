@@ -363,19 +363,8 @@ export const fluxEqual = (s1: string, s2: string): Cypress.Chainable => {
 
 // notification endpoints
 export const createEndpoint = (
-  name: string,
-  orgID: string
+  endpoint: NotificationEndpoint
 ): Cypress.Chainable<Cypress.Response> => {
-  const endpoint: NotificationEndpoint = {
-    orgID,
-    name,
-    userID: '',
-    description: 'interrupt everyone at work',
-    status: 'active',
-    type: 'slack',
-    url: 'insert.slack.url.here',
-  }
-
   return cy.request('POST', 'api/v2/notificationEndpoints', endpoint)
 }
 
