@@ -54,14 +54,16 @@ export {
   DeadmanCheck,
   NotificationEndpoint,
   NotificationRuleBase,
-  NotificationEndpointType,
   NotificationRule,
+  NotificationEndpointType,
   SMTPNotificationRuleBase,
   SlackNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   SMTPNotificationRule,
   SlackNotificationRule,
   PagerDutyNotificationRule,
+  PagerDutyNotificationEndpoint,
+  SlackNotificationEndpoint,
   WebhookNotificationEndpoint,
 } from '../client'
 

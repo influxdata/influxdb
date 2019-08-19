@@ -49,7 +49,7 @@ describe('Notification Endpoints', () => {
       .type('many-faced-god.gov')
       .should('have.value', 'many-faced-god.gov')
 
-    cy.getByTestID('pagerduty-token')
+    cy.getByTestID('pagerduty-routing-key')
       .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
       .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
 

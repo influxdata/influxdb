@@ -8045,6 +8045,8 @@ components:
           type: string
         type:
           type: string
+        templateID:
+          type: string
         description:
           type: string
         version:
@@ -9202,6 +9204,7 @@ components:
           $ref: "#/components/schemas/Links"
     NotificationEndpointBase:
       type: object
+      required: [type]
       properties:
         id:
           type: string
@@ -9231,7 +9234,6 @@ components:
           $ref: "#/components/schemas/Labels"
         type:
           $ref: "#/components/schemas/NotificationEndpointType"
-      required: [type]
     SlackNotificationEndpoint:
       type: object
       allOf:
@@ -9248,18 +9250,18 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-          required: [url, routing-key]
+          required: [url, routingKey]
           properties:
             url:
               type: string
-            token:
+            routingKey:
               type: string
     WebhookNotificationEndpoint:
       type: object
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-          required: [url]
+          required: [url, authmethod, method]
           properties:
             url:
               type: string

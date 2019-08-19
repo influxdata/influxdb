@@ -6,11 +6,11 @@ import {Input, FormElement} from '@influxdata/clockface'
 
 interface Props {
   url: string
-  token: string
+  routingKey: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
-const EndpointOptionsPagerDuty: FC<Props> = ({url, token, onChange}) => {
+const EndpointOptionsPagerDuty: FC<Props> = ({url, routingKey, onChange}) => {
   return (
     <>
       <FormElement label="URL">
@@ -21,11 +21,11 @@ const EndpointOptionsPagerDuty: FC<Props> = ({url, token, onChange}) => {
           onChange={onChange}
         />
       </FormElement>
-      <FormElement label="Token">
+      <FormElement label="Routing Key">
         <Input
-          name="token"
-          value={token}
-          testID="pagerduty-token"
+          name="routingKey"
+          value={routingKey}
+          testID="pagerduty-routing-key"
           onChange={onChange}
         />
       </FormElement>

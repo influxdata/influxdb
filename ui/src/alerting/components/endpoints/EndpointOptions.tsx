@@ -7,7 +7,12 @@ import EndpointOptionsPagerDuty from './EndpointOptionsPagerDuty'
 import EndpointOptionsWebhook from './EndpointOptionsWebhook'
 
 // Types
-import {NotificationEndpoint, WebhookNotificationEndpoint} from 'src/types'
+import {
+  NotificationEndpoint,
+  SlackNotificationEndpoint,
+  PagerDutyNotificationEndpoint,
+  WebhookNotificationEndpoint,
+} from 'src/types'
 
 interface Props {
   endpoint: NotificationEndpoint
@@ -17,15 +22,19 @@ interface Props {
 const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
   switch (endpoint.type) {
     case 'slack': {
-      const {url, token} = endpoint
+      const {url, token} = endpoint as SlackNotificationEndpoint
       return (
         <EndpointOptionsSlack url={url} token={token} onChange={onChange} />
       )
     }
     case 'pagerduty': {
-      const {url, token} = endpoint
+      const {url, routingKey} = endpoint as PagerDutyNotificationEndpoint
       return (
-        <EndpointOptionsPagerDuty url={url} token={token} onChange={onChange} />
+        <EndpointOptionsPagerDuty
+          url={url}
+          routingKey={routingKey}
+          onChange={onChange}
+        />
       )
     }
     case 'webhook': {
@@ -55,7 +64,7 @@ const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
 
     default:
       throw new Error(
-        `Unknown endpoint type ${endpoint.type} for: ${JSON.stringify(
+        `Unknown endpoint type for endpoint: ${JSON.stringify(
           endpoint,
           null,
           2

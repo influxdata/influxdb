@@ -110,6 +110,7 @@ export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
   name: 'Slack',
   status: 'active',
   type: 'slack',
+  token: 'plerpstokeny',
   url: 'insert.slack.url.here',
 }
 
@@ -123,16 +124,7 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     status: 'active',
     type: 'slack',
     url: 'insert.slack.url.here',
-  },
-  {
-    id: '2',
-    orgID: '1',
-    userID: '1',
-    description: 'interrupt someone by email',
-    name: 'Webhook',
-    status: 'active',
-    type: 'webhook',
-    url: 'insert.webhook.url.here',
+    token: 'plerps',
   },
   {
     id: '3',
@@ -143,5 +135,6 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     status: 'active',
     type: 'pagerduty',
     url: 'insert.pagerduty.url.here',
+    routingKey: 'plerpsy',
   },
 ]
