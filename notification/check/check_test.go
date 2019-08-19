@@ -145,13 +145,13 @@ func TestValidCheck(t *testing.T) {
 var timeGen1 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 13, 4, 19, 10, 0, time.UTC)}
 var timeGen2 = mock.TimeGenerator{FakeValue: time.Date(2006, time.July, 14, 5, 23, 53, 10, time.UTC)}
 
-func mustDuration(d string) *check.Duration {
+func mustDuration(d string) *notification.Duration {
 	dur, err := parser.ParseDuration(d)
 	if err != nil {
 		panic(err)
 	}
 
-	return (*check.Duration)(dur)
+	return (*notification.Duration)(dur)
 }
 
 func TestJSON(t *testing.T) {
@@ -231,7 +231,7 @@ func TestJSON(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s unmarshal failed, err: %s", c.name, err.Error())
 		}
-		if diff := cmp.Diff(got, c.src, cmpopts.IgnoreFields(check.Duration{}, "BaseNode")); diff != "" {
+		if diff := cmp.Diff(got, c.src, cmpopts.IgnoreFields(notification.Duration{}, "BaseNode")); diff != "" {
 			t.Errorf("failed %s, Check are different -got/+want\ndiff %s", c.name, diff)
 		}
 	}

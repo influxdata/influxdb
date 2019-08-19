@@ -5,6 +5,7 @@ import {
   SlackNotificationRuleBase,
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
+  HTTPNotificationRuleBase,
   NotificationRule,
 } from 'src/client'
 
@@ -33,11 +34,16 @@ export type NotificationRuleBaseDraft = Overwrite<
   }
 >
 
-export type NotificationRuleDraft = SlackRule | SMTPRule | PagerDutyRule
+export type NotificationRuleDraft =
+  | SlackRule
+  | SMTPRule
+  | PagerDutyRule
+  | HTTPRule
 
 type SlackRule = NotificationRuleBaseDraft & SlackNotificationRuleBase
 type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase
 type PagerDutyRule = NotificationRuleBaseDraft & PagerDutyNotificationRuleBase
+type HTTPRule = NotificationRuleBaseDraft & HTTPNotificationRuleBase
 
 export {
   Check,

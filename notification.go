@@ -37,8 +37,13 @@ type NotificationRule interface {
 	Updater
 	Getter
 	SetOwnerID(id ID)
+	ClearPrivateData()
 	GetOwnerID() ID
+	SetTaskID(id ID)
+	GetTaskID() ID
+	GetEndpointID() ID
 	GetLimit() *Limit
+	GenerateFlux(NotificationEndpoint) (string, error)
 }
 
 // Limit don't notify me more than <limit> times every <limitEvery> seconds.

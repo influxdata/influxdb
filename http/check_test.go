@@ -304,13 +304,13 @@ func TestService_handleGetChecks(t *testing.T) {
 	}
 }
 
-func mustDuration(d string) *check.Duration {
+func mustDuration(d string) *notification.Duration {
 	dur, err := parser.ParseDuration(d)
 	if err != nil {
 		panic(err)
 	}
 
-	return (*check.Duration)(dur)
+	return (*notification.Duration)(dur)
 }
 
 func TestService_handleGetCheck(t *testing.T) {

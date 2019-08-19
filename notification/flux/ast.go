@@ -29,6 +29,15 @@ func LessThan(lhs, rhs ast.Expression) *ast.BinaryExpression {
 	}
 }
 
+// Equal returns an equal to *ast.BinaryExpression.
+func Equal(lhs, rhs ast.Expression) *ast.BinaryExpression {
+	return &ast.BinaryExpression{
+		Operator: ast.EqualOperator,
+		Left:     lhs,
+		Right:    rhs,
+	}
+}
+
 // Member returns an *ast.MemberExpression where the key is p and the values is c.
 func Member(p, c string) *ast.MemberExpression {
 	return &ast.MemberExpression{
@@ -106,6 +115,14 @@ func Identifier(i string) *ast.Identifier {
 func Float(f float64) *ast.FloatLiteral {
 	return &ast.FloatLiteral{
 		Value: f,
+	}
+}
+
+// Negative returns *ast.UnaryExpression for -(e).
+func Negative(e ast.Expression) *ast.UnaryExpression {
+	return &ast.UnaryExpression{
+		Operator: ast.SubtractionOperator,
+		Argument: e,
 	}
 }
 
