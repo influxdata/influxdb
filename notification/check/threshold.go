@@ -135,10 +135,78 @@ func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
 	return p, nil
 }
 
+// TODO(desa): we'll likely want something slightly more sophisitcated long term, but this should work for now.
+func replaceDurationsWithEvery(pkg *ast.Package, every *notification.Duration) {
+	ast.Visit(pkg, func(n ast.Node) {
+		switch e := n.(type) {
+		case *ast.Property:
+			key := e.Key.Key()
+			newEvery := (ast.DurationLiteral)(*every)
+			switch key {
+			case "start":
+				e.Value = flux.Negative(&newEvery)
+			case "every":
+				e.Value = &newEvery
+			}
+		}
+	})
+}
+
+// TODO(desa): we'll likely want to remove all other arguments to range that are provided, but for now this should work.
+// When we decide to implement the full feature we'll have to do something more sophisticated.
+func removeStopFromRange(pkg *ast.Package) {
+	ast.Visit(pkg, func(n ast.Node) {
+		if call, ok := n.(*ast.CallExpression); ok {
+			if id, ok := call.Callee.(*ast.Identifier); ok && id.Name == "range" {
+				for _, args := range call.Arguments {
+					if obj, ok := args.(*ast.ObjectExpression); ok {
+						props := obj.Properties[:0]
+						for _, prop := range obj.Properties {
+							if prop.Key.Key() == "start" {
+								props = append(props, prop)
+							}
+						}
+						obj.Properties = props
+					}
+				}
+			}
+		}
+	})
+}
+
+func assignPipelineToData(f *ast.File) error {
+	if len(f.Body) != 1 {
+		return fmt.Errorf("expected there to be a single statement in the flux script body, recieved %d", len(f.Body))
+	}
+
+	stmt := f.Body[0]
+
+	e, ok := stmt.(*ast.ExpressionStatement)
+	if !ok {
+		return fmt.Errorf("statement is not an *ast.Expression statement, recieved %T", stmt)
+	}
+
+	exp := e.Expression
+
+	pipe, ok := exp.(*ast.PipeExpression)
+	if !ok {
+		return fmt.Errorf("expression is not an *ast.PipeExpression statement, recieved %T", exp)
+	}
+
+	if id, ok := pipe.Call.Callee.(*ast.Identifier); ok && id.Name == "yield" {
+		exp = pipe.Argument
+	}
+
+	f.Body[0] = flux.DefineVariable("data", exp)
+	return nil
+}
+
 // GenerateFluxASTReal is the real version of GenerateFluxAST. It has to exist so staticheck doesn't yell about
 // the unexported functions I have here.
 func (t Threshold) GenerateFluxASTReal() (*ast.Package, error) {
 	p := parser.ParseSource(t.Query.Text)
+	replaceDurationsWithEvery(p, t.Every)
+	removeStopFromRange(p)
 
 	if errs := ast.GetErrors(p); len(errs) != 0 {
 		return nil, multiError(errs)
@@ -151,8 +219,9 @@ func (t Threshold) GenerateFluxASTReal() (*ast.Package, error) {
 	}
 
 	f := p.Files[0]
+	assignPipelineToData(f)
 
-	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/alerts")...)
+	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/alerts", "influxdata/influxdb/v1")...)
 	f.Body = append(f.Body, t.generateFluxASTBody()...)
 
 	return p, nil
@@ -194,11 +263,15 @@ func (t Threshold) generateFluxASTMessageFunction() ast.Statement {
 }
 
 func (t Threshold) generateFluxASTChecksFunction() ast.Statement {
-	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("data"), t.generateFluxASTChecksCall()))
+	return flux.ExpressionStatement(flux.Pipe(
+		flux.Identifier("data"),
+		flux.Call(flux.Member("v1", "fieldsAsCols"), flux.Object()),
+		t.generateFluxASTChecksCall(),
+	))
 }
 
 func (t Threshold) generateFluxASTChecksCall() *ast.CallExpression {
-	objectProps := append(([]*ast.Property)(nil), flux.Property("check", flux.Identifier("check")))
+	objectProps := append(([]*ast.Property)(nil), flux.Property("data", flux.Identifier("check")))
 	objectProps = append(objectProps, flux.Property("messageFn", flux.Identifier("messageFn")))
 
 	// This assumes that the ThresholdConfigs we've been provided do not have duplicates.
@@ -217,9 +290,11 @@ func (t Threshold) generateFluxASTCheckDefinition() ast.Statement {
 	}
 	tags := flux.Property("tags", flux.Object(tagProperties...))
 
-	checkID := flux.Property("checkID", flux.String(t.ID.String()))
+	checkID := flux.Property("_check_id", flux.String(t.ID.String()))
+	checkName := flux.Property("_check_name", flux.String(t.Name))
+	checkType := flux.Property("_check_type", flux.String("threshold"))
 
-	return flux.DefineVariable("check", flux.Object(checkID, tags))
+	return flux.DefineVariable("check", flux.Object(checkID, checkName, checkType, tags))
 }
 
 func (t Threshold) generateFluxASTThresholdFunctions() []ast.Statement {
