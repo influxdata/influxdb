@@ -142,7 +142,9 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
   private handleStartDeleteData = (bucket: PrettyBucket) => {
     const {orgID} = this.props.params
 
-    this.props.router.push(`/orgs/${orgID}/load-data/buckets/${bucket.id}/delete-data`)
+    this.props.router.push(
+      `/orgs/${orgID}/load-data/buckets/${bucket.id}/delete-data`
+    )
   }
 
   private handleStartAddData = (
