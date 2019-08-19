@@ -11,7 +11,7 @@ import (
 // HTTP is the notification rule config of http.
 type HTTP struct {
 	Base
-	URL string
+	URL string `json:"url"`
 }
 
 // GenerateFlux generates a flux script for the http notification rule.

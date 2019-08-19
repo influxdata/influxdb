@@ -411,7 +411,6 @@ func (s *Service) deleteNotificationRule(ctx context.Context, tx Tx, id influxdb
 		return err
 	}
 
-	fmt.Println(r.GetTaskID())
 	if err := s.deleteTask(ctx, tx, r.GetTaskID()); err != nil {
 		return err
 	}
