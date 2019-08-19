@@ -8840,7 +8840,7 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
-      required: [flux, token]
+      required: [flux]
     TaskUpdateRequest:
       type: object
       properties:
