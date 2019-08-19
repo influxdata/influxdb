@@ -184,7 +184,7 @@ class Scrapers extends PureComponent<Props, State> {
       return
     }
 
-    router.push(`/orgs/${orgID}/scrapers/new`)
+    router.push(`/orgs/${orgID}/load-data/scrapers/new`)
   }
 
   private handleFilterChange = (searchTerm: string): void => {

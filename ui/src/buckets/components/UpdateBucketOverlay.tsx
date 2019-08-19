@@ -144,7 +144,7 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
 
   private handleClose = () => {
     const {orgID} = this.props.params
-    this.props.router.push(`/orgs/${orgID}/buckets`)
+    this.props.router.push(`/orgs/${orgID}/load-data/buckets`)
   }
 }
 
