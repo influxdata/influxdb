@@ -8840,9 +8840,6 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
-        token:
-          description: The token to use for authenticating this task when it executes queries.
-          type: string
       required: [flux, token]
     TaskUpdateRequest:
       type: object
@@ -8863,9 +8860,6 @@ components:
           type: string
         offset:
           description: Override the 'offset' option in the flux script.
-          type: string
-        token:
-          description: Override the existing token associated with the task.
           type: string
     Check:
       oneOf:

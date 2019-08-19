@@ -39,7 +39,7 @@ func TestOnboardingValidation(t *testing.T) {
 
 	_, err = ts.CreateTask(ctx, influxdb.TaskCreate{
 		OrganizationID: r.Org.ID,
-		Token:          r.Auth.Token,
+		OwnerID:        r.Auth.GetUserID(),
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -220,7 +220,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
 					OrganizationID: r.Org.ID,
-					Token:          r.Auth.Token,
+					OwnerID:        r.Auth.GetUserID(),
 					Type:           influxdb.TaskTypeWildcard,
 					Flux: `option task = {
  name: "my_task",
@@ -240,7 +240,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
 					OrganizationID: r.Org.ID,
-					Token:          r.Auth.Token,
+					OwnerID:        r.Auth.GetUserID(),
 					Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -260,7 +260,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 					errfmt  = "expected %q, got %q"
 					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
 						OrganizationID: r.Org.ID,
-						Token:          r.Auth.Token,
+						OwnerID:        r.Auth.GetUserID(),
 						Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -308,7 +308,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 					errfmt  = "expected %q, got %q"
 					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
 						OrganizationID: r.Org.ID,
-						Token:          r.Auth.Token,
+						OwnerID:        r.Auth.GetUserID(),
 						Flux: `option task = {
  name: "my_task",
  every: 1s,

@@ -448,7 +448,6 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			args: args{
 				taskCreate: platform.TaskCreate{
 					OrganizationID: 1,
-					Token:          "mytoken",
 					Flux:           "abc",
 				},
 			},
@@ -498,7 +497,6 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			args: args{
 				taskCreate: platform.TaskCreate{
 					OrganizationID: 1,
-					Token:          "mytoken",
 					Flux:           "abc",
 				},
 			},
@@ -530,7 +528,6 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			args: args{
 				taskCreate: platform.TaskCreate{
 					OrganizationID: 1,
-					Token:          "mytoken",
 					Flux:           "abc",
 				},
 			},
@@ -1269,7 +1266,6 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 	b, err := json.Marshal(platform.TaskCreate{
 		Flux:         script,
 		Organization: o.Name,
-		Token:        authz.Token,
 	})
 	if err != nil {
 		t.Fatal(err)
