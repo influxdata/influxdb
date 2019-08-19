@@ -11,7 +11,6 @@ import (
 type CheckService struct {
 	OrganizationService
 	UserResourceMappingService
-	TaskService
 
 	// Methods for an influxdb.CheckService
 	FindCheckByIDFn func(context.Context, influxdb.ID) (influxdb.Check, error)

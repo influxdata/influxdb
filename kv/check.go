@@ -323,13 +323,6 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, user
 	c.SetCreatedAt(s.Now())
 	c.SetUpdatedAt(s.Now())
 
-	t, err := s.createCheckTask(ctx, tx, c)
-	if err != nil {
-		return err
-	}
-
-	c.SetTaskID(t.ID)
-
 	if err := s.putCheck(ctx, tx, c); err != nil {
 		return err
 	}
@@ -338,27 +331,6 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, user
 		return err
 	}
 	return nil
-}
-
-func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.Check) (*influxdb.Task, error) {
-	script, err := c.GenerateFlux()
-	if err != nil {
-		return nil, err
-	}
-
-	tc := influxdb.TaskCreate{
-		Type:           c.Type(),
-		Flux:           script,
-		OwnerID:        c.GetOwnerID(),
-		OrganizationID: c.GetOrgID(),
-	}
-
-	t, err := s.createTask(ctx, tx, tc)
-	if err != nil {
-		return nil, err
-	}
-
-	return t, nil
 }
 
 // PutCheck will put a check without setting an ID.
@@ -571,19 +543,9 @@ func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk in
 		}
 	}
 
-	if err := s.deleteTask(ctx, tx, chk.GetTaskID()); err != nil {
-		return nil, err
-	}
-
 	chk.SetOwnerID(current.GetOwnerID())
 
-	t, err := s.createCheckTask(ctx, tx, chk)
-	if err != nil {
-		return nil, err
-	}
-
 	// ID and OrganizationID can not be updated
-	chk.SetTaskID(t.ID)
 	chk.SetID(current.GetID())
 	chk.SetOrgID(current.GetOrgID())
 	chk.SetCreatedAt(current.GetCRUDLog().CreatedAt)
@@ -697,10 +659,6 @@ func (s *Service) deleteCheck(ctx context.Context, tx Tx, id influxdb.ID) error 
 	c, pe := s.findCheckByID(ctx, tx, id)
 	if pe != nil {
 		return pe
-	}
-
-	if err := s.deleteTask(ctx, tx, c.GetTaskID()); err != nil {
-		return err
 	}
 
 	key, pe := checkIndexKey(c.GetOrgID(), c.GetName())
