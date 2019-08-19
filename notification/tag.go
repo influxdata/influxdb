@@ -3,7 +3,9 @@ package notification
 import (
 	"fmt"
 
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification/flux"
 )
 
 // Tag is k/v pair.
@@ -27,6 +29,20 @@ func (t Tag) Valid() error {
 type TagRule struct {
 	Tag
 	Operator `json:"operator"`
+}
+
+// GenerateFluxAST generates the AST expression for a tag rule.
+func (r TagRule) GenerateFluxAST() ast.Expression {
+	k := flux.Member("r", r.Key)
+	v := flux.String(r.Value)
+
+	switch r.Operator {
+	case Equal:
+		return flux.Equal(k, v)
+		// TODO(desa): have this work for all operator types
+	}
+
+	return flux.Equal(k, v)
 }
 
 // Operator is an Enum value of

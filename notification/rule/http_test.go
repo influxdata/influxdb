@@ -12,28 +12,32 @@ func TestHTTP_GenerateFlux(t *testing.T) {
 // foo
 import "influxdata/influxdb/alerts"
 import "http"
+import "json"
 
-option task = {name: "foo", every: 1h}
+option task = {name: "foo", every: 1h, offset: 1s}
 
-http_endpoint = http.endpoint(url: "http://localhost:7777")
-notification = {notificationID: "0000000000000001", name: "foo"}
-statuses = from(bucket: "system_bucket")
-	|> range(start: 1h)
-	|> filter(fn: (r) =>
-		(r.foo == "bar"))
-	|> filter(fn: (r) =>
-		(r.baz == "bang"))
+endpoint = http.endpoint(url: "http://localhost:7777")
+notification = {
+	_notification_rule_id: "0000000000000001",
+	_notification_rule_name: "foo",
+	_notification_endpoint_id: "0000000000000002",
+	_notification_endpoint_name: "http-endpoint",
+}
+statuses = alerts.from(start: -1h, fn: (r) =>
+	(r.foo == "bar" and r.baz == "bang"))
 
 statuses
-	|> alerts.notify(name: "foo", notification: notification, endpoint: http_endpoint(mapFn: (r) =>
+	|> alerts.notify(name: "foo", data: notification, endpoint: endpoint(mapFn: (r) =>
 		({data: json.encode(v: r)})))`
 
 	s := &rule.HTTP{
 		URL: "http://localhost:7777",
 		Base: rule.Base{
-			ID:    1,
-			Name:  "foo",
-			Every: mustDuration("1h"),
+			ID:         1,
+			Name:       "foo",
+			Every:      mustDuration("1h"),
+			Offset:     mustDuration("1s"),
+			EndpointID: 2,
 			TagRules: []notification.TagRule{
 				{
 					Tag: notification.Tag{
@@ -53,7 +57,7 @@ statuses
 		},
 	}
 
-	f, err := s.GenerateFluxReal(nil)
+	f, err := s.GenerateFlux(nil)
 	if err != nil {
 		panic(err)
 	}

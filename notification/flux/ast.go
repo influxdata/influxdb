@@ -118,6 +118,14 @@ func Float(f float64) *ast.FloatLiteral {
 	}
 }
 
+// Negative returns *ast.UnaryExpression for -(e).
+func Negative(e ast.Expression) *ast.UnaryExpression {
+	return &ast.UnaryExpression{
+		Operator: ast.SubtractionOperator,
+		Argument: e,
+	}
+}
+
 // DefineVariable returns an *ast.VariableAssignment of id to the e. (e.g. id = <expression>)
 func DefineVariable(id string, e ast.Expression) *ast.VariableAssignment {
 	return &ast.VariableAssignment{
