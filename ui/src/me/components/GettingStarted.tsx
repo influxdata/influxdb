@@ -17,7 +17,7 @@ class GettingStarted extends PureComponent<WithRouterProps> {
       <div className="getting-started">
         <div className="getting-started--container">
           <Link
-            to={`/orgs/${orgID}/telegrafs`}
+            to={`/orgs/${orgID}/load-data/telegrafs`}
             className="getting-started--card"
           >
             <GradientBorder />
