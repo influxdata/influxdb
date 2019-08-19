@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 
 // Components
 import {Page} from 'src/pageLayout'
-import SettingsHeader from 'src/settings/components/SettingsHeader'
-import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
+import LoadDataHeader from 'src/settings/components/LoadDataHeader'
+import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import Scrapers from 'src/scrapers/components/Scrapers'
 
@@ -27,14 +27,14 @@ class ScrapersIndex extends Component<StateProps> {
     return (
       <>
         <Page titleTag={org.name}>
-          <SettingsHeader />
-          <SettingsTabbedPage activeTab="scrapers" orgID={org.id}>
+          <LoadDataHeader />
+          <LoadDataTabbedPage activeTab="scrapers" orgID={org.id}>
             <GetResources resource={ResourceTypes.Scrapers}>
               <GetResources resource={ResourceTypes.Buckets}>
                 <Scrapers orgName={org.name} />
               </GetResources>
             </GetResources>
-          </SettingsTabbedPage>
+          </LoadDataTabbedPage>
         </Page>
         {children}
       </>

@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
-import SettingsHeader from 'src/settings/components/SettingsHeader'
+import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
+import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import {Page} from 'src/pageLayout'
 import Collectors from 'src/telegrafs/components/Collectors'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
@@ -25,14 +25,14 @@ class TelegrafsPage extends PureComponent<StateProps> {
     return (
       <>
         <Page titleTag={org.name}>
-          <SettingsHeader />
-          <SettingsTabbedPage activeTab="telegrafs" orgID={org.id}>
+          <LoadDataHeader />
+          <LoadDataTabbedPage activeTab="telegrafs" orgID={org.id}>
             <GetResources resource={ResourceTypes.Buckets}>
               <GetResources resource={ResourceTypes.Telegrafs}>
                 <Collectors />
               </GetResources>
             </GetResources>
-          </SettingsTabbedPage>
+          </LoadDataTabbedPage>
         </Page>
         {children}
       </>
