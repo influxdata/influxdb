@@ -26,6 +26,7 @@ import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
 import {ChecksState} from 'src/alerting/reducers/checks'
 import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
+import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
 
 export interface AppState {
   VERSION: string
@@ -57,6 +58,7 @@ export interface AppState {
   cloud: {limits: LimitsState}
   checks: ChecksState
   rules: NotificationRulesState
+  endpoints: NotificationEndpointsState
 }
 
 export type GetState = () => AppState

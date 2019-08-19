@@ -16,6 +16,7 @@ import {getTemplates} from 'src/templates/actions'
 import {getMembers, getUsers} from 'src/members/actions'
 import {getChecks} from 'src/alerting/actions/checks'
 import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
+import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
 
 // Types
 import {AppState} from 'src/types'
@@ -31,6 +32,7 @@ import {TemplatesState} from 'src/templates/reducers'
 import {MembersState, UsersMap} from 'src/members/reducers'
 import {ChecksState} from 'src/alerting/reducers/checks'
 import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
+import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -54,6 +56,7 @@ interface StateProps {
   users: {status: RemoteDataState; item: UsersMap}
   checks: ChecksState
   rules: NotificationRulesState
+  endpoints: NotificationEndpointsState
 }
 
 interface DispatchProps {
@@ -70,6 +73,7 @@ interface DispatchProps {
   getUsers: typeof getUsers
   getChecks: typeof getChecks
   getNotificationRules: typeof getNotificationRules
+  getEndpoints: typeof getEndpoints
 }
 
 interface PassedProps {
@@ -92,6 +96,7 @@ export enum ResourceTypes {
   Users = 'users',
   Checks = 'checks',
   NotificationRules = 'rules',
+  NotificationEndpoints = 'endpoints',
 }
 
 @ErrorHandling
@@ -150,6 +155,10 @@ class GetResources extends PureComponent<Props, StateProps> {
         return await this.props.getNotificationRules()
       }
 
+      case ResourceTypes.NotificationEndpoints: {
+        return await this.props.getEndpoints()
+      }
+
       default: {
         throw new Error('incorrect resource type provided')
       }
@@ -183,6 +192,7 @@ const mstp = ({
   members,
   checks,
   rules,
+  endpoints,
 }: AppState): StateProps => {
   return {
     labels,
@@ -198,6 +208,7 @@ const mstp = ({
     users: members.users,
     checks,
     rules,
+    endpoints,
   }
 }
 
@@ -215,6 +226,7 @@ const mdtp = {
   getUsers: getUsers,
   getChecks: getChecks,
   getNotificationRules: getNotificationRules,
+  getEndpoints: getEndpoints,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

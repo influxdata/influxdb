@@ -61,12 +61,16 @@ export {
   NotificationEndpoint,
   NotificationRuleBase,
   NotificationRule,
+  NotificationEndpointType,
   SMTPNotificationRuleBase,
   SlackNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   SMTPNotificationRule,
   SlackNotificationRule,
   PagerDutyNotificationRule,
+  PagerDutyNotificationEndpoint,
+  SlackNotificationEndpoint,
+  WebhookNotificationEndpoint,
 } from '../client'
 
 import {Check, Threshold} from '../client'

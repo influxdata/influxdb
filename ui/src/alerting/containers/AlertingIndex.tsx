@@ -35,7 +35,9 @@ const AlertingIndex: FunctionComponent = ({children}) => {
                   </GetResources>
                 </GridColumn>
                 <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <EndpointsColumn />
+                  <GetResources resource={ResourceTypes.NotificationEndpoints}>
+                    <EndpointsColumn />
+                  </GetResources>
                 </GridColumn>
               </GridRow>
             </Grid>

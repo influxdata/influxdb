@@ -190,3 +190,7 @@ $notification-margin: 12px;
     $ix-link-default-hover
   );
 }
+
+.endpoint-description--textarea {
+  max-height: 150;
+}

@@ -9205,14 +9205,12 @@ components:
     NotificationEndpoint:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
-        - $ref: "#/components/schemas/SMTPNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
         - $ref: "#/components/schemas/WebhookNotificationEndpoint"
       discriminator:
         propertyName: type
         mapping:
           slack: "#/components/schemas/SlackNotificationEndpoint"
-          smtp: "#/components/schemas/SMTPNotificationEndpoint"
           pagerduty:  "#/components/schemas/PagerDutyNotificationEndpoint"
           webhook: "#/components/schemas/WebhookNotificationEndpoint"
     NotificationEndpoints:
@@ -9225,6 +9223,7 @@ components:
           $ref: "#/components/schemas/Links"
     NotificationEndpointBase:
       type: object
+      required: [type]
       properties:
         id:
           type: string
@@ -9254,30 +9253,54 @@ components:
           $ref: "#/components/schemas/Labels"
         type:
           $ref: "#/components/schemas/NotificationEndpointType"
-      required: [type]
     SlackNotificationEndpoint:
       type: object
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-    SMTPNotificationEndpoint:
-      type: object
-      allOf:
-        - $ref: "#/components/schemas/NotificationEndpointBase"
-        - type: object
+          required: [url, token]
+          properties:
+            url:
+              type: string
+            token:
+              type: string
     PagerDutyNotificationEndpoint:
       type: object
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
+          required: [url, routingKey]
+          properties:
+            url:
+              type: string
+            routingKey:
+              type: string
     WebhookNotificationEndpoint:
       type: object
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
+          required: [url, authmethod, method]
+          properties:
+            url:
+              type: string
+            username:
+              type: string
+            password:
+              type: string
+            token:
+              type: string
+            method:
+              type: string
+              enum: ['POST', 'GET', 'PUT']
+            authmethod:
+              type: string
+              enum: ['none', 'basic', 'bearer']
+            contentTemplate:
+              type: string
     NotificationEndpointType:
       type: string
-      enum: ['slack', smtp, 'pagerduty', 'webhook']
+      enum: ['slack', 'pagerduty', 'webhook']
   securitySchemes:
     BasicAuth:
       type: http
