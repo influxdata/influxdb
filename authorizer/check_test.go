@@ -65,8 +65,8 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.ChecksResourceType,
-						ID:   influxdbtesting.IDPtr(1),
+						Type: influxdb.OrgsResourceType,
+						ID:   influxdbtesting.IDPtr(10),
 					},
 				},
 				id: 1,
@@ -93,7 +93,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.ChecksResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(2),
 					},
 				},
@@ -101,7 +101,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "read:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
+					Msg:  "read:orgs/000000000000000a is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -171,7 +171,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type: influxdb.ChecksResourceType,
+						Type: influxdb.OrgsResourceType,
 					},
 				},
 			},
@@ -230,7 +230,7 @@ func TestCheckService_FindChecks(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.ChecksResourceType,
+						Type:  influxdb.OrgsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
@@ -317,15 +317,15 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -362,15 +362,15 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -436,15 +436,15 @@ func TestCheckService_PatchCheck(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -481,15 +481,15 @@ func TestCheckService_PatchCheck(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -550,15 +550,15 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 					{
 						Action: "write",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 				},
@@ -590,15 +590,15 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 					{
 						Action: "read",
 						Resource: influxdb.Resource{
-							Type: influxdb.ChecksResourceType,
-							ID:   influxdbtesting.IDPtr(1),
+							Type: influxdb.OrgsResourceType,
+							ID:   influxdbtesting.IDPtr(10),
 						},
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
+					Msg:  "write:orgs/000000000000000a is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
@@ -637,7 +637,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to create check",
+			name: "authorized to create check with org owner",
 			fields: fields{
 				CheckService: &mock.CheckService{
 					CreateCheckFn: func(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
@@ -650,7 +650,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.ChecksResourceType,
+						Type:  influxdb.OrgsResourceType,
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
@@ -673,14 +673,14 @@ func TestCheckService_CreateCheck(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type: influxdb.ChecksResourceType,
+						Type: influxdb.OrgsResourceType,
 						ID:   influxdbtesting.IDPtr(1),
 					},
 				},
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/checks is unauthorized",
+					Msg:  "write:orgs/000000000000000a/orgs is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},
