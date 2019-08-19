@@ -10,6 +10,7 @@
 1. [14694](https://github.com/influxdata/influxdb/pull/14694): Add ability to find tasks by name.
 
 ### UI Improvements
+1. [14709](https://github.com/influxdata/influxdb/pull/14709): Move Buckets, Telgrafs, and Scrapers pages into a tab called "Load Data" for ease of discovery
 
 ### Bug Fixes
 
