@@ -35,6 +35,7 @@ export default (
 
         return
       }
+
       case 'SET_ENDPOINT': {
         const {endpoint} = action
         const index = state.list.findIndex(ep => ep.id === endpoint.id)

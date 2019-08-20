@@ -84,6 +84,7 @@ import EditCheckEO from 'src/alerting/components/EditCheckEO'
 import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay'
 import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
+import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -352,8 +353,8 @@ class Root extends PureComponent {
                                 component={NewEndpointOverlay}
                               />
                               <Route
-                                path="rules/:ruleID/edit"
-                                component={null}
+                                path="endpoints/:endpointID/edit"
+                                component={EditEndpointOverlay}
                               />
                             </Route>
                             <Route

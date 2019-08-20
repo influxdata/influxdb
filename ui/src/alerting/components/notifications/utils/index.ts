@@ -1,5 +1,5 @@
 // Libraries
-import {omit} from 'lodash'
+import {omit, get} from 'lodash'
 import uuid from 'uuid'
 
 // Types
@@ -134,9 +134,17 @@ export const draftRuleToRule = (
 export const ruleToDraftRule = (
   rule: NotificationRule
 ): NotificationRuleDraft => {
+  const tagRules: NotificationRule['tagRules'] = get(rule, 'tagRules', [])
+  const tagRulesDraft: NotificationRuleDraft['tagRules'] = tagRules.map(
+    value => ({
+      cid: uuid.v4(),
+      value,
+    })
+  )
+
   return {
     ...rule,
     statusRules: rule.statusRules.map(value => ({cid: uuid.v4(), value})),
-    tagRules: rule.tagRules.map(value => ({cid: uuid.v4(), value})),
+    tagRules: tagRulesDraft,
   }
 }

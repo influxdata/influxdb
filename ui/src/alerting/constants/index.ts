@@ -110,7 +110,7 @@ export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
   name: 'Slack',
   status: 'active',
   type: 'slack',
-  token: 'plerpstokeny',
+  token: 'plerps',
   url: 'insert.slack.url.here',
 }
 
@@ -135,6 +135,6 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     status: 'active',
     type: 'pagerduty',
     url: 'insert.pagerduty.url.here',
-    routingKey: 'plerpsy',
+    routingKey: 'plerps',
   },
 ]

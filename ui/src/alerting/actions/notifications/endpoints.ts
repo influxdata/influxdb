@@ -16,6 +16,28 @@ export type Action =
       endpoints?: NotificationEndpoint[]
     }
 
+export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
+  dispatch: Dispatch<Action>
+) => {
+  try {
+    const resp = await api.patchNotificationEndpoint({
+      endpointID: endpoint.id,
+      data: endpoint,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({
+      type: 'SET_ENDPOINT',
+      endpoint: resp.data,
+    })
+  } catch (err) {
+    console.error(err)
+  }
+}
+
 export const getEndpoints = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
