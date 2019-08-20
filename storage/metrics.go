@@ -35,7 +35,6 @@ const retentionSubsystem = "retention" // sub-system associated with metrics for
 // retentionMetrics is a set of metrics concerned with tracking data about retention policies.
 type retentionMetrics struct {
 	labels        prometheus.Labels
-	Checks        *prometheus.CounterVec
 	CheckDuration *prometheus.HistogramVec
 }
 
@@ -46,21 +45,11 @@ func newRetentionMetrics(labels prometheus.Labels) *retentionMetrics {
 	}
 	sort.Strings(names)
 
-	checksNames := append(append([]string(nil), names...), "status", "org_id", "bucket_id")
-	sort.Strings(checksNames)
-
 	checkDurationNames := append(append([]string(nil), names...), "status")
 	sort.Strings(checkDurationNames)
 
 	return &retentionMetrics{
 		labels: labels,
-		Checks: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: namespace,
-			Subsystem: retentionSubsystem,
-			Name:      "checks_total",
-			Help:      "Number of retention check operations performed by org/bucket id.",
-		}, checksNames),
-
 		CheckDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
 			Subsystem: retentionSubsystem,
@@ -84,7 +73,6 @@ func (m *retentionMetrics) Labels() prometheus.Labels {
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (rm *retentionMetrics) PrometheusCollectors() []prometheus.Collector {
 	return []prometheus.Collector{
-		rm.Checks,
 		rm.CheckDuration,
 	}
 }
