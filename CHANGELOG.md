@@ -2,6 +2,7 @@ v1.7.8 [2019-08-20]
 -------------------
 
 ### Bugfixes
+
 -	[#14264](https://github.com/influxdata/influxdb/pull/14264): Fix Prometheus read panic.
 -	[#14271](https://github.com/influxdata/influxdb/pull/14271): Remove stray fmt.Println in tsm1.StringArrayEncodeAll.
 -	[#14286](https://github.com/influxdata/influxdb/pull/14286): Fix issue where fields re-appear after DROP MEASUREMENT.
@@ -12,9 +13,9 @@ v1.7.8 [2019-08-20]
 -	[#14593](https://github.com/influxdata/influxdb/pull/14593): fix(query/compile.go): time range was exceeding min/max bounds under ….
 
 ### Features
+
 -	[#14224](https://github.com/influxdata/influxdb/pull/14224): Update flux version to v0.33.2
 -	[#14345](https://github.com/influxdata/influxdb/pull/14345): Update flux version to v0.36.2
-
 
 v1.7.7 [2019-06-26]
 -------------------
