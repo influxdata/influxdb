@@ -111,7 +111,6 @@ type CheckFields struct {
 	Checks               []influxdb.Check
 	Organizations        []*influxdb.Organization
 	UserResourceMappings []*influxdb.UserResourceMapping
-	Tasks                []influxdb.TaskCreate
 }
 
 type checkServiceF func(
@@ -869,14 +868,6 @@ func DeleteCheck(
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
-					{
-						Flux: `option task = { every: 10s, name: "foo" }
-data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
-						OwnerID:        MustIDBase16(sixID),
-					},
-				},
 				Checks: []influxdb.Check{
 					deadman1,
 					threshold1,
@@ -899,14 +890,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
-					},
-				},
-				Tasks: []influxdb.TaskCreate{
-					{
-						Flux: `option task = { every: 10s, name: "foo" }
-data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
-						OwnerID:        MustIDBase16(sixID),
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1104,14 +1087,6 @@ func UpdateCheck(
 				},
 				Checks: []influxdb.Check{
 					deadman1,
-				},
-				Tasks: []influxdb.TaskCreate{
-					{
-						Flux: `option task = { every: 10s, name: "foo" }
-data = from(bucket: "telegraf") |> range(start: -1m)`,
-						OrganizationID: MustIDBase16(orgOneID),
-						OwnerID:        MustIDBase16(sixID),
-					},
 				},
 			},
 			args: args{
