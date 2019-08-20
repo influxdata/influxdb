@@ -47,7 +47,7 @@ class RenameBucketOverlay extends PureComponent<WithRouterProps> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/buckets`)
+    router.push(`/orgs/${orgID}/load-data/buckets`)
   }
 }
 

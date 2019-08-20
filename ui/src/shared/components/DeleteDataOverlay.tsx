@@ -19,7 +19,8 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
   params: {orgID, bucketID},
   buckets,
 }) => {
-  const handleDismiss = () => router.push(`/orgs/${orgID}/buckets/${bucketID}`)
+  const handleDismiss = () =>
+    router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}`)
   const bucketName = buckets.find(bucket => bucket.id === bucketID).name
 
   return (

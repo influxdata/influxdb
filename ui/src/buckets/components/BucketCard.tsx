@@ -63,7 +63,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       router,
     } = this.props
 
-    router.push(`/orgs/${orgID}/buckets/${id}/rename`)
+    router.push(`/orgs/${orgID}/load-data/buckets/${id}/rename`)
   }
 
   private handleNameClick = (): void => {
@@ -73,7 +73,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       router,
     } = this.props
 
-    router.push(`/orgs/${orgID}/buckets/${id}/edit`)
+    router.push(`/orgs/${orgID}/load-data/buckets/${id}/edit`)
   }
 
   private handleAddCollector = (): void => {
@@ -82,7 +82,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       bucket: {id},
     } = this.props
 
-    const link = `/orgs/${orgID}/buckets/${id}/telegrafs/new`
+    const link = `/orgs/${orgID}/load-data/buckets/${id}/telegrafs/new`
     this.props.onAddData(this.props.bucket, DataLoaderType.Streaming, link)
   }
 
@@ -92,7 +92,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       bucket: {id},
     } = this.props
 
-    const link = `/orgs/${orgID}/buckets/${id}/line-protocols/new`
+    const link = `/orgs/${orgID}/load-data/buckets/${id}/line-protocols/new`
     this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol, link)
   }
 
@@ -102,7 +102,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       bucket: {id},
     } = this.props
 
-    const link = `/orgs/${orgID}/buckets/${id}/scrapers/new`
+    const link = `/orgs/${orgID}/load-data/buckets/${id}/scrapers/new`
     this.props.onAddData(this.props.bucket, DataLoaderType.Scraping, link)
   }
 }

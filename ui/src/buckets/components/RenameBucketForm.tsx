@@ -137,7 +137,7 @@ class RenameBucketForm extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/buckets`)
+    router.push(`/orgs/${orgID}/load-data/buckets`)
   }
 }
 

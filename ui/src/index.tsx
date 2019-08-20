@@ -217,31 +217,51 @@ class Root extends PureComponent {
                           <Route path="settings">
                             <IndexRoute component={MembersIndex} />
                           </Route>
-                          <Route path="buckets" component={BucketsIndex}>
-                            <Route path=":bucketID">
+                          <Route path="load-data">
+                            <IndexRoute component={BucketsIndex} />
+                            <Route path="buckets" component={BucketsIndex}>
+                              <Route path=":bucketID">
+                                <Route
+                                  path="line-protocols/new"
+                                  component={LineProtocolWizard}
+                                />
+                                <Route
+                                  path="telegrafs/new"
+                                  component={CollectorsWizard}
+                                />
+                                <Route
+                                  path="scrapers/new"
+                                  component={CreateScraperOverlay}
+                                />
+                                <Route
+                                  path="edit"
+                                  component={UpdateBucketOverlay}
+                                />
+                                <Route
+                                  path="delete-data"
+                                  component={BucketsDeleteDataOverlay}
+                                />
+                                <Route
+                                  path="rename"
+                                  component={RenameBucketOverlay}
+                                />
+                              </Route>
+                            </Route>
+                            <Route path="telegrafs" component={TelegrafsPage}>
                               <Route
-                                path="line-protocols/new"
-                                component={LineProtocolWizard}
+                                path=":id/view"
+                                component={TelegrafConfigOverlay}
                               />
                               <Route
-                                path="telegrafs/new"
-                                component={CollectorsWizard}
+                                path=":id/instructions"
+                                component={TelegrafInstructionsOverlay}
                               />
+                              <Route path="new" component={CollectorsWizard} />
+                            </Route>
+                            <Route path="scrapers" component={ScrapersIndex}>
                               <Route
-                                path="scrapers/new"
+                                path="new"
                                 component={CreateScraperOverlay}
-                              />
-                              <Route
-                                path="edit"
-                                component={UpdateBucketOverlay}
-                              />
-                              <Route
-                                path="delete-data"
-                                component={BucketsDeleteDataOverlay}
-                              />
-                              <Route
-                                path="rename"
-                                component={RenameBucketOverlay}
                               />
                             </Route>
                           </Route>
@@ -312,12 +332,6 @@ class Root extends PureComponent {
                             />
                           </Route>
                           <Route path="labels" component={LabelsIndex} />
-                          <Route path="scrapers" component={ScrapersIndex}>
-                            <Route
-                              path="new"
-                              component={CreateScraperOverlay}
-                            />
-                          </Route>
                           <FeatureFlag name="alerting">
                             <Route path="alerting" component={AlertingIndex}>
                               <Route path="checks/new" component={NewCheckEO} />

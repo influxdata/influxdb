@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import _ from 'lodash'
 
 // Components
-import SettingsNavigation from 'src/settings/components/SettingsNavigation'
+import LoadDataNavigation from 'src/settings/components/LoadDataNavigation'
 import {
   Tabs,
   Orientation,
@@ -21,7 +21,7 @@ interface Props {
 }
 
 @ErrorHandling
-class SettingsTabbedPage extends PureComponent<Props> {
+class LoadDataTabbedPage extends PureComponent<Props> {
   public render() {
     const {activeTab, orgID, children} = this.props
 
@@ -32,7 +32,7 @@ class SettingsTabbedPage extends PureComponent<Props> {
             orientation={Orientation.Horizontal}
             className="tabs tabbed-page"
           >
-            <SettingsNavigation activeTab={activeTab} orgID={orgID} />
+            <LoadDataNavigation activeTab={activeTab} orgID={orgID} />
             <Tabs.TabContents
               padding={ComponentSize.Large}
               backgroundColor={InfluxColors.Castle}
@@ -46,4 +46,4 @@ class SettingsTabbedPage extends PureComponent<Props> {
   }
 }
 
-export default SettingsTabbedPage
+export default LoadDataTabbedPage

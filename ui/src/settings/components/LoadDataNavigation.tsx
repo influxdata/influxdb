@@ -24,44 +24,29 @@ interface OwnProps {
 type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
-class SettingsNavigation extends PureComponent<Props> {
+class LoadDataNavigation extends PureComponent<Props> {
   public render() {
     const {activeTab, orgID, router} = this.props
 
     const handleTabClick = (id: string): void => {
-      router.push(`/orgs/${orgID}/${id}`)
+      router.push(`/orgs/${orgID}/load-data/${id}`)
     }
 
     const tabs = [
       {
-        text: 'Members',
-        id: 'members',
+        text: 'Buckets',
+        id: 'buckets',
         cloudExclude: false,
       },
       {
-        text: 'Variables',
-        id: 'variables',
+        text: 'Telegraf',
+        id: 'telegrafs',
         cloudExclude: false,
       },
       {
-        text: 'Templates',
-        id: 'templates',
-        cloudExclude: false,
-      },
-      {
-        text: 'Labels',
-        id: 'labels',
-        cloudExclude: false,
-      },
-      {
-        text: 'Tokens',
-        id: 'tokens',
-        cloudExclude: false,
-      },
-      {
-        text: 'Org Profile',
-        id: 'profile',
-        cloudExclude: false,
+        text: 'Scrapers',
+        id: 'scrapers',
+        cloudExclude: true,
       },
     ]
 
@@ -103,4 +88,4 @@ class SettingsNavigation extends PureComponent<Props> {
   }
 }
 
-export default withRouter(SettingsNavigation)
+export default withRouter(LoadDataNavigation)

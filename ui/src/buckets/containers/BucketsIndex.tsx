@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
-import SettingsHeader from 'src/settings/components/SettingsHeader'
+import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
+import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import {Page} from 'src/pageLayout'
 import BucketsTab from 'src/buckets/components/BucketsTab'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
@@ -26,8 +26,8 @@ class BucketsIndex extends Component<StateProps> {
     return (
       <>
         <Page titleTag={org.name}>
-          <SettingsHeader />
-          <SettingsTabbedPage activeTab="buckets" orgID={org.id}>
+          <LoadDataHeader />
+          <LoadDataTabbedPage activeTab="buckets" orgID={org.id}>
             <GetResources resource={ResourceTypes.Buckets}>
               <GetResources resource={ResourceTypes.Telegrafs}>
                 <GetAssetLimits>
@@ -35,7 +35,7 @@ class BucketsIndex extends Component<StateProps> {
                 </GetAssetLimits>
               </GetResources>
             </GetResources>
-          </SettingsTabbedPage>
+          </LoadDataTabbedPage>
         </Page>
         {children}
       </>
