@@ -809,6 +809,7 @@ type errorCollectingTableIterator struct {
 func (ti *errorCollectingTableIterator) Do(f func(t flux.Table) error) error {
 	err := ti.TableIterator.Do(f)
 	if err != nil {
+		err = handleFluxError(err)
 		ti.q.addRuntimeError(err)
 	}
 	return err
