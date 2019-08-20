@@ -542,6 +542,12 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		return nil, influxdb.ErrOrgNotFound
 	}
 
+	// TODO: Uncomment this once the checks/notifications no longer create tasks in kv
+	// confirm the owner is a real user.
+	// if _, err = s.findUserByID(ctx, tx, tc.OwnerID); err != nil {
+	// 	return nil, influxdb.ErrInvalidOwnerID
+	// }
+
 	opt, err := options.FromScript(tc.Flux)
 	if err != nil {
 		return nil, influxdb.ErrTaskOptionParse(err)
@@ -680,15 +686,6 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		if options.Offset != nil {
 			task.Offset = options.Offset.String()
 		}
-	}
-
-	// update the Token
-	if upd.Token != "" {
-		auth, err := s.findAuthorizationByToken(ctx, tx, upd.Token)
-		if err != nil {
-			return nil, err
-		}
-		task.AuthorizationID = auth.ID
 	}
 
 	if upd.Description != nil {

@@ -79,10 +79,10 @@ var (
 		Msg:  "run limit is out of bounds, must be between 1 and 500",
 	}
 
-	// ErrMissingToken is called when trying to create a Task without providing a token
-	ErrMissingToken = &Error{
+	// ErrInvalidOwnerID is called when trying to create a task with out a valid ownerID
+	ErrInvalidOwnerID = &Error{
 		Code: EInvalid,
-		Msg:  "cannot create task without valid token",
+		Msg:  "cannot create task with invalid ownerID",
 	}
 )
 

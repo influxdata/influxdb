@@ -145,7 +145,6 @@ type TaskCreate struct {
 	Status         string `json:"status,omitempty"`
 	OrganizationID ID     `json:"orgID,omitempty"`
 	Organization   string `json:"org,omitempty"`
-	Token          string `json:"-"`
 	OwnerID        ID     `json:"-"`
 }
 
@@ -172,9 +171,6 @@ type TaskUpdate struct {
 
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.
 	Options options.Options // when we unmarshal this gets unmarshalled from flat key-values
-
-	// Optional token override.
-	Token string `json:"token,omitempty"`
 }
 
 func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
@@ -199,8 +195,6 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 		Concurrency *int64 `json:"concurrency,omitempty"`
 
 		Retry *int64 `json:"retry,omitempty"`
-
-		Token string `json:"token,omitempty"`
 	}{}
 
 	if err := json.Unmarshal(data, &jo); err != nil {
@@ -218,8 +212,6 @@ func (t *TaskUpdate) UnmarshalJSON(data []byte) error {
 	t.Options.Retry = jo.Retry
 	t.Flux = jo.Flux
 	t.Status = jo.Status
-	t.Token = jo.Token
-
 	return nil
 }
 
@@ -242,8 +234,6 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 		Concurrency *int64 `json:"concurrency,omitempty"`
 
 		Retry *int64 `json:"retry,omitempty"`
-
-		Token string `json:"token,omitempty"`
 	}{}
 	jo.Name = t.Options.Name
 	jo.Cron = t.Options.Cron
@@ -257,7 +247,6 @@ func (t TaskUpdate) MarshalJSON() ([]byte, error) {
 	jo.Retry = t.Options.Retry
 	jo.Flux = t.Flux
 	jo.Status = t.Status
-	jo.Token = t.Token
 	return json.Marshal(jo)
 }
 
@@ -265,7 +254,7 @@ func (t TaskUpdate) Validate() error {
 	switch {
 	case !t.Options.Every.IsZero() && t.Options.Cron != "":
 		return errors.New("cannot specify both every and cron")
-	case t.Flux == nil && t.Status == nil && t.Options.IsZero() && t.Token == "":
+	case t.Flux == nil && t.Status == nil && t.Options.IsZero():
 		return errors.New("cannot update task without content")
 	case t.Status != nil && *t.Status != TaskStatusActive && *t.Status != TaskStatusInactive:
 		return fmt.Errorf("invalid task status: %q", *t.Status)

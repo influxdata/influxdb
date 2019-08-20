@@ -119,7 +119,7 @@ func TestCoordinator(t *testing.T) {
 	releaseChan := sched.TaskReleaseChan()
 	updateChan := sched.TaskUpdateChan()
 
-	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +149,7 @@ func TestCoordinator(t *testing.T) {
 		t.Fatal("task sent to scheduler doesn't match task created")
 	}
 
-	task, err = coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	task, err = coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +219,7 @@ func TestCoordinator_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 
 	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
 
-	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestCoordinator_DeleteUnclaimedTask(t *testing.T) {
 	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
-	task, err := ts.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	task, err := ts.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +296,7 @@ func TestCoordinator_ClaimExistingTasks(t *testing.T) {
 
 	createdIDs := make([]platform.ID, numTasks)
 	for i := 0; i < numTasks; i++ {
-		ctr := platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script}
+		ctr := platform.TaskCreate{OrganizationID: 1, Flux: script}
 		if i == inactiveTaskIndex {
 			ctr.Status = string(backend.TaskInactive)
 		}
@@ -362,7 +362,7 @@ func TestCoordinator_ForceRun(t *testing.T) {
 	coord := coordinator.New(zaptest.NewLogger(t), sched, ts, coordinator.WithoutExistingTasks())
 
 	// Create an isolated task directly through the store so the coordinator doesn't know about it.
-	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Token: "token", Flux: script})
+	task, err := coord.CreateTask(context.Background(), platform.TaskCreate{OrganizationID: 1, Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
