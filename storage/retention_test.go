@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"math"
 	"math/rand"
 	"reflect"
@@ -12,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -96,9 +96,7 @@ func TestMetrics_Retention(t *testing.T) {
 	base := namespace + "_" + retentionSubsystem + "_"
 
 	// Generate some measurements.
-	for i, tracker := range []*retentionTracker{t1, t2} {
-		tracker.IncChecks(influxdb.ID(i+1), influxdb.ID(i+1), true)
-		tracker.IncChecks(influxdb.ID(i+1), influxdb.ID(i+1), false)
+	for _, tracker := range []*retentionTracker{t1, t2} {
 		tracker.CheckDuration(time.Second, true)
 		tracker.CheckDuration(time.Second, false)
 	}
@@ -111,8 +109,8 @@ func TestMetrics_Retention(t *testing.T) {
 
 	// The label variants for the two caches.
 	labelVariants := []prometheus.Labels{
-		prometheus.Labels{"engine_id": "0", "node_id": "0"},
-		prometheus.Labels{"engine_id": "1", "node_id": "0"},
+		{"engine_id": "0", "node_id": "0"},
+		{"engine_id": "1", "node_id": "0"},
 	}
 
 	for i, labels := range labelVariants {
@@ -126,14 +124,8 @@ func TestMetrics_Retention(t *testing.T) {
 			l["org_id"] = influxdb.ID(i + 1).String()
 			l["bucket_id"] = influxdb.ID(i + 1).String()
 
-			name := base + "checks_total"
-			metric := promtest.MustFindMetric(t, mfs, name, l)
-			if got, exp := metric.GetCounter().GetValue(), float64(1); got != exp {
-				t.Errorf("[%s %d %v] got %v, expected %v", name, i, l, got, exp)
-			}
-
-			name = base + "check_duration_seconds"
-			metric = promtest.MustFindMetric(t, mfs, name, labels)
+			name := base + "check_duration_seconds"
+			metric := promtest.MustFindMetric(t, mfs, name, labels)
 			if got, exp := metric.GetHistogram().GetSampleSum(), float64(1); got != exp {
 				t.Errorf("[%s %d %v] got %v, expected %v", name, i, labels, got, exp)
 			}
