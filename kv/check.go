@@ -320,8 +320,9 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, user
 
 	c.SetID(s.IDGenerator.ID())
 	c.SetOwnerID(userID)
-	c.SetCreatedAt(s.Now())
-	c.SetUpdatedAt(s.Now())
+	now := s.Now()
+	c.SetCreatedAt(now)
+	c.SetUpdatedAt(now)
 
 	if err := s.putCheck(ctx, tx, c); err != nil {
 		return err
