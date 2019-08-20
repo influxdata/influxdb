@@ -12,7 +12,7 @@ describe('Buckets', () => {
       cy.wrap(body.org).as('org')
       cy.wrap(bucket).as('bucket')
       cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/buckets`)
+        cy.visit(`${orgs}/${id}/load-data/buckets`)
       })
     })
   })
