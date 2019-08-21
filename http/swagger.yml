@@ -5264,6 +5264,101 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/checks/{checkID}/labels':
+    get:
+      operationId: GetChecksIDLabels
+      tags:
+        - Checks
+      summary: list all labels for a check
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of the check
+      responses:
+        '200':
+          description: a list of all labels for a check
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: PostChecksIDLabels
+      tags:
+        - Checks
+      summary: add a label to a check
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of the check
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '201':
+          description: the label was added to the check
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/checks/{checkID}/labels/{labelID}':
+    delete:
+      operationId: DeleteChecksIDLabelsID
+      tags:
+        - Checks
+      summary: delete label from a check
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of the check
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /notificationRules:
     get:
       operationId: GetNotificationRules
@@ -5494,6 +5589,101 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/notificationRules/{ruleID}/labels':
+    get:
+      operationId: GetNotificationRulesIDLabels
+      tags:
+        - NotificationRules
+      summary: list all labels for a notification rule
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of the notification rule
+      responses:
+        '200':
+          description: a list of all labels for a notification rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: PostNotificationRuleIDLabels
+      tags:
+        - NotificationRules
+      summary: add a label to a notification rule
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of the notification rule
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '201':
+          description: the label was added to the notification rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/notificationRules/{ruleID}/labels/{labelID}':
+    delete:
+      operationId: DeleteNotificationRulesIDLabelsID
+      tags:
+        - NotificationRules
+      summary: delete label from a notification rule
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of the notification rule
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /notificationEndpoints:
     get:
       operationId: GetNotificationEndpoints
@@ -5631,6 +5821,101 @@ paths:
           description: delete has been accepted
         '404':
           description: The endpoint was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/notificationEndpoints/{endpointID}/labels':
+    get:
+      operationId: GetNotificationEndpointsIDLabels
+      tags:
+        - NotificationEndpoints
+      summary: list all labels for a notification endpoint
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of the notification endpoint
+      responses:
+        '200':
+          description: a list of all labels for a notification endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelsResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      operationId: PostNotificationEndpointIDLabels
+      tags:
+        - NotificationEndpoints
+      summary: add a label to a notification endpoint
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of the notification endpoint
+      requestBody:
+        description: label to add
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LabelMapping"
+      responses:
+        '201':
+          description: the label was added to the notification endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LabelResponse"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/notificationEndpoints/{endpointID}/labels/{labelID}':
+    delete:
+      operationId: DeleteNotificationEndpointsIDLabelsID
+      tags:
+        - NotificationEndpoints
+      summary: delete label from a notification endpoint
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of the notification endpoint
+        - in: path
+          name: labelID
+          schema:
+            type: string
+          required: true
+          description: the label id to delete
+      responses:
+        '204':
+          description: delete has been accepted
+        '404':
+          description: dashboard not found
           content:
             application/json:
               schema:
