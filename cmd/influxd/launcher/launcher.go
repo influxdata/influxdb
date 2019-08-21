@@ -429,7 +429,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.reg = prom.NewRegistry()
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
-		infprom.NewInfluxCollector(m.boltClient, info),
+		infprom.NewInfluxCollector(m.kvService, info),
 	)
 	m.reg.WithLogger(m.logger)
 	m.reg.MustRegister(m.boltClient)
