@@ -127,7 +127,7 @@ const CheckPlot: FunctionComponent<Props> = ({
         render: ({yScale, yDomain}) => (
           <ThresholdMarkers
             key="custom"
-            thresholds={thresholds}
+            thresholds={thresholds || []}
             onSetThresholds={updateTimeMachineCheckThresholds}
             yScale={yScale}
             yDomain={yDomain}

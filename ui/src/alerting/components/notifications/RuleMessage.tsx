@@ -21,13 +21,13 @@ interface Props {
 const RuleMessage: FC<Props> = ({endpoints, rule}) => {
   const dispatch = useRuleDispatch()
 
-  const onSelectEndpoint = notifyEndpointID => {
+  const onSelectEndpoint = endpointID => {
     dispatch({
       type: 'UPDATE_RULE',
       rule: {
         ...rule,
-        ...getRuleVariantDefaults(endpoints, notifyEndpointID),
-        notifyEndpointID,
+        ...getRuleVariantDefaults(endpoints, endpointID),
+        endpointID,
       },
     })
   }
@@ -42,7 +42,7 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
               <RuleEndpointDropdown
                 endpoints={endpoints}
                 onSelectEndpoint={onSelectEndpoint}
-                selectedEndpointID={rule.notifyEndpointID}
+                selectedEndpointID={rule.endpointID}
               />
             </Form.Element>
             <RuleMessageContents rule={rule} />

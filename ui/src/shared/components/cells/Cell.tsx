@@ -12,7 +12,7 @@ import {SpinnerContainer} from '@influxdata/clockface'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 
 // Utils
-import {getView, getCheckForView} from 'src/dashboards/selectors'
+import {getView, getCheckForView, getViewStatus} from 'src/dashboards/selectors'
 
 // Types
 import {
@@ -165,11 +165,9 @@ class CellComponent extends Component<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const {
-    views: {status},
-  } = state
-
   const view = getView(state, ownProps.cell.id)
+
+  const status = getViewStatus(state, ownProps.cell.id)
 
   const check = getCheckForView(state, view)
 
