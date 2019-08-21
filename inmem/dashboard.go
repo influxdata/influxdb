@@ -129,8 +129,9 @@ func (s *Service) FindDashboards(ctx context.Context, filter platform.DashboardF
 // CreateDashboard implements platform.DashboardService interface.
 func (s *Service) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	d.ID = s.IDGenerator.ID()
-	d.Meta.CreatedAt = s.Now()
-	d.Meta.UpdatedAt = s.Now()
+	now := s.Now()
+	d.Meta.CreatedAt = now
+	d.Meta.UpdatedAt = now
 	err := s.PutDashboardWithMeta(ctx, d)
 	if err != nil {
 		return &platform.Error{

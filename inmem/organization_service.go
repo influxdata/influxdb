@@ -190,8 +190,9 @@ func (s *Service) CreateOrganization(ctx context.Context, o *platform.Organizati
 		}
 	}
 	o.ID = s.IDGenerator.ID()
-	o.CreatedAt = s.Now()
-	o.UpdatedAt = s.Now()
+	now := s.Now()
+	o.CreatedAt = now
+	o.UpdatedAt = now
 	err := s.PutOrganization(ctx, o)
 	if err != nil {
 		return &platform.Error{

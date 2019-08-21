@@ -242,8 +242,9 @@ func (s *Service) CreateBucket(ctx context.Context, b *platform.Bucket) error {
 		}
 	}
 	b.ID = s.IDGenerator.ID()
-	b.CreatedAt = s.Now()
-	b.UpdatedAt = s.Now()
+	now := s.Now()
+	b.CreatedAt = now
+	b.UpdatedAt = now
 	return s.PutBucket(ctx, b)
 }
 

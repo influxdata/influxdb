@@ -300,8 +300,9 @@ func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) er
 			return err
 		}
 
-		d.Meta.CreatedAt = s.Now()
-		d.Meta.UpdatedAt = s.Now()
+		now := s.Now()
+		d.Meta.CreatedAt = now
+		d.Meta.UpdatedAt = now
 
 		if err := s.putDashboardWithMeta(ctx, tx, d); err != nil {
 			return err

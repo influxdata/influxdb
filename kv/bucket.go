@@ -383,8 +383,9 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 	}
 
 	b.ID = s.IDGenerator.ID()
-	b.CreatedAt = s.Now()
-	b.UpdatedAt = s.Now()
+	now := s.Now()
+	b.CreatedAt = now
+	b.UpdatedAt = now
 
 	if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
 		return &influxdb.Error{

@@ -249,8 +249,9 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 	}
 
 	o.ID = s.IDGenerator.ID()
-	o.CreatedAt = s.Now()
-	o.UpdatedAt = s.Now()
+	now := s.Now()
+	o.CreatedAt = now
+	o.UpdatedAt = now
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
 		return &influxdb.Error{
 			Err: err,
