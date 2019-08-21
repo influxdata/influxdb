@@ -171,6 +171,7 @@ func CreateBucket(
 				bucket: &influxdb.Bucket{
 					Name:  "bucket2",
 					OrgID: MustIDBase16(orgTwoID),
+					Type:  influxdb.BucketTypeTasks,
 				},
 			},
 			wants: wants{
@@ -184,6 +185,7 @@ func CreateBucket(
 						ID:    MustIDBase16(bucketTwoID),
 						Name:  "bucket2",
 						OrgID: MustIDBase16(orgTwoID),
+						Type:  influxdb.BucketTypeTasks,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),

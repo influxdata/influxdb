@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -10,9 +9,23 @@ import (
 // BucketType defines known system-buckets.
 type BucketType int
 
+// String converts a BucketType into a human-readable string.
+func (bt BucketType) String() string {
+	if bt == 0 {
+		return "user"
+	}
+
+	return [...]string{"logs", "tasks", "monitoring"}[bt-10]
+}
+
 const (
-	// BucketTypeLogs defines the bucket ID of the system logs.
-	BucketTypeLogs = BucketType(iota + 10)
+	// ~*~ User Buckets ~*~
+	BucketTypeUser = BucketType(0) // BucketTypeUser describes a user-created data bucket. Its use of a zero value ensures that it is the default type.
+
+	// ~*~ System Buckets ~*~
+	BucketTypeLogs       BucketType = iota + 10 // BucketTypeLogs defines the bucket ID of the system logs.
+	BucketTypeTasks                             // BucketTypeTasks defines the bucket ID of task run logs.
+	BucketTypeMonitoring                        // BucketTypeMonitoring defines the bucket ID of monitoring records.
 )
 
 // InfiniteRetention is default infinite retention period.
@@ -22,11 +35,17 @@ const InfiniteRetention = 0
 type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
 	OrgID               ID            `json:"orgID,omitempty"`
+	Type                BucketType    `json:"type"`
 	Name                string        `json:"name"`
 	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 	CRUDLog
+}
+
+// IsSystem returns true if the bucket is a reserved system bucket.
+func (b *Bucket) IsSystem() bool {
+	return b.Type != 0
 }
 
 // ops for buckets error and buckets op logs.
@@ -118,9 +137,4 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-// InternalBucketID returns the ID for an organization's specified internal bucket
-func InternalBucketID(t BucketType) (*ID, error) {
-	return IDFromString(fmt.Sprintf("%d", t))
 }

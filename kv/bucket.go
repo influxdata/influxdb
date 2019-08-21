@@ -448,6 +448,10 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	if b.Type == 0 {
+		b.Type = influxdb.BucketTypeUser
+	}
+
 	v, err := json.Marshal(b)
 	if err != nil {
 		return &influxdb.Error{
