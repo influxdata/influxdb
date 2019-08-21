@@ -18,11 +18,11 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 		Short: "Verifies the integrity of Series files",
 		Long: `Verifies the integrity of Series files.
 		Usage: influx_inspect verify-seriesfile [flags]
-			-series-file <path>
+			--series-file <path>
 					Path to a series file. This defaults to ` + os.Getenv("HOME") + `/.influxdbv2/engine/_series.
-			-v
+			--v
 					Enable verbose logging.
-			-c
+			--c
 					How many concurrent workers to run.
 					Defaults to "` + string(runtime.GOMAXPROCS(0)) + `" on this machine.`,
 		RunE: verifySeriesRun,
@@ -30,9 +30,9 @@ func NewVerifySeriesFileCommand() *cobra.Command {
 
 	verifySeriesCommand.Flags().StringVar(&VerifySeriesFlags.seriesFile, "series-file", os.Getenv("HOME")+"/.influxdbv2/engine/_series",
 		"Path to a series file. This defaults to "+os.Getenv("HOME")+"/.influxdbv2/engine/_series")
-	verifySeriesCommand.Flags().BoolVar(&VerifySeriesFlags.verbose, "v", false,
+	verifySeriesCommand.Flags().BoolVarP(&VerifySeriesFlags.verbose, "v", "v", false,
 		"Verbose output.")
-	verifySeriesCommand.Flags().IntVar(&VerifySeriesFlags.concurrent, "c", runtime.GOMAXPROCS(0),
+	verifySeriesCommand.Flags().IntVarP(&VerifySeriesFlags.concurrent, "c", "c", runtime.GOMAXPROCS(0),
 		"How many concurrent workers to run.")
 
 	return verifySeriesCommand
