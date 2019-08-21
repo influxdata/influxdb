@@ -1,38 +1,47 @@
 package wal
 
 import (
-	"encoding/binary"
 	"fmt"
-	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/tsdb/value"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"text/tabwriter"
+
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/value"
 )
 
-// Command represents the program execution for "influxd inspect dumptsmwal
-// This command will dump all entries from a given list of wal files
+// Command represents the program execution for "influxd inspect dumpmwal
+// This command will dump all entries from a given list WAL filepath globs
+
 type Dump struct {
-	// Standard input/output, overridden for testing.
+	// Standard input/output
 	Stderr io.Writer
 	Stdout io.Writer
 
 	// A list of files to dump
-	Files []string
+	FileGlobs []string
 
 	// Whether or not to check for duplicate/out of order entries
 	FindDuplicates bool
 }
 
 type DumpReport struct {
-	File          string
+	// The file this report corresponds to
+	File string
+	// Any keys found to be duplicated/out of order
 	DuplicateKeys []string
+	// A list of all the write wal entries from this file
+	Writes []*WriteWALEntry
+	// A list of all the delete wal entries from this file
+	Deletes []*DeleteBucketRangeWALEntry
 }
 
-// Run executes the command.
+// Run executes the dumpwal command, generating a list of DumpReports
+// for each requested file. The `print` flag indicates whether or not
+// the command should log output during execution.
 func (w *Dump) Run(print bool) ([]*DumpReport, error) {
 	if w.Stderr == nil {
 		w.Stderr = os.Stderr
@@ -46,34 +55,65 @@ func (w *Dump) Run(print bool) ([]*DumpReport, error) {
 		w.Stdout, w.Stderr = ioutil.Discard, ioutil.Discard
 	}
 
-	tw := tabwriter.NewWriter(w.Stdout, 8, 2, 1, ' ', 0)
+	twOut := tabwriter.NewWriter(w.Stdout, 8, 2, 1, ' ', 0)
+	twErr := tabwriter.NewWriter(w.Stderr, 8, 2, 1, ' ', 0)
 
-	// Process each TSM WAL file.
+	// Process each WAL file.
+	paths, err := globAndDedupe(w.FileGlobs)
+	if err != nil {
+		return nil, err
+	}
 
 	var reports []*DumpReport
-	for _, path := range w.Files {
-		duplicateKeys, err := w.process(tw, path)
+	for _, path := range paths {
+		r, err := w.process(path, twOut, twErr)
 		if err != nil {
 			return nil, err
 		}
 
-		r := &DumpReport{
-			File:          path,
-			DuplicateKeys: duplicateKeys,
-		}
 		reports = append(reports, r)
 	}
 
 	return reports, nil
 }
 
-func (w *Dump) process(out io.Writer, path string) ([]string, error) {
-	if filepath.Ext(path) != "."+WALFileExtension {
-		fmt.Fprintf(out, "invalid wal filename, skipping %s", path)
-		return nil, nil
+func globAndDedupe(globs []string) ([]string, error) {
+	files := make(map[string]struct{})
+	for _, filePattern := range globs {
+		matches, err := filepath.Glob(filePattern)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, match := range matches {
+			files[match] = struct{}{}
+		}
 	}
 
-	fmt.Fprintf(out, "File: %s\n", path)
+	return sortKeys(files), nil
+}
+
+func sortKeys(m map[string]struct{}) []string {
+	s := make([]string, 0, len(m))
+	for k := range m {
+		s = append(s, k)
+	}
+	sort.Strings(s)
+
+	return s
+}
+
+func (w *Dump) process(path string, stdout, stderr io.Writer) (*DumpReport, error) {
+	if filepath.Ext(path) != "."+WALFileExtension {
+		fmt.Fprintf(stderr, "invalid wal filename, skipping %s", path)
+		return nil, fmt.Errorf("invalid wal filename: %s", path)
+	}
+
+	report := &DumpReport{
+		File: path,
+	}
+
+	fmt.Fprintf(stdout, "File: %s\n", path)
 
 	// Track the earliest timestamp for each key and a set of keys with out-of-order points.
 	minTimestampByKey := make(map[string]int64)
@@ -87,18 +127,22 @@ func (w *Dump) process(out io.Writer, path string) ([]string, error) {
 	defer f.Close()
 	r := NewWALSegmentReader(f)
 
-	// Iterate over the WAL entries.
+	// Iterate over the WAL entries
 	for r.Next() {
 		entry, err := r.Read()
 		if err != nil {
-			return nil, fmt.Errorf("cannot read entry: %s", err)
+			fmt.Fprintf(stdout, "Error: cannot read entry: %v ", err)
+			return nil, fmt.Errorf("cannot read entry: %v", err)
 		}
 
 		switch entry := entry.(type) {
 		case *WriteWALEntry:
+			// MarshalSize must always be called to make sure the size of the entry is set
+			sz := entry.MarshalSize()
 			if !w.FindDuplicates {
-				fmt.Fprintf(out, "[write] sz=%d\n", entry.MarshalSize())
+				fmt.Fprintf(stdout, "[write] sz=%d\n", sz)
 			}
+			report.Writes = append(report.Writes, entry)
 
 			keys := make([]string, 0, len(entry.Values))
 			for k := range entry.Values {
@@ -110,43 +154,49 @@ func (w *Dump) process(out io.Writer, path string) ([]string, error) {
 				fmtKey, err := formatKeyOrgBucket(k)
 				// if key cannot be properly formatted with org and bucket, skip printing
 				if err != nil {
-					fmt.Fprintf(out, "Error: %v\n", err)
-					continue
+					fmt.Fprintf(stderr, "Invalid key: %v\n", err)
+					return nil, fmt.Errorf("invalid key: %v", err)
 				}
+
 				for _, v := range entry.Values[k] {
 					t := v.UnixNano()
 
-					// Check for duplicate/out of order keys.
-					if min, ok := minTimestampByKey[k]; ok && t <= min {
-						duplicateKeys[k] = struct{}{}
-					}
-					minTimestampByKey[k] = t
-
 					// Skip printing if we are only showing duplicate keys.
 					if w.FindDuplicates {
+						// Check for duplicate/out of order keys.
+						if min, ok := minTimestampByKey[k]; ok && t <= min {
+							duplicateKeys[k] = struct{}{}
+						}
+						minTimestampByKey[k] = t
 						continue
 					}
 
 					switch v := v.(type) {
 					case value.IntegerValue:
-						fmt.Fprintf(out, "%s %vi %d\n", fmtKey, v.Value(), t)
+						fmt.Fprintf(stdout, "%s %vi %d\n", fmtKey, v.Value(), t)
 					case value.UnsignedValue:
-						fmt.Fprintf(out, "%s %vu %d\n", fmtKey, v.Value(), t)
+						fmt.Fprintf(stdout, "%s %vu %d\n", fmtKey, v.Value(), t)
 					case value.FloatValue:
-						fmt.Fprintf(out, "%s %v %d\n", fmtKey, v.Value(), t)
+						fmt.Fprintf(stdout, "%s %v %d\n", fmtKey, v.Value(), t)
 					case value.BooleanValue:
-						fmt.Fprintf(out, "%s %v %d\n", fmtKey, v.Value(), t)
+						fmt.Fprintf(stdout, "%s %v %d\n", fmtKey, v.Value(), t)
 					case value.StringValue:
-						fmt.Fprintf(out, "%s %q %d\n", fmtKey, v.Value(), t)
+						fmt.Fprintf(stdout, "%s %q %d\n", fmtKey, v.Value(), t)
 					default:
-						fmt.Fprintf(out, "%s EMPTY\n", fmtKey)
+						fmt.Fprintf(stdout, "%s EMPTY\n", fmtKey)
 					}
 				}
 			}
 		case *DeleteBucketRangeWALEntry:
 			bucketID := entry.BucketID.String()
 			orgID := entry.OrgID.String()
-			fmt.Fprintf(out, "[delete-bucket-range] org=%s bucket=%s min=%d max=%d sz=%d\n", orgID, bucketID, entry.Min, entry.Max, entry.MarshalSize())
+
+			// MarshalSize must always be called to make sure the size of the entry is set
+			sz := entry.MarshalSize()
+			if !w.FindDuplicates {
+				fmt.Fprintf(stdout, "[delete-bucket-range] org=%s bucket=%s min=%d max=%d sz=%d\n", orgID, bucketID, entry.Min, entry.Max, sz)
+			}
+			report.Deletes = append(report.Deletes, entry)
 		default:
 			return nil, fmt.Errorf("invalid wal entry: %#v", entry)
 		}
@@ -160,35 +210,37 @@ func (w *Dump) process(out io.Writer, path string) ([]string, error) {
 		}
 		sort.Strings(keys)
 
-		fmt.Fprintln(out, "Duplicate/out of order keys:")
+		fmt.Fprintln(stdout, "Duplicate/out of order keys:")
 		for _, k := range keys {
 			fmtKey, err := formatKeyOrgBucket(k)
 			// don't print keys that cannot be formatted with org/bucket
 			if err != nil {
-				fmt.Fprintf(out, "Error: %v\n", err)
+				fmt.Fprintf(stderr, "Error: %v\n", err)
 				continue
 			}
-			fmt.Fprintf(out, "  %s\n", fmtKey)
+			fmt.Fprintf(stdout, "  %s\n", fmtKey)
 		}
-		return keys, nil
+		report.DuplicateKeys = keys
 	}
 
-	return nil, nil
+	return report, nil
 }
 
 // removes the first 16 bytes of the key, formats as org and bucket id (hex),
-// and re-appends to the key so that it can be pretty-printed
+// and re-appends to the key so that it can be pretty printed
 func formatKeyOrgBucket(key string) (string, error) {
 	b := []byte(key)
 	if len(b) < 16 {
 		return "", fmt.Errorf("key too short to format with org and bucket")
 	}
-	u1 := binary.BigEndian.Uint64(b[0:8])  // org
-	u2 := binary.BigEndian.Uint64(b[8:16]) // bucket
 
-	org := influxdb.ID(u1)
-	bucket := influxdb.ID(u2)
-	idOrgStr := fmt.Sprintf("%s%s", org.String(), bucket.String())
+	var a [16]byte
+	copy(a[:], b[:16])
 
-	return idOrgStr + string(b[16:]), nil
+	org, bucket := tsdb.DecodeName(a)
+
+	s := fmt.Sprintf("%s%s", org.String(), bucket.String())
+	k := s + string(b[16:])
+
+	return k, nil
 }

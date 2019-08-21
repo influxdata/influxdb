@@ -1,44 +1,51 @@
 package inspect
 
 import (
+	"os"
+
 	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/spf13/cobra"
-	"os"
 )
 
-var dumpTSMWALFlags = struct {
+var dumpWALFlags = struct {
 	findDuplicates bool
 }{}
 
-func NewDumpTSMWALCommand() *cobra.Command {
+func NewDumpWALCommand() *cobra.Command {
 	dumpTSMWALCommand := &cobra.Command{
-		Use:   "dumptsmwal",
+		Use:   "dumpwal",
 		Short: "Dump TSM data from WAL files",
 		Long: `
-This tool dumps data from WAL files for debugging purposes. Given a list of .wal files,
-the tool will parse and print out the entries in each file. For each file, the following is printed:
+This tool dumps data from WAL files for debugging purposes. Given a list of filepath globs 
+(patterns which match to .wal file paths), the tool will parse and print out the entries in each file. 
+It has two modes of operation, depending on the --find-duplicates flag.
+
+--find-duplicates=false (default): for each file, the following is printed:
 	* The file name
 	* for each entry,
 		* The type of the entry (either [write] or [delete-bucket-range]);
 		* The formatted entry contents
-If the tool is run with --find-duplicates=true, A list of all keys with duplicate or out of order timestamps will 
-be printed.
+--find-duplicates=true: for each file, the following is printed:
+	* The file name
+	* A list of keys in the file that have out of order timestamps
 `,
-		RunE: inspectDumpTSMWAL,
+		RunE: inspectDumpWAL,
 	}
 
-	dumpTSMWALCommand.Flags().BoolVarP(&dumpTSMWALFlags.findDuplicates, "find-duplicates", "", false, "report keys with out of order points")
+	dumpTSMWALCommand.Flags().BoolVarP(
+		&dumpWALFlags.findDuplicates,
+		"find-duplicates", "", false, "ignore dumping entries; only report keys in the WAL that are out of order")
 
 	return dumpTSMWALCommand
 }
 
-func inspectDumpTSMWAL(cmd *cobra.Command, args []string) error {
+func inspectDumpWAL(cmd *cobra.Command, args []string) error {
 	dumper := &wal.Dump{
 		Stdout:         os.Stdout,
 		Stderr:         os.Stderr,
-		Files:          args,
-		FindDuplicates: dumpTSMWALFlags.findDuplicates,
+		FileGlobs:      args,
+		FindDuplicates: dumpWALFlags.findDuplicates,
 	}
 
 	if len(args) == 0 {
