@@ -205,8 +205,8 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/changelog v1.0.0 h1:RstJD6H48zLQj0GdE6E6k/6RPwtUjkyzIe/T1E/xuWU=
 github.com/influxdata/changelog v1.0.0/go.mod h1:uzpGWE/qehT8L426YuXwpMQub+a63vIINhIeEI9mnSM=
-github.com/influxdata/flux v0.40.0 h1:OAg06wcfUAFHFWH9aNQA1biC3iWNf6kwUn4uoCob5ow=
-github.com/influxdata/flux v0.40.0/go.mod h1:QvF9P06HFgYKD28Z556rFLJ0D0bvtcgEtkFALteZ4Lo=
+github.com/influxdata/flux v0.40.1 h1:n2/KDNhNukvIyCg060enTWJtPcdNhPKWlkIfIao4+aE=
+github.com/influxdata/flux v0.40.1/go.mod h1:QvF9P06HFgYKD28Z556rFLJ0D0bvtcgEtkFALteZ4Lo=
 github.com/influxdata/goreleaser v0.97.0-influx h1:jT5OrcW7WfS0e2QxfwmTBjhLvpIC9CDLRhNgZJyhj8s=
 github.com/influxdata/goreleaser v0.97.0-influx/go.mod h1:MnjA0e0Uq6ISqjG1WxxMAl+3VS1QYjILSWVnMYDxasE=
 github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6 h1:CFx+pP90q/qg3spoiZjf8donE4WpAdjeJfPOcoNqkWo=
