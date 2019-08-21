@@ -6520,6 +6520,9 @@ components:
                 - labels
                 - views
                 - documents
+                - notificationRules
+                - notificationEndpoints
+                - checks
             id:
               type: string
               nullable: true
@@ -6591,12 +6594,10 @@ components:
               properties:
                 self:
                   readOnly: true
-                  type: string
-                  format: uri
+                  $ref: "#/components/schemas/Link"
                 user:
                   readOnly: true
-                  type: string
-                  format: uri
+                  $ref: "#/components/schemas/Link"
     Authorizations:
       type: object
       properties:
@@ -6856,6 +6857,7 @@ components:
         log:
           description: An array of logs associated with the run.
           type: array
+          readOnly: true
           items:
             type: object
             properties:
@@ -9203,6 +9205,9 @@ components:
         flux:
           description: The Flux script to run for this task.
           type: string
+        description:
+          description: An optional description of the task.
+          type: string
       required: [flux]
     TaskUpdateRequest:
       type: object
@@ -9223,6 +9228,9 @@ components:
           type: string
         offset:
           description: Override the 'offset' option in the flux script.
+          type: string
+        description:
+          description: An optional description of the task.
           type: string
     FluxResponse:
       description: Rendered flux that backs the check or notification.
