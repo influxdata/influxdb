@@ -1090,10 +1090,10 @@
   resolved "https://registry.yarnpkg.com/@iarna/toml/-/toml-2.2.3.tgz#f060bf6eaafae4d56a7dac618980838b0696e2ab"
   integrity sha512-FmuxfCuolpLl0AnQ2NHSzoUKWEJDFl63qXjzdoWBVyFCXzMGm1spBzk7LeHNoVCiWCF7mRVms9e6jEV9+MoPbg==
 
-"@influxdata/clockface@0.0.25":
-  version "0.0.25"
-  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-0.0.25.tgz#95beae4a6158ba3cac3a80a5ff7badff50eca83e"
-  integrity sha512-0AHf59PnOij8PvyrU691bC6g4dOqvbAaTC+0cxAv3/+9B9J4B3lEorIuBES/0vqS9kB/dXhra6Wt9Aueo2Y0OQ==
+"@influxdata/clockface@0.0.27":
+  version "0.0.27"
+  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-0.0.27.tgz#e5720ccdc72762b1196853788509f3f2775f3376"
+  integrity sha512-hdrMBwN7LhYO2Hg1O3+fmWF8/c8E14f0cYLUhcfmv2Bjfn7cqEplxk6RGLdYk57jcaT1pWvuf81LrPJViKUyvA==
 
 "@influxdata/flux-parser@^0.3.0":
   version "0.3.0"
