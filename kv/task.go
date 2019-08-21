@@ -542,11 +542,9 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		return nil, influxdb.ErrOrgNotFound
 	}
 
-	// TODO: Uncomment this once the checks/notifications no longer create tasks in kv
-	// confirm the owner is a real user.
-	// if _, err = s.findUserByID(ctx, tx, tc.OwnerID); err != nil {
-	// 	return nil, influxdb.ErrInvalidOwnerID
-	// }
+	if _, err = s.findUserByID(ctx, tx, tc.OwnerID); err != nil {
+		return nil, influxdb.ErrInvalidOwnerID
+	}
 
 	opt, err := options.FromScript(tc.Flux)
 	if err != nil {
