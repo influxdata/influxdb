@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influxd/internal/profile"
 	"github.com/influxdata/influxdb/internal/fs"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/spf13/cobra"
 )
@@ -82,23 +83,28 @@ func assignOrgBucket(spec *gen.Spec) error {
 	if err != nil {
 		return err
 	}
-	c := bolt.NewClient()
-	c.Path = boltFile
-	if err := c.Open(context.Background()); err != nil {
+
+	store := bolt.NewKVStore(boltFile)
+	if err = store.Open(context.Background()); err != nil {
 		return err
 	}
 
-	org, err := c.FindOrganizationByName(context.Background(), flags.storageSpec.Organization)
+	s := kv.NewService(store)
+	if err = s.Initialize(context.Background()); err != nil {
+		return err
+	}
+
+	org, err := s.FindOrganizationByName(context.Background(), flags.storageSpec.Organization)
 	if err != nil {
 		return err
 	}
 
-	bucket, err := c.FindBucketByName(context.Background(), org.ID, flags.storageSpec.Bucket)
+	bucket, err := s.FindBucketByName(context.Background(), org.ID, flags.storageSpec.Bucket)
 	if err != nil {
 		return err
 	}
 
-	c.Close()
+	store.Close()
 
 	spec.OrgID = org.ID
 	spec.BucketID = bucket.ID
