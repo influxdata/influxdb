@@ -10,7 +10,7 @@ import (
 
 // BucketDeleter defines the behaviour of deleting a bucket.
 type BucketDeleter interface {
-	DeleteBucket(platform.ID, platform.ID) error
+	DeleteBucket(context.Context, platform.ID, platform.ID) error
 }
 
 // BucketService wraps an existing platform.BucketService implementation.
@@ -102,7 +102,7 @@ func (s *BucketService) DeleteBucket(ctx context.Context, bucketID platform.ID) 
 	// The data is dropped first from the storage engine. If this fails for any
 	// reason, then the bucket will still be available in the future to retrieve
 	// the orgID, which is needed for the engine.
-	if err := s.engine.DeleteBucket(bucket.OrgID, bucketID); err != nil {
+	if err := s.engine.DeleteBucket(ctx, bucket.OrgID, bucketID); err != nil {
 		return err
 	}
 	return s.inner.DeleteBucket(ctx, bucketID)

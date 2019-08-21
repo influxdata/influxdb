@@ -2,12 +2,14 @@ package tsm1
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
@@ -386,7 +388,10 @@ func (c *Cache) Values(key []byte) Values {
 // DeleteBucketRange removes values for all keys containing points
 // with timestamps between min and max contained in the bucket identified
 // by name from the cache.
-func (c *Cache) DeleteBucketRange(name []byte, min, max int64, pred Predicate) {
+func (c *Cache) DeleteBucketRange(ctx context.Context, name []byte, min, max int64, pred Predicate) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	// TODO(edd/jeff): find a way to optimize lock usage
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -498,7 +503,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			encoded := tsdb.EncodeName(en.OrgID, en.BucketID)
 			name := models.EscapeMeasurement(encoded[:])
 
-			cache.DeleteBucketRange(name, en.Min, en.Max, pred)
+			cache.DeleteBucketRange(context.Background(), name, en.Min, en.Max, pred)
 			return nil
 		}
 

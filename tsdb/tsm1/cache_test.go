@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -176,7 +177,7 @@ func TestCache_Cache_DeleteBucketRange(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteBucketRange([]byte("bar"), 2, math.MaxInt64, nil)
+	c.DeleteBucketRange(context.Background(), []byte("bar"), 2, math.MaxInt64, nil)
 
 	if exp, keys := [][]byte{[]byte("bar"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
@@ -215,7 +216,7 @@ func TestCache_DeleteBucketRange_NoValues(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteBucketRange([]byte("foo"), math.MinInt64, math.MaxInt64, nil)
+	c.DeleteBucketRange(context.Background(), []byte("foo"), math.MinInt64, math.MaxInt64, nil)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
@@ -250,7 +251,7 @@ func TestCache_DeleteBucketRange_NotSorted(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteBucketRange([]byte("foo"), 1, 3, nil)
+	c.DeleteBucketRange(context.Background(), []byte("foo"), 1, 3, nil)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)
@@ -268,7 +269,7 @@ func TestCache_DeleteBucketRange_NotSorted(t *testing.T) {
 func TestCache_DeleteBucketRange_NonExistent(t *testing.T) {
 	c := NewCache(1024)
 
-	c.DeleteBucketRange([]byte("bar"), math.MinInt64, math.MaxInt64, nil)
+	c.DeleteBucketRange(context.Background(), []byte("bar"), math.MinInt64, math.MaxInt64, nil)
 
 	if got, exp := c.Size(), uint64(0); exp != got {
 		t.Fatalf("cache size incorrect exp %d, got %d", exp, got)
@@ -300,7 +301,7 @@ func TestCache_Cache_DeleteBucketRange_WithPredicate(t *testing.T) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteBucketRange([]byte("f"), 2, math.MaxInt64, stringPredicate("fee"))
+	c.DeleteBucketRange(context.Background(), []byte("f"), 2, math.MaxInt64, stringPredicate("fee"))
 
 	if exp, keys := [][]byte{[]byte("fee"), []byte("foo")}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after delete, exp %v, got %v", exp, keys)

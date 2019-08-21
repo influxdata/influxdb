@@ -3,9 +3,10 @@ package storage
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"math"
 	"time"
+
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -20,7 +21,7 @@ const (
 
 // A Deleter implementation is capable of deleting data from a storage engine.
 type Deleter interface {
-	DeleteBucketRange(orgID, bucketID influxdb.ID, min, max int64) error
+	DeleteBucketRange(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64) error
 }
 
 // A Snapshotter implementation can take snapshots of the entire engine.
@@ -130,7 +131,7 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 			continue
 		}
 
-		span, _ := tracing.StartSpanFromContext(ctx)
+		span, ctx := tracing.StartSpanFromContext(ctx)
 		span.LogKV(
 			"bucket", b.Name,
 			"org_id", b.OrgID,
@@ -138,7 +139,7 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 			"retention_policy", b.RetentionPolicyName)
 
 		max := now.Add(-b.RetentionPeriod).UnixNano()
-		err := s.Engine.DeleteBucketRange(b.OrgID, b.ID, math.MinInt64, max)
+		err := s.Engine.DeleteBucketRange(ctx, b.OrgID, b.ID, math.MinInt64, max)
 		if err != nil {
 			logger.Info("unable to delete bucket range",
 				zap.String("bucket id", b.ID.String()),
