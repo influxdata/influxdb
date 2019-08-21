@@ -24,7 +24,7 @@ const ThresholdRangeStatement: FC<Props> = ({threshold, changeRange}) => {
 
   return (
     <>
-      <FlexBox.FlexChild testID="component-spacer--flex-child">
+      <FlexBox.Child testID="component-spacer--flex-child">
         <Input
           onChange={onChangeMin}
           name="min"
@@ -32,9 +32,9 @@ const ThresholdRangeStatement: FC<Props> = ({threshold, changeRange}) => {
           type={InputType.Number}
           value={threshold.min}
         />
-      </FlexBox.FlexChild>
+      </FlexBox.Child>
       <TextBlock testID="text-block" text="to" />
-      <FlexBox.FlexChild testID="component-spacer--flex-child">
+      <FlexBox.Child testID="component-spacer--flex-child">
         <Input
           onChange={onChangeMax}
           disabledTitleText="This input is disabled"
@@ -43,7 +43,7 @@ const ThresholdRangeStatement: FC<Props> = ({threshold, changeRange}) => {
           type={InputType.Number}
           value={threshold.max}
         />
-      </FlexBox.FlexChild>
+      </FlexBox.Child>
     </>
   )
 }
