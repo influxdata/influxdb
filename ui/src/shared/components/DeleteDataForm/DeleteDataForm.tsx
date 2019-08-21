@@ -177,7 +177,9 @@ const DeleteDataForm: FunctionComponent<Props> = ({
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Panel className="delete-data-form--danger-zone">
-              <Panel.Header title="Danger Zone!" />
+              <Panel.Header>
+                <Panel.Title>Danger Zone!</Panel.Title>
+              </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
                 <Checkbox
                   label="I understand that this cannot be undone."

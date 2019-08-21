@@ -29,7 +29,8 @@ const AlertsColumnHeader: FC<Props> = ({
       backgroundColor={InfluxColors.Kevlar}
       className="alerting-index--column"
     >
-      <Panel.Header title={title}>
+      <Panel.Header>
+        <Panel.Title>{title}</Panel.Title>
         <Button
           text="Create"
           icon={IconFont.Plus}

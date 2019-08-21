@@ -30,14 +30,18 @@ class OrgProfileTab extends PureComponent<Props> {
   public render() {
     return (
       <Panel size={ComponentSize.Small} backgroundColor={InfluxColors.Onyx}>
-        <Panel.Header title="Organization Profile" />
+        <Panel.Header>
+          <Panel.Title>Organization Profile</Panel.Title>
+        </Panel.Header>
         <Panel.Body>
           <Form onSubmit={this.handleShowEditOverlay}>
             <Panel
               gradient={Gradients.DocScott}
               size={ComponentSize.ExtraSmall}
             >
-              <Panel.Header title="Danger Zone!" />
+              <Panel.Header>
+                <Panel.Title>Danger Zone!</Panel.Title>
+              </Panel.Header>
               <Panel.Body>
                 <FlexBox
                   stretchToFitWidth={true}
