@@ -50,74 +50,77 @@ exports[`Account rendering renders! 1`] = `
                   }
                 >
                   <PanelHeader
+                    alignItems="center"
+                    flexDirection="row"
+                    justifyContent="space-between"
                     testID="panel--header"
-                    title="About Me"
                   >
                     <div
                       className="cf-panel--header"
                       data-testid="panel--header"
                     >
-                      <div
-                        className="cf-panel--title"
+                      <FlexBox
+                        alignItems="center"
+                        direction="row"
+                        justifyContent="space-between"
+                        stretchToFitHeight={false}
+                        stretchToFitWidth={true}
+                        testID="flex-box"
                       >
-                        About Me
-                      </div>
-                      <div
-                        className="cf-panel--controls"
-                      >
-                        <FlexBox
-                          alignItems="center"
-                          direction="row"
-                          justifyContent="flex-end"
-                          stretchToFitHeight={false}
-                          stretchToFitWidth={false}
-                          testID="flex-box"
+                        <div
+                          className="cf-flex-box cf-flex-box__row cf-flex-box__justify-space-between cf-flex-box__align-center cf-flex-box__stretch-w"
+                          data-testid="flex-box"
                         >
-                          <div
-                            className="cf-flex-box cf-flex-box__row cf-flex-box__justify-flex-end cf-flex-box__align-center"
-                            data-testid="flex-box"
+                          <PanelTitle
+                            testID="panel--title"
                           >
-                            <Button
+                            <div
+                              className="cf-panel--title"
+                              data-testid="panel--title"
+                            >
+                              About Me
+                            </div>
+                          </PanelTitle>
+                          <Button
+                            active={false}
+                            color="default"
+                            placeIconAfterText={false}
+                            shape="none"
+                            size="sm"
+                            status="default"
+                            testID="button"
+                            text="Edit About Me"
+                            type="button"
+                          >
+                            <ButtonBase
                               active={false}
                               color="default"
-                              placeIconAfterText={false}
                               shape="none"
                               size="sm"
                               status="default"
+                              tabIndex={0}
                               testID="button"
-                              text="Edit About Me"
+                              titleText="Edit About Me"
                               type="button"
                             >
-                              <ButtonBase
-                                active={false}
-                                color="default"
-                                shape="none"
-                                size="sm"
-                                status="default"
+                              <button
+                                className="cf-button cf-button-sm cf-button-default"
+                                data-testid="button"
+                                disabled={false}
                                 tabIndex={0}
-                                testID="button"
-                                titleText="Edit About Me"
+                                title="Edit About Me"
                                 type="button"
                               >
-                                <button
-                                  className="cf-button cf-button-sm cf-button-default"
-                                  data-testid="button"
-                                  disabled={false}
-                                  tabIndex={0}
-                                  title="Edit About Me"
-                                  type="button"
+                                <span
+                                  className="cf-button--label"
                                 >
-                                  <span
-                                    className="cf-button--label"
-                                  >
-                                    Edit About Me
-                                  </span>
-                                </button>
-                              </ButtonBase>
-                            </Button>
-                          </div>
-                        </FlexBox>
-                      </div>
+                                  Edit About Me
+                                </span>
+                              </button>
+                            </ButtonBase>
+                          </Button>
+                        </div>
+                      </FlexBox>
                     </div>
                   </PanelHeader>
                   <PanelBody
@@ -128,6 +131,7 @@ exports[`Account rendering renders! 1`] = `
                       data-testid="panel--body"
                     >
                       <Form
+                        preventDefault={true}
                         testID="form-container"
                       >
                         <form
@@ -163,6 +167,7 @@ exports[`Account rendering renders! 1`] = `
                                 name=""
                                 onChange={[Function]}
                                 placeholder=""
+                                required={false}
                                 size="sm"
                                 spellCheck={false}
                                 status="disabled"
@@ -188,6 +193,7 @@ exports[`Account rendering renders! 1`] = `
                                     name=""
                                     onChange={[Function]}
                                     placeholder=""
+                                    required={false}
                                     spellCheck={false}
                                     title="This input is disabled"
                                     type="text"
