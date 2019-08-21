@@ -52,7 +52,7 @@ func (s *Service) initializeTasks(ctx context.Context, tx Tx) error {
 func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	var t *influxdb.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
-		task, err := s.findTaskByID(ctx, tx, id)
+		task, err := s.findTaskByIDWithAuth(ctx, tx, id)
 		if err != nil {
 			return err
 		}
@@ -63,6 +63,26 @@ func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.T
 		return nil, err
 	}
 
+	return t, nil
+}
+
+func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
+	t, err := s.findTaskByID(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	// populate task Auth
+	ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+
+	t.Authorization = &influxdb.Authorization{
+		Status:      influxdb.Active,
+		ID:          influxdb.ID(1),
+		OrgID:       t.OrganizationID,
+		Permissions: ps,
+	}
 	return t, nil
 }
 
@@ -128,18 +148,6 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		t.OwnerID = auth.GetUserID()
 	}
 
-	// populate task Auth
-	ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-
-	t.Authorization = &influxdb.Authorization{
-		Status:      influxdb.Active,
-		ID:          influxdb.ID(1),
-		OrgID:       t.OrganizationID,
-		Permissions: ps,
-	}
 	return t, nil
 }
 
@@ -244,7 +252,7 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 	}
 
 	for _, m := range maps {
-		task, err := s.findTaskByID(ctx, tx, m.ResourceID)
+		task, err := s.findTaskByIDWithAuth(ctx, tx, m.ResourceID)
 		if err != nil && err != influxdb.ErrTaskNotFound {
 			return nil, 0, err
 		}
@@ -332,7 +340,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 				return nil, 0, influxdb.ErrInvalidTaskID
 			}
 
-			t, err := s.findTaskByID(ctx, tx, *id)
+			t, err := s.findTaskByIDWithAuth(ctx, tx, *id)
 			if err != nil && err != influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
 				return nil, 0, err
@@ -368,7 +376,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 			return nil, 0, influxdb.ErrInvalidTaskID
 		}
 
-		t, err := s.findTaskByID(ctx, tx, *id)
+		t, err := s.findTaskByIDWithAuth(ctx, tx, *id)
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
