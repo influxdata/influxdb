@@ -2865,7 +2865,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/FluxSuggestions"
+                $ref: "#/components/schemas/FluxSuggestion"
         default:
           description: Any response other than 200 is an internal server error
           content:
@@ -6728,12 +6728,18 @@ components:
       type: object
       properties:
         funcs:
+          type: array
+          items:
+            $ref: "#/components/schemas/FluxSuggestion"
+    FluxSuggestion:
+      type: object
+      properties:
+        name:
+          type: string
+        params:
           type: object
-          properties:
-            name:
-              type: string
-            params:
-              type: object
+          additionalProperties:
+            type: string
     Routes:
       properties:
         authorizations:
