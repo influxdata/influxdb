@@ -66,6 +66,9 @@ func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.T
 	return t, nil
 }
 
+// findTaskByIDWithAuth is a task lookup that populates the auth
+// This is to be used when we want to satisfy the FindTaskByID method
+// But is more taxing on the system then if we want to find the task alone.
 func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
 	t, err := s.findTaskByID(ctx, tx, id)
 	if err != nil {
@@ -86,6 +89,8 @@ func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.I
 	return t, nil
 }
 
+// findTaskByID is an internal method used to do any action with tasks internally
+// that do not require authorization.
 func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
 	taskKey, err := taskKey(id)
 	if err != nil {
