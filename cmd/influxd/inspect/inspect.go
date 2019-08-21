@@ -18,7 +18,11 @@ func NewCommand() *cobra.Command {
 		NewReportTSMCommand(),
 		NewVerifyTSMCommand(),
 		NewVerifyWALCommand(),
+<<<<<<< HEAD
 		NewReportTSICommand(),
+=======
+		NewVerifySeriesFileCommand(),
+>>>>>>> 26899d169... adds verify-seriesfile to 2.x
 	}
 
 	for _, command := range subCommands {
