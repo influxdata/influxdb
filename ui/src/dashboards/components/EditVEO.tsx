@@ -14,19 +14,19 @@ import {saveCheckFromTimeMachine} from 'src/alerting/actions/checks'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
 import {getViewForTimeMachine} from 'src/dashboards/actions/views'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState, RemoteDataState, QueryView, TimeMachineID} from 'src/types'
-import {executeQueries} from 'src/timeMachine/actions/queries'
 
 interface DispatchProps {
   saveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
-  executeQueries: typeof executeQueries
+  onExecuteQueries: typeof executeQueries
   getViewForTimeMachine: typeof getViewForTimeMachine
 }
 
@@ -41,7 +41,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
   getViewForTimeMachine,
   activeTimeMachineID,
   saveCheckFromTimeMachine,
-  executeQueries,
+  onExecuteQueries,
   onSaveView,
   onSetName,
   params: {orgID, cellID, dashboardID},
@@ -53,7 +53,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
   }, [cellID, dashboardID])
 
   useEffect(() => {
-    executeQueries()
+    onExecuteQueries()
   }, [view])
 
   const handleClose = () => {
@@ -62,9 +62,10 @@ const EditViewVEO: FunctionComponent<Props> = ({
 
   const handleSave = () => {
     try {
-      onSaveView(dashboardID)
       if (view.properties.type === 'check') {
-        saveCheckFromTimeMachine()
+        saveCheckFromTimeMachine(dashboardID)
+      } else {
+        onSaveView(dashboardID)
       }
       handleClose()
     } catch (e) {}
@@ -104,7 +105,6 @@ const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
 
   const {view} = getActiveTimeMachine(state)
-
   return {view, activeTimeMachineID}
 }
 
@@ -112,7 +112,7 @@ const mdtp: DispatchProps = {
   onSetName: setName,
   onSaveView: saveVEOView,
   saveCheckFromTimeMachine: saveCheckFromTimeMachine,
-  executeQueries: executeQueries,
+  onExecuteQueries: executeQueries,
   getViewForTimeMachine: getViewForTimeMachine,
 }
 

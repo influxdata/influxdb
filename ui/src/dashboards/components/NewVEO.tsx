@@ -63,10 +63,10 @@ const NewViewVEO: FunctionComponent<Props> = ({
 
   const handleSave = () => {
     try {
-      onSaveView(dashboardID)
-
       if (view.properties.type === 'check') {
-        saveCheckFromTimeMachine()
+        saveCheckFromTimeMachine(dashboardID)
+      } else {
+        onSaveView(dashboardID)
       }
 
       handleClose()

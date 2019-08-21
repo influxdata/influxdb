@@ -1,6 +1,6 @@
 import {get} from 'lodash'
 
-import {AppState, View, Check, ViewType} from 'src/types'
+import {AppState, View, Check, ViewType, RemoteDataState} from 'src/types'
 
 import {
   getValuesForVariable,
@@ -10,6 +10,10 @@ import {
 
 export const getView = (state: AppState, id: string): View => {
   return get(state, `views.views.${id}.view`)
+}
+
+export const getViewStatus = (state: AppState, id: string): RemoteDataState => {
+  return get(state, `views.views.${id}.status`, RemoteDataState.Loading)
 }
 
 export const getCheckForView = (
@@ -36,7 +40,7 @@ export const getViewsForDashboard = (
 
   const views = Object.values(state.views.views)
     .map(d => d.view)
-    .filter(view => cellIDs.has(view.cellID))
+    .filter(view => view && cellIDs.has(view.cellID))
 
   return views
 }

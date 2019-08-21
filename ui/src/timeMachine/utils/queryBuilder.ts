@@ -1,5 +1,5 @@
-import _ from 'lodash'
-import {BuilderConfig} from 'src/types'
+import {get, isEmpty} from 'lodash'
+import {BuilderConfig, DashboardDraftQuery} from 'src/types'
 import {FUNCTIONS} from 'src/timeMachine/constants/queryBuilder'
 import {
   TIME_RANGE_START,
@@ -8,6 +8,7 @@ import {
   WINDOW_PERIOD,
 } from 'src/variables/constants'
 import {AGG_WINDOW_AUTO} from 'src/timeMachine/constants/queryBuilder'
+import {BuilderTagsType} from '@influxdata/influx'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
@@ -17,6 +18,25 @@ export function isConfigValid(builderConfig: BuilderConfig): boolean {
     tags.some(({key, values}) => key && values.length > 0)
 
   return isConfigValid
+}
+
+export const isDraftQueryAlertable = (
+  draftQueries: DashboardDraftQuery[]
+): boolean => {
+  const tags: BuilderTagsType[] = get(
+    draftQueries,
+    '[0].builderConfig.tags',
+    []
+  )
+  const fieldSelection = tags.find(t => get(t, 'key') === '_field')
+  const fieldValues = get(fieldSelection, 'values', [])
+  const functions = draftQueries[0].builderConfig.functions
+  return (
+    draftQueries.length === 1 && // one query
+    draftQueries[0].editMode == 'builder' && // built in builder
+    functions.length === 1 && // one aggregate function
+    fieldValues.length === 1 // one field selection
+  )
 }
 
 export function buildQuery(builderConfig: BuilderConfig): string {
@@ -92,7 +112,7 @@ export function hasQueryBeenEdited(
   query: string,
   builderConfig: BuilderConfig
 ): boolean {
-  const emptyQueryChanged = !isConfigValid(builderConfig) && !_.isEmpty(query)
+  const emptyQueryChanged = !isConfigValid(builderConfig) && !isEmpty(query)
   const existingQueryChanged = query !== buildQuery(builderConfig)
 
   return emptyQueryChanged || existingQueryChanged

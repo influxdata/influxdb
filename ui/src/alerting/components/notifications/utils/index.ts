@@ -1,5 +1,5 @@
 // Libraries
-import {omit, get} from 'lodash'
+import {omit} from 'lodash'
 import uuid from 'uuid'
 
 // Types
@@ -79,12 +79,13 @@ export const changeStatusRule = (
 }
 
 export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
-  type: 'slack',
+  type: 'http',
   every: '10m',
+  url: 'http://www.google.com',
   orgID,
   name: '',
   status: 'active',
-  messageTemplate: '',
+  endpointID: '044f0c32550f8000',
   tagRules: [],
   statusRules: [
     {
@@ -134,17 +135,11 @@ export const draftRuleToRule = (
 export const ruleToDraftRule = (
   rule: NotificationRule
 ): NotificationRuleDraft => {
-  const tagRules: NotificationRule['tagRules'] = get(rule, 'tagRules', [])
-  const tagRulesDraft: NotificationRuleDraft['tagRules'] = tagRules.map(
-    value => ({
-      cid: uuid.v4(),
-      value,
-    })
-  )
-
+  const statusRules = rule.statusRules || []
+  const tagRules = rule.tagRules || []
   return {
     ...rule,
-    statusRules: rule.statusRules.map(value => ({cid: uuid.v4(), value})),
-    tagRules: tagRulesDraft,
+    statusRules: statusRules.map(value => ({cid: uuid.v4(), value})),
+    tagRules: tagRules.map(value => ({cid: uuid.v4(), value})),
   }
 }

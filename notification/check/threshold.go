@@ -110,6 +110,9 @@ func (t Threshold) GenerateFlux() (string, error) {
 		return "", err
 	}
 
+	replaceDurationsWithEvery(p, t.Every)
+	removeStopFromRange(p)
+
 	return ast.Format(p), nil
 }
 

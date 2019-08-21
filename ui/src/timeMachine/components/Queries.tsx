@@ -46,6 +46,7 @@ interface StateProps {
   draftQueries: DashboardDraftQuery[]
   timeRange: TimeRange
   autoRefresh: AutoRefresh
+  activeTimeMachineID: string
 }
 
 interface DispatchProps {
@@ -58,7 +59,12 @@ type Props = StateProps & DispatchProps
 
 class TimeMachineQueries extends PureComponent<Props> {
   public render() {
-    const {draftQueries, onAddQuery, timeRange} = this.props
+    const {
+      draftQueries,
+      onAddQuery,
+      timeRange,
+      activeTimeMachineID,
+    } = this.props
 
     return (
       <div className="time-machine-queries">
@@ -71,13 +77,15 @@ class TimeMachineQueries extends PureComponent<Props> {
                 query={query}
               />
             ))}
-            <SquareButton
-              className="time-machine-queries--new"
-              icon={IconFont.PlusSkinny}
-              size={ComponentSize.ExtraSmall}
-              color={ComponentColor.Default}
-              onClick={onAddQuery}
-            />
+            {activeTimeMachineID !== 'alerting' && (
+              <SquareButton
+                className="time-machine-queries--new"
+                icon={IconFont.PlusSkinny}
+                size={ComponentSize.ExtraSmall}
+                color={ComponentColor.Default}
+                onClick={onAddQuery}
+              />
+            )}
           </div>
           <div className="time-machine-queries--buttons">
             <FlexBox
@@ -93,7 +101,9 @@ class TimeMachineQueries extends PureComponent<Props> {
                 onSetTimeRange={this.handleSetTimeRange}
                 centerPicker={true}
               />
-              <TimeMachineQueriesSwitcher />
+              {activeTimeMachineID !== 'alerting' && (
+                <TimeMachineQueriesSwitcher />
+              )}
               <SubmitQueryButton />
             </FlexBox>
           </div>
@@ -140,11 +150,21 @@ class TimeMachineQueries extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState) => {
+  const {
+    timeMachines: {activeTimeMachineID},
+  } = state
+
   const {draftQueries, timeRange, autoRefresh} = getActiveTimeMachine(state)
 
   const activeQuery = getActiveQuery(state)
 
-  return {timeRange, activeQuery, draftQueries, autoRefresh}
+  return {
+    timeRange,
+    activeQuery,
+    draftQueries,
+    autoRefresh,
+    activeTimeMachineID,
+  }
 }
 
 const mdtp = {
