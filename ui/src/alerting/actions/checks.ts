@@ -29,6 +29,7 @@ import {
   RemoteDataState,
   CheckViewProperties,
   View,
+  Label,
 } from 'src/types'
 import {createView} from 'src/shared/utils/view'
 import {updateView} from 'src/dashboards/actions/views'
@@ -37,6 +38,8 @@ export type Action =
   | ReturnType<typeof setAllChecks>
   | ReturnType<typeof setCheck>
   | ReturnType<typeof removeCheck>
+  | ReturnType<typeof addLabelToCheck>
+  | ReturnType<typeof removeLabelFromCheck>
 
 export const setAllChecks = (status: RemoteDataState, checks?: Check[]) => ({
   type: 'SET_ALL_CHECKS' as 'SET_ALL_CHECKS',
@@ -51,6 +54,16 @@ export const setCheck = (check: Check) => ({
 export const removeCheck = (checkID: string) => ({
   type: 'REMOVE_CHECK' as 'REMOVE_CHECK',
   payload: {checkID},
+})
+
+export const addLabelToCheck = (checkID: string, label: Label) => ({
+  type: 'ADD_LABEL_TO_CHECK' as 'ADD_LABEL_TO_CHECK',
+  payload: {checkID, label},
+})
+
+export const removeLabelFromCheck = (checkID: string, label: Label) => ({
+  type: 'REMOVE_LABEL_FROM_CHECK' as 'REMOVE_LABEL_FROM_CHECK',
+  payload: {checkID, label},
 })
 
 export const getChecks = () => async (
@@ -191,5 +204,40 @@ export const deleteCheck = (checkID: string) => async (
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.deleteCheckFailed(e.message)))
+  }
+}
+
+export const addCheckLabel = (checkID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.postChecksLabel({checkID, data: {labelID: label.id}})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(addLabelToCheck(checkID, label))
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const deleteCheckLabel = (checkID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.deleteChecksLabel({
+      checkID,
+      labelID: label.id,
+    })
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(removeLabelFromCheck(checkID, label))
+  } catch (e) {
+    console.error(e)
   }
 }
