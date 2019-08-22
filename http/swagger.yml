@@ -5175,7 +5175,7 @@ paths:
       operationId: GetChecksID
       tags:
         - Checks
-      summary: Get an check
+      summary: Get a check
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -5316,6 +5316,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/NotificationRule"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/checks/{checkID}/query':
+    get:
+      operationId: GetChecksIDQuery
+      tags:
+        - Checks
+      summary: Get an check query
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of check
+      responses:
+        '200':
+          description: the check query requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxResponse"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: check not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: unexpected error
           content:
@@ -8860,6 +8899,11 @@ components:
           type: string
         offset:
           description: Override the 'offset' option in the flux script.
+          type: string
+    FluxResponse:
+      description: Rendered flux that backs the check or notification.
+      properties:
+        flux:
           type: string
     Check:
       oneOf:
