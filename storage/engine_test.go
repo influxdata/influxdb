@@ -244,7 +244,7 @@ func TestEngine_DeleteBucket(t *testing.T) {
 	}
 
 	// Remove the original bucket.
-	if err := engine.DeleteBucket(engine.org, engine.bucket); err != nil {
+	if err := engine.DeleteBucket(context.Background(), engine.org, engine.bucket); err != nil {
 		t.Fatal(err)
 	}
 
@@ -309,7 +309,7 @@ func TestEngine_DeleteBucket_Predicate(t *testing.T) {
 	}
 
 	// Remove the matching series.
-	if err := engine.DeleteBucketRangePredicate(engine.org, engine.bucket,
+	if err := engine.DeleteBucketRangePredicate(context.Background(), engine.org, engine.bucket,
 		math.MinInt64, math.MaxInt64, pred); err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +339,7 @@ func TestEngine_DeleteBucket_Predicate(t *testing.T) {
 	}
 
 	// Remove the matching series.
-	if err := engine.DeleteBucketRangePredicate(engine.org, engine.bucket,
+	if err := engine.DeleteBucketRangePredicate(context.Background(), engine.org, engine.bucket,
 		math.MinInt64, math.MaxInt64, pred); err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,7 @@ func BenchmarkDeleteBucket(b *testing.B) {
 		b.Run(fmt.Sprintf("cardinality_%d", card), func(b *testing.B) {
 			setup(card)
 			for i := 0; i < b.N; i++ {
-				if err := engine.DeleteBucket(engine.org, engine.bucket); err != nil {
+				if err := engine.DeleteBucket(context.Background(), engine.org, engine.bucket); err != nil {
 					b.Fatal(err)
 				}
 

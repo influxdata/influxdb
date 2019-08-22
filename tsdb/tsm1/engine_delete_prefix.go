@@ -2,9 +2,11 @@ package tsm1
 
 import (
 	"bytes"
+	"context"
 	"math"
 	"sync"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/tsdb"
@@ -14,7 +16,9 @@ import (
 // DeletePrefixRange removes all TSM data belonging to a bucket, and removes all index
 // and series file data associated with the bucket. The provided time range ensures
 // that only bucket data for that range is removed.
-func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) error {
+func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, max int64, pred Predicate) error {
+	span, ctx := tracing.StartSpanFromContext(rootCtx)
+	defer span.Finish()
 	// TODO(jeff): we need to block writes to this prefix while deletes are in progress
 	// otherwise we can end up in a situation where we have staged data in the cache or
 	// WAL that was deleted from the index, or worse. This needs to happen at a higher
@@ -26,9 +30,11 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 
 	// Ensure that the index does not compact away the measurement or series we're
 	// going to delete before we're done with them.
+	span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "disable index compactions")
 	e.index.DisableCompactions()
 	defer e.index.EnableCompactions()
 	e.index.Wait()
+	span.Finish()
 
 	// Disable and abort running compactions so that tombstones added existing tsm
 	// files don't get removed. This would cause deleted measurements/series to
@@ -36,11 +42,15 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 	// so that snapshotting does not stop while writing out tombstones. If it is stopped,
 	// and writing tombstones takes a long time, writes can get rejected due to the cache
 	// filling up.
+	span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "disable tsm compactions")
 	e.disableLevelCompactions(true)
 	defer e.enableLevelCompactions(true)
+	span.Finish()
 
+	span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "disable series file compactions")
 	e.sfile.DisableCompactions()
 	defer e.sfile.EnableCompactions()
+	span.Finish()
 
 	// TODO(jeff): are the query language values still a thing?
 	// Min and max time in the engine are slightly different from the query language values.
@@ -64,6 +74,11 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 	possiblyDead.keys = make(map[string]struct{})
 
 	if err := e.FileStore.Apply(func(r TSMFile) error {
+		// TODO(edd): tracing this deep down is currently speculative, so I have
+		// not added the tracing into the TSMReader API.
+		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "TSMFile delete prefix")
+		defer span.Finish()
+
 		return r.DeletePrefix(name, min, max, pred, func(key []byte) {
 			possiblyDead.Lock()
 			possiblyDead.keys[string(key)] = struct{}{}
@@ -77,6 +92,11 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+		// TODO(edd): tracing this deep down is currently speculative, so I have
+		// not added the tracing into the Cache API.
+		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache find delete keys")
+		defer span.Finish()
+
 		if !bytes.HasPrefix(k, name) {
 			return nil
 		}
@@ -94,14 +114,21 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 	})
 
 	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
+	sortSpan, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache sort keys")
 	bytesutil.Sort(deleteKeys)
+	sortSpan.Finish()
 
 	// Delete from the cache.
-	e.Cache.DeleteBucketRange(name, min, max, pred)
+	e.Cache.DeleteBucketRange(ctx, name, min, max, pred)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
 	if err := e.FileStore.Apply(func(r TSMFile) error {
+		// TODO(edd): tracing this deep down is currently speculative, so I have
+		// not added the tracing into the Engine API.
+		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "TSMFile determine fully deleted")
+		defer span.Finish()
+
 		possiblyDead.RLock()
 		defer possiblyDead.RUnlock()
 
@@ -137,6 +164,11 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+		// TODO(edd): tracing this deep down is currently speculative, so I have
+		// not added the tracing into the Cache API.
+		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache find delete keys")
+		defer span.Finish()
+
 		if !bytes.HasPrefix(k, name) {
 			return nil
 		}
@@ -185,21 +217,26 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 			}
 
 			// Remove the measurement from the index before the series file.
+			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "TSI drop measurement")
 			if err := e.index.DropMeasurement(name); err != nil {
 				return err
 			}
+			span.Finish()
 
 			// Iterate over the series ids we previously extracted from the index
 			// and remove from the series file.
+			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "SFile Delete Series ID")
 			set.ForEachNoLock(func(id tsdb.SeriesID) {
 				if err = e.sfile.DeleteSeriesID(id); err != nil {
 					return
 				}
 			})
+			span.Finish()
 			return err
 		}
 
 		// This is the slow path, when not dropping the entire bucket (measurement)
+		span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "TSI/SFile Delete keys")
 		for key := range possiblyDead.keys {
 			// TODO(jeff): ugh reduce copies here
 			keyb := []byte(key)
@@ -219,6 +256,7 @@ func (e *Engine) DeletePrefixRange(name []byte, min, max int64, pred Predicate) 
 				return err
 			}
 		}
+		span.Finish()
 	}
 
 	return nil

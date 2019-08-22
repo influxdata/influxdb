@@ -3,11 +3,11 @@ package tsm1_test
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"reflect"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb/tsm1"
 )
 
 func TestEngine_DeletePrefix(t *testing.T) {
@@ -43,7 +43,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
 
-	if err := e.DeletePrefixRange([]byte("mm0"), 0, 3, nil); err != nil {
+	if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 3, nil); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 	iter.Close()
 
 	// Deleting remaining series should remove them from the series.
-	if err := e.DeletePrefixRange([]byte("mm0"), 0, 9, nil); err != nil {
+	if err := e.DeletePrefixRange(context.Background(), []byte("mm0"), 0, 9, nil); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 

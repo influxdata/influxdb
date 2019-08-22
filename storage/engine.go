@@ -266,7 +266,7 @@ func (e *Engine) replayWAL() error {
 				}
 			}
 
-			return e.deleteBucketRangeLocked(en.OrgID, en.BucketID, en.Min, en.Max, pred)
+			return e.deleteBucketRangeLocked(context.Background(), en.OrgID, en.BucketID, en.Min, en.Max, pred)
 		}
 
 		return nil
@@ -525,12 +525,17 @@ func (e *Engine) CommitSegments(ctx context.Context, segs []string, fn func() er
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
-func (e *Engine) DeleteBucket(orgID, bucketID platform.ID) error {
-	return e.DeleteBucketRange(orgID, bucketID, math.MinInt64, math.MaxInt64)
+func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+	return e.DeleteBucketRange(ctx, orgID, bucketID, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteBucketRange deletes an entire bucket from the storage engine.
-func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) error {
+func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID platform.ID, min, max int64) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {
@@ -542,13 +547,14 @@ func (e *Engine) DeleteBucketRange(orgID, bucketID platform.ID, min, max int64) 
 		return err
 	}
 
-	return e.deleteBucketRangeLocked(orgID, bucketID, min, max, nil)
+	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, nil)
 }
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(orgID, bucketID platform.ID,
-	min, max int64, pred tsm1.Predicate) error {
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred tsm1.Predicate) error {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -567,20 +573,18 @@ func (e *Engine) DeleteBucketRangePredicate(orgID, bucketID platform.ID,
 		return err
 	}
 
-	return e.deleteBucketRangeLocked(orgID, bucketID, min, max, pred)
+	return e.deleteBucketRangeLocked(ctx, orgID, bucketID, min, max, pred)
 }
 
 // deleteBucketRangeLocked does the work of deleting a bucket range and must be called under
 // some sort of lock.
-func (e *Engine) deleteBucketRangeLocked(orgID, bucketID platform.ID,
-	min, max int64, pred tsm1.Predicate) error {
-
+func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred tsm1.Predicate) error {
 	// TODO(edd): we need to clean up how we're encoding the prefix so that we
 	// don't have to remember to get it right everywhere we need to touch TSM data.
 	encoded := tsdb.EncodeName(orgID, bucketID)
 	name := models.EscapeMeasurement(encoded[:])
 
-	return e.engine.DeletePrefixRange(name, min, max, pred)
+	return e.engine.DeletePrefixRange(ctx, name, min, max, pred)
 }
 
 // SeriesCardinality returns the number of series in the engine.

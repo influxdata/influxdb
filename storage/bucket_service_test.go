@@ -57,7 +57,7 @@ type MockDeleter struct {
 	orgID, bucketID platform.ID
 }
 
-func (m *MockDeleter) DeleteBucket(orgID, bucketID platform.ID) error {
+func (m *MockDeleter) DeleteBucket(_ context.Context, orgID, bucketID platform.ID) error {
 	m.orgID, m.bucketID = orgID, bucketID
 	return nil
 }
