@@ -95,5 +95,7 @@ var FluxEndToEndSkipList = map[string]string{
 	"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
 
 	"check":         "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
-	"http_endpoint": "need ability to test side effects in e2e tests: https://github.com/influxdata/flux/issues/1723)",
+	"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
+
+	"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
 }
