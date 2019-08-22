@@ -44,5 +44,25 @@ export default (
         const {checkID} = action.payload
         draftState.list = draftState.list.filter(c => c.id != checkID)
         return
+
+      case 'ADD_LABEL_TO_CHECK':
+        draftState.list = draftState.list.map(c => {
+          if (c.id === action.payload.checkID) {
+            c.labels = [...c.labels, action.payload.label]
+          }
+          return c
+        })
+        return
+
+      case 'REMOVE_LABEL_FROM_CHECK':
+        draftState.list = draftState.list.map(c => {
+          if (c.id === action.payload.checkID) {
+            c.labels = c.labels.filter(
+              label => label.id !== action.payload.label.id
+            )
+          }
+          return c
+        })
+        return
     }
   })

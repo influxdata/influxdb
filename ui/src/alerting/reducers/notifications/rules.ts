@@ -46,7 +46,7 @@ export default (
 
       case 'REMOVE_NOTIFICATION_RULE':
         const {ruleID} = action.payload
-        draftState.list = draftState.list.filter(nr => nr.id != ruleID)
+        draftState.list = draftState.list.filter(nr => nr.id !== ruleID)
         return
 
       case 'SET_CURRENT_NOTIFICATION_RULE':
@@ -54,6 +54,24 @@ export default (
         if (action.payload.rule) {
           draftState.current.rule = action.payload.rule
         }
+        return
+
+      case 'ADD_LABEL_TO_RULE':
+        draftState.list = draftState.list.map(r => {
+          if (r.id === action.ruleID) {
+            r.labels = [...r.labels, action.label]
+          }
+          return r
+        })
+        return
+
+      case 'REMOVE_LABEL_FROM_RULE':
+        draftState.list = draftState.list.map(r => {
+          if (r.id === action.ruleID) {
+            r.labels = r.labels.filter(label => label.id !== action.label.id)
+          }
+          return r
+        })
         return
     }
   })

@@ -48,5 +48,29 @@ export default (
         draftState.list[index] = endpoint
         return
       }
+      case 'REMOVE_ENDPOINT': {
+        const {endpointID} = action
+
+        draftState.list = state.list.filter(ep => ep.id !== endpointID)
+        return
+      }
+      case 'ADD_LABEL_TO_ENDPOINT': {
+        draftState.list = draftState.list.map(e => {
+          if (e.id === action.endpointID) {
+            e.labels = [...e.labels, action.label]
+          }
+          return e
+        })
+        return
+      }
+      case 'REMOVE_LABEL_FROM_ENDPOINT': {
+        draftState.list = draftState.list.map(e => {
+          if (e.id === action.endpointID) {
+            e.labels = e.labels.filter(label => label.id !== action.label.id)
+          }
+          return e
+        })
+        return
+      }
     }
   })

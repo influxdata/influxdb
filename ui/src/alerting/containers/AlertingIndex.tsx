@@ -22,25 +22,29 @@ const AlertingIndex: FunctionComponent = ({children}) => {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
           <div className="col-xs-12">
-            <Grid>
-              <GridRow testID="grid--row">
-                <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <GetResources resource={ResourceTypes.Checks}>
-                    <ChecksColumn />
-                  </GetResources>
-                </GridColumn>
-                <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <GetResources resource={ResourceTypes.NotificationRules}>
-                    <RulesColumn />
-                  </GetResources>
-                </GridColumn>
-                <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <GetResources resource={ResourceTypes.NotificationEndpoints}>
-                    <EndpointsColumn />
-                  </GetResources>
-                </GridColumn>
-              </GridRow>
-            </Grid>
+            <GetResources resource={ResourceTypes.Labels}>
+              <Grid>
+                <GridRow testID="grid--row">
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources resource={ResourceTypes.Checks}>
+                      <ChecksColumn />
+                    </GetResources>
+                  </GridColumn>
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources resource={ResourceTypes.NotificationRules}>
+                      <RulesColumn />
+                    </GetResources>
+                  </GridColumn>
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources
+                      resource={ResourceTypes.NotificationEndpoints}
+                    >
+                      <EndpointsColumn />
+                    </GetResources>
+                  </GridColumn>
+                </GridRow>
+              </Grid>
+            </GetResources>
           </div>
         </Page.Contents>
       </Page>

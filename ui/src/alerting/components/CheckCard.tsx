@@ -6,32 +6,51 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import CheckCardContext from 'src/alerting/components/CheckCardContext'
+import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
 
-// Actions
-import {updateCheck, deleteCheck} from 'src/alerting/actions/checks'
+// Actions and Selectors
+import {
+  updateCheck,
+  deleteCheck,
+  addCheckLabel,
+  deleteCheckLabel,
+} from 'src/alerting/actions/checks'
+import {createLabel as createLabelAsync} from 'src/labels/actions'
+import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {Check} from 'src/types'
+import {Check, Label, AppState} from 'src/types'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
   deleteCheck: typeof deleteCheck
+  onAddCheckLabel: typeof addCheckLabel
+  onRemoveCheckLabel: typeof deleteCheckLabel
+  onCreateLabel: typeof createLabelAsync
+}
+
+interface StateProps {
+  labels: Label[]
 }
 
 interface OwnProps {
   check: Check
 }
 
-type Props = OwnProps & DispatchProps & WithRouterProps
+type Props = OwnProps & DispatchProps & WithRouterProps & StateProps
 
 const CheckCard: FunctionComponent<Props> = ({
+  onRemoveCheckLabel,
+  onAddCheckLabel,
+  onCreateLabel,
   check,
   updateCheck,
   deleteCheck,
   params: {orgID},
+  labels,
   router,
 }) => {
   const onUpdateName = (name: string) => {
@@ -58,6 +77,18 @@ const CheckCard: FunctionComponent<Props> = ({
 
   const onCheckClick = () => {
     router.push(`/orgs/${orgID}/alerting/checks/${check.id}/edit`)
+  }
+
+  const handleAddCheckLabel = (label: Label) => {
+    onAddCheckLabel(check.id, label)
+  }
+
+  const handleRemoveCheckLabel = (label: Label) => {
+    onRemoveCheckLabel(check.id, label)
+  }
+
+  const handleCreateLabel = async (label: Label) => {
+    await onCreateLabel(label.name, label.properties)
   }
 
   return (
@@ -90,7 +121,15 @@ const CheckCard: FunctionComponent<Props> = ({
           placeholder={`Describe ${check.name}`}
         />
       }
-      // labels
+      labels={
+        <InlineLabels
+          selectedLabels={check.labels as Label[]}
+          labels={labels}
+          onAddLabel={handleAddCheckLabel}
+          onRemoveLabel={handleRemoveCheckLabel}
+          onCreateLabel={handleCreateLabel}
+        />
+      }
       disabled={check.status === 'inactive'}
       contextMenu={
         <CheckCardContext
@@ -107,9 +146,18 @@ const CheckCard: FunctionComponent<Props> = ({
 const mdtp: DispatchProps = {
   updateCheck: updateCheck,
   deleteCheck: deleteCheck,
+  onAddCheckLabel: addCheckLabel,
+  onCreateLabel: createLabelAsync,
+  onRemoveCheckLabel: deleteCheckLabel,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
+const mstp = ({labels}: AppState): StateProps => {
+  return {
+    labels: viewableLabels(labels.list),
+  }
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
   mdtp
 )(withRouter(CheckCard))

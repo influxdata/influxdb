@@ -22,13 +22,29 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {NotificationRule, GetState, NotificationRuleDraft} from 'src/types'
+import {
+  NotificationRuleUpdate,
+  NotificationRule,
+  GetState,
+  NotificationRuleDraft,
+  Label,
+} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllNotificationRules>
   | ReturnType<typeof setRule>
   | ReturnType<typeof setCurrentRule>
   | ReturnType<typeof removeRule>
+  | {
+      type: 'ADD_LABEL_TO_RULE'
+      ruleID: string
+      label: Label
+    }
+  | {
+      type: 'REMOVE_LABEL_FROM_RULE'
+      ruleID: string
+      label: Label
+    }
 
 export const setAllNotificationRules = (
   status: RemoteDataState,
@@ -133,6 +149,22 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
   dispatch(setRule(ruleToDraftRule(resp.data)))
 }
 
+export const updateRuleProperties = (
+  ruleID: string,
+  properties: NotificationRuleUpdate
+) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  const resp = await api.patchNotificationRule({
+    ruleID,
+    data: properties,
+  })
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  dispatch(setRule(ruleToDraftRule(resp.data)))
+}
+
 export const deleteRule = (ruleID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
@@ -143,4 +175,42 @@ export const deleteRule = (ruleID: string) => async (
   }
 
   dispatch(removeRule(ruleID))
+}
+
+export const addRuleLabel = (ruleID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.postNotificationRulesLabel({
+      ruleID,
+      data: {labelID: label.id},
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({type: 'ADD_LABEL_TO_RULE', ruleID, label})
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const deleteRuleLabel = (ruleID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.deleteNotificationRulesLabel({
+      ruleID,
+      labelID: label.id,
+    })
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({type: 'REMOVE_LABEL_FROM_RULE', ruleID, label})
+  } catch (e) {
+    console.error(e)
+  }
 }
