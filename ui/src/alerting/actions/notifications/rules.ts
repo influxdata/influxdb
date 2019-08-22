@@ -23,6 +23,7 @@ import {
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
 import {
+  NotificationRuleUpdate,
   NotificationRule,
   GetState,
   NotificationRuleDraft,
@@ -139,6 +140,22 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
   const resp = await api.putNotificationRule({
     ruleID: rule.id,
     data: draftRuleToRule(rule),
+  })
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  dispatch(setRule(ruleToDraftRule(resp.data)))
+}
+
+export const updateRuleProperties = (
+  ruleID: string,
+  properties: NotificationRuleUpdate
+) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  const resp = await api.patchNotificationRule({
+    ruleID,
+    data: properties,
   })
 
   if (resp.status !== 200) {

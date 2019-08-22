@@ -13,7 +13,7 @@ import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
 
 // Actions and Selectors
 import {
-  updateRule,
+  updateRuleProperties,
   deleteRule,
   addRuleLabel,
   deleteRuleLabel,
@@ -25,7 +25,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {NotificationRuleDraft, AppState, Label} from 'src/types'
 
 interface DispatchProps {
-  updateRule: typeof updateRule
+  onUpdateRuleProperties: typeof updateRuleProperties
   deleteNotificationRule: typeof deleteRule
   onAddRuleLabel: typeof addRuleLabel
   onRemoveRuleLabel: typeof deleteRuleLabel
@@ -44,7 +44,7 @@ type Props = OwnProps & WithRouterProps & StateProps & DispatchProps
 
 const RuleCard: FC<Props> = ({
   rule,
-  updateRule,
+  onUpdateRuleProperties,
   labels,
   deleteNotificationRule,
   onAddRuleLabel,
@@ -54,11 +54,11 @@ const RuleCard: FC<Props> = ({
   router,
 }) => {
   const onUpdateName = (name: string) => {
-    updateRule({...rule, name})
+    onUpdateRuleProperties(rule.id, {name})
   }
 
   const onUpdateDescription = (description: string) => {
-    updateRule({...rule, description})
+    onUpdateRuleProperties(rule.id, {description})
   }
 
   const onDelete = () => {
@@ -72,7 +72,7 @@ const RuleCard: FC<Props> = ({
   const onToggle = () => {
     const status = rule.status === 'active' ? 'inactive' : 'active'
 
-    updateRule({...rule, status})
+    onUpdateRuleProperties(rule.id, {status})
   }
 
   const onRuleClick = () => {
@@ -144,7 +144,7 @@ const RuleCard: FC<Props> = ({
 }
 
 const mdtp: DispatchProps = {
-  updateRule: updateRule,
+  onUpdateRuleProperties: updateRuleProperties,
   deleteNotificationRule: deleteRule,
   onCreateLabel: createLabelAsync,
   onAddRuleLabel: addRuleLabel,
