@@ -249,9 +249,6 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 	}
 
 	o.ID = s.IDGenerator.ID()
-	now := s.Now()
-	o.CreatedAt = now
-	o.UpdatedAt = now
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationCreatedEvent); err != nil {
 		return &influxdb.Error{
 			Err: err,
@@ -278,6 +275,8 @@ func (s *Service) PutOrganization(ctx context.Context, o *influxdb.Organization)
 }
 
 func (s *Service) putOrganization(ctx context.Context, tx Tx, o *influxdb.Organization) error {
+	o.UpdateTimestamps(s.Now())
+
 	v, err := json.Marshal(o)
 	if err != nil {
 		return &influxdb.Error{
@@ -404,8 +403,6 @@ func (s *Service) updateOrganization(ctx context.Context, tx Tx, id influxdb.ID,
 	if upd.Description != nil {
 		o.Description = *upd.Description
 	}
-
-	o.UpdatedAt = s.Now()
 
 	if err := s.appendOrganizationEventToLog(ctx, tx, o.ID, organizationUpdatedEvent); err != nil {
 		return nil, &influxdb.Error{

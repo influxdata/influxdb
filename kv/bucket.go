@@ -383,9 +383,6 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 	}
 
 	b.ID = s.IDGenerator.ID()
-	now := s.Now()
-	b.CreatedAt = now
-	b.UpdatedAt = now
 
 	if err := s.appendBucketEventToLog(ctx, tx, b.ID, bucketCreatedEvent); err != nil {
 		return &influxdb.Error{
@@ -446,6 +443,8 @@ func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b
 }
 
 func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
+	b.UpdateTimestamps(s.Now())
+
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

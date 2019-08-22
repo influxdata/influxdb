@@ -28,6 +28,14 @@ func (log *CRUDLog) SetUpdatedAt(now time.Time) {
 	log.UpdatedAt = now
 }
 
+// UpdateTimestamps always sets UpdatedAt to now. If CreatedAt is unset, it will set it to now.
+func (log *CRUDLog) UpdateTimestamps(now time.Time) {
+	log.UpdatedAt = now
+	if log.CreatedAt.IsZero() {
+		log.CreatedAt = now
+	}
+}
+
 // TimeGenerator represents a generator for now.
 type TimeGenerator interface {
 	// Now creates the generated time.
