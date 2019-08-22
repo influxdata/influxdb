@@ -46,7 +46,7 @@ export default (
 
       case 'REMOVE_NOTIFICATION_RULE':
         const {ruleID} = action.payload
-        draftState.list = draftState.list.filter(nr => nr.id != ruleID)
+        draftState.list = draftState.list.filter(nr => nr.id !== ruleID)
         return
 
       case 'SET_CURRENT_NOTIFICATION_RULE':
