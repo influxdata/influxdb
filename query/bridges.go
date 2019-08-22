@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/dependencies"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -125,7 +126,7 @@ type REPLQuerier struct {
 	QueryService   QueryService
 }
 
-func (q *REPLQuerier) Query(ctx context.Context, compiler flux.Compiler) (flux.ResultIterator, error) {
+func (q *REPLQuerier) Query(ctx context.Context, deps dependencies.Interface, compiler flux.Compiler) (flux.ResultIterator, error) {
 	req := &Request{
 		Authorization:  q.Authorization,
 		OrganizationID: q.OrganizationID,

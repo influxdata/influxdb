@@ -44,6 +44,7 @@ var (
 		ConcurrencyQuota:         1,
 		MemoryBytesQuotaPerQuery: 1024,
 		QueueSize:                1,
+		ExecutorDependencies:     executetest.NewTestExecuteDependencies(),
 	}
 )
 
