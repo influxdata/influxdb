@@ -55,5 +55,23 @@ export default (
           draftState.current.rule = action.payload.rule
         }
         return
+
+      case 'ADD_LABEL_TO_RULE':
+        draftState.list = draftState.list.map(r => {
+          if (r.id === action.ruleID) {
+            r.labels = [...r.labels, action.label]
+          }
+          return r
+        })
+        return
+
+      case 'REMOVE_LABEL_FROM_RULE':
+        draftState.list = draftState.list.map(r => {
+          if (r.id === action.ruleID) {
+            r.labels = r.labels.filter(label => label.id !== action.label.id)
+          }
+          return r
+        })
+        return
     }
   })

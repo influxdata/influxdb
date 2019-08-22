@@ -22,13 +22,28 @@ import {
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
-import {NotificationRule, GetState, NotificationRuleDraft} from 'src/types'
+import {
+  NotificationRule,
+  GetState,
+  NotificationRuleDraft,
+  Label,
+} from 'src/types'
 
 export type Action =
   | ReturnType<typeof setAllNotificationRules>
   | ReturnType<typeof setRule>
   | ReturnType<typeof setCurrentRule>
   | ReturnType<typeof removeRule>
+  | {
+      type: 'ADD_LABEL_TO_RULE'
+      ruleID: string
+      label: Label
+    }
+  | {
+      type: 'REMOVE_LABEL_FROM_RULE'
+      ruleID: string
+      label: Label
+    }
 
 export const setAllNotificationRules = (
   status: RemoteDataState,
@@ -143,4 +158,42 @@ export const deleteRule = (ruleID: string) => async (
   }
 
   dispatch(removeRule(ruleID))
+}
+
+export const addRuleLabel = (ruleID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.postNotificationRulesLabel({
+      ruleID,
+      data: {labelID: label.id},
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({type: 'ADD_LABEL_TO_RULE', ruleID, label})
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const deleteRuleLabel = (ruleID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.deleteNotificationRulesLabel({
+      ruleID,
+      labelID: label.id,
+    })
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({type: 'REMOVE_LABEL_FROM_RULE', ruleID, label})
+  } catch (e) {
+    console.error(e)
+  }
 }
