@@ -32,28 +32,6 @@ export type Action =
       label: Label
     }
 
-export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
-  dispatch: Dispatch<Action>
-) => {
-  try {
-    const resp = await api.patchNotificationEndpoint({
-      endpointID: endpoint.id,
-      data: endpoint,
-    })
-
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    dispatch({
-      type: 'SET_ENDPOINT',
-      endpoint: resp.data,
-    })
-  } catch (err) {
-    console.error(err)
-  }
-}
-
 export const getEndpoints = () => async (
   dispatch: Dispatch<Action>,
   getState: GetState
@@ -102,9 +80,9 @@ export const createEndpoint = (data: NotificationEndpoint) => async (
 
 export const updateEndpoint = (
   endpointID: string,
-  endpoint: Partial<NotificationEndpoint>
+  endpoint: NotificationEndpoint
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
-  const resp = await api.patchNotificationEndpoint({
+  const resp = await api.putNotificationEndpoint({
     endpointID,
     data: endpoint,
   })
