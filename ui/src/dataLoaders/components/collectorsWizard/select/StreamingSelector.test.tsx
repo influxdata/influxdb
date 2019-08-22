@@ -3,9 +3,8 @@ import React from 'react'
 import {shallow} from 'enzyme'
 
 // Components
-import {Input} from '@influxdata/clockface'
+import {Input, SelectableCard} from '@influxdata/clockface'
 import StreamingSelector from 'src/dataLoaders/components/collectorsWizard/select/StreamingSelector'
-import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 
 // Constants
 import {PLUGIN_BUNDLE_OPTIONS} from 'src/dataLoaders/constants/pluginConfigs'
@@ -32,7 +31,7 @@ const setup = (override = {}) => {
 describe('Onboarding.Components.SelectionStep.StreamingSelector', () => {
   it('renders a filter input and plugin bundles', () => {
     const wrapper = setup()
-    const cards = wrapper.find(CardSelectCard)
+    const cards = wrapper.find(SelectableCard)
     const filter = wrapper.find(Input)
 
     expect(cards.length).toBe(PLUGIN_BUNDLE_OPTIONS.length)
@@ -45,7 +44,7 @@ describe('Onboarding.Components.SelectionStep.StreamingSelector', () => {
       const searchTerm = 'syste'
       wrapper.setState({searchTerm})
 
-      const cards = wrapper.find(CardSelectCard)
+      const cards = wrapper.find(SelectableCard)
       expect(cards.length).toBe(1)
     })
   })
