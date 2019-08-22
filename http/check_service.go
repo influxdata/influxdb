@@ -59,6 +59,7 @@ type CheckHandler struct {
 const (
 	checksPath            = "/api/v2/checks"
 	checksIDPath          = "/api/v2/checks/:id"
+	checksIDQueryPath     = "/api/v2/checks/:id/query"
 	checksIDMembersPath   = "/api/v2/checks/:id/members"
 	checksIDMembersIDPath = "/api/v2/checks/:id/members/:userID"
 	checksIDOwnersPath    = "/api/v2/checks/:id/owners"
@@ -84,6 +85,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 	h.HandlerFunc("POST", checksPath, h.handlePostCheck)
 	h.HandlerFunc("GET", checksPath, h.handleGetChecks)
 	h.HandlerFunc("GET", checksIDPath, h.handleGetCheck)
+	h.HandlerFunc("GET", checksIDQueryPath, h.handleGetCheckQuery)
 	h.HandlerFunc("DELETE", checksIDPath, h.handleDeleteCheck)
 	h.HandlerFunc("PUT", checksIDPath, h.handlePutCheck)
 	h.HandlerFunc("PATCH", checksIDPath, h.handlePatchCheck)
@@ -232,6 +234,40 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	if err := encodeResponse(ctx, w, http.StatusOK, newChecksResponse(ctx, chks, h.LabelService, filter, *opts)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
+	}
+}
+
+func (h *CheckHandler) handleGetCheckQuery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := decodeGetCheckRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+	chk, err := h.CheckService.FindCheckByID(ctx, id)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+	flux, err := chk.GenerateFlux()
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+	h.Logger.Debug("check query retrieved", zap.String("check query", flux))
+	if err := encodeResponse(ctx, w, http.StatusOK, newFluxResponse(flux)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+type fluxResp struct {
+	Flux string `json:"flux"`
+}
+
+func newFluxResponse(flux string) fluxResp {
+	return fluxResp{
+		Flux: flux,
 	}
 }
 
