@@ -2,7 +2,7 @@
 import {Dispatch} from 'react'
 
 // Types
-import {NotificationEndpoint, GetState} from 'src/types'
+import {NotificationEndpoint, GetState, Label} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 
 // APIs
@@ -14,6 +14,16 @@ export type Action =
       type: 'SET_ALL_ENDPOINTS'
       status: RemoteDataState
       endpoints?: NotificationEndpoint[]
+    }
+  | {
+      type: 'ADD_LABEL_TO_ENDPOINT'
+      endpointID: string
+      label: Label
+    }
+  | {
+      type: 'REMOVE_LABEL_FROM_ENDPOINT'
+      endpointID: string
+      label: Label
     }
 
 export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
@@ -84,4 +94,50 @@ export const createEndpoint = (data: NotificationEndpoint) => async (
     type: 'SET_ENDPOINT',
     endpoint,
   })
+}
+
+export const addEndpointLabel = (endpointID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.postNotificationEndpointsLabel({
+      endpointID,
+      data: {labelID: label.id},
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({
+      type: 'ADD_LABEL_TO_ENDPOINT',
+      endpointID,
+      label,
+    })
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const deleteEndpointLabel = (endpointID: string, label: Label) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  try {
+    const resp = await api.deleteNotificationEndpointsLabel({
+      endpointID,
+      labelID: label.id,
+    })
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({
+      type: 'REMOVE_LABEL_FROM_ENDPOINT',
+      endpointID,
+      label,
+    })
+  } catch (e) {
+    console.error(e)
+  }
 }
