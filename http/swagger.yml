@@ -5764,6 +5764,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    put:
+      operationId: PutNotificationEndpointsID
+      tags:
+        - NotificationEndpoints
+      summary: Update a notification endpoint
+      requestBody:
+        description: notification endpoint update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationEndpoint"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: ID of notification endpoint
+      responses:
+        '200':
+          description: An updated notification endpoint
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationEndpoint"
+        '404':
+          description: The notification endpoint was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     patch:
       operationId: PatchNotificationEndpointsID
       tags:
@@ -5775,7 +5814,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/NotificationEndpoint"
+              $ref: "#/components/schemas/NotificationEndpointUpdate"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -9525,6 +9564,18 @@ components:
           enum: [pagerduty]
         messageTemplate:
           type: string
+    NotificationEndpointUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
     NotificationEndpoint:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
