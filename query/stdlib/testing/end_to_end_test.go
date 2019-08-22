@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"github.com/influxdata/flux/execute/executetest"
 	"strings"
 	"testing"
 
@@ -49,7 +50,8 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 			if reason, ok := itesting.FluxEndToEndSkipList[name]; ok {
 				t.Skip(reason)
 			}
-			testFlux(t, l, pkg)
+			c := lang.ASTCompiler{AST: pkg}
+			testFlux(t, l, pkg, c)
 		})
 	}
 }
@@ -68,7 +70,8 @@ func benchEndToEnd(b *testing.B, pkgs []*ast.Package) {
 			b.ResetTimer()
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				testFlux(b, l, pkg)
+				c := lang.ASTCompiler{AST: pkg}
+				testFlux(b, l, pkg, c)
 			}
 		})
 	}
@@ -95,7 +98,7 @@ func init() {
 	optionsAST = pkg.Files[0]
 }
 
-func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
+func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package, c flux.Compiler) {
 
 	// Query server to ensure write persists.
 
@@ -117,6 +120,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 			Init: &ast.StringLiteral{Value: b.Name},
 		},
 	}
+
 	orgOpt := &ast.OptionStatement{
 		Assignment: &ast.VariableAssignment{
 			ID:   &ast.Identifier{Name: "org"},
@@ -135,8 +139,14 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 
 	req := &query.Request{
 		OrganizationID: l.Org.ID,
-		Compiler:       lang.ASTCompiler{AST: pkg},
+		Compiler:       c,
 	}
+
+	program, err := c.Compile(context.Background())
+	if p, ok := program.(lang.DependenciesAwareProgram); ok {
+		p.SetExecutorDependencies(executetest.NewTestExecuteDependencies())
+	}
+
 	if r, err := l.FluxQueryService().Query(ctx, req); err != nil {
 		t.Fatal(err)
 	} else {
