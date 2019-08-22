@@ -5673,7 +5673,7 @@ paths:
         '204':
           description: delete has been accepted
         '404':
-          description: dashboard not found
+          description: rule or label not found
           content:
             application/json:
               schema:
@@ -5770,7 +5770,7 @@ paths:
         - NotificationEndpoints
       summary: Update a notification endpoint
       requestBody:
-        description: notification endpoint update to apply
+        description: a new notification endpoint to replace the existing endpoint with
         required: true
         content:
           application/json:
@@ -5954,7 +5954,7 @@ paths:
         '204':
           description: delete has been accepted
         '404':
-          description: dashboard not found
+          description: endpoint or label not found
           content:
             application/json:
               schema:
