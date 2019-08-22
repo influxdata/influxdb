@@ -78,12 +78,11 @@ export const createEndpoint = (data: NotificationEndpoint) => async (
   })
 }
 
-export const updateEndpoint = (
-  endpointID: string,
-  endpoint: NotificationEndpoint
-) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
   const resp = await api.putNotificationEndpoint({
-    endpointID,
+    endpointID: endpoint.id,
     data: endpoint,
   })
 
