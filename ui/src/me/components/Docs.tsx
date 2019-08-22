@@ -27,7 +27,9 @@ export default class SupportLinks extends PureComponent {
   public render() {
     return (
       <Panel>
-        <Panel.Header title="Some Handy Guides and Tutorials" />
+        <Panel.Header>
+          <Panel.Title>Some Handy Guides and Tutorials</Panel.Title>
+        </Panel.Header>
         <Panel.Body>
           <ul className="link-list tutorials">
             {supportLinks.map(({link, title}) => (

@@ -6,6 +6,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
 >
   <Form
     onSubmit={[Function]}
+    preventDefault={true}
     testID="form-container"
   >
     <div
@@ -59,6 +60,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     name=""
                     onChange={[Function]}
                     placeholder=""
+                    required={false}
                     size="md"
                     spellCheck={false}
                     status="default"
@@ -87,6 +89,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     name=""
                     onChange={[Function]}
                     placeholder=""
+                    required={false}
                     size="md"
                     spellCheck={false}
                     status="default"
@@ -115,6 +118,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     name=""
                     onChange={[Function]}
                     placeholder=""
+                    required={false}
                     size="md"
                     spellCheck={false}
                     status="default"
@@ -144,6 +148,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     name=""
                     onChange={[Function]}
                     placeholder="An organization is a workspace for a group of users."
+                    required={false}
                     size="md"
                     spellCheck={false}
                     status="default"
@@ -173,6 +178,7 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                     name=""
                     onChange={[Function]}
                     placeholder="A bucket is where your time series data is stored with a retention policy."
+                    required={false}
                     size="md"
                     spellCheck={false}
                     status="default"

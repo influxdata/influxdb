@@ -75,7 +75,7 @@ const TagRule: FC<Props> = ({tagRule}) => {
             backgroundColor={InfluxColors.Pepper}
           />
           <TextBlock text="When" />
-          <FlexBox.FlexChild grow={1}>
+          <FlexBox.Child grow={1}>
             <Input
               testID="tag-rule-key--input"
               placeholder="Tag"
@@ -83,14 +83,14 @@ const TagRule: FC<Props> = ({tagRule}) => {
               name="key"
               onChange={onChange}
             />
-          </FlexBox.FlexChild>
-          <FlexBox.FlexChild grow={0} basis={60}>
+          </FlexBox.Child>
+          <FlexBox.Child grow={0} basis={60}>
             <TagRuleOperatorDropdown
               selectedOperator={operator}
               onSelect={onSelectOperator}
             />
-          </FlexBox.FlexChild>
-          <FlexBox.FlexChild grow={1}>
+          </FlexBox.Child>
+          <FlexBox.Child grow={1}>
             <Input
               testID="tag-rule-key--input"
               placeholder="Value"
@@ -98,7 +98,7 @@ const TagRule: FC<Props> = ({tagRule}) => {
               name="value"
               onChange={onChange}
             />
-          </FlexBox.FlexChild>
+          </FlexBox.Child>
         </FlexBox>
       </Panel.Body>
     </Panel>

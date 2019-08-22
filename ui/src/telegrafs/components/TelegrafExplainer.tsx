@@ -6,7 +6,9 @@ import {Panel} from '@influxdata/clockface'
 
 const TelegrafExplainer: SFC = () => (
   <Panel className="telegraf-explainer">
-    <Panel.Header title="What is Telegraf?" />
+    <Panel.Header>
+      <Panel.Title>What is Telegraf?</Panel.Title>
+    </Panel.Header>
     <Panel.Body>
       <p>
         Telegraf is an agent written in Go for collecting metrics and writing

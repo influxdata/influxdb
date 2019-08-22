@@ -2,6 +2,7 @@
 
 exports[`TaskForm rendering renders 1`] = `
 <Form
+  preventDefault={true}
   testID="form-container"
 >
   <Grid
@@ -25,6 +26,7 @@ exports[`TaskForm rendering renders 1`] = `
             name="name"
             onChange={[MockFunction]}
             placeholder="Name your task"
+            required={false}
             size="sm"
             spellCheck={false}
             status="default"

@@ -38,26 +38,26 @@ const StatusLevels: FC<Props> = ({status}) => {
   return (
     <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
       <TextBlock text="When status" />
-      <FlexBox.FlexChild grow={0} basis={140}>
+      <FlexBox.Child grow={0} basis={140}>
         <StatusChangeDropdown status={status} />
-      </FlexBox.FlexChild>
+      </FlexBox.Child>
       {!!previousLevel && (
-        <FlexBox.FlexChild grow={0} basis={140}>
+        <FlexBox.Child grow={0} basis={140}>
           <LevelsDropdown
             type="previousLevel"
             selectedLevel={previousLevel.level}
             onClickLevel={onClickLevel}
           />
-        </FlexBox.FlexChild>
+        </FlexBox.Child>
       )}
       {!!previousLevel && <TextBlock text="to" />}
-      <FlexBox.FlexChild grow={0} basis={140}>
+      <FlexBox.Child grow={0} basis={140}>
         <LevelsDropdown
           type="currentLevel"
           selectedLevel={currentLevel.level}
           onClickLevel={onClickLevel}
         />
-      </FlexBox.FlexChild>
+      </FlexBox.Child>
     </FlexBox>
   )
 }

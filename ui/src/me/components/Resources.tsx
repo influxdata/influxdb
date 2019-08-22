@@ -32,12 +32,15 @@ class ResourceLists extends PureComponent<Props> {
         margin={ComponentSize.Small}
       >
         <Panel>
-          <Panel.Header title="Account">
+          <Panel.Header>
+            <Panel.Title>Account</Panel.Title>
             <LogoutButton />
           </Panel.Header>
         </Panel>
         <Panel>
-          <Panel.Header title="Dashboards" />
+          <Panel.Header>
+            <Panel.Title>Dashboards</Panel.Title>
+          </Panel.Header>
           <Panel.Body>
             <GetResources resource={ResourceTypes.Dashboards}>
               <DashboardsList />
@@ -45,7 +48,9 @@ class ResourceLists extends PureComponent<Props> {
           </Panel.Body>
         </Panel>
         <Panel>
-          <Panel.Header title="Useful Links" />
+          <Panel.Header>
+            <Panel.Title>Useful Links</Panel.Title>
+          </Panel.Header>
           <Panel.Body>
             <Support />
           </Panel.Body>

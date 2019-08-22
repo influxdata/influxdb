@@ -16,7 +16,7 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
     changeValue(Number(e.target.value))
   }
   return (
-    <FlexBox.FlexChild testID="component-spacer--flex-child">
+    <FlexBox.Child testID="component-spacer--flex-child">
       <Input
         onChange={onChangeValue}
         name=""
@@ -24,7 +24,7 @@ const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
         type={InputType.Number}
         value={threshold.value}
       />
-    </FlexBox.FlexChild>
+    </FlexBox.Child>
   )
 }
 

@@ -50,7 +50,11 @@ export class MePage extends PureComponent<StateProps> {
                     stretchToFitWidth={true}
                   >
                     <Panel>
-                      <Panel.Header title="Getting started with InfluxDB 2.0" />
+                      <Panel.Header>
+                        <Panel.Title>
+                          Getting started with InfluxDB 2.0
+                        </Panel.Title>
+                      </Panel.Header>
                       <Panel.Body>
                         <GettingStarted />
                       </Panel.Body>

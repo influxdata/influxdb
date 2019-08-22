@@ -82,14 +82,14 @@ const ThresholdStatement: FC<Props> = ({
               testID="component-spacer"
             >
               <TextBlock testID="when-value-text-block" text="When value" />
-              <FlexBox.FlexChild grow={2} testID="component-spacer--flex-child">
+              <FlexBox.Child grow={2} testID="component-spacer--flex-child">
                 <SelectDropdown
                   options={Object.keys(dropdownOptions)}
                   selectedOption={selectedOption}
                   onSelect={onChangeThresholdType}
                   testID="select-option-dropdown"
                 />
-              </FlexBox.FlexChild>
+              </FlexBox.Child>
             </FlexBox>
             <FlexBox
               direction={FlexDirection.Row}
