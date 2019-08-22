@@ -103,6 +103,7 @@ class StreamingSelector extends PureComponent<Props, State> {
                 id={b}
                 formName="telegraf-plugins"
                 label={b}
+                testID={`telegraf-plugins--${b}`}
                 selected={this.isCardChecked(b)}
                 onClick={this.handleToggle}
                 image={createElement(BUNDLE_LOGOS[b])}
