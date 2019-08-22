@@ -2,7 +2,12 @@
 import {Dispatch} from 'react'
 
 // Types
-import {NotificationEndpoint, GetState, Label} from 'src/types'
+import {
+  NotificationEndpoint,
+  GetState,
+  Label,
+  NotificationEndpointUpdate,
+} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 
 // APIs
@@ -10,6 +15,7 @@ import * as api from 'src/client'
 
 export type Action =
   | {type: 'SET_ENDPOINT'; endpoint: NotificationEndpoint}
+  | {type: 'REMOVE_ENDPOINT'; endpointID: string}
   | {
       type: 'SET_ALL_ENDPOINTS'
       status: RemoteDataState
@@ -91,6 +97,59 @@ export const createEndpoint = (data: NotificationEndpoint) => async (
   dispatch({
     type: 'SET_ENDPOINT',
     endpoint: resp.data,
+  })
+}
+
+export const updateEndpoint = (
+  endpointID: string,
+  endpoint: Partial<NotificationEndpoint>
+) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  const resp = await api.patchNotificationEndpoint({
+    endpointID,
+    data: endpoint,
+  })
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  dispatch({
+    type: 'SET_ENDPOINT',
+    endpoint: resp.data,
+  })
+}
+
+export const updateEndpointProperties = (
+  endpointID: string,
+  properties: NotificationEndpointUpdate
+) => async (dispatch: Dispatch<Action | NotificationAction>) => {
+  const resp = await api.patchNotificationEndpoint({
+    endpointID,
+    data: properties,
+  })
+
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
+  }
+
+  dispatch({
+    type: 'SET_ENDPOINT',
+    endpoint: resp.data,
+  })
+}
+
+export const deleteEndpoint = (endpointID: string) => async (
+  dispatch: Dispatch<Action | NotificationAction>
+) => {
+  const resp = await api.deleteNotificationEndpoint({endpointID})
+
+  if (resp.status !== 204) {
+    throw new Error(resp.data.message)
+  }
+
+  dispatch({
+    type: 'REMOVE_ENDPOINT',
+    endpointID,
   })
 }
 

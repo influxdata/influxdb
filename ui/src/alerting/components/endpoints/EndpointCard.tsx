@@ -11,6 +11,8 @@ import {viewableLabels} from 'src/labels/selectors'
 import {
   addEndpointLabel,
   deleteEndpointLabel,
+  deleteEndpoint,
+  updateEndpointProperties,
 } from 'src/alerting/actions/notifications/endpoints'
 
 // Components
@@ -23,9 +25,11 @@ import {NotificationEndpoint, Label, AppState} from 'src/types'
 import {Action} from 'src/alerting/actions/notifications/endpoints'
 
 interface DispatchProps {
+  onDeleteEndpoint: typeof deleteEndpoint
   onAddEndpointLabel: typeof addEndpointLabel
   onRemoveEndpointLabel: typeof deleteEndpointLabel
   onCreateLabel: typeof createLabelAsync
+  onUpdateEndpointProperties: typeof updateEndpointProperties
 }
 
 interface StateProps {
@@ -50,22 +54,17 @@ const EndpointCard: FC<Props> = ({
   labels,
   router,
   params: {orgID},
-  dispatch,
   endpoint,
   onCreateLabel,
+  onUpdateEndpointProperties,
+  onDeleteEndpoint,
   onAddEndpointLabel,
   onRemoveEndpointLabel,
 }) => {
   const {id, name, status, description} = endpoint
 
   const handleUpdateName = (name: string) => {
-    dispatch({
-      type: 'SET_ENDPOINT',
-      endpoint: {
-        ...endpoint,
-        name,
-      },
-    })
+    onUpdateEndpointProperties(id, {name})
   }
   const handleClick = () => {
     router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
@@ -84,15 +83,9 @@ const EndpointCard: FC<Props> = ({
   )
 
   const handleToggle = () => {
-    dispatch({
-      type: 'SET_ENDPOINT',
-      endpoint: {
-        ...endpoint,
-        status: status === 'active' ? 'inactive' : 'active',
-      },
-    })
+    const toStatus = status === 'active' ? 'inactive' : 'active'
+    onUpdateEndpointProperties(id, {status: toStatus})
   }
-
   const toggle = (
     <SlideToggle
       active={status === 'active'}
@@ -102,9 +95,11 @@ const EndpointCard: FC<Props> = ({
     />
   )
 
-  const handleDelete = () => console.trace('implement delete')
+  const handleDelete = () => {
+    onDeleteEndpoint(id)
+  }
   const handleExport = () => console.trace('implement export')
-  const handleClone = () => console.trace('implement delete')
+  const handleClone = () => console.trace('implement clone')
   const contextMenu = (
     <EndpointCardMenu
       onDelete={handleDelete}
@@ -132,8 +127,9 @@ const EndpointCard: FC<Props> = ({
     />
   )
 
-  const handleUpdateDescription = () =>
-    console.trace('implement update description')
+  const handleUpdateDescription = (description: string) => {
+    onUpdateEndpointProperties(id, {description})
+  }
   const descriptionComponent = (
     <ResourceCard.EditableDescription
       onUpdate={handleUpdateDescription}
@@ -158,9 +154,11 @@ const EndpointCard: FC<Props> = ({
 }
 
 const mdtp: DispatchProps = {
+  onDeleteEndpoint: deleteEndpoint,
   onCreateLabel: createLabelAsync,
   onAddEndpointLabel: addEndpointLabel,
   onRemoveEndpointLabel: deleteEndpointLabel,
+  onUpdateEndpointProperties: updateEndpointProperties,
 }
 
 const mstp = ({labels}: AppState): StateProps => ({
