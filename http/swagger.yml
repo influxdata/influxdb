@@ -5348,7 +5348,7 @@ paths:
         '204':
           description: delete has been accepted
         '404':
-          description: dashboard not found
+          description: check or label not found
           content:
             application/json:
               schema:
