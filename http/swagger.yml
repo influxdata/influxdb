@@ -6660,7 +6660,6 @@ components:
           default: user
           enum:
             - user
-            - logs
             - tasks
             - monitoring
         name:
