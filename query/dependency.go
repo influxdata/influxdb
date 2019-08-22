@@ -2,6 +2,9 @@ package query
 
 import (
 	"context"
+
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	platform "github.com/influxdata/influxdb"
 )
 
@@ -96,4 +99,29 @@ func (o *OrganizationLookup) LookupName(ctx context.Context, id platform.ID) str
 		return ""
 	}
 	return org.Name
+}
+
+// SecretLookup wraps the platform.SecretService to perform lookups based on the organization
+// in the context.
+type SecretLookup struct {
+	SecretService platform.SecretService
+}
+
+// FromSecretService wraps a platform.OrganizationService in the OrganizationLookup interface.
+func FromSecretService(srv platform.SecretService) *SecretLookup {
+	return &SecretLookup{SecretService: srv}
+}
+
+// LoadSecret loads the secret associated with the key in the current organization context.
+func (s *SecretLookup) LoadSecret(ctx context.Context, key string) (string, error) {
+	req := RequestFromContext(ctx)
+	if req == nil {
+		return "", &flux.Error{
+			Code: codes.Internal,
+			Msg:  "missing request on context",
+		}
+	}
+
+	orgID := req.OrganizationID
+	return s.SecretService.LoadSecret(ctx, orgID, key)
 }
