@@ -5701,7 +5701,7 @@ paths:
             type: string
       responses:
         '200':
-          description: A list of notification rules
+          description: A list of notification endpoints
           content:
             application/json:
               schema:
@@ -5730,7 +5730,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/NotificationRule"
+                $ref: "#/components/schemas/NotificationEndpoint"
         default:
           description: unexpected error
           content:

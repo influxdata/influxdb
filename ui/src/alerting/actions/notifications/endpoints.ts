@@ -88,11 +88,9 @@ export const createEndpoint = (data: NotificationEndpoint) => async (
     throw new Error(resp.data.message)
   }
 
-  const endpoint = (resp.data as unknown) as NotificationEndpoint
-
   dispatch({
     type: 'SET_ENDPOINT',
-    endpoint,
+    endpoint: resp.data,
   })
 }
 
