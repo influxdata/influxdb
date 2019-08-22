@@ -2,14 +2,14 @@
 package options
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/influxdata/flux/parser"
-
 	"github.com/influxdata/flux/ast"
-
+	"github.com/influxdata/flux/dependencies"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
@@ -203,7 +203,8 @@ func FromScript(script string) (Options, error) {
 		return opt, err
 	}
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
-	_, scope, err := flux.EvalAST(fluxAST)
+	ctx, deps := context.Background(), dependencies.NewDefaultDependencies()
+	_, scope, err := flux.EvalAST(ctx, deps, fluxAST)
 	if err != nil {
 		return opt, err
 	}

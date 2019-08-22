@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/flux/dependencies"
 	"sort"
 	"time"
 
@@ -606,11 +607,12 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				}
 			}
 
+			ctx, deps := context.Background(), dependencies.NewDefaultDependencies()
 			if spec.FieldFn.Fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
 				}
-			} else if fieldValues, err = t.fn.Eval(i, er); err != nil {
+			} else if fieldValues, err = t.fn.Eval(ctx, deps, i, er); err != nil {
 				return err
 			}
 
