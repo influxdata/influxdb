@@ -55,17 +55,14 @@ func NewDumpTsiCommand() *cobra.Command {
 					Dump raw series for each tag value
 			-measurement-filter REGEXP
 					Filters data by measurement regular expression
-			-series-file PATH
+			-series-path PATH
 					Path to the "_series" directory under the database data directory.
-					Required.
+			-index-path PATH
+					Path to the "index" directory under the database data directory.
 			-tag-key-filter REGEXP
 					Filters data by tag key regular expression
 			-tag-value-filter REGEXP
 					Filters data by tag value regular expression
-		
-		One or more paths are required. Path must specify either a TSI index directory
-		or it should specify one or more .tsi/.tsl files. If no flags are specified
-		then summary stats are provided for each file.
 		`,
 		RunE: dumpTsi,
 	}
@@ -74,8 +71,8 @@ func NewDumpTsiCommand() *cobra.Command {
 	defaultIndexDir := filepath.Join(defaultDataDir, "index")
 	defaultSeriesDir := filepath.Join(defaultDataDir, "_series")
 
-	dumpTsiCommand.Flags().StringVar(&dumpTsiFlags.seriesFilePath, "series-file", defaultSeriesDir, "Path to series file")
-	dumpTsiCommand.Flags().StringVar(&dumpTsiFlags.dataPath, "data-path", defaultIndexDir, "Path to the index directory of the data engine")
+	dumpTsiCommand.Flags().StringVar(&dumpTsiFlags.seriesFilePath, "series-path", defaultSeriesDir, "Path to series file")
+	dumpTsiCommand.Flags().StringVar(&dumpTsiFlags.dataPath, "index-path", defaultIndexDir, "Path to the index directory of the data engine")
 	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showSeries, "series", false, "Show raw series data")
 	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showMeasurements, "measurements", false, "Show raw measurement data")
 	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showTagKeys, "tag-keys", false, "Show raw tag key data")
