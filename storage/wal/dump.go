@@ -41,7 +41,9 @@ type DumpReport struct {
 
 // Run executes the dumpwal command, generating a list of DumpReports
 // for each requested file. The `print` flag indicates whether or not
-// the command should log output during execution.
+// the command should log output during execution. If the command is run
+// as a cli, Run(true) should be used, and if the tool is run programmatically,
+// output should likely be suppressed with Run(false).
 func (w *Dump) Run(print bool) ([]*DumpReport, error) {
 	if w.Stderr == nil {
 		w.Stderr = os.Stderr
