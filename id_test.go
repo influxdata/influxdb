@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
@@ -16,7 +15,7 @@ func TestIDFromString(t *testing.T) {
 	tests := []struct {
 		name    string
 		id      string
-		want    platform.ID
+		want    influxdb.ID
 		wantErr bool
 		err     string
 	}{
@@ -24,7 +23,7 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should be able to decode an all zeros ID",
 			id:      "0000000000000000",
 			wantErr: true,
-			err:     platform.ErrInvalidID.Error(),
+			err:     influxdb.ErrInvalidID.Error(),
 		},
 		{
 			name: "Should be able to decode an all f ID",
@@ -40,24 +39,24 @@ func TestIDFromString(t *testing.T) {
 			name:    "Should not be able to decode a non hex ID",
 			id:      "gggggggggggggggg",
 			wantErr: true,
-			err:     platform.ErrInvalidID.Error(),
+			err:     influxdb.ErrInvalidID.Error(),
 		},
 		{
 			name:    "Should not be able to decode inputs with length less than 16 bytes",
 			id:      "abc",
 			wantErr: true,
-			err:     platform.ErrInvalidIDLength.Error(),
+			err:     influxdb.ErrInvalidIDLength.Error(),
 		},
 		{
 			name:    "Should not be able to decode inputs with length greater than 16 bytes",
 			id:      "abcdabcdabcdabcd0",
 			wantErr: true,
-			err:     platform.ErrInvalidIDLength.Error(),
+			err:     influxdb.ErrInvalidIDLength.Error(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := platform.IDFromString(tt.id)
+			got, err := influxdb.IDFromString(tt.id)
 
 			// Check negative test cases
 			if (err != nil) && tt.wantErr {
@@ -76,7 +75,7 @@ func TestIDFromString(t *testing.T) {
 }
 
 func TestDecodeFromString(t *testing.T) {
-	var id platform.ID
+	var id influxdb.ID
 	err := id.DecodeFromString("020f755c3c082000")
 	if err != nil {
 		t.Errorf(err.Error())
@@ -95,7 +94,7 @@ func TestDecodeFromString(t *testing.T) {
 }
 
 func TestEncode(t *testing.T) {
-	var id platform.ID
+	var id influxdb.ID
 	if _, err := id.Encode(); err == nil {
 		t.Errorf("encoding an invalid ID should not be possible")
 	}
@@ -115,15 +114,15 @@ func TestEncode(t *testing.T) {
 }
 
 func TestDecodeFromAllZeros(t *testing.T) {
-	var id platform.ID
-	err := id.Decode(make([]byte, platform.IDLength))
+	var id influxdb.ID
+	err := id.Decode(make([]byte, influxdb.IDLength))
 	if err == nil {
 		t.Errorf("expecting all zeros ID to not be a valid ID")
 	}
 }
 
 func TestDecodeFromShorterString(t *testing.T) {
-	var id platform.ID
+	var id influxdb.ID
 	err := id.DecodeFromString("020f75")
 	if err == nil {
 		t.Errorf("expecting shorter inputs to error")
@@ -134,7 +133,7 @@ func TestDecodeFromShorterString(t *testing.T) {
 }
 
 func TestDecodeFromLongerString(t *testing.T) {
-	var id platform.ID
+	var id influxdb.ID
 	err := id.DecodeFromString("020f755c3c082000aaa")
 	if err == nil {
 		t.Errorf("expecting shorter inputs to error")
@@ -145,7 +144,7 @@ func TestDecodeFromLongerString(t *testing.T) {
 }
 
 func TestDecodeFromEmptyString(t *testing.T) {
-	var id platform.ID
+	var id influxdb.ID
 	err := id.DecodeFromString("")
 	if err == nil {
 		t.Errorf("expecting empty inputs to error")
@@ -156,14 +155,14 @@ func TestDecodeFromEmptyString(t *testing.T) {
 }
 
 func TestMarshalling(t *testing.T) {
-	var id0 platform.ID
+	var id0 influxdb.ID
 	_, err := json.Marshal(id0)
 	if err == nil {
 		t.Errorf("expecting empty ID to not be a valid one")
 	}
 
 	init := "ca55e77eca55e77e"
-	id1, err := platform.IDFromString(init)
+	id1, err := influxdb.IDFromString(init)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -173,7 +172,7 @@ func TestMarshalling(t *testing.T) {
 		t.Errorf(err.Error())
 	}
 
-	var id2 platform.ID
+	var id2 influxdb.ID
 	json.Unmarshal(serialized, &id2)
 
 	bytes1, _ := id1.Encode()
@@ -207,19 +206,19 @@ func TestMarshalling(t *testing.T) {
 }
 
 func TestValid(t *testing.T) {
-	var id platform.ID
+	var id influxdb.ID
 	if id.Valid() {
 		t.Errorf("expecting initial ID to be invalid")
 	}
 
-	if platform.InvalidID() != 0 {
+	if influxdb.InvalidID() != 0 {
 		t.Errorf("expecting invalid ID to return a zero ID, thus invalid")
 	}
 }
 
 func TestID_GoString(t *testing.T) {
 	type idGoStringTester struct {
-		ID platform.ID
+		ID influxdb.ID
 	}
 	var x idGoStringTester
 
@@ -236,7 +235,7 @@ func TestID_GoString(t *testing.T) {
 }
 
 func BenchmarkIDEncode(b *testing.B) {
-	var id platform.ID
+	var id influxdb.ID
 	id.DecodeFromString("5ca1ab1eba5eba11")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -247,7 +246,7 @@ func BenchmarkIDEncode(b *testing.B) {
 
 func BenchmarkIDDecode(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		var id platform.ID
+		var id influxdb.ID
 		id.DecodeFromString("5ca1ab1eba5eba11")
 	}
 }

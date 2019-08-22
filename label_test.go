@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	influxtest "github.com/influxdata/influxdb/testing"
 )
 
@@ -46,7 +45,7 @@ func TestLabelValidate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := platform.Label{
+			m := influxdb.Label{
 				Name:  tt.fields.Name,
 				OrgID: tt.fields.OrgID,
 			}

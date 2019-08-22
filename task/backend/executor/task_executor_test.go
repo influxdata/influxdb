@@ -10,7 +10,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kit/prom"
@@ -64,7 +63,7 @@ func testQuerySuccess(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +99,7 @@ func testQueryFailure(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +135,7 @@ func testManualRun(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +183,7 @@ func testResumingRun(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +232,7 @@ func testWorkerLimit(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +262,7 @@ func testLimitFunc(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +309,7 @@ func testMetrics(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +356,7 @@ func testMetrics(t *testing.T) {
 	}
 
 	// manual runs metrics
-	mt, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	mt, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +394,7 @@ func testIteratorFailure(t *testing.T) {
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
 	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
-	task, err := tes.i.CreateTask(ctx, platform.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script})
 	if err != nil {
 		t.Fatal(err)
 	}

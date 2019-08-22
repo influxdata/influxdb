@@ -6,7 +6,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
@@ -16,8 +15,8 @@ import (
 
 type authError struct {
 	error
-	perm platform.Permission
-	auth platform.Authorizer
+	perm influxdb.Permission
+	auth influxdb.Authorizer
 }
 
 func (ae *authError) AuthzError() error {
@@ -37,14 +36,14 @@ var (
 )
 
 type taskServiceValidator struct {
-	platform.TaskService
+	influxdb.TaskService
 	preAuth query.PreAuthorizer
 	logger  *zap.Logger
 }
 
 // TaskService wraps ts and checks appropriate permissions before calling requested methods on ts.
 // Authorization failures are logged to the logger.
-func NewTaskService(logger *zap.Logger, ts platform.TaskService, bs platform.BucketService) platform.TaskService {
+func NewTaskService(logger *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService) influxdb.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
 		preAuth:     query.NewPreAuthorizer(bs),
@@ -52,7 +51,7 @@ func NewTaskService(logger *zap.Logger, ts platform.TaskService, bs platform.Buc
 	}
 }
 
-func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*platform.Task, error) {
+func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -62,7 +61,7 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 		return nil, err
 	}
 
-	perm, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	perm, err := influxdb.NewPermissionAtID(id, influxdb.ReadAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +75,7 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID
 	return task, nil
 }
 
-func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.TaskFilter) ([]*platform.Task, int, error) {
+func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -95,9 +94,9 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 	}
 
 	// Then, filter down to what the user is allowed to see.
-	tasks := make([]*platform.Task, 0, len(unauthenticatedTasks))
+	tasks := make([]*influxdb.Task, 0, len(unauthenticatedTasks))
 	for _, t := range unauthenticatedTasks {
-		perm, err := platform.NewPermissionAtID(t.ID, platform.ReadAction, platform.TasksResourceType, t.OrganizationID)
+		perm, err := influxdb.NewPermissionAtID(t.ID, influxdb.ReadAction, influxdb.TasksResourceType, t.OrganizationID)
 		if err != nil {
 			continue
 		}
@@ -114,7 +113,7 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter platform.T
 	return tasks, len(tasks), nil
 }
 
-func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskCreate) (*platform.Task, error) {
+func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskCreate) (*influxdb.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -126,7 +125,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 		return nil, influxdb.ErrInvalidTaskType
 	}
 
-	p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, t.OrganizationID)
+	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.TasksResourceType, t.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +142,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t platform.TaskC
 	return ts.TaskService.CreateTask(ctx, t)
 }
 
-func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, upd platform.TaskUpdate) (*platform.Task, error) {
+func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -153,7 +152,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 		return nil, err
 	}
 
-	p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := influxdb.NewPermissionAtID(id, influxdb.WriteAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +172,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, 
 	return ts.TaskService.UpdateTask(ctx, id, upd)
 }
 
-func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) error {
+func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -183,7 +182,7 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) 
 		return err
 	}
 
-	p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := influxdb.NewPermissionAtID(id, influxdb.WriteAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -197,7 +196,7 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) 
 	return ts.TaskService.DeleteTask(ctx, id)
 }
 
-func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter platform.LogFilter) ([]*platform.Log, int, error) {
+func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter influxdb.LogFilter) ([]*influxdb.Log, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -210,7 +209,7 @@ func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter platform.Lo
 	return ts.TaskService.FindLogs(ctx, filter)
 }
 
-func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.RunFilter) ([]*platform.Run, int, error) {
+func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -220,7 +219,7 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.Ru
 		return nil, -1, err
 	}
 
-	perm, err := platform.NewPermissionAtID(task.ID, platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	perm, err := influxdb.NewPermissionAtID(task.ID, influxdb.ReadAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -235,7 +234,7 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter platform.Ru
 	return ts.TaskService.FindRuns(ctx, filter)
 }
 
-func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -245,7 +244,7 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID p
 		return nil, err
 	}
 
-	p, err := platform.NewPermissionAtID(taskID, platform.ReadAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := influxdb.NewPermissionAtID(taskID, influxdb.ReadAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +258,7 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID p
 	return ts.TaskService.FindRunByID(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
+func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -269,7 +268,7 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID pla
 		return err
 	}
 
-	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := influxdb.NewPermissionAtID(taskID, influxdb.WriteAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return err
 	}
@@ -283,7 +282,7 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID pla
 	return ts.TaskService.CancelRun(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*platform.Run, error) {
+func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -297,7 +296,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 		return nil, ErrInactiveTask
 	}
 
-	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := influxdb.NewPermissionAtID(taskID, influxdb.WriteAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,7 +310,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID plat
 	return ts.TaskService.RetryRun(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*platform.Run, error) {
+func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -325,7 +324,7 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID
 		return nil, ErrInactiveTask
 	}
 
-	p, err := platform.NewPermissionAtID(taskID, platform.WriteAction, platform.TasksResourceType, task.OrganizationID)
+	p, err := influxdb.NewPermissionAtID(taskID, influxdb.WriteAction, influxdb.TasksResourceType, task.OrganizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +338,7 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID
 	return ts.TaskService.ForceRun(ctx, taskID, scheduledFor)
 }
 
-func (ts *taskServiceValidator) validatePermission(ctx context.Context, perm platform.Permission, loggerFields ...zap.Field) error {
+func (ts *taskServiceValidator) validatePermission(ctx context.Context, perm influxdb.Permission, loggerFields ...zap.Field) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
 		ts.logger.With(loggerFields...).Info("Failed to retrieve authorizer from context")
@@ -359,7 +358,7 @@ func (ts *taskServiceValidator) validatePermission(ctx context.Context, perm pla
 	return nil
 }
 
-func (ts *taskServiceValidator) validateBucket(ctx context.Context, script string, orgID platform.ID, loggerFields ...zap.Field) error {
+func (ts *taskServiceValidator) validateBucket(ctx context.Context, script string, orgID influxdb.ID, loggerFields ...zap.Field) error {
 	auth, err := platcontext.GetAuthorizer(ctx)
 	if err != nil {
 		ts.logger.With(loggerFields...).Info("Failed to retrieve authorizer from context")
@@ -368,10 +367,10 @@ func (ts *taskServiceValidator) validateBucket(ctx context.Context, script strin
 
 	ast, err := flux.Parse(script)
 	if err != nil {
-		return platform.NewError(
-			platform.WithErrorErr(err),
-			platform.WithErrorMsg("Failed to compile flux script."),
-			platform.WithErrorCode(platform.EInvalid))
+		return influxdb.NewError(
+			influxdb.WithErrorErr(err),
+			influxdb.WithErrorMsg("Failed to compile flux script."),
+			influxdb.WithErrorCode(influxdb.EInvalid))
 	}
 
 	if err := ts.preAuth.PreAuthorize(ctx, ast, auth, &orgID); err != nil {
@@ -382,15 +381,15 @@ func (ts *taskServiceValidator) validateBucket(ctx context.Context, script strin
 			zap.String("auth_id", auth.Identifier().String()),
 		)
 
-		// if error is already a platform error then return it
-		if perr, ok := err.(*platform.Error); ok {
+		// if error is already a  influxdb.error then return it
+		if perr, ok := err.(*influxdb.Error); ok {
 			return perr
 		}
 
-		return platform.NewError(
-			platform.WithErrorErr(err),
-			platform.WithErrorMsg("Failed to create task."),
-			platform.WithErrorCode(platform.EUnauthorized))
+		return influxdb.NewError(
+			influxdb.WithErrorErr(err),
+			influxdb.WithErrorMsg("Failed to create task."),
+			influxdb.WithErrorCode(influxdb.EUnauthorized))
 	}
 
 	return nil

@@ -88,20 +88,20 @@ require (
 	github.com/yudai/pp v2.0.1+incompatible // indirect
 	go.uber.org/multierr v1.1.0
 	go.uber.org/zap v1.9.1
-	golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2
+	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529
 	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
 	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4
-	golang.org/x/sync v0.0.0-20190227155943-e225da77a7e6
-	golang.org/x/sys v0.0.0-20190403152447-81d4e9dc473e
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
+	golang.org/x/sys v0.0.0-20190412213103-97732733099d
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20190322203728-c1a832b0ad89
+	golang.org/x/tools v0.0.0-20190621195816-6e04913cbbac
 	google.golang.org/api v0.0.0-20181021000519-a2651947f503
 	google.golang.org/grpc v1.19.1
 	gopkg.in/editorconfig/editorconfig-core-go.v1 v1.3.0 // indirect
 	gopkg.in/ini.v1 v1.42.0 // indirect
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
-	honnef.co/go/tools v0.0.0-20190319011948-d116c56a00f3
+	honnef.co/go/tools v0.0.0-20190812140558-8bd8df698242 // indirect
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 )

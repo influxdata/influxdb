@@ -117,7 +117,7 @@ func TestMetrics(t *testing.T) {
 	}
 
 	// This key/value pair added to the context will appear as a label in the prometheus histogram.
-	ctx := context.WithValue(context.Background(), labelKey, labelValue)
+	ctx := context.WithValue(context.Background(), labelKey, labelValue) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
 	rfs := influxdb.ReadFilterSource(
 		execute.DatasetID(uuid.FromTime(time.Now())),
 		&mockReader{},
