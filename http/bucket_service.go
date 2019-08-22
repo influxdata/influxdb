@@ -343,6 +343,9 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 		return nil, err
 	}
 
+	// Only user buckets can be created over HTTP
+	pb.Type = influxdb.BucketTypeUser
+
 	req := &postBucketRequest{
 		Bucket: pb,
 	}

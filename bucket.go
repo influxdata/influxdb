@@ -15,7 +15,7 @@ func (bt BucketType) String() string {
 		return "user"
 	}
 
-	return [...]string{"logs", "tasks", "monitoring"}[bt-10]
+	return [...]string{"tasks", "monitoring"}[bt-10]
 }
 
 const (
@@ -23,8 +23,8 @@ const (
 	BucketTypeUser = BucketType(0) // BucketTypeUser describes a user-created data bucket. Its use of a zero value ensures that it is the default type.
 
 	// ~*~ System Buckets ~*~
-	BucketTypeLogs       BucketType = iota + 10 // BucketTypeLogs defines the bucket ID of the system logs.
-	BucketTypeTasks                             // BucketTypeTasks defines the bucket ID of task run logs.
+	// These values also map to fixed system bucket IDs.
+	BucketTypeTasks      BucketType = iota + 10 // BucketTypeLogs defines the bucket ID of the system logs.
 	BucketTypeMonitoring                        // BucketTypeMonitoring defines the bucket ID of monitoring records.
 )
 
