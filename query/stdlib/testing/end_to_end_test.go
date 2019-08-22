@@ -21,7 +21,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	itesting "github.com/influxdata/influxdb/query/stdlib/testing"
 
-	_ "github.com/influxdata/flux/stdlib"           // Import the built-in functions
 	_ "github.com/influxdata/influxdb/query/stdlib" // Import the stdlib
 )
 

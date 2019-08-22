@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
@@ -256,7 +255,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
 				var (
 					expMsg  = "Failed to create task."
-					expCode = platform.EUnauthorized
+					expCode = influxdb.EUnauthorized
 					errfmt  = "expected %q, got %q"
 					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
 						OrganizationID: r.Org.ID,
@@ -275,7 +274,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 
 				perr, ok := err.(*influxdb.Error)
 				if !ok {
-					return fmt.Errorf(errfmt, &platform.Error{}, err)
+					return fmt.Errorf(errfmt, &influxdb.Error{}, err)
 				}
 
 				if perr.Code != expCode {
@@ -304,7 +303,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 				var (
 					expMsg  = "Failed to compile flux script."
 					expErr  = fmt.Errorf("error calling function \"to\": missing required keyword argument \"orgID\"")
-					expCode = platform.EInvalid
+					expCode = influxdb.EInvalid
 					errfmt  = "expected %q, got %q"
 					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
 						OrganizationID: r.Org.ID,
@@ -323,7 +322,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad")`,
 
 				perr, ok := err.(*influxdb.Error)
 				if !ok {
-					return fmt.Errorf(errfmt, &platform.Error{}, err)
+					return fmt.Errorf(errfmt, &influxdb.Error{}, err)
 				}
 
 				if perr.Code != expCode {
@@ -496,7 +495,7 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"other_bucket", org:"other_
 
 				perr, ok := err.(*influxdb.Error)
 				if !ok {
-					return fmt.Errorf("expected platform error, got %q of type %T", err, err)
+					return fmt.Errorf("expected influxdb.error, got %q of type %T", err, err)
 				}
 
 				if perr.Code != influxdb.EUnauthorized {
@@ -507,9 +506,9 @@ from(bucket:"cows") |> range(start:-5m) |> to(bucket:"other_bucket", org:"other_
 					return fmt.Errorf(`expected "Failed to authorize.", got %q`, perr.Msg)
 				}
 
-				cerr, ok := errors.Cause(perr.Err).(*platform.Error)
+				cerr, ok := errors.Cause(perr.Err).(*influxdb.Error)
 				if !ok {
-					return fmt.Errorf("expected platform error, got %q of type %T", perr.Err, perr.Err)
+					return fmt.Errorf("expected influxdb.error, got %q of type %T", perr.Err, perr.Err)
 				}
 
 				if cerr.Code != influxdb.ENotFound {

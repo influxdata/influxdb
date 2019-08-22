@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
@@ -30,7 +29,7 @@ const (
 	statusTag = "status"
 
 	// Fixed system bucket ID for task and run logs.
-	taskSystemBucketID platform.ID = 10
+	taskSystemBucketID influxdb.ID = 10
 )
 
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
@@ -295,7 +294,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	}
 
 	if len(re.runs) == 0 {
-		return nil, platform.ErrRunNotFound
+		return nil, influxdb.ErrRunNotFound
 
 	}
 

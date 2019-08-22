@@ -20,7 +20,6 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/inmem"
@@ -130,7 +129,7 @@ func TestFluxService_Query(t *testing.T) {
 }
 
 func TestFluxQueryService_Query(t *testing.T) {
-	var orgID platform.ID
+	var orgID influxdb.ID
 	orgID.DecodeFromString("aaaaaaaaaaaaaaaa")
 	tests := []struct {
 		name    string
@@ -438,17 +437,17 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	// orgService is just to mock out orgs by returning
 	// the same org every time.
 	orgService := &influxmock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-			return &platform.Organization{
+		FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+			return &influxdb.Organization{
 				ID:   id,
 				Name: id.String(),
 			}, nil
 		},
 
-		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-			return &platform.Organization{
-				ID:   platform.ID(1),
-				Name: platform.ID(1).String(),
+		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+			return &influxdb.Organization{
+				ID:   influxdb.ID(1),
+				Name: influxdb.ID(1).String(),
 			}, nil
 		},
 	}
@@ -467,11 +466,11 @@ func TestFluxService_Query_gzip(t *testing.T) {
 
 	// authService is yet more test setup that returns an operator auth for any token.
 	authService := &influxmock.AuthorizationService{
-		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
-			return &platform.Authorization{
-				ID:          platform.ID(1),
-				OrgID:       platform.ID(1),
-				Permissions: platform.OperPermissions(),
+		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
+			return &influxdb.Authorization{
+				ID:          influxdb.ID(1),
+				OrgID:       influxdb.ID(1),
+				Permissions: influxdb.OperPermissions(),
 			}, nil
 		},
 	}
@@ -569,17 +568,17 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	// orgService is just to mock out orgs by returning
 	// the same org every time.
 	orgService := &influxmock.OrganizationService{
-		FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
-			return &platform.Organization{
+		FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+			return &influxdb.Organization{
 				ID:   id,
 				Name: id.String(),
 			}, nil
 		},
 
-		FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-			return &platform.Organization{
-				ID:   platform.ID(1),
-				Name: platform.ID(1).String(),
+		FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+			return &influxdb.Organization{
+				ID:   influxdb.ID(1),
+				Name: influxdb.ID(1).String(),
 			}, nil
 		},
 	}
@@ -598,11 +597,11 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 
 	// authService is yet more test setup that returns an operator auth for any token.
 	authService := &influxmock.AuthorizationService{
-		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
-			return &platform.Authorization{
-				ID:          platform.ID(1),
-				OrgID:       platform.ID(1),
-				Permissions: platform.OperPermissions(),
+		FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*influxdb.Authorization, error) {
+			return &influxdb.Authorization{
+				ID:          influxdb.ID(1),
+				OrgID:       influxdb.ID(1),
+				Permissions: influxdb.OperPermissions(),
 			}, nil
 		},
 	}

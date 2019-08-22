@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb"
-	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
@@ -38,11 +37,11 @@ const (
 // FluxBackend is all services and associated parameters required to construct
 // the FluxHandler.
 type FluxBackend struct {
-	platform.HTTPErrorHandler
+	influxdb.HTTPErrorHandler
 	Logger             *zap.Logger
 	QueryEventRecorder metric.EventRecorder
 
-	OrganizationService platform.OrganizationService
+	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
 }
 
@@ -66,11 +65,11 @@ type HTTPDialect interface {
 // FluxHandler implements handling flux queries.
 type FluxHandler struct {
 	*httprouter.Router
-	platform.HTTPErrorHandler
+	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
 	Now                 func() time.Time
-	OrganizationService platform.OrganizationService
+	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
 
 	EventRecorder metric.EventRecorder
@@ -108,7 +107,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
-	var orgID platform.ID
+	var orgID influxdb.ID
 	var requestBytes int
 	sw := newStatusResponseWriter(w)
 	w = sw
@@ -135,7 +134,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req, n, err := decodeProxyQueryRequest(ctx, r, a, h.OrganizationService)
-	if err != nil && err != platform.ErrAuthorizerNotSupported {
+	if err != nil && err != influxdb.ErrAuthorizerNotSupported {
 		err := &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "failed to decode request body",
@@ -195,8 +194,8 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		h.HandleHTTPError(ctx, &platform.Error{
-			Code: platform.EInvalid,
+		h.HandleHTTPError(ctx, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "invalid json",
 			Err:  err,
 		}, w)
@@ -206,8 +205,8 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 	pkg := parser.ParseSource(request.Query)
 	if ast.Check(pkg) > 0 {
 		err := ast.GetError(pkg)
-		h.HandleHTTPError(ctx, &platform.Error{
-			Code: platform.EInvalid,
+		h.HandleHTTPError(ctx, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "invalid AST",
 			Err:  err,
 		}, w)
@@ -233,8 +232,8 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	var req QueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.HandleHTTPError(ctx, &platform.Error{
-			Code: platform.EInvalid,
+		h.HandleHTTPError(ctx, &influxdb.Error{
+			Code: influxdb.EInvalid,
 			Msg:  "invalid json",
 			Err:  err,
 		}, w)
