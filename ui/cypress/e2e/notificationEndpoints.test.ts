@@ -107,7 +107,7 @@ describe('Notification Endpoints', () => {
         'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'
       const newURL = 'many-faced-god.gov'
 
-      cy.getByTestID(`endpoint-card--name ${name}`).click()
+      cy.getByTestID('endpoint-card-edit').click({force: true})
 
       cy.getByTestID('endpoint-name--input')
         .should('have.value', name)

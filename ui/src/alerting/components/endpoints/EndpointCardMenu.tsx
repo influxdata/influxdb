@@ -8,14 +8,18 @@ import {ComponentColor} from '@influxdata/clockface'
 interface Props {
   onDelete: () => void
   onClone: () => void
-  onExport: () => void
+  onEdit: () => void
 }
 
-const EndpointCardContext: FC<Props> = ({onDelete, onClone, onExport}) => {
+const EndpointCardContext: FC<Props> = ({onDelete, onClone, onEdit}) => {
   return (
     <Context>
       <Context.Menu icon={IconFont.CogThick}>
-        <Context.Item label="Export" action={onExport} />
+        <Context.Item
+          label="Edit"
+          action={onEdit}
+          testID="endpoint-card-edit"
+        />
       </Context.Menu>
       <Context.Menu icon={IconFont.Duplicate} color={ComponentColor.Secondary}>
         <Context.Item label="Clone" action={onClone} />

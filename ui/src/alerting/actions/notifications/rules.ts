@@ -29,6 +29,7 @@ import {
   NotificationRuleDraft,
   Label,
 } from 'src/types'
+import {incrementCloneName} from 'src/utils/naming'
 
 export type Action =
   | ReturnType<typeof setAllNotificationRules>
@@ -212,5 +213,37 @@ export const deleteRuleLabel = (ruleID: string, label: Label) => async (
     dispatch({type: 'REMOVE_LABEL_FROM_RULE', ruleID, label})
   } catch (e) {
     console.error(e)
+  }
+}
+
+export const cloneRule = (draftRule: NotificationRuleDraft) => async (
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      rules: {list},
+    } = getState()
+
+    const rule = draftRuleToRule(draftRule)
+
+    const allRuleNames = list.map(r => r.name)
+
+    const clonedName = incrementCloneName(allRuleNames, rule.name)
+
+    const resp = await api.postNotificationRule({
+      data: {...rule, name: clonedName},
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setRule(ruleToDraftRule(resp.data)))
+
+    // add labels?
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createRuleFailed(error.message)))
   }
 }

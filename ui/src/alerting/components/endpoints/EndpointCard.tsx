@@ -13,6 +13,7 @@ import {
   deleteEndpointLabel,
   deleteEndpoint,
   updateEndpointProperties,
+  cloneEndpoint,
 } from 'src/alerting/actions/notifications/endpoints'
 
 // Components
@@ -30,6 +31,7 @@ interface DispatchProps {
   onRemoveEndpointLabel: typeof deleteEndpointLabel
   onCreateLabel: typeof createLabelAsync
   onUpdateEndpointProperties: typeof updateEndpointProperties
+  onCloneEndpoint: typeof cloneEndpoint
 }
 
 interface StateProps {
@@ -57,6 +59,7 @@ const EndpointCard: FC<Props> = ({
   endpoint,
   onCreateLabel,
   onUpdateEndpointProperties,
+  onCloneEndpoint,
   onDeleteEndpoint,
   onAddEndpointLabel,
   onRemoveEndpointLabel,
@@ -67,7 +70,7 @@ const EndpointCard: FC<Props> = ({
     onUpdateEndpointProperties(id, {name})
   }
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
+    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/`)
   }
   const nameComponent = (
     <ResourceCard.EditableName
@@ -95,15 +98,19 @@ const EndpointCard: FC<Props> = ({
     />
   )
 
+  const handleEdit = () => {
+    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
+  }
   const handleDelete = () => {
     onDeleteEndpoint(id)
   }
-  const handleExport = () => console.trace('implement export')
-  const handleClone = () => console.trace('implement clone')
+  const handleClone = () => {
+    onCloneEndpoint(endpoint)
+  }
   const contextMenu = (
     <EndpointCardMenu
       onDelete={handleDelete}
-      onExport={handleExport}
+      onEdit={handleEdit}
       onClone={handleClone}
     />
   )
@@ -159,6 +166,7 @@ const mdtp: DispatchProps = {
   onAddEndpointLabel: addEndpointLabel,
   onRemoveEndpointLabel: deleteEndpointLabel,
   onUpdateEndpointProperties: updateEndpointProperties,
+  onCloneEndpoint: cloneEndpoint,
 }
 
 const mstp = ({labels}: AppState): StateProps => ({

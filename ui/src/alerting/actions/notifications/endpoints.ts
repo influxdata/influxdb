@@ -1,6 +1,19 @@
 // Libraries
 import {Dispatch} from 'react'
 
+// Actions
+import {
+  notify,
+  Action as NotificationAction,
+} from 'src/shared/actions/notifications'
+
+// APIs
+import * as api from 'src/client'
+
+// Utils
+import {incrementCloneName} from 'src/utils/naming'
+import * as copy from 'src/shared/copy/notifications'
+
 // Types
 import {
   NotificationEndpoint,
@@ -9,9 +22,6 @@ import {
   NotificationEndpointUpdate,
 } from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
-
-// APIs
-import * as api from 'src/client'
 
 export type Action =
   | {type: 'SET_ENDPOINT'; endpoint: NotificationEndpoint}
@@ -33,7 +43,7 @@ export type Action =
     }
 
 export const getEndpoints = () => async (
-  dispatch: Dispatch<Action>,
+  dispatch: Dispatch<Action | NotificationAction>,
   getState: GetState
 ) => {
   try {
@@ -59,12 +69,13 @@ export const getEndpoints = () => async (
     })
   } catch (e) {
     console.error(e)
+    dispatch(notify(copy.getEndpointsFailed(e.message)))
     dispatch({type: 'SET_ALL_ENDPOINTS', status: RemoteDataState.Error})
   }
 }
 
 export const createEndpoint = (data: NotificationEndpoint) => async (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action | NotificationAction>
 ) => {
   const resp = await api.postNotificationEndpoint({data})
 
@@ -100,34 +111,42 @@ export const updateEndpointProperties = (
   endpointID: string,
   properties: NotificationEndpointUpdate
 ) => async (dispatch: Dispatch<Action | NotificationAction>) => {
-  const resp = await api.patchNotificationEndpoint({
-    endpointID,
-    data: properties,
-  })
+  try {
+    const resp = await api.patchNotificationEndpoint({
+      endpointID,
+      data: properties,
+    })
 
-  if (resp.status !== 200) {
-    throw new Error(resp.data.message)
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({
+      type: 'SET_ENDPOINT',
+      endpoint: resp.data,
+    })
+  } catch (e) {
+    dispatch(notify(copy.updateEndpointFailed(e.message)))
   }
-
-  dispatch({
-    type: 'SET_ENDPOINT',
-    endpoint: resp.data,
-  })
 }
 
 export const deleteEndpoint = (endpointID: string) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  const resp = await api.deleteNotificationEndpoint({endpointID})
+  try {
+    const resp = await api.deleteNotificationEndpoint({endpointID})
 
-  if (resp.status !== 204) {
-    throw new Error(resp.data.message)
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({
+      type: 'REMOVE_ENDPOINT',
+      endpointID,
+    })
+  } catch (e) {
+    dispatch(notify(copy.deleteEndpointFailed(e.message)))
   }
-
-  dispatch({
-    type: 'REMOVE_ENDPOINT',
-    endpointID,
-  })
 }
 
 export const addEndpointLabel = (endpointID: string, label: Label) => async (
@@ -173,5 +192,35 @@ export const deleteEndpointLabel = (endpointID: string, label: Label) => async (
     })
   } catch (e) {
     console.error(e)
+  }
+}
+
+export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      endpoints: {list},
+    } = getState()
+
+    const allEndpointNames = list.map(r => r.name)
+
+    const clonedName = incrementCloneName(allEndpointNames, endpoint.name)
+
+    const resp = await api.postNotificationEndpoint({
+      data: {...endpoint, name: clonedName},
+    })
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch({type: 'SET_ENDPOINT', endpoint: resp.data})
+
+    // add labels?
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createEndpointFailed(error.message)))
   }
 }

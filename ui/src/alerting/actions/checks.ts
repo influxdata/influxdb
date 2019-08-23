@@ -9,6 +9,7 @@ import * as api from 'src/client'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {incrementCloneName} from 'src/utils/naming'
 
 //Actions
 import {
@@ -225,5 +226,33 @@ export const deleteCheckLabel = (checkID: string, label: Label) => async (
     dispatch(removeLabelFromCheck(checkID, label))
   } catch (e) {
     console.error(e)
+  }
+}
+
+export const cloneCheck = (check: Check) => async (
+  dispatch: Dispatch<Action | NotificationAction>,
+  getState: GetState
+): Promise<void> => {
+  try {
+    const {
+      checks: {list},
+    } = getState()
+
+    const allCheckNames = list.map(c => c.name)
+
+    const clonedName = incrementCloneName(allCheckNames, check.name)
+
+    const resp = await api.postCheck({data: {...check, name: clonedName}})
+
+    if (resp.status !== 201) {
+      throw new Error(resp.data.message)
+    }
+
+    dispatch(setCheck(resp.data))
+
+    // add labels
+  } catch (error) {
+    console.error(error)
+    dispatch(notify(copy.createCheckFailed(error.message)))
   }
 }
