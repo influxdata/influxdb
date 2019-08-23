@@ -77,42 +77,34 @@ export const getEndpoints = () => async (
 export const createEndpoint = (data: NotificationEndpoint) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  try {
-    const resp = await api.postNotificationEndpoint({data})
+  const resp = await api.postNotificationEndpoint({data})
 
-    if (resp.status !== 201) {
-      throw new Error(resp.data.message)
-    }
-
-    dispatch({
-      type: 'SET_ENDPOINT',
-      endpoint: resp.data,
-    })
-  } catch (e) {
-    dispatch(notify(copy.createEndpointFailed(e.message)))
+  if (resp.status !== 201) {
+    throw new Error(resp.data.message)
   }
+
+  dispatch({
+    type: 'SET_ENDPOINT',
+    endpoint: resp.data,
+  })
 }
 
 export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  try {
-    const resp = await api.putNotificationEndpoint({
-      endpointID: endpoint.id,
-      data: endpoint,
-    })
+  const resp = await api.putNotificationEndpoint({
+    endpointID: endpoint.id,
+    data: endpoint,
+  })
 
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
-    }
-
-    dispatch({
-      type: 'SET_ENDPOINT',
-      endpoint: resp.data,
-    })
-  } catch (e) {
-    dispatch(notify(copy.updateEndpointFailed(e.message)))
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
   }
+
+  dispatch({
+    type: 'SET_ENDPOINT',
+    endpoint: resp.data,
+  })
 }
 
 export const updateEndpointProperties = (
