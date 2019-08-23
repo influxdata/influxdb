@@ -126,6 +126,8 @@ type REPLQuerier struct {
 	QueryService   QueryService
 }
 
+// Query will pack a query to be sent to a remote server for execution.  deps may be safely ignored since
+// they will be correctly initialized on the server side.
 func (q *REPLQuerier) Query(ctx context.Context, deps dependencies.Interface, compiler flux.Compiler) (flux.ResultIterator, error) {
 	req := &Request{
 		Authorization:  q.Authorization,

@@ -117,8 +117,9 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		Logger:                   logger.With(zap.String("service", "storage-reads")),
 	}
 
+	// TODO(adam): do we need a proper secret service here?
 	if err := readservice.AddControllerConfigDependencies(
-		&cc, engine, bucketSvc, orgSvc,
+		&cc, engine, bucketSvc, orgSvc, nil,
 	); err != nil {
 		t.Fatal(err)
 	}
