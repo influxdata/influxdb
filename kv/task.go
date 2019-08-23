@@ -74,18 +74,22 @@ func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.I
 	if err != nil {
 		return nil, err
 	}
-	// populate task Auth
-	ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
-	if err != nil {
-		return nil, err
-	}
 
 	t.Authorization = &influxdb.Authorization{
-		Status:      influxdb.Active,
-		ID:          influxdb.ID(1),
-		OrgID:       t.OrganizationID,
-		Permissions: ps,
+		Status: influxdb.Active,
+		ID:     influxdb.ID(1),
+		OrgID:  t.OrganizationID,
 	}
+
+	if t.OwnerID.Valid() {
+		// populate task Auth
+		ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
+		if err != nil {
+			return nil, err
+		}
+		t.Authorization.Permissions = ps
+	}
+
 	return t, nil
 }
 
@@ -146,11 +150,9 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		}
 
 		auth, err := s.findAuthorizationByID(ctx, tx, authType.AuthorizationID)
-		if err != nil {
-			return nil, influxdb.ErrInternalTaskServiceError(err)
+		if err == nil {
+			t.OwnerID = auth.GetUserID()
 		}
-
-		t.OwnerID = auth.GetUserID()
 	}
 
 	return t, nil

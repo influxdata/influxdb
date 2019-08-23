@@ -1,7 +1,9 @@
 package kv_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -147,5 +149,102 @@ func TestNextRunDue(t *testing.T) {
 
 	if run.NextDue != nd1 {
 		t.Fatalf("expected returned next run to be the same as teh next due after scheduling %d, %d", run.NextDue, nd1)
+	}
+}
+
+func TestRetrieveTaskWithBadAuth(t *testing.T) {
+	store, close, err := NewTestInmemStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer close()
+
+	service := kv.NewService(store)
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	if err := service.Initialize(ctx); err != nil {
+		t.Fatalf("error initializing urm service: %v", err)
+	}
+	defer cancelFunc()
+	u := &influxdb.User{Name: t.Name() + "-user"}
+	if err := service.CreateUser(ctx, u); err != nil {
+		t.Fatal(err)
+	}
+	o := &influxdb.Organization{Name: t.Name() + "-org"}
+	if err := service.CreateOrganization(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+		ResourceType: influxdb.OrgsResourceType,
+		ResourceID:   o.ID,
+		UserID:       u.ID,
+		UserType:     influxdb.Owner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	authz := influxdb.Authorization{
+		OrgID:       o.ID,
+		UserID:      u.ID,
+		Permissions: influxdb.OperPermissions(),
+	}
+	if err := service.CreateAuthorization(context.Background(), &authz); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx = icontext.SetAuthorizer(ctx, &authz)
+
+	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: o.ID,
+		OwnerID:        u.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// convert task to old one with a bad auth
+	err = store.Update(ctx, func(tx kv.Tx) error {
+		b, err := tx.Bucket([]byte("tasksv1"))
+		if err != nil {
+			return err
+		}
+		bID, err := task.ID.Encode()
+		if err != nil {
+			return err
+		}
+		task.OwnerID = influxdb.ID(1)
+		task.AuthorizationID = influxdb.ID(132) // bad id or an id that doesnt match any auth
+		tbyte, err := json.Marshal(task)
+		if err != nil {
+			return err
+		}
+		// have to actually hack the bytes here because the system doesnt like us to encode bad id's.
+		tbyte = bytes.Replace(tbyte, []byte(`,"ownerID":"0000000000000001"`), []byte{}, 1)
+		if err := b.Put(bID, tbyte); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// lets see if we can list and find the task
+	newTask, err := service.FindTaskByID(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if newTask.ID != task.ID {
+		t.Fatal("miss matching taskID's")
+	}
+
+	tasks, _, err := service.FindTasks(ctx, influxdb.TaskFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 {
+		t.Fatal("failed to return task")
 	}
 }
