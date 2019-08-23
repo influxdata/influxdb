@@ -210,6 +210,8 @@ github.com/influxdata/flux v0.40.2-0.20190822171407-6cd0e564d565 h1:bJ8xPpg47Uxk
 github.com/influxdata/flux v0.40.2-0.20190822171407-6cd0e564d565/go.mod h1:QvF9P06HFgYKD28Z556rFLJ0D0bvtcgEtkFALteZ4Lo=
 github.com/influxdata/flux v0.40.2-0.20190823181615-72aaca00d4a1 h1:mpJ1He55c+dkI7gA1pteZK5SnGYLf7EG5eCD7UCwvEI=
 github.com/influxdata/flux v0.40.2-0.20190823181615-72aaca00d4a1/go.mod h1:QvF9P06HFgYKD28Z556rFLJ0D0bvtcgEtkFALteZ4Lo=
+github.com/influxdata/flux v0.40.2-0.20190823192708-9e4b4447fced h1:Ac4/pTd5k4otnguJJ76GXIptN6awdsupIT8v2dnu5lY=
+github.com/influxdata/flux v0.40.2-0.20190823192708-9e4b4447fced/go.mod h1:QvF9P06HFgYKD28Z556rFLJ0D0bvtcgEtkFALteZ4Lo=
 github.com/influxdata/flux v0.40.2 h1:7teoRiHtdh7uaAg4YpwKkY4GK2oK0HjYA9uFnfx+EsQ=
 github.com/influxdata/flux v0.40.2/go.mod h1:QvF9P06HFgYKD28Z556rFLJ0D0bvtcgEtkFALteZ4Lo=
 github.com/influxdata/goreleaser v0.97.0-influx h1:jT5OrcW7WfS0e2QxfwmTBjhLvpIC9CDLRhNgZJyhj8s=
