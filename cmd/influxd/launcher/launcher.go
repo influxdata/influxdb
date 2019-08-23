@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/chronograf/server"
+	"github.com/influxdata/influxdb/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/gather"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
@@ -189,6 +190,8 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 	}
 
 	cli.BindOptions(cmd, opts)
+	cmd.AddCommand(inspect.NewCommand())
+
 }
 
 // Launcher represents the main program execution.
