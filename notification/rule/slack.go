@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/influxdata/flux/ast"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/flux"
@@ -41,7 +40,7 @@ func (s *Slack) GenerateFluxReal(e influxdb.NotificationEndpoint) (string, error
 func (s *Slack) GenerateFluxAST() (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/alerts", "slack", "secrets"),
+		flux.Imports("influxdata/influxdb/monitor", "slack", "secrets"),
 		s.generateFluxASTBody(),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
@@ -136,7 +135,7 @@ func (s *Slack) generateFluxASTNotifyPipe() ast.Statement {
 	props = append(props, flux.Property("endpoint",
 		flux.Call(flux.Identifier("slack_endpoint"), flux.Object(flux.Property("mapFn", endpointFn)))))
 
-	call := flux.Call(flux.Member("alerts", "notify"), flux.Object(props...))
+	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
 	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("statuses"), call))
 }

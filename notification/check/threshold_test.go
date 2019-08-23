@@ -76,7 +76,7 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 			},
 			wants: wants{
 				script: `package main
-import "influxdata/influxdb/alerts"
+import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
@@ -104,7 +104,7 @@ messageFn = (r, check) =>
 
 data
 	|> v1.fieldsAsCols()
-	|> alerts.check(
+	|> monitor.check(
 		data: check,
 		messageFn: messageFn,
 		ok: ok,
@@ -165,7 +165,7 @@ data
 			},
 			wants: wants{
 				script: `package main
-import "influxdata/influxdb/alerts"
+import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
@@ -193,7 +193,7 @@ messageFn = (r, check) =>
 
 data
 	|> v1.fieldsAsCols()
-	|> alerts.check(
+	|> monitor.check(
 		data: check,
 		messageFn: messageFn,
 		ok: ok,
@@ -254,7 +254,7 @@ data
 			},
 			wants: wants{
 				script: `package main
-import "influxdata/influxdb/alerts"
+import "influxdata/influxdb/monitor"
 import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
@@ -282,7 +282,7 @@ messageFn = (r, check) =>
 
 data
 	|> v1.fieldsAsCols()
-	|> alerts.check(
+	|> monitor.check(
 		data: check,
 		messageFn: messageFn,
 		ok: ok,
@@ -297,7 +297,7 @@ data
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO(desa): change this to GenerateFlux() when we don't need to code
-			// around the alerts package not being available.
+			// around the monitor package not being available.
 			p, err := tt.args.threshold.GenerateFluxASTReal()
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

@@ -224,7 +224,7 @@ func (t Threshold) GenerateFluxASTReal() (*ast.Package, error) {
 	f := p.Files[0]
 	assignPipelineToData(f)
 
-	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/alerts", "influxdata/influxdb/v1")...)
+	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "influxdata/influxdb/v1")...)
 	f.Body = append(f.Body, t.generateFluxASTBody()...)
 
 	return p, nil
@@ -283,7 +283,7 @@ func (t Threshold) generateFluxASTChecksCall() *ast.CallExpression {
 		objectProps = append(objectProps, flux.Property(lvl, flux.Identifier(lvl)))
 	}
 
-	return flux.Call(flux.Member("alerts", "check"), flux.Object(objectProps...))
+	return flux.Call(flux.Member("monitor", "check"), flux.Object(objectProps...))
 }
 
 func (t Threshold) generateFluxASTCheckDefinition() ast.Statement {
