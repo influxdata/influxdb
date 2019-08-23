@@ -39,6 +39,7 @@ import (
 	taskbackend "github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
+	"github.com/influxdata/influxdb/task/backend/middleware"
 	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
@@ -548,7 +549,15 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.scheduler.Start(ctx)
 		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
-		taskSvc = coordinator.New(m.logger.With(zap.String("service", "task-coordinator")), m.scheduler, combinedTaskService)
+		logger := m.logger.With(zap.String("service", "task-coordinator"))
+		coordinator := coordinator.New(logger, m.scheduler)
+
+		// resume existing task claims from task service
+		if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
+			logger.Error("failed to resume existing tasks", zap.Error(err))
+		}
+
+		taskSvc = middleware.New(combinedTaskService, coordinator)
 		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
 		m.taskControlService = combinedTaskService
 	}
