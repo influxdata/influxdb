@@ -21,6 +21,7 @@ func NewCommand() *cobra.Command {
 		NewReportTSICommand(),
 		NewVerifySeriesFileCommand(),
 		NewDumpWALCommand(),
+		NewDumpTSICommand(),
 	}
 
 	base.AddCommand(subCommands...)
