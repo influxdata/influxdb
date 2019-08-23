@@ -8,7 +8,6 @@ import {DraggableResizer, Orientation} from '@influxdata/clockface'
 import TimeMachineQueries from 'src/timeMachine/components/Queries'
 import TimeMachineAlerting from 'src/timeMachine/components/TimeMachineAlerting'
 import TimeMachineVis from 'src/timeMachine/components/Vis'
-import AddCheckDialog from 'src/timeMachine/components/AddCheckDialog'
 import ViewOptions from 'src/timeMachine/components/view_options/ViewOptions'
 
 // Utils
@@ -38,8 +37,6 @@ const TimeMachine: FunctionComponent<StateProps> = ({
 
   if (activeTab === 'alerting') {
     bottomContents = <TimeMachineAlerting />
-  } else if (activeTab === 'alertingNotice') {
-    bottomContents = <AddCheckDialog />
   } else if (activeTab === 'queries') {
     bottomContents = <TimeMachineQueries />
   }
