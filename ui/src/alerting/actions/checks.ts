@@ -9,6 +9,7 @@ import * as api from 'src/client'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {incrementCloneName} from 'src/utils/naming'
 
 //Actions
 import {
