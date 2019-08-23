@@ -15,7 +15,7 @@ import (
 
 // Command represents the program execution for "influxd dumptsi".
 var measurementFilter, tagKeyFilter, tagValueFilter string
-var dumpTsiFlags = struct {
+var dumpTSIFlags = struct {
 	// Standard input/output, overridden for testing.
 	Stderr io.Writer
 	Stdout io.Writer
@@ -35,8 +35,8 @@ var dumpTsiFlags = struct {
 }{}
 
 // NewCommand returns a new instance of Command.
-func NewDumpTsiCommand() *cobra.Command {
-	dumpTsiCommand := &cobra.Command{
+func NewDumpTSICommand() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "dump-tsi",
 		Short: "Dump low level tsi information",
 		Long: `Dumps low-level details about tsi1 files.
@@ -71,18 +71,18 @@ func NewDumpTsiCommand() *cobra.Command {
 	defaultIndexDir := filepath.Join(defaultDataDir, "index")
 	defaultSeriesDir := filepath.Join(defaultDataDir, "_series")
 
-	dumpTsiCommand.Flags().StringVar(&dumpTsiFlags.seriesFilePath, "series-path", defaultSeriesDir, "Path to series file")
-	dumpTsiCommand.Flags().StringVar(&dumpTsiFlags.dataPath, "index-path", defaultIndexDir, "Path to the index directory of the data engine")
-	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showSeries, "series", false, "Show raw series data")
-	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showMeasurements, "measurements", false, "Show raw measurement data")
-	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showTagKeys, "tag-keys", false, "Show raw tag key data")
-	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showTagValues, "tag-values", false, "Show raw tag value data")
-	dumpTsiCommand.Flags().BoolVar(&dumpTsiFlags.showTagValueSeries, "tag-value-series", false, "Show raw series data for each value")
-	dumpTsiCommand.Flags().StringVar(&measurementFilter, "measurement-filter", "", "Regex measurement filter")
-	dumpTsiCommand.Flags().StringVar(&tagKeyFilter, "tag-key-filter", "", "Regex tag key filter")
-	dumpTsiCommand.Flags().StringVar(&tagValueFilter, "tag-value-filter", "", "Regex tag value filter")
+	cmd.Flags().StringVar(&dumpTSIFlags.seriesFilePath, "series-path", defaultSeriesDir, "Path to series file")
+	cmd.Flags().StringVar(&dumpTSIFlags.dataPath, "index-path", defaultIndexDir, "Path to the index directory of the data engine")
+	cmd.Flags().BoolVar(&dumpTSIFlags.showSeries, "series", false, "Show raw series data")
+	cmd.Flags().BoolVar(&dumpTSIFlags.showMeasurements, "measurements", false, "Show raw measurement data")
+	cmd.Flags().BoolVar(&dumpTSIFlags.showTagKeys, "tag-keys", false, "Show raw tag key data")
+	cmd.Flags().BoolVar(&dumpTSIFlags.showTagValues, "tag-values", false, "Show raw tag value data")
+	cmd.Flags().BoolVar(&dumpTSIFlags.showTagValueSeries, "tag-value-series", false, "Show raw series data for each value")
+	cmd.Flags().StringVar(&measurementFilter, "measurement-filter", "", "Regex measurement filter")
+	cmd.Flags().StringVar(&tagKeyFilter, "tag-key-filter", "", "Regex tag key filter")
+	cmd.Flags().StringVar(&tagValueFilter, "tag-value-filter", "", "Regex tag value filter")
 
-	return dumpTsiCommand
+	return cmd
 }
 
 func dumpTsi(cmd *cobra.Command, args []string) error {
@@ -94,42 +94,48 @@ func dumpTsi(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		dumpTsiFlags.measurementFilter = re
+		dumpTSIFlags.measurementFilter = re
 	}
 	if tagKeyFilter != "" {
 		re, err := regexp.Compile(tagKeyFilter)
 		if err != nil {
 			return err
 		}
-		dumpTsiFlags.tagKeyFilter = re
+		dumpTSIFlags.tagKeyFilter = re
 	}
 	if tagValueFilter != "" {
 		re, err := regexp.Compile(tagValueFilter)
 		if err != nil {
 			return err
 		}
-		dumpTsiFlags.tagValueFilter = re
+		dumpTSIFlags.tagValueFilter = re
 	}
 
-	if dumpTsiFlags.dataPath == "" {
+	if dumpTSIFlags.dataPath == "" {
 		return errors.New("data path must be specified")
 	}
 
 	// Some flags imply other flags.
-	if dumpTsiFlags.showTagValueSeries {
-		dumpTsiFlags.showTagValues = true
+	if dumpTSIFlags.showTagValueSeries {
+		dumpTSIFlags.showTagValues = true
 	}
-	if dumpTsiFlags.showTagValues {
-		dumpTsiFlags.showTagKeys = true
+	if dumpTSIFlags.showTagValues {
+		dumpTSIFlags.showTagKeys = true
 	}
-	if dumpTsiFlags.showTagKeys {
-		dumpTsiFlags.showMeasurements = true
+	if dumpTSIFlags.showTagKeys {
+		dumpTSIFlags.showMeasurements = true
 	}
 
-	dump := tsi1.NewDumpTsi(logger, dumpTsiFlags.seriesFilePath, dumpTsiFlags.dataPath,
-		dumpTsiFlags.showSeries, dumpTsiFlags.showMeasurements, dumpTsiFlags.showTagKeys,
-		dumpTsiFlags.showTagValues, dumpTsiFlags.showTagValueSeries, dumpTsiFlags.measurementFilter,
-		dumpTsiFlags.tagKeyFilter, dumpTsiFlags.tagValueFilter)
+	dump := tsi1.NewDumpTSI(logger)
+	dump.SeriesFilePath = dumpTSIFlags.seriesFilePath
+	dump.DataPath = dumpTSIFlags.dataPath
+	dump.ShowSeries = dumpTSIFlags.showSeries
+	dump.ShowMeasurements = dumpTSIFlags.showMeasurements
+	dump.ShowTagKeys = dumpTSIFlags.showTagKeys
+	dump.ShowTagValueSeries = dumpTSIFlags.showTagValueSeries
+	dump.MeasurementFilter = dumpTSIFlags.measurementFilter
+	dump.TagKeyFilter = dumpTSIFlags.tagKeyFilter
+	dump.TagValueFilter = dumpTSIFlags.tagValueFilter
 
 	return dump.Run()
 }
