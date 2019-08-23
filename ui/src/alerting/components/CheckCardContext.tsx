@@ -6,20 +6,20 @@ import {Context, IconFont} from 'src/clockface'
 import {ComponentColor} from '@influxdata/clockface'
 
 interface Props {
+  onEdit: () => void
   onDelete: () => void
   onClone: () => void
-  onExport: () => void
 }
 
 const CheckCardContext: FunctionComponent<Props> = ({
   onDelete,
   onClone,
-  onExport,
+  onEdit,
 }) => {
   return (
     <Context>
       <Context.Menu icon={IconFont.CogThick}>
-        <Context.Item label="Export" action={onExport} />
+        <Context.Item label="Edit" action={onEdit} />
       </Context.Menu>
       <Context.Menu icon={IconFont.Duplicate} color={ComponentColor.Secondary}>
         <Context.Item label="Clone" action={onClone} />

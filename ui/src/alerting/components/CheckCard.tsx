@@ -17,6 +17,7 @@ import {
   deleteCheck,
   addCheckLabel,
   deleteCheckLabel,
+  cloneCheck,
 } from 'src/alerting/actions/checks'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
@@ -30,6 +31,7 @@ interface DispatchProps {
   onAddCheckLabel: typeof addCheckLabel
   onRemoveCheckLabel: typeof deleteCheckLabel
   onCreateLabel: typeof createLabelAsync
+  onCloneCheck: typeof cloneCheck
 }
 
 interface StateProps {
@@ -46,6 +48,7 @@ const CheckCard: FunctionComponent<Props> = ({
   onRemoveCheckLabel,
   onAddCheckLabel,
   onCreateLabel,
+  onCloneCheck,
   check,
   updateCheck,
   deleteCheck,
@@ -65,9 +68,9 @@ const CheckCard: FunctionComponent<Props> = ({
     deleteCheck(check.id)
   }
 
-  const onExport = () => {}
-
-  const onClone = () => {}
+  const onClone = () => {
+    onCloneCheck(check)
+  }
 
   const onToggle = () => {
     const status = check.status === 'active' ? 'inactive' : 'active'
@@ -75,8 +78,12 @@ const CheckCard: FunctionComponent<Props> = ({
     updateCheck({id: check.id, status})
   }
 
-  const onCheckClick = () => {
+  const onEdit = () => {
     router.push(`/orgs/${orgID}/alerting/checks/${check.id}/edit`)
+  }
+
+  const onCheckClick = () => {
+    router.push(`/orgs/${orgID}/alerting/checks/${check.id}/`)
   }
 
   const handleAddCheckLabel = (label: Label) => {
@@ -133,8 +140,8 @@ const CheckCard: FunctionComponent<Props> = ({
       disabled={check.status === 'inactive'}
       contextMenu={
         <CheckCardContext
+          onEdit={onEdit}
           onDelete={onDelete}
-          onExport={onExport}
           onClone={onClone}
         />
       }
@@ -149,6 +156,7 @@ const mdtp: DispatchProps = {
   onAddCheckLabel: addCheckLabel,
   onCreateLabel: createLabelAsync,
   onRemoveCheckLabel: deleteCheckLabel,
+  onCloneCheck: cloneCheck,
 }
 
 const mstp = ({labels}: AppState): StateProps => {
