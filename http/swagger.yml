@@ -5385,7 +5385,7 @@ paths:
           schema:
             type: string
             pattern: ^[a-zA-Z0-9_]*:[a-zA-Z0-9_]*$
-            example: env=prod
+            example: env:prod
       responses:
         '200':
           description: A list of notification rules
