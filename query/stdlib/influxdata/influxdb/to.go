@@ -260,8 +260,8 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 	cache := execute.NewTableBuilderCache(a.Allocator())
 	d := execute.NewDataset(id, mode, cache)
 	deps := a.Dependencies()[ToKind].(ToDependencies)
-
-	t, err := NewToTransformation(a.Context(), d, cache, s, deps)
+	ideps := a.Dependencies()[dependencies.InterpreterDepsKey].(dependencies.Interface)
+	t, err := NewToTransformation(a.Context(), d, cache, s, deps, ideps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -279,6 +279,7 @@ type ToTransformation struct {
 	spec               *ToProcedureSpec
 	implicitTagColumns bool
 	deps               ToDependencies
+	ideps              dependencies.Interface
 	buf                *storage.BufferedPointsWriter
 }
 
@@ -288,7 +289,7 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 }
 
 // NewToTransformation returns a new *ToTransformation with the appropriate fields set.
-func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies) (x *ToTransformation, err error) {
+func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps ToDependencies, ideps dependencies.Interface) (x *ToTransformation, err error) {
 	var fn *execute.RowMapFn
 	//var err error
 	spec := toSpec.Spec
@@ -354,6 +355,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		spec:               toSpec,
 		implicitTagColumns: spec.TagColumns == nil,
 		deps:               deps,
+		ideps:              ideps,
 		buf:                storage.NewBufferedPointsWriter(DefaultBufferSize, deps.PointsWriter),
 	}, nil
 }
@@ -607,12 +609,11 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				}
 			}
 
-			ctx, deps := context.Background(), dependencies.NewDefaultDependencies()
 			if spec.FieldFn.Fn == nil {
 				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
 					return err
 				}
-			} else if fieldValues, err = t.fn.Eval(ctx, deps, i, er); err != nil {
+			} else if fieldValues, err = t.fn.Eval(t.Ctx, t.ideps, i, er); err != nil {
 				return err
 			}
 
