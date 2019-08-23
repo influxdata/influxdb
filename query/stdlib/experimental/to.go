@@ -59,7 +59,7 @@ func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 	}
 
 	if o.Org, ok, _ = args.GetString("org"); !ok {
-		if o.OrgID, err = args.GetRequiredString("orgID"); err != nil {
+		if o.OrgID, _, err = args.GetString("orgID"); err != nil {
 			return err
 		}
 	} else if o.OrgID, ok, _ = args.GetString("orgID"); ok {

@@ -146,10 +146,10 @@ func TestPreAuthorizer_PreAuthorize_FailToParse(t *testing.T) {
 		authorizer         = query.NewPreAuthorizer(emptyBucketService)
 		errfmt             = "Expected %q, Got %q"
 		// inputs
-		q = `from(bucket:"foo") |> range(start:-2h) |> to(bucket: "bar")`
+		q = `from(bucket:"foo") |> range(start:-2h) |> to(org: "bar")`
 		// expectations
 		msg    = "Failed to compile flux script."
-		errMsg = `error calling function "to": missing required keyword argument "orgID"`
+		errMsg = `error calling function "to": missing required keyword argument "bucketID"`
 		code   = platform.EInvalid
 	)
 

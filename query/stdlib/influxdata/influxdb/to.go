@@ -20,6 +20,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -98,7 +99,7 @@ func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 	}
 
 	if o.Org, ok, _ = args.GetString("org"); !ok {
-		if o.OrgID, err = args.GetRequiredString("orgID"); err != nil {
+		if o.OrgID, _, err = args.GetString("orgID"); err != nil {
 			return err
 		}
 	} else if o.OrgID, ok, _ = args.GetString("orgID"); ok {
@@ -306,8 +307,17 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 			}
 		}
 		orgID = &oID
-	} else if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
-		return nil, err
+	} else if spec.OrgID != "" {
+		if orgID, err = platform.IDFromString(spec.OrgID); err != nil {
+			return nil, err
+		}
+	} else {
+		// No org or orgID provided as an arg, use the orgID from the context
+		req := query.RequestFromContext(ctx)
+		if req == nil {
+			return nil, errors.New("missing request on context")
+		}
+		orgID = &req.OrganizationID
 	}
 
 	// Get bucket ID

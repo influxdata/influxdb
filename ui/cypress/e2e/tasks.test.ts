@@ -33,14 +33,14 @@ describe('Tasks', () => {
 v1.tagValues(bucket: "${name}", tag: "_field")
 from(bucket: "${name}")
   |> range(start: -2m)
-  |> to(bucket: "${name}")`
+  |> to(org: "${name}")`
     })
 
     cy.contains('Save').click()
 
     cy.getByTestID('notification-error').should(
       'contain',
-      'error calling function "to": missing required keyword argument "orgID"'
+      'error calling function "to": missing required keyword argument "bucketID"'
     )
   })
 
