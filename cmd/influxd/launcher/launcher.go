@@ -520,8 +520,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 		authBucketSvc := authorizer.NewBucketService(bucketSvc)
 		authOrgSvc := authorizer.NewOrgService(orgSvc)
+		authSecretSvc := authorizer.NewSecretService(secretSvc)
 		if err := readservice.AddControllerConfigDependencies(
-			&cc, m.engine, authBucketSvc, authOrgSvc,
+			&cc, m.engine, authBucketSvc, authOrgSvc, authSecretSvc,
 		); err != nil {
 			m.logger.Error("Failed to configure query controller dependencies", zap.Error(err))
 			return err
