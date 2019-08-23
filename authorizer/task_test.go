@@ -297,54 +297,6 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 			},
 		},
 		{
-			name: "create missing org in to parameters",
-			auth: r.Auth,
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				var (
-					expMsg  = "Failed to compile flux script."
-					expErr  = fmt.Errorf("error calling function \"to\": missing required keyword argument \"orgID\"")
-					expCode = influxdb.EInvalid
-					errfmt  = "expected %q, got %q"
-					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
-						OrganizationID: r.Org.ID,
-						OwnerID:        r.Auth.GetUserID(),
-						Flux: `option task = {
- name: "my_task",
- every: 1s,
-}
-from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad")`,
-					})
-				)
-
-				if err == nil {
-					return errors.New("created task without bucket permission")
-				}
-
-				perr, ok := err.(*influxdb.Error)
-				if !ok {
-					return fmt.Errorf(errfmt, &influxdb.Error{}, err)
-				}
-
-				if perr.Code != expCode {
-					return fmt.Errorf(errfmt, expCode, perr.Code)
-				}
-
-				if perr.Err == nil {
-					return fmt.Errorf(errfmt, "platform.Error.Err to be present", perr.Err)
-				}
-
-				if perr.Err.Error() != expErr.Error() {
-					return fmt.Errorf(errfmt, expErr, perr.Err)
-				}
-
-				if perr.Msg != expMsg {
-					return fmt.Errorf(errfmt, expMsg, perr.Msg)
-				}
-
-				return nil
-			},
-		},
-		{
 			name: "FindTaskByID missing auth",
 			auth: &influxdb.Authorization{Permissions: []influxdb.Permission{}},
 			check: func(ctx context.Context, svc influxdb.TaskService) error {
