@@ -17,6 +17,7 @@ import {
   deleteRule,
   addRuleLabel,
   deleteRuleLabel,
+  cloneRule,
 } from 'src/alerting/actions/notifications/rules'
 import {viewableLabels} from 'src/labels/selectors'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
@@ -30,6 +31,7 @@ interface DispatchProps {
   onAddRuleLabel: typeof addRuleLabel
   onRemoveRuleLabel: typeof deleteRuleLabel
   onCreateLabel: typeof createLabelAsync
+  onCloneRule: typeof cloneRule
 }
 
 interface OwnProps {
@@ -47,6 +49,7 @@ const RuleCard: FC<Props> = ({
   onUpdateRuleProperties,
   labels,
   deleteNotificationRule,
+  onCloneRule,
   onAddRuleLabel,
   onRemoveRuleLabel,
   onCreateLabel,
@@ -65,9 +68,9 @@ const RuleCard: FC<Props> = ({
     deleteNotificationRule(rule.id)
   }
 
-  const onExport = () => {}
-
-  const onClone = () => {}
+  const onClone = () => {
+    onCloneRule(rule)
+  }
 
   const onToggle = () => {
     const status = rule.status === 'active' ? 'inactive' : 'active'
@@ -75,8 +78,12 @@ const RuleCard: FC<Props> = ({
     onUpdateRuleProperties(rule.id, {status})
   }
 
-  const onRuleClick = () => {
+  const onEdit = () => {
     router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/edit`)
+  }
+
+  const onRuleClick = () => {
+    router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/`)
   }
 
   const handleAddRuleLabel = (label: Label) => {
@@ -133,9 +140,9 @@ const RuleCard: FC<Props> = ({
       disabled={rule.status === 'inactive'}
       contextMenu={
         <NotificationRuleCardContext
-          onDelete={onDelete}
-          onExport={onExport}
+          onEdit={onEdit}
           onClone={onClone}
+          onDelete={onDelete}
         />
       }
       metaData={[<>{rule.updatedAt.toString()}</>]}
@@ -149,6 +156,7 @@ const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
   onAddRuleLabel: addRuleLabel,
   onRemoveRuleLabel: deleteRuleLabel,
+  onCloneRule: cloneRule,
 }
 
 const mstp = ({labels}: AppState): StateProps => {
