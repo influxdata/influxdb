@@ -15,7 +15,11 @@ const EndpointCardContext: FC<Props> = ({onDelete, onClone, onEdit}) => {
   return (
     <Context>
       <Context.Menu icon={IconFont.CogThick}>
-        <Context.Item label="Edit" action={onEdit} />
+        <Context.Item
+          label="Edit"
+          action={onEdit}
+          testID="endpoint-card-edit"
+        />
       </Context.Menu>
       <Context.Menu icon={IconFont.Duplicate} color={ComponentColor.Secondary}>
         <Context.Item label="Clone" action={onClone} />
