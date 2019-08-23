@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/flux/parser"
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/dependencies"
-	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/pkg/pointer"

@@ -10,7 +10,7 @@ import (
 func TestHTTP_GenerateFlux(t *testing.T) {
 	want := `package main
 // foo
-import "influxdata/influxdb/alerts"
+import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 
@@ -23,11 +23,11 @@ notification = {
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "http-endpoint",
 }
-statuses = alerts.from(start: -1h, fn: (r) =>
+statuses = monitor.from(start: -1h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
 
 statuses
-	|> alerts.notify(name: "foo", data: notification, endpoint: endpoint(mapFn: (r) =>
+	|> monitor.notify(name: "foo", data: notification, endpoint: endpoint(mapFn: (r) =>
 		({data: json.encode(v: r)})))`
 
 	s := &rule.HTTP{
