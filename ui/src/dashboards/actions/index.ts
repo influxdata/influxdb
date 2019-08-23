@@ -22,7 +22,6 @@ import {
   notify,
   PublishNotificationAction,
 } from 'src/shared/actions/notifications'
-import {getChecks} from 'src/alerting/actions/checks'
 import {
   deleteTimeRange,
   updateTimeRangeFromQueryParams,
@@ -356,8 +355,6 @@ export const getDashboardAsync = (dashboardID: string) => async (
       dispatch(getVariables()),
     ])
 
-    dispatch(getChecks())
-
     // Fetch all the views in use on the dashboard
     const views = await Promise.all(
       dashboard.cells.map(cell => getViewAJAX(dashboard.id, cell.id))
@@ -598,7 +595,6 @@ export const saveVEOView = (dashboardID: string) => async (
     } else {
       await dispatch(createCellWithView(dashboardID, view))
     }
-    //TODO- add checkID to view
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.cellAddFailed()))

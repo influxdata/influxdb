@@ -834,44 +834,6 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'CONVERT_TO_CHECK_VIEW': {
-      const view = convertView(state.view, 'check')
-
-      return {
-        ...state,
-        view,
-        activeTab: 'alerting',
-        alerting: {
-          checkStatus: RemoteDataState.Done,
-          check: DEFAULT_THRESHOLD_CHECK,
-        },
-      }
-    }
-
-    case 'CONVERT_FROM_CHECK_VIEW': {
-      const view = convertView(state.view, 'xy')
-
-      return {
-        ...state,
-        view,
-        activeTab: 'queries',
-        alerting: {checkStatus: RemoteDataState.NotStarted, check: null},
-      }
-    }
-
-    case 'TOGGLE_ALERTING_PANEL': {
-      if (
-        state.activeTab === 'queries' &&
-        state.view.properties.type === 'check'
-      ) {
-        return {...state, activeTab: 'alerting'}
-      } else if (state.activeTab === 'queries') {
-        return {...state, activeTab: 'alertingNotice'}
-      } else {
-        return {...state, activeTab: 'queries'}
-      }
-    }
-
     case 'SET_TIMEMACHINE_CHECK_STATUS': {
       const {checkStatus} = action.payload
 

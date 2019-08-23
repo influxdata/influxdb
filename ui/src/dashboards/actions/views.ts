@@ -1,13 +1,11 @@
 // Utils
 import {getView as getViewFromState} from 'src/dashboards/selectors'
-import {getCheck as getCheckFromState} from 'src/alerting/selectors'
 
 // APIs
 import {
   getView as getViewAJAX,
   updateView as updateViewAJAX,
 } from 'src/dashboards/apis/'
-import * as api from 'src/client'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -118,28 +116,9 @@ export const getViewForTimeMachine = (
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
-    if (view.properties.type !== 'check') {
-      dispatch(setActiveTimeMachine(timeMachineID, {view}))
-    } else {
-      let check = getCheckFromState(state, view.properties.checkID)
-
-      if (!check) {
-        const resp = await api.getCheck({checkID: view.properties.checkID})
-        if (resp.status !== 200) {
-          throw new Error(resp.data.message)
-        }
-        check = resp.data
-      }
-
-      dispatch(
-        setActiveTimeMachine(timeMachineID, {
-          view,
-          alerting: {check, checkStatus: RemoteDataState.Done},
-        })
-      )
-    }
+    dispatch(setActiveTimeMachine(timeMachineID, {view}))
   } catch (e) {
-    dispatch(notify(copy.getVieworCheckFailed(e.message)))
+    dispatch(notify(copy.getViewFailed(e.message)))
     dispatch(setView(cellID, null, RemoteDataState.Error))
   }
 }
