@@ -20,7 +20,7 @@ func mustDuration(d string) *notification.Duration {
 func TestSlack_GenerateFlux(t *testing.T) {
 	want := `package main
 // foo
-import "influxdata/influxdb/alerts"
+import "influxdata/influxdb/monitor"
 import "slack"
 import "secrets"
 
@@ -37,7 +37,7 @@ statuses = from(bucket: "system_bucket")
 		(r.baz == "bang"))
 
 statuses
-	|> alerts.notify(name: "foo", notification: notification, endpoint: slack_endpoint(mapFn: (r) =>
+	|> monitor.notify(name: "foo", notification: notification, endpoint: slack_endpoint(mapFn: (r) =>
 		({channel: "bar", text: "blah"})))`
 
 	s := &rule.Slack{
