@@ -7,6 +7,7 @@ import {
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
   NotificationRule,
+  CheckStatusLevel,
 } from 'src/client'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
@@ -44,6 +45,28 @@ type SlackRule = NotificationRuleBaseDraft & SlackNotificationRuleBase
 type SMTPRule = NotificationRuleBaseDraft & SMTPNotificationRuleBase
 type PagerDutyRule = NotificationRuleBaseDraft & PagerDutyNotificationRuleBase
 type HTTPRule = NotificationRuleBaseDraft & HTTPNotificationRuleBase
+
+// The data for a row in the status history table
+export interface StatusRow {
+  time: number
+  level: CheckStatusLevel
+  checkID: string
+  checkName: string
+  message: string
+}
+
+// The data for a row in the notification history table
+export interface NotificationRow {
+  time: number
+  level: CheckStatusLevel
+  checkID: string
+  checkName: string
+  notificationRuleID: string
+  notificationRuleName: string
+  notificationEndpointID: string
+  notificationEndpointName: string
+  sent: boolean
+}
 
 export {
   Check,

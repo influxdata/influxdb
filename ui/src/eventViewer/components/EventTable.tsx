@@ -1,5 +1,5 @@
 // Libraries
-import React, {useEffect, FC} from 'react'
+import React, {useLayoutEffect, FC} from 'react'
 import {AutoSizer, InfiniteLoader, List} from 'react-virtualized'
 
 // Components
@@ -55,12 +55,12 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
     )
   }
 
-  const scrollIndex =
-    state.nextScrollIndex === null ? undefined : state.nextScrollIndex
+  const scrollTop =
+    state.nextScrollTop === null ? undefined : state.nextScrollTop
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     dispatch({type: 'CONSUMED_NEXT_SCROLL_INDEX'})
-  }, [state.nextScrollIndex, dispatch])
+  }, [scrollTop, dispatch])
 
   return (
     <div className="event-table">
@@ -88,7 +88,7 @@ const EventTable: FC<Props> = ({state, dispatch, loadRows, fields}) => {
                     rowHeight={38}
                     rowRenderer={rowRenderer}
                     overscanRowCount={20}
-                    scrollToIndex={scrollIndex}
+                    scrollTop={scrollTop}
                     onScroll={({scrollTop}) =>
                       dispatch({type: 'SCROLLED', scrollTop})
                     }

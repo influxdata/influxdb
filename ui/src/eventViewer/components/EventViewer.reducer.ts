@@ -1,3 +1,6 @@
+// Utils
+import {parseSearchInput} from 'src/eventViewer/utils/search'
+
 // Types
 import {Dispatch as ReactDispatch} from 'react'
 import {RemoteDataState} from 'src/types'
@@ -16,8 +19,16 @@ export interface State {
   // The definition of "now" when running queries that are relative to "now"
   now: number | null
 
-  // A expression used to filter results when we load rows
+  // The search text a user has typed into the search bar
+  searchInput: string
+
+  // A parsed representation of the whichever search input is currently being
+  // used to filter results (not necessarily derived from the current text
+  // input, which may not be valid / parseable)
   searchExpr: SearchExpr | null
+
+  // A timeout ID used to debounce performing the search on user input
+  searchTimeoutID: any
 
   // Tracks the loading status of the next rows being loading
   nextRowsStatus: RemoteDataState
@@ -32,18 +43,22 @@ export interface State {
   // If a user has loaded all the rows that exist
   hasReachedEnd: boolean
 
-  // When set, the table will render with this index in view
-  nextScrollIndex: number | null
-
-  // How many pixels into the table we have currently scrolled
+  // The current vertical scroll offset, i.e. how many pixels into the table we
+  // have currently scrolled
   scrollTop: number
+
+  // When set, the table will render once with this exact vertical scroll
+  // offset, then dispatch an action to set this property to null
+  nextScrollTop: number | null
 }
 
 export type Action =
   | {type: 'NEXT_ROWS_LOADED'; rows: Row[]}
   | {type: 'NEXT_ROWS_FAILED_TO_LOAD'; errorMessage: string}
   | {type: 'NEXT_ROWS_LOADING'; cancel: () => void; now?: number}
-  | {type: 'SEARCH_ENTERED'; cancel: () => void; expr: SearchExpr; now: number}
+  | {type: 'SEARCH_TYPED'; searchInput: string}
+  | {type: 'SEARCH_SCHEDULED'; searchTimeoutID: any}
+  | {type: 'SEARCH_STARTED'; cancel: () => void; expr: SearchExpr; now: number}
   | {type: 'SEARCH_COMPLETED'; rows: Row[]; limit: number}
   | {type: 'SEARCH_FAILED'; errorMessage: string}
   | {type: 'SEARCH_CLEARED'; now: number; cancel: () => void}
@@ -64,9 +79,11 @@ export const INITIAL_STATE: State = {
   nextRowsErrorMessage: null,
   nextRowsCanceller: null,
   hasReachedEnd: false,
+  searchInput: '',
   searchExpr: null,
+  searchTimeoutID: null,
   scrollTop: 0,
-  nextScrollIndex: null,
+  nextScrollTop: null,
 }
 
 export const reducer = (state: State, action: Action): State => {
@@ -100,7 +117,15 @@ export const reducer = (state: State, action: Action): State => {
       }
     }
 
-    case 'SEARCH_ENTERED': {
+    case 'SEARCH_TYPED': {
+      return {...state, searchInput: action.searchInput}
+    }
+
+    case 'SEARCH_SCHEDULED': {
+      return {...state, searchTimeoutID: action.searchTimeoutID}
+    }
+
+    case 'SEARCH_STARTED': {
       return {
         ...state,
         rows: [],
@@ -138,7 +163,7 @@ export const reducer = (state: State, action: Action): State => {
         offset: 0,
         now: action.now,
         nextRowsStatus: RemoteDataState.Loading,
-        nextScrollIndex: 0,
+        nextScrollTop: 0,
         hasReachedEnd: false,
         nextRowsCanceller: action.cancel,
         searchExpr: null,
@@ -150,11 +175,11 @@ export const reducer = (state: State, action: Action): State => {
     }
 
     case 'CLICKED_BACK_TO_TOP': {
-      return {...state, nextScrollIndex: 0}
+      return {...state, nextScrollTop: 0}
     }
 
     case 'CONSUMED_NEXT_SCROLL_INDEX': {
-      return {...state, nextScrollIndex: null}
+      return {...state, nextScrollTop: null}
     }
 
     case 'LIMIT_CHANGED': {
@@ -170,7 +195,7 @@ export const reducer = (state: State, action: Action): State => {
         nextRowsStatus: RemoteDataState.Loading,
         hasReachedEnd: false,
         nextRowsCanceller: action.cancel,
-        nextScrollIndex: 0,
+        nextScrollTop: 0,
       }
     }
 
@@ -200,7 +225,7 @@ export const loadNextRows = async (
     const {promise, cancel} = loadRows({
       offset: state.offset,
       limit: state.limit,
-      since: now || state.now,
+      until: now || state.now,
       filter: state.searchExpr,
     })
 
@@ -222,6 +247,41 @@ export const search = async (
   state: State,
   dispatch: Dispatch,
   loadRows: LoadRows,
+  searchInput: string,
+  searchImmediately = false
+) => {
+  clearTimeout(state.searchTimeoutID)
+  dispatch({type: 'SEARCH_TYPED', searchInput})
+
+  let searchExpr: SearchExpr | null = null
+  let parsingFailed = false
+
+  try {
+    searchExpr = parseSearchInput(searchInput)
+  } catch {
+    parsingFailed = true
+  }
+
+  if (parsingFailed || (searchExpr === null && state.searchExpr === null)) {
+    return
+  } else if (searchExpr === null) {
+    clearSearch(state, dispatch, loadRows)
+  } else if (searchImmediately) {
+    performSearch(state, dispatch, loadRows, searchExpr)
+  } else {
+    const searchTimeoutID = setTimeout(
+      () => performSearch(state, dispatch, loadRows, searchExpr),
+      500
+    )
+
+    dispatch({type: 'SEARCH_SCHEDULED', searchTimeoutID})
+  }
+}
+
+const performSearch = async (
+  state: State,
+  dispatch: Dispatch,
+  loadRows: LoadRows,
   searchExpr: SearchExpr
 ): Promise<void> => {
   try {
@@ -236,11 +296,11 @@ export const search = async (
     const {promise, cancel} = loadRows({
       offset: 0,
       limit,
-      since: now,
+      until: now,
       filter: searchExpr,
     })
 
-    dispatch({type: 'SEARCH_ENTERED', cancel, now, expr: searchExpr})
+    dispatch({type: 'SEARCH_STARTED', cancel, now, expr: searchExpr})
 
     const rows = await promise
 
@@ -254,7 +314,7 @@ export const search = async (
   }
 }
 
-export const clearSearch = async (
+const clearSearch = async (
   state: State,
   dispatch: Dispatch,
   loadRows: LoadRows
@@ -270,7 +330,7 @@ export const clearSearch = async (
     const {promise, cancel} = loadRows({
       offset: 0,
       limit: state.limit,
-      since: now,
+      until: now,
     })
 
     dispatch({type: 'SEARCH_CLEARED', now, cancel})
@@ -303,7 +363,7 @@ export const refresh = async (
     const {promise, cancel} = loadRows({
       offset: 0,
       limit: state.limit,
-      since: now,
+      until: now,
       filter: state.searchExpr,
     })
 

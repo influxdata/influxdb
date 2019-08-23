@@ -120,10 +120,10 @@
 @import 'src/alerting/containers/AlertHistoryIndex.scss';
 @import 'src/alerting/containers/AlertHistoryControls.scss';
 @import 'src/alerting/components/LevelTableField.scss';
-@import 'src/alerting/components/TagsTableField.scss';
 @import 'src/alerting/components/SentTableField.scss';
 @import 'src/alerting/components/notifications/RuleOverlayFooter.scss';
 @import 'src/alerting/components/endpoints/EndpointOverlay.scss';
+@import 'src/alerting/components/SearchBar.scss';
 
 // External
 @import '../../node_modules/@influxdata/react-custom-scrollbars/dist/styles.css';

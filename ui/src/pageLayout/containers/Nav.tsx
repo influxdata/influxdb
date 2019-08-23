@@ -153,7 +153,7 @@ class SideNav extends PureComponent<Props, State> {
             <NavMenu.SubItem
               titleLink={className => (
                 <Link to={alertHistoryLink} className={className}>
-                  Check Statuses
+                  History
                 </Link>
               )}
               active={getNavItemActivation(

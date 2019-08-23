@@ -12,32 +12,40 @@ export type LoadRows = (options: LoadRowsOptions) => CancelBox<Row[]>
 export interface LoadRowsOptions {
   offset: number
   limit: number
-  since: number
-  until?: number
+  until: number
+  since?: number
   filter?: SearchExpr
 }
 
-export type SearchExpr = SearchNotExpr | SearchBinaryExpr | string | number
+export type SearchExpr = SearchBooleanExpr | SearchTagExpr
 
-export interface SearchNotExpr {
-  type: 'NOT'
-  value: SearchExpr
-}
-
-export interface SearchBinaryExpr {
-  type: 'BINARY_EXPR'
+export interface SearchBooleanExpr {
+  type: 'BooleanExpression'
+  operator: SearchBooleanOperator
   left: SearchExpr
   right: SearchExpr
-  op: SearchBinaryOp
 }
 
-export type SearchBinaryOp =
-  | 'AND'
-  | 'OR'
-  | 'EQUALS'
-  | 'NOT_EQUALS'
-  | 'REG_MATCH'
-  | 'NOT_REG_MATCH'
+export interface SearchTagExpr {
+  type: 'TagExpression'
+  operator: SearchTagOperator
+  left: SearchStringLiteral
+  right: SearchStringLiteral | SearchRegexLiteral
+}
+
+export type SearchBooleanOperator = 'and' | 'or'
+
+export type SearchTagOperator = '==' | '!=' | '=~' | '!~'
+
+export interface SearchStringLiteral {
+  type: 'StringLiteral'
+  value: string
+}
+
+export interface SearchRegexLiteral {
+  type: 'RegexLiteral'
+  value: string
+}
 
 export interface EventViewerChildProps {
   state: State

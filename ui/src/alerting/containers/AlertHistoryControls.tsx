@@ -5,11 +5,17 @@ import {Radio} from '@influxdata/clockface'
 // Components
 import BackToTopButton from 'src/eventViewer/components/BackToTopButton'
 import LimitDropdown from 'src/eventViewer/components/LimitDropdown'
-import StatusSearchBar from 'src/alerting/components/StatusSearchBar'
+import SearchBar from 'src/alerting/components/SearchBar'
 
 // Types
 import {AlertHistoryType} from 'src/types'
 import {EventViewerChildProps} from 'src/eventViewer/types'
+
+// Constants
+import {
+  EXAMPLE_STATUS_SEARCHES,
+  EXAMPLE_NOTIFICATION_SEARCHES,
+} from 'src/alerting/constants/history'
 
 interface Props {
   historyType: AlertHistoryType
@@ -47,7 +53,15 @@ const AlertHistoryControls: FC<Props> = ({
       <div className="alert-history-controls--right">
         <BackToTopButton {...eventViewerProps} />
         <LimitDropdown {...eventViewerProps} />
-        <StatusSearchBar {...eventViewerProps} />
+        <SearchBar
+          {...eventViewerProps}
+          placeholder={`Search ${historyType}...`}
+          exampleSearches={
+            historyType === 'statuses'
+              ? EXAMPLE_STATUS_SEARCHES
+              : EXAMPLE_NOTIFICATION_SEARCHES
+          }
+        />
       </div>
     </div>
   )

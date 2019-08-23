@@ -5,18 +5,21 @@ import {Link} from 'react-router'
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
 
+// Types
+import {NotificationRow} from 'src/types'
+
 interface Props {
-  row: {notificationEndpoint: string; notificationEndpointID: string}
+  row: NotificationRow
 }
 
 const NotificationEndpointTableField: FC<Props> = ({
-  row: {notificationEndpoint, notificationEndpointID},
+  row: {notificationEndpointName, notificationEndpointID},
 }) => {
   const href = formatOrgRoute(
     `/alerting/endpoints/${notificationEndpointID}/edit`
   )
 
-  return <Link to={href}>{notificationEndpoint}</Link>
+  return <Link to={href}>{notificationEndpointName}</Link>
 }
 
 export default NotificationEndpointTableField

@@ -14,22 +14,23 @@ import {
 } from 'src/alerting/constants/history'
 
 // Utils
-import {
-  fakeLoadStatusRows,
-  fakeLoadNotificationRows,
-} from 'src/eventViewer/utils/fakeLoadRows'
+import {loadStatuses, loadNotifications} from 'src/alerting/utils/history'
 
 // Types
 import {AlertHistoryType} from 'src/types'
 
-const AlertHistoryIndex: FC = () => {
+interface Props {
+  params: {orgID: string}
+}
+
+const AlertHistoryIndex: FC<Props> = ({params: {orgID}}) => {
   const [historyType, setHistoryType] = useState<AlertHistoryType>('statuses')
 
   const loadRows = useMemo(() => {
     return historyType === 'statuses'
-      ? fakeLoadStatusRows
-      : fakeLoadNotificationRows
-  }, [historyType])
+      ? options => loadStatuses(orgID, options)
+      : options => loadNotifications(orgID, options)
+  }, [orgID, historyType])
 
   const fields =
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
