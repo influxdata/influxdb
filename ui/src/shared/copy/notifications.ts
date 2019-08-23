@@ -799,3 +799,28 @@ export const getViewFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to load resources for cell: ${message}`,
 })
+
+export const getEndpointFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get endpoints: ${message}`,
+})
+
+export const getEndpointsFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to get endoint: ${message}`,
+})
+
+export const createEndpointFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to create endpoint: ${message}`,
+})
+
+export const updateEndpointFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to update endpoint: ${message}`,
+})
+
+export const deleteEndpointFailed = (message: string): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to delete endpoint: ${message}`,
+})
