@@ -11,7 +11,7 @@ import {
 } from '@influxdata/clockface'
 
 // Utils
-import {useRuleState} from './RuleOverlay.reducer'
+import {useRuleState} from './RuleOverlayProvider'
 
 import {NotificationRuleDraft, RemoteDataState} from 'src/types'
 
@@ -56,6 +56,7 @@ const RuleOverlayFooter: FC<Props> = ({saveButtonText, onSave}) => {
           )}
           <Form.Footer className="rule-overlay-footer">
             <Button
+              testID="rule-overlay-save--button"
               text={saveButtonText}
               onClick={handleSave}
               color={ComponentColor.Primary}

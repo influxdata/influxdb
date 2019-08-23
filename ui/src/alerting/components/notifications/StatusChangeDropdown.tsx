@@ -8,7 +8,7 @@ import {StatusRuleDraft} from 'src/types'
 import {Dropdown} from '@influxdata/clockface'
 
 // Utils
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 import {
   CHANGES,
   changeStatusRule,

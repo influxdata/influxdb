@@ -11,7 +11,7 @@ import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverl
 import {Overlay} from '@influxdata/clockface'
 
 // Utils
-import {RuleOverlayProvider} from './RuleOverlay.reducer'
+import RuleOverlayProvider from 'src/alerting/components/notifications/RuleOverlayProvider'
 import {initRuleDraft} from 'src/alerting/components/notifications/utils'
 
 // Types

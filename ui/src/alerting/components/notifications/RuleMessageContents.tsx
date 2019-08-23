@@ -7,7 +7,7 @@ import SMTPMessage from './SMTPMessage'
 import PagerDutyMessage from './PagerDutyMessage'
 
 // Utils
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
 import {NotificationRuleDraft} from 'src/types'

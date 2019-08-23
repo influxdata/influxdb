@@ -13,7 +13,7 @@ import StatusChangeDropdown from 'src/alerting/components/notifications/StatusCh
 import {LevelType} from 'src/alerting/components/notifications/RuleOverlay.reducer'
 
 // Utils
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
 import {StatusRuleDraft, CheckStatusLevel} from 'src/types'

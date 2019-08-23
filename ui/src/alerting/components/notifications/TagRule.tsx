@@ -19,7 +19,7 @@ import TagRuleOperatorDropdown, {
 } from 'src/alerting/components/notifications/TagRuleOperatorDropdown'
 
 // Utils
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
 import {TagRuleDraft} from 'src/types'
