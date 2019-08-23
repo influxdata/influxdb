@@ -23,9 +23,7 @@ func NewCommand() *cobra.Command {
 		NewDumpWALCommand(),
 	}
 
-	for _, command := range subCommands {
-		base.AddCommand(command)
-	}
+	base.AddCommand(subCommands...)
 
 	return base
 }
