@@ -5691,6 +5691,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/notificationRules/{ruleID}/query':
+    get:
+      operationId: GetNotificationRulesIDQuery
+      tags:
+        - Rules
+      summary: Get a notification rule query
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: ruleID
+          schema:
+            type: string
+          required: true
+          description: ID of notification rule
+      responses:
+        '200':
+          description: the notification rule query requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FluxResponse"
+        '400':
+          description: invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: notification rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /notificationEndpoints:
     get:
       operationId: GetNotificationEndpoints
