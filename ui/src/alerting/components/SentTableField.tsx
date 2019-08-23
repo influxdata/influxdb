@@ -1,8 +1,12 @@
+// Libraries
 import React, {FC} from 'react'
 import {Icon, IconFont} from '@influxdata/clockface'
 
+// Types
+import {NotificationRow} from 'src/types'
+
 interface Props {
-  row: {sent: boolean}
+  row: NotificationRow
 }
 
 const SentTableField: FC<Props> = ({row: {sent}}) => {

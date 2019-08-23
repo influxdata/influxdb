@@ -1,6 +1,5 @@
 // Components
 import LevelTableField from 'src/alerting/components/LevelTableField'
-import TagsTableField from 'src/alerting/components/TagsTableField'
 import TimeTableField from 'src/alerting/components/TimeTableField'
 import CheckTableField from 'src/alerting/components/CheckTableField'
 import NotificationRuleTableField from 'src/alerting/components/NotificationRuleTableField'
@@ -24,7 +23,7 @@ export const STATUS_FIELDS: Fields = [
     component: LevelTableField,
   },
   {
-    rowKey: 'check',
+    rowKey: 'checkID',
     columnName: 'Check',
     columnWidth: 150,
     component: CheckTableField,
@@ -33,12 +32,6 @@ export const STATUS_FIELDS: Fields = [
     rowKey: 'message',
     columnName: 'Message',
     columnWidth: 300,
-  },
-  {
-    rowKey: 'tags',
-    columnName: 'Tags',
-    columnWidth: 300,
-    component: TagsTableField,
   },
 ]
 
@@ -56,19 +49,19 @@ export const NOTIFICATION_FIELDS: Fields = [
     component: LevelTableField,
   },
   {
-    rowKey: 'check',
+    rowKey: 'checkID',
     columnName: 'Check',
     columnWidth: 150,
     component: CheckTableField,
   },
   {
-    rowKey: 'notificationRule',
+    rowKey: 'notificationRuleID',
     columnName: 'Notification Rule',
     columnWidth: 200,
     component: NotificationRuleTableField,
   },
   {
-    rowKey: 'notificationEndpoint',
+    rowKey: 'notificationEndpointID',
     columnName: 'Notification Endpoint',
     columnWidth: 200,
     component: NotificationEndpointTableField,
@@ -79,4 +72,24 @@ export const NOTIFICATION_FIELDS: Fields = [
     columnWidth: 50,
     component: SentTableField,
   },
+]
+
+export const STATUS_BUCKET = 'fake_status_bucket'
+
+export const NOTIFICATION_BUCKET = 'fake_notification_bucket'
+
+export const EXAMPLE_STATUS_SEARCHES = [
+  '"check" == "my check"',
+  '"level" != "ok"',
+  '"level" == "warn"',
+  '"level" == "crit"',
+  '"message" =~ /exceeded capacity/',
+  '"check" == "my check" and ("level" == "crit" or "level" == "warn")',
+]
+
+export const EXAMPLE_NOTIFICATION_SEARCHES = [
+  '"check" == "my check"',
+  '"level" == "crit"',
+  '"level" != "ok"',
+  '"notification rule" == "my rule"',
 ]

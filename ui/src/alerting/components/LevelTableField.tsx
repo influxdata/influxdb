@@ -1,8 +1,11 @@
 // Libraries
 import React, {FC} from 'react'
 
+// Types
+import {StatusRow, NotificationRow} from 'src/types'
+
 interface Props {
-  row: {level: string}
+  row: StatusRow | NotificationRow
 }
 
 const LevelTableField: FC<Props> = ({row: {level}}) => {
