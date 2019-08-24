@@ -6,6 +6,7 @@ import {
   DeadmanCheck,
 } from 'src/types'
 import {NotificationEndpoint} from 'src/client'
+import {ComponentColor} from '@influxdata/clockface'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
@@ -21,6 +22,13 @@ export const LEVEL_COLORS = {
   INFO: '#4591ED',
   WARN: '#FFD255',
   CRIT: '#DC4E58',
+}
+
+export const LEVEL_COMPONENT_COLORS = {
+  OK: ComponentColor.Success,
+  INFO: ComponentColor.Primary,
+  WARN: ComponentColor.Warning,
+  CRIT: ComponentColor.Danger,
 }
 
 export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
