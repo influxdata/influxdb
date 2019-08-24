@@ -112,12 +112,11 @@ const CheckMetaCard: FC<Props> = ({
           minLength={5}
           name="statusMessageTemplate"
           onChange={handleChange}
-          placeholder="Example: {tags.cpu} exceeded threshold: {value}%"
           readOnly={false}
           required={false}
           size={ComponentSize.Medium}
           spellCheck={false}
-          testID="textarea"
+          testID="status-message-textarea"
           value={check.statusMessageTemplate}
           wrap={Wrap.Soft}
         />
@@ -126,23 +125,23 @@ const CheckMetaCard: FC<Props> = ({
         <Grid.Row>
           <Grid.Column widthSM={6}>
             <Form.Element label="Run this check every">
-                <Input
-                  name="every"
-                  onChange={handleChange}
+              <Input
+                name="every"
+                onChange={handleChange}
                 titleText="Check run interval"
-                  value={check.every}
-                />
-              </Form.Element>
+                value={check.every}
+              />
+            </Form.Element>
           </Grid.Column>
           <Grid.Column widthSM={6}>
-              <Form.Element label="Offset">
-                <Input
-                  name="offset"
-                  onChange={handleChange}
-                  titleText="Offset check interval"
-                  value={check.offset}
-                />
-              </Form.Element>
+            <Form.Element label="Offset">
+              <Input
+                name="offset"
+                onChange={handleChange}
+                titleText="Offset check interval"
+                value={check.offset}
+              />
+            </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Grid>
