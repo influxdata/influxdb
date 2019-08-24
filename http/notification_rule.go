@@ -21,7 +21,6 @@ type NotificationRuleBackend struct {
 	Logger *zap.Logger
 
 	NotificationRuleStore      influxdb.NotificationRuleStore
-	TaskService                influxdb.TaskService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
@@ -35,7 +34,6 @@ func NewNotificationRuleBackend(b *APIBackend) *NotificationRuleBackend {
 		Logger:           b.Logger.With(zap.String("handler", "notification_rule")),
 
 		NotificationRuleStore:      b.NotificationRuleStore,
-		TaskService:                b.TaskService,
 		UserResourceMappingService: b.UserResourceMappingService,
 		LabelService:               b.LabelService,
 		UserService:                b.UserService,
@@ -50,7 +48,6 @@ type NotificationRuleHandler struct {
 	Logger *zap.Logger
 
 	NotificationRuleStore      influxdb.NotificationRuleStore
-	TaskService                influxdb.TaskService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
@@ -76,7 +73,6 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 		Logger:           b.Logger,
 
 		NotificationRuleStore:      b.NotificationRuleStore,
-		TaskService:                b.TaskService,
 		UserResourceMappingService: b.UserResourceMappingService,
 		LabelService:               b.LabelService,
 		UserService:                b.UserService,
@@ -137,43 +133,6 @@ type notificationRuleResponse struct {
 	influxdb.NotificationRule
 	Labels []influxdb.Label      `json:"labels"`
 	Links  notificationRuleLinks `json:"links"`
-}
-
-func createRuleTask(ctx context.Context,
-	s influxdb.TaskService,
-	nr influxdb.NotificationRule) error {
-	if nr.GetStatus() == influxdb.Inactive {
-		return nil
-	}
-	script, err := nr.GenerateFlux(nil)
-	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-
-	tc := influxdb.TaskCreate{
-		Type:           nr.Type(),
-		Flux:           script,
-		OwnerID:        nr.GetOwnerID(),
-		OrganizationID: nr.GetOrgID(),
-	}
-	t, err := s.CreateTask(ctx, tc)
-	if err != nil {
-		return err
-	}
-	nr.SetTaskID(t.ID)
-
-	return nil
-}
-
-func removeRuleTask(ctx context.Context, s influxdb.TaskService, nr influxdb.NotificationRule) error {
-	err := s.DeleteTask(ctx, nr.GetTaskID())
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (resp notificationRuleResponse) MarshalJSON() ([]byte, error) {
@@ -454,10 +413,6 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 		return
 	}
 
-	if err = createRuleTask(ctx, h.TaskService, nr); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
 	auth, err := pctx.GetAuthorizer(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -483,15 +438,6 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 	nr, err := decodePutNotificationRuleRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	if err = removeRuleTask(ctx, h.TaskService, nr); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if err = createRuleTask(ctx, h.TaskService, nr); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -529,17 +475,6 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 		h.Logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
-	}
-	if req.Update.Status != nil && *req.Update.Status == influxdb.Inactive {
-		nr, err := h.NotificationRuleStore.FindNotificationRuleByID(ctx, req.ID)
-		if err != nil {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
-		if err = removeRuleTask(ctx, h.TaskService, nr); err != nil {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
 	}
 
 	nr, err := h.NotificationRuleStore.PatchNotificationRule(ctx, req.ID, req.Update)

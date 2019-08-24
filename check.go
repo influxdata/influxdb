@@ -43,6 +43,7 @@ type CheckService interface {
 	UserResourceMappingService
 	// OrganizationService is needed for search filter
 	OrganizationService
+	TaskService
 
 	// FindCheckByID returns a single check by ID.
 	FindCheckByID(ctx context.Context, id ID) (Check, error)

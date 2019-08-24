@@ -115,6 +115,7 @@ type NotificationRuleStore interface {
 	UserResourceMappingService
 	// OrganizationService is needed for search filter
 	OrganizationService
+	TaskService
 
 	// FindNotificationRuleByID returns a single notification rule by ID.
 	FindNotificationRuleByID(ctx context.Context, id ID) (NotificationRule, error)

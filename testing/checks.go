@@ -111,6 +111,7 @@ type CheckFields struct {
 	Checks               []influxdb.Check
 	Organizations        []*influxdb.Organization
 	UserResourceMappings []*influxdb.UserResourceMapping
+	Tasks                []influxdb.TaskCreate
 }
 
 type checkServiceF func(
@@ -868,6 +869,14 @@ func DeleteCheck(
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						Flux: `option task = { every: 10s, name: "foo" }
+data = from(bucket: "telegraf") |> range(start: -1m)`,
+						OrganizationID: MustIDBase16(orgOneID),
+						OwnerID:        MustIDBase16(sixID),
+					},
+				},
 				Checks: []influxdb.Check{
 					deadman1,
 					threshold1,
@@ -890,6 +899,14 @@ func DeleteCheck(
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						Flux: `option task = { every: 10s, name: "foo" }
+data = from(bucket: "telegraf") |> range(start: -1m)`,
+						OrganizationID: MustIDBase16(orgOneID),
+						OwnerID:        MustIDBase16(sixID),
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1088,6 +1105,14 @@ func UpdateCheck(
 				Checks: []influxdb.Check{
 					deadman1,
 				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						Flux: `option task = { every: 10s, name: "foo" }
+data = from(bucket: "telegraf") |> range(start: -1m)`,
+						OrganizationID: MustIDBase16(orgOneID),
+						OwnerID:        MustIDBase16(sixID),
+					},
+				},
 			},
 			args: args{
 				id: MustIDBase16(checkOneID),
@@ -1257,11 +1282,20 @@ func PatchCheck(
 		{
 			name: "mixed patch",
 			fields: CheckFields{
+				IDGenerator:   mock.NewIDGenerator("0000000000000001", t),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2007, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						Flux: `option task = { every: 10s, name: "foo" }
+data = from(bucket: "telegraf") |> range(start: -1m)`,
+						OrganizationID: MustIDBase16(orgOneID),
+						OwnerID:        MustIDBase16(sixID),
 					},
 				},
 				Checks: []influxdb.Check{
@@ -1308,11 +1342,20 @@ func PatchCheck(
 		{
 			name: "update name unique",
 			fields: CheckFields{
+				IDGenerator:   mock.NewIDGenerator("0000000000000001", t),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						Flux: `option task = { every: 10s, name: "foo" }
+		data = from(bucket: "telegraf") |> range(start: -1m)`,
+						OrganizationID: MustIDBase16(orgOneID),
+						OwnerID:        MustIDBase16(sixID),
 					},
 				},
 				Checks: []influxdb.Check{

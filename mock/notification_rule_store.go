@@ -12,6 +12,7 @@ var _ influxdb.NotificationRuleStore = &NotificationRuleStore{}
 type NotificationRuleStore struct {
 	OrganizationService
 	UserResourceMappingService
+	TaskService
 	FindNotificationRuleByIDF func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error)
 	FindNotificationRulesF    func(ctx context.Context, filter influxdb.NotificationRuleFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error)
 	CreateNotificationRuleF   func(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error

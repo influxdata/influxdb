@@ -65,6 +65,11 @@ func initCheckService(s kv.Store, f influxdbtesting.CheckFields, t *testing.T) (
 			t.Fatalf("failed to populate organizations")
 		}
 	}
+	for _, tc := range f.Tasks {
+		if _, err := svc.CreateTask(ctx, tc); err != nil {
+			t.Fatalf("failed to populate tasks: %v", err)
+		}
+	}
 	for _, c := range f.Checks {
 		if err := svc.PutCheck(ctx, c); err != nil {
 			t.Fatalf("failed to populate checks")
