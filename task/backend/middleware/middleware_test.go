@@ -216,6 +216,7 @@ func TestCoordinatingTaskService(t *testing.T) {
 }
 
 func TestCoordinatingTaskService_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/14797")
 	t.Parallel()
 	var (
 		ts         = inmemTaskService()
