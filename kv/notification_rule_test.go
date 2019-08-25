@@ -74,6 +74,12 @@ func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFie
 		}
 	}
 
+	for _, c := range f.Tasks {
+		if _, err := svc.CreateTask(ctx, c); err != nil {
+			t.Fatalf("failed to populate task: %v", err)
+		}
+	}
+
 	return svc, func() {
 		for _, nr := range f.NotificationRules {
 			if err := svc.DeleteNotificationRule(ctx, nr.GetID()); err != nil {

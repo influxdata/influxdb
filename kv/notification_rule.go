@@ -79,6 +79,13 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 	nr.SetCreatedAt(now)
 	nr.SetUpdatedAt(now)
 
+	t, err := s.createNotificationTask(ctx, tx, nr)
+	if err != nil {
+		return err
+	}
+
+	nr.SetTaskID(t.ID)
+
 	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
 		return err
 	}
@@ -90,6 +97,34 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 		ResourceType: influxdb.NotificationRuleResourceType,
 	}
 	return s.createUserResourceMapping(ctx, tx, urm)
+}
+
+func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule) (*influxdb.Task, error) {
+	// TODO(desa): figure out what to do about this
+	//ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	//if err != nil {
+	//	return nil, err
+	//}
+
+	// TODO(desa): pass in non nil notification endpoint.
+	script, err := r.GenerateFlux(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	tc := influxdb.TaskCreate{
+		Type:           r.Type(),
+		Flux:           script,
+		OwnerID:        r.GetOwnerID(),
+		OrganizationID: r.GetOrgID(),
+	}
+
+	t, err := s.createTask(ctx, tx, tc)
+	if err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }
 
 // UpdateNotificationRule updates a single notification rule.
@@ -117,6 +152,17 @@ func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb
 	nr.SetCreatedAt(current.GetCRUDLog().CreatedAt)
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
 	nr.SetTaskID(current.GetTaskID())
+
+	if err := s.deleteTask(ctx, tx, nr.GetTaskID()); err != nil {
+		return nil, err
+	}
+
+	t, err := s.createNotificationTask(ctx, tx, nr)
+	if err != nil {
+		return nil, err
+	}
+
+	nr.SetTaskID(t.ID)
 
 	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
 		return nil, err
@@ -360,8 +406,12 @@ func (s *Service) DeleteNotificationRule(ctx context.Context, id influxdb.ID) er
 }
 
 func (s *Service) deleteNotificationRule(ctx context.Context, tx Tx, id influxdb.ID) error {
-	_, err := s.findNotificationRuleByID(ctx, tx, id)
+	r, err := s.findNotificationRuleByID(ctx, tx, id)
 	if err != nil {
+		return err
+	}
+
+	if err := s.deleteTask(ctx, tx, r.GetTaskID()); err != nil {
 		return err
 	}
 
