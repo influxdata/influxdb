@@ -21,7 +21,6 @@ type CheckBackend struct {
 	Logger *zap.Logger
 
 	CheckService               influxdb.CheckService
-	TaskService                influxdb.TaskService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
@@ -49,7 +48,6 @@ type CheckHandler struct {
 	Logger *zap.Logger
 
 	CheckService               influxdb.CheckService
-	TaskService                influxdb.TaskService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
@@ -76,7 +74,6 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		Logger:           b.Logger,
 
 		CheckService:               b.CheckService,
-		TaskService:                b.TaskService,
 		UserResourceMappingService: b.UserResourceMappingService,
 		LabelService:               b.LabelService,
 		UserService:                b.UserService,
@@ -417,41 +414,6 @@ func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckR
 	return req, nil
 }
 
-func createCheckTask(ctx context.Context, s influxdb.TaskService, c influxdb.Check) error {
-	if c.GetStatus() == influxdb.Inactive {
-		return nil
-	}
-	script, err := c.GenerateFlux()
-	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-
-	tc := influxdb.TaskCreate{
-		Type:           c.Type(),
-		Flux:           script,
-		OwnerID:        c.GetOwnerID(),
-		OrganizationID: c.GetOrgID(),
-	}
-	t, err := s.CreateTask(ctx, tc)
-	if err != nil {
-		return err
-	}
-	c.SetTaskID(t.ID)
-
-	return nil
-}
-
-func removeCheckTask(ctx context.Context, s influxdb.TaskService, c influxdb.Check) error {
-	err := s.DeleteTask(ctx, c.GetTaskID())
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 // handlePostCheck is the HTTP handler for the POST /api/v2/checks route.
 func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -459,10 +421,6 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	chk, err := decodePostCheckRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	if err := createCheckTask(ctx, h.TaskService, chk); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -496,16 +454,6 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = removeCheckTask(ctx, h.TaskService, chk); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	if err = createCheckTask(ctx, h.TaskService, chk); err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
 	chk, err = h.CheckService.UpdateCheck(ctx, chk.GetID(), chk)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -534,18 +482,6 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 		h.Logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
-	}
-
-	if req.Update.Status != nil && *req.Update.Status == influxdb.Inactive {
-		chk, err := h.CheckService.FindCheckByID(ctx, req.ID)
-		if err != nil {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
-		if err = removeCheckTask(ctx, h.TaskService, chk); err != nil {
-			h.HandleHTTPError(ctx, err, w)
-			return
-		}
 	}
 
 	chk, err := h.CheckService.PatchCheck(ctx, req.ID, req.Update)

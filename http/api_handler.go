@@ -178,7 +178,6 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	checkBackend := NewCheckBackend(b)
 	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,
 		b.UserResourceMappingService, b.OrganizationService)
-	checkBackend.TaskService = b.TaskService
 	h.CheckHandler = NewCheckHandler(checkBackend)
 
 	writeBackend := NewWriteBackend(b)
