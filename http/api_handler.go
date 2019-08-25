@@ -167,7 +167,6 @@ func NewAPIHandler(b *APIBackend) *APIHandler {
 	notificationRuleBackend := NewNotificationRuleBackend(b)
 	notificationRuleBackend.NotificationRuleStore = authorizer.NewNotificationRuleStore(b.NotificationRuleStore,
 		b.UserResourceMappingService, b.OrganizationService)
-	notificationRuleBackend.TaskService = b.TaskService
 	h.NotificationRuleHandler = NewNotificationRuleHandler(notificationRuleBackend)
 
 	notificationEndpointBackend := NewNotificationEndpointBackend(b)
