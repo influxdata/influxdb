@@ -13,7 +13,7 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
 import LimitChecker from 'src/cloud/components/LimitChecker'
-import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions'
@@ -183,7 +183,7 @@ class DashboardPage extends Component<Props> {
             {showVariablesControls && !!dashboard && (
               <VariablesControlBar dashboardID={dashboard.id} />
             )}
-            <AssetLimitAlert
+            <RateLimitAlert
               resourceName={resourceName}
               limitStatus={limitStatus}
               className="dashboard--asset-alert"

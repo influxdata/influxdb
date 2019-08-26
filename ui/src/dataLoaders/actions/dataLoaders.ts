@@ -45,7 +45,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {
   TelegrafConfigCreationError,
   TelegrafConfigCreationSuccess,
-  writeLimitReached,
+  readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
 
 type GetState = () => AppState
@@ -559,7 +559,7 @@ export const writeLineProtocolAction = (
     if (resp.status === 204) {
       dispatch(setLPStatus(RemoteDataState.Done))
     } else if (resp.status === 429) {
-      dispatch(notify(writeLimitReached()))
+      dispatch(notify(readWriteCardinalityLimitReached(resp.data.message)))
       dispatch(setLPStatus(RemoteDataState.Error))
     } else {
       throw new Error(_.get(resp, 'data.message', 'Failed to write data'))

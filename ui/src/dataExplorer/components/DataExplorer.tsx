@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 // Components
 import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import LimitChecker from 'src/cloud/components/LimitChecker'
-import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
@@ -45,10 +45,7 @@ class DataExplorer extends PureComponent<Props, {}> {
 
     return (
       <LimitChecker>
-        <AssetLimitAlert
-          resourceName={resourceName}
-          limitStatus={limitStatus}
-        />
+        <RateLimitAlert resourceName={resourceName} limitStatus={limitStatus} />
         <div className="data-explorer">
           <HoverTimeProvider>
             <TimeMachine />

@@ -17,6 +17,7 @@ export interface LimitsState {
   rate: {
     readKBs: Limit
     writeKBs: Limit
+    cardinality: Limit
   }
   status: RemoteDataState
 }
@@ -33,6 +34,7 @@ export const defaultState: LimitsState = {
   rate: {
     readKBs: defaultLimit,
     writeKBs: defaultLimit,
+    cardinality: defaultLimit,
   },
   status: RemoteDataState.NotStarted,
 }
@@ -55,13 +57,14 @@ export const limitsReducer = (
         const {maxBuckets} = limits.bucket
         const {maxDashboards} = limits.dashboard
         const {maxTasks} = limits.task
-        const {readKBs, writeKBs} = limits.rate
+        const {readKBs, writeKBs, cardinality} = limits.rate
 
         draftState.buckets.maxAllowed = maxBuckets
         draftState.dashboards.maxAllowed = maxDashboards
         draftState.tasks.maxAllowed = maxTasks
         draftState.rate.readKBs.maxAllowed = readKBs
         draftState.rate.writeKBs.maxAllowed = writeKBs
+        draftState.rate.cardinality.maxAllowed = cardinality
 
         return
       }
@@ -83,6 +86,10 @@ export const limitsReducer = (
       }
       case ActionTypes.SetWriteRateLimitStatus: {
         draftState.rate.writeKBs.limitStatus = action.payload.limitStatus
+        return
+      }
+      case ActionTypes.SetCardinalityLimitStatus: {
+        draftState.rate.cardinality.limitStatus = action.payload.limitStatus
         return
       }
     }
