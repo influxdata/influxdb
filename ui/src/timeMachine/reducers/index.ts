@@ -154,8 +154,8 @@ export const timeMachinesReducer = (
         ...state.timeMachines,
         [activeTimeMachineID]: {
           ...activeTimeMachine,
-          ...initialState,
           activeTab: 'queries',
+          ...initialState,
           isViewingRawData: false,
           activeQueryIndex: 0,
           draftQueries,
