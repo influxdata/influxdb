@@ -203,7 +203,7 @@ func FromScript(script string) (Options, error) {
 		return opt, err
 	}
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
-	ctx, deps := context.Background(), dependencies.NewDefaultDependencies()
+	ctx, deps := context.Background(), dependencies.NewEmpty()
 	_, scope, err := flux.EvalAST(ctx, deps, fluxAST)
 	if err != nil {
 		return opt, err
