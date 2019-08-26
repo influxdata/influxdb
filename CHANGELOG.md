@@ -8,6 +8,7 @@ v1.6.7 [unreleased]
 -	[#13504](https://github.com/influxdata/influxdb/pull/13504): fill resets the previous value when a new series or window is encountered.
 -	[#13539](https://github.com/influxdata/influxdb/pull/13539): Use the timezone when evaluating time literals in subqueries.
 -	[#13564](https://github.com/influxdata/influxdb/pull/13564): Fix csv decoder bug where empty tag values cause an array index panic.
+-	[#14655](https://github.com/influxdata/influxdb/pull/14655): fix(query/compile.go): time range was exceeding min/max bounds under ….
 
 v1.6.6 [2019-02-28]
 -------------------
