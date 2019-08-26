@@ -1,7 +1,6 @@
 import {SlackNotificationEndpoint} from '../../src/types'
 
-// TODO(watts): remove skip once the ownerID stuff has been sorted out
-describe.skip('NotificationRules', () => {
+describe('NotificationRules', () => {
   const name1 = 'Slack 1'
   const name2 = 'Slack 2'
   const name3 = 'Slack 3'
