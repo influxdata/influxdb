@@ -56,7 +56,6 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     const view = createView<CheckViewProperties>('check')
     onSetActiveTimeMachine('alerting', {
       view,
-      activeTab: 'queries',
       alerting: {
         checkStatus: RemoteDataState.Done,
         check: DEFAULT_THRESHOLD_CHECK,

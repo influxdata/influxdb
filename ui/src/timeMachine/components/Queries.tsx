@@ -94,7 +94,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               margin={ComponentSize.Small}
             >
               <RawDataToggle />
-              <CSVExportButton />
+              {activeTimeMachineID !== 'alerting' && <CSVExportButton />}
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown
                 timeRange={timeRange}

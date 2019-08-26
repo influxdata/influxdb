@@ -154,8 +154,8 @@ export const timeMachinesReducer = (
         ...state.timeMachines,
         [activeTimeMachineID]: {
           ...activeTimeMachine,
-          ...initialState,
           activeTab: 'queries',
+          ...initialState,
           isViewingRawData: false,
           activeQueryIndex: 0,
           draftQueries,
@@ -748,22 +748,11 @@ export const timeMachineReducer = (
 
     case 'SELECT_BUILDER_FUNCTION': {
       return produce(state, draftState => {
-        const {name} = action.payload
-        const functions =
-          draftState.draftQueries[draftState.activeQueryIndex].builderConfig
-            .functions
-
-        let newFunctions
-
-        if (functions.find(f => f.name === name)) {
-          newFunctions = functions.filter(f => f.name !== name)
-        } else {
-          newFunctions = [...functions, {name}]
-        }
+        const {functions} = action.payload
 
         draftState.draftQueries[
           draftState.activeQueryIndex
-        ].builderConfig.functions = newFunctions
+        ].builderConfig.functions = functions
 
         buildActiveQuery(draftState)
       })

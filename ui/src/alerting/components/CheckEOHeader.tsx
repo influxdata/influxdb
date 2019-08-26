@@ -10,8 +10,6 @@ import {
   IconFont,
   Page,
 } from '@influxdata/clockface'
-import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
-import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import CheckAlertingButton from 'src/alerting/components/CheckAlertingButton'
 
 // Constants
@@ -51,8 +49,6 @@ const CheckEOHeader: FC<Props> = ({name, onSetName, onCancel, onSave}) => {
         </Page.Header.Left>
         <Page.Header.Right>
           <CheckAlertingButton />
-          <ViewTypeDropdown />
-          <VisOptionsButton />
           <SquareButton
             icon={IconFont.Remove}
             onClick={onCancel}
