@@ -20,6 +20,7 @@ type NotificationRuleFields struct {
 	NotificationRules    []influxdb.NotificationRule
 	Orgs                 []*influxdb.Organization
 	UserResourceMappings []*influxdb.UserResourceMapping
+	Tasks                []influxdb.TaskCreate
 }
 
 var notificationRuleCmpOptions = cmp.Options{
@@ -1396,6 +1397,15 @@ func UpdateNotificationRule(
 						ResourceType: influxdb.NotificationRuleResourceType,
 					},
 				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						OwnerID:        MustIDBase16(sixID),
+						OrganizationID: MustIDBase16(fourID),
+						Flux: `from(bucket: "foo") |> range(start: -1m)
+						option task = {name: "bar", every: 1m}
+						`,
+					},
+				},
 				Orgs: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(fourID),
@@ -1859,6 +1869,15 @@ func DeleteNotificationRule(
 					},
 				},
 				IDGenerator: mock.NewIDGenerator(twoID, t),
+				Tasks: []influxdb.TaskCreate{
+					{
+						OwnerID:        MustIDBase16(sixID),
+						OrganizationID: MustIDBase16(fourID),
+						Flux: `from(bucket: "foo") |> range(start: -1m)
+						option task = {name: "bar", every: 1m}
+						`,
+					},
+				},
 				Orgs: []*influxdb.Organization{
 					{
 						ID:   MustIDBase16(fourID),
@@ -1985,6 +2004,15 @@ func DeleteNotificationRule(
 						UserID:       MustIDBase16(sixID),
 						UserType:     influxdb.Member,
 						ResourceType: influxdb.NotificationRuleResourceType,
+					},
+				},
+				Tasks: []influxdb.TaskCreate{
+					{
+						OwnerID:        MustIDBase16(sixID),
+						OrganizationID: MustIDBase16(fourID),
+						Flux: `from(bucket: "foo") |> range(start: -1m)
+						option task = {name: "bar", every: 1m}
+						`,
 					},
 				},
 				IDGenerator: mock.NewIDGenerator(twoID, t),
