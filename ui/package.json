@@ -24,7 +24,7 @@
     "test:watch": "jest --watch --verbose false",
     "test:update": "jest --updateSnapshot",
     "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch --verbose false",
-    "test:junit": "CYPRESS_baseUrl=http://localhost:9999 cypress run --reporter junit --reporter-options 'mochaFile=junit-results/test-output-[hash].xml'",
+    "test:junit": "CYPRESS_baseUrl=http://localhost:9999 cypress run --browser chrome --reporter junit --reporter-options 'mochaFile=junit-results/test-output-[hash].xml'",
     "test:ju:report": "junit-viewer --results=junit-results --save-file=cypress/site/junit-report.html",
     "test:ju:clean": "rm junit-results/*.xml",
     "test:ju:all": "yarn test:ju:clean && yarn test:junit; yarn test:ju:report;",
