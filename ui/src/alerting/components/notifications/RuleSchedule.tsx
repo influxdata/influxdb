@@ -13,7 +13,7 @@ import {
 } from '@influxdata/clockface'
 
 // Utils
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'

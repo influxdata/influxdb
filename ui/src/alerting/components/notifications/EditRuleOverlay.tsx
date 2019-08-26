@@ -11,7 +11,7 @@ import RuleOverlayContents from 'src/alerting/components/notifications/RuleOverl
 import {updateRule} from 'src/alerting/actions/notifications/rules'
 
 // Utils
-import {RuleOverlayProvider} from './RuleOverlay.reducer'
+import RuleOverlayProvider from './RuleOverlayProvider'
 
 // Types
 import {NotificationRuleDraft, AppState} from 'src/types'

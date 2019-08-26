@@ -16,7 +16,7 @@ import TagRuleComponent from 'src/alerting/components/notifications/TagRule'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 
 // Utils
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Constants
 import {NEW_TAG_RULE_DRAFT} from 'src/alerting/constants'

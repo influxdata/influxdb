@@ -31,12 +31,12 @@ const RuleEndpointDropdown: FC<Props> = ({
     return <Dropdown button={button} widthPixels={160} menu={menu} />
   }
 
-  const items = endpoints.map(({id, type, name}) => (
+  const items = endpoints.map(({id, name}) => (
     <Dropdown.Item
       key={id}
       id={id}
       value={id}
-      testID={`endpoint--dropdown-item ${type}`}
+      testID={`endpoint--dropdown-item ${id}`}
       onClick={() => onSelectEndpoint(id)}
     >
       {name}

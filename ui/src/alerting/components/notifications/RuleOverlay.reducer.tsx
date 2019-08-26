@@ -1,48 +1,15 @@
 // Libraries
-import React, {
-  createContext,
-  useContext,
-  useReducer,
-  useRef,
-  Dispatch,
-  FC,
-} from 'react'
 import {v4} from 'uuid'
 import {omit} from 'lodash'
 
 // Types
-import {
-  NotificationRuleDraft,
-  StatusRuleDraft,
-  TagRuleDraft,
-  CheckStatusLevel,
-} from 'src/types'
+import {NotificationRuleDraft} from 'src/types'
+import {Action} from './RuleOverlay.actions'
 
 export type LevelType = 'currentLevel' | 'previousLevel'
-
 export type RuleState = NotificationRuleDraft
 
-export type Action =
-  | {type: 'UPDATE_RULE'; rule: NotificationRuleDraft}
-  | {
-      type: 'UPDATE_STATUS_LEVEL'
-      statusID: string
-      levelType: LevelType
-      level: CheckStatusLevel
-    }
-  | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
-  | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleDraft}
-  | {type: 'ADD_TAG_RULE'; tagRule: TagRuleDraft}
-  | {type: 'DELETE_STATUS_RULE'; statusRuleID: string}
-  | {type: 'UPDATE_TAG_RULES'; tagRule: TagRuleDraft}
-  | {type: 'DELETE_TAG_RULE'; tagRuleID: string}
-  | {
-      type: 'SET_TAG_RULE_OPERATOR'
-      tagRuleID: string
-      operator: TagRuleDraft['value']['operator']
-    }
-
-const reducer = (state: RuleState, action: Action) => {
+export const reducer = (state: RuleState, action: Action) => {
   switch (action.type) {
     case 'UPDATE_RULE': {
       const {rule} = action
@@ -170,40 +137,4 @@ const reducer = (state: RuleState, action: Action) => {
         }" in RuleOverlay.reducer.ts`
       )
   }
-}
-
-const RuleStateContext = createContext<RuleState>(null)
-const RuleDispatchContext = createContext<Dispatch<Action>>(null)
-
-export const RuleOverlayProvider: FC<{initialState: RuleState}> = ({
-  initialState,
-  children,
-}) => {
-  const prevInitialStateRef = useRef(initialState)
-
-  const [state, dispatch] = useReducer((state: RuleState, action: Action) => {
-    if (prevInitialStateRef.current !== initialState) {
-      prevInitialStateRef.current = initialState
-
-      return initialState
-    }
-
-    return reducer(state, action)
-  }, initialState)
-
-  return (
-    <RuleStateContext.Provider value={state}>
-      <RuleDispatchContext.Provider value={dispatch}>
-        {children}
-      </RuleDispatchContext.Provider>
-    </RuleStateContext.Provider>
-  )
-}
-
-export const useRuleState = (): RuleState => {
-  return useContext(RuleStateContext)
-}
-
-export const useRuleDispatch = (): Dispatch<Action> => {
-  return useContext(RuleDispatchContext)
 }

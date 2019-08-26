@@ -1,5 +1,6 @@
 // Libraries
 import React, {FC} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Form, Panel, Grid, Columns} from '@influxdata/clockface'
@@ -8,15 +9,20 @@ import RuleMessageContents from 'src/alerting/components/notifications/RuleMessa
 
 // Utils
 import {getRuleVariantDefaults} from 'src/alerting/components/notifications/utils'
-import {useRuleDispatch} from './RuleOverlay.reducer'
+import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Types
-import {NotificationEndpoint, NotificationRuleDraft} from 'src/types'
+import {NotificationEndpoint, NotificationRuleDraft, AppState} from 'src/types'
 
-interface Props {
+interface StateProps {
   endpoints: NotificationEndpoint[]
+}
+
+interface OwnProps {
   rule: NotificationRuleDraft
 }
+
+type Props = OwnProps & StateProps
 
 const RuleMessage: FC<Props> = ({endpoints, rule}) => {
   const dispatch = useRuleDispatch()
@@ -53,4 +59,8 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
   )
 }
 
-export default RuleMessage
+const mstp = ({endpoints}: AppState) => {
+  return {endpoints: endpoints.list}
+}
+
+export default connect(mstp)(RuleMessage)
