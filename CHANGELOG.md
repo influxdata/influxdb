@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.17 [unreleased]
 
 ### Features
+1. [14809](https://github.com/influxdata/influxdb/pull/14809): Add task middleware's for checks and notifications
 1. [14495](https://github.com/influxdata/influxdb/pull/14495): optional gzip compression of the query CSV response.
 1. [14567](https://github.com/influxdata/influxdb/pull/14567): Add task types.
 1. [14604](https://github.com/influxdata/influxdb/pull/14604): When getting task runs from the API, runs will be returned in order of most recently scheduled first.
