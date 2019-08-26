@@ -921,9 +921,18 @@ func handleFluxError(err error) error {
 	if !ok {
 		return err
 	}
+	werr := handleFluxError(ferr.Err)
 
 	code := influxdb.EInternal
-	switch flux.ErrorCode(err) {
+	switch ferr.Code {
+	case codes.Inherit:
+		// If we are inheriting the error code, influxdb doesn't
+		// have an equivalent of this so we need to retrieve
+		// the error code from the wrapped error which has already
+		// been translated to an influxdb error (if possible).
+		if werr != nil {
+			code = influxdb.ErrorCode(werr)
+		}
 	case codes.NotFound:
 		code = influxdb.ENotFound
 	case codes.Invalid:
@@ -950,6 +959,6 @@ func handleFluxError(err error) error {
 	return &influxdb.Error{
 		Code: code,
 		Msg:  ferr.Msg,
-		Err:  handleFluxError(ferr.Err),
+		Err:  werr,
 	}
 }

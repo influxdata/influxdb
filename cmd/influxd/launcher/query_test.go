@@ -3,6 +3,7 @@ package launcher_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	nethttp "net/http"
@@ -11,7 +12,10 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
 	phttp "github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/query"
@@ -145,5 +149,109 @@ func TestPipeline_QueryMemoryLimits(t *testing.T) {
 		}
 	} else {
 		t.Fatal("expected error, got successful query execution")
+	}
+}
+
+func TestPipeline_Query_LoadSecret_Success(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	const key, value = "mytoken", "secrettoken"
+	if err := l.SecretService().PutSecret(ctx, l.Org.ID, key, value); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// write one point so we can use it
+	l.WritePointsOrFail(t, fmt.Sprintf(`m,k=v1 f=%di %d`, 0, time.Now().UnixNano()))
+
+	// we expect this request to succeed
+	req := &query.Request{
+		Authorization:  l.Auth,
+		OrganizationID: l.Org.ID,
+		Compiler: lang.FluxCompiler{
+			Query: fmt.Sprintf(`
+import "influxdata/influxdb/secrets"
+
+token = secrets.get(key: "mytoken")
+from(bucket: "%s")
+	|> range(start: -5m)
+	|> set(key: "token", value: token)
+`, l.Bucket.Name),
+		},
+	}
+	if err := l.QueryAndConsume(ctx, req, func(r flux.Result) error {
+		return r.Tables().Do(func(tbl flux.Table) error {
+			return tbl.Do(func(cr flux.ColReader) error {
+				j := execute.ColIdx("token", cr.Cols())
+				if j == -1 {
+					return errors.New("cannot find table column \"token\"")
+				}
+
+				for i := 0; i < cr.Len(); i++ {
+					v := execute.ValueForRow(cr, i, j)
+					if got, want := v, values.NewString("secrettoken"); !got.Equal(want) {
+						t.Errorf("unexpected value at row %d -want/+got:\n\t- %v\n\t+ %v", i, got, want)
+					}
+				}
+				return nil
+			})
+		})
+	}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+func TestPipeline_Query_LoadSecret_Forbidden(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	const key, value = "mytoken", "secrettoken"
+	if err := l.SecretService().PutSecret(ctx, l.Org.ID, key, value); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// write one point so we can use it
+	l.WritePointsOrFail(t, fmt.Sprintf(`m,k=v1 f=%di %d`, 0, time.Now().UnixNano()))
+
+	auth := &influxdb.Authorization{
+		OrgID:  l.Org.ID,
+		UserID: l.User.ID,
+		Permissions: []influxdb.Permission{
+			{
+				Action: influxdb.ReadAction,
+				Resource: influxdb.Resource{
+					Type:  influxdb.BucketsResourceType,
+					ID:    &l.Bucket.ID,
+					OrgID: &l.Org.ID,
+				},
+			},
+		},
+	}
+	if err := l.AuthorizationService().CreateAuthorization(ctx, auth); err != nil {
+		t.Fatalf("unexpected error creating authorization: %s", err)
+	}
+	l.Auth = auth
+
+	// we expect this request to succeed
+	req := &query.Request{
+		Authorization:  l.Auth,
+		OrganizationID: l.Org.ID,
+		Compiler: lang.FluxCompiler{
+			Query: fmt.Sprintf(`
+import "influxdata/influxdb/secrets"
+
+token = secrets.get(key: "mytoken")
+from(bucket: "%s")
+	|> range(start: -5m)
+	|> set(key: "token", value: token)
+`, l.Bucket.Name),
+		},
+	}
+	if err := l.QueryAndNopConsume(ctx, req); err == nil {
+		t.Error("expected error")
+	} else if got, want := influxdb.ErrorCode(err), influxdb.EUnauthorized; got != want {
+		t.Errorf("unexpected error code -want/+got:\n\t- %v\n\t+ %v", got, want)
 	}
 }
