@@ -376,13 +376,22 @@ export const selectTagValue = (index: number, value: string) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
-  const tags = getActiveQuery(getState()).builderConfig.tags
+  const state = getState()
+  const {
+    timeMachines: {activeTimeMachineID},
+  } = state
+  const tags = getActiveQuery(state).builderConfig.tags
   const values = tags[index].values
 
   let newValues: string[]
 
   if (values.includes(value)) {
     newValues = values.filter(v => v !== value)
+  } else if (
+    activeTimeMachineID === 'alerting' &&
+    tags[index].key === '_field'
+  ) {
+    newValues = [value]
   } else {
     newValues = [...values, value]
   }
