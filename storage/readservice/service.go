@@ -1,8 +1,6 @@
 package readservice
 
 import (
-	"net/http"
-
 	"github.com/influxdata/flux/dependencies"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
@@ -29,7 +27,9 @@ func AddControllerConfigDependencies(
 	orgSvc platform.OrganizationService,
 	ss platform.SecretService,
 ) error {
-	cc.ExecutorDependencies[dependencies.InterpreterDepsKey] = dependencies.NewDependenciesInterface(http.DefaultClient, query.FromSecretService(ss))
+	deps := dependencies.NewDefaults()
+	deps.Deps.SecretService = query.FromSecretService(ss)
+	cc.ExecutorDependencies[dependencies.InterpreterDepsKey] = deps
 
 	bucketLookupSvc := query.FromBucketService(bucketSvc)
 	orgLookupSvc := query.FromOrganizationService(orgSvc)
