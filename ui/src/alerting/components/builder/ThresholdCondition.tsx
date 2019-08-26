@@ -24,7 +24,8 @@ import {
   RangeThreshold,
   CheckStatusLevel,
 } from 'src/types'
-import {ComponentSize, ComponentColor} from '@influxdata/clockface'
+import {ComponentSize} from '@influxdata/clockface'
+import {LEVEL_COMPONENT_COLORS} from 'src/alerting/constants'
 
 interface DispatchProps {
   onUpdateCheckThreshold: typeof updateCheckThreshold
@@ -109,7 +110,7 @@ const ThresholdCondition: FC<Props> = ({
     return (
       <DashedButton
         text={`+ ${level}`}
-        color={ComponentColor.Success}
+        color={LEVEL_COMPONENT_COLORS[level]}
         size={ComponentSize.Large}
         onClick={addLevel}
       />
