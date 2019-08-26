@@ -222,7 +222,7 @@ func TestCoordinatingTaskService_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 		ts         = inmemTaskService()
 		sched      = mock.NewScheduler()
 		coord      = coordinator.New(zaptest.NewLogger(t), sched)
-		latest     = time.Now().Add(time.Second)
+		latest     = time.Now().UTC().Add(time.Second)
 		middleware = middleware.New(ts, coord, middleware.WithNowFunc(func() time.Time {
 			return latest
 		}))

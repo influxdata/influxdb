@@ -459,9 +459,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		labelSvc                platform.LabelService                    = m.kvService
 		secretSvc               platform.SecretService                   = m.kvService
 		lookupSvc               platform.LookupService                   = m.kvService
-		notificationRuleSvc     platform.NotificationRuleStore           = m.kvService
 		notificationEndpointSvc platform.NotificationEndpointService     = m.kvService
-		checkSvc                platform.CheckService                    = m.kvService
 	)
 
 	switch m.secretStore {
@@ -564,6 +562,18 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		taskSvc = middleware.New(combinedTaskService, coordinator)
 		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
 		m.taskControlService = combinedTaskService
+	}
+
+	var checkSvc platform.CheckService
+	{
+		coordinator := coordinator.New(m.logger, m.scheduler)
+		checkSvc = middleware.NewCheckService(m.kvService, m.kvService, coordinator)
+	}
+
+	var notificationRuleSvc platform.NotificationRuleStore
+	{
+		coordinator := coordinator.New(m.logger, m.scheduler)
+		notificationRuleSvc = middleware.NewNotificationRuleStore(m.kvService, m.kvService, coordinator)
 	}
 
 	// NATS streaming server
