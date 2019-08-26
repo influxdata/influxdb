@@ -8,6 +8,7 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {Dispatch} from 'redux-thunk'
 import {GetState} from 'src/types'
 import {RemoteDataState} from 'src/types'
+import {BuilderFunctionsType} from '@influxdata/influx'
 
 export type Action =
   | SetBuilderBucketSelectionAction
@@ -21,7 +22,7 @@ export type Action =
   | SetBuilderTagValuesSelectionAction
   | AddTagSelectorAction
   | RemoveTagSelectorAction
-  | SelectFunctionAction
+  | SetFunctionsAction
   | SelectAggregateWindowAction
   | SetValuesSearchTermAction
   | SetKeysSearchTermAction
@@ -172,14 +173,16 @@ const removeTagSelectorSync = (index: number): RemoveTagSelectorAction => ({
   payload: {index},
 })
 
-interface SelectFunctionAction {
+interface SetFunctionsAction {
   type: 'SELECT_BUILDER_FUNCTION'
-  payload: {name: string}
+  payload: {functions: BuilderFunctionsType[]}
 }
 
-export const selectFunction = (name: string): SelectFunctionAction => ({
+export const setFunctions = (
+  functions: BuilderFunctionsType[]
+): SetFunctionsAction => ({
   type: 'SELECT_BUILDER_FUNCTION',
-  payload: {name},
+  payload: {functions},
 })
 
 interface SelectAggregateWindowAction {
@@ -403,6 +406,30 @@ export const selectTagValue = (index: number, value: string) => async (
   } else {
     dispatch(loadTagSelector(index + 1))
   }
+}
+
+export const selectBuilderFunction = (name: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const state = getState()
+  const {
+    timeMachines: {activeTimeMachineID},
+  } = state
+  const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
+
+  const functions = draftQueries[activeQueryIndex].builderConfig.functions
+
+  let newFunctions: BuilderFunctionsType[]
+
+  if (functions.find(f => f.name === name)) {
+    newFunctions = functions.filter(f => f.name !== name)
+  } else if (activeTimeMachineID === 'alerting') {
+    newFunctions = [{name}]
+  } else {
+    newFunctions = [...functions, {name}]
+  }
+  dispatch(setFunctions(newFunctions))
 }
 
 export const selectTagKey = (index: number, key: string) => async (

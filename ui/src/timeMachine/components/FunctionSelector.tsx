@@ -10,7 +10,7 @@ import WindowSelector from 'src/timeMachine/components/WindowSelector'
 
 // Actions
 import {
-  selectFunction,
+  selectBuilderFunction,
   selectAggregateWindow,
 } from 'src/timeMachine/actions/queryBuilder'
 
@@ -34,7 +34,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectFunction: typeof selectFunction
+  onSelectFunction: typeof selectBuilderFunction
   onSelectAggregateWindow: typeof selectAggregateWindow
 }
 
@@ -109,7 +109,7 @@ const mstp = (state: AppState) => {
 }
 
 const mdtp = {
-  onSelectFunction: selectFunction,
+  onSelectFunction: selectBuilderFunction,
   onSelectAggregateWindow: selectAggregateWindow,
 }
 
