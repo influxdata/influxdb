@@ -39,7 +39,7 @@ class LoadDataNavigation extends PureComponent<Props> {
         cloudExclude: false,
       },
       {
-        text: 'Telegrafs',
+        text: 'Telegraf',
         id: 'telegrafs',
         cloudExclude: false,
       },
