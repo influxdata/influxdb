@@ -4,17 +4,27 @@ import {fromFlux} from '@influxdata/giraffe'
 
 // Utils
 import {runQuery, RunQueryResult} from 'src/shared/apis/query'
-import {searchExprToFlux} from 'src/eventViewer/utils/search'
+import {parseSearchInput, searchExprToFlux} from 'src/eventViewer/utils/search'
 import {findNodes} from 'src/shared/utils/ast'
+import {readQueryParams} from 'src/shared/utils/queryParams'
 
 // Constants
 import {
   STATUS_BUCKET,
   NOTIFICATION_BUCKET,
+  HISTORY_TYPE_QUERY_PARAM,
+  SEARCH_QUERY_PARAM,
 } from 'src/alerting/constants/history'
 
 // Types
-import {CancelBox, StatusRow, NotificationRow} from 'src/types'
+import {State as EventViewerState} from 'src/eventViewer/components/EventViewer.reducer'
+
+import {
+  CancelBox,
+  StatusRow,
+  NotificationRow,
+  AlertHistoryType,
+} from 'src/types'
 
 import {
   LoadRowsOptions,
@@ -159,5 +169,25 @@ const processResponse = ({
   return {
     promise,
     cancel,
+  }
+}
+
+export const getInitialHistoryType = (): AlertHistoryType => {
+  return readQueryParams()[HISTORY_TYPE_QUERY_PARAM] || 'statuses'
+}
+
+export const getInitialState = (): Partial<EventViewerState> => {
+  const searchInput = readQueryParams()[SEARCH_QUERY_PARAM]
+
+  if (!searchInput) {
+    return {}
+  }
+
+  try {
+    const searchExpr = parseSearchInput(searchInput)
+
+    return {searchInput, searchExpr}
+  } catch {
+    return {searchInput}
   }
 }

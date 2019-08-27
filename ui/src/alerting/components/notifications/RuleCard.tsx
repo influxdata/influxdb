@@ -10,6 +10,10 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Constants
 import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
+import {
+  SEARCH_QUERY_PARAM,
+  HISTORY_TYPE_QUERY_PARAM,
+} from 'src/alerting/constants/history'
 
 // Actions and Selectors
 import {
@@ -23,7 +27,12 @@ import {viewableLabels} from 'src/labels/selectors'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 
 // Types
-import {NotificationRuleDraft, AppState, Label} from 'src/types'
+import {
+  NotificationRuleDraft,
+  AppState,
+  Label,
+  AlertHistoryType,
+} from 'src/types'
 
 interface DispatchProps {
   onUpdateRuleProperties: typeof updateRuleProperties
@@ -83,7 +92,14 @@ const RuleCard: FC<Props> = ({
   }
 
   const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/`)
+    const historyType: AlertHistoryType = 'notifications'
+
+    const queryParams = new URLSearchParams({
+      [HISTORY_TYPE_QUERY_PARAM]: historyType,
+      [SEARCH_QUERY_PARAM]: `"notificationRuleID" == "${rule.id}"`,
+    })
+
+    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
 
   const handleAddRuleLabel = (label: Label) => {

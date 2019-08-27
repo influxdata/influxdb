@@ -10,6 +10,10 @@ import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
+import {
+  SEARCH_QUERY_PARAM,
+  HISTORY_TYPE_QUERY_PARAM,
+} from 'src/alerting/constants/history'
 
 // Actions and Selectors
 import {
@@ -23,7 +27,7 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Types
-import {Check, Label, AppState} from 'src/types'
+import {Check, Label, AppState, AlertHistoryType} from 'src/types'
 
 interface DispatchProps {
   updateCheck: typeof updateCheck
@@ -83,7 +87,14 @@ const CheckCard: FunctionComponent<Props> = ({
   }
 
   const onCheckClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/${check.id}/`)
+    const historyType: AlertHistoryType = 'statuses'
+
+    const queryParams = new URLSearchParams({
+      [HISTORY_TYPE_QUERY_PARAM]: historyType,
+      [SEARCH_QUERY_PARAM]: `"checkID" == "${check.id}"`,
+    })
+
+    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
 
   const handleAddCheckLabel = (label: Label) => {

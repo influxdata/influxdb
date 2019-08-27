@@ -21,8 +21,19 @@ import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import EndpointCardMenu from 'src/alerting/components/endpoints/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 
+// Constants
+import {
+  SEARCH_QUERY_PARAM,
+  HISTORY_TYPE_QUERY_PARAM,
+} from 'src/alerting/constants/history'
+
 // Types
-import {NotificationEndpoint, Label, AppState} from 'src/types'
+import {
+  NotificationEndpoint,
+  Label,
+  AppState,
+  AlertHistoryType,
+} from 'src/types'
 import {Action} from 'src/alerting/actions/notifications/endpoints'
 
 interface DispatchProps {
@@ -70,7 +81,14 @@ const EndpointCard: FC<Props> = ({
     onUpdateEndpointProperties(id, {name})
   }
   const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/`)
+    const historyType: AlertHistoryType = 'notifications'
+
+    const queryParams = new URLSearchParams({
+      [HISTORY_TYPE_QUERY_PARAM]: historyType,
+      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${endpoint.id}"`,
+    })
+
+    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
   const nameComponent = (
     <ResourceCard.EditableName
