@@ -124,7 +124,7 @@ const CheckMetaCard: FC<Props> = ({
       <Grid>
         <Grid.Row>
           <Grid.Column widthSM={6}>
-            <Form.Element label="Run this check every">
+            <Form.Element label="Schedule Every">
               <Input
                 name="every"
                 onChange={handleChange}
@@ -138,7 +138,7 @@ const CheckMetaCard: FC<Props> = ({
               <Input
                 name="offset"
                 onChange={handleChange}
-                titleText="Offset check interval"
+                titleText="Cbeck offset interval"
                 value={check.offset}
               />
             </Form.Element>
