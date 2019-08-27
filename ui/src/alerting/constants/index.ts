@@ -112,14 +112,12 @@ export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
 }
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
-  orgID: '1',
-  userID: '1',
-  description: 'interrupt everyone at work',
-  name: 'Slack',
+  description: '',
+  name: 'Slack Endpoint',
   status: 'active',
   type: 'slack',
-  token: 'plerps',
-  url: 'insert.slack.url.here',
+  token: '',
+  url: '',
 }
 
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
