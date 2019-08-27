@@ -43,23 +43,16 @@ export const getRuleVariantDefaults = (
   }
 }
 
-type Change = 'changes from' | 'equal'
-export const CHANGES: Change[] = ['changes from', 'equal']
+type Change = 'changes from' | 'is equal to'
+export const CHANGES: Change[] = ['changes from', 'is equal to']
 
 export const activeChange = (status: StatusRuleDraft) => {
-  const {currentLevel, previousLevel} = status.value
+  const {previousLevel} = status.value
 
   if (!!previousLevel) {
     return 'changes from'
   }
-
-  if (currentLevel.operation === 'equal') {
-    return 'equal'
-  }
-
-  throw new Error(
-    'Changed statusRule.currentLevel.operation to unknown operator'
-  )
+  return 'is equal to'
 }
 
 export const previousLevel: LevelRule = {level: 'OK'}
@@ -68,7 +61,7 @@ export const changeStatusRule = (
   status: StatusRuleDraft,
   change: Change
 ): StatusRuleDraft => {
-  if (change === 'equal') {
+  if (change === 'is equal to') {
     return omit(status, 'value.previousLevel') as StatusRuleDraft
   }
 
