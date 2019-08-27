@@ -721,7 +721,7 @@ func (m *Launcher) BucketService() platform.BucketService {
 	return m.apibackend.BucketService
 }
 
-// UserService returns the internal suser service.
+// UserService returns the internal user service.
 func (m *Launcher) UserService() platform.UserService {
 	return m.apibackend.UserService
 }
@@ -729,6 +729,11 @@ func (m *Launcher) UserService() platform.UserService {
 // AuthorizationService returns the internal authorization service.
 func (m *Launcher) AuthorizationService() platform.AuthorizationService {
 	return m.apibackend.AuthorizationService
+}
+
+// SecretService returns the internal secret service.
+func (m *Launcher) SecretService() platform.SecretService {
+	return m.apibackend.SecretService
 }
 
 // TaskService returns the internal task service.
