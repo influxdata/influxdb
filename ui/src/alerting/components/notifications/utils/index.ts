@@ -119,7 +119,9 @@ export const draftRuleToRule = (
 
   const statusRules: StatusRule[] = draftRule.statusRules.map(r => r.value)
 
-  const tagRules: TagRule[] = draftRule.tagRules.map(r => r.value)
+  const tagRules: TagRule[] = draftRule.tagRules
+    .map(r => r.value)
+    .filter(tr => tr.key && tr.value)
 
   return {
     ...draftRule,
