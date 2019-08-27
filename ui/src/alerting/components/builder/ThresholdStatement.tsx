@@ -12,6 +12,7 @@ import {
   DismissButton,
   ButtonType,
   FlexDirection,
+  ComponentColor,
 } from '@influxdata/clockface'
 
 // Types
@@ -65,6 +66,7 @@ const ThresholdStatement: FC<Props> = ({
     >
       <Panel backgroundColor="#292933" testID="panel">
         <DismissButton
+          color={ComponentColor.Default}
           onClick={removeLevel}
           testID="dismiss-button"
           type={ButtonType.Button}
