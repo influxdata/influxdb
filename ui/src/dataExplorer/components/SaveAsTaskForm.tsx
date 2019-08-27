@@ -30,14 +30,13 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, TimeRange, RemoteDataState} from 'src/types'
+import {AppState, TimeRange, RemoteDataState, Authorization} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
 } from 'src/utils/taskOptionsToFluxScript'
 import {DashboardDraftQuery} from 'src/types/dashboards'
-import {Authorization} from '@influxdata/influx'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {

@@ -21,7 +21,7 @@ import {
 import EditableName from 'src/shared/components/EditableName'
 
 // Types
-import {Authorization, AuthorizationUpdateRequest} from '@influxdata/influx'
+import {Authorization} from 'src/types'
 import {DEFAULT_TOKEN_DESCRIPTION} from 'src/dashboards/constants'
 
 interface OwnProps {
@@ -78,15 +78,15 @@ class TokenRow extends PureComponent<Props> {
 
   private get isTokenEnabled(): boolean {
     const {auth} = this.props
-    return auth.status === AuthorizationUpdateRequest.StatusEnum.Active
+    return auth.status === 'active'
   }
 
   private changeToggle = () => {
     const {auth, onUpdate} = this.props
-    if (auth.status === AuthorizationUpdateRequest.StatusEnum.Active) {
-      auth.status = AuthorizationUpdateRequest.StatusEnum.Inactive
+    if (auth.status === 'active') {
+      auth.status = 'inactive'
     } else {
-      auth.status = AuthorizationUpdateRequest.StatusEnum.Active
+      auth.status = 'active'
     }
     onUpdate(auth)
   }

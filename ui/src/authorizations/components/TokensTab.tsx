@@ -12,8 +12,7 @@ import TabbedPageHeader from 'src/shared/components/tabbed_page/TabbedPageHeader
 import GenerateTokenDropdown from 'src/authorizations/components/GenerateTokenDropdown'
 
 // Types
-import {Authorization} from '@influxdata/influx'
-import {AppState} from 'src/types'
+import {AppState, Authorization} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 
 enum AuthSearchKeys {

@@ -3,7 +3,7 @@ import {push, goBack} from 'react-router-redux'
 import _ from 'lodash'
 
 // APIs
-import {LogEvent, ITask as Task, Authorization} from '@influxdata/influx'
+import {LogEvent, ITask as Task} from '@influxdata/influx'
 import {client} from 'src/utils/api'
 import {notify} from 'src/shared/actions/notifications'
 import {
@@ -33,7 +33,7 @@ import {setExportTemplate} from 'src/templates/actions'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Label, TaskTemplate} from 'src/types'
+import {AppState, Label, TaskTemplate, Authorization} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
 

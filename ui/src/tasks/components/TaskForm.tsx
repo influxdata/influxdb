@@ -20,7 +20,7 @@ import {
   ComponentSize,
 } from '@influxdata/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Authorization} from '@influxdata/influx'
+import {Authorization} from 'src/types'
 import TaskTokenDropdown from './TaskTokenDropdown'
 
 interface Props {
