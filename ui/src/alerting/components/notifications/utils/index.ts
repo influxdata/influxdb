@@ -81,10 +81,11 @@ export const changeStatusRule = (
 export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   type: 'http',
   every: '10m',
+  url: '',
   orgID,
   name: '',
   status: 'active',
-  endpointID: '044f0c32550f8000',
+  endpointID: '',
   tagRules: [],
   statusRules: [
     {
