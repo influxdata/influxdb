@@ -19,7 +19,7 @@ import {changeCheckType} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {Check, AppState, CheckType} from 'src/types'
+import {Check, AppState} from 'src/types'
 
 interface StateProps {
   check: Partial<Check>
@@ -32,9 +32,6 @@ interface DispatchProps {
 type Props = DispatchProps & StateProps
 
 const CheckConditionsCard: FC<Props> = ({check, changeCheckType}) => {
-  const handleChangeType = (type: CheckType) => {
-    changeCheckType(type)
-  }
   return (
     <>
       <FlexBox
@@ -52,7 +49,7 @@ const CheckConditionsCard: FC<Props> = ({check, changeCheckType}) => {
             titleText="threshold"
             value="threshold"
             active={check.type === 'threshold'}
-            onClick={handleChangeType}
+            onClick={changeCheckType}
           >
             Threshold
           </Radio.Button>

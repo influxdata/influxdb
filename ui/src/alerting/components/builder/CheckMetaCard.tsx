@@ -108,7 +108,7 @@ const CheckMetaCard: FC<Props> = ({updateTimeMachineCheck, check}) => {
               <Input
                 name="offset"
                 onChange={handleChange}
-                titleText="Cbeck offset interval"
+                titleText="Check offset interval"
                 value={check.offset}
               />
             </Form.Element>
