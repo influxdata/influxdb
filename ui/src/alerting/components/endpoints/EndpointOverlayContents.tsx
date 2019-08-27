@@ -55,6 +55,7 @@ const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
                 </Form.Element>
                 <Form.Element label="Description">
                   <TextArea
+                    rows={5}
                     className="endpoint-description--textarea"
                     testID="endpoint-description--textarea"
                     name="description"
