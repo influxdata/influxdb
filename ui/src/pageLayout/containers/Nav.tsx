@@ -189,7 +189,7 @@ class SideNav extends PureComponent<Props, State> {
           <NavMenu.SubItem
             titleLink={className => (
               <Link to={telegrafsLink} className={className}>
-                Telegrafs
+                Telegraf
               </Link>
             )}
             active={getNavItemActivation(['telegrafs'], location.pathname)}
