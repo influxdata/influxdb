@@ -6,6 +6,7 @@ import {Page} from '@influxdata/clockface'
 import EventViewer from 'src/eventViewer/components/EventViewer'
 import EventTable from 'src/eventViewer/components/EventTable'
 import AlertHistoryControls from 'src/alerting/components/AlertHistoryControls'
+import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 
 // Constants
 import {
@@ -14,7 +15,12 @@ import {
 } from 'src/alerting/constants/history'
 
 // Utils
-import {loadStatuses, loadNotifications} from 'src/alerting/utils/history'
+import {
+  loadStatuses,
+  loadNotifications,
+  getInitialHistoryType,
+  getInitialState,
+} from 'src/alerting/utils/history'
 
 // Types
 import {AlertHistoryType} from 'src/types'
@@ -24,7 +30,9 @@ interface Props {
 }
 
 const AlertHistoryIndex: FC<Props> = ({params: {orgID}}) => {
-  const [historyType, setHistoryType] = useState<AlertHistoryType>('statuses')
+  const [historyType, setHistoryType] = useState<AlertHistoryType>(
+    getInitialHistoryType()
+  )
 
   const loadRows = useMemo(() => {
     return historyType === 'statuses'
@@ -36,7 +44,7 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}}) => {
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
 
   return (
-    <EventViewer loadRows={loadRows}>
+    <EventViewer loadRows={loadRows} initialState={getInitialState()}>
       {props => (
         <Page
           titleTag="Check Statuses | InfluxDB 2.0"
@@ -45,6 +53,10 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}}) => {
           <Page.Header fullWidth={true}>
             <div className="alert-history-page--header">
               <Page.Title title="Check Statuses" />
+              <AlertHistoryQueryParams
+                searchInput={props.state.searchInput}
+                historyType={historyType}
+              />
               <AlertHistoryControls
                 historyType={historyType}
                 onSetHistoryType={setHistoryType}

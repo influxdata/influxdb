@@ -93,3 +93,6 @@ export const EXAMPLE_NOTIFICATION_SEARCHES = [
   '"level" != "ok"',
   '"notification rule" == "my rule"',
 ]
+
+export const HISTORY_TYPE_QUERY_PARAM = 'type'
+export const SEARCH_QUERY_PARAM = 'filter'
