@@ -25,7 +25,7 @@ const RuleSchedule: FC<Props> = ({rule, onChange}) => {
             type={InputType.Text}
             placeholder="1d3h30s"
             onChange={onChange}
-            testID={`rule-schedule-${name}--input`}
+            testID="rule-schedule-every--input"
           />
         </Form.Element>
       </Grid.Column>
