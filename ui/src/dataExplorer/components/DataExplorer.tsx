@@ -14,7 +14,7 @@ import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 import {
-  extractRateLimitResourceName,
+  extractRateLimitResources,
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
 
@@ -23,7 +23,7 @@ import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
-  resourceName: string
+  limitedResources: string[]
   limitStatus: LimitStatus
 }
 
@@ -41,11 +41,14 @@ class DataExplorer extends PureComponent<Props, {}> {
   }
 
   public render() {
-    const {resourceName, limitStatus} = this.props
+    const {limitedResources, limitStatus} = this.props
 
     return (
       <LimitChecker>
-        <RateLimitAlert resourceName={resourceName} limitStatus={limitStatus} />
+        <RateLimitAlert
+          resources={limitedResources}
+          limitStatus={limitStatus}
+        />
         <div className="data-explorer">
           <HoverTimeProvider>
             <TimeMachine />
@@ -62,7 +65,7 @@ const mstp = (state: AppState): StateProps => {
   } = state
 
   return {
-    resourceName: extractRateLimitResourceName(limits),
+    limitedResources: extractRateLimitResources(limits),
     limitStatus: extractRateLimitStatus(limits),
   }
 }

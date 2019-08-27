@@ -45,7 +45,7 @@ export const extractRateLimitStatus = (limits: LimitsState): LimitStatus => {
   return LimitStatus.OK
 }
 
-export const extractRateLimitResourceName = (limits: LimitsState): string => {
+export const extractRateLimitResources = (limits: LimitsState): string[] => {
   const rateLimitedResources = []
 
   if (get(limits, 'rate.readKBs.limitStatus') === LimitStatus.EXCEEDED) {
@@ -60,5 +60,5 @@ export const extractRateLimitResourceName = (limits: LimitsState): string => {
     rateLimitedResources.push('cardinality')
   }
 
-  return rateLimitedResources.join(' and ')
+  return rateLimitedResources
 }

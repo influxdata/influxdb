@@ -28,7 +28,7 @@ import {
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {
-  extractRateLimitResourceName,
+  extractRateLimitResources,
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
 
@@ -58,7 +58,7 @@ import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
-  resourceName: string
+  limitedResources: string[]
   limitStatus: LimitStatus
   org: Organization
   links: Links
@@ -147,7 +147,7 @@ class DashboardPage extends Component<Props> {
       dashboard,
       autoRefresh,
       limitStatus,
-      resourceName,
+      limitedResources,
       manualRefresh,
       onManualRefresh,
       inPresentationMode,
@@ -184,7 +184,7 @@ class DashboardPage extends Component<Props> {
               <VariablesControlBar dashboardID={dashboard.id} />
             )}
             <RateLimitAlert
-              resourceName={resourceName}
+              resources={limitedResources}
               limitStatus={limitStatus}
               className="dashboard--asset-alert"
             />
@@ -323,7 +323,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
 
   const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
-  const resourceName = extractRateLimitResourceName(limits)
+  const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
 
   return {
@@ -335,7 +335,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboard,
     autoRefresh,
     limitStatus,
-    resourceName,
+    limitedResources,
     inPresentationMode,
     showVariablesControls,
   }

@@ -21,14 +21,14 @@ import {LimitStatus} from 'src/cloud/actions/limits'
 import CheckoutButton from 'src/cloud/components/CheckoutButton'
 
 interface Props {
-  resourceName: string
+  resources: string[]
   limitStatus: LimitStatus
   className?: string
 }
 
 export default class RateLimitAlert extends PureComponent<Props> {
   public render() {
-    const {limitStatus, resourceName, className} = this.props
+    const {limitStatus, className} = this.props
 
     if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
       return (
@@ -47,8 +47,7 @@ export default class RateLimitAlert extends PureComponent<Props> {
               margin={ComponentSize.Medium}
             >
               <div>
-                {`Hey there, it looks like you have exceeded your plan's
-              ${resourceName} limits.`}
+                {this.message}
                 <br />
               </div>
               <CheckoutButton />
@@ -59,5 +58,33 @@ export default class RateLimitAlert extends PureComponent<Props> {
     }
 
     return null
+  }
+
+  private get message(): string {
+    return `Hey there, it looks like you have exceeded your plan's ${
+      this.resourceName
+    } limits.${this.additionalMessage}`
+  }
+
+  private get additionalMessage(): string {
+    if (this.props.resources.includes('cardinality')) {
+      return ' Your writes will be rejected until resolved.'
+    }
+
+    return ''
+  }
+
+  private get resourceName(): string {
+    const {resources} = this.props
+
+    const renamedResources = resources.map(resource => {
+      if (resource === 'cardinality') {
+        return 'total series'
+      }
+
+      return resource
+    })
+
+    return renamedResources.join(' and ')
   }
 }
