@@ -86,13 +86,17 @@ export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   name: '',
   status: 'active',
   endpointID: '',
-  tagRules: [],
+  tagRules: [
+    {
+      cid: uuid.v4(),
+      value: {key: '', value: '', operator: 'equal'},
+    },
+  ],
   statusRules: [
     {
-      cid: '',
+      cid: uuid.v4(),
       value: {
-        currentLevel: {operation: 'equal', level: 'WARN'},
-        previousLevel: {operation: 'equal', level: 'OK'},
+        currentLevel: {operation: 'equal', level: 'CRIT'},
         period: '1h',
         count: 1,
       },
