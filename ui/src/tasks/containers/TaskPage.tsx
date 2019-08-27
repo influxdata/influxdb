@@ -26,14 +26,14 @@ import {
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
 
-import {AppState} from 'src/types'
+// Types
+import {AppState, Authorization} from 'src/types'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
 import {getAuthorizations} from 'src/authorizations/actions'
-import {Authorization} from '@influxdata/influx'
 import {
   RemoteDataState,
   SpinnerContainer,

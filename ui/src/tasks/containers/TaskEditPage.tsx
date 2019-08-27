@@ -28,8 +28,7 @@ import {
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {AppState, Task, RemoteDataState} from 'src/types'
-import {Authorization} from '@influxdata/influx'
+import {AppState, Task, RemoteDataState, Authorization} from 'src/types'
 import {getAuthorizations} from 'src/authorizations/actions'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 

@@ -2,8 +2,8 @@
 import {Dispatch} from 'react'
 
 // API
-import {client} from 'src/utils/api'
 import * as authAPI from 'src/authorizations/apis'
+import * as api from 'src/client'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -20,8 +20,12 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Types
-import {RemoteDataState, GetState, NotificationAction} from 'src/types'
-import {Authorization} from '@influxdata/influx'
+import {
+  RemoteDataState,
+  GetState,
+  NotificationAction,
+  Authorization,
+} from 'src/types'
 
 export type Action =
   | SetAuthorizations
@@ -97,7 +101,13 @@ export const getAuthorizations = () => async (
       orgs: {org},
     } = getState()
 
-    const authorizations = await client.authorizations.getAll(org.id)
+    const resp = await api.getAuthorizations({query: {orgID: org.id}})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    const {authorizations} = resp.data
 
     dispatch(setAuthorizations(RemoteDataState.Done, authorizations))
   } catch (e) {
@@ -107,10 +117,15 @@ export const getAuthorizations = () => async (
   }
 }
 
-export const getAuthorization = async (authorizationID: string) => {
+export const getAuthorization = async (authID: string) => {
   try {
-    const authorization = await client.authorizations.get(authorizationID)
-    return authorization
+    const resp = await api.getAuthorization({authID})
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
+
+    return resp.data
   } catch (e) {
     console.error(e)
   }
@@ -134,7 +149,14 @@ export const updateAuthorization = (authorization: Authorization) => async (
   dispatch: Dispatch<Action | NotificationAction | GetAuthorizations>
 ) => {
   try {
-    await client.authorizations.update(authorization.id, authorization)
+    const resp = await api.patchAuthorization({
+      authID: authorization.id,
+      data: authorization,
+    })
+
+    if (resp.status !== 200) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(getAuthorizations())
     dispatch(notify(authorizationUpdateSuccess()))
@@ -148,7 +170,11 @@ export const deleteAuthorization = (id: string, name: string = '') => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    await client.authorizations.delete(id)
+    const resp = await api.deleteAuthorization({authID: id})
+
+    if (resp.status !== 204) {
+      throw new Error(resp.data.message)
+    }
 
     dispatch(removeAuthorization(id))
     dispatch(notify(authorizationDeleteSuccess()))

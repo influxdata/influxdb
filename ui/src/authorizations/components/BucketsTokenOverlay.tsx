@@ -36,8 +36,7 @@ import {createAuthorization} from 'src/authorizations/actions'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
-import {AppState, Bucket} from 'src/types'
-import {Permission, Authorization} from '@influxdata/influx'
+import {AppState, Bucket, Permission, Authorization} from 'src/types'
 
 interface StateProps {
   buckets: Bucket[]
@@ -236,7 +235,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       return buckets.find(b => b.name === bucketName)
     })
 
-    return specificBucketsPermissions(writeBuckets, Permission.ActionEnum.Write)
+    return specificBucketsPermissions(writeBuckets, 'write')
   }
 
   private get readBucketPermissions(): Permission[] {
@@ -246,7 +245,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       return buckets.find(b => b.name === bucketName)
     })
 
-    return specificBucketsPermissions(readBuckets, Permission.ActionEnum.Read)
+    return specificBucketsPermissions(readBuckets, 'read')
   }
 
   private get allReadBucketPermissions(): Permission[] {
@@ -254,7 +253,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    return allBucketsPermissions(orgID, Permission.ActionEnum.Read)
+    return allBucketsPermissions(orgID, 'read')
   }
 
   private get allWriteBucketPermissions(): Permission[] {
@@ -262,7 +261,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    return allBucketsPermissions(orgID, Permission.ActionEnum.Write)
+    return allBucketsPermissions(orgID, 'write')
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {

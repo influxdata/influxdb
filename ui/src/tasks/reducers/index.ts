@@ -1,11 +1,12 @@
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {LogEvent, Authorization} from '@influxdata/influx'
+import {LogEvent} from '@influxdata/influx'
 
-//Types
+// Types
 import {Action} from 'src/tasks/actions'
 import {ITask as Task} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
+import {Authorization} from 'src/types'
 
 export interface TasksState {
   status: RemoteDataState

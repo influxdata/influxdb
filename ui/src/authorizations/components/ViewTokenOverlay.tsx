@@ -11,7 +11,7 @@ import PermissionsWidget, {
 import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 // Types
-import {Authorization, Permission} from '@influxdata/influx'
+import {Authorization, Permission} from 'src/types'
 
 interface Props {
   auth: Authorization
@@ -58,7 +58,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
     )
   }
 
-  private get permissions(): {[x: string]: Permission.ActionEnum[]} {
+  private get permissions(): {[x: string]: Permission['action'][]} {
     const p = this.props.auth.permissions.reduce((acc, {action, resource}) => {
       const {type} = resource
       const name = get(resource, 'name', '')
@@ -82,7 +82,7 @@ export default class ViewTokenOverlay extends PureComponent<Props> {
 
   private itemID = (
     permission: string,
-    action: Permission.ActionEnum
+    action: Permission['action']
   ): string => {
     return `${permission}-${action}-${permission || '*'}-${permission || '*'}`
   }

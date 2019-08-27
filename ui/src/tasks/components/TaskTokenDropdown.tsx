@@ -4,7 +4,7 @@ import React, {PureComponent} from 'react'
 
 // Types
 import {Dropdown} from '@influxdata/clockface'
-import {Authorization} from '@influxdata/influx'
+import {Authorization} from 'src/types'
 
 interface Props {
   tokens: Authorization[]

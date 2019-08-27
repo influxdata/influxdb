@@ -1,126 +1,125 @@
-import {Permission, PermissionResource, Authorization} from '@influxdata/influx'
-import {Bucket} from 'src/types'
+import {Bucket, Permission, Authorization} from 'src/types'
 
-export const allAccessPermissions = (orgID: string) => [
+export const allAccessPermissions = (orgID: string): Permission[] => [
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Orgs, id: orgID},
+    action: 'read',
+    resource: {type: 'orgs', id: orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Authorizations, orgID},
+    action: 'read',
+    resource: {type: 'authorizations', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Authorizations, orgID},
+    action: 'write',
+    resource: {type: 'authorizations', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Buckets, orgID},
+    action: 'read',
+    resource: {type: 'buckets', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Buckets, orgID},
+    action: 'write',
+    resource: {type: 'buckets', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Dashboards, orgID},
+    action: 'read',
+    resource: {type: 'dashboards', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Dashboards, orgID},
+    action: 'write',
+    resource: {type: 'dashboards', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Sources, orgID},
+    action: 'read',
+    resource: {type: 'sources', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Sources, orgID},
+    action: 'write',
+    resource: {type: 'sources', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Tasks, orgID},
+    action: 'read',
+    resource: {type: 'tasks', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Tasks, orgID},
+    action: 'write',
+    resource: {type: 'tasks', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Telegrafs, orgID},
+    action: 'read',
+    resource: {type: 'telegrafs', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Telegrafs, orgID},
+    action: 'write',
+    resource: {type: 'telegrafs', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Users, orgID},
+    action: 'read',
+    resource: {type: 'users', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Users, orgID},
+    action: 'write',
+    resource: {type: 'users', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Variables, orgID},
+    action: 'read',
+    resource: {type: 'variables', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Variables, orgID},
+    action: 'write',
+    resource: {type: 'variables', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Scrapers, orgID},
+    action: 'read',
+    resource: {type: 'scrapers', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Scrapers, orgID},
+    action: 'write',
+    resource: {type: 'scrapers', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Secrets, orgID},
+    action: 'read',
+    resource: {type: 'secrets', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Secrets, orgID},
+    action: 'write',
+    resource: {type: 'secrets', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Labels, orgID},
+    action: 'read',
+    resource: {type: 'labels', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Labels, orgID},
+    action: 'write',
+    resource: {type: 'labels', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Views, orgID},
+    action: 'read',
+    resource: {type: 'views', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Views, orgID},
+    action: 'write',
+    resource: {type: 'views', orgID},
   },
   {
-    action: Permission.ActionEnum.Read,
-    resource: {type: PermissionResource.TypeEnum.Documents, orgID},
+    action: 'read',
+    resource: {type: 'documents', orgID},
   },
   {
-    action: Permission.ActionEnum.Write,
-    resource: {type: PermissionResource.TypeEnum.Documents, orgID},
+    action: 'write',
+    resource: {type: 'documents', orgID},
   },
 ]
 
 export const specificBucketsPermissions = (
   buckets: Bucket[],
-  permission: Permission.ActionEnum
+  permission: Permission['action']
 ): Permission[] => {
   return buckets.map(b => {
     return {
       action: permission,
       resource: {
-        type: PermissionResource.TypeEnum.Buckets,
+        type: 'buckets' as 'buckets',
         orgID: b.orgID,
         id: b.id,
       },
@@ -130,12 +129,12 @@ export const specificBucketsPermissions = (
 
 export const allBucketsPermissions = (
   orgID: string,
-  permission: Permission.ActionEnum
+  permission: Permission['action']
 ): Permission[] => {
   return [
     {
       action: permission,
-      resource: {type: PermissionResource.TypeEnum.Buckets, orgID},
+      resource: {type: 'buckets', orgID},
     },
   ]
 }

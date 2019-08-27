@@ -2,9 +2,8 @@
 import {produce} from 'immer'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Authorization} from 'src/types'
 import {Action} from 'src/authorizations/actions'
-import {Authorization} from '@influxdata/influx'
 
 const initialState = (): AuthorizationsState => ({
   status: RemoteDataState.NotStarted,

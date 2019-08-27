@@ -9,7 +9,7 @@ import TokenRow from 'src/authorizations/components/TokenRow'
 import ViewTokenOverlay from 'src/authorizations/components/ViewTokenOverlay'
 
 // Types
-import {Authorization} from '@influxdata/influx'
+import {Authorization} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {ComponentSize, Sort} from '@influxdata/clockface'
 

@@ -26,7 +26,9 @@ import {allAccessPermissions} from 'src/authorizations/utils/permissions'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Authorization} from '@influxdata/influx'
+
+// Types
+import {Authorization} from 'src/types'
 
 interface DispatchProps {
   onCreateAuthorization: typeof createAuthorization
