@@ -5,7 +5,7 @@ import {Page} from '@influxdata/clockface'
 // Components
 import EventViewer from 'src/eventViewer/components/EventViewer'
 import EventTable from 'src/eventViewer/components/EventTable'
-import AlertHistoryControls from 'src/alerting/containers/AlertHistoryControls'
+import AlertHistoryControls from 'src/alerting/components/AlertHistoryControls'
 
 // Constants
 import {
