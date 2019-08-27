@@ -13,6 +13,7 @@ import {
   Wrap,
   ComponentColor,
   Grid,
+  InfluxColors,
 } from '@influxdata/clockface'
 import {Input} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
@@ -61,6 +62,12 @@ const CheckMetaCard: FC<Props> = ({
   const handleChangeTagRow = (index: number, tagSet: CheckTagSet) => {
     const tags = [...check.tags]
     tags[index] = tagSet
+    updateTimeMachineCheck({tags})
+  }
+
+  const handleRemoveTagRow = (index: number) => {
+    let tags = [...check.tags]
+    tags = tags.filter((_, i) => i !== index)
     updateTimeMachineCheck({tags})
   }
 
@@ -145,6 +152,8 @@ const CheckMetaCard: FC<Props> = ({
           </Grid.Column>
         </Grid.Row>
       </Grid>
+      <Form.Label label="Tags :" />
+      <Form.Divider lineColor={InfluxColors.Smoke} />
       {check.tags &&
         check.tags.map((t, i) => (
           <CheckTagRow
@@ -152,6 +161,7 @@ const CheckMetaCard: FC<Props> = ({
             index={i}
             tagSet={t}
             handleChangeTagRow={handleChangeTagRow}
+            handleRemoveTagRow={handleRemoveTagRow}
           />
         ))}
       <DashedButton
