@@ -130,6 +130,15 @@ export const draftRuleToRule = (
   } as NotificationRule
 }
 
+export const newTagRuleDraft = () => ({
+  cid: uuid.v4(),
+  value: {
+    key: '',
+    value: '',
+    operator: 'equal' as 'equal',
+  },
+})
+
 // Prepare a persisted rule for editing
 export const ruleToDraftRule = (
   rule: NotificationRule

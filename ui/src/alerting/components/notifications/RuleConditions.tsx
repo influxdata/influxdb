@@ -19,7 +19,7 @@ import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import {useRuleDispatch} from './RuleOverlayProvider'
 
 // Constants
-import {NEW_TAG_RULE_DRAFT} from 'src/alerting/constants'
+import {newTagRuleDraft} from 'src/alerting/components/notifications/utils'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'
@@ -35,7 +35,7 @@ const RuleConditions: FC<Props> = ({rule}) => {
   const addTagRule = () => {
     dispatch({
       type: 'ADD_TAG_RULE',
-      tagRule: NEW_TAG_RULE_DRAFT,
+      tagRule: newTagRuleDraft(),
     })
   }
 
