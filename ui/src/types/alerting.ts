@@ -94,7 +94,7 @@ export {
   PagerDutyNotificationRule,
   PagerDutyNotificationEndpoint,
   SlackNotificationEndpoint,
-  WebhookNotificationEndpoint,
+  HTTPNotificationEndpoint,
   NotificationEndpointUpdate,
 } from '../client'
 

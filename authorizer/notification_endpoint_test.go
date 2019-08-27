@@ -156,7 +156,7 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 									OrgID: 10,
 								},
 							},
-							&endpoint.WebHook{
+							&endpoint.HTTP{
 								Base: endpoint.Base{
 									ID:    3,
 									OrgID: 11,
@@ -188,7 +188,7 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 							OrgID: 10,
 						},
 					},
-					&endpoint.WebHook{
+					&endpoint.HTTP{
 						Base: endpoint.Base{
 							ID:    3,
 							OrgID: 11,
@@ -215,7 +215,7 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 									OrgID: 10,
 								},
 							},
-							&endpoint.WebHook{
+							&endpoint.HTTP{
 								Base: endpoint.Base{
 									ID:    3,
 									OrgID: 11,

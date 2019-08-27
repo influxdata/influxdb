@@ -37,9 +37,20 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 							{Key: "bbb", Value: "vbbb"},
 						},
 						Every:                 mustDuration("1h"),
-						StatusMessageTemplate: "whoa! {check.yeah}",
+						StatusMessageTemplate: "whoa! {r.usage_user}",
 						Query: influxdb.DashboardQuery{
 							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> aggregateWindow(every: 1m, fn: mean) |> yield()`,
+							BuilderConfig: influxdb.BuilderConfig{
+								Tags: []struct {
+									Key    string   `json:"key"`
+									Values []string `json:"values"`
+								}{
+									{
+										Key:    "_field",
+										Values: []string{"usage_user"},
+									},
+								},
+							},
 						},
 					},
 					Thresholds: []check.ThresholdConfig{
@@ -92,15 +103,15 @@ check = {
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 ok = (r) =>
-	(r._value > 10.0)
+	(r.usage_user > 10.0)
 info = (r) =>
-	(r._value < 40.0)
+	(r.usage_user < 40.0)
 warn = (r) =>
-	(r._value < 40.0 and r._value > 10.0)
+	(r.usage_user < 40.0 and r.usage_user > 10.0)
 crit = (r) =>
-	(r._value < 40.0 and r._value > 10.0)
-messageFn = (r, check) =>
-	("whoa! {check.yeah}")
+	(r.usage_user < 40.0 and r.usage_user > 10.0)
+messageFn = (r) =>
+	("whoa! {r.usage_user}")
 
 data
 	|> v1.fieldsAsCols()
@@ -126,9 +137,20 @@ data
 							{Key: "bbb", Value: "vbbb"},
 						},
 						Every:                 mustDuration("1h"),
-						StatusMessageTemplate: "whoa! {check.yeah}",
+						StatusMessageTemplate: "whoa! {r.usage_user}",
 						Query: influxdb.DashboardQuery{
 							Text: `from(bucket: "foo") |> range(start: -1d) |> aggregateWindow(every: 1m, fn: mean) |> yield()`,
+							BuilderConfig: influxdb.BuilderConfig{
+								Tags: []struct {
+									Key    string   `json:"key"`
+									Values []string `json:"values"`
+								}{
+									{
+										Key:    "_field",
+										Values: []string{"usage_user"},
+									},
+								},
+							},
 						},
 					},
 					Thresholds: []check.ThresholdConfig{
@@ -181,15 +203,15 @@ check = {
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 ok = (r) =>
-	(r._value > 10.0)
+	(r.usage_user > 10.0)
 info = (r) =>
-	(r._value < 40.0)
+	(r.usage_user < 40.0)
 warn = (r) =>
-	(r._value < 40.0 and r._value > 10.0)
+	(r.usage_user < 40.0 and r.usage_user > 10.0)
 crit = (r) =>
-	(r._value < 40.0 and r._value > 10.0)
-messageFn = (r, check) =>
-	("whoa! {check.yeah}")
+	(r.usage_user < 40.0 and r.usage_user > 10.0)
+messageFn = (r) =>
+	("whoa! {r.usage_user}")
 
 data
 	|> v1.fieldsAsCols()
@@ -215,9 +237,20 @@ data
 							{Key: "bbb", Value: "vbbb"},
 						},
 						Every:                 mustDuration("1h"),
-						StatusMessageTemplate: "whoa! {check.yeah}",
+						StatusMessageTemplate: "whoa! {r.usage_user}",
 						Query: influxdb.DashboardQuery{
 							Text: `from(bucket: "foo") |> range(start: -1d) |> aggregateWindow(every: 1m, fn: mean)`,
+							BuilderConfig: influxdb.BuilderConfig{
+								Tags: []struct {
+									Key    string   `json:"key"`
+									Values []string `json:"values"`
+								}{
+									{
+										Key:    "_field",
+										Values: []string{"usage_user"},
+									},
+								},
+							},
 						},
 					},
 					Thresholds: []check.ThresholdConfig{
@@ -270,15 +303,15 @@ check = {
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 ok = (r) =>
-	(r._value > 10.0)
+	(r.usage_user > 10.0)
 info = (r) =>
-	(r._value < 40.0)
+	(r.usage_user < 40.0)
 warn = (r) =>
-	(r._value < 40.0 and r._value > 10.0)
+	(r.usage_user < 40.0 and r.usage_user > 10.0)
 crit = (r) =>
-	(r._value < 40.0 and r._value > 10.0)
-messageFn = (r, check) =>
-	("whoa! {check.yeah}")
+	(r.usage_user < 40.0 and r.usage_user > 10.0)
+messageFn = (r) =>
+	("whoa! {r.usage_user}")
 
 data
 	|> v1.fieldsAsCols()

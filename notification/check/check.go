@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
+	"github.com/influxdata/influxdb/notification/flux"
 )
 
 // Base will embed inside a check.
@@ -71,6 +73,48 @@ func (b Base) Valid() error {
 	}
 
 	return nil
+}
+
+func (b Base) generateFluxASTMessageFunction() ast.Statement {
+	fn := flux.Function(flux.FunctionParams("r"), flux.String(b.StatusMessageTemplate))
+	return flux.DefineVariable("messageFn", fn)
+}
+
+func (b Base) generateTaskOption() ast.Statement {
+	props := []*ast.Property{}
+
+	props = append(props, flux.Property("name", flux.String(b.Name)))
+
+	if b.Cron != "" {
+		props = append(props, flux.Property("cron", flux.String(b.Cron)))
+	}
+
+	if b.Every != nil {
+		props = append(props, flux.Property("every", (*ast.DurationLiteral)(b.Every)))
+	}
+
+	if b.Offset != nil {
+		props = append(props, flux.Property("offset", (*ast.DurationLiteral)(b.Offset)))
+	}
+
+	return flux.DefineTaskOption(flux.Object(props...))
+}
+
+func (b Base) generateFluxASTCheckDefinition(checkType string) ast.Statement {
+	props := []*ast.Property{}
+	props = append(props, flux.Property("_check_id", flux.String(b.ID.String())))
+	props = append(props, flux.Property("_check_name", flux.String(b.Name)))
+	props = append(props, flux.Property("_check_type", flux.String(checkType)))
+
+	// TODO(desa): eventually tags will be flattened out into the data struct
+	tagProps := []*ast.Property{}
+	for _, tag := range b.Tags {
+		tagProps = append(tagProps, flux.Property(tag.Key, flux.String(tag.Value)))
+	}
+
+	props = append(props, flux.Property("tags", flux.Object(tagProps...)))
+
+	return flux.DefineVariable("check", flux.Object(props...))
 }
 
 // GetID implements influxdb.Getter interface.

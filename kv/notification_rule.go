@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/notification/rule"
+	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
 )
@@ -100,14 +101,12 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 }
 
 func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule) (*influxdb.Task, error) {
-	// TODO(desa): figure out what to do about this
-	//ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
-	//if err != nil {
-	//	return nil, err
-	//}
+	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	if err != nil {
+		return nil, err
+	}
 
-	// TODO(desa): pass in non nil notification endpoint.
-	script, err := r.GenerateFlux(nil)
+	script, err := r.GenerateFlux(ep)
 	if err != nil {
 		return nil, err
 	}
@@ -437,8 +436,14 @@ func (s *Service) deleteNotificationRule(ctx context.Context, tx Tx, id influxdb
 		return InternalNotificationRuleStoreError(err)
 	}
 
-	return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+	if err := s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: influxdb.NotificationRuleResourceType,
-	})
+	}); err != nil {
+		// TODO(desa): it is possible that there were no user resource mappings for a resource so this likely shouldn't be a blocking
+		// condition for deleting a notification rule.
+		s.Logger.Info("failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
+	}
+
+	return nil
 }

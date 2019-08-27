@@ -9527,8 +9527,6 @@ components:
         type:
           type: string
           enum: [http]
-        url:
-          type: string
     HTTPNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
@@ -9594,13 +9592,13 @@ components:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-        - $ref: "#/components/schemas/WebhookNotificationEndpoint"
+        - $ref: "#/components/schemas/HTTPNotificationEndpoint"
       discriminator:
         propertyName: type
         mapping:
           slack: "#/components/schemas/SlackNotificationEndpoint"
           pagerduty:  "#/components/schemas/PagerDutyNotificationEndpoint"
-          webhook: "#/components/schemas/WebhookNotificationEndpoint"
+          http: "#/components/schemas/HTTPNotificationEndpoint"
     NotificationEndpoints:
       properties:
         notificationEndpoints:
@@ -9663,12 +9661,12 @@ components:
               type: string
             routingKey:
               type: string
-    WebhookNotificationEndpoint:
+    HTTPNotificationEndpoint:
       type: object
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-          required: [url, authmethod, method]
+          required: [url, authMethod, method]
           properties:
             url:
               type: string
@@ -9681,14 +9679,14 @@ components:
             method:
               type: string
               enum: ['POST', 'GET', 'PUT']
-            authmethod:
+            authMethod:
               type: string
               enum: ['none', 'basic', 'bearer']
             contentTemplate:
               type: string
     NotificationEndpointType:
       type: string
-      enum: ['slack', 'pagerduty', 'webhook']
+      enum: ['slack', 'pagerduty', 'http']
   securitySchemes:
     BasicAuth:
       type: http

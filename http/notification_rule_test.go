@@ -74,7 +74,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 						},
 					},
 					&rule.PagerDuty{
-						MessageTemp: "body 2{var2}",
+						MessageTemplate: "body 2{var2}",
 						Base: rule.Base{
 							ID:          influxdb.ID(11),
 							OrgID:       influxdb.ID(2),

@@ -38,6 +38,15 @@ func Equal(lhs, rhs ast.Expression) *ast.BinaryExpression {
 	}
 }
 
+// Subtract returns a subtraction *ast.BinaryExpression.
+func Subtract(lhs, rhs ast.Expression) *ast.BinaryExpression {
+	return &ast.BinaryExpression{
+		Operator: ast.SubtractionOperator,
+		Left:     lhs,
+		Right:    rhs,
+	}
+}
+
 // Member returns an *ast.MemberExpression where the key is p and the values is c.
 func Member(p, c string) *ast.MemberExpression {
 	return &ast.MemberExpression{
@@ -103,6 +112,18 @@ func Function(params []*ast.Property, b ast.Expression) *ast.FunctionExpression 
 func String(s string) *ast.StringLiteral {
 	return &ast.StringLiteral{
 		Value: s,
+	}
+}
+
+// Duration returns an *ast.DurationLiteral for a single duration.
+func Duration(m int64, u string) *ast.DurationLiteral {
+	return &ast.DurationLiteral{
+		Values: []ast.Duration{
+			{
+				Magnitude: m,
+				Unit:      u,
+			},
+		},
 	}
 }
 

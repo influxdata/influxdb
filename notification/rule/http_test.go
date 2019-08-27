@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/notification"
+	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/influxdata/influxdb/notification/rule"
 )
 
@@ -21,7 +22,7 @@ notification = {
 	_notification_rule_id: "0000000000000001",
 	_notification_rule_name: "foo",
 	_notification_endpoint_id: "0000000000000002",
-	_notification_endpoint_name: "http-endpoint",
+	_notification_endpoint_name: "foo",
 }
 statuses = monitor.from(start: -1h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
@@ -31,7 +32,6 @@ statuses
 		({data: json.encode(v: r)})))`
 
 	s := &rule.HTTP{
-		URL: "http://localhost:7777",
 		Base: rule.Base{
 			ID:         1,
 			Name:       "foo",
@@ -57,7 +57,15 @@ statuses
 		},
 	}
 
-	f, err := s.GenerateFlux(nil)
+	e := &endpoint.HTTP{
+		Base: endpoint.Base{
+			ID:   2,
+			Name: "foo",
+		},
+		URL: "http://localhost:7777",
+	}
+
+	f, err := s.GenerateFlux(e)
 	if err != nil {
 		panic(err)
 	}

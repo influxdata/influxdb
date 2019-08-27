@@ -11,13 +11,13 @@ import (
 const (
 	SlackType     = "slack"
 	PagerDutyType = "pagerduty"
-	WebhookType   = "webhook"
+	HTTPType      = "http"
 )
 
 var typeToEndpoint = map[string](func() influxdb.NotificationEndpoint){
 	SlackType:     func() influxdb.NotificationEndpoint { return &Slack{} },
 	PagerDutyType: func() influxdb.NotificationEndpoint { return &PagerDuty{} },
-	WebhookType:   func() influxdb.NotificationEndpoint { return &WebHook{} },
+	HTTPType:      func() influxdb.NotificationEndpoint { return &HTTP{} },
 }
 
 type rawJSON struct {

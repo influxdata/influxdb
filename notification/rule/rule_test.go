@@ -156,7 +156,7 @@ func TestValidRule(t *testing.T) {
 						},
 					},
 				},
-				MessageTemp: "body {var2}",
+				MessageTemplate: "body {var2}",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -186,7 +186,7 @@ func TestValidRule(t *testing.T) {
 						Rate: 3,
 					},
 				},
-				MessageTemp: "body {var2}",
+				MessageTemplate: "body {var2}",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -281,7 +281,7 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				MessageTemp: "msg1",
+				MessageTemplate: "msg1",
 			},
 		},
 		{
@@ -321,7 +321,7 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				MessageTemp: "msg1",
+				MessageTemplate: "msg1",
 			},
 		},
 	}

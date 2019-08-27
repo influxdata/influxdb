@@ -105,13 +105,10 @@ func multiError(errs []error) error {
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
 func (t Threshold) GenerateFlux() (string, error) {
-	p, err := t.GenerateFluxAST()
+	p, err := t.GenerateFluxASTReal()
 	if err != nil {
 		return "", err
 	}
-
-	replaceDurationsWithEvery(p, t.Every)
-	removeStopFromRange(p)
 
 	return ast.Format(p), nil
 }
@@ -120,6 +117,7 @@ func (t Threshold) GenerateFlux() (string, error) {
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
 func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
+	// TODO(desa): remove this function)
 	p := parser.ParseSource(t.Query.Text)
 
 	if errs := ast.GetErrors(p); len(errs) != 0 {
@@ -132,10 +130,30 @@ func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
 		return nil, fmt.Errorf("expect a single file to be returned from query parsing got %d", len(p.Files))
 	}
 
+	if _, err := t.getSelectedField(); err != nil {
+		return nil, err
+	}
+
 	f := p.Files[0]
 	f.Body = append(f.Body, t.generateTaskOption())
 
+	//replaceDurationsWithEvery(p, t.Every)
+	//removeStopFromRange(p)
+
 	return p, nil
+}
+
+func (t Threshold) getSelectedField() (string, error) {
+	for _, kv := range t.Query.BuilderConfig.Tags {
+		if kv.Key == "_field" && len(kv.Values) != 1 {
+			return "", fmt.Errorf("expect there to be a single field value in builder config")
+		}
+		if kv.Key == "_field" && len(kv.Values) == 1 {
+			return kv.Values[0], nil
+		}
+	}
+
+	return "", fmt.Errorf("no field was selected")
 }
 
 // TODO(desa): we'll likely want something slightly more sophisitcated long term, but this should work for now.
@@ -230,39 +248,14 @@ func (t Threshold) GenerateFluxASTReal() (*ast.Package, error) {
 	return p, nil
 }
 
-func (t Threshold) generateTaskOption() ast.Statement {
-	props := []*ast.Property{}
-
-	props = append(props, flux.Property("name", flux.String(t.Name)))
-
-	if t.Cron != "" {
-		props = append(props, flux.Property("cron", flux.String(t.Cron)))
-	}
-
-	if t.Every != nil {
-		props = append(props, flux.Property("every", (*ast.DurationLiteral)(t.Every)))
-	}
-
-	if t.Offset != nil {
-		props = append(props, flux.Property("offset", (*ast.DurationLiteral)(t.Offset)))
-	}
-
-	return flux.DefineTaskOption(flux.Object(props...))
-}
-
 func (t Threshold) generateFluxASTBody() []ast.Statement {
 	var statements []ast.Statement
 	statements = append(statements, t.generateTaskOption())
-	statements = append(statements, t.generateFluxASTCheckDefinition())
+	statements = append(statements, t.generateFluxASTCheckDefinition("threshold"))
 	statements = append(statements, t.generateFluxASTThresholdFunctions()...)
 	statements = append(statements, t.generateFluxASTMessageFunction())
 	statements = append(statements, t.generateFluxASTChecksFunction())
 	return statements
-}
-
-func (t Threshold) generateFluxASTMessageFunction() ast.Statement {
-	fn := flux.Function(flux.FunctionParams("r", "check"), flux.String(t.StatusMessageTemplate))
-	return flux.DefineVariable("messageFn", fn)
 }
 
 func (t Threshold) generateFluxASTChecksFunction() ast.Statement {
@@ -286,32 +279,25 @@ func (t Threshold) generateFluxASTChecksCall() *ast.CallExpression {
 	return flux.Call(flux.Member("monitor", "check"), flux.Object(objectProps...))
 }
 
-func (t Threshold) generateFluxASTCheckDefinition() ast.Statement {
-	tagProperties := []*ast.Property{}
-	for _, tag := range t.Tags {
-		tagProperties = append(tagProperties, flux.Property(tag.Key, flux.String(tag.Value)))
-	}
-	tags := flux.Property("tags", flux.Object(tagProperties...))
-
-	checkID := flux.Property("_check_id", flux.String(t.ID.String()))
-	checkName := flux.Property("_check_name", flux.String(t.Name))
-	checkType := flux.Property("_check_type", flux.String("threshold"))
-
-	return flux.DefineVariable("check", flux.Object(checkID, checkName, checkType, tags))
-}
-
 func (t Threshold) generateFluxASTThresholdFunctions() []ast.Statement {
 	thresholdStatements := make([]ast.Statement, len(t.Thresholds))
 
+	field, err := t.getSelectedField()
+	if err != nil {
+		// the error here should never happen since it should be validated before this
+		// function is ever called.
+		panic(err)
+	}
+
 	// This assumes that the ThresholdConfigs we've been provided do not have duplicates.
 	for k, v := range t.Thresholds {
-		thresholdStatements[k] = v.generateFluxASTThresholdFunction()
+		thresholdStatements[k] = v.generateFluxASTThresholdFunction(field)
 	}
 	return thresholdStatements
 }
 
-func (td Greater) generateFluxASTThresholdFunction() ast.Statement {
-	fnBody := flux.GreaterThan(flux.Member("r", "_value"), flux.Float(td.Value))
+func (td Greater) generateFluxASTThresholdFunction(field string) ast.Statement {
+	fnBody := flux.GreaterThan(flux.Member("r", field), flux.Float(td.Value))
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
 	lvl := strings.ToLower(td.Level.String())
@@ -319,8 +305,8 @@ func (td Greater) generateFluxASTThresholdFunction() ast.Statement {
 	return flux.DefineVariable(lvl, fn)
 }
 
-func (td Lesser) generateFluxASTThresholdFunction() ast.Statement {
-	fnBody := flux.LessThan(flux.Member("r", "_value"), flux.Float(td.Value))
+func (td Lesser) generateFluxASTThresholdFunction(field string) ast.Statement {
+	fnBody := flux.LessThan(flux.Member("r", field), flux.Float(td.Value))
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
 	lvl := strings.ToLower(td.Level.String())
@@ -328,13 +314,13 @@ func (td Lesser) generateFluxASTThresholdFunction() ast.Statement {
 	return flux.DefineVariable(lvl, fn)
 }
 
-func (td Range) generateFluxASTThresholdFunction() ast.Statement {
+func (td Range) generateFluxASTThresholdFunction(field string) ast.Statement {
 	if !td.Within {
 		td.Min, td.Max = td.Max, td.Min
 	}
 	fnBody := flux.And(
-		flux.LessThan(flux.Member("r", "_value"), flux.Float(td.Max)),
-		flux.GreaterThan(flux.Member("r", "_value"), flux.Float(td.Min)),
+		flux.LessThan(flux.Member("r", field), flux.Float(td.Max)),
+		flux.GreaterThan(flux.Member("r", field), flux.Float(td.Min)),
 	)
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
@@ -362,7 +348,7 @@ type ThresholdConfig interface {
 	MarshalJSON() ([]byte, error)
 	Valid() error
 	Type() string
-	generateFluxASTThresholdFunction() ast.Statement
+	generateFluxASTThresholdFunction(string) ast.Statement
 	GetLevel() notification.CheckLevel
 }
 
