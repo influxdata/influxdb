@@ -797,7 +797,7 @@ func FindNotificationEndpoints(
 						URL:   "example-slack.com",
 						Token: influxdb.SecretField{Key: oneID + "-token"},
 					},
-					&endpoint.WebHook{
+					&endpoint.HTTP{
 						Base: endpoint.Base{
 							ID:     MustIDBase16(twoID),
 							OrgID:  MustIDBase16(fourID),
@@ -837,7 +837,7 @@ func FindNotificationEndpoints(
 						URL:   "example-slack.com",
 						Token: influxdb.SecretField{Key: oneID + "-token"},
 					},
-					&endpoint.WebHook{
+					&endpoint.HTTP{
 						Base: endpoint.Base{
 							ID:     MustIDBase16(twoID),
 							OrgID:  MustIDBase16(fourID),
@@ -889,7 +889,7 @@ func FindNotificationEndpoints(
 						URL:   "example-slack.com",
 						Token: influxdb.SecretField{Key: oneID + "-token"},
 					},
-					&endpoint.WebHook{
+					&endpoint.HTTP{
 						Base: endpoint.Base{
 							ID:     MustIDBase16(twoID),
 							OrgID:  MustIDBase16(fourID),
@@ -965,7 +965,7 @@ func FindNotificationEndpoints(
 						URL:   "example-slack.com",
 						Token: influxdb.SecretField{Key: oneID + "-token"},
 					},
-					&endpoint.WebHook{
+					&endpoint.HTTP{
 						Base: endpoint.Base{
 							ID:     MustIDBase16(twoID),
 							OrgID:  MustIDBase16(fourID),
@@ -1029,7 +1029,7 @@ func FindNotificationEndpoints(
 						URL:   "example-slack.com",
 						Token: influxdb.SecretField{Key: oneID + "-token"},
 					},
-					&endpoint.WebHook{
+					&endpoint.HTTP{
 						Base: endpoint.Base{
 							ID:     MustIDBase16(twoID),
 							OrgID:  MustIDBase16(fourID),

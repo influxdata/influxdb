@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
+	"github.com/influxdata/influxdb/notification/flux"
 )
 
 var typeToRule = map[string](func() influxdb.NotificationRule){
@@ -114,6 +116,53 @@ func (b Base) valid() error {
 	}
 
 	return nil
+}
+func (b *Base) generateFluxASTNotificationDefinition(e influxdb.NotificationEndpoint) ast.Statement {
+	ruleID := flux.Property("_notification_rule_id", flux.String(b.ID.String()))
+	ruleName := flux.Property("_notification_rule_name", flux.String(b.Name))
+	endpointID := flux.Property("_notification_endpoint_id", flux.String(b.EndpointID.String()))
+	endpointName := flux.Property("_notification_endpoint_name", flux.String(e.GetName()))
+
+	return flux.DefineVariable("notification", flux.Object(ruleID, ruleName, endpointID, endpointName))
+}
+
+func (b *Base) generateTaskOption() ast.Statement {
+	props := []*ast.Property{}
+
+	props = append(props, flux.Property("name", flux.String(b.Name)))
+
+	if b.Cron != "" {
+		props = append(props, flux.Property("cron", flux.String(b.Cron)))
+	}
+
+	if b.Every != nil {
+		props = append(props, flux.Property("every", (*ast.DurationLiteral)(b.Every)))
+	}
+
+	if b.Offset != nil {
+		props = append(props, flux.Property("offset", (*ast.DurationLiteral)(b.Offset)))
+	}
+
+	return flux.DefineTaskOption(flux.Object(props...))
+}
+
+func (b *Base) generateFluxASTStatuses() ast.Statement {
+	props := []*ast.Property{}
+
+	props = append(props, flux.Property("start", flux.Negative((*ast.DurationLiteral)(b.Every))))
+
+	if len(b.TagRules) > 0 {
+		r := b.TagRules[0]
+		var body ast.Expression = r.GenerateFluxAST()
+		for _, r := range b.TagRules[1:] {
+			body = flux.And(body, r.GenerateFluxAST())
+		}
+		props = append(props, flux.Property("fn", flux.Function(flux.FunctionParams("r"), body)))
+	}
+
+	base := flux.Call(flux.Member("monitor", "from"), flux.Object(props...))
+
+	return flux.DefineVariable("statuses", base)
 }
 
 // GetID implements influxdb.Getter interface.

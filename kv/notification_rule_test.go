@@ -10,10 +10,12 @@ import (
 )
 
 func TestBoltNotificationRuleStore(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
 	influxdbtesting.NotificationRuleStore(initBoltNotificationRuleStore, t)
 }
 
 func TestNotificationRuleStore(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/14799")
 	influxdbtesting.NotificationRuleStore(initInmemNotificationRuleStore, t)
 }
 
@@ -56,9 +58,9 @@ func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFie
 		t.Fatalf("error initializing user service: %v", err)
 	}
 
-	for _, nr := range f.NotificationRules {
-		if err := svc.PutNotificationRule(ctx, nr); err != nil {
-			t.Fatalf("failed to populate notification rule: %v", err)
+	for _, o := range f.Orgs {
+		if err := svc.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate org: %v", err)
 		}
 	}
 
@@ -68,9 +70,15 @@ func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFie
 		}
 	}
 
-	for _, o := range f.Orgs {
-		if err := svc.PutOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate org: %v", err)
+	for _, e := range f.Endpoints {
+		if err := svc.CreateNotificationEndpoint(ctx, e, 1); err != nil {
+			t.Fatalf("failed to populate notification endpoint: %v", err)
+		}
+	}
+
+	for _, nr := range f.NotificationRules {
+		if err := svc.PutNotificationRule(ctx, nr); err != nil {
+			t.Fatalf("failed to populate notification rule: %v", err)
 		}
 	}
 

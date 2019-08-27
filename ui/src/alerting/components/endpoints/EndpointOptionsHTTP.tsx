@@ -5,19 +5,19 @@ import React, {FC} from 'react'
 import {Input, FormElement} from '@influxdata/clockface'
 
 // Types
-import {WebhookNotificationEndpoint} from 'src/types'
+import {HTTPNotificationEndpoint} from 'src/types'
 
 interface Props {
   url: string
   token?: string
   username?: string
   password?: string
-  method?: WebhookNotificationEndpoint['method']
-  authmethod?: WebhookNotificationEndpoint['authmethod']
+  method?: HTTPNotificationEndpoint['method']
+  authMethod?: HTTPNotificationEndpoint['authMethod']
   contentTemplate: string
 }
 
-const EndpointOptionsWebhook: FC<Props> = ({url, token}) => {
+const EndpointOptionsHTTP: FC<Props> = ({url, token}) => {
   return (
     <>
       <FormElement label="URL">
@@ -40,4 +40,4 @@ const EndpointOptionsWebhook: FC<Props> = ({url, token}) => {
   )
 }
 
-export default EndpointOptionsWebhook
+export default EndpointOptionsHTTP

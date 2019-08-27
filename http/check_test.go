@@ -354,6 +354,17 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 									StatusMessageTemplate: "whoa! {check.yeah}",
 									Query: influxdb.DashboardQuery{
 										Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> aggregateWindow(every: 1m, fn: mean) |> yield()`,
+										BuilderConfig: influxdb.BuilderConfig{
+											Tags: []struct {
+												Key    string   `json:"key"`
+												Values []string `json:"values"`
+											}{
+												{
+													Key:    "_field",
+													Values: []string{"usage_user"},
+												},
+											},
+										},
 									},
 								},
 								Thresholds: []check.ThresholdConfig{
@@ -398,9 +409,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
-				body: `
-{"flux":"package main\nfrom(bucket: \"foo\")\n\t|> range(start: -1h)\n\t|> aggregateWindow(every: 1h, fn: mean)\n\t|> yield()\n\noption task = {name: \"hello\", every: 1h}"}
-`,
+				body:        `{"flux":"package main\nimport \"influxdata/influxdb/monitor\"\nimport \"influxdata/influxdb/v1\"\n\ndata = from(bucket: \"foo\")\n\t|\u003e range(start: -1h)\n\t|\u003e aggregateWindow(every: 1h, fn: mean)\n\noption task = {name: \"hello\", every: 1h}\n\ncheck = {\n\t_check_id: \"020f755c3c082000\",\n\t_check_name: \"hello\",\n\t_check_type: \"threshold\",\n\ttags: {aaa: \"vaaa\", bbb: \"vbbb\"},\n}\nok = (r) =\u003e\n\t(r.usage_user \u003e 10.0)\ninfo = (r) =\u003e\n\t(r.usage_user \u003c 40.0)\nwarn = (r) =\u003e\n\t(r.usage_user \u003c 40.0 and r.usage_user \u003e 10.0)\ncrit = (r) =\u003e\n\t(r.usage_user \u003c 40.0 and r.usage_user \u003e 10.0)\nmessageFn = (r) =\u003e\n\t(\"whoa! {check.yeah}\")\n\ndata\n\t|\u003e v1.fieldsAsCols()\n\t|\u003e monitor.check(\n\t\tdata: check,\n\t\tmessageFn: messageFn,\n\t\tok: ok,\n\t\tinfo: info,\n\t\twarn: warn,\n\t\tcrit: crit,\n\t)"}`,
 			},
 		},
 	}

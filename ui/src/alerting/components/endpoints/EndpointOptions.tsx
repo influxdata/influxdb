@@ -4,14 +4,14 @@ import React, {FC, ChangeEvent} from 'react'
 // Components
 import EndpointOptionsSlack from './EndpointOptionsSlack'
 import EndpointOptionsPagerDuty from './EndpointOptionsPagerDuty'
-import EndpointOptionsWebhook from './EndpointOptionsWebhook'
+import EndpointOptionsHTTP from './EndpointOptionsHTTP'
 
 // Types
 import {
   NotificationEndpoint,
   SlackNotificationEndpoint,
   PagerDutyNotificationEndpoint,
-  WebhookNotificationEndpoint,
+  HTTPNotificationEndpoint,
 } from 'src/types'
 
 interface Props {
@@ -37,7 +37,7 @@ const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
         />
       )
     }
-    case 'webhook': {
+    case 'http': {
       // TODO(watts): add webhook type to the `Destination` dropdown
       // when webhooks are implemented in the backend.
       const {
@@ -46,17 +46,17 @@ const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
         username,
         password,
         method,
-        authmethod,
+        authMethod,
         contentTemplate,
-      } = endpoint as WebhookNotificationEndpoint
+      } = endpoint as HTTPNotificationEndpoint
       return (
-        <EndpointOptionsWebhook
+        <EndpointOptionsHTTP
           url={url}
           token={token}
           username={username}
           password={password}
           method={method}
-          authmethod={authmethod}
+          authMethod={authMethod}
           contentTemplate={contentTemplate}
         />
       )

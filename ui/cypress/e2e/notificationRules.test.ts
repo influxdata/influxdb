@@ -30,7 +30,8 @@ describe('NotificationRules', () => {
     })
   })
 
-  it('can create a notification rule', () => {
+  // TODO(desa): this needs to be skipped until https://github.com/influxdata/influxdb/issues/14799
+  it.skip('can create a notification rule', () => {
     const ruleName = 'my-new-rule'
     cy.getByTestID('alert-column--header create-rule').click()
 

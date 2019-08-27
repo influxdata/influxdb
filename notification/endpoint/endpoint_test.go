@@ -132,19 +132,19 @@ func TestValidEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name: "empty webhook http method",
-			src: &endpoint.WebHook{
+			name: "empty http http method",
+			src: &endpoint.HTTP{
 				Base: goodBase,
 				URL:  "localhost",
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "invalid webhook http method",
+				Msg:  "invalid http http method",
 			},
 		},
 		{
-			name: "empty webhook token",
-			src: &endpoint.WebHook{
+			name: "empty http token",
+			src: &endpoint.HTTP{
 				Base:       goodBase,
 				URL:        "localhost",
 				Method:     "GET",
@@ -152,12 +152,12 @@ func TestValidEndpoint(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "invalid webhook token for bearer auth",
+				Msg:  "invalid http token for bearer auth",
 			},
 		},
 		{
-			name: "empty webhook username",
-			src: &endpoint.WebHook{
+			name: "empty http username",
+			src: &endpoint.HTTP{
 				Base:       goodBase,
 				URL:        "localhost",
 				Method:     http.MethodGet,
@@ -165,7 +165,7 @@ func TestValidEndpoint(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "invalid webhook username/password for basic auth",
+				Msg:  "invalid http username/password for basic auth",
 			},
 		},
 	}
@@ -218,8 +218,8 @@ func TestJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "simple webhook",
-			src: &endpoint.WebHook{
+			name: "simple http",
+			src: &endpoint.HTTP{
 				Base: endpoint.Base{
 					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
@@ -331,8 +331,8 @@ func TestBackFill(t *testing.T) {
 			},
 		},
 		{
-			name: "webhook with token",
-			src: &endpoint.WebHook{
+			name: "http with token",
+			src: &endpoint.HTTP{
 				Base: endpoint.Base{
 					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
@@ -352,7 +352,7 @@ func TestBackFill(t *testing.T) {
 					Value: strPtr("password1"),
 				},
 			},
-			target: &endpoint.WebHook{
+			target: &endpoint.HTTP{
 				Base: endpoint.Base{
 					ID:     influxTesting.MustIDBase16(id1),
 					Name:   "name1",
