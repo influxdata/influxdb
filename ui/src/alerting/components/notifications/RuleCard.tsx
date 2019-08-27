@@ -145,7 +145,7 @@ const RuleCard: FC<Props> = ({
           onDelete={onDelete}
         />
       }
-      metaData={[<>{rule.updatedAt.toString()}</>]}
+      metaData={[<>Last updated: {rule.updatedAt}</>]}
     />
   )
 }
