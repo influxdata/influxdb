@@ -2,12 +2,6 @@
 import React, {FC} from 'react'
 
 // Components
-import {
-  FlexBox,
-  FlexDirection,
-  AlignItems,
-  ComponentSize,
-} from '@influxdata/clockface'
 import ThresholdCondition from 'src/alerting/components/builder/ThresholdCondition'
 
 // Types
@@ -25,16 +19,12 @@ const ThresholdConditions: FC<Props> = ({check}) => {
     })
   }
   return (
-    <FlexBox
-      direction={FlexDirection.Column}
-      alignItems={AlignItems.Stretch}
-      margin={ComponentSize.Medium}
-    >
+    <>
       <ThresholdCondition level="OK" threshold={thresholds['OK']} />
       <ThresholdCondition level="INFO" threshold={thresholds['INFO']} />
       <ThresholdCondition level="WARN" threshold={thresholds['WARN']} />
       <ThresholdCondition level="CRIT" threshold={thresholds['CRIT']} />
-    </FlexBox>
+    </>
   )
 }
 
