@@ -2,7 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {Input, FormElement} from '@influxdata/clockface'
+import {Input, FormElement, InputType} from '@influxdata/clockface'
 
 interface Props {
   url: string
@@ -22,6 +22,7 @@ const EndpointOptionsSlack: FC<Props> = ({url, token, onChange}) => {
           value={token}
           testID="slack-token"
           onChange={onChange}
+          type={InputType.Password}
         />
       </FormElement>
     </>

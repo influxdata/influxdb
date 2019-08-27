@@ -2,7 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {Input, FormElement} from '@influxdata/clockface'
+import {Input, FormElement, InputType} from '@influxdata/clockface'
 
 interface Props {
   url: string
@@ -27,6 +27,7 @@ const EndpointOptionsPagerDuty: FC<Props> = ({url, routingKey, onChange}) => {
           value={routingKey}
           testID="pagerduty-routing-key"
           onChange={onChange}
+          type={InputType.Password}
         />
       </FormElement>
     </>
