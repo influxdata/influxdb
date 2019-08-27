@@ -37,11 +37,16 @@ func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coor
 	latestCompleted := now().Format(time.RFC3339)
 	for len(tasks) > 0 {
 		for _, task := range tasks {
+			if task.Status != string(TaskActive) {
+				continue
+			}
+
 			task, err := ts.UpdateTask(context.Background(), task.ID, influxdb.TaskUpdate{
 				LatestCompleted: &latestCompleted,
 			})
 			if err != nil {
 				logger.Error("failed to set latestCompleted", zap.Error(err))
+				continue
 			}
 
 			coord.TaskCreated(ctx, task)
