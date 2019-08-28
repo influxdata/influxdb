@@ -1216,11 +1216,18 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   },
   {
     name: 'increase',
-    args: [],
+    args: [
+      {
+        name: 'columns',
+        desc:
+          'List of columns to use in the grouping operation. Defaults to `["_value"]`.',
+        type: 'Array of Strings',
+      },
+    ],
     package: '',
     desc:
       'Computes the total non-negative difference between values in a table.',
-    example: 'increase()',
+    example: 'increase(columns: ["_value"])',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/increase/',
