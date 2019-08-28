@@ -5,7 +5,7 @@ import {
   TagRuleDraft,
   DeadmanCheck,
 } from 'src/types'
-import {NotificationEndpoint} from 'src/client'
+import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
 import {ComponentColor} from '@influxdata/clockface'
 
 export const DEFAULT_CHECK_NAME = 'Name this check'
@@ -16,6 +16,7 @@ export const DEFAULT_CHECK_CRON = '1h'
 export const DEFAULT_CHECK_EVERY = '1h'
 export const DEFAULT_CHECK_OFFSET = '0s'
 export const DEFAULT_CHECK_REPORT_ZERO = false
+export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
 
 export const LEVEL_COLORS = {
   OK: '#32B08C',
@@ -47,6 +48,7 @@ export const DEFAULT_DEADMAN_CHECK: Partial<DeadmanCheck> = {
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
   reportZero: DEFAULT_CHECK_REPORT_ZERO,
+  level: DEFAULT_DEADMAN_LEVEL,
 }
 
 export const CHECK_QUERY_FIXTURE: DashboardQuery = {

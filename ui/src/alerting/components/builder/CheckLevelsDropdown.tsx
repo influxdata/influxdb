@@ -12,10 +12,7 @@ import {
 // Types
 import {CheckStatusLevel} from 'src/types'
 
-type Level = CheckStatusLevel
-type LevelType = 'currentLevel' | 'previousLevel'
-
-type ColorLevel = {hex: InfluxColors; display: string; value: Level}
+type ColorLevel = {hex: InfluxColors; display: string; value: CheckStatusLevel}
 
 const levels: ColorLevel[] = [
   {display: 'CRIT', hex: InfluxColors.Fire, value: 'CRIT'},
@@ -25,16 +22,15 @@ const levels: ColorLevel[] = [
 ]
 
 interface Props {
-  selectedLevel: Level
-  type: LevelType
-  onClickLevel: (type: LevelType, level: Level) => void
+  selectedLevel: CheckStatusLevel
+  onClickLevel: (level: CheckStatusLevel) => void
 }
 
-const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
+const CheckLevelsDropdown: FC<Props> = ({selectedLevel, onClickLevel}) => {
   const selected = levels.find(l => l.value === selectedLevel)
 
   if (!selected) {
-    throw new Error('Unknown level type provided to <LevelsDropdown/>')
+    throw new Error('Unknown level type provided to <CheckLevelsDropdown/>')
   }
 
   const button = (active, onClick) => (
@@ -42,7 +38,7 @@ const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
       color={ComponentColor.Default}
       active={active}
       onClick={onClick}
-      testID={`levels--dropdown--button ${type}`}
+      testID="check-levels--dropdown--button"
     >
       <div className="color-dropdown--item">
         <div
@@ -59,8 +55,8 @@ const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
       key={value}
       id={value}
       value={value}
-      onClick={() => onClickLevel(type, value)}
-      testID={`levels--dropdown-item ${value}`}
+      onClick={() => onClickLevel(value)}
+      testID={`check-levels--dropdown-item ${value}`}
     >
       <div className="color-dropdown--item">
         <div
@@ -79,8 +75,8 @@ const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
   )
 
   return (
-    <Dropdown button={button} menu={menu} testID={`levels--dropdown ${type}`} />
+    <Dropdown button={button} menu={menu} testID="check-levels--dropdown" />
   )
 }
 
-export default LevelsDropdown
+export default CheckLevelsDropdown
