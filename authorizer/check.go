@@ -53,21 +53,9 @@ func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilt
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rules := chks[:0]
 	for _, chk := range chks {
-		p, err := influxdb.NewPermission(influxdb.ReadAction, influxdb.OrgsResourceType, chk.GetOrgID())
-		if err != nil {
-			return nil, 0, err
+		if err := authorizeReadOrg(ctx, chk.GetOrgID()); err == nil {
+			rules = append(rules, chk)
 		}
-
-		err = IsAllowed(ctx, *p)
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
-			return nil, 0, err
-		}
-
-		rules = append(rules, chk)
 	}
 
 	return rules, len(rules), nil
@@ -89,12 +77,7 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
 func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.OrgsResourceType, chk.GetOrgID())
-	if err != nil {
-		return err
-	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
+	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
 		return err
 	}
 
