@@ -1,5 +1,5 @@
 // Library
-import {Component} from 'react'
+import React, {Component, RefObject, CSSProperties} from 'react'
 import {isEqual} from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -44,6 +44,8 @@ interface StateProps {
 }
 
 interface OwnProps {
+  className: string
+  style: CSSProperties
   queries: DashboardQuery[]
   variables?: VariableAssignment[]
   submitToken: number
@@ -78,20 +80,41 @@ const defaultState = (): State => ({
 class TimeSeries extends Component<Props & WithRouterProps, State> {
   public static defaultProps = {
     implicitSubmit: true,
+    className: 'vis-plot-container',
+    style: null,
   }
 
   public state: State = defaultState()
 
+  private observer: IntersectionObserver
+  private ref: RefObject<HTMLDivElement> = React.createRef()
+  private isIntersecting: boolean = false
+
   private pendingResults: Array<CancelBox<RunQueryResult>> = []
 
   public async componentDidMount() {
-    this.reload()
+    this.observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const {isIntersecting} = entry
+        if (!this.isIntersecting && isIntersecting) {
+          this.reload()
+        }
+
+        this.isIntersecting = isIntersecting
+      })
+    })
+
+    this.observer.observe(this.ref.current)
   }
 
   public async componentDidUpdate(prevProps: Props) {
-    if (this.shouldReload(prevProps)) {
+    if (this.shouldReload(prevProps) && this.isIntersecting) {
       this.reload()
     }
+  }
+
+  public componentWillMount() {
+    this.observer && this.observer.disconnect()
   }
 
   public render() {
@@ -103,15 +126,20 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       fetchCount,
       duration,
     } = this.state
+    const {className, style} = this.props
 
-    return this.props.children({
-      giraffeResult,
-      files,
-      loading,
-      errorMessage,
-      duration,
-      isInitialFetch: fetchCount === 1,
-    })
+    return (
+      <div ref={this.ref} className={className} style={style}>
+        {this.props.children({
+          giraffeResult,
+          files,
+          loading,
+          errorMessage,
+          duration,
+          isInitialFetch: fetchCount === 1,
+        })}
+      </div>
+    )
   }
 
   private reload = async () => {

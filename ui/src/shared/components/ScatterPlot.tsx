@@ -124,10 +124,10 @@ const ScatterPlot: FunctionComponent<Props> = ({
     ],
   }
   return (
-    <div className="vis-plot-container">
+    <>
       {loading === RemoteDataState.Loading && <GraphLoadingDots />}
       {children(config)}
-    </div>
+    </>
   )
 }
 

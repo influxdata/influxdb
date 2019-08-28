@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, MouseEvent} from 'react'
+import React, {Component} from 'react'
 import {connect} from 'react-redux'
 import {withRouter} from 'react-router'
 import _ from 'lodash'
@@ -33,10 +33,7 @@ import {
 } from 'src/cloud/utils/limits'
 
 // Constants
-import {
-  DASHBOARD_LAYOUT_ROW_HEIGHT,
-  AUTOREFRESH_DEFAULT,
-} from 'src/shared/constants'
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
@@ -113,30 +110,14 @@ type Props = PassedProps &
   ManualRefreshProps &
   WithRouterProps
 
-interface State {
-  scrollTop: number
-  windowHeight: number
-}
-
 @ErrorHandling
-class DashboardPage extends Component<Props, State> {
-  public constructor(props: Props) {
-    super(props)
-
-    this.state = {
-      scrollTop: 0,
-      windowHeight: window.innerHeight,
-    }
-  }
-
+class DashboardPage extends Component<Props> {
   public async componentDidMount() {
     const {autoRefresh} = this.props
 
     if (autoRefresh.status === AutoRefreshStatus.Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
     }
-
-    window.addEventListener('resize', this.handleWindowResize, true)
 
     await this.getDashboard()
   }
@@ -156,8 +137,6 @@ class DashboardPage extends Component<Props, State> {
 
   public componentWillUnmount() {
     GlobalAutoRefresher.stopPolling()
-
-    window.removeEventListener('resize', this.handleWindowResize, true)
   }
 
   public render() {
@@ -211,11 +190,9 @@ class DashboardPage extends Component<Props, State> {
             />
             {!!dashboard && (
               <DashboardComponent
-                inView={this.inView}
                 dashboard={dashboard}
                 timeRange={timeRange}
                 manualRefresh={manualRefresh}
-                setScrollTop={this.setScrollTop}
                 onCloneCell={this.handleCloneCell}
                 inPresentationMode={inPresentationMode}
                 onPositionChange={this.handlePositionChange}
@@ -236,19 +213,6 @@ class DashboardPage extends Component<Props, State> {
     const {params, getDashboard} = this.props
 
     await getDashboard(params.dashboardID)
-  }
-
-  private inView = (cell: Cell): boolean => {
-    const {scrollTop, windowHeight} = this.state
-    const bufferValue = 600
-    const cellTop = cell.y * DASHBOARD_LAYOUT_ROW_HEIGHT
-    const cellBottom = (cell.y + cell.h) * DASHBOARD_LAYOUT_ROW_HEIGHT
-    const bufferedWindowBottom = windowHeight + scrollTop + bufferValue
-    const bufferedWindowTop = scrollTop - bufferValue
-    const topInView = cellTop < bufferedWindowBottom
-    const bottomInView = cellBottom > bufferedWindowTop
-
-    return topInView && bottomInView
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
@@ -329,16 +293,6 @@ class DashboardPage extends Component<Props, State> {
   private handleDeleteDashboardCell = async (cell: Cell): Promise<void> => {
     const {dashboard, deleteCell} = this.props
     await deleteCell(dashboard, cell)
-  }
-
-  private setScrollTop = (e: MouseEvent<HTMLElement>): void => {
-    const target = e.target as HTMLElement
-
-    this.setState({scrollTop: target.scrollTop})
-  }
-
-  private handleWindowResize = (): void => {
-    this.setState({windowHeight: window.innerHeight})
   }
 
   private get pageTitle(): string {

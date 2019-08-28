@@ -8,7 +8,7 @@ $cell--header-size: 36px;
 .cell {
   background-color: $g3-castle;
   border-radius: $radius;
-  transform: translate3d(0,0,0); // gpu boost
+  transform: translate3d(0, 0, 0); // gpu boost
 }
 
 .cell--view {
@@ -63,7 +63,7 @@ $cell--header-size: 36px;
 }
 
 .dashboard .cell--view-empty .empty-graph-error {
-    top: $ix-marg-c + $cell--header-size;
+  top: $ix-marg-c + $cell--header-size;
 }
 
 .cell--header {
