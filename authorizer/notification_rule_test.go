@@ -230,8 +230,8 @@ func TestNotificationRuleStore_FindNotificationRules(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "read",
 					Resource: influxdb.Resource{
-						Type:  influxdb.OrgsResourceType,
-						OrgID: influxdbtesting.IDPtr(10),
+						Type: influxdb.OrgsResourceType,
+						ID:   influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -650,8 +650,8 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 				permission: influxdb.Permission{
 					Action: "write",
 					Resource: influxdb.Resource{
-						Type:  influxdb.OrgsResourceType,
-						OrgID: influxdbtesting.IDPtr(10),
+						Type: influxdb.OrgsResourceType,
+						ID:   influxdbtesting.IDPtr(10),
 					},
 				},
 			},
@@ -680,7 +680,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			},
 			wants: wants{
 				err: &influxdb.Error{
-					Msg:  "write:orgs/000000000000000a/orgs is unauthorized",
+					Msg:  "write:orgs/000000000000000a is unauthorized",
 					Code: influxdb.EUnauthorized,
 				},
 			},

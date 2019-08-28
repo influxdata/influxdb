@@ -52,17 +52,9 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rules := nrs[:0]
 	for _, nr := range nrs {
-		p, err := influxdb.NewPermission(influxdb.ReadAction, influxdb.OrgsResourceType, nr.GetOrgID())
-		if err != nil {
-			return nil, 0, err
+		if err := authorizeReadOrg(ctx, nr.GetOrgID()); err == nil {
+			rules = append(rules, nr)
 		}
-
-		err = IsAllowed(ctx, *p)
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
-			continue
-		}
-
-		rules = append(rules, nr)
 	}
 
 	return rules, len(rules), nil
@@ -70,15 +62,9 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 
 // CreateNotificationRule checks to see if the authorizer on context has write access to the global notification rule resource.
 func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
-	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.OrgsResourceType, nr.GetOrgID())
-	if err != nil {
+	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
 		return err
 	}
-
-	if err := IsAllowed(ctx, *p); err != nil {
-		return err
-	}
-
 	return s.s.CreateNotificationRule(ctx, nr, userID)
 }
 
