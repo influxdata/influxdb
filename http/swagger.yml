@@ -9527,6 +9527,8 @@ components:
         type:
           type: string
           enum: [http]
+        url:
+          type: string
     HTTPNotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleBase"
