@@ -17,8 +17,8 @@ var _ influxdb.Check = &Deadman{}
 // Deadman is the deadman check.
 type Deadman struct {
 	Base
-	// seconds before deadman triggers
-	TimeSince uint `json:"timeSince"`
+	TimeSince *notification.Duration `json:"timeSince,omitempty"`
+	StaleTime *notification.Duration `json:"staleTime,omitempty"`
 	// If only zero values reported since time, trigger alert.
 	// TODO(desa): Is this implemented in Flux?
 	ReportZero bool                    `json:"reportZero"`
@@ -45,7 +45,7 @@ func (c Deadman) GenerateFlux() (string, error) {
 // an error for each error found when the script is parsed.
 func (c Deadman) GenerateFluxAST() (*ast.Package, error) {
 	p := parser.ParseSource(c.Query.Text)
-	replaceDurationsWithEvery(p, c.Every)
+	replaceDurationsWithEvery(p, c.StaleTime)
 	removeStopFromRange(p)
 
 	if errs := ast.GetErrors(p); len(errs) != 0 {
@@ -86,7 +86,7 @@ func (c Deadman) generateLevelFn() ast.Statement {
 }
 
 func (c Deadman) generateFluxASTChecksFunction() ast.Statement {
-	dur := flux.Duration(int64(c.TimeSince), "s")
+	dur := (*ast.DurationLiteral)(c.TimeSince)
 	now := flux.Call(flux.Identifier("now"), flux.Object())
 	sub := flux.Call(flux.Member("experimental", "subDuration"), flux.Object(flux.Property("from", now), flux.Property("d", dur)))
 	return flux.ExpressionStatement(flux.Pipe(

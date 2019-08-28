@@ -159,7 +159,6 @@ func TestService_handleGetChecks(t *testing.T) {
 	  "status": "active",
 	  "statusMessageTemplate": "",
 	  "tags": null,
-	  "timeSince": 0,
 	  "type": "deadman",
       "labels": [
         {
@@ -531,7 +530,6 @@ func TestService_handleGetCheck(t *testing.T) {
           "status": "active",
           "statusMessageTemplate": "",
           "tags": null,
-          "timeSince": 0,
           "type": "deadman",
 		  "orgID": "020f755c3c082000",
 		  "name": "hello"
@@ -659,7 +657,7 @@ func TestService_handlePostCheck(t *testing.T) {
 							{Key: "k2", Value: "v2"},
 						},
 					},
-					TimeSince:  13,
+					TimeSince:  mustDuration("13s"),
 					ReportZero: true,
 					Level:      notification.Warn,
 				},
@@ -702,7 +700,7 @@ func TestService_handlePostCheck(t *testing.T) {
   "text": ""
 },
   "type": "deadman",
-  "timeSince": 13,
+  "timeSince": "13s",
   "createdAt": "0001-01-01T00:00:00Z",
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
@@ -946,7 +944,6 @@ func TestService_handlePatchCheck(t *testing.T) {
           "status": "",
           "statusMessageTemplate": "",
           "tags": null,
-          "timeSince": 0,
           "type": "deadman",
 		  "labels": []
 		}
@@ -1121,7 +1118,6 @@ func TestService_handleUpdateCheck(t *testing.T) {
           "status": "active",
           "statusMessageTemplate": "",
           "tags": null,
-          "timeSince": 0,
           "type": "deadman",
 		  "labels": []
 		}
