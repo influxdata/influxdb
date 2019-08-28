@@ -126,53 +126,43 @@ export const saveCheckFromTimeMachine = () => async (
   dispatch: Dispatch<any>,
   getState: GetState
 ) => {
-  try {
-    const state = getState()
-    const {
-      orgs: {
-        org: {id: orgID},
-      },
-    } = state
+  const state = getState()
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+  } = state
 
-    const {
-      draftQueries,
-      alerting: {check},
-    } = getActiveTimeMachine(state)
+  const {
+    draftQueries,
+    alerting: {check},
+  } = getActiveTimeMachine(state)
 
-    const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
+  const checkWithOrg = {...check, query: draftQueries[0], orgID} as Check
 
-    const resp = check.id
-      ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
-      : await api.postCheck({data: checkWithOrg})
+  const resp = check.id
+    ? await api.patchCheck({checkID: check.id, data: checkWithOrg})
+    : await api.postCheck({data: checkWithOrg})
 
-    if (resp.status === 201 || resp.status === 200) {
-      dispatch(setCheck(resp.data))
-    } else {
-      throw new Error(resp.data.message)
-    }
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.createCheckFailed(e.message)))
+  if (resp.status === 201 || resp.status === 200) {
+    dispatch(setCheck(resp.data))
+  } else {
+    throw new Error(resp.data.message)
   }
 }
 
 export const updateCheck = (check: Partial<Check>) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  try {
-    const resp = await api.patchCheck({checkID: check.id, data: check as Check})
+  const resp = await api.patchCheck({checkID: check.id, data: check as Check})
 
-    if (resp.status === 200) {
-      dispatch(setCheck(resp.data))
-    } else {
-      throw new Error(resp.data.message)
-    }
-
+  if (resp.status === 200) {
     dispatch(setCheck(resp.data))
-  } catch (e) {
-    console.error(e)
-    dispatch(notify(copy.updateCheckFailed(e.message)))
+  } else {
+    throw new Error(resp.data.message)
   }
+
+  dispatch(setCheck(resp.data))
 }
 
 export const deleteCheck = (checkID: string) => async (

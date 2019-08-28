@@ -25,6 +25,8 @@ import {
 } from 'src/alerting/actions/checks'
 import {createLabel as createLabelAsync} from 'src/labels/actions'
 import {viewableLabels} from 'src/labels/selectors'
+import {notify} from 'src/shared/actions/notifications'
+import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {Check, Label, AppState, AlertHistoryType} from 'src/types'
@@ -36,6 +38,7 @@ interface DispatchProps {
   onRemoveCheckLabel: typeof deleteCheckLabel
   onCreateLabel: typeof createLabelAsync
   onCloneCheck: typeof cloneCheck
+  onNotify: typeof notify
 }
 
 interface StateProps {
@@ -53,6 +56,7 @@ const CheckCard: FunctionComponent<Props> = ({
   onAddCheckLabel,
   onCreateLabel,
   onCloneCheck,
+  onNotify,
   check,
   updateCheck,
   deleteCheck,
@@ -60,12 +64,20 @@ const CheckCard: FunctionComponent<Props> = ({
   labels,
   router,
 }) => {
-  const onUpdateName = (name: string) => {
-    updateCheck({id: check.id, name})
+  const onUpdateName = async (name: string) => {
+    try {
+      await updateCheck({id: check.id, name})
+    } catch (e) {
+      onNotify(updateCheckFailed(e.message))
+    }
   }
 
-  const onUpdateDescription = (description: string) => {
-    updateCheck({id: check.id, description})
+  const onUpdateDescription = async (description: string) => {
+    try {
+      await updateCheck({id: check.id, description})
+    } catch (e) {
+      onNotify(updateCheckFailed(e.message))
+    }
   }
 
   const onDelete = () => {
@@ -76,10 +88,14 @@ const CheckCard: FunctionComponent<Props> = ({
     onCloneCheck(check)
   }
 
-  const onToggle = () => {
+  const onToggle = async () => {
     const status = check.status === 'active' ? 'inactive' : 'active'
 
-    updateCheck({id: check.id, status})
+    try {
+      await updateCheck({id: check.id, status})
+    } catch (e) {
+      onNotify(updateCheckFailed(e.message))
+    }
   }
 
   const onEdit = () => {
@@ -168,6 +184,7 @@ const mdtp: DispatchProps = {
   onCreateLabel: createLabelAsync,
   onRemoveCheckLabel: deleteCheckLabel,
   onCloneCheck: cloneCheck,
+  onNotify: notify,
 }
 
 const mstp = ({labels}: AppState): StateProps => {

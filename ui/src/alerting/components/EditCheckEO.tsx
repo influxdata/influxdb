@@ -19,6 +19,8 @@ import {
   updateTimeMachineCheck,
 } from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
+import {notify} from 'src/shared/actions/notifications'
+import {updateCheckFailed} from 'src/shared/copy/notifications'
 
 // Types
 import {
@@ -37,6 +39,7 @@ interface DispatchProps {
   onSetActiveTimeMachine: typeof setActiveTimeMachine
   onSetTimeMachineCheck: typeof setTimeMachineCheck
   onExecuteQueries: typeof executeQueries
+  onNotify: typeof notify
 }
 
 interface StateProps {
@@ -55,6 +58,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onGetCheckForTimeMachine,
   onUpdateTimeMachineCheck,
   onSetTimeMachineCheck,
+  onNotify,
   activeTimeMachineID,
   checkStatus,
   router,
@@ -80,10 +84,15 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
     onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // todo: update view when check has own view
-    onUpdateCheck({...check, query})
-    handleClose()
+    try {
+      await onUpdateCheck({...check, query})
+      handleClose()
+    } catch (e) {
+      console.error(e)
+      onNotify(updateCheckFailed(e.message))
+    }
   }
 
   let loadingStatus = RemoteDataState.Loading
@@ -144,6 +153,7 @@ const mdtp: DispatchProps = {
   onSetActiveTimeMachine: setActiveTimeMachine,
   onGetCheckForTimeMachine: getCheckForTimeMachine,
   onExecuteQueries: executeQueries,
+  onNotify: notify,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
