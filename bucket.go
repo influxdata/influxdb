@@ -18,6 +18,17 @@ func (bt BucketType) String() string {
 	return [...]string{"tasks", "monitoring"}[bt-10]
 }
 
+func ParseBucketType(s string) BucketType {
+	switch s {
+	case "tasks":
+		return BucketTypeTasks
+	case "monitoring":
+		return BucketTypeMonitoring
+	default:
+		return BucketTypeUser
+	}
+}
+
 const (
 	// ~*~ User Buckets ~*~
 	BucketTypeUser = BucketType(0) // BucketTypeUser describes a user-created data bucket. Its use of a zero value ensures that it is the default type.
