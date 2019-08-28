@@ -288,6 +288,7 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 		tp, err := influxdb.NewTag(tag)
 		// ignore malformed tag pairs
 		if err != nil {
+		if err == nil {
 			f.Tags = append(f.Tags, tp)
 		}
 	}
