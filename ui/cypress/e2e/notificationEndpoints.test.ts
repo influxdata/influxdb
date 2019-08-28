@@ -50,7 +50,7 @@ describe('Notification Endpoints', () => {
       .click()
       .within(() => {
         cy.getByTestID('endpoint--dropdown--button').within(() => {
-          cy.contains('Slack')
+          cy.contains('HTTP')
         })
 
         cy.getByTestID('endpoint--dropdown-item pagerduty').click()
