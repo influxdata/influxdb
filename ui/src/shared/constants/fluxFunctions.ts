@@ -731,7 +731,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Computes the difference between subsequent non-null records in the specified columns.',
-    example: 'difference(nonNegative: false, columns: "_value")',
+    example: 'difference(nonNegative: false, columns: ["_value"])',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/difference/',
