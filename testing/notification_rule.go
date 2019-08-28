@@ -136,7 +136,7 @@ func CreateNotificationRule(
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
-							TagRules: []influxdb.TagRule{
+							TagRules: []notification.TagRule{
 								{
 									Tag: influxdb.Tag{
 										Key:   "k1",
@@ -182,7 +182,7 @@ func CreateNotificationRule(
 						RunbookLink: "runbooklink1",
 						SleepUntil:  &time3,
 						Every:       mustDuration("1h"),
-						TagRules: []influxdb.TagRule{
+						TagRules: []notification.TagRule{
 							{
 								Tag: influxdb.Tag{
 									Key:   "k1",
@@ -215,7 +215,7 @@ func CreateNotificationRule(
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
-							TagRules: []influxdb.TagRule{
+							TagRules: []notification.TagRule{
 								{
 									Tag: influxdb.Tag{
 										Key:   "k1",
@@ -250,7 +250,7 @@ func CreateNotificationRule(
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
-							TagRules: []influxdb.TagRule{
+							TagRules: []notification.TagRule{
 								{
 									Tag: influxdb.Tag{
 										Key:   "k1",
