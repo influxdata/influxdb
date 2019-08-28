@@ -7,11 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/coreos/bbolt"
-	"go.uber.org/zap"
-
+	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
+	"go.uber.org/zap"
 )
 
 // KVStore is a kv.Store backed by boltdb.

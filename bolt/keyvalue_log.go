@@ -9,8 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coreos/bbolt"
-
+	bolt "github.com/coreos/bbolt"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
