@@ -141,6 +141,7 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		t.LatestCompleted = t.CreatedAt
 	}
 
+	// Attempt to fill in the owner ID based on the auth.
 	if !t.OwnerID.Valid() {
 		authType := struct {
 			AuthorizationID influxdb.ID `json:"authorizationID"`
@@ -152,6 +153,20 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		auth, err := s.findAuthorizationByID(ctx, tx, authType.AuthorizationID)
 		if err == nil {
 			t.OwnerID = auth.GetUserID()
+		}
+	}
+
+	// Attempt to fill in the ownerID based on the organization owners.
+	// If they have multiple owners just use the first one because any org owner
+	// will have sufficient permissions to run a task.
+	if !t.OwnerID.Valid() {
+		owners, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+			ResourceID:   t.OrganizationID,
+			ResourceType: influxdb.OrgsResourceType,
+			UserType:     influxdb.Owner,
+		})
+		if err == nil && len(owners) > 0 {
+			t.OwnerID = owners[0].UserID
 		}
 	}
 
@@ -722,6 +737,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	}
 
 	task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
 	// save the updated task
 	bucket, err := tx.Bucket(taskBucket)
 	if err != nil {
