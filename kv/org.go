@@ -146,12 +146,31 @@ func (s *Service) findOrganizationByName(ctx context.Context, tx Tx, n string) (
 // Filters using ID, or Name should be efficient.
 // Other filters will do a linear scan across organizations until it finds a match.
 func (s *Service) FindOrganization(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	var o *influxdb.Organization
+
+	err := s.kv.View(ctx, func(tx Tx) error {
+		org, err := s.findOrganization(ctx, tx, filter)
+		if err != nil {
+			return err
+		}
+		o = org
+		return nil
+	})
+
+	return o, err
+
+}
+
+func (s *Service) findOrganization(ctx context.Context, tx Tx, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 	if filter.ID != nil {
-		return s.FindOrganizationByID(ctx, *filter.ID)
+		return s.findOrganizationByID(ctx, tx, *filter.ID)
 	}
 
 	if filter.Name != nil {
-		return s.FindOrganizationByName(ctx, *filter.Name)
+		return s.findOrganizationByName(ctx, tx, *filter.Name)
 	}
 
 	// If name and ID are not set, then, this is an invalid usage of the API.
