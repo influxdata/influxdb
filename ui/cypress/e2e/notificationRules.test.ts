@@ -37,12 +37,6 @@ describe('NotificationRules', () => {
 
     cy.getByTestID('rule-name--input').type(ruleName)
 
-    // Rule schedule section
-    cy.getByTestID('rule-schedule-cron').click()
-    cy.getByTestID('rule-schedule-cron--input')
-      .type('2 0 * * *')
-      .should('have.value', '2 0 * * *')
-    cy.getByTestID('rule-schedule-every').click()
     cy.getByTestID('rule-schedule-every--input')
       .type('20m')
       .should('have.value', '20m')

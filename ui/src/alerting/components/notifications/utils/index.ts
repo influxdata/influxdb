@@ -43,23 +43,16 @@ export const getRuleVariantDefaults = (
   }
 }
 
-type Change = 'changes from' | 'equal'
-export const CHANGES: Change[] = ['changes from', 'equal']
+type Change = 'changes from' | 'is equal to'
+export const CHANGES: Change[] = ['changes from', 'is equal to']
 
 export const activeChange = (status: StatusRuleDraft) => {
-  const {currentLevel, previousLevel} = status.value
+  const {previousLevel} = status.value
 
   if (!!previousLevel) {
     return 'changes from'
   }
-
-  if (currentLevel.operation === 'equal') {
-    return 'equal'
-  }
-
-  throw new Error(
-    'Changed statusRule.currentLevel.operation to unknown operator'
-  )
+  return 'is equal to'
 }
 
 export const previousLevel: LevelRule = {level: 'OK'}
@@ -68,7 +61,7 @@ export const changeStatusRule = (
   status: StatusRuleDraft,
   change: Change
 ): StatusRuleDraft => {
-  if (change === 'equal') {
+  if (change === 'is equal to') {
     return omit(status, 'value.previousLevel') as StatusRuleDraft
   }
 
@@ -81,17 +74,22 @@ export const changeStatusRule = (
 export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
   type: 'http',
   every: '10m',
+  url: '',
   orgID,
   name: '',
   status: 'active',
-  endpointID: '044f0c32550f8000',
-  tagRules: [],
+  endpointID: '',
+  tagRules: [
+    {
+      cid: uuid.v4(),
+      value: {key: '', value: '', operator: 'equal'},
+    },
+  ],
   statusRules: [
     {
-      cid: '',
+      cid: uuid.v4(),
       value: {
-        currentLevel: {operation: 'equal', level: 'WARN'},
-        previousLevel: {operation: 'equal', level: 'OK'},
+        currentLevel: {operation: 'equal', level: 'CRIT'},
         period: '1h',
         count: 1,
       },
@@ -121,7 +119,9 @@ export const draftRuleToRule = (
 
   const statusRules: StatusRule[] = draftRule.statusRules.map(r => r.value)
 
-  const tagRules: TagRule[] = draftRule.tagRules.map(r => r.value)
+  const tagRules: TagRule[] = draftRule.tagRules
+    .map(r => r.value)
+    .filter(tr => tr.key && tr.value)
 
   return {
     ...draftRule,
@@ -129,6 +129,15 @@ export const draftRuleToRule = (
     tagRules,
   } as NotificationRule
 }
+
+export const newTagRuleDraft = () => ({
+  cid: uuid.v4(),
+  value: {
+    key: '',
+    value: '',
+    operator: 'equal' as 'equal',
+  },
+})
 
 // Prepare a persisted rule for editing
 export const ruleToDraftRule = (

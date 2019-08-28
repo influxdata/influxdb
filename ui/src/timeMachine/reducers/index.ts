@@ -847,13 +847,20 @@ export const timeMachineReducer = (
     case 'CHANGE_TIMEMACHINE_CHECK_TYPE':
       return produce(state, draftState => {
         const exCheck = draftState.alerting.check
-        if (action.payload.toType === 'deadman') {
+
+        if (
+          exCheck.type === 'threshold' &&
+          action.payload.toType === 'deadman'
+        ) {
           draftState.alerting.check = {
             ...DEFAULT_DEADMAN_CHECK,
             ...omit(exCheck, ['thresholds', 'type']),
           } as DeadmanCheck
         }
-        if (action.payload.toType === 'threshold') {
+        if (
+          exCheck.type === 'deadman' &&
+          action.payload.toType === 'threshold'
+        ) {
           draftState.alerting.check = {
             ...DEFAULT_THRESHOLD_CHECK,
             ...omit(exCheck, ['timeSince', 'reportZero', 'level', 'type']),

@@ -156,7 +156,7 @@ const CheckCard: FunctionComponent<Props> = ({
           onClone={onClone}
         />
       }
-      metaData={[<>{check.updatedAt.toString()}</>]}
+      metaData={[<>Last updated: {check.updatedAt}</>]}
     />
   )
 }

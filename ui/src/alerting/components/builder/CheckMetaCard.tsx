@@ -4,8 +4,6 @@ import {connect} from 'react-redux'
 
 // Components
 import {
-  Radio,
-  ButtonShape,
   Form,
   ComponentSize,
   TextArea,
@@ -13,23 +11,21 @@ import {
   Wrap,
   ComponentColor,
   Grid,
+  InfluxColors,
 } from '@influxdata/clockface'
 import {Input} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
 
-// Actions
-import {updateTimeMachineCheck, changeCheckType} from 'src/timeMachine/actions'
-
-//Selectors
+// Actions & Selectors
+import {updateTimeMachineCheck} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {Check, AppState, CheckType, CheckTagSet} from 'src/types'
+import {Check, AppState, CheckTagSet} from 'src/types'
 
 interface DispatchProps {
   updateTimeMachineCheck: typeof updateTimeMachineCheck
-  changeCheckType: typeof changeCheckType
 }
 
 interface StateProps {
@@ -38,15 +34,7 @@ interface StateProps {
 
 type Props = DispatchProps & StateProps
 
-const CheckMetaCard: FC<Props> = ({
-  updateTimeMachineCheck,
-  changeCheckType,
-  check,
-}) => {
-  const handleChangeType = (type: CheckType) => {
-    changeCheckType(type)
-  }
-
+const CheckMetaCard: FC<Props> = ({updateTimeMachineCheck, check}) => {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -64,32 +52,14 @@ const CheckMetaCard: FC<Props> = ({
     updateTimeMachineCheck({tags})
   }
 
+  const handleRemoveTagRow = (index: number) => {
+    let tags = [...check.tags]
+    tags = tags.filter((_, i) => i !== index)
+    updateTimeMachineCheck({tags})
+  }
+
   return (
     <>
-      <Form.Element label="Check Type">
-        <Radio shape={ButtonShape.StretchToFit}>
-          <Radio.Button
-            key="threshold"
-            id="threshold"
-            titleText="threshold"
-            value="threshold"
-            active={check.type === 'threshold'}
-            onClick={handleChangeType}
-          >
-            Threshold
-          </Radio.Button>
-          <Radio.Button
-            key="deadman"
-            id="deadman"
-            titleText="deadman"
-            value="deadman"
-            active={check.type === 'deadman'}
-            onClick={handleChangeType}
-          >
-            Deadman
-          </Radio.Button>
-        </Radio>
-      </Form.Element>
       <Form.Element label="Name">
         <Input
           autoFocus={true}
@@ -124,7 +94,7 @@ const CheckMetaCard: FC<Props> = ({
       <Grid>
         <Grid.Row>
           <Grid.Column widthSM={6}>
-            <Form.Element label="Run this check every">
+            <Form.Element label="Schedule every">
               <Input
                 name="every"
                 onChange={handleChange}
@@ -138,13 +108,15 @@ const CheckMetaCard: FC<Props> = ({
               <Input
                 name="offset"
                 onChange={handleChange}
-                titleText="Offset check interval"
+                titleText="Check offset interval"
                 value={check.offset}
               />
             </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Grid>
+      <Form.Label label="Tags :" />
+      <Form.Divider lineColor={InfluxColors.Smoke} />
       {check.tags &&
         check.tags.map((t, i) => (
           <CheckTagRow
@@ -152,6 +124,7 @@ const CheckMetaCard: FC<Props> = ({
             index={i}
             tagSet={t}
             handleChangeTagRow={handleChangeTagRow}
+            handleRemoveTagRow={handleRemoveTagRow}
           />
         ))}
       <DashedButton
@@ -174,7 +147,6 @@ const mstp = (state: AppState): StateProps => {
 
 const mdtp: DispatchProps = {
   updateTimeMachineCheck: updateTimeMachineCheck,
-  changeCheckType: changeCheckType,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

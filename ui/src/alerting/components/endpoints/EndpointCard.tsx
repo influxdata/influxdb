@@ -172,7 +172,7 @@ const EndpointCard: FC<Props> = ({
       description={descriptionComponent}
       labels={labelsComponent}
       disabled={status === 'inactive'}
-      metaData={[<>{endpoint.updatedAt}</>]}
+      metaData={[<>Last updated: {endpoint.updatedAt}</>]}
       testID={`endpoint-card ${name}`}
     />
   )

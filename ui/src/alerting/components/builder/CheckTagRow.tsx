@@ -2,7 +2,16 @@
 import React, {FC} from 'react'
 
 // Components
-import {Grid, Input, Form} from '@influxdata/clockface'
+import {
+  Input,
+  Panel,
+  DismissButton,
+  TextBlock,
+  FlexBox,
+  ComponentSize,
+  FlexDirection,
+  ComponentColor,
+} from '@influxdata/clockface'
 
 // Types
 import {CheckTagSet} from 'src/types'
@@ -11,37 +20,52 @@ interface Props {
   index: number
   tagSet: CheckTagSet
   handleChangeTagRow: (i: number, tags: CheckTagSet) => void
+  handleRemoveTagRow: (i: number) => void
 }
 
-const CheckTagRow: FC<Props> = ({tagSet, handleChangeTagRow, index}) => {
+const CheckTagRow: FC<Props> = ({
+  tagSet,
+  index,
+  handleChangeTagRow,
+  handleRemoveTagRow,
+}) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     handleChangeTagRow(index, {...tagSet, [e.target.name]: e.target.value})
   }
+
+  const handleRemove = () => {
+    handleRemoveTagRow(index)
+  }
+
   return (
-    <Grid>
-      <Grid.Row>
-        <Grid.Column widthSM={6}>
-          <Form.Element label="Tag Key">
+    <Panel testID="tag-rule" size={ComponentSize.ExtraSmall}>
+      <DismissButton onClick={handleRemove} color={ComponentColor.Default} />
+      <Panel.Body>
+        <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
+          <FlexBox.Child grow={1}>
             <Input
+              testID="tag-rule-key--input"
+              placeholder="Tag"
+              value={tagSet.key}
               name="key"
               onChange={handleChange}
-              titleText="Name of the check"
-              value={tagSet.key}
             />
-          </Form.Element>
-        </Grid.Column>
-        <Grid.Column widthSM={6}>
-          <Form.Element label="Tag Value">
+          </FlexBox.Child>
+          <FlexBox.Child grow={0} basis={20}>
+            <TextBlock text="=" />
+          </FlexBox.Child>
+          <FlexBox.Child grow={1}>
             <Input
+              testID="tag-rule-key--input"
+              placeholder="Value"
+              value={tagSet.value}
               name="value"
               onChange={handleChange}
-              titleText="Offset check interval"
-              value={tagSet.value}
             />
-          </Form.Element>
-        </Grid.Column>
-      </Grid.Row>
-    </Grid>
+          </FlexBox.Child>
+        </FlexBox>
+      </Panel.Body>
+    </Panel>
   )
 }
 

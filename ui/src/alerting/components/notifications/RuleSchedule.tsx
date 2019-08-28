@@ -2,18 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {
-  Radio,
-  Form,
-  Input,
-  InputType,
-  Grid,
-  Columns,
-  ButtonShape,
-} from '@influxdata/clockface'
-
-// Utils
-import {useRuleDispatch} from './RuleOverlayProvider'
+import {Form, Input, InputType, Grid, Columns} from '@influxdata/clockface'
 
 // Types
 import {RuleState} from './RuleOverlay.reducer'
@@ -24,62 +13,19 @@ interface Props {
 }
 
 const RuleSchedule: FC<Props> = ({rule, onChange}) => {
-  const {cron, every, offset} = rule
-  const dispatch = useRuleDispatch()
-
-  const isEvery = rule.hasOwnProperty('every')
-  const label = isEvery ? 'Every' : 'Cron'
-  const name = isEvery ? 'every' : 'cron'
-  const placeholder = isEvery ? '1d3h30s' : '0 2 * * *'
-  const value = isEvery ? every : cron
+  const {every, offset} = rule
 
   return (
     <Grid.Row>
       <Grid.Column widthXS={Columns.Four}>
-        <Form.Element label="Schedule">
-          <Radio shape={ButtonShape.StretchToFit}>
-            <Radio.Button
-              id="every"
-              testID="rule-schedule-every"
-              active={isEvery}
-              value="every"
-              titleText="Run task at regular intervals"
-              onClick={() =>
-                dispatch({
-                  type: 'SET_ACTIVE_SCHEDULE',
-                  schedule: 'every',
-                })
-              }
-            >
-              Every
-            </Radio.Button>
-            <Radio.Button
-              id="cron"
-              testID="rule-schedule-cron"
-              active={!isEvery}
-              value="cron"
-              titleText="Use cron syntax for more control over scheduling"
-              onClick={() =>
-                dispatch({
-                  type: 'SET_ACTIVE_SCHEDULE',
-                  schedule: 'cron',
-                })
-              }
-            >
-              Cron
-            </Radio.Button>
-          </Radio>
-        </Form.Element>
-      </Grid.Column>
-      <Grid.Column widthXS={Columns.Four}>
-        <Form.Element label={label}>
+        <Form.Element label="Schedule Every">
           <Input
-            value={value}
-            name={name}
+            value={every}
+            name="every"
             type={InputType.Text}
-            placeholder={placeholder}
+            placeholder="1d3h30s"
             onChange={onChange}
-            testID={`rule-schedule-${name}--input`}
+            testID="rule-schedule-every--input"
           />
         </Form.Element>
       </Grid.Column>
