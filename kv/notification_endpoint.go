@@ -118,15 +118,6 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 	edp.SetUpdatedAt(now)
 	edp.BackfillSecretKeys()
 
-	for _, fld := range edp.SecretFields() {
-		if fld.Value != nil {
-			if err := s.putSecret(ctx, tx, edp.GetOrgID(),
-				fld.Key, *fld.Value); err != nil {
-				return InternalNotificationEndpointStoreError(err)
-			}
-		}
-	}
-
 	if err := s.putNotificationEndpoint(ctx, tx, edp); err != nil {
 		return err
 	}
@@ -224,14 +215,6 @@ func (s *Service) updateNotificationEndpoint(ctx context.Context, tx Tx, id infl
 	edp.SetUpdatedAt(s.TimeGenerator.Now())
 
 	edp.BackfillSecretKeys()
-	for _, fld := range edp.SecretFields() {
-		if fld.Value != nil {
-			if err = s.putSecret(ctx, tx, edp.GetOrgID(),
-				fld.Key, *fld.Value); err != nil {
-				return nil, InternalNotificationEndpointStoreError(err)
-			}
-		}
-	}
 
 	err = s.putNotificationEndpoint(ctx, tx, edp)
 	return edp, err
@@ -308,14 +291,6 @@ func (s *Service) PutNotificationEndpoint(ctx context.Context, edp influxdb.Noti
 func (s *Service) putNotificationEndpoint(ctx context.Context, tx Tx, edp influxdb.NotificationEndpoint) error {
 	if err := edp.Valid(); err != nil {
 		return err
-	}
-	for _, k := range edp.SecretFields() {
-		if _, err := s.loadSecret(ctx, tx, edp.GetOrgID(), string(k.Key)); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "Unable to locate secret key: " + string(k.Key),
-			}
-		}
 	}
 	encodedID, _ := edp.GetID().Encode()
 
@@ -511,29 +486,25 @@ func filterNotificationEndpointsFn(filter influxdb.NotificationEndpointFilter) f
 }
 
 // DeleteNotificationEndpoint removes a notification endpoint by ID.
-func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) error {
-	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.deleteNotificationEndpoint(ctx, tx, id)
+func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
+	err = s.kv.Update(ctx, func(tx Tx) error {
+		flds, orgID, err = s.deleteNotificationEndpoint(ctx, tx, id)
+		return err
 	})
+	return flds, orgID, err
 }
 
-func (s *Service) deleteNotificationEndpoint(ctx context.Context, tx Tx, id influxdb.ID) error {
+func (s *Service) deleteNotificationEndpoint(ctx context.Context, tx Tx, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
 	edp, encID, bucket, err := s.findNotificationEndpointByID(ctx, tx, id)
 	if err != nil {
-		return err
+		return nil, 0, err
 	}
 
 	if err = bucket.Delete(encID); err != nil {
-		return InternalNotificationEndpointStoreError(err)
+		return nil, 0, InternalNotificationEndpointStoreError(err)
 	}
 
-	for _, fld := range edp.SecretFields() {
-		if err := s.deleteSecret(ctx, tx, edp.GetOrgID(), fld.Key); err != nil {
-			InternalNotificationEndpointStoreError(err)
-		}
-	}
-
-	return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
+	return edp.SecretFields(), edp.GetOrgID(), s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceID:   id,
 		ResourceType: influxdb.NotificationEndpointResourceType,
 	})
