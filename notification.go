@@ -70,7 +70,7 @@ type TagPair struct {
 	Value string
 }
 
-// NewTagPair generates a tag pair from a string in the format key:vale.
+// NewTagPair generates a tag pair from a string in the format key:value.
 func NewTagPair(s string) (TagPair, error) {
 	var tagPair TagPair
 
@@ -78,7 +78,7 @@ func NewTagPair(s string) (TagPair, error) {
 	if !matched || err != nil {
 		return tagPair, &Error{
 			Code: EInvalid,
-			Msg:  `tag must be in form tag:pair`,
+			Msg:  `tag must be in form key:value`,
 		}
 	}
 
@@ -87,6 +87,10 @@ func NewTagPair(s string) (TagPair, error) {
 	tagPair.Value = slice[1]
 
 	return tagPair, nil
+}
+
+func (tp *TagPair) String() string {
+	return strings.Join([]string{tp.Key, tp.Value}, ":")
 }
 
 // QueryParams Converts NotificationRuleFilter fields to url query params.
@@ -99,6 +103,11 @@ func (f NotificationRuleFilter) QueryParams() map[string][]string {
 
 	if f.Organization != nil {
 		qp["org"] = []string{*f.Organization}
+	}
+
+	qp["tag"] = []string{}
+	for _, tp := range f.TagPairs {
+		qp["tag"] = append(qp["tag"], tp.String())
 	}
 
 	return qp
