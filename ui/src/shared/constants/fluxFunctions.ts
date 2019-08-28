@@ -2778,7 +2778,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'This is both an aggregate and selector function depending on the `method` used. When using the `estimate_tdigest` or `exact_mean` methods, it outputs non-null records with values that fall within the specified quantile. When using the `exact_selector` method, it outputs the non-null record with the value that represents the specified quantile.',
     example:
-      'quantile(column: "_value", q: 0.99, method: "estimate_tdigest", compression: 1000)',
+      'quantile(column: "_value", q: 0.99, method: "estimate_tdigest", compression: 1000.0)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/quantile/',
