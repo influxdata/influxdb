@@ -386,12 +386,24 @@ func filterNotificationRulesFn(
 	filter influxdb.NotificationRuleFilter) func(nr influxdb.NotificationRule) bool {
 	if filter.OrgID != nil {
 		return func(nr influxdb.NotificationRule) bool {
+			for _, ft := range filter.Tags {
+				if !nr.HasTag(ft.Key, ft.Value) {
+					return false
+				}
+			}
+
 			_, ok := idMap[nr.GetID()]
 			return nr.GetOrgID() == *filter.OrgID && ok
 		}
 	}
 
 	return func(nr influxdb.NotificationRule) bool {
+		for _, ft := range filter.Tags {
+			if !nr.HasTag(ft.Key, ft.Value) {
+				return false
+			}
+		}
+
 		_, ok := idMap[nr.GetID()]
 		return ok
 	}
