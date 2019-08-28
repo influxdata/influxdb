@@ -262,6 +262,13 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 			Err: err,
 		}
 	}
+
+	if err := s.createSystemBuckets(ctx, tx, o.ID); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
 	return nil
 }
 

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 )
 
@@ -23,8 +23,8 @@ var bucketCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
 	}),
-	cmp.Transformer("Sort", func(in []*platform.Bucket) []*platform.Bucket {
-		out := append([]*platform.Bucket(nil), in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*influxdb.Bucket) []*influxdb.Bucket {
+		out := append([]*influxdb.Bucket(nil), in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID.String() > out[j].ID.String()
 		})
@@ -34,20 +34,20 @@ var bucketCmpOptions = cmp.Options{
 
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
-	IDGenerator   platform.IDGenerator
-	TimeGenerator platform.TimeGenerator
-	Buckets       []*platform.Bucket
-	Organizations []*platform.Organization
+	IDGenerator   influxdb.IDGenerator
+	TimeGenerator influxdb.TimeGenerator
+	Buckets       []*influxdb.Bucket
+	Organizations []*influxdb.Organization
 }
 
 type bucketServiceF func(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 )
 
 // BucketService tests all the service functions.
 func BucketService(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	tests := []struct {
@@ -88,15 +88,15 @@ func BucketService(
 
 // CreateBucket testing
 func CreateBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		bucket *platform.Bucket
+		bucket *influxdb.Bucket
 	}
 	type wants struct {
 		err     error
-		buckets []*platform.Bucket
+		buckets []*influxdb.Bucket
 	}
 
 	tests := []struct {
@@ -110,8 +110,8 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets:       []*platform.Bucket{},
-				Organizations: []*platform.Organization{
+				Buckets:       []*influxdb.Bucket{},
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -119,20 +119,20 @@ func CreateBucket(
 				},
 			},
 			args: args{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					Name:        "name1",
 					OrgID:       MustIDBase16(orgOneID),
 					Description: "desc1",
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						Name:        "name1",
 						ID:          MustIDBase16(bucketOneID),
 						OrgID:       MustIDBase16(orgOneID),
 						Description: "desc1",
-						CRUDLog: platform.CRUDLog{
+						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 						},
@@ -144,19 +144,19 @@ func CreateBucket(
 			name: "basic create bucket",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() influxdb.ID {
 						return MustIDBase16(bucketTwoID)
 					},
 				},
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						Name:  "bucket1",
 						OrgID: MustIDBase16(orgOneID),
 					},
 				},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -168,13 +168,13 @@ func CreateBucket(
 				},
 			},
 			args: args{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					Name:  "bucket2",
 					OrgID: MustIDBase16(orgTwoID),
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						Name:  "bucket1",
@@ -184,7 +184,7 @@ func CreateBucket(
 						ID:    MustIDBase16(bucketTwoID),
 						Name:  "bucket2",
 						OrgID: MustIDBase16(orgTwoID),
-						CRUDLog: platform.CRUDLog{
+						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 						},
@@ -196,19 +196,19 @@ func CreateBucket(
 			name: "names should be unique within an organization",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() influxdb.ID {
 						return MustIDBase16(bucketTwoID)
 					},
 				},
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						Name:  "bucket1",
 						OrgID: MustIDBase16(orgOneID),
 					},
 				},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -220,22 +220,22 @@ func CreateBucket(
 				},
 			},
 			args: args{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					Name:  "bucket1",
 					OrgID: MustIDBase16(orgOneID),
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						Name:  "bucket1",
 						OrgID: MustIDBase16(orgOneID),
 					},
 				},
-				err: &platform.Error{
-					Code: platform.EConflict,
-					Op:   platform.OpCreateBucket,
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateBucket,
 					Msg:  fmt.Sprintf("bucket with name bucket1 already exists"),
 				},
 			},
@@ -244,12 +244,12 @@ func CreateBucket(
 			name: "names should not be unique across organizations",
 			fields: BucketFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() platform.ID {
+					IDFn: func() influxdb.ID {
 						return MustIDBase16(bucketTwoID)
 					},
 				},
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -259,7 +259,7 @@ func CreateBucket(
 						ID:   MustIDBase16(orgTwoID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						Name:  "bucket1",
@@ -268,13 +268,13 @@ func CreateBucket(
 				},
 			},
 			args: args{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					Name:  "bucket1",
 					OrgID: MustIDBase16(orgTwoID),
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						Name:  "bucket1",
@@ -284,7 +284,7 @@ func CreateBucket(
 						ID:    MustIDBase16(bucketTwoID),
 						Name:  "bucket1",
 						OrgID: MustIDBase16(orgTwoID),
-						CRUDLog: platform.CRUDLog{
+						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 						},
@@ -297,21 +297,21 @@ func CreateBucket(
 			fields: BucketFields{
 				IDGenerator:   mock.NewIDGenerator(bucketOneID, t),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Buckets:       []*platform.Bucket{},
-				Organizations: []*platform.Organization{},
+				Buckets:       []*influxdb.Bucket{},
+				Organizations: []*influxdb.Organization{},
 			},
 			args: args{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					Name:  "name1",
 					OrgID: MustIDBase16(orgOneID),
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{},
-				err: &platform.Error{
-					Code: platform.ENotFound,
+				buckets: []*influxdb.Bucket{},
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
 					Msg:  "organization not found",
-					Op:   platform.OpCreateBucket,
+					Op:   influxdb.OpCreateBucket,
 				},
 			},
 		},
@@ -330,7 +330,7 @@ func CreateBucket(
 			defer s.DeleteBucket(ctx, tt.args.bucket.ID)
 			// }
 
-			buckets, _, err := s.FindBuckets(ctx, platform.BucketFilter{})
+			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
 			if err != nil {
 				t.Fatalf("failed to retrieve buckets: %v", err)
 			}
@@ -343,15 +343,15 @@ func CreateBucket(
 
 // FindBucketByID testing
 func FindBucketByID(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		id platform.ID
+		id influxdb.ID
 	}
 	type wants struct {
 		err    error
-		bucket *platform.Bucket
+		bucket *influxdb.Bucket
 	}
 
 	tests := []struct {
@@ -363,7 +363,7 @@ func FindBucketByID(
 		{
 			name: "basic find bucket by id",
 			fields: BucketFields{
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -375,7 +375,7 @@ func FindBucketByID(
 						Name:  "bucket2",
 					},
 				},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -386,7 +386,7 @@ func FindBucketByID(
 				id: MustIDBase16(bucketTwoID),
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:    MustIDBase16(bucketTwoID),
 					OrgID: MustIDBase16(orgOneID),
 					Name:  "bucket2",
@@ -396,7 +396,7 @@ func FindBucketByID(
 		{
 			name: "find bucket by id not exist",
 			fields: BucketFields{
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -408,7 +408,7 @@ func FindBucketByID(
 						Name:  "bucket2",
 					},
 				},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -419,9 +419,9 @@ func FindBucketByID(
 				id: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindBucketByID,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindBucketByID,
 					Msg:  "bucket not found",
 				},
 			},
@@ -446,19 +446,19 @@ func FindBucketByID(
 
 // FindBuckets testing
 func FindBuckets(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
-		ID             platform.ID
+		ID             influxdb.ID
 		name           string
 		organization   string
-		organizationID platform.ID
-		findOptions    platform.FindOptions
+		organizationID influxdb.ID
+		findOptions    influxdb.FindOptions
 	}
 
 	type wants struct {
-		buckets []*platform.Bucket
+		buckets []*influxdb.Bucket
 		err     error
 	}
 	tests := []struct {
@@ -470,7 +470,7 @@ func FindBuckets(
 		{
 			name: "find all buckets",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -480,7 +480,7 @@ func FindBuckets(
 						ID:   MustIDBase16(orgTwoID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -495,7 +495,7 @@ func FindBuckets(
 			},
 			args: args{},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -512,13 +512,13 @@ func FindBuckets(
 		{
 			name: "find all buckets by offset and limit",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -537,13 +537,13 @@ func FindBuckets(
 				},
 			},
 			args: args{
-				findOptions: platform.FindOptions{
+				findOptions: influxdb.FindOptions{
 					Offset: 1,
 					Limit:  1,
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketTwoID),
 						OrgID: MustIDBase16(orgOneID),
@@ -555,13 +555,13 @@ func FindBuckets(
 		{
 			name: "find all buckets by descending",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -580,13 +580,13 @@ func FindBuckets(
 				},
 			},
 			args: args{
-				findOptions: platform.FindOptions{
+				findOptions: influxdb.FindOptions{
 					Offset:     1,
 					Descending: true,
 				},
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketTwoID),
 						OrgID: MustIDBase16(orgOneID),
@@ -603,7 +603,7 @@ func FindBuckets(
 		{
 			name: "find buckets by organization name",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -613,7 +613,7 @@ func FindBuckets(
 						ID:   MustIDBase16(orgTwoID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -635,7 +635,7 @@ func FindBuckets(
 				organization: "theorg",
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -652,7 +652,7 @@ func FindBuckets(
 		{
 			name: "find buckets by organization id",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
@@ -662,7 +662,7 @@ func FindBuckets(
 						ID:   MustIDBase16(orgTwoID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -684,7 +684,7 @@ func FindBuckets(
 				organizationID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -701,13 +701,13 @@ func FindBuckets(
 		{
 			name: "find bucket by name",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -724,7 +724,7 @@ func FindBuckets(
 				name: "xyz",
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketTwoID),
 						OrgID: MustIDBase16(orgOneID),
@@ -736,13 +736,13 @@ func FindBuckets(
 		{
 			name: "missing bucket returns no buckets",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{},
+				Buckets: []*influxdb.Bucket{},
 			},
 			args: args{
 				name: "xyz",
@@ -757,7 +757,7 @@ func FindBuckets(
 			defer done()
 			ctx := context.Background()
 
-			filter := platform.BucketFilter{}
+			filter := influxdb.BucketFilter{}
 			if tt.args.ID.Valid() {
 				filter.ID = &tt.args.ID
 			}
@@ -783,7 +783,7 @@ func FindBuckets(
 
 // DeleteBucket testing
 func DeleteBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
@@ -791,7 +791,7 @@ func DeleteBucket(
 	}
 	type wants struct {
 		err     error
-		buckets []*platform.Bucket
+		buckets []*influxdb.Bucket
 	}
 
 	tests := []struct {
@@ -803,13 +803,13 @@ func DeleteBucket(
 		{
 			name: "delete buckets using exist id",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						Name:  "A",
 						ID:    MustIDBase16(bucketOneID),
@@ -826,7 +826,7 @@ func DeleteBucket(
 				ID: bucketOneID,
 			},
 			wants: wants{
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						Name:  "B",
 						ID:    MustIDBase16(bucketThreeID),
@@ -838,13 +838,13 @@ func DeleteBucket(
 		{
 			name: "delete buckets using id that does not exist",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						Name:  "A",
 						ID:    MustIDBase16(bucketOneID),
@@ -861,12 +861,12 @@ func DeleteBucket(
 				ID: "1234567890654321",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Op:   platform.OpDeleteBucket,
+				err: &influxdb.Error{
+					Op:   influxdb.OpDeleteBucket,
 					Msg:  "bucket not found",
-					Code: platform.ENotFound,
+					Code: influxdb.ENotFound,
 				},
-				buckets: []*platform.Bucket{
+				buckets: []*influxdb.Bucket{
 					{
 						Name:  "A",
 						ID:    MustIDBase16(bucketOneID),
@@ -890,7 +890,7 @@ func DeleteBucket(
 			err := s.DeleteBucket(ctx, MustIDBase16(tt.args.ID))
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
-			filter := platform.BucketFilter{}
+			filter := influxdb.BucketFilter{}
 			buckets, _, err := s.FindBuckets(ctx, filter)
 			if err != nil {
 				t.Fatalf("failed to retrieve buckets: %v", err)
@@ -904,16 +904,16 @@ func DeleteBucket(
 
 // FindBucket testing
 func FindBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
 		name           string
-		organizationID platform.ID
+		organizationID influxdb.ID
 	}
 
 	type wants struct {
-		bucket *platform.Bucket
+		bucket *influxdb.Bucket
 		err    error
 	}
 
@@ -926,13 +926,13 @@ func FindBucket(
 		{
 			name: "find bucket by name",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -950,7 +950,7 @@ func FindBucket(
 				organizationID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:    MustIDBase16(bucketOneID),
 					OrgID: MustIDBase16(orgOneID),
 					Name:  "abc",
@@ -960,22 +960,22 @@ func FindBucket(
 		{
 			name: "missing bucket returns error",
 			fields: BucketFields{
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{},
+				Buckets: []*influxdb.Bucket{},
 			},
 			args: args{
 				name:           "xyz",
 				organizationID: MustIDBase16(orgOneID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.ENotFound,
-					Op:   platform.OpFindBucket,
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindBucket,
 					Msg:  "bucket \"xyz\" not found",
 				},
 			},
@@ -987,7 +987,7 @@ func FindBucket(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			filter := platform.BucketFilter{}
+			filter := influxdb.BucketFilter{}
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
@@ -1007,18 +1007,18 @@ func FindBucket(
 
 // UpdateBucket testing
 func UpdateBucket(
-	init func(BucketFields, *testing.T) (platform.BucketService, string, func()),
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
 	t *testing.T,
 ) {
 	type args struct {
 		name        string
-		id          platform.ID
+		id          influxdb.ID
 		retention   int
 		description *string
 	}
 	type wants struct {
 		err    error
-		bucket *platform.Bucket
+		bucket *influxdb.Bucket
 	}
 
 	tests := []struct {
@@ -1031,13 +1031,13 @@ func UpdateBucket(
 			name: "update name",
 			fields: BucketFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -1055,11 +1055,11 @@ func UpdateBucket(
 				name: "changed",
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:    MustIDBase16(bucketOneID),
 					OrgID: MustIDBase16(orgOneID),
 					Name:  "changed",
-					CRUDLog: platform.CRUDLog{
+					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
 				},
@@ -1069,13 +1069,13 @@ func UpdateBucket(
 			name: "update name unique",
 			fields: BucketFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -1093,8 +1093,8 @@ func UpdateBucket(
 				name: "bucket2",
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EConflict,
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
 					Msg:  "bucket name is not unique",
 				},
 			},
@@ -1103,13 +1103,13 @@ func UpdateBucket(
 			name: "update retention",
 			fields: BucketFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -1127,12 +1127,12 @@ func UpdateBucket(
 				retention: 100,
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:              MustIDBase16(bucketOneID),
 					OrgID:           MustIDBase16(orgOneID),
 					Name:            "bucket1",
 					RetentionPeriod: 100 * time.Minute,
-					CRUDLog: platform.CRUDLog{
+					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
 				},
@@ -1142,13 +1142,13 @@ func UpdateBucket(
 			name: "update description",
 			fields: BucketFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -1166,12 +1166,12 @@ func UpdateBucket(
 				description: stringPtr("desc1"),
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:          MustIDBase16(bucketOneID),
 					OrgID:       MustIDBase16(orgOneID),
 					Name:        "bucket1",
 					Description: "desc1",
-					CRUDLog: platform.CRUDLog{
+					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
 				},
@@ -1181,13 +1181,13 @@ func UpdateBucket(
 			name: "update retention and name",
 			fields: BucketFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -1206,12 +1206,12 @@ func UpdateBucket(
 				name:      "changed",
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:              MustIDBase16(bucketTwoID),
 					OrgID:           MustIDBase16(orgOneID),
 					Name:            "changed",
 					RetentionPeriod: 101 * time.Minute,
-					CRUDLog: platform.CRUDLog{
+					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
 				},
@@ -1221,13 +1221,13 @@ func UpdateBucket(
 			name: "update retention and same name",
 			fields: BucketFields{
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*platform.Organization{
+				Organizations: []*influxdb.Organization{
 					{
 						Name: "theorg",
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Buckets: []*platform.Bucket{
+				Buckets: []*influxdb.Bucket{
 					{
 						ID:    MustIDBase16(bucketOneID),
 						OrgID: MustIDBase16(orgOneID),
@@ -1246,12 +1246,12 @@ func UpdateBucket(
 				name:      "bucket2",
 			},
 			wants: wants{
-				bucket: &platform.Bucket{
+				bucket: &influxdb.Bucket{
 					ID:              MustIDBase16(bucketTwoID),
 					OrgID:           MustIDBase16(orgOneID),
 					Name:            "bucket2",
 					RetentionPeriod: 101 * time.Minute,
-					CRUDLog: platform.CRUDLog{
+					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
 				},
@@ -1265,7 +1265,7 @@ func UpdateBucket(
 			defer done()
 			ctx := context.Background()
 
-			upd := platform.BucketUpdate{}
+			upd := influxdb.BucketUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
 			}

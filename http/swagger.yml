@@ -6653,6 +6653,15 @@ components:
         id:
           readOnly: true
           type: string
+        type:
+          readOnly: true
+          type: string
+          description: a read-only type for differentiating special buckets from user-generated buckets
+          default: user
+          enum:
+            - user
+            - tasks
+            - monitoring
         name:
           type: string
         description:
