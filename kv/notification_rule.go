@@ -304,12 +304,14 @@ func (s *Service) findNotificationRules(ctx context.Context, tx Tx, filter influ
 		idMap[item.ResourceID] = false
 	}
 
-	if filter.OrgID != nil || filter.Organization != nil {
-		o, err := s.FindOrganization(ctx, influxdb.OrganizationFilter{
-			ID:   filter.OrgID,
-			Name: filter.Organization,
-		})
-
+	if filter.OrgID != nil {
+		_, err := s.findOrganizationByID(ctx, tx, *filter.OrgID)
+		if err != nil {
+			return nrs, 0, err
+		}
+	}
+	if filter.Organization != nil {
+		o, err := s.findOrganizationByName(ctx, tx, *filter.Organization)
 		if err != nil {
 			return nrs, 0, err
 		}
