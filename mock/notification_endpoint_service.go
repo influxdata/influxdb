@@ -12,13 +12,12 @@ var _ influxdb.NotificationEndpointService = &NotificationEndpointService{}
 type NotificationEndpointService struct {
 	OrganizationService
 	UserResourceMappingService
-	SecretService
 	FindNotificationEndpointByIDF func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error)
 	FindNotificationEndpointsF    func(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error)
 	CreateNotificationEndpointF   func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error
 	UpdateNotificationEndpointF   func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error)
 	PatchNotificationEndpointF    func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error)
-	DeleteNotificationEndpointF   func(ctx context.Context, id influxdb.ID) error
+	DeleteNotificationEndpointF   func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error)
 }
 
 // FindNotificationEndpointByID returns a single telegraf config by ID.
@@ -50,6 +49,6 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 }
 
 // DeleteNotificationEndpoint removes a notification rule by ID.
-func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) error {
+func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
 	return s.DeleteNotificationEndpointF(ctx, id)
 }
