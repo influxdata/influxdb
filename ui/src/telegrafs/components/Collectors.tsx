@@ -102,7 +102,11 @@ class Collectors extends PureComponent<Props, State> {
         </SettingsTabbedPageHeader>
         <Grid>
           <Grid.Row>
-            <Grid.Column widthSM={Columns.Twelve}>
+            <Grid.Column
+              widthXS={Columns.Twelve}
+              widthSM={Columns.Eight}
+              widthMD={Columns.Ten}
+            >
               <NoBucketsWarning
                 visible={this.hasNoBuckets}
                 resourceName="Telegraf Configurations"
@@ -130,10 +134,9 @@ class Collectors extends PureComponent<Props, State> {
               </GetResources>
             </Grid.Column>
             <Grid.Column
-              widthSM={Columns.Six}
-              widthMD={Columns.Four}
-              offsetSM={Columns.Three}
-              offsetMD={Columns.Four}
+              widthXS={Columns.Twelve}
+              widthSM={Columns.Four}
+              widthMD={Columns.Two}
             >
               <TelegrafExplainer />
             </Grid.Column>
@@ -196,7 +199,7 @@ class Collectors extends PureComponent<Props, State> {
 
     onSetDataLoadersType(DataLoaderType.Scraping)
 
-    router.push(`/orgs/${orgID}/telegrafs/new`)
+    router.push(`/orgs/${orgID}/load-data/telegrafs/new`)
   }
 
   private get emptyState(): JSX.Element {
@@ -217,7 +220,10 @@ class Collectors extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Telegraf  Configuration buckets match your query" />
+        <EmptyState.Text
+          text="No Telegraf  Configurations  match your query"
+          highlightWords={['Telegraf', 'Configurations']}
+        />
       </EmptyState>
     )
   }

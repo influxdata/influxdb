@@ -46,6 +46,7 @@ import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
+import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
@@ -265,6 +266,12 @@ class Root extends PureComponent {
                                 component={CreateScraperOverlay}
                               />
                             </Route>
+                            <FeatureFlag name="clientLibrariesPage">
+                              <Route
+                                path="client-libraries"
+                                component={ClientLibrariesPage}
+                              />
+                            </FeatureFlag>
                           </Route>
                           <Route path="tokens" component={TokensIndex}>
                             <Route path="generate">

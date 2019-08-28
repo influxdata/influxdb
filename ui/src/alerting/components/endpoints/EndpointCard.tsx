@@ -36,6 +36,9 @@ import {
 } from 'src/types'
 import {Action} from 'src/alerting/actions/notifications/endpoints'
 
+// Utilities
+import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
+
 interface DispatchProps {
   onDeleteEndpoint: typeof deleteEndpoint
   onAddEndpointLabel: typeof addEndpointLabel
@@ -172,7 +175,9 @@ const EndpointCard: FC<Props> = ({
       description={descriptionComponent}
       labels={labelsComponent}
       disabled={status === 'inactive'}
-      metaData={[<>Last updated: {endpoint.updatedAt}</>]}
+      metaData={[
+        <>{relativeTimestampFormatter(endpoint.updatedAt, 'Last updated ')}</>,
+      ]}
       testID={`endpoint-card ${name}`}
     />
   )

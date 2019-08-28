@@ -25,6 +25,9 @@ import {AppState, Dashboard, Label} from 'src/types'
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants'
 import {resetViews} from 'src/dashboards/actions/views'
 
+// Utilities
+import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
+
 interface PassedProps {
   dashboard: Dashboard
   onDeleteDashboard: (dashboard: Dashboard) => void
@@ -83,7 +86,14 @@ class DashboardCard extends PureComponent<Props> {
             onCreateLabel={this.handleCreateLabel}
           />
         }
-        metaData={[<>Last updated: {dashboard.meta.updatedAt}</>]}
+        metaData={[
+          <>
+            {relativeTimestampFormatter(
+              dashboard.meta.updatedAt,
+              'Last modified '
+            )}
+          </>,
+        ]}
         contextMenu={this.contextMenu}
       />
     )
