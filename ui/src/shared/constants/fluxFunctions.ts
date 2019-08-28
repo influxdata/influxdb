@@ -17,7 +17,7 @@ export const FROM: FluxToolbarFunction = {
   package: '',
   desc:
     'Used to retrieve data from an InfluxDB data source. It returns a stream of tables from the specified bucket. Each unique series is contained within its own table. Each record in the table represents a single point in the series.',
-  example: 'from(bucket: "default")',
+  example: 'from(bucket: "telegraf")',
   category: 'Inputs',
   link:
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/from/',
@@ -3017,7 +3017,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Renames specified columns in a table. If a column is renamed and is part of the group key, the column name in the group key will be updated.',
-    example: 'rename(columns: {host: "server", facility: "datacenter"})',
+    example: 'rename(columns: {host: "server", _field: "my_field"})',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/rename/',
@@ -4396,7 +4396,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for a specific measurement.',
-    example: 'v1.measurementTagKeys(bucket: "default", measurement: "mem")',
+    example: 'v1.measurementTagKeys(bucket: "telegraf", measurement: "mem")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurementtagkeys/',
@@ -4424,7 +4424,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag values for a specific measurement.',
     example:
-      'v1.measurementTagValues(bucket: "default", measurement: "mem", tag: "host")',
+      'v1.measurementTagValues(bucket: "telegraf", measurement: "mem", tag: "host")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurementtagvalues/',
@@ -4440,7 +4440,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of measurements in a specific bucket.',
-    example: 'v1.measurements(bucket: "default")',
+    example: 'v1.measurements(bucket: "telegraf")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurements/',
@@ -4468,7 +4468,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for all series that match the predicate.',
-    example: 'v1.tagKeys(bucket: "default")',
+    example: 'v1.tagKeys(bucket: "telegraf")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/tagkeys/',
@@ -4501,7 +4501,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of unique values for a given tag.',
-    example: 'v1.tagValues(bucket: "default")',
+    example: 'v1.tagValues(bucket: "telegraf")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/tagvalues/',
