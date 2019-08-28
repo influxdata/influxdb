@@ -11,11 +11,14 @@ type BucketType int
 
 // String converts a BucketType into a human-readable string.
 func (bt BucketType) String() string {
-	if bt == 0 {
+	switch bt {
+	case BucketTypeTasks:
+		return "tasks"
+	case BucketTypeMonitoring:
+		return "monitoring"
+	default:
 		return "user"
 	}
-
-	return [...]string{"tasks", "monitoring"}[bt-10]
 }
 
 func ParseBucketType(s string) BucketType {
