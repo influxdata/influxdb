@@ -1,13 +1,18 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent, ChangeEvent, createElement} from 'react'
 import uuid from 'uuid'
 import _ from 'lodash'
 
 // Components
-import {Input, EmptyState, FormElement, Grid} from '@influxdata/clockface'
+import {
+  Input,
+  EmptyState,
+  FormElement,
+  Grid,
+  SelectableCard,
+} from '@influxdata/clockface'
 import {ResponsiveGridSizer} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import CardSelectCard from 'src/clockface/components/card_select/CardSelectCard'
 
 // Constants
 import {
@@ -93,14 +98,15 @@ class StreamingSelector extends PureComponent<Props, State> {
         <ResponsiveGridSizer columns={5}>
           {this.filteredBundles.map(b => {
             return (
-              <CardSelectCard
+              <SelectableCard
                 key={b}
                 id={b}
-                name={b}
+                formName="telegraf-plugins"
                 label={b}
-                checked={this.isCardChecked(b)}
-                onClick={this.handleToggle(b)}
-                image={BUNDLE_LOGOS[b]}
+                testID={`telegraf-plugins--${b}`}
+                selected={this.isCardChecked(b)}
+                onClick={this.handleToggle}
+                image={createElement(BUNDLE_LOGOS[b])}
               />
             )
           })}
@@ -151,7 +157,7 @@ class StreamingSelector extends PureComponent<Props, State> {
     return false
   }
 
-  private handleToggle = (bundle: BundleName) => (): void => {
+  private handleToggle = (bundle: BundleName): void => {
     this.props.onTogglePluginBundle(bundle, this.isCardChecked(bundle))
   }
 
