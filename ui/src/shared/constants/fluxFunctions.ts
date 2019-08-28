@@ -4314,7 +4314,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Sorts a table by columns and keeps only the top n rows.',
-    example: 'top(n:10, cols: ["_value"])',
+    example: 'top(n:10, columns: ["_value"])',
     category: 'Selectors',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/top/',
