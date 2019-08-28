@@ -35,7 +35,7 @@ class CompletionAdvancedButton extends PureComponent<Props> {
     const {router, orgs, onExit} = this.props
     const id = _.get(orgs, '0.id', null)
     if (id) {
-      router.push(`/orgs/${id}/buckets`)
+      router.push(`/orgs/${id}/load-data/buckets`)
     } else {
       onExit()
     }
