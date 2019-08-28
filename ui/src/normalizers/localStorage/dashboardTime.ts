@@ -1,7 +1,10 @@
+// Libraries
 import _ from 'lodash'
+
+// Types
 import {Range} from 'src/dashboards/reducers/ranges'
 
-const dashtime = (ranges: Range[]): Range[] => {
+export const normalizeRanges = (ranges: Range[]): Range[] => {
   if (!Array.isArray(ranges)) {
     return []
   }
@@ -42,5 +45,3 @@ const dashtime = (ranges: Range[]): Range[] => {
 
   return normalized
 }
-
-export default dashtime
