@@ -17,7 +17,7 @@ func TestTagValid(t *testing.T) {
 		{
 			name: "regular status rule",
 			src: notification.TagRule{
-				Tag:      notification.Tag{Key: "k1", Value: "v1"},
+				Tag:      influxdb.Tag{Key: "k1", Value: "v1"},
 				Operator: notification.Equal,
 			},
 		},
@@ -32,7 +32,7 @@ func TestTagValid(t *testing.T) {
 		{
 			name: "empty key",
 			src: notification.TagRule{
-				Tag: notification.Tag{Value: "v1"},
+				Tag: influxdb.Tag{Value: "v1"},
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -42,7 +42,7 @@ func TestTagValid(t *testing.T) {
 		{
 			name: "empty value",
 			src: notification.TagRule{
-				Tag: notification.Tag{Key: "k1"},
+				Tag: influxdb.Tag{Key: "k1"},
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
@@ -52,7 +52,7 @@ func TestTagValid(t *testing.T) {
 		{
 			name: "invalid operator",
 			src: notification.TagRule{
-				Tag: notification.Tag{Key: "k1", Value: "v1"},
+				Tag: influxdb.Tag{Key: "k1", Value: "v1"},
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,

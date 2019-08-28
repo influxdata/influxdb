@@ -8,35 +8,18 @@ import (
 	"github.com/influxdata/influxdb/notification/flux"
 )
 
-// Tag is k/v pair.
-type Tag struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-// Valid returns an error if the tag is missing fields
-func (t Tag) Valid() error {
-	if t.Key == "" || t.Value == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "tag must contain a key and a value",
-		}
-	}
-	return nil
-}
-
 // TagRule is the struct of tag rule.
 type TagRule struct {
-	Tag
+	influxdb.Tag
 	Operator `json:"operator"`
 }
 
 // GenerateFluxAST generates the AST expression for a tag rule.
-func (r TagRule) GenerateFluxAST() ast.Expression {
-	k := flux.Member("r", r.Key)
-	v := flux.String(r.Value)
+func (tr TagRule) GenerateFluxAST() ast.Expression {
+	k := flux.Member("r", tr.Key)
+	v := flux.String(tr.Value)
 
-	switch r.Operator {
+	switch tr.Operator {
 	case Equal:
 		return flux.Equal(k, v)
 		// TODO(desa): have this work for all operator types

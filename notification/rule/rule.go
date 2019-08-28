@@ -195,6 +195,17 @@ func (b *Base) ClearPrivateData() {
 	b.TaskID = 0
 }
 
+// HasTag returns true if the Rule has a matching tagRule
+func (b *Base) HasTag(key, value string) bool {
+	for _, tr := range b.TagRules {
+		if tr.Operator == notification.Equal && tr.Key == key && tr.Value == value {
+			return true
+		}
+	}
+
+	return false
+}
+
 // GetOwnerID returns the owner id.
 func (b Base) GetOwnerID() influxdb.ID {
 	return b.OwnerID

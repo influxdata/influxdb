@@ -32,7 +32,7 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 					Base: check.Base{
 						ID:   10,
 						Name: "moo",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "aaa", Value: "vaaa"},
 							{Key: "bbb", Value: "vbbb"},
 						},
@@ -132,7 +132,7 @@ data
 					Base: check.Base{
 						ID:   10,
 						Name: "moo",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "aaa", Value: "vaaa"},
 							{Key: "bbb", Value: "vbbb"},
 						},
@@ -232,7 +232,7 @@ data
 					Base: check.Base{
 						ID:   10,
 						Name: "moo",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "aaa", Value: "vaaa"},
 							{Key: "bbb", Value: "vbbb"},
 						},

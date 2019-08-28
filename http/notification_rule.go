@@ -283,6 +283,15 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 	} else if orgNameStr := q.Get("org"); orgNameStr != "" {
 		*f.Organization = orgNameStr
 	}
+
+	for _, tag := range q["tag"] {
+		tp, err := influxdb.NewTag(tag)
+		// ignore malformed tag pairs
+		if err == nil {
+			f.Tags = append(f.Tags, tp)
+		}
+	}
+
 	return f, opts, err
 }
 

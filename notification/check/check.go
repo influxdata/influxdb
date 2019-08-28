@@ -30,7 +30,7 @@ type Base struct {
 	// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
 	Offset *notification.Duration `json:"offset,omitempty"`
 
-	Tags []notification.Tag `json:"tags"`
+	Tags []influxdb.Tag `json:"tags"`
 	influxdb.CRUDLog
 }
 

@@ -53,14 +53,14 @@ statuses
 			Every:      mustDuration("1h"),
 			TagRules: []notification.TagRule{
 				{
-					Tag: notification.Tag{
+					Tag: influxdb.Tag{
 						Key:   "foo",
 						Value: "bar",
 					},
 					Operator: notification.Equal,
 				},
 				{
-					Tag: notification.Tag{
+					Tag: influxdb.Tag{
 						Key:   "baz",
 						Value: "bang",
 					},

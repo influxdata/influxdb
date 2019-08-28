@@ -58,7 +58,7 @@ var deadman1 = &check.Deadman{
 		},
 		Every:                 mustDuration("1m"),
 		StatusMessageTemplate: "msg1",
-		Tags: []notification.Tag{
+		Tags: []influxdb.Tag{
 			{Key: "k1", Value: "v1"},
 			{Key: "k2", Value: "v2"},
 		},
@@ -98,7 +98,7 @@ var threshold1 = &check.Threshold{
 				},
 			},
 		},
-		Tags: []notification.Tag{
+		Tags: []influxdb.Tag{
 			{Key: "k11", Value: "v11"},
 		},
 		CRUDLog: influxdb.CRUDLog{
@@ -276,7 +276,7 @@ func CreateCheck(
 						Every:                 mustDuration("1m"),
 						Status:                influxdb.Active,
 						StatusMessageTemplate: "msg1",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k1", Value: "v1"},
 							{Key: "k2", Value: "v2"},
 						},
@@ -327,7 +327,7 @@ func CreateCheck(
 							Description:           "desc1",
 							Status:                influxdb.Active,
 							StatusMessageTemplate: "msg1",
-							Tags: []notification.Tag{
+							Tags: []influxdb.Tag{
 								{Key: "k1", Value: "v1"},
 								{Key: "k2", Value: "v2"},
 							},
@@ -392,7 +392,7 @@ func CreateCheck(
 								},
 							},
 						},
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
 						},
 					},
@@ -474,7 +474,7 @@ func CreateCheck(
 							},
 						},
 						StatusMessageTemplate: "msg1",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k1", Value: "v1"},
 							{Key: "k2", Value: "v2"},
 						},
@@ -539,7 +539,7 @@ func CreateCheck(
 						},
 						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
 							{Key: "k22", Value: "v22"},
 						},
@@ -573,7 +573,7 @@ func CreateCheck(
 							Description:           "desc2",
 							Status:                influxdb.Inactive,
 							StatusMessageTemplate: "msg2",
-							Tags: []notification.Tag{
+							Tags: []influxdb.Tag{
 								{Key: "k11", Value: "v11"},
 								{Key: "k22", Value: "v22"},
 							},
@@ -618,7 +618,7 @@ func CreateCheck(
 						Description:           "desc2",
 						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
 							{Key: "k22", Value: "v22"},
 						},
@@ -1277,7 +1277,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						Status:                inactive,
 						StatusMessageTemplate: "msg2",
 						TaskID:                1,
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
 							{Key: "k22", Value: "v22"},
 							{Key: "k33", Value: "v33"},
@@ -1318,7 +1318,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						Description:           "desc changed",
 						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
 							{Key: "k22", Value: "v22"},
 							{Key: "k33", Value: "v33"},
@@ -1388,7 +1388,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						TaskID:                1,
 						Every:                 mustDuration("1m"),
 						StatusMessageTemplate: "msg2",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
 							{Key: "k22", Value: "v22"},
 							{Key: "k33", Value: "v33"},
@@ -1498,7 +1498,7 @@ func PatchCheck(
 							},
 						},
 						StatusMessageTemplate: "msg1",
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k1", Value: "v1"},
 							{Key: "k2", Value: "v2"},
 						},

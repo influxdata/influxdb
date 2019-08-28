@@ -345,7 +345,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 									Name:   "hello",
 									Status: influxdb.Active,
 									TaskID: 3,
-									Tags: []notification.Tag{
+									Tags: []influxdb.Tag{
 										{Key: "aaa", Value: "vaaa"},
 										{Key: "bbb", Value: "vbbb"},
 									},
@@ -652,7 +652,7 @@ func TestService_handlePostCheck(t *testing.T) {
 						Status:                influxdb.Active,
 						Every:                 mustDuration("5m"),
 						TaskID:                3,
-						Tags: []notification.Tag{
+						Tags: []influxdb.Tag{
 							{Key: "k1", Value: "v1"},
 							{Key: "k2", Value: "v2"},
 						},

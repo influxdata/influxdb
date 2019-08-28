@@ -5379,6 +5379,13 @@ paths:
           description: only show notifications that belong to the specified check
           schema:
             type: string
+        - in: query
+          name: tag
+          description: only show notification rules that match a tag pair. Uses AND logic if multiple tags are specified.
+          schema:
+            type: string
+            pattern: ^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$
+            example: env:prod
       responses:
         '200':
           description: A list of notification rules

@@ -3,6 +3,7 @@ package rule_test
 import (
 	"testing"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/influxdata/influxdb/notification/rule"
@@ -40,14 +41,14 @@ statuses
 			EndpointID: 2,
 			TagRules: []notification.TagRule{
 				{
-					Tag: notification.Tag{
+					Tag: influxdb.Tag{
 						Key:   "foo",
 						Value: "bar",
 					},
 					Operator: notification.Equal,
 				},
 				{
-					Tag: notification.Tag{
+					Tag: influxdb.Tag{
 						Key:   "baz",
 						Value: "bang",
 					},
