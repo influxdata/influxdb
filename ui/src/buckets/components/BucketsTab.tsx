@@ -93,6 +93,11 @@ class BucketsTab extends PureComponent<Props, State> {
 
     return (
       <>
+        <AssetLimitAlert
+          resourceName="buckets"
+          limitStatus={limitStatus}
+          className="load-data--asset-alert"
+        />
         <SettingsTabbedPageHeader>
           <SearchWidget
             placeholderText="Filter buckets..."
@@ -109,7 +114,6 @@ class BucketsTab extends PureComponent<Props, State> {
             titleText={this.createButtonTitleText}
           />
         </SettingsTabbedPageHeader>
-        <AssetLimitAlert resourceName="buckets" limitStatus={limitStatus} />
         <FilterList<PrettyBucket>
           searchTerm={searchTerm}
           searchKeys={['name', 'ruleString', 'labels[].name']}

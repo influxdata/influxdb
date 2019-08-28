@@ -180,14 +180,14 @@ class DashboardPage extends Component<Props> {
               toggleVariablesControlBar={onToggleShowVariablesControls}
               isShowingVariablesControlBar={showVariablesControls}
             />
-            {showVariablesControls && !!dashboard && (
-              <VariablesControlBar dashboardID={dashboard.id} />
-            )}
             <RateLimitAlert
               resources={limitedResources}
               limitStatus={limitStatus}
-              className="dashboard--asset-alert"
+              className="dashboard--rate-alert"
             />
+            {showVariablesControls && !!dashboard && (
+              <VariablesControlBar dashboardID={dashboard.id} />
+            )}
             {!!dashboard && (
               <DashboardComponent
                 dashboard={dashboard}
