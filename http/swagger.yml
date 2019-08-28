@@ -5384,7 +5384,7 @@ paths:
           description: only show notification rules that match a tag pair. Uses AND logic if multiple tags are specified.
           schema:
             type: string
-            pattern: ^[a-zA-Z0-9_]*:[a-zA-Z0-9_]*$
+            pattern: ^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$
             example: env:prod
       responses:
         '200':

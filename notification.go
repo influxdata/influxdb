@@ -3,6 +3,8 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
+	"regexp"
+	"strings"
 )
 
 // Updater is general interface to embed
@@ -58,7 +60,33 @@ type Limit struct {
 type NotificationRuleFilter struct {
 	OrgID        *ID
 	Organization *string
+	TagPairs     []TagPair
 	UserResourceMappingFilter
+}
+
+// TagPair is a tag key-value pair.
+type TagPair struct {
+	Key   string
+	Value string
+}
+
+// NewTagPair generates a tag pair from a string in the format key:vale.
+func NewTagPair(s string) (TagPair, error) {
+	var tagPair TagPair
+
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$`, s)
+	if !matched || err != nil {
+		return tagPair, &Error{
+			Code: EInvalid,
+			Msg:  `tag must be in form tag:pair`,
+		}
+	}
+
+	slice := strings.Split(s, ":")
+	tagPair.Key = slice[0]
+	tagPair.Value = slice[1]
+
+	return tagPair, nil
 }
 
 // QueryParams Converts NotificationRuleFilter fields to url query params.
