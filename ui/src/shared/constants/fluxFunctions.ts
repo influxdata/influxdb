@@ -2682,15 +2682,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The frequency of time windows.',
         type: 'Duration',
       },
-      {
-        name: 'columns',
-        desc: 'Columns to operate on. Defaults to `["_value"]`.',
-        type: 'Array of Strings',
-      },
     ],
     package: '',
     desc: 'Calculates the mean of values grouped into `n` number of points.',
-    example: 'movingAverage(n: 5, columns: ["_value"])',
+    example: 'movingAverage(n: 5)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/movingaverage/',
