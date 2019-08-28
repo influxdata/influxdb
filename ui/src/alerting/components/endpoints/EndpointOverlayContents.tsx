@@ -30,6 +30,13 @@ const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
     })
   }
 
+  const handleChangeParameter = (key: string) => (value: string) => {
+    dispatch({
+      type: 'UPDATE_ENDPOINT',
+      endpoint: {...endpoint, [key]: value},
+    })
+  }
+
   const handleSelectType = (type: NotificationEndpointType) => {
     dispatch({
       type: 'UPDATE_ENDPOINT',
@@ -55,11 +62,10 @@ const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
                 </Form.Element>
                 <Form.Element label="Description">
                   <TextArea
-                    rows={5}
+                    rows={1}
                     className="endpoint-description--textarea"
                     testID="endpoint-description--textarea"
                     name="description"
-                    placeholder="Optional"
                     value={endpoint.description}
                     onChange={handleChange}
                   />
@@ -70,7 +76,11 @@ const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
                     selectedType={endpoint.type}
                   />
                 </Form.Element>
-                <EndpointOptions endpoint={endpoint} onChange={handleChange} />
+                <EndpointOptions
+                  endpoint={endpoint}
+                  onChange={handleChange}
+                  onChangeParameter={handleChangeParameter}
+                />
                 <EndpointOverlayFooter
                   onSave={onSave}
                   saveButtonText={saveButtonText}

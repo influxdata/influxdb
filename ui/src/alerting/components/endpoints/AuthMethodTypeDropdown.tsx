@@ -5,32 +5,32 @@ import React, {FC} from 'react'
 import {Dropdown} from '@influxdata/clockface'
 
 // Types
-import {NotificationEndpointType} from 'src/types'
+import {HTTPAuthMethodType} from 'src/types'
 
-interface EndpointType {
-  id: NotificationEndpointType
-  type: NotificationEndpointType
+interface AuthMethodType {
   name: string
+  type: HTTPAuthMethodType
+  id: HTTPAuthMethodType
 }
 
 interface Props {
   selectedType: string
-  onSelectType: (type: NotificationEndpointType) => void
+  onSelectType: (type: HTTPAuthMethodType) => void
 }
 
-const types: EndpointType[] = [
-  {name: 'HTTP', type: 'http', id: 'http'},
-  {name: 'Slack', type: 'slack', id: 'slack'},
-  {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
+const types: AuthMethodType[] = [
+  {name: 'none', type: 'none', id: 'none'},
+  {name: 'basic', type: 'basic', id: 'basic'},
+  {name: 'bearer', type: 'bearer', id: 'bearer'},
 ]
 
-const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
+const AuthMethodTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
   const items = types.map(({id, type, name}) => (
     <Dropdown.Item
       key={id}
       id={id}
       value={id}
-      testID={`endpoint--dropdown-item ${type}`}
+      testID={`http-authMethod--dropdown-item ${type}`}
       onClick={onSelectType}
     >
       {name}
@@ -41,13 +41,13 @@ const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
 
   if (!selected) {
     throw new Error(
-      'Incorrect endpoint type provided to <EndpointTypeDropdown/>'
+      'Incorrect authMethod type provided to <AuthMethodTypeDropdown/>'
     )
   }
 
   const button = (active, onClick) => (
     <Dropdown.Button
-      testID="endpoint--dropdown--button"
+      testID="http-authMethod--dropdown--button"
       active={active}
       onClick={onClick}
     >
@@ -64,9 +64,9 @@ const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
       button={button}
       menu={menu}
       widthPixels={160}
-      testID="endpoint-change--dropdown"
+      testID="http-authMethod-change--dropdown"
     />
   )
 }
 
-export default EndpointTypeDropdown
+export default AuthMethodTypeDropdown

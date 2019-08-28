@@ -16,10 +16,15 @@ import {
 
 interface Props {
   endpoint: NotificationEndpoint
-  onChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void
+  onChangeParameter: (key: string) => (value: string) => void
 }
 
-const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
+const EndpointOptions: FC<Props> = ({
+  endpoint,
+  onChange,
+  onChangeParameter,
+}) => {
   switch (endpoint.type) {
     case 'slack': {
       const {url, token} = endpoint as SlackNotificationEndpoint
@@ -38,8 +43,6 @@ const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
       )
     }
     case 'http': {
-      // TODO(watts): add webhook type to the `Destination` dropdown
-      // when webhooks are implemented in the backend.
       const {
         url,
         token,
@@ -51,6 +54,8 @@ const EndpointOptions: FC<Props> = ({endpoint, onChange}) => {
       } = endpoint as HTTPNotificationEndpoint
       return (
         <EndpointOptionsHTTP
+          onChange={onChange}
+          onChangeParameter={onChangeParameter}
           url={url}
           token={token}
           username={username}
