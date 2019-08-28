@@ -29,6 +29,9 @@ import {viewableLabels} from 'src/labels/selectors'
 // Types
 import {Check, Label, AppState, AlertHistoryType} from 'src/types'
 
+// Utilities
+import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
+
 interface DispatchProps {
   updateCheck: typeof updateCheck
   deleteCheck: typeof deleteCheck
@@ -156,7 +159,9 @@ const CheckCard: FunctionComponent<Props> = ({
           onClone={onClone}
         />
       }
-      metaData={[<>Last updated: {check.updatedAt}</>]}
+      metaData={[
+        <>{relativeTimestampFormatter(check.updatedAt, 'Last updated ')}</>,
+      ]}
     />
   )
 }

@@ -34,6 +34,9 @@ import {
   AlertHistoryType,
 } from 'src/types'
 
+// Utilities
+import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
+
 interface DispatchProps {
   onUpdateRuleProperties: typeof updateRuleProperties
   deleteNotificationRule: typeof deleteRule
@@ -161,7 +164,9 @@ const RuleCard: FC<Props> = ({
           onDelete={onDelete}
         />
       }
-      metaData={[<>Last updated: {rule.updatedAt}</>]}
+      metaData={[
+        <>{relativeTimestampFormatter(rule.updatedAt, 'Last updated ')}</>,
+      ]}
     />
   )
 }
