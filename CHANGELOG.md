@@ -12,6 +12,7 @@
 
 ### UI Improvements
 1. [14709](https://github.com/influxdata/influxdb/pull/14709): Move Buckets, Telgrafs, and Scrapers pages into a tab called "Load Data" for ease of discovery
+1. [14846](https://github.com/influxdata/influxdb/pull/14846): Standardize formatting of "updated at" timestamp in all resource cards
 
 ### Bug Fixes
 
@@ -20,6 +21,7 @@
 1. [14492](https://github.com/influxdata/influxdb/pull/14492): Fix to surface errors properly as task notifications on create.
 1. [14569](https://github.com/influxdata/influxdb/pull/14569): Fix limiting of get runs for task.
 1. [14779](https://github.com/influxdata/influxdb/pull/14779): Refactor tasks coordinator.
+1. [14846](https://github.com/influxdata/influxdb/pull/14846): Ensure onboarding "advanced" button goes to correct location
 
 ## v2.0.0-alpha.16 [2019-07-25]
 
