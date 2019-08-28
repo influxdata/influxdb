@@ -138,7 +138,7 @@ const CheckPlot: FunctionComponent<Props> = ({
   }
 
   return (
-    <div className="vis-plot-container vis-plot-container--alert-check">
+    <div className="time-series-container time-series-container--alert-check">
       {loading === RemoteDataState.Loading && <GraphLoadingDots />}
       {children(config)}
     </div>

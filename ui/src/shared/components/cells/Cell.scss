@@ -30,7 +30,7 @@ $cell--header-size: 36px;
     padding-top: 0;
   }
 
-  .vis-plot-container {
+  .time-series-container {
     padding-top: $ix-marg-a;
   }
 }
@@ -170,12 +170,12 @@ $cell--header-size: 36px;
   }
 }
 
-.vis-plot-container {
+.time-series-container {
   width: 100%;
   height: 100%;
   padding: $ix-marg-c;
 
-  &.vis-plot-container--alert-check {
+  &.time-series-container--alert-check {
     padding-right: $ix-marg-c + 30px;
     overflow: hidden;
   }

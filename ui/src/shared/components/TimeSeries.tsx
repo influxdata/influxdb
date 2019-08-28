@@ -80,7 +80,7 @@ const defaultState = (): State => ({
 class TimeSeries extends Component<Props & WithRouterProps, State> {
   public static defaultProps = {
     implicitSubmit: true,
-    className: 'vis-plot-container',
+    className: 'time-series-container',
     style: null,
   }
 
@@ -89,6 +89,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   private observer: IntersectionObserver
   private ref: RefObject<HTMLDivElement> = React.createRef()
   private isIntersecting: boolean = false
+  private pendingReload: boolean = true
 
   private pendingResults: Array<CancelBox<RunQueryResult>> = []
 
@@ -96,7 +97,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
     this.observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         const {isIntersecting} = entry
-        if (!this.isIntersecting && isIntersecting) {
+        if (!this.isIntersecting && isIntersecting && this.pendingReload) {
           this.reload()
         }
 
@@ -113,7 +114,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
     }
   }
 
-  public componentWillMount() {
+  public componentWillUnmount() {
     this.observer && this.observer.disconnect()
   }
 
@@ -197,6 +198,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
 
       const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
       const giraffeResult = fromFlux(files.join('\n\n'))
+      this.pendingReload = false
 
       this.setState({
         giraffeResult,
@@ -217,6 +219,8 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         loading: RemoteDataState.Error,
       })
     }
+
+    this.pendingReload = false
   }
 
   private shouldReload(prevProps: Props) {
