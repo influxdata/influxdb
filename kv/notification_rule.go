@@ -116,9 +116,35 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 		Flux:           script,
 		OwnerID:        r.GetOwnerID(),
 		OrganizationID: r.GetOrgID(),
+		Status:         string(r.GetStatus()),
 	}
 
 	t, err := s.createTask(ctx, tx, tc)
+	if err != nil {
+		return nil, err
+	}
+
+	return t, nil
+}
+
+func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule) (*influxdb.Task, error) {
+	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
+	if err != nil {
+		return nil, err
+	}
+
+	script, err := r.GenerateFlux(ep)
+	if err != nil {
+		return nil, err
+	}
+
+	tu := influxdb.TaskUpdate{
+		Flux:        &script,
+		Status:      strPtr(string(r.GetStatus())),
+		Description: strPtr(r.GetDescription()),
+	}
+
+	t, err := s.updateTask(ctx, tx, r.GetTaskID(), tu)
 	if err != nil {
 		return nil, err
 	}
@@ -150,13 +176,8 @@ func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb
 	nr.SetOwnerID(current.GetOwnerID())
 	nr.SetCreatedAt(current.GetCRUDLog().CreatedAt)
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
-	nr.SetTaskID(current.GetTaskID())
 
-	if err := s.deleteTask(ctx, tx, nr.GetTaskID()); err != nil {
-		return nil, err
-	}
-
-	t, err := s.createNotificationTask(ctx, tx, nr)
+	t, err := s.updateNotificationTask(ctx, tx, nr)
 	if err != nil {
 		return nil, err
 	}
@@ -203,6 +224,18 @@ func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.
 		nr.SetStatus(*upd.Status)
 	}
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
+
+	t, err := s.updateTask(ctx, tx, nr.GetTaskID(),
+		influxdb.TaskUpdate{
+			Status:      strPtr(string(nr.GetStatus())),
+			Description: upd.Description,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	nr.SetTaskID(t.ID)
 	err = s.putNotificationRule(ctx, tx, nr)
 	if err != nil {
 		return nil, err
