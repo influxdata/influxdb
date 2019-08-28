@@ -89,16 +89,18 @@ export {
   SMTPNotificationRuleBase,
   SlackNotificationRuleBase,
   PagerDutyNotificationRuleBase,
+  HTTPNotificationRuleBase,
   SMTPNotificationRule,
   SlackNotificationRule,
   PagerDutyNotificationRule,
+  HTTPNotificationRule,
   PagerDutyNotificationEndpoint,
   SlackNotificationEndpoint,
   HTTPNotificationEndpoint,
   NotificationEndpointUpdate,
 } from '../client'
 
-import {Check, Threshold} from '../client'
+import {Check, Threshold, HTTPNotificationEndpoint} from '../client'
 
 export type CheckType = Check['type']
 export type ThresholdType = Threshold['type']
@@ -106,3 +108,6 @@ export type ThresholdType = Threshold['type']
 export type CheckTagSet = Check['tags'][0]
 
 export type AlertHistoryType = 'statuses' | 'notifications'
+
+export type HTTPMethodType = HTTPNotificationEndpoint['method']
+export type HTTPAuthMethodType = HTTPNotificationEndpoint['authMethod']

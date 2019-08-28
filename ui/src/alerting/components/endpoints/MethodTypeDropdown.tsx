@@ -5,32 +5,32 @@ import React, {FC} from 'react'
 import {Dropdown} from '@influxdata/clockface'
 
 // Types
-import {NotificationEndpointType} from 'src/types'
+import {HTTPMethodType} from 'src/types'
 
-interface EndpointType {
-  id: NotificationEndpointType
-  type: NotificationEndpointType
+interface MethodType {
   name: string
+  type: HTTPMethodType
+  id: HTTPMethodType
 }
 
 interface Props {
   selectedType: string
-  onSelectType: (type: NotificationEndpointType) => void
+  onSelectType: (type: HTTPMethodType) => void
 }
 
-const types: EndpointType[] = [
-  {name: 'HTTP', type: 'http', id: 'http'},
-  {name: 'Slack', type: 'slack', id: 'slack'},
-  {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
+const types: MethodType[] = [
+  {name: 'POST', type: 'POST', id: 'POST'},
+  {name: 'GET', type: 'GET', id: 'GET'},
+  {name: 'PUT', type: 'PUT', id: 'PUT'},
 ]
 
-const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
+const MethodTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
   const items = types.map(({id, type, name}) => (
     <Dropdown.Item
       key={id}
       id={id}
       value={id}
-      testID={`endpoint--dropdown-item ${type}`}
+      testID={`http-method--dropdown-item ${type}`}
       onClick={onSelectType}
     >
       {name}
@@ -40,14 +40,12 @@ const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
   const selected = types.find(t => t.type === selectedType)
 
   if (!selected) {
-    throw new Error(
-      'Incorrect endpoint type provided to <EndpointTypeDropdown/>'
-    )
+    throw new Error('Incorrect method type provided to <MethodTypeDropdown/>')
   }
 
   const button = (active, onClick) => (
     <Dropdown.Button
-      testID="endpoint--dropdown--button"
+      testID="http-method--dropdown--button"
       active={active}
       onClick={onClick}
     >
@@ -64,9 +62,9 @@ const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
       button={button}
       menu={menu}
       widthPixels={160}
-      testID="endpoint-change--dropdown"
+      testID="http-method-change--dropdown"
     />
   )
 }
 
-export default EndpointTypeDropdown
+export default MethodTypeDropdown

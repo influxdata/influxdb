@@ -15,12 +15,14 @@ import {
   NotificationRule,
   NotificationRuleDraft,
   NewNotificationRule,
+  HTTPNotificationRuleBase,
 } from 'src/types'
 
 type RuleVariantFields =
   | SlackNotificationRuleBase
   | SMTPNotificationRuleBase
   | PagerDutyNotificationRuleBase
+  | HTTPNotificationRuleBase
 
 export const getRuleVariantDefaults = (
   endpoints: NotificationEndpoint[],
@@ -35,6 +37,10 @@ export const getRuleVariantDefaults = (
 
     case 'pagerduty': {
       return {messageTemplate: '', type: 'pagerduty'}
+    }
+
+    case 'http': {
+      return {type: 'http', url: ''}
     }
 
     default: {
