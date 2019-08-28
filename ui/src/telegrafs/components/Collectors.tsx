@@ -199,7 +199,7 @@ class Collectors extends PureComponent<Props, State> {
 
     onSetDataLoadersType(DataLoaderType.Scraping)
 
-    router.push(`/orgs/${orgID}/telegrafs/new`)
+    router.push(`/orgs/${orgID}/load-data/telegrafs/new`)
   }
 
   private get emptyState(): JSX.Element {
@@ -220,7 +220,10 @@ class Collectors extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Telegraf  Configuration buckets match your query" />
+        <EmptyState.Text
+          text="No Telegraf  Configurations  match your query"
+          highlightWords={['Telegraf', 'Configurations']}
+        />
       </EmptyState>
     )
   }

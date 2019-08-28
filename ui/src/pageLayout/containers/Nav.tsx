@@ -68,6 +68,7 @@ class SideNav extends PureComponent<Props, State> {
     const bucketsLink = `${orgPrefix}/load-data/buckets`
     const telegrafsLink = `${orgPrefix}/load-data/telegrafs`
     const scrapersLink = `${orgPrefix}/load-data/scrapers`
+    const clientLibrariesLink = `${orgPrefix}/load-data/client-libraries`
     const settingsLink = `${orgPrefix}/settings`
     const feedbackLink =
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
@@ -204,6 +205,20 @@ class SideNav extends PureComponent<Props, State> {
             active={getNavItemActivation(['scrapers'], location.pathname)}
             key="scrapers"
           />
+          <FeatureFlag name="clientLibrariesPage">
+            <NavMenu.SubItem
+              titleLink={className => (
+                <Link to={clientLibrariesLink} className={className}>
+                  Client Libraries
+                </Link>
+              )}
+              active={getNavItemActivation(
+                ['client-libraries'],
+                location.pathname
+              )}
+              key="client-libraries"
+            />
+          </FeatureFlag>
         </NavMenu.Item>
         <NavMenu.Item
           titleLink={className => (

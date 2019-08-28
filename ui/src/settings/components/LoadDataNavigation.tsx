@@ -11,6 +11,7 @@ import {
   ComponentSize,
   InfluxColors,
 } from '@influxdata/clockface'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -37,16 +38,25 @@ class LoadDataNavigation extends PureComponent<Props> {
         text: 'Buckets',
         id: 'buckets',
         cloudExclude: false,
+        featureFlag: null,
       },
       {
         text: 'Telegraf',
         id: 'telegrafs',
         cloudExclude: false,
+        featureFlag: null,
       },
       {
         text: 'Scrapers',
         id: 'scrapers',
         cloudExclude: true,
+        featureFlag: null,
+      },
+      {
+        text: 'Client Libraries',
+        id: 'client-libraries',
+        cloudExclude: false,
+        featureFlag: 'clientLibrariesPage',
       },
     ]
 
@@ -57,21 +67,7 @@ class LoadDataNavigation extends PureComponent<Props> {
         backgroundColor={`${chroma(`${InfluxColors.Castle}`).alpha(0.1)}`}
       >
         {tabs.map(t => {
-          if (t.cloudExclude) {
-            return (
-              <CloudExclude key={t.id}>
-                <Tabs.Tab
-                  text={t.text}
-                  id={t.id}
-                  onClick={handleTabClick}
-                  active={t.id === activeTab}
-                  size={ComponentSize.Large}
-                  backgroundColor={InfluxColors.Castle}
-                />
-              </CloudExclude>
-            )
-          }
-          return (
+          let tabElement = (
             <Tabs.Tab
               key={t.id}
               text={t.text}
@@ -82,6 +78,19 @@ class LoadDataNavigation extends PureComponent<Props> {
               backgroundColor={InfluxColors.Castle}
             />
           )
+
+          if (t.cloudExclude) {
+            tabElement = <CloudExclude key={t.id}>{tabElement}</CloudExclude>
+          }
+
+          if (t.featureFlag) {
+            tabElement = (
+              <FeatureFlag key={t.id} name={t.featureFlag}>
+                {tabElement}
+              </FeatureFlag>
+            )
+          }
+          return tabElement
         })}
       </Tabs>
     )
