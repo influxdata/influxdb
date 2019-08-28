@@ -48,6 +48,36 @@ type NotificationRule interface {
 	GenerateFlux(NotificationEndpoint) (string, error)
 }
 
+// NotificationRuleStore represents a service for managing notification rule.
+type NotificationRuleStore interface {
+	// UserResourceMappingService must be part of all NotificationRuleStore service,
+	// for create, search, delete.
+	UserResourceMappingService
+	// OrganizationService is needed for search filter
+	OrganizationService
+
+	// FindNotificationRuleByID returns a single notification rule by ID.
+	FindNotificationRuleByID(ctx context.Context, id ID) (NotificationRule, error)
+
+	// FindNotificationRules returns a list of notification rules that match filter and the total count of matching notification rules.
+	// Additional options provide pagination & sorting.
+	FindNotificationRules(ctx context.Context, filter NotificationRuleFilter, opt ...FindOptions) ([]NotificationRule, int, error)
+
+	// CreateNotificationRule creates a new notification rule and sets b.ID with the new identifier.
+	CreateNotificationRule(ctx context.Context, nr NotificationRule, userID ID) error
+
+	// UpdateNotificationRuleUpdateNotificationRule updates a single notification rule.
+	// Returns the new notification rule after update.
+	UpdateNotificationRule(ctx context.Context, id ID, nr NotificationRule, userID ID) (NotificationRule, error)
+
+	// PatchNotificationRule updates a single  notification rule with changeset.
+	// Returns the new notification rule state after update.
+	PatchNotificationRule(ctx context.Context, id ID, upd NotificationRuleUpdate) (NotificationRule, error)
+
+	// DeleteNotificationRule removes a notification rule by ID.
+	DeleteNotificationRule(ctx context.Context, id ID) error
+}
+
 // Limit don't notify me more than <limit> times every <limitEvery> seconds.
 // If set, limit cannot be empty.
 type Limit struct {
@@ -60,19 +90,19 @@ type Limit struct {
 type NotificationRuleFilter struct {
 	OrgID        *ID
 	Organization *string
-	TagPairs     []TagPair
+	Tags         []Tag
 	UserResourceMappingFilter
 }
 
-// TagPair is a tag key-value pair.
-type TagPair struct {
-	Key   string
-	Value string
+// Tag is a tag key-value pair.
+type Tag struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
-// NewTagPair generates a tag pair from a string in the format key:value.
-func NewTagPair(s string) (TagPair, error) {
-	var tagPair TagPair
+// NewTag generates a tag pair from a string in the format key:value.
+func NewTag(s string) (Tag, error) {
+	var tagPair Tag
 
 	matched, err := regexp.MatchString(`^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$`, s)
 	if !matched || err != nil {
@@ -89,7 +119,19 @@ func NewTagPair(s string) (TagPair, error) {
 	return tagPair, nil
 }
 
-func (tp *TagPair) String() string {
+// Valid returns an error if the tagpair is missing fields
+func (t Tag) Valid() error {
+	if t.Key == "" || t.Value == "" {
+		return &Error{
+			Code: EInvalid,
+			Msg:  "tag must contain a key and a value",
+		}
+	}
+	return nil
+}
+
+// QueryParam converts a Tag to a string query parameter
+func (tp *Tag) QueryParam() string {
 	return strings.Join([]string{tp.Key, tp.Value}, ":")
 }
 
@@ -106,8 +148,8 @@ func (f NotificationRuleFilter) QueryParams() map[string][]string {
 	}
 
 	qp["tag"] = []string{}
-	for _, tp := range f.TagPairs {
-		qp["tag"] = append(qp["tag"], tp.String())
+	for _, tp := range f.Tags {
+		qp["tag"] = append(qp["tag"], tp.QueryParam())
 	}
 
 	return qp
@@ -143,34 +185,4 @@ func (n *NotificationRuleUpdate) Valid() error {
 	}
 
 	return nil
-}
-
-// NotificationRuleStore represents a service for managing notification rule.
-type NotificationRuleStore interface {
-	// UserResourceMappingService must be part of all NotificationRuleStore service,
-	// for create, search, delete.
-	UserResourceMappingService
-	// OrganizationService is needed for search filter
-	OrganizationService
-
-	// FindNotificationRuleByID returns a single notification rule by ID.
-	FindNotificationRuleByID(ctx context.Context, id ID) (NotificationRule, error)
-
-	// FindNotificationRules returns a list of notification rules that match filter and the total count of matching notification rules.
-	// Additional options provide pagination & sorting.
-	FindNotificationRules(ctx context.Context, filter NotificationRuleFilter, opt ...FindOptions) ([]NotificationRule, int, error)
-
-	// CreateNotificationRule creates a new notification rule and sets b.ID with the new identifier.
-	CreateNotificationRule(ctx context.Context, nr NotificationRule, userID ID) error
-
-	// UpdateNotificationRuleUpdateNotificationRule updates a single notification rule.
-	// Returns the new notification rule after update.
-	UpdateNotificationRule(ctx context.Context, id ID, nr NotificationRule, userID ID) (NotificationRule, error)
-
-	// PatchNotificationRule updates a single  notification rule with changeset.
-	// Returns the new notification rule state after update.
-	PatchNotificationRule(ctx context.Context, id ID, upd NotificationRuleUpdate) (NotificationRule, error)
-
-	// DeleteNotificationRule removes a notification rule by ID.
-	DeleteNotificationRule(ctx context.Context, id ID) error
 }

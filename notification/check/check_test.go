@@ -30,7 +30,7 @@ var goodBase = check.Base{
 	OrgID:                 influxTesting.MustIDBase16(id3),
 	Status:                influxdb.Active,
 	StatusMessageTemplate: "temp1",
-	Tags: []notification.Tag{
+	Tags: []influxdb.Tag{
 		{Key: "k1", Value: "v1"},
 		{Key: "k2", Value: "v2"},
 	},
@@ -114,7 +114,7 @@ func TestValidCheck(t *testing.T) {
 					OrgID:                 influxTesting.MustIDBase16(id3),
 					Status:                influxdb.Active,
 					StatusMessageTemplate: "temp1",
-					Tags:                  []notification.Tag{{Key: "key1"}},
+					Tags:                  []influxdb.Tag{{Key: "key1"}},
 				},
 			},
 			err: &influxdb.Error{
@@ -169,7 +169,7 @@ func TestJSON(t *testing.T) {
 					OrgID:   influxTesting.MustIDBase16(id3),
 					Status:  influxdb.Active,
 					Every:   mustDuration("1h"),
-					Tags: []notification.Tag{
+					Tags: []influxdb.Tag{
 						{
 							Key:   "k1",
 							Value: "v1",
@@ -199,7 +199,7 @@ func TestJSON(t *testing.T) {
 					OrgID:   influxTesting.MustIDBase16(id3),
 					Status:  influxdb.Active,
 					Every:   mustDuration("1h"),
-					Tags: []notification.Tag{
+					Tags: []influxdb.Tag{
 						{
 							Key:   "k1",
 							Value: "v1",

@@ -138,14 +138,14 @@ func CreateNotificationRule(
 							Every:       mustDuration("1h"),
 							TagRules: []notification.TagRule{
 								{
-									Tag: notification.Tag{
+									Tag: influxdb.Tag{
 										Key:   "k1",
 										Value: "v1",
 									},
 									Operator: notification.NotEqual,
 								},
 								{
-									Tag: notification.Tag{
+									Tag: influxdb.Tag{
 										Key:   "k2",
 										Value: "v2",
 									},
@@ -184,14 +184,14 @@ func CreateNotificationRule(
 						Every:       mustDuration("1h"),
 						TagRules: []notification.TagRule{
 							{
-								Tag: notification.Tag{
+								Tag: influxdb.Tag{
 									Key:   "k1",
 									Value: "v1",
 								},
 								Operator: notification.NotEqual,
 							},
 							{
-								Tag: notification.Tag{
+								Tag: influxdb.Tag{
 									Key:   "k2",
 									Value: "v2",
 								},
@@ -217,14 +217,14 @@ func CreateNotificationRule(
 							Every:       mustDuration("1h"),
 							TagRules: []notification.TagRule{
 								{
-									Tag: notification.Tag{
+									Tag: influxdb.Tag{
 										Key:   "k1",
 										Value: "v1",
 									},
 									Operator: notification.NotEqual,
 								},
 								{
-									Tag: notification.Tag{
+									Tag: influxdb.Tag{
 										Key:   "k2",
 										Value: "v2",
 									},
@@ -252,14 +252,14 @@ func CreateNotificationRule(
 							Every:       mustDuration("1h"),
 							TagRules: []notification.TagRule{
 								{
-									Tag: notification.Tag{
+									Tag: influxdb.Tag{
 										Key:   "k1",
 										Value: "v1",
 									},
 									Operator: notification.NotEqual,
 								},
 								{
-									Tag: notification.Tag{
+									Tag: influxdb.Tag{
 										Key:   "k2",
 										Value: "v2",
 									},

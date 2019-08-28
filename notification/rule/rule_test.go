@@ -148,7 +148,7 @@ func TestValidRule(t *testing.T) {
 					Status:     influxdb.Active,
 					TagRules: []notification.TagRule{
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k1",
 								Value: "v1",
 							},
@@ -175,7 +175,7 @@ func TestValidRule(t *testing.T) {
 					Status:     influxdb.Active,
 					TagRules: []notification.TagRule{
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k1",
 								Value: "v1",
 							},
@@ -225,14 +225,14 @@ func TestJSON(t *testing.T) {
 					Every:       mustDuration("1h"),
 					TagRules: []notification.TagRule{
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k1",
 								Value: "v1",
 							},
 							Operator: notification.NotEqual,
 						},
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k2",
 								Value: "v2",
 							},
@@ -262,14 +262,14 @@ func TestJSON(t *testing.T) {
 					Every:       mustDuration("1h"),
 					TagRules: []notification.TagRule{
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k1",
 								Value: "v1",
 							},
 							Operator: notification.NotEqual,
 						},
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k2",
 								Value: "v2",
 							},
@@ -298,7 +298,7 @@ func TestJSON(t *testing.T) {
 					Every:       mustDuration("1h"),
 					TagRules: []notification.TagRule{
 						{
-							Tag: notification.Tag{
+							Tag: influxdb.Tag{
 								Key:   "k1",
 								Value: "v1",
 							},

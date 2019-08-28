@@ -285,10 +285,10 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 	}
 
 	for _, tag := range q["tag"] {
-		tp, err := influxdb.NewTagPair(tag)
+		tp, err := influxdb.NewTag(tag)
 		// ignore malformed tag pairs
 		if err != nil {
-			f.TagPairs = append(f.TagPairs, tp)
+			f.Tags = append(f.Tags, tp)
 		}
 	}
 
