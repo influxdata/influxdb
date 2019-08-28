@@ -196,15 +196,17 @@ class SideNav extends PureComponent<Props, State> {
             active={getNavItemActivation(['telegrafs'], location.pathname)}
             key="telegrafs"
           />
-          <NavMenu.SubItem
-            titleLink={className => (
-              <Link to={scrapersLink} className={className}>
-                Scrapers
-              </Link>
-            )}
-            active={getNavItemActivation(['scrapers'], location.pathname)}
-            key="scrapers"
-          />
+          <CloudExclude>
+            <NavMenu.SubItem
+              titleLink={className => (
+                <Link to={scrapersLink} className={className}>
+                  Scrapers
+                </Link>
+              )}
+              active={getNavItemActivation(['scrapers'], location.pathname)}
+              key="scrapers"
+            />
+          </CloudExclude>
           <FeatureFlag name="clientLibrariesPage">
             <NavMenu.SubItem
               titleLink={className => (
