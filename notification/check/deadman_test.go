@@ -35,7 +35,7 @@ func TestDeadman_GenerateFlux(t *testing.T) {
 						Every:                 mustDuration("1h"),
 						StatusMessageTemplate: "whoa! {r.dead}",
 						Query: influxdb.DashboardQuery{
-							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> aggregateWindow(every: 1m, fn: mean) |> yield()`,
+							Text: `from(bucket: "foo") |> range(start: -1d, stop: now()) |> yield()`,
 							BuilderConfig: influxdb.BuilderConfig{
 								Tags: []struct {
 									Key    string   `json:"key"`
@@ -49,7 +49,8 @@ func TestDeadman_GenerateFlux(t *testing.T) {
 							},
 						},
 					},
-					TimeSince: 60,
+					TimeSince: mustDuration("60s"),
+					StaleTime: mustDuration("10m"),
 					Level:     notification.Info,
 				},
 			},
@@ -59,8 +60,7 @@ import "influxdata/influxdb/monitor"
 import "experimental"
 
 data = from(bucket: "foo")
-	|> range(start: -1h)
-	|> aggregateWindow(every: 1h, fn: mean)
+	|> range(start: -10m)
 
 option task = {name: "moo", every: 1h}
 

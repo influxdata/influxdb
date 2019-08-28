@@ -9335,8 +9335,11 @@ components:
               type: string
               enum: [deadman]
             timeSince:
-              description: seconds before deadman triggers
-              type: integer
+              description: string duration before deadman triggers
+              type: string
+            staleTime:
+              description: string duration for time that a series is considered stale and should not trigger deadman
+              type: string
             reportZero:
               description: if only zero values reported since time, trigger alert
               type: boolean

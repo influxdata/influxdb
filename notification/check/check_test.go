@@ -184,7 +184,7 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				TimeSince:  33,
+				TimeSince:  mustDuration("33s"),
 				ReportZero: true,
 				Level:      notification.Warn,
 			},
