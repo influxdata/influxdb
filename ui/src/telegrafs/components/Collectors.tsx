@@ -102,7 +102,11 @@ class Collectors extends PureComponent<Props, State> {
         </SettingsTabbedPageHeader>
         <Grid>
           <Grid.Row>
-            <Grid.Column widthSM={Columns.Twelve}>
+            <Grid.Column
+              widthXS={Columns.Twelve}
+              widthSM={Columns.Eight}
+              widthMD={Columns.Ten}
+            >
               <NoBucketsWarning
                 visible={this.hasNoBuckets}
                 resourceName="Telegraf Configurations"
@@ -130,10 +134,9 @@ class Collectors extends PureComponent<Props, State> {
               </GetResources>
             </Grid.Column>
             <Grid.Column
-              widthSM={Columns.Six}
-              widthMD={Columns.Four}
-              offsetSM={Columns.Three}
-              offsetMD={Columns.Four}
+              widthXS={Columns.Twelve}
+              widthSM={Columns.Four}
+              widthMD={Columns.Two}
             >
               <TelegrafExplainer />
             </Grid.Column>
