@@ -1271,41 +1271,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/integral/',
   },
   {
-    name: 'intervals',
-    args: [
-      {
-        name: 'every',
-        desc:
-          'The duration between starts of each of the intervals. Defaults to the value of the `period` duration.',
-        type: 'Duration',
-      },
-      {
-        name: 'period',
-        desc:
-          'The length of each interval. Defaults to the value of the `every` duration.',
-        type: 'Duration',
-      },
-      {
-        name: 'offset',
-        desc:
-          'The offset duration relative to the location offset. Defaults to `0h`.',
-        type: 'Duration',
-      },
-      {
-        name: 'filter',
-        desc:
-          'A function that accepts an interval object and returns a boolean value. Each potential interval is passed to the filter function. When the function returns false, that interval is excluded from the set of intervals. Defaults to include all intervals.',
-        type: 'Function',
-      },
-    ],
-    package: '',
-    desc: 'Generates a set of time intervals over a range of time.',
-    example: 'intervals()',
-    category: 'Miscellaneous',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/misc/intervals/',
-  },
-  {
     name: 'join',
     args: [
       {
