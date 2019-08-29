@@ -15,8 +15,6 @@ import {RuleStatusLevel} from 'src/types'
 type LevelType = 'currentLevel' | 'previousLevel'
 type ColorLevel = {hex: InfluxColors; display: string; value: RuleStatusLevel}
 
-
-
 interface Props {
   selectedLevel: RuleStatusLevel
   otherLevel: RuleStatusLevel
