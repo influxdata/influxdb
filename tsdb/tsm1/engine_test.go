@@ -16,10 +16,12 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap"
 )
 
 // Test that series id set gets updated and returned appropriately.
@@ -132,7 +134,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 func TestEngine_ShouldCompactCache(t *testing.T) {
 	nowTime := time.Now()
 
-	e, err := NewEngine()
+	e, err := NewEngine(tsm1.NewConfig())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,6 +309,56 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	}
 }
 
+func BenchmarkEngine_DeletePrefixRange_Cache(b *testing.B) {
+	config := tsm1.NewConfig()
+	config.Cache.SnapshotMemorySize = toml.Size(256 * 1024 * 1024)
+	e, err := NewEngine(config)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	if err := e.Open(context.Background()); err != nil {
+		b.Fatal(err)
+	}
+
+	pp := make([]models.Point, 0, 100000)
+	for i := 0; i < 100000; i++ {
+		p := MustParsePointString(fmt.Sprintf("cpu-%d,host=%d value=1.2", i%1000, i), fmt.Sprintf("000000001122111100000000112211%d", i%1000))
+		pp = append(pp, p)
+	}
+
+	b.Run("exists", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			if err = e.WritePoints(pp); err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+
+			if err := e.DeletePrefixRange(context.Background(), []byte("0000000011221111000000001122112"), 0, math.MaxInt64, nil); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("not exists", func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			if err = e.WritePoints(pp); err != nil {
+				b.Fatal(err)
+			}
+			b.StartTimer()
+
+			if err := e.DeletePrefixRange(context.Background(), []byte("fooasdasdasdasdasd"), 0, math.MaxInt64, nil); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	e.Close()
+}
+
 // Engine is a test wrapper for tsm1.Engine.
 type Engine struct {
 	*tsm1.Engine
@@ -317,7 +369,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
-func NewEngine() (*Engine, error) {
+func NewEngine(config tsm1.Config) (*Engine, error) {
 	root, err := ioutil.TempDir("", "tsm1-")
 	if err != nil {
 		panic(err)
@@ -325,7 +377,10 @@ func NewEngine() (*Engine, error) {
 
 	// Setup series file.
 	sfile := tsdb.NewSeriesFile(filepath.Join(root, "_series"))
-	sfile.Logger = logger.New(os.Stdout)
+	sfile.Logger = zap.NewNop()
+	if testing.Verbose() {
+		sfile.Logger = logger.New(os.Stdout)
+	}
 	if err = sfile.Open(context.Background()); err != nil {
 		return nil, err
 	}
@@ -333,7 +388,6 @@ func NewEngine() (*Engine, error) {
 	idxPath := filepath.Join(root, "index")
 	idx := MustOpenIndex(idxPath, tsdb.NewSeriesIDSet(), sfile)
 
-	config := tsm1.NewConfig()
 	tsm1Engine := tsm1.NewEngine(filepath.Join(root, "data"), idx, config,
 		tsm1.WithCompactionPlanner(newMockPlanner()))
 
@@ -348,7 +402,7 @@ func NewEngine() (*Engine, error) {
 
 // MustOpenEngine returns a new, open instance of Engine.
 func MustOpenEngine() *Engine {
-	e, err := NewEngine()
+	e, err := NewEngine(tsm1.NewConfig())
 	if err != nil {
 		panic(err)
 	}
