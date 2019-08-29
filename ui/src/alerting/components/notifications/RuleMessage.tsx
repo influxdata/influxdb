@@ -38,6 +38,10 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
     })
   }
 
+  if (!rule.endpointID && endpoints.length) {
+    onSelectEndpoint(endpoints[0].id)
+  }
+
   return (
     <Grid.Row>
       <Grid.Column widthSM={Columns.Two}>Message</Grid.Column>
