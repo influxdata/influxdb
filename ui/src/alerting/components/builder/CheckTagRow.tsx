@@ -38,7 +38,11 @@ const CheckTagRow: FC<Props> = ({
   }
 
   return (
-    <Panel testID="tag-rule" size={ComponentSize.ExtraSmall}>
+    <Panel
+      testID="tag-rule"
+      size={ComponentSize.ExtraSmall}
+      className="alert-builder--tag-row"
+    >
       <DismissButton onClick={handleRemove} color={ComponentColor.Default} />
       <Panel.Body>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>

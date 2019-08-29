@@ -1,3 +1,5 @@
+import {DURATIONS} from 'src/timeMachine/constants/queryBuilder'
+
 import {
   Check,
   DashboardQuery,
@@ -12,11 +14,28 @@ export const DEFAULT_CHECK_NAME = 'Name this check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
 
 export const CHECK_NAME_MAX_LENGTH = 68
-export const DEFAULT_CHECK_CRON = '1h'
-export const DEFAULT_CHECK_EVERY = '1h'
+export const DEFAULT_CHECK_EVERY = '5m'
 export const DEFAULT_CHECK_OFFSET = '0s'
 export const DEFAULT_CHECK_REPORT_ZERO = false
 export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
+
+export const CHECK_EVERY_OPTIONS = DURATIONS
+
+export const CHECK_OFFSET_OPTIONS = [
+  {duration: '0s', displayText: 'None'},
+  {duration: '5s', displayText: '5 seconds'},
+  {duration: '15s', displayText: '15 seconds'},
+  {duration: '1m', displayText: '1 minute'},
+  {duration: '5m', displayText: '5 minutes'},
+  {duration: '15m', displayText: '15 minutes'},
+  {duration: '1h', displayText: '1 hour'},
+  {duration: '6h', displayText: '6 hours'},
+  {duration: '12h', displayText: '12 hours'},
+  {duration: '24h', displayText: '24 hours'},
+  {duration: '2d', displayText: '2 days'},
+  {duration: '7d', displayText: '7 days'},
+  {duration: '30d', displayText: '30 days'},
+]
 
 export const LEVEL_COLORS = {
   OK: '#32B08C',

@@ -29,14 +29,14 @@ class TimeMachineQueries extends PureComponent<Props> {
     const {isViewingRawData} = this.props
 
     return (
-      <>
+      <div className="view-raw-data-toggle">
         <SlideToggle.Label text="View Raw Data" />
         <SlideToggle
           active={isViewingRawData}
           onChange={this.handleToggleIsViewingRawData}
           size={ComponentSize.ExtraSmall}
         />
-      </>
+      </div>
     )
   }
 

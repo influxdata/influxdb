@@ -36,12 +36,9 @@ const CheckEOHeader: FC<Props> = ({name, onSetName, onCancel, onSave}) => {
       return
     }
 
-    try {
-      setSaveStatus(RemoteDataState.Loading)
-      await onSave()
-    } catch {
-      setSaveStatus(RemoteDataState.NotStarted)
-    }
+    setSaveStatus(RemoteDataState.Loading)
+    await onSave()
+    setSaveStatus(RemoteDataState.NotStarted)
   }
 
   const handleClickOutsideTitle = (e: MouseEvent<HTMLElement>) => {
@@ -82,7 +79,7 @@ const CheckEOHeader: FC<Props> = ({name, onSetName, onCancel, onSave}) => {
             color={ComponentColor.Success}
             size={ComponentSize.Small}
             status={saveButtonStatus}
-            onClick={onSave}
+            onClick={handleSave}
             testID="save-cell--button"
           />
         </Page.Header.Right>

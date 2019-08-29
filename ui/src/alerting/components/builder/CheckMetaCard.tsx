@@ -11,21 +11,26 @@ import {
   Wrap,
   ComponentColor,
   Grid,
-  InfluxColors,
 } from '@influxdata/clockface'
 import {Input} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
+import DurationSelector from 'src/timeMachine/components/DurationSelector'
 
 // Actions & Selectors
 import {updateTimeMachineCheck} from 'src/timeMachine/actions'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {selectCheckEvery} from 'src/alerting/actions/checks'
+
+// Constants
+import {CHECK_EVERY_OPTIONS, CHECK_OFFSET_OPTIONS} from 'src/alerting/constants'
 
 // Types
 import {Check, AppState, CheckTagSet} from 'src/types'
 
 interface DispatchProps {
-  updateTimeMachineCheck: typeof updateTimeMachineCheck
+  onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
+  onSelectCheckEvery: typeof selectCheckEvery
 }
 
 interface StateProps {
@@ -34,28 +39,32 @@ interface StateProps {
 
 type Props = DispatchProps & StateProps
 
-const CheckMetaCard: FC<Props> = ({updateTimeMachineCheck, check}) => {
+const CheckMetaCard: FC<Props> = ({
+  check,
+  onUpdateTimeMachineCheck,
+  onSelectCheckEvery,
+}) => {
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    updateTimeMachineCheck({[e.target.name]: e.target.value})
+    onUpdateTimeMachineCheck({[e.target.name]: e.target.value})
   }
 
   const addTagsRow = () => {
     const tags = check.tags || []
-    updateTimeMachineCheck({tags: [...tags, {key: '', value: ''}]})
+    onUpdateTimeMachineCheck({tags: [...tags, {key: '', value: ''}]})
   }
 
   const handleChangeTagRow = (index: number, tagSet: CheckTagSet) => {
     const tags = [...check.tags]
     tags[index] = tagSet
-    updateTimeMachineCheck({tags})
+    onUpdateTimeMachineCheck({tags})
   }
 
   const handleRemoveTagRow = (index: number) => {
     let tags = [...check.tags]
     tags = tags.filter((_, i) => i !== index)
-    updateTimeMachineCheck({tags})
+    onUpdateTimeMachineCheck({tags})
   }
 
   return (
@@ -94,29 +103,26 @@ const CheckMetaCard: FC<Props> = ({updateTimeMachineCheck, check}) => {
       <Grid>
         <Grid.Row>
           <Grid.Column widthSM={6}>
-            <Form.Element label="Schedule every">
-              <Input
-                name="every"
-                onChange={handleChange}
-                titleText="Check run interval"
-                value={check.every}
+            <Form.Element label="Schedule Every">
+              <DurationSelector
+                selectedDuration={check.every}
+                durations={CHECK_EVERY_OPTIONS}
+                onSelectDuration={onSelectCheckEvery}
               />
             </Form.Element>
           </Grid.Column>
           <Grid.Column widthSM={6}>
             <Form.Element label="Offset">
-              <Input
-                name="offset"
-                onChange={handleChange}
-                titleText="Check offset interval"
-                value={check.offset}
+              <DurationSelector
+                selectedDuration={check.offset}
+                durations={CHECK_OFFSET_OPTIONS}
+                onSelectDuration={offset => onUpdateTimeMachineCheck({offset})}
               />
             </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Grid>
-      <Form.Label label="Tags :" />
-      <Form.Divider lineColor={InfluxColors.Smoke} />
+      <Form.Label label="Tags" />
       {check.tags &&
         check.tags.map((t, i) => (
           <CheckTagRow
@@ -128,7 +134,7 @@ const CheckMetaCard: FC<Props> = ({updateTimeMachineCheck, check}) => {
           />
         ))}
       <DashedButton
-        text="+ Tags"
+        text="+ Tag"
         onClick={addTagsRow}
         color={ComponentColor.Primary}
         size={ComponentSize.Small}
@@ -146,7 +152,8 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  updateTimeMachineCheck: updateTimeMachineCheck,
+  onUpdateTimeMachineCheck: updateTimeMachineCheck,
+  onSelectCheckEvery: selectCheckEvery,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

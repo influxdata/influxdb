@@ -32,7 +32,11 @@ import {
 // Utils
 import {toComponentStatus} from 'src/shared/utils/toComponentStatus'
 import DefaultDebouncer from 'src/shared/utils/debouncer'
-import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {
+  getActiveQuery,
+  getActiveTimeMachine,
+  getIsInCheckOverlay,
+} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
@@ -49,6 +53,7 @@ interface StateProps {
   selectedValues: string[]
   valuesSearchTerm: string
   keysSearchTerm: string
+  isInCheckOverlay: boolean
 }
 
 interface DispatchProps {
@@ -179,7 +184,7 @@ class TagSelector extends PureComponent<Props> {
         items={values}
         selectedItems={selectedValues}
         onSelectItem={this.handleSelectValue}
-        multiSelect={true}
+        multiSelect={!this.props.isInCheckOverlay}
       />
     )
   }
@@ -268,6 +273,8 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     emptyText = `Select a ${tags[ownProps.index - 1].key} value first`
   }
 
+  const isInCheckOverlay = getIsInCheckOverlay(state)
+
   return {
     emptyText,
     keys,
@@ -278,6 +285,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     selectedValues,
     valuesSearchTerm,
     keysSearchTerm,
+    isInCheckOverlay,
   }
 }
 

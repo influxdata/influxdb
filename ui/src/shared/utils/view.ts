@@ -6,6 +6,7 @@ import {
   DEFAULT_GAUGE_COLORS,
   DEFAULT_THRESHOLDS_LIST_COLORS,
 } from 'src/shared/constants/thresholds'
+import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
 
 // Types
 import {
@@ -251,7 +252,19 @@ const NEW_VIEW_CREATORS = {
       type: 'check',
       shape: 'chronograf-v2',
       checkID: '',
-      queries: [defaultViewQuery()],
+      queries: [
+        {
+          name: '',
+          text: '',
+          editMode: 'builder',
+          builderConfig: {
+            buckets: [],
+            tags: [{key: '_measurement', values: []}],
+            functions: [{name: 'mean'}],
+            aggregateWindow: {period: DEFAULT_CHECK_EVERY},
+          },
+        },
+      ],
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),

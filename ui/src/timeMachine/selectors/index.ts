@@ -5,6 +5,7 @@ import {fromFlux, Table} from '@influxdata/giraffe'
 
 // Utils
 import {parseResponse} from 'src/shared/parsing/flux/response'
+import {getCheckVisTimeRange} from 'src/alerting/utils/vis'
 import {
   defaultXColumn,
   defaultYColumn,
@@ -13,13 +14,33 @@ import {
 } from 'src/shared/utils/vis'
 
 // Types
-import {FluxTable, QueryView, AppState, DashboardDraftQuery} from 'src/types'
+import {
+  FluxTable,
+  QueryView,
+  AppState,
+  DashboardDraftQuery,
+  TimeRange,
+} from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
   const {activeTimeMachineID, timeMachines} = state.timeMachines
   const timeMachine = timeMachines[activeTimeMachineID]
 
   return timeMachine
+}
+
+export const getIsInCheckOverlay = (state: AppState): boolean => {
+  return state.timeMachines.activeTimeMachineID === 'alerting'
+}
+
+export const getTimeRange = (state: AppState): TimeRange => {
+  const {alerting, timeRange} = getActiveTimeMachine(state)
+
+  if (!getIsInCheckOverlay(state)) {
+    return timeRange
+  }
+
+  return getCheckVisTimeRange(alerting.check.every)
 }
 
 export const getActiveQuery = (state: AppState): DashboardDraftQuery => {

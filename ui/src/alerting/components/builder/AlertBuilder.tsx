@@ -30,7 +30,7 @@ const AlertBuilder: FC = () => {
               className="alert-builder--card"
             >
               <BuilderCard.Header title="Conditions" />
-              <BuilderCard.Body addPadding={true}>
+              <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
                 <CheckConditionsCard />
               </BuilderCard.Body>
             </BuilderCard>
@@ -40,7 +40,7 @@ const AlertBuilder: FC = () => {
               className="alert-builder--card"
             >
               <BuilderCard.Header title="Matching Notification Rules" />
-              <BuilderCard.Body addPadding={true}>
+              <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
                 <CheckMatchingRulesCard />
               </BuilderCard.Body>
             </BuilderCard>

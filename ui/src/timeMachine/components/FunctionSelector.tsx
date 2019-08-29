@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
-import WindowSelector from 'src/timeMachine/components/WindowSelector'
+import DurationSelector from 'src/timeMachine/components/DurationSelector'
 
 // Actions
 import {
@@ -15,12 +15,14 @@ import {
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getIsInCheckOverlay} from 'src/timeMachine/selectors'
 
 // Constants
 import {
   FUNCTIONS,
   AGG_WINDOW_AUTO,
+  DURATIONS,
+  AUTO_NONE_DURATIONS,
 } from 'src/timeMachine/constants/queryBuilder'
 
 // Types
@@ -31,6 +33,7 @@ const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 interface StateProps {
   aggregateWindow: BuilderConfig['aggregateWindow']
   selectedFunctions: BuilderConfig['functions']
+  isInCheckOverlay: boolean
 }
 
 interface DispatchProps {
@@ -49,9 +52,9 @@ class FunctionSelector extends PureComponent<Props, State> {
 
   public render() {
     const {
-      onSelectFunction,
       selectedFunctions,
       onSelectAggregateWindow,
+      isInCheckOverlay,
     } = this.props
 
     const {searchTerm} = this.state
@@ -60,9 +63,10 @@ class FunctionSelector extends PureComponent<Props, State> {
       <BuilderCard className="function-selector" testID="function-selector">
         <BuilderCard.Header title="Aggregate Functions" />
         <BuilderCard.Menu>
-          <WindowSelector
-            onSelect={onSelectAggregateWindow}
-            period={this.period}
+          <DurationSelector
+            onSelectDuration={onSelectAggregateWindow}
+            selectedDuration={this.duration}
+            durations={this.durations}
             disabled={!selectedFunctions.length}
           />
           <Input
@@ -75,16 +79,23 @@ class FunctionSelector extends PureComponent<Props, State> {
         <SelectorList
           items={this.functions}
           selectedItems={this.selectedFunctions}
-          onSelectItem={onSelectFunction}
-          multiSelect={true}
+          onSelectItem={this.handleSelectFunction}
+          multiSelect={!isInCheckOverlay}
         />
       </BuilderCard>
     )
   }
 
-  private get period(): string {
+  private get duration(): string {
     const {aggregateWindow} = this.props
+
     return aggregateWindow.period || AGG_WINDOW_AUTO
+  }
+
+  private get durations(): Array<{duration: string; displayText: string}> {
+    return this.props.isInCheckOverlay
+      ? DURATIONS
+      : [...DURATIONS, ...AUTO_NONE_DURATIONS]
   }
 
   private get functions(): string[] {
@@ -98,6 +109,17 @@ class FunctionSelector extends PureComponent<Props, State> {
   private handleSetSearchTerm = (e: ChangeEvent<HTMLInputElement>) => {
     this.setState({searchTerm: e.target.value})
   }
+
+  private handleSelectFunction = (functionName: string) => {
+    const {isInCheckOverlay, selectedFunctions, onSelectFunction} = this.props
+
+    if (isInCheckOverlay && selectedFunctions[0].name === functionName) {
+      // Disallow empty aggreegate selections in check overlay
+      return
+    }
+
+    onSelectFunction(functionName)
+  }
 }
 
 const mstp = (state: AppState) => {
@@ -105,7 +127,9 @@ const mstp = (state: AppState) => {
     state
   ).builderConfig
 
-  return {selectedFunctions, aggregateWindow}
+  const isInCheckOverlay = getIsInCheckOverlay(state)
+
+  return {selectedFunctions, aggregateWindow, isInCheckOverlay}
 }
 
 const mdtp = {
