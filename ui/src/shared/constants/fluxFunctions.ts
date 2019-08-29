@@ -17,7 +17,7 @@ export const FROM: FluxToolbarFunction = {
   package: '',
   desc:
     'Used to retrieve data from an InfluxDB data source. It returns a stream of tables from the specified bucket. Each unique series is contained within its own table. Each record in the table represents a single point in the series.',
-  example: 'from(bucket: "default")',
+  example: 'from(bucket: "telegraf")',
   category: 'Inputs',
   link:
     'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/from/',
@@ -731,7 +731,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Computes the difference between subsequent non-null records in the specified columns.',
-    example: 'difference(nonNegative: false, columns: "_value")',
+    example: 'difference(nonNegative: false, columns: ["_value"])',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/difference/',
@@ -1137,7 +1137,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Approximates a quantile given a histogram that approximates the cumulative distribution of the dataset.',
     example:
-      'histogramQuantile(quantile: 0.5, countColumn: "_value", upperBoundColumn: "le", valueColumn: "_value", minValue: 0)',
+      'histogramQuantile(quantile: 0.5, countColumn: "_value", upperBoundColumn: "le", valueColumn: "_value", minValue: 0.0)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/histogramquantile/',
@@ -1218,16 +1218,16 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     name: 'increase',
     args: [
       {
-        name: 'column',
+        name: 'columns',
         desc:
-          'The column for which the increase is calculated. Defaults to `"_value"`.',
-        type: 'String',
+          'List of columns to use in the operation. Defaults to `["_value"]`.',
+        type: 'Array of Strings',
       },
     ],
     package: '',
     desc:
       'Computes the total non-negative difference between values in a table.',
-    example: 'increase(column: "_value")',
+    example: 'increase(columns: ["_value"])',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/increase/',
@@ -1269,41 +1269,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/integral/',
-  },
-  {
-    name: 'intervals',
-    args: [
-      {
-        name: 'every',
-        desc:
-          'The duration between starts of each of the intervals. Defaults to the value of the `period` duration.',
-        type: 'Duration',
-      },
-      {
-        name: 'period',
-        desc:
-          'The length of each interval. Defaults to the value of the `every` duration.',
-        type: 'Duration',
-      },
-      {
-        name: 'offset',
-        desc:
-          'The offset duration relative to the location offset. Defaults to `0h`.',
-        type: 'Duration',
-      },
-      {
-        name: 'filter',
-        desc:
-          'A function that accepts an interval object and returns a boolean value. Each potential interval is passed to the filter function. When the function returns false, that interval is excluded from the set of intervals. Defaults to include all intervals.',
-        type: 'Function',
-      },
-    ],
-    package: '',
-    desc: 'Generates a set of time intervals over a range of time.',
-    example: 'intervals()',
-    category: 'Miscellaneous',
-    link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/misc/intervals/',
   },
   {
     name: 'join',
@@ -2682,15 +2647,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         desc: 'The frequency of time windows.',
         type: 'Duration',
       },
-      {
-        name: 'columns',
-        desc: 'Columns to operate on. Defaults to `["_value"]`.',
-        type: 'Array of Strings',
-      },
     ],
     package: '',
     desc: 'Calculates the mean of values grouped into `n` number of points.',
-    example: 'movingAverage(n: 5, columns: ["_value"])',
+    example: 'movingAverage(n: 5)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/movingaverage/',
@@ -2783,7 +2743,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'This is both an aggregate and selector function depending on the `method` used. When using the `estimate_tdigest` or `exact_mean` methods, it outputs non-null records with values that fall within the specified quantile. When using the `exact_selector` method, it outputs the non-null record with the value that represents the specified quantile.',
     example:
-      'quantile(column: "_value", q: 0.99, method: "estimate_tdigest", compression: 1000)',
+      'quantile(column: "_value", q: 0.99, method: "estimate_tdigest", compression: 1000.0)',
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/quantile/',
@@ -3022,7 +2982,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Renames specified columns in a table. If a column is renamed and is part of the group key, the column name in the group key will be updated.',
-    example: 'rename(columns: {host: "server", facility: "datacenter"})',
+    example: 'rename(columns: {host: "server", _field: "my_field"})',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/rename/',
@@ -3076,7 +3036,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Assigns a static value to each record in the input table. The key may modify an existing column or add a new column to the tables. If the modified column is part of the group key, the output tables are regrouped as needed.',
-    example: 'set(key: "myKey", value: "myValue")',
+    example: 'set(key: "_field", value: "my_field")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/set/',
@@ -4237,7 +4197,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc: 'The `to()` function writes data to an InfluxDB v2.0 bucket.',
     example:
-      'to(bucket: "my-bucket", org: "my-org", host: "http://example.com:8086", token: "xxxxxx", timeColumn: "_time", tagColumns: ["tag1", "tag2", "tag3"], fieldFn: (r) => ({ [r._field]: r._value }))',
+      'to(bucket:"my-bucket", org:"my-org")',
     category: 'Outputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/outputs/to/',
@@ -4319,7 +4279,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'Sorts a table by columns and keeps only the top n rows.',
-    example: 'top(n:10, cols: ["_value"])',
+    example: 'top(n:10, columns: ["_value"])',
     category: 'Selectors',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/top/',
@@ -4401,7 +4361,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for a specific measurement.',
-    example: 'v1.measurementTagKeys(bucket: "default", measurement: "mem")',
+    example: 'v1.measurementTagKeys(bucket: "telegraf", measurement: "mem")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurementtagkeys/',
@@ -4429,7 +4389,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag values for a specific measurement.',
     example:
-      'v1.measurementTagValues(bucket: "default", measurement: "mem", tag: "host")',
+      'v1.measurementTagValues(bucket: "telegraf", measurement: "mem", tag: "host")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurementtagvalues/',
@@ -4445,7 +4405,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of measurements in a specific bucket.',
-    example: 'v1.measurements(bucket: "default")',
+    example: 'v1.measurements(bucket: "telegraf")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/measurements/',
@@ -4473,7 +4433,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of tag keys for all series that match the predicate.',
-    example: 'v1.tagKeys(bucket: "default")',
+    example: 'v1.tagKeys(bucket: "telegraf")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/tagkeys/',
@@ -4506,7 +4466,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'influxdata/influxdb/v1',
     desc: 'Returns a list of unique values for a given tag.',
-    example: 'v1.tagValues(bucket: "default")',
+    example: 'v1.tagValues(bucket: "telegraf")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/influxdb-v1/tagvalues/',
