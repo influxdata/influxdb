@@ -71,7 +71,7 @@ const CheckConditionsCard: FC<Props> = ({check, changeCheckType}) => {
         margin={ComponentSize.Medium}
       >
         {check.type === 'deadman' ? (
-          <DeadmanConditions />
+          <DeadmanConditions check={check} />
         ) : (
           <ThresholdConditions check={check} />
         )}
