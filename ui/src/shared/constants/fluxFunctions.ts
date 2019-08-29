@@ -4196,8 +4196,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: '',
     desc: 'The `to()` function writes data to an InfluxDB v2.0 bucket.',
-    example:
-      'to(bucket:"my-bucket", org:"my-org")',
+    example: 'to(bucket:"my-bucket", org:"my-org")',
     category: 'Outputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/outputs/to/',

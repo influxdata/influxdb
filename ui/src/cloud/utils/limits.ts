@@ -35,6 +35,7 @@ export const extractRateLimitStatus = (limits: LimitsState): LimitStatus => {
   const statuses = [
     get(limits, 'rate.writeKBs.limitStatus'),
     get(limits, 'rate.readKBs.limitStatus'),
+    get(limits, 'rate.cardinality.limitStatus'),
   ]
 
   if (statuses.includes(LimitStatus.EXCEEDED)) {
@@ -44,16 +45,20 @@ export const extractRateLimitStatus = (limits: LimitsState): LimitStatus => {
   return LimitStatus.OK
 }
 
-export const extractRateLimitResourceName = (limits: LimitsState): string => {
+export const extractRateLimitResources = (limits: LimitsState): string[] => {
   const rateLimitedResources = []
 
-  if (get(limits, 'rate.writeKBs.limitStatus') === LimitStatus.EXCEEDED) {
-    rateLimitedResources.push('writes')
-  }
-
   if (get(limits, 'rate.readKBs.limitStatus') === LimitStatus.EXCEEDED) {
-    rateLimitedResources.push('reads')
+    rateLimitedResources.push('read')
   }
 
-  return rateLimitedResources.join(' and ')
+  if (get(limits, 'rate.writeKBs.limitStatus') === LimitStatus.EXCEEDED) {
+    rateLimitedResources.push('write')
+  }
+
+  if (get(limits, 'rate.cardinality.limitStatus') === LimitStatus.EXCEEDED) {
+    rateLimitedResources.push('cardinality')
+  }
+
+  return rateLimitedResources
 }

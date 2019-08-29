@@ -13,7 +13,7 @@ import ManualRefresh from 'src/shared/components/ManualRefresh'
 import {HoverTimeProvider} from 'src/dashboards/utils/hoverTime'
 import VariablesControlBar from 'src/dashboards/components/variablesControlBar/VariablesControlBar'
 import LimitChecker from 'src/cloud/components/LimitChecker'
-import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Actions
 import * as dashboardActions from 'src/dashboards/actions'
@@ -28,7 +28,7 @@ import {
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {
-  extractRateLimitResourceName,
+  extractRateLimitResources,
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
 
@@ -58,7 +58,7 @@ import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {LimitStatus} from 'src/cloud/actions/limits'
 
 interface StateProps {
-  resourceName: string
+  limitedResources: string[]
   limitStatus: LimitStatus
   org: Organization
   links: Links
@@ -147,7 +147,7 @@ class DashboardPage extends Component<Props> {
       dashboard,
       autoRefresh,
       limitStatus,
-      resourceName,
+      limitedResources,
       manualRefresh,
       onManualRefresh,
       inPresentationMode,
@@ -180,14 +180,14 @@ class DashboardPage extends Component<Props> {
               toggleVariablesControlBar={onToggleShowVariablesControls}
               isShowingVariablesControlBar={showVariablesControls}
             />
+            <RateLimitAlert
+              resources={limitedResources}
+              limitStatus={limitStatus}
+              className="dashboard--rate-alert"
+            />
             {showVariablesControls && !!dashboard && (
               <VariablesControlBar dashboardID={dashboard.id} />
             )}
-            <AssetLimitAlert
-              resourceName={resourceName}
-              limitStatus={limitStatus}
-              className="dashboard--asset-alert"
-            />
             {!!dashboard && (
               <DashboardComponent
                 dashboard={dashboard}
@@ -323,7 +323,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
 
   const dashboard = dashboards.list.find(d => d.id === dashboardID)
 
-  const resourceName = extractRateLimitResourceName(limits)
+  const limitedResources = extractRateLimitResources(limits)
   const limitStatus = extractRateLimitStatus(limits)
 
   return {
@@ -335,7 +335,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     dashboard,
     autoRefresh,
     limitStatus,
-    resourceName,
+    limitedResources,
     inPresentationMode,
     showVariablesControls,
   }

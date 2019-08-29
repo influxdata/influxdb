@@ -1,6 +1,6 @@
 // API
 import {
-  getReadWriteLimits as getReadWriteLimitsAJAX,
+  getReadWriteCardinalityLimits as getReadWriteCardinalityLimitsAJAX,
   getLimits as getLimitsAJAX,
 } from 'src/cloud/apis/limits'
 
@@ -32,6 +32,7 @@ interface Limits {
     concurrentReadRequests: number
     writeKBs: number
     concurrentWriteRequests: number
+    cardinality: number
   }
   bucket: {
     maxBuckets: number
@@ -52,6 +53,7 @@ export enum ActionTypes {
   SetTaskLimitStatus = 'SET_TASK_LIMIT_STATUS',
   SetReadRateLimitStatus = 'SET_READ_RATE_LIMIT_STATUS',
   SetWriteRateLimitStatus = 'SET_WRITE_RATE_LIMIT_STATUS',
+  SetCardinalityLimitStatus = 'SET_CARDINALITY_LIMIT_STATUS',
 }
 
 export type Actions =
@@ -62,6 +64,7 @@ export type Actions =
   | SetTaskLimitStatus
   | SetReadRateLimitStatus
   | SetWriteRateLimitStatus
+  | SetCardinalityLimitStatus
 
 export interface SetLimits {
   type: ActionTypes.SetLimits
@@ -144,6 +147,20 @@ export const setWriteRateLimitStatus = (
   }
 }
 
+export interface SetCardinalityLimitStatus {
+  type: ActionTypes.SetCardinalityLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setCardinalityLimitStatus = (
+  limitStatus: LimitStatus
+): SetCardinalityLimitStatus => {
+  return {
+    type: ActionTypes.SetCardinalityLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
 export interface SetLimitsStatus {
   type: ActionTypes.SetLimitsStatus
   payload: {
@@ -158,7 +175,7 @@ export const setLimitsStatus = (status: RemoteDataState): SetLimitsStatus => {
   }
 }
 
-export const getReadWriteLimits = () => async (
+export const getReadWriteCardinalityLimits = () => async (
   dispatch,
   getState: () => AppState
 ) => {
@@ -167,7 +184,7 @@ export const getReadWriteLimits = () => async (
       orgs: {org},
     } = getState()
 
-    const limits = await getReadWriteLimitsAJAX(org.id)
+    const limits = await getReadWriteCardinalityLimitsAJAX(org.id)
 
     if (limits.read.status === LimitStatus.EXCEEDED) {
       dispatch(notify(readLimitReached()))
@@ -180,6 +197,12 @@ export const getReadWriteLimits = () => async (
       dispatch(setWriteRateLimitStatus(LimitStatus.EXCEEDED))
     } else {
       dispatch(setWriteRateLimitStatus(LimitStatus.OK))
+    }
+
+    if (limits.cardinality.status === LimitStatus.EXCEEDED) {
+      dispatch(setCardinalityLimitStatus(LimitStatus.EXCEEDED))
+    } else {
+      dispatch(setCardinalityLimitStatus(LimitStatus.OK))
     }
   } catch (e) {}
 }

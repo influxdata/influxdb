@@ -1,6 +1,6 @@
 import AJAX from 'src/utils/ajax'
 
-export const getReadWriteLimits = async (orgID: string) => {
+export const getReadWriteCardinalityLimits = async (orgID: string) => {
   try {
     const {data} = await AJAX({
       method: 'GET',

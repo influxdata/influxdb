@@ -420,11 +420,13 @@ export const getBucketsFailed = (): Notification => ({
 })
 
 // Limits
-export const writeLimitReached = (): Notification => ({
+export const readWriteCardinalityLimitReached = (
+  message: string
+): Notification => ({
   ...defaultErrorNotification,
-  message: `Exceeded write limits.`,
+  message: `Failed to write data due to plan limits: ${message}`,
   duration: FIVE_SECONDS,
-  type: 'writeLimitReached',
+  type: 'readWriteCardinalityLimitReached',
 })
 
 export const readLimitReached = (): Notification => ({
