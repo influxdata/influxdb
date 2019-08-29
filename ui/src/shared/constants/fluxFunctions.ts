@@ -1220,7 +1220,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       {
         name: 'columns',
         desc:
-          'List of columns to use in the grouping operation. Defaults to `["_value"]`.',
+          'List of columns to use in the operation. Defaults to `["_value"]`.',
         type: 'Array of Strings',
       },
     ],
