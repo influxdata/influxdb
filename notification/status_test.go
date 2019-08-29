@@ -3,11 +3,13 @@ package notification
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb"
 )
+
+func checkLvlPtr(l CheckLevel) *CheckLevel {
+	return &l
+}
 
 func TestStatusJSON(t *testing.T) {
 	cases := []struct {
@@ -18,16 +20,12 @@ func TestStatusJSON(t *testing.T) {
 		{
 			name: "regular status rule",
 			src: StatusRule{
-				CurrentLevel:  LevelRule{Operation: true, CheckLevel: Warn},
-				PreviousLevel: &LevelRule{Operation: false, CheckLevel: Critical},
-				Count:         3,
-				Period:        influxdb.Duration{Duration: time.Minute * 13},
+				CurrentLevel:  Warn,
+				PreviousLevel: checkLvlPtr(Critical),
 			},
 			target: StatusRule{
-				CurrentLevel:  LevelRule{Operation: true, CheckLevel: Warn},
-				PreviousLevel: &LevelRule{Operation: false, CheckLevel: Critical},
-				Count:         3,
-				Period:        influxdb.Duration{Duration: time.Minute * 13},
+				CurrentLevel:  Warn,
+				PreviousLevel: checkLvlPtr(Critical),
 			},
 		},
 		{
@@ -38,10 +36,10 @@ func TestStatusJSON(t *testing.T) {
 		{
 			name: "invalid status",
 			src: StatusRule{
-				CurrentLevel: LevelRule{CheckLevel: CheckLevel(-10)},
+				CurrentLevel: CheckLevel(-10),
 			},
 			target: StatusRule{
-				CurrentLevel: LevelRule{CheckLevel: Unknown},
+				CurrentLevel: Unknown,
 			},
 		},
 	}

@@ -15,6 +15,10 @@ import (
 	influxTesting "github.com/influxdata/influxdb/testing"
 )
 
+func lvlPtr(l notification.CheckLevel) *notification.CheckLevel {
+	return &l
+}
+
 const (
 	id1 = "020f755c3c082000"
 	id2 = "020f755c3c082001"
@@ -307,13 +311,11 @@ func TestJSON(t *testing.T) {
 					},
 					StatusRules: []notification.StatusRule{
 						{
-							CurrentLevel:  notification.LevelRule{CheckLevel: notification.Warn, Operation: true},
-							PreviousLevel: &notification.LevelRule{CheckLevel: notification.Critical, Operation: false},
-							Count:         3,
-							Period:        influxdb.Duration{Duration: time.Minute * 13},
+							CurrentLevel:  notification.Warn,
+							PreviousLevel: lvlPtr(notification.Critical),
 						},
 						{
-							CurrentLevel: notification.LevelRule{CheckLevel: notification.Critical, Operation: true},
+							CurrentLevel: notification.Critical,
 						},
 					},
 					CRUDLog: influxdb.CRUDLog{
