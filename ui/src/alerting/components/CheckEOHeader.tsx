@@ -67,8 +67,10 @@ const CheckEOHeader: FC<Props> = ({name, onSetName, onCancel, onSave}) => {
             onClickOutside={handleClickOutsideTitle}
           />
         </Page.Header.Left>
-        <Page.Header.Right>
+        <Page.Header.Center>
           <CheckAlertingButton />
+        </Page.Header.Center>
+        <Page.Header.Right>
           <SquareButton
             icon={IconFont.Remove}
             onClick={onCancel}
