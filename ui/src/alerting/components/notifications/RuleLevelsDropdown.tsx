@@ -10,27 +10,27 @@ import {
 } from '@influxdata/clockface'
 
 // Types
-import {CheckStatusLevel} from 'src/types'
+import {RuleStatusLevel} from 'src/types'
 
-type Level = CheckStatusLevel
 type LevelType = 'currentLevel' | 'previousLevel'
-
-type ColorLevel = {hex: InfluxColors; display: string; value: Level}
+type ColorLevel = {hex: InfluxColors; display: string; value: RuleStatusLevel}
 
 const levels: ColorLevel[] = [
   {display: 'CRIT', hex: InfluxColors.Fire, value: 'CRIT'},
   {display: 'INFO', hex: InfluxColors.Ocean, value: 'INFO'},
   {display: 'WARN', hex: InfluxColors.Thunder, value: 'WARN'},
   {display: 'OK', hex: InfluxColors.Viridian, value: 'OK'},
+  {display: 'ANY', hex: InfluxColors.Sidewalk, value: 'ANY'},
 ]
 
 interface Props {
-  selectedLevel: Level
+  selectedLevel: RuleStatusLevel
+  otherLevel: RuleStatusLevel
   type: LevelType
-  onClickLevel: (type: LevelType, level: Level) => void
+  onClickLevel: (type: LevelType, level: RuleStatusLevel) => void
 }
 
-const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
+const RuleLevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
   const selected = levels.find(l => l.value === selectedLevel)
 
   if (!selected) {
@@ -83,4 +83,4 @@ const LevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
   )
 }
 
-export default LevelsDropdown
+export default RuleLevelsDropdown

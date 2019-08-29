@@ -76,6 +76,7 @@ export {
   LevelRule,
   TagRule,
   CheckStatusLevel,
+  RuleStatusLevel,
   GreaterThreshold,
   LesserThreshold,
   RangeThreshold,

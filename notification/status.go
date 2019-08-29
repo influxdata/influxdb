@@ -3,44 +3,12 @@ package notification
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/influxdata/influxdb"
 )
 
 // StatusRule includes parametes of status rules.
 type StatusRule struct {
-	CurrentLevel  LevelRule  `json:"currentLevel"`
-	PreviousLevel *LevelRule `json:"previousLevel"`
-	// Alert when >= Count per Period
-	Count  int               `json:"count"`
-	Period influxdb.Duration `json:"period"`
-}
-
-// LevelRule is a pair of level + operation.
-type LevelRule struct {
-	CheckLevel CheckLevel      `json:"level"`
-	Operation  StatusOperation `json:"operation"`
-}
-
-// StatusOperation is either equal or notequal
-type StatusOperation bool
-
-// MarshalJSON implements json.Marshaler interface.
-func (op StatusOperation) MarshalJSON() ([]byte, error) {
-	if op {
-		return json.Marshal("equal")
-	}
-	return json.Marshal("notequal")
-}
-
-// UnmarshalJSON implements json.Unmarshaler interface.
-func (op *StatusOperation) UnmarshalJSON(b []byte) error {
-	var ss string
-	if err := json.Unmarshal(b, &ss); err != nil {
-		return err
-	}
-	*op = (ss == "equal")
-	return nil
+	CurrentLevel  CheckLevel  `json:"currentLevel"`
+	PreviousLevel *CheckLevel `json:"previousLevel"`
 }
 
 // CheckLevel is the enum value of status levels.
@@ -53,6 +21,7 @@ const (
 	Info
 	Warn
 	Critical
+	Any
 )
 
 var checkLevels = []string{
@@ -61,6 +30,7 @@ var checkLevels = []string{
 	"INFO",
 	"WARN",
 	"CRIT",
+	"ANY",
 }
 
 var checkLevelMaps = map[string]CheckLevel{
@@ -69,6 +39,7 @@ var checkLevelMaps = map[string]CheckLevel{
 	"INFO":    Info,
 	"WARN":    Warn,
 	"CRIT":    Critical,
+	"ANY":     Any,
 }
 
 // MarshalJSON implements json.Marshaller.
