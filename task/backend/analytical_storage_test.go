@@ -11,6 +11,7 @@ import (
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/query/control"
@@ -52,6 +53,52 @@ func TestAnalyticalStore(t *testing.T) {
 			}, cancelFunc
 		},
 	)
+}
+
+func TestDeduplicateRuns(t *testing.T) {
+	svc := kv.NewService(inmem.NewKVStore())
+	if err := svc.Initialize(context.Background()); err != nil {
+		t.Fatalf("error initializing kv service: %v", err)
+	}
+
+	ab := newAnalyticalBackend(t, svc, svc)
+	defer ab.Close(t)
+
+	mockTS := &mock.TaskService{
+		FindTaskByIDFn: func(context.Context, influxdb.ID) (*influxdb.Task, error) {
+			return &influxdb.Task{ID: 1, OrganizationID: 20}, nil
+		},
+		FindRunsFn: func(context.Context, influxdb.RunFilter) ([]*influxdb.Run, int, error) {
+			return []*influxdb.Run{
+				&influxdb.Run{ID: 2, Status: "started"},
+			}, 1, nil
+		},
+	}
+	mockTCS := &mock.TaskControlService{
+		FinishRunFn: func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: "1", StartedAt: "2", FinishedAt: "3"}, nil
+		},
+	}
+
+	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockTCS, ab.PointsWriter(), ab.QueryService())
+
+	_, err := svcStack.FinishRun(context.Background(), 1, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runs, _, err := svcStack.FindRuns(context.Background(), influxdb.RunFilter{Task: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(runs) != 1 {
+		t.Fatalf("expected 1 run but got %d", len(runs))
+	}
+
+	if runs[0].Status != "success" {
+		t.Fatalf("expected the deduped run to be 'success', got: %s", runs[0].Status)
+	}
 }
 
 type analyticalBackend struct {
