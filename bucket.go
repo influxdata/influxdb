@@ -34,12 +34,12 @@ func ParseBucketType(s string) BucketType {
 
 const (
 	// ~*~ User Buckets ~*~
-	BucketTypeUser = BucketType(0) // BucketTypeUser describes a user-created data bucket. Its use of a zero value ensures that it is the default type.
+	BucketTypeUser BucketType = 0 // BucketTypeUser describes a user-created data bucket. Its use of a zero value ensures that it is the default type.
 
 	// ~*~ System Buckets ~*~
 	// These values also map to fixed system bucket IDs.
-	BucketTypeTasks      BucketType = iota + 10 // BucketTypeLogs defines the bucket ID of the system logs.
-	BucketTypeMonitoring                        // BucketTypeMonitoring defines the bucket ID of monitoring records.
+	BucketTypeTasks      BucketType = 10 // BucketTypeLogs defines the bucket ID of the system logs.
+	BucketTypeMonitoring BucketType = 11 // BucketTypeMonitoring defines the bucket ID of monitoring records.
 )
 
 // InfiniteRetention is default infinite retention period.
