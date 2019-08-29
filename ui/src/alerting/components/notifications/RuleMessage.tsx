@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useEffect} from 'react'
 import {connect} from 'react-redux'
 
 // Components
@@ -38,9 +38,11 @@ const RuleMessage: FC<Props> = ({endpoints, rule}) => {
     })
   }
 
-  if (!rule.endpointID && endpoints.length) {
-    onSelectEndpoint(endpoints[0].id)
-  }
+  useEffect(() => {
+    if (!rule.endpointID && endpoints.length) {
+      onSelectEndpoint(endpoints[0].id)
+    }
+  }, [])
 
   return (
     <Grid.Row>
