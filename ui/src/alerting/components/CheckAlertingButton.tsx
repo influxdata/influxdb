@@ -3,7 +3,15 @@ import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Button, ComponentColor, IconFont} from '@influxdata/clockface'
+import {
+  ComponentSize,
+  Radio,
+  Popover,
+  PopoverInteraction,
+  PopoverPosition,
+  ComponentColor,
+  PopoverType,
+} from '@influxdata/clockface'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -14,7 +22,6 @@ import {setActiveTab} from 'src/timeMachine/actions'
 
 // Types
 import {AppState, TimeMachineTab, DashboardDraftQuery} from 'src/types'
-import {ComponentStatus} from 'src/clockface'
 
 interface DispatchProps {
   setActiveTab: typeof setActiveTab
@@ -32,31 +39,63 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
   draftQueries,
   activeTab,
 }) => {
-  const handleClick = () => {
-    if (activeTab === 'alerting') {
-      setActiveTab('queries')
-    } else {
-      setActiveTab('alerting')
+  const handleClick = (nextTab: TimeMachineTab) => () => {
+    if (activeTab !== nextTab) {
+      setActiveTab(nextTab)
     }
   }
 
-  const alertingStatus = isDraftQueryAlertable(draftQueries)
-    ? ComponentStatus.Default
-    : ComponentStatus.Disabled
+  const isQueryAlertable = isDraftQueryAlertable(draftQueries)
 
   return (
-    <Button
-      icon={IconFont.BellSolid}
-      color={
-        activeTab === 'alerting'
-          ? ComponentColor.Secondary
-          : ComponentColor.Default
-      }
-      status={alertingStatus}
-      titleText="Add a Check to monitor this data"
-      text="Monitoring & Alerting"
-      onClick={handleClick}
-    />
+    <Popover
+      initiallyVisible={!isQueryAlertable}
+      position={PopoverPosition.ToTheRight}
+      showEvent={PopoverInteraction.Click}
+      hideEvent={PopoverInteraction.None}
+      color={ComponentColor.Primary}
+      type={PopoverType.Outline}
+      contents={onHide => (
+        <div
+          style={{
+            padding: '8px',
+            display: 'flex',
+            alignItems: 'left',
+            justifyContent: 'center',
+            fontSize: '13px',
+          }}
+        >
+          A query that can be used for a check must have
+          <br />a field and an aggregate function selection
+          <Popover.DismissButton onClick={onHide} />
+        </div>
+      )}
+    >
+      <Radio size={ComponentSize.Medium}>
+        <Radio.Button
+          key="queries"
+          id="queries"
+          titleText="queries"
+          value="queries"
+          active={activeTab === 'queries'}
+          onClick={handleClick('queries')}
+        >
+          Query
+        </Radio.Button>
+
+        <Radio.Button
+          key="alerting"
+          id="alerting"
+          titleText="alerting"
+          value="alerting"
+          active={activeTab === 'alerting'}
+          onClick={handleClick('alerting')}
+          disabled={!isQueryAlertable}
+        >
+          Check
+        </Radio.Button>
+      </Radio>
+    </Popover>
   )
 }
 
