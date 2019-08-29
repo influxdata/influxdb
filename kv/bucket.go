@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -402,7 +403,7 @@ func (s *Service) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
 	})
 }
 
-func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
+func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (err error) {
 	if b.OrgID.Valid() {
 		span, ctx := tracing.StartSpanFromContext(ctx)
 		defer span.Finish()
@@ -423,7 +424,9 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 	if b.IsSystem() {
 		b.ID = influxdb.ID(b.Type)
 	} else {
-		b.ID = s.IDGenerator.ID()
+		if b.ID, err = s.generateBucketID(); err != nil {
+			return err
+		}
 	}
 
 	b.CreatedAt = s.Now()
@@ -443,6 +446,16 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) e
 		return err
 	}
 	return nil
+}
+
+func (s *Service) generateBucketID() (influxdb.ID, error) {
+	for i := 0; i < MaxIDGenerationN; i++ {
+		id := s.IDGenerator.ID()
+		if s.IsValidOrgBucketID == nil || s.IsValidOrgBucketID(id) {
+			return id, nil
+		}
+	}
+	return 0, errors.New("unable to generate valid bucket id")
 }
 
 // PutBucket will put a bucket without setting an ID.
