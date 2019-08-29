@@ -15,13 +15,7 @@ import {RuleStatusLevel} from 'src/types'
 type LevelType = 'currentLevel' | 'previousLevel'
 type ColorLevel = {hex: InfluxColors; display: string; value: RuleStatusLevel}
 
-const levels: ColorLevel[] = [
-  {display: 'CRIT', hex: InfluxColors.Fire, value: 'CRIT'},
-  {display: 'INFO', hex: InfluxColors.Ocean, value: 'INFO'},
-  {display: 'WARN', hex: InfluxColors.Thunder, value: 'WARN'},
-  {display: 'OK', hex: InfluxColors.Viridian, value: 'OK'},
-  {display: 'ANY', hex: InfluxColors.Sidewalk, value: 'ANY'},
-]
+
 
 interface Props {
   selectedLevel: RuleStatusLevel
@@ -30,7 +24,23 @@ interface Props {
   onClickLevel: (type: LevelType, level: RuleStatusLevel) => void
 }
 
-const RuleLevelsDropdown: FC<Props> = ({type, selectedLevel, onClickLevel}) => {
+const RuleLevelsDropdown: FC<Props> = ({
+  type,
+  selectedLevel,
+  otherLevel,
+  onClickLevel,
+}) => {
+  let levels: ColorLevel[] = [
+    {display: 'CRIT', hex: InfluxColors.Fire, value: 'CRIT'},
+    {display: 'INFO', hex: InfluxColors.Ocean, value: 'INFO'},
+    {display: 'WARN', hex: InfluxColors.Thunder, value: 'WARN'},
+    {display: 'OK', hex: InfluxColors.Viridian, value: 'OK'},
+    {display: 'ANY', hex: InfluxColors.Sidewalk, value: 'ANY'},
+  ]
+  if (otherLevel) {
+    levels = levels.filter(l => l.value !== otherLevel)
+  }
+
   const selected = levels.find(l => l.value === selectedLevel)
 
   if (!selected) {
