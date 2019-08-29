@@ -2,22 +2,12 @@ package authorizer
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
 var _ influxdb.BucketService = (*BucketService)(nil)
-
-// ProtectedBucketError is used when a user attempts to modify a system bucket.
-func ProtectedBucketError(b *influxdb.Bucket) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInvalid,
-		Msg:  fmt.Sprintf("bucket %s cannot be modified", b.Name),
-		Op:   "authorizer/bucket",
-	}
-}
 
 // BucketService wraps a influxdb.BucketService and authorizes actions
 // against it appropriately.
@@ -154,10 +144,6 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 		return nil, err
 	}
 
-	if b.IsSystem() {
-		return nil, ProtectedBucketError(b)
-	}
-
 	if err := authorizeWriteBucket(ctx, b.OrgID, id); err != nil {
 		return nil, err
 	}
@@ -170,10 +156,6 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error 
 	b, err := s.s.FindBucketByID(ctx, id)
 	if err != nil {
 		return err
-	}
-
-	if b.IsSystem() {
-		return ProtectedBucketError(b)
 	}
 
 	if err := authorizeWriteBucket(ctx, b.OrgID, id); err != nil {

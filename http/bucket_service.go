@@ -134,7 +134,6 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 type bucket struct {
 	ID                  influxdb.ID     `json:"id,omitempty"`
 	OrgID               influxdb.ID     `json:"orgID,omitempty"`
-	Type                string          `json:"type"`
 	Description         string          `json:"description,omitempty"`
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
@@ -169,7 +168,6 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 	return &influxdb.Bucket{
 		ID:                  b.ID,
 		OrgID:               b.OrgID,
-		Type:                influxdb.ParseBucketType(b.Type),
 		Description:         b.Description,
 		Name:                b.Name,
 		RetentionPolicyName: b.RetentionPolicyName,
@@ -195,7 +193,6 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 	return &bucket{
 		ID:                  pb.ID,
 		OrgID:               pb.OrgID,
-		Type:                pb.Type.String(),
 		Name:                pb.Name,
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
@@ -345,9 +342,6 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 	if err != nil {
 		return nil, err
 	}
-
-	// Only user buckets can be created over HTTP
-	pb.Type = influxdb.BucketTypeUser
 
 	req := &postBucketRequest{
 		Bucket: pb,

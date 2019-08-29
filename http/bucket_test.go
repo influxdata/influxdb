@@ -114,7 +114,6 @@ func TestService_handleGetBuckets(t *testing.T) {
         "members": "/api/v2/buckets/0b501e7e557ab1ed/members",
         "write": "/api/v2/write?org=50f7ba1150f7ba11&bucket=0b501e7e557ab1ed"
 	  },
-		"type": "user",
 	  "createdAt": "0001-01-01T00:00:00Z",
 	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "0b501e7e557ab1ed",
@@ -141,7 +140,6 @@ func TestService_handleGetBuckets(t *testing.T) {
         "owners": "/api/v2/buckets/c0175f0077a77005/owners",
         "write": "/api/v2/write?org=7e55e118dbabb1ed&bucket=c0175f0077a77005"
 	  },
-		"type": "user",
 	  "createdAt": "0001-01-01T00:00:00Z",
 	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "c0175f0077a77005",
@@ -284,7 +282,6 @@ func TestService_handleGetBucket(t *testing.T) {
 		    "owners": "/api/v2/buckets/020f755c3c082000/owners",
 		    "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
 		  },
-			"type": "user",
 		  "createdAt": "0001-01-01T00:00:00Z",
 		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
@@ -417,7 +414,6 @@ func TestService_handlePostBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=6f626f7274697320&bucket=020f755c3c082000"
   },
-	"type": "user",
   "createdAt": "0001-01-01T00:00:00Z",
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
@@ -640,7 +636,6 @@ func TestService_handlePatchBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
   },
-	"type": "user",
   "createdAt": "0001-01-01T00:00:00Z",
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
@@ -719,7 +714,6 @@ func TestService_handlePatchBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
   },
-	"type": "user",
   "createdAt": "0001-01-01T00:00:00Z",
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
@@ -779,7 +773,6 @@ func TestService_handlePatchBucket(t *testing.T) {
     "owners": "/api/v2/buckets/020f755c3c082000/owners",
     "write": "/api/v2/write?org=020f755c3c082000&bucket=020f755c3c082000"
   },
-	"type": "user",
   "createdAt": "0001-01-01T00:00:00Z",
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
