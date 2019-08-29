@@ -8,7 +8,6 @@ import (
 
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
@@ -88,8 +87,6 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 		return err
 	}
 
-	var deleteKeys [][]byte
-
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
 		// TODO(edd): tracing this deep down is currently speculative, so I have
@@ -104,8 +101,6 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 			return nil
 		}
 
-		deleteKeys = append(deleteKeys, k)
-
 		// we have to double check every key in the cache because maybe
 		// it exists in the index but not yet on disk.
 		possiblyDead.keys[string(k)] = struct{}{}
@@ -113,9 +108,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 		return nil
 	})
 
-	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
 	sortSpan, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache sort keys")
-	bytesutil.Sort(deleteKeys)
 	sortSpan.Finish()
 
 	// Delete from the cache.
