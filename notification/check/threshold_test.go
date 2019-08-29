@@ -92,7 +92,7 @@ import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
 	|> range(start: -1h)
-	|> aggregateWindow(every: 1h, fn: mean)
+	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
@@ -192,7 +192,7 @@ import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
 	|> range(start: -1h)
-	|> aggregateWindow(every: 1h, fn: mean)
+	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
@@ -292,7 +292,7 @@ import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
 	|> range(start: -1h)
-	|> aggregateWindow(every: 1h, fn: mean)
+	|> aggregateWindow(every: 1h, fn: mean, createEmpty: false)
 
 option task = {name: "moo", every: 1h}
 
@@ -331,7 +331,7 @@ data
 		t.Run(tt.name, func(t *testing.T) {
 			// TODO(desa): change this to GenerateFlux() when we don't need to code
 			// around the monitor package not being available.
-			p, err := tt.args.threshold.GenerateFluxASTReal()
+			p, err := tt.args.threshold.GenerateFluxAST()
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
