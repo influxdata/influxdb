@@ -115,6 +115,13 @@ func String(s string) *ast.StringLiteral {
 	}
 }
 
+// Bool returns an *ast.BooleanLiteral of b.
+func Bool(b bool) *ast.BooleanLiteral {
+	return &ast.BooleanLiteral{
+		Value: b,
+	}
+}
+
 // Duration returns an *ast.DurationLiteral for a single duration.
 func Duration(m int64, u string) *ast.DurationLiteral {
 	return &ast.DurationLiteral{

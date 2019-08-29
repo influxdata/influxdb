@@ -105,7 +105,7 @@ func multiError(errs []error) error {
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
 func (t Threshold) GenerateFlux() (string, error) {
-	p, err := t.GenerateFluxASTReal()
+	p, err := t.GenerateFluxAST()
 	if err != nil {
 		return "", err
 	}
@@ -117,8 +117,10 @@ func (t Threshold) GenerateFlux() (string, error) {
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
 func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
-	// TODO(desa): remove this function)
 	p := parser.ParseSource(t.Query.Text)
+	replaceDurationsWithEvery(p, t.Every)
+	removeStopFromRange(p)
+	addCreateEmptyFalseToAggregateWindow(p)
 
 	if errs := ast.GetErrors(p); len(errs) != 0 {
 		return nil, multiError(errs)
@@ -130,15 +132,11 @@ func (t Threshold) GenerateFluxAST() (*ast.Package, error) {
 		return nil, fmt.Errorf("expect a single file to be returned from query parsing got %d", len(p.Files))
 	}
 
-	if _, err := t.getSelectedField(); err != nil {
-		return nil, err
-	}
-
 	f := p.Files[0]
-	f.Body = append(f.Body, t.generateTaskOption())
+	assignPipelineToData(f)
 
-	//replaceDurationsWithEvery(p, t.Every)
-	//removeStopFromRange(p)
+	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "influxdata/influxdb/v1")...)
+	f.Body = append(f.Body, t.generateFluxASTBody()...)
 
 	return p, nil
 }
@@ -154,6 +152,21 @@ func (t Threshold) getSelectedField() (string, error) {
 	}
 
 	return "", fmt.Errorf("no field was selected")
+}
+
+// TODO(desa): we'll likely want something slightly more sophisitcated long term, but this should work for now.
+func addCreateEmptyFalseToAggregateWindow(pkg *ast.Package) {
+	ast.Visit(pkg, func(n ast.Node) {
+		if call, ok := n.(*ast.CallExpression); ok {
+			if id, ok := call.Callee.(*ast.Identifier); ok && id.Name == "aggregateWindow" {
+				for _, args := range call.Arguments {
+					if obj, ok := args.(*ast.ObjectExpression); ok {
+						obj.Properties = append(obj.Properties, flux.Property("createEmpty", flux.Bool(false)))
+					}
+				}
+			}
+		}
+	})
 }
 
 // TODO(desa): we'll likely want something slightly more sophisitcated long term, but this should work for now.
@@ -220,32 +233,6 @@ func assignPipelineToData(f *ast.File) error {
 
 	f.Body[0] = flux.DefineVariable("data", exp)
 	return nil
-}
-
-// GenerateFluxASTReal is the real version of GenerateFluxAST. It has to exist so staticheck doesn't yell about
-// the unexported functions I have here.
-func (t Threshold) GenerateFluxASTReal() (*ast.Package, error) {
-	p := parser.ParseSource(t.Query.Text)
-	replaceDurationsWithEvery(p, t.Every)
-	removeStopFromRange(p)
-
-	if errs := ast.GetErrors(p); len(errs) != 0 {
-		return nil, multiError(errs)
-	}
-
-	// TODO(desa): this is a hack that we had to do as a result of https://github.com/influxdata/flux/issues/1701
-	// when it is fixed we should use a separate file and not manipulate the existing one.
-	if len(p.Files) != 1 {
-		return nil, fmt.Errorf("expect a single file to be returned from query parsing got %d", len(p.Files))
-	}
-
-	f := p.Files[0]
-	assignPipelineToData(f)
-
-	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "influxdata/influxdb/v1")...)
-	f.Body = append(f.Body, t.generateFluxASTBody()...)
-
-	return p, nil
 }
 
 func (t Threshold) generateFluxASTBody() []ast.Statement {
