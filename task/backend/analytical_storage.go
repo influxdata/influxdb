@@ -222,9 +222,29 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 		return nil, 0, fmt.Errorf("unexpected internal error while decoding run response: %v", err)
 	}
 
-	runs = append(runs, re.runs...)
+	runs = as.combineRuns(runs, re.runs)
 
-	return runs, n, err
+	return runs, len(runs), err
+}
+
+// remove any kv runs that exist in the list of completed runs
+func (as *AnalyticalStorage) combineRuns(currentRuns, completeRuns []*influxdb.Run) []*influxdb.Run {
+	crMap := map[influxdb.ID]int{}
+
+	// track the current runs
+	for i, cr := range currentRuns {
+		crMap[cr.ID] = i
+	}
+
+	// if we find a complete run that matches a current run the current run is out dated and
+	// should be removed.
+	for _, completeRun := range completeRuns {
+		if i, ok := crMap[completeRun.ID]; ok {
+			currentRuns = append(currentRuns[:i], currentRuns[i+1:]...)
+		}
+	}
+
+	return append(currentRuns, completeRuns...)
 }
 
 // FindRunByID returns a single run.
