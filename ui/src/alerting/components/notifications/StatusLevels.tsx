@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC} from 'react'
-import {get} from 'lodash'
 
 // Components
 import {
