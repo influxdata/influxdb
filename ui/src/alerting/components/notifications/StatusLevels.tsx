@@ -46,8 +46,8 @@ const StatusLevels: FC<Props> = ({status}) => {
         <FlexBox.Child grow={0} basis={140}>
           <RuleLevelsDropdown
             type="previousLevel"
-            selectedLevel={previousLevel.level}
-            otherLevel={currentLevel.level}
+            selectedLevel={previousLevel}
+            otherLevel={currentLevel}
             onClickLevel={onClickLevel}
           />
         </FlexBox.Child>
@@ -56,7 +56,7 @@ const StatusLevels: FC<Props> = ({status}) => {
       <FlexBox.Child grow={0} basis={140}>
         <RuleLevelsDropdown
           type="currentLevel"
-          selectedLevel={currentLevel.level}
+          selectedLevel={currentLevel}
           otherLevel={get(previousLevel, 'level')}
           onClickLevel={onClickLevel}
         />

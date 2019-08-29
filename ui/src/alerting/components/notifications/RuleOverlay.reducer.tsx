@@ -97,10 +97,7 @@ export const reducer = (state: RuleState, action: Action) => {
 
         const value = {
           ...status.value,
-          [levelType]: {
-            ...status.value[levelType],
-            level,
-          },
+          [levelType]: level,
         }
 
         return {...status, value}

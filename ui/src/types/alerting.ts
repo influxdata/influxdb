@@ -73,7 +73,6 @@ export {
   Threshold,
   CheckBase,
   StatusRule,
-  LevelRule,
   TagRule,
   CheckStatusLevel,
   RuleStatusLevel,
