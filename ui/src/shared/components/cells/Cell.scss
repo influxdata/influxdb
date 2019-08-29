@@ -8,7 +8,7 @@ $cell--header-size: 36px;
 .cell {
   background-color: $g3-castle;
   border-radius: $radius;
-  transform: translate3d(0,0,0); // gpu boost
+  transform: translate3d(0, 0, 0); // gpu boost
 }
 
 .cell--view {
@@ -30,7 +30,7 @@ $cell--header-size: 36px;
     padding-top: 0;
   }
 
-  .vis-plot-container {
+  .time-series-container {
     padding-top: $ix-marg-a;
   }
 }
@@ -63,7 +63,7 @@ $cell--header-size: 36px;
 }
 
 .dashboard .cell--view-empty .empty-graph-error {
-    top: $ix-marg-c + $cell--header-size;
+  top: $ix-marg-c + $cell--header-size;
 }
 
 .cell--header {
@@ -170,12 +170,12 @@ $cell--header-size: 36px;
   }
 }
 
-.vis-plot-container {
+.time-series-container {
   width: 100%;
   height: 100%;
   padding: $ix-marg-c;
 
-  &.vis-plot-container--alert-check {
+  &.time-series-container--alert-check {
     padding-right: $ix-marg-c + 30px;
     overflow: hidden;
   }

@@ -1,4 +1,4 @@
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import classnames from 'classnames'
 
 import Cells from 'src/shared/components/cells/Cells'
@@ -15,11 +15,9 @@ interface Props {
   timeRange: TimeRange
   manualRefresh: number
   inPresentationMode: boolean
-  inView: (cell: Cell) => boolean
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onPositionChange: (cells: Cell[]) => void
-  setScrollTop: (e: MouseEvent<HTMLElement>) => void
   onEditView: (cellID: string) => void
   onAddCell: () => void
   onEditNote: (id: string) => void
@@ -37,7 +35,6 @@ class DashboardComponent extends PureComponent<Props> {
       onEditView,
       onPositionChange,
       inPresentationMode,
-      setScrollTop,
       onAddCell,
       onEditNote,
     } = this.props
@@ -47,7 +44,6 @@ class DashboardComponent extends PureComponent<Props> {
         className={classnames('page-contents', {
           'presentation-mode': inPresentationMode,
         })}
-        setScrollTop={setScrollTop}
       >
         <div className="dashboard container-fluid full-width">
           {dashboard.cells.length ? (
