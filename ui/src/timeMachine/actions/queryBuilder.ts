@@ -2,7 +2,11 @@
 import {queryBuilderFetcher} from 'src/timeMachine/apis/QueryBuilderFetcher'
 
 // Utils
-import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {
+  getActiveQuery,
+  getActiveTimeMachine,
+  getTimeRange,
+} from 'src/timeMachine/selectors'
 
 // Types
 import {Dispatch} from 'redux-thunk'
@@ -282,7 +286,7 @@ export const loadTagSelector = (index: number) => async (
   dispatch(setBuilderTagKeysStatus(index, RemoteDataState.Loading))
 
   try {
-    const timeRange = getActiveTimeMachine(getState()).timeRange
+    const timeRange = getTimeRange(getState())
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .keysSearchTerm
 
@@ -338,7 +342,7 @@ const loadTagSelectorValues = (index: number) => async (
   dispatch(setBuilderTagValuesStatus(index, RemoteDataState.Loading))
 
   try {
-    const timeRange = getActiveTimeMachine(getState()).timeRange
+    const timeRange = getTimeRange(getState())
     const key = getActiveQuery(getState()).builderConfig.tags[index].key
     const searchTerm = getActiveTimeMachine(getState()).queryBuilder.tags[index]
       .valuesSearchTerm

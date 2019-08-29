@@ -16,7 +16,7 @@ const SelectorList: SFC<Props> = props => {
   const {items, selectedItems, onSelectItem, multiSelect} = props
 
   return (
-    <BuilderCard.Body addPadding={false}>
+    <BuilderCard.Body addPadding={false} autoHideScrollbars={true}>
       {items.map(item => {
         const className = classnames('selector-list--item', {
           selected: selectedItems.includes(item),

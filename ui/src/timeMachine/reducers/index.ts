@@ -146,6 +146,8 @@ export const timeMachinesReducer = (
     }))
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
     const queryResults = initialQueryResultsState()
+    const timeRange =
+      activeTimeMachineID === 'alerting' ? null : activeTimeMachine.timeRange
 
     return {
       ...state,
@@ -155,6 +157,7 @@ export const timeMachinesReducer = (
         [activeTimeMachineID]: {
           ...activeTimeMachine,
           activeTab: 'queries',
+          timeRange,
           ...initialState,
           isViewingRawData: false,
           activeQueryIndex: 0,
@@ -604,7 +607,6 @@ export const timeMachineReducer = (
 
         if (action.payload.resetSelections) {
           builderConfig.tags = [{key: '', values: []}]
-          builderConfig.functions = []
           buildActiveQuery(draftState)
         }
       })
@@ -765,6 +767,10 @@ export const timeMachineReducer = (
 
         draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {period}
         buildActiveQuery(draftState)
+
+        if (state.alerting.check) {
+          state.alerting.check.every = period
+        }
       })
     }
 
@@ -837,12 +843,24 @@ export const timeMachineReducer = (
       return {...state, alerting}
 
     case 'UPDATE_TIMEMACHINE_CHECK':
-      const updatedCheck = {
-        ...state.alerting.check,
-        ...action.payload.checkUpdate,
-      } as Partial<Check>
+      return produce(state, draftState => {
+        draftState.alerting.check = {
+          ...draftState.alerting.check,
+          ...action.payload.checkUpdate,
+        } as Check
 
-      return {...state, alerting: {...state.alerting, check: updatedCheck}}
+        const every = action.payload.checkUpdate.every
+
+        if (every) {
+          const {activeQueryIndex, draftQueries} = draftState
+
+          draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {
+            period: every,
+          }
+
+          buildActiveQuery(draftState)
+        }
+      })
 
     case 'CHANGE_TIMEMACHINE_CHECK_TYPE':
       return produce(state, draftState => {

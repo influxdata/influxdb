@@ -19,8 +19,10 @@ import {
 import {
   Action as TimeMachineAction,
   setActiveTimeMachine,
+  updateTimeMachineCheck,
+  setCheckStatus,
 } from 'src/timeMachine/actions'
-import {setCheckStatus} from 'src/timeMachine/actions'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Types
 import {
@@ -245,4 +247,9 @@ export const cloneCheck = (check: Check) => async (
     console.error(error)
     dispatch(notify(copy.createCheckFailed(error.message)))
   }
+}
+
+export const selectCheckEvery = (every: string) => async dispatch => {
+  dispatch(updateTimeMachineCheck({every}))
+  dispatch(executeQueries())
 }

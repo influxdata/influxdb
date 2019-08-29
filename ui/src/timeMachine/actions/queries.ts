@@ -13,7 +13,7 @@ import {notify} from 'src/shared/actions/notifications'
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Utils
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
+import {getActiveTimeMachine, getTimeRange} from 'src/timeMachine/selectors'
 import {getVariableAssignments} from 'src/variables/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
@@ -88,7 +88,8 @@ export const refreshTimeMachineVariableValues = () => async (
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
-  const {view, timeRange} = getActiveTimeMachine(getState())
+  const {view} = getActiveTimeMachine(getState())
+  const timeRange = getTimeRange(getState())
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
 
   if (!queries.length) {

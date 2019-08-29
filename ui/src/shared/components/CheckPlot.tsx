@@ -66,7 +66,7 @@ const CheckPlot: FunctionComponent<Props> = ({
   }
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
-    [0, 100],
+    null,
     table.getColumn(Y_COLUMN, 'number')
   )
 
@@ -95,11 +95,13 @@ const CheckPlot: FunctionComponent<Props> = ({
     table
   )
 
-  const yTicks = flatMap(thresholds, (t: any) => [
+  const thresholdValues = flatMap(thresholds, (t: any) => [
     t.value,
     t.minValue,
     t.maxValue,
   ]).filter(t => t !== undefined)
+
+  const yTicks = thresholdValues.length ? thresholdValues : null
 
   const config: Config = {
     ...VIS_THEME,

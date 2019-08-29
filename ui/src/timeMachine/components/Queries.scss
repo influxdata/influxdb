@@ -15,6 +15,14 @@
   background: $g2-kevlar;
   padding: 8px 10px 0 10px;
   width: 100%;
+
+  .view-raw-data-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 115px;
+    margin-right: $ix-marg-b;
+  }
 }
 
 .time-machine-queries--tabs {

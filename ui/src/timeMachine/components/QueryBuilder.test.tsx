@@ -2,7 +2,6 @@ import React from 'react'
 
 import {renderWithRedux} from 'src/mockState'
 import {waitForElement, fireEvent} from 'react-testing-library'
-import {windows} from 'src/timeMachine/components/WindowSelector'
 
 import QueryBuilder from 'src/timeMachine/components/QueryBuilder'
 
@@ -80,20 +79,20 @@ describe('QueryBuilder', () => {
     const mean = getByTestId('selector-list mean')
     fireEvent.click(mean)
 
-    let windowSelectorButton = getByTestId('window-selector--button')
+    let windowSelectorButton = getByTestId('duration-selector--button')
 
     fireEvent.click(windowSelectorButton)
 
-    const windowSelector = getByTestId('window-selector--menu')
+    const windowSelector = getByTestId('duration-selector--menu')
 
-    expect(windowSelector.childElementCount).toBe(windows.length)
+    expect(windowSelector.childElementCount).toBe(14)
 
-    const fiveMins = getByTestId('window-selector--5m')
+    const fiveMins = getByTestId('duration-selector--5m')
 
     fireEvent.click(fiveMins)
 
-    windowSelectorButton = getByTestId('window-selector--button')
+    windowSelectorButton = getByTestId('duration-selector--button')
 
-    expect(windowSelectorButton.textContent).toContain('5m')
+    expect(windowSelectorButton.textContent).toContain('5 minutes')
   })
 })
