@@ -98,4 +98,6 @@ var FluxEndToEndSkipList = map[string]string{
 	"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
 
 	"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
+
+	"secrets": "Cannot inject custom deps into the test framework so the secrets don't lookup correctly",
 }
