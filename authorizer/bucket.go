@@ -30,9 +30,6 @@ func authorizeReadBucket(ctx context.Context, orgID, id influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// // hack for system buckets lol
-	// if ()
-
 	p, err := newBucketPermission(influxdb.ReadAction, orgID, id)
 	if err != nil {
 		return err
