@@ -419,8 +419,6 @@ func (s *Service) createBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) (
 		}
 	}
 
-	// if the bucket name is not unique for this organization, then, do not
-	// allow creation.
 	if err := s.validBucketName(ctx, tx, b); err != nil {
 		return err
 	}
