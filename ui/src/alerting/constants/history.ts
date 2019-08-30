@@ -74,9 +74,7 @@ export const NOTIFICATION_FIELDS: Fields = [
   },
 ]
 
-export const STATUS_BUCKET = 'fake_status_bucket'
-
-export const NOTIFICATION_BUCKET = 'fake_notification_bucket'
+export const MONITORING_BUCKET = '_monitoring'
 
 export const EXAMPLE_STATUS_SEARCHES = [
   '"check" == "my check"',

@@ -10,8 +10,7 @@ import {readQueryParams} from 'src/shared/utils/queryParams'
 
 // Constants
 import {
-  STATUS_BUCKET,
-  NOTIFICATION_BUCKET,
+  MONITORING_BUCKET,
   HISTORY_TYPE_QUERY_PARAM,
   SEARCH_QUERY_PARAM,
 } from 'src/alerting/constants/history'
@@ -41,7 +40,7 @@ export const loadStatuses = (
   const fluxFilter = filter ? searchExprToFlux(renameTagKeys(filter)) : null
 
   const query = `
-from(bucket: "${STATUS_BUCKET}")
+from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
   |> filter(fn: (r) => r._field == "_message")
   |> keep(columns: ["_time", "_value", "_check_id", "_check_name", "_level"])
@@ -65,7 +64,7 @@ export const loadNotifications = (
   const fluxFilter = filter ? searchExprToFlux(renameTagKeys(filter)) : null
 
   const query = `
-from(bucket: "${NOTIFICATION_BUCKET}")
+from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
   |> filter(fn: (r) => r._field == "_message")
   |> keep(columns: ["_time",
