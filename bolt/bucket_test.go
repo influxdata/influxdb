@@ -46,5 +46,6 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 }
 
 func TestBucketService(t *testing.T) {
+	t.Skip("old bolt code")
 	platformtesting.BucketService(initBucketService, t)
 }

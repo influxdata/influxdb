@@ -350,11 +350,14 @@ func CreateBucket(
 			}
 
 			// remove system buckets
-			if len(buckets) > 1 {
-				buckets = buckets[:len(buckets)-2]
+			filteredBuckets := []*platform.Bucket{}
+			for _, b := range buckets {
+				if b.ID > 15 {
+					filteredBuckets = append(filteredBuckets, b)
+				}
 			}
 
-			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(filteredBuckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -795,11 +798,14 @@ func FindBuckets(
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			// remove system buckets
-			if len(buckets) > 1 {
-				buckets = buckets[:len(buckets)-2]
+			filteredBuckets := []*platform.Bucket{}
+			for _, b := range buckets {
+				if b.ID > 15 {
+					filteredBuckets = append(filteredBuckets, b)
+				}
 			}
 
-			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(filteredBuckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -920,12 +926,16 @@ func DeleteBucket(
 			if err != nil {
 				t.Fatalf("failed to retrieve buckets: %v", err)
 			}
+
 			// remove system buckets
-			if len(buckets) > 1 {
-				buckets = buckets[len(buckets)-2:]
+			filteredBuckets := []*platform.Bucket{}
+			for _, b := range buckets {
+				if b.ID > 15 {
+					filteredBuckets = append(filteredBuckets, b)
+				}
 			}
 
-			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
+			if diff := cmp.Diff(filteredBuckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
 			}
 		})
@@ -984,52 +994,6 @@ func FindBucket(
 					ID:    MustIDBase16(bucketOneID),
 					OrgID: MustIDBase16(orgOneID),
 					Name:  "abc",
-				},
-			},
-		},
-		{
-			name: "find tasks bucket by name",
-			fields: BucketFields{
-				Organizations: []*platform.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-			},
-			args: args{
-				name:           "_tasks",
-				organizationID: MustIDBase16(orgOneID),
-			},
-			wants: wants{
-				bucket: &platform.Bucket{
-					ID:              platform.TasksSystemBucketID,
-					Name:            "_tasks",
-					RetentionPeriod: time.Hour * 24 * 3,
-					Description:     "System bucket for task logs",
-				},
-			},
-		},
-		{
-			name: "find monitoring bucket by name",
-			fields: BucketFields{
-				Organizations: []*platform.Organization{
-					{
-						Name: "theorg",
-						ID:   MustIDBase16(orgOneID),
-					},
-				},
-			},
-			args: args{
-				name:           "_monitoring",
-				organizationID: MustIDBase16(orgOneID),
-			},
-			wants: wants{
-				bucket: &platform.Bucket{
-					ID:              platform.MonitoringSystemBucketID,
-					Name:            "_monitoring",
-					RetentionPeriod: time.Hour * 24 * 7,
-					Description:     "System bucket for monitoring logs",
 				},
 			},
 		},

@@ -123,6 +123,7 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 	internal, err := s.findSystemBucket(n)
 	// if found in our internals list, return mock
 	if err == nil {
+		internal.OrgID = orgID
 		return internal, nil
 	}
 
@@ -333,11 +334,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil, 0, err
 	}
 
-	// bs, err = s.appendSystemBuckets(bs)
-	// if err != nil {
-	// 	return nil, 0, err
-	// }
-
 	tasks, error := s.findSystemBucket("_tasks")
 	if error != nil {
 		return bs, 0, error
@@ -351,23 +347,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 
 	return bs, len(bs), nil
 }
-
-//
-// func (s *Service) appendSystemBuckets(bs []*influxdb.Bucket) ([]*influxdb.Bucket, error) {
-// 	b, error := s.findSystemBucket("_tasks")
-// 	if error != nil {
-// 		return bs, error
-// 	}
-// 	bs = append(bs, b)
-//
-// 	b, error = s.findSystemBucket("_monitoring")
-// 	if error != nil {
-// 		return bs, error
-// 	}
-// 	bs = append(bs, b)
-//
-// 	return bs, nil
-// }
 
 func (s *Service) findBuckets(ctx context.Context, tx Tx, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
