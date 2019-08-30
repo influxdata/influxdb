@@ -35,7 +35,7 @@ func AddControllerConfigDependencies(
 	orgLookupSvc := query.FromOrganizationService(orgSvc)
 	metrics := influxdb.NewMetrics(cc.MetricLabelKeys)
 	if err := influxdb.InjectFromDependencies(cc.ExecutorDependencies, influxdb.Dependencies{
-		Reader:             reads.NewReader(newStore(engine)),
+		Reader:             reads.NewReader(NewStore(engine)),
 		BucketLookup:       bucketLookupSvc,
 		OrganizationLookup: orgLookupSvc,
 		Metrics:            metrics,
