@@ -119,17 +119,6 @@ describe('Onboarding', () => {
       //wait for new page to load
       cy.location('pathname').should('include', 'onboarding/2')
 
-      cy.getByTestID('notification-success').should($msg => {
-        expect($msg).to.contain(
-          'Initial user details have been successfully set'
-        )
-      })
-
-      cy.getByTestID('notification-success')
-        .should('be.visible')
-        .children('button.notification-close')
-        .should('be.visible')
-
       //check navbar
       cy.getByTestID('nav-step--complete').should('have.class', 'current')
 
@@ -144,32 +133,10 @@ describe('Onboarding', () => {
       cy.getByTestID('button--quick-start').click()
 
       cy.location('pathname').should('equal', '/orgs/' + orgId)
-
-      cy.getByTestID('notification-success').should($msg => {
-        expect($msg).to.contain(
-          'The InfluxDB Scraper has been configured for http://localhost:9999/metrics'
-        )
-      })
-
-      cy.getByTestID('notification-success')
-        .eq(0)
-        .should('be.visible')
-        .children('button.notification-close')
-        .click()
-
-      cy.getByTestID('notification-success')
-        .eq(1)
-        .should('be.visible')
-        .children('button.notification-close')
-        .click()
-
-      cy.getByTestID('notification-success')
-        .eq(0)
-        .should('not.exist')
     })
   })
 
-  it('Can onboard to advanced', () => {
+  it.skip('Can onboard to advanced', () => {
     cy.server()
 
     cy.route('POST', 'api/v2/setup').as('orgSetup')

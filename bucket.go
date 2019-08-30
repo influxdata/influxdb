@@ -6,40 +6,11 @@ import (
 	"time"
 )
 
-// BucketType defines known system-buckets.
-type BucketType int
-
-// String converts a BucketType into a human-readable string.
-func (bt BucketType) String() string {
-	switch bt {
-	case BucketTypeTasks:
-		return "tasks"
-	case BucketTypeMonitoring:
-		return "monitoring"
-	default:
-		return "user"
-	}
-}
-
-func ParseBucketType(s string) BucketType {
-	switch s {
-	case "tasks":
-		return BucketTypeTasks
-	case "monitoring":
-		return BucketTypeMonitoring
-	default:
-		return BucketTypeUser
-	}
-}
-
 const (
-	// ~*~ User Buckets ~*~
-	BucketTypeUser = BucketType(0) // BucketTypeUser describes a user-created data bucket. Its use of a zero value ensures that it is the default type.
-
-	// ~*~ System Buckets ~*~
-	// These values also map to fixed system bucket IDs.
-	BucketTypeTasks      BucketType = iota + 10 // BucketTypeLogs defines the bucket ID of the system logs.
-	BucketTypeMonitoring                        // BucketTypeMonitoring defines the bucket ID of monitoring records.
+	// TasksSystemBucketID is the fixed ID for our tasks system bucket
+	TasksSystemBucketID = ID(10)
+	// MonitoringSystemBucketID is the fixed ID for our monitoring system bucket
+	MonitoringSystemBucketID = ID(11)
 )
 
 // InfiniteRetention is default infinite retention period.
@@ -49,17 +20,11 @@ const InfiniteRetention = 0
 type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
 	OrgID               ID            `json:"orgID,omitempty"`
-	Type                BucketType    `json:"type"`
 	Name                string        `json:"name"`
 	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 	CRUDLog
-}
-
-// IsSystem returns true if the bucket is a reserved system bucket.
-func (b *Bucket) IsSystem() bool {
-	return b.Type != 0
 }
 
 // ops for buckets error and buckets op logs.
