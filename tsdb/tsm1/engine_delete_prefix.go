@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -92,18 +93,21 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 	span.LogKV("cache_size", e.Cache.Size())
 	var keysChecked int // For tracing information.
 	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+	nameStr := string(name)
+	_ = e.Cache.ApplyEntryFn(func(k string, _ *entry) error {
 		keysChecked++
-		if !bytes.HasPrefix(k, name) {
+		if !strings.HasPrefix(k, nameStr) {
 			return nil
 		}
-		if pred != nil && !pred.Matches(k) {
+		// TODO(edd): either use an unsafe conversion to []byte, or add a MatchesString
+		// method to tsm1.Predicate.
+		if pred != nil && !pred.Matches([]byte(k)) {
 			return nil
 		}
 
 		// we have to double check every key in the cache because maybe
 		// it exists in the index but not yet on disk.
-		possiblyDead.keys[string(k)] = struct{}{}
+		possiblyDead.keys[k] = struct{}{}
 
 		return nil
 	})
@@ -111,7 +115,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 	span.Finish()
 
 	// Delete from the cache (traced in cache).
-	e.Cache.DeleteBucketRange(ctx, name, min, max, pred)
+	e.Cache.DeleteBucketRange(ctx, nameStr, min, max, pred)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
@@ -160,16 +164,18 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 	span.LogKV("cache_size", e.Cache.Size())
 	keysChecked = 0
 	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
+	_ = e.Cache.ApplyEntryFn(func(k string, _ *entry) error {
 		keysChecked++
-		if !bytes.HasPrefix(k, name) {
+		if !strings.HasPrefix(k, nameStr) {
 			return nil
 		}
-		if pred != nil && !pred.Matches(k) {
+		// TODO(edd): either use an unsafe conversion to []byte, or add a MatchesString
+		// method to tsm1.Predicate.
+		if pred != nil && !pred.Matches([]byte(k)) {
 			return nil
 		}
 
-		delete(possiblyDead.keys, string(k))
+		delete(possiblyDead.keys, k)
 		return nil
 	})
 	span.LogKV("cache_cardinality", keysChecked)
