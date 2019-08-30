@@ -99,7 +99,7 @@ option task = {name: "moo", every: 1h}
 check = {
 	_check_id: "000000000000000a",
 	_check_name: "moo",
-	_check_type: "threshold",
+	_type: "threshold",
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 ok = (r) =>
@@ -199,7 +199,7 @@ option task = {name: "moo", every: 1h}
 check = {
 	_check_id: "000000000000000a",
 	_check_name: "moo",
-	_check_type: "threshold",
+	_type: "threshold",
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 ok = (r) =>
@@ -299,7 +299,7 @@ option task = {name: "moo", every: 1h}
 check = {
 	_check_id: "000000000000000a",
 	_check_name: "moo",
-	_check_type: "threshold",
+	_type: "threshold",
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 ok = (r) =>
