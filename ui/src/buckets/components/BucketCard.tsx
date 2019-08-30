@@ -4,8 +4,16 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {ResourceCard} from '@influxdata/clockface'
+import {
+  Button,
+  ResourceCard,
+  FlexBox,
+  FlexDirection,
+  ComponentSize,
+} from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
+import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {Bucket} from 'src/types'
@@ -27,33 +35,55 @@ interface Props {
 
 class BucketRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {bucket, onDeleteBucket, onDeleteData} = this.props
+    const {bucket, onDeleteBucket} = this.props
     return (
-      <>
-        <ResourceCard
-          testID="bucket--card"
-          contextMenu={
-            <BucketContextMenu
-              bucket={bucket}
-              onDeleteBucket={onDeleteBucket}
-              onDeleteData={onDeleteData}
-              onRename={this.handleRenameBucket}
-              onAddCollector={this.handleAddCollector}
-              onAddLineProtocol={this.handleAddLineProtocol}
-              onAddScraper={this.handleAddScraper}
+      <ResourceCard
+        testID="bucket--card"
+        contextMenu={
+          <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
+        }
+        name={
+          <ResourceCard.Name
+            testID={`bucket--card ${bucket.name}`}
+            onClick={this.handleNameClick}
+            name={bucket.name}
+          />
+        }
+        metaData={[<>Retention: {bucket.ruleString}</>]}
+      >
+        <FlexBox
+          direction={FlexDirection.Row}
+          margin={ComponentSize.Small}
+          style={{marginTop: '4px'}}
+        >
+          <BucketAddDataButton
+            onAddCollector={this.handleAddCollector}
+            onAddLineProtocol={this.handleAddLineProtocol}
+            onAddScraper={this.handleAddScraper}
+          />
+          <Button
+            text="Rename"
+            testID="bucket-rename"
+            size={ComponentSize.ExtraSmall}
+            onClick={this.handleRenameBucket}
+          />
+          <FeatureFlag name="deleteWithPredicate">
+            <Button
+              text="Delete Data By Filter"
+              testID="bucket-delete-task"
+              size={ComponentSize.ExtraSmall}
+              onClick={this.handleDeleteData}
             />
-          }
-          name={
-            <ResourceCard.Name
-              testID={`bucket--card ${bucket.name}`}
-              onClick={this.handleNameClick}
-              name={bucket.name}
-            />
-          }
-          metaData={[<>Retention: {bucket.ruleString}</>]}
-        />
-      </>
+          </FeatureFlag>
+        </FlexBox>
+      </ResourceCard>
     )
+  }
+
+  private handleDeleteData = () => {
+    const {onDeleteData, bucket} = this.props
+
+    onDeleteData(bucket)
   }
 
   private handleRenameBucket = () => {
