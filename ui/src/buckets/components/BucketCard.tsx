@@ -37,47 +37,46 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {bucket, onDeleteBucket} = this.props
     return (
-      <>
-        <ResourceCard
-          testID="bucket--card"
-          contextMenu={
-            <BucketContextMenu
-              bucket={bucket}
-              onDeleteBucket={onDeleteBucket}
-            />
-          }
-          name={
-            <ResourceCard.Name
-              testID={`bucket--card ${bucket.name}`}
-              onClick={this.handleNameClick}
-              name={bucket.name}
-            />
-          }
-          metaData={[<>Retention: {bucket.ruleString}</>]}
+      <ResourceCard
+        testID="bucket--card"
+        contextMenu={
+          <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
+        }
+        name={
+          <ResourceCard.Name
+            testID={`bucket--card ${bucket.name}`}
+            onClick={this.handleNameClick}
+            name={bucket.name}
+          />
+        }
+        metaData={[<>Retention: {bucket.ruleString}</>]}
+      >
+        <FlexBox
+          direction={FlexDirection.Row}
+          margin={ComponentSize.Small}
+          style={{marginTop: '4px'}}
         >
-          <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
-            <BucketAddDataButton
-              onAddCollector={this.handleAddCollector}
-              onAddLineProtocol={this.handleAddLineProtocol}
-              onAddScraper={this.handleAddScraper}
-            />
+          <BucketAddDataButton
+            onAddCollector={this.handleAddCollector}
+            onAddLineProtocol={this.handleAddLineProtocol}
+            onAddScraper={this.handleAddScraper}
+          />
+          <Button
+            text="Rename"
+            testID="bucket-rename"
+            size={ComponentSize.ExtraSmall}
+            onClick={this.handleRenameBucket}
+          />
+          <FeatureFlag name="deleteWithPredicate">
             <Button
-              text="Rename"
-              testID="bucket-rename"
+              text="Delete Data By Filter"
+              testID="bucket-delete-task"
               size={ComponentSize.ExtraSmall}
-              onClick={this.handleRenameBucket}
+              onClick={this.handleDeleteData}
             />
-            <FeatureFlag name="deleteWithPredicate">
-              <Button
-                text="Delete Data By Filter"
-                testID="bucket-delete-task"
-                size={ComponentSize.ExtraSmall}
-                onClick={this.handleDeleteData}
-              />
-            </FeatureFlag>
-          </FlexBox>
-        </ResourceCard>
-      </>
+          </FeatureFlag>
+        </FlexBox>
+      </ResourceCard>
     )
   }
 
