@@ -104,7 +104,7 @@ func (b Base) generateFluxASTCheckDefinition(checkType string) ast.Statement {
 	props := []*ast.Property{}
 	props = append(props, flux.Property("_check_id", flux.String(b.ID.String())))
 	props = append(props, flux.Property("_check_name", flux.String(b.Name)))
-	props = append(props, flux.Property("_check_type", flux.String(checkType)))
+	props = append(props, flux.Property("_type", flux.String(checkType)))
 
 	// TODO(desa): eventually tags will be flattened out into the data struct
 	tagProps := []*ast.Property{}

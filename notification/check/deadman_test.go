@@ -67,7 +67,7 @@ option task = {name: "moo", every: 1h}
 check = {
 	_check_id: "000000000000000a",
 	_check_name: "moo",
-	_check_type: "deadman",
+	_type: "deadman",
 	tags: {aaa: "vaaa", bbb: "vbbb"},
 }
 info = (r) =>
