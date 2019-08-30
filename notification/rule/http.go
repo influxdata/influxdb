@@ -63,7 +63,6 @@ func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
 
 	props := []*ast.Property{}
-	props = append(props, flux.Property("name", flux.String(s.Name)))
 	props = append(props, flux.Property("data", flux.Identifier("notification")))
 	props = append(props, flux.Property("endpoint",
 		flux.Call(flux.Identifier("endpoint"), flux.Object(flux.Property("mapFn", endpointFn)))))

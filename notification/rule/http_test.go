@@ -29,7 +29,7 @@ statuses = monitor.from(start: -1h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
 
 statuses
-	|> monitor.notify(name: "foo", data: notification, endpoint: endpoint(mapFn: (r) =>
+	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) =>
 		({data: json.encode(v: r)})))`
 
 	s := &rule.HTTP{
