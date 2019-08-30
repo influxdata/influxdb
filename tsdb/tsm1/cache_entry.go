@@ -2,6 +2,7 @@ package tsm1
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
@@ -12,6 +13,10 @@ type entry struct {
 	mu     sync.RWMutex
 	values Values // All stored values.
 
+	// Tracks the number of values in the entry. Must always be accessed via
+	// atomic.
+	n int64
+
 	// The type of values stored. Read only so doesn't need to be protected by mu.
 	vtype byte
 }
@@ -19,8 +24,10 @@ type entry struct {
 // newEntryValues returns a new instance of entry with the given values.  If the
 // values are not valid, an error is returned.
 func newEntryValues(values []Value) (*entry, error) {
-	e := &entry{}
-	e.values = make(Values, 0, len(values))
+	e := &entry{
+		values: make(Values, 0, len(values)),
+		n:      int64(len(values)),
+	}
 	e.values = append(e.values, values...)
 
 	// No values, don't check types and ordering
@@ -61,6 +68,7 @@ func (e *entry) add(values []Value) error {
 	e.mu.Lock()
 	if len(e.values) == 0 {
 		e.values = values
+		atomic.StoreInt64(&e.n, int64(len(e.values)))
 		e.vtype = valueType(values[0])
 		e.mu.Unlock()
 		return nil
@@ -68,6 +76,7 @@ func (e *entry) add(values []Value) error {
 
 	// Append the new values to the existing ones...
 	e.values = append(e.values, values...)
+	atomic.StoreInt64(&e.n, int64(len(e.values)))
 	e.mu.Unlock()
 	return nil
 }
@@ -82,14 +91,12 @@ func (e *entry) deduplicate() {
 		return
 	}
 	e.values = e.values.Deduplicate()
+	atomic.StoreInt64(&e.n, int64(len(e.values)))
 }
 
 // count returns the number of values in this entry.
 func (e *entry) count() int {
-	e.mu.RLock()
-	n := len(e.values)
-	e.mu.RUnlock()
-	return n
+	return int(atomic.LoadInt64(&e.n))
 }
 
 // filter removes all values with timestamps between min and max inclusive.
@@ -99,6 +106,7 @@ func (e *entry) filter(min, max int64) {
 		e.values = e.values.Deduplicate()
 	}
 	e.values = e.values.Exclude(min, max)
+	atomic.StoreInt64(&e.n, int64(len(e.values)))
 	e.mu.Unlock()
 }
 
