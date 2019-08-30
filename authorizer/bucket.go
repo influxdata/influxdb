@@ -30,6 +30,9 @@ func authorizeReadBucket(ctx context.Context, orgID, id influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
+	// // hack for system buckets lol
+	// if ()
+
 	p, err := newBucketPermission(influxdb.ReadAction, orgID, id)
 	if err != nil {
 		return err
@@ -105,6 +108,12 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	buckets := bs[:0]
 	for _, b := range bs {
+		// temporary hack for system buckets
+		if b.ID == influxdb.TasksSystemBucketID || b.ID == influxdb.MonitoringSystemBucketID {
+			buckets = append(buckets, b)
+			continue
+		}
+
 		err := authorizeReadBucket(ctx, b.OrgID, b.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
