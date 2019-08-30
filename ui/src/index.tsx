@@ -112,7 +112,7 @@ const history: History = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
 })
 
-const store = configureStore(loadLocalStorage(), history)
+export const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
 
 history.listen(() => {
