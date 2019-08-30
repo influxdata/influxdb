@@ -36,7 +36,7 @@ import {MePage, Account} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
-import Notifications from 'src/shared/containers/Notifications'
+import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import EditVEO from 'src/dashboards/components/EditVEO'
@@ -140,7 +140,7 @@ class Root extends PureComponent {
                   path=":stepID/:substepID"
                   component={OnboardingWizardPage}
                 />
-                <Route component={Notifications}>
+                <Route component={UnauthenticatedApp}>
                   <Route path="/signin" component={SigninPage} />
                   <Route path="/logout" component={Logout} />
                 </Route>
