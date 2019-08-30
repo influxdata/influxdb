@@ -247,7 +247,7 @@ func (s *Service) findSystemBucket(n string) (*platform.Bucket, error) {
 	default:
 		return nil, &platform.Error{
 			Code: platform.ENotFound,
-			Msg:  fmt.Sprintf("bucket %q not found", n),
+			Msg:  fmt.Sprintf("system bucket %q not found", n),
 		}
 	}
 }

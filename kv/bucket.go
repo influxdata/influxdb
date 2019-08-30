@@ -161,7 +161,7 @@ func (s *Service) findSystemBucket(n string) (*influxdb.Bucket, error) {
 	default:
 		return nil, &influxdb.Error{
 			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("bucket %q not found", n),
+			Msg:  fmt.Sprintf("system bucket %q not found", n),
 		}
 	}
 }
