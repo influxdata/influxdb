@@ -2,17 +2,15 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 )
 
-// BucketType defines known system-buckets.
-type BucketType int
-
 const (
-	// BucketTypeLogs defines the bucket ID of the system logs.
-	BucketTypeLogs = BucketType(iota + 10)
+	// TasksSystemBucketID is the fixed ID for our tasks system bucket
+	TasksSystemBucketID = ID(10)
+	// MonitoringSystemBucketID is the fixed ID for our monitoring system bucket
+	MonitoringSystemBucketID = ID(11)
 )
 
 // InfiniteRetention is default infinite retention period.
@@ -118,9 +116,4 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
-}
-
-// InternalBucketID returns the ID for an organization's specified internal bucket
-func InternalBucketID(t BucketType) (*ID, error) {
-	return IDFromString(fmt.Sprintf("%d", t))
 }

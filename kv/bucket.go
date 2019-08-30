@@ -18,11 +18,6 @@ var (
 	bucketIndex  = []byte("bucketindexv1")
 )
 
-const (
-	tasksSystemBucketID      = influxdb.ID(10)
-	monitoringSystemBucketID = influxdb.ID(11)
-)
-
 var _ influxdb.BucketService = (*Service)(nil)
 var _ influxdb.BucketOperationLogService = (*Service)(nil)
 
@@ -125,7 +120,7 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	internal, err := s.findSystemBucket(n, orgID)
+	internal, err := s.findSystemBucket(n)
 	// if found in our internals list, return mock
 	if err == nil {
 		return internal, nil
@@ -150,14 +145,14 @@ func (s *Service) findSystemBucket(n string) (*influxdb.Bucket, error) {
 	switch n {
 	case "_tasks":
 		return &influxdb.Bucket{
-			ID:              tasksSystemBucketID,
+			ID:              influxdb.TasksSystemBucketID,
 			Name:            "_tasks",
 			RetentionPeriod: time.Hour * 24 * 3,
 			Description:     "System bucket for task logs",
 		}, nil
 	case "_monitoring":
 		return &influxdb.Bucket{
-			ID:              monitoringSystemBucketID,
+			ID:              influxdb.MonitoringSystemBucketID,
 			Name:            "_monitoring",
 			RetentionPeriod: time.Hour * 24 * 7,
 			Description:     "System bucket for monitoring logs",
@@ -343,17 +338,16 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 	// 	return nil, 0, err
 	// }
 
-	b, error := s.findSystemBucket("_tasks")
+	tasks, error := s.findSystemBucket("_tasks")
 	if error != nil {
 		return bs, 0, error
 	}
-	bs = append(bs, b)
 
-	b, error = s.findSystemBucket("_monitoring")
+	monitoring, error := s.findSystemBucket("_monitoring")
 	if error != nil {
 		return bs, 0, error
 	}
-	bs = append(bs, b)
+	bs = append(bs, tasks, monitoring)
 
 	return bs, len(bs), nil
 }

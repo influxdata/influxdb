@@ -322,6 +322,11 @@ func TestBucketService_FindBuckets(t *testing.T) {
 			buckets, _, err := s.FindBuckets(ctx, influxdb.BucketFilter{})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
+			// remove system buckets
+			if len(buckets) > 1 {
+				buckets = buckets[:len(buckets)-2]
+			}
+
 			if diff := cmp.Diff(buckets, tt.wants.buckets, bucketCmpOptions...); diff != "" {
 				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
 			}
