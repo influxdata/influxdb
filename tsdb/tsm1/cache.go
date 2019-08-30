@@ -1,10 +1,10 @@
 package tsm1
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -388,7 +388,7 @@ func (c *Cache) Values(key []byte) Values {
 // DeleteBucketRange removes values for all keys containing points
 // with timestamps between min and max contained in the bucket identified
 // by name from the cache.
-func (c *Cache) DeleteBucketRange(ctx context.Context, name []byte, min, max int64, pred Predicate) {
+func (c *Cache) DeleteBucketRange(ctx context.Context, name string, min, max int64, pred Predicate) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -396,15 +396,17 @@ func (c *Cache) DeleteBucketRange(ctx context.Context, name []byte, min, max int
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var toDelete [][]byte
+	var toDelete []string
 	var total uint64
 
 	// applySerial only errors if the closure returns an error.
-	_ = c.store.applySerial(func(k []byte, e *entry) error {
-		if !bytes.HasPrefix(k, name) {
+	_ = c.store.applySerial(func(k string, e *entry) error {
+		if !strings.HasPrefix(k, name) {
 			return nil
 		}
-		if pred != nil && !pred.Matches(k) {
+		// TODO(edd): either use an unsafe conversion to []byte, or add a MatchesString
+		// method to tsm1.Predicate.
+		if pred != nil && !pred.Matches([]byte(k)) {
 			return nil
 		}
 
@@ -430,7 +432,8 @@ func (c *Cache) DeleteBucketRange(ctx context.Context, name []byte, min, max int
 
 	for _, k := range toDelete {
 		total += uint64(len(k))
-		c.store.remove(k)
+		// TODO(edd): either use unsafe conversion to []byte or add a removeString method.
+		c.store.remove([]byte(k))
 	}
 
 	c.tracker.DecCacheSize(total)
@@ -461,7 +464,7 @@ func (c *Cache) values(key []byte) Values {
 // ApplyEntryFn applies the function f to each entry in the Cache.
 // ApplyEntryFn calls f on each entry in turn, within the same goroutine.
 // It is safe for use by multiple goroutines.
-func (c *Cache) ApplyEntryFn(f func(key []byte, entry *entry) error) error {
+func (c *Cache) ApplyEntryFn(f func(key string, entry *entry) error) error {
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()
@@ -503,7 +506,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			encoded := tsdb.EncodeName(en.OrgID, en.BucketID)
 			name := models.EscapeMeasurement(encoded[:])
 
-			cache.DeleteBucketRange(context.Background(), name, en.Min, en.Max, pred)
+			cache.DeleteBucketRange(context.Background(), string(name), en.Min, en.Max, pred)
 			return nil
 		}
 

@@ -165,14 +165,14 @@ func (r *ring) apply(f func([]byte, *entry) error) error {
 // applySerial is similar to apply, but invokes f on each partition in the same
 // goroutine.
 // apply is safe for use by multiple goroutines.
-func (r *ring) applySerial(f func([]byte, *entry) error) error {
+func (r *ring) applySerial(f func(string, *entry) error) error {
 	for _, p := range r.partitions {
 		p.mu.RLock()
 		for k, e := range p.store {
 			if e.count() == 0 {
 				continue
 			}
-			if err := f([]byte(k), e); err != nil {
+			if err := f(k, e); err != nil {
 				p.mu.RUnlock()
 				return err
 			}

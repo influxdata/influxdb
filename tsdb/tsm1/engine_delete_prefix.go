@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"math"
+	"strings"
 	"sync"
 
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
@@ -77,6 +77,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 		// TODO(edd): tracing this deep down is currently speculative, so I have
 		// not added the tracing into the TSMReader API.
 		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "TSMFile delete prefix")
+		span.LogKV("file_path", r.Path())
 		defer span.Finish()
 
 		return r.DeletePrefix(name, min, max, pred, func(key []byte) {
@@ -88,38 +89,33 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 		return err
 	}
 
-	var deleteKeys [][]byte
-
+	span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache find delete keys")
+	span.LogKV("cache_size", e.Cache.Size())
+	var keysChecked int // For tracing information.
 	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		// TODO(edd): tracing this deep down is currently speculative, so I have
-		// not added the tracing into the Cache API.
-		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache find delete keys")
-		defer span.Finish()
-
-		if !bytes.HasPrefix(k, name) {
+	nameStr := string(name)
+	_ = e.Cache.ApplyEntryFn(func(k string, _ *entry) error {
+		keysChecked++
+		if !strings.HasPrefix(k, nameStr) {
 			return nil
 		}
-		if pred != nil && !pred.Matches(k) {
+		// TODO(edd): either use an unsafe conversion to []byte, or add a MatchesString
+		// method to tsm1.Predicate.
+		if pred != nil && !pred.Matches([]byte(k)) {
 			return nil
 		}
-
-		deleteKeys = append(deleteKeys, k)
 
 		// we have to double check every key in the cache because maybe
 		// it exists in the index but not yet on disk.
-		possiblyDead.keys[string(k)] = struct{}{}
+		possiblyDead.keys[k] = struct{}{}
 
 		return nil
 	})
+	span.LogKV("cache_cardinality", keysChecked)
+	span.Finish()
 
-	// Sort the series keys because ApplyEntryFn iterates over the keys randomly.
-	sortSpan, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache sort keys")
-	bytesutil.Sort(deleteKeys)
-	sortSpan.Finish()
-
-	// Delete from the cache.
-	e.Cache.DeleteBucketRange(ctx, name, min, max, pred)
+	// Delete from the cache (traced in cache).
+	e.Cache.DeleteBucketRange(ctx, nameStr, min, max, pred)
 
 	// Now that all of the data is purged, we need to find if some keys are fully deleted
 	// and if so, remove them from the index.
@@ -127,11 +123,13 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 		// TODO(edd): tracing this deep down is currently speculative, so I have
 		// not added the tracing into the Engine API.
 		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "TSMFile determine fully deleted")
+		span.LogKV("file_path", r.Path())
 		defer span.Finish()
 
 		possiblyDead.RLock()
 		defer possiblyDead.RUnlock()
 
+		var keysChecked int
 		iter := r.Iterator(name)
 		for i := 0; iter.Next(); i++ {
 			key := iter.Key()
@@ -156,29 +154,32 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 				possiblyDead.RLock()
 			}
 		}
-
+		span.LogKV("keys_checked", keysChecked)
 		return iter.Err()
 	}); err != nil {
 		return err
 	}
 
+	span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache find delete keys")
+	span.LogKV("cache_size", e.Cache.Size())
+	keysChecked = 0
 	// ApplySerialEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k []byte, _ *entry) error {
-		// TODO(edd): tracing this deep down is currently speculative, so I have
-		// not added the tracing into the Cache API.
-		span, _ := tracing.StartSpanFromContextWithOperationName(rootCtx, "Cache find delete keys")
-		defer span.Finish()
-
-		if !bytes.HasPrefix(k, name) {
+	_ = e.Cache.ApplyEntryFn(func(k string, _ *entry) error {
+		keysChecked++
+		if !strings.HasPrefix(k, nameStr) {
 			return nil
 		}
-		if pred != nil && !pred.Matches(k) {
+		// TODO(edd): either use an unsafe conversion to []byte, or add a MatchesString
+		// method to tsm1.Predicate.
+		if pred != nil && !pred.Matches([]byte(k)) {
 			return nil
 		}
 
-		delete(possiblyDead.keys, string(k))
+		delete(possiblyDead.keys, k)
 		return nil
 	})
+	span.LogKV("cache_cardinality", keysChecked)
+	span.Finish()
 
 	if len(possiblyDead.keys) > 0 {
 		buf := make([]byte, 1024)
@@ -225,7 +226,8 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 
 			// Iterate over the series ids we previously extracted from the index
 			// and remove from the series file.
-			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "SFile Delete Series ID")
+			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "SFile Delete Series IDs")
+			span.LogKV("series_id_set_size", set.Cardinality())
 			set.ForEachNoLock(func(id tsdb.SeriesID) {
 				if err = e.sfile.DeleteSeriesID(id); err != nil {
 					return
@@ -237,6 +239,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 
 		// This is the slow path, when not dropping the entire bucket (measurement)
 		span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "TSI/SFile Delete keys")
+		span.LogKV("keys_to_delete", len(possiblyDead.keys))
 		for key := range possiblyDead.keys {
 			// TODO(jeff): ugh reduce copies here
 			keyb := []byte(key)
