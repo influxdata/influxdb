@@ -432,8 +432,7 @@ func (c *Cache) DeleteBucketRange(ctx context.Context, name string, min, max int
 
 	for _, k := range toDelete {
 		total += uint64(len(k))
-		// TODO(edd): either use unsafe conversion to []byte or add a removeString
-		// method.
+		// TODO(edd): either use unsafe conversion to []byte or add a removeString method.
 		c.store.remove([]byte(k))
 	}
 

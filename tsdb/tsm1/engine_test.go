@@ -342,7 +342,7 @@ func BenchmarkEngine_DeletePrefixRange_Cache(b *testing.B) {
 		}
 	})
 
-	b.Run("not exists", func(b *testing.B) {
+	b.Run("not_exists", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
