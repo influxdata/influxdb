@@ -92,6 +92,11 @@ class Collectors extends PureComponent<Props, State> {
 
     return (
       <>
+        <NoBucketsWarning
+          visible={this.hasNoBuckets}
+          resourceName="Telegraf Configurations"
+        />
+
         <SettingsTabbedPageHeader>
           <SearchWidget
             placeholderText="Filter telegraf configurations..."
@@ -107,10 +112,6 @@ class Collectors extends PureComponent<Props, State> {
               widthSM={Columns.Eight}
               widthMD={Columns.Ten}
             >
-              <NoBucketsWarning
-                visible={this.hasNoBuckets}
-                resourceName="Telegraf Configurations"
-              />
               <GetResources resource={ResourceTypes.Labels}>
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}

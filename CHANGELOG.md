@@ -14,6 +14,7 @@
 1. [14889](https://github.com/influxdata/influxdb/pull/14889): Make adding data to buckets more discoverable
 1. [14709](https://github.com/influxdata/influxdb/pull/14709): Move Buckets, Telgrafs, and Scrapers pages into a tab called "Load Data" for ease of discovery
 1. [14846](https://github.com/influxdata/influxdb/pull/14846): Standardize formatting of "updated at" timestamp in all resource cards
+1. [14887](https://github.com/influxdata/influxdb/pull/14887): Move no buckets warning in telegraf tab above the search box
 
 ### Bug Fixes
 
