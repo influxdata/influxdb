@@ -1036,16 +1036,6 @@
     lodash "^4.17.10"
     to-fast-properties "^2.0.0"
 
-"@chnn/oats@0.3.0":
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/@chnn/oats/-/oats-0.3.0.tgz#86c398f0ce5a248f45db6bdf490ac8141495f7e1"
-  integrity sha512-6zAsbx+TyQvLaukkpG102aB9Ki4yseRrb20xNDDVM/DXyj50zA1ivIf5cwo+mVeAUvXaxLnoR9PR3J8BRdrtrA==
-  dependencies:
-    commander "^2.20.0"
-    humps "^2.0.1"
-    lodash "^4.17.14"
-    swagger-parser "^8.0.0"
-
 "@cnakazawa/watch@^1.0.3":
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/@cnakazawa/watch/-/watch-1.0.3.tgz#099139eaec7ebf07a27c1786a3ff64f39464d2ef"
@@ -1116,6 +1106,16 @@
   version "0.7.0"
   resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.7.0.tgz#c2d8061a8e1ed0ce4efffdab61f765518b0e4be3"
   integrity sha512-iNRgGzM2/qqu1F8Ug1gyKh47EPHBVTEFeu8lY76XPWSzX9m8K+p+c9emVOR0BR0i2FymMKFqYJKBPQWMYAwWUg==
+
+"@influxdata/oats@0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/oats/-/oats-0.4.0.tgz#709b288232473140802fd1a3871f9b0f7ae49fc2"
+  integrity sha512-VgzO2jU0UguGFmdBEuqMM7jQS9soW0pqj251LmLKQhlFbuL9AKCAIOO6rf6OFqC3sCloduxwgZRc+Y9EprQhmQ==
+  dependencies:
+    commander "^2.20.0"
+    humps "^2.0.1"
+    lodash "^4.17.14"
+    swagger-parser "^8.0.0"
 
 "@influxdata/react-custom-scrollbars@4.3.8":
   version "4.3.8"
