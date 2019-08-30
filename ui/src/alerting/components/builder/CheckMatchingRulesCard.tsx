@@ -5,6 +5,8 @@ import {get} from 'lodash'
 
 // Components
 import MatchingRuleCard from 'src/alerting/components/builder/MatchingRuleCard'
+import {SpinnerContainer} from '@influxdata/clockface'
+import {TechnoSpinner} from '@influxdata/clockface'
 
 // Actions
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
@@ -14,7 +16,7 @@ import * as api from 'src/client'
 
 //Types
 import {NotificationRule, Check, AppState, CheckTagSet} from 'src/types'
-import {EmptyState, ComponentSize} from '@influxdata/clockface'
+import {EmptyState, ComponentSize, RemoteDataState} from '@influxdata/clockface'
 
 interface StateProps {
   check: Partial<Check>
@@ -27,36 +29,62 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
 }) => {
   const getMatchingRules = async (): Promise<NotificationRule[]> => {
     const tags: CheckTagSet[] = get(check, 'tags', [])
-    const tagString = tags.map(t => `tag=${t.key}:${t.value}`).join('&')
+    const tagsList = tags.reduce((acc, t) => {
+      acc.push(['tag', `${t.key}:${t.value}`])
+      return acc
+    }, [])
 
     // todo also: get tags from query results
+
     const resp = await api.getNotificationRules({
-      query: {orgID, tag: tagString},
+      query: [['orgID', orgID], ...tagsList] as any,
     })
 
     if (resp.status !== 200) {
-      // throw new Error(resp.data.message)
+      setMatchingRules({matchingRules: [], status: RemoteDataState.Error})
       return
     }
 
-    setMatchingRules(resp.data.notificationRules)
+    setMatchingRules({
+      matchingRules: resp.data.notificationRules,
+      status: RemoteDataState.Done,
+    })
   }
 
-  const [matchingRules, setMatchingRules] = useState<NotificationRule[]>([])
+  const [{matchingRules, status}, setMatchingRules] = useState<{
+    matchingRules: NotificationRule[]
+    status: RemoteDataState
+  }>({matchingRules: [], status: RemoteDataState.NotStarted})
+
   useEffect(() => {
+    setMatchingRules({
+      matchingRules,
+      status: RemoteDataState.Loading,
+    })
     getMatchingRules()
   }, [check.tags])
 
-  if (matchingRules.length === 0) {
+  const emptyState = (
+    <EmptyState
+      size={ComponentSize.Small}
+      className="alert-builder--card__empty"
+    >
+      <EmptyState.Text text="Notification Rules configured to act on tag sets matching this Alert Check will automatically show up here" />
+      <EmptyState.Text text="Looks like no notification rules match the tag set defined in this Alert Check" />
+    </EmptyState>
+  )
+
+  if (
+    status === RemoteDataState.NotStarted ||
+    status === RemoteDataState.Loading
+  ) {
     return (
-      <EmptyState
-        size={ComponentSize.Small}
-        className="alert-builder--card__empty"
-      >
-        <EmptyState.Text text="Notification Rules configured to act on tag sets matching this Alert Check will automatically show up here" />
-        <EmptyState.Text text="Looks like no notification rules match the tag set defined in this Alert Check" />
-      </EmptyState>
+      <SpinnerContainer spinnerComponent={<TechnoSpinner />} loading={status} />
     )
+  }
+
+  if (matchingRules.length === 0) {
+    return emptyState
   }
   return (
     <>
