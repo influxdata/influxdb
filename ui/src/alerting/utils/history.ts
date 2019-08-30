@@ -42,7 +42,7 @@ export const loadStatuses = (
   const query = `
 from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
-  |> filter(fn: (r) => r._field == "_message")
+  |> filter(fn: (r) => r._measurement == "statuses" and r._field == "_message")
   |> keep(columns: ["_time", "_value", "_check_id", "_check_name", "_level"])
   |> rename(columns: {"_time": "time",
                       "_value": "message",
@@ -66,7 +66,7 @@ export const loadNotifications = (
   const query = `
 from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
-  |> filter(fn: (r) => r._field == "_message")
+  |> filter(fn: (r) => r._measurement == "notifications")
   |> keep(columns: ["_time",
                     "_check_id",
                     "_check_name",
