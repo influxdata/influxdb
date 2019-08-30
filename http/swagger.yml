@@ -9413,6 +9413,10 @@ components:
       description: the state to record if check matches a criteria
       type: string
       enum: ["UNKNOWN", "OK", "INFO", "CRIT", "WARN"]
+    RuleStatusLevel:
+      description: the state to record if check matches a criteria
+      type: string
+      enum: ["UNKNOWN", "OK", "INFO", "CRIT", "WARN", "ANY"]
     NotificationRuleUpdate:
       type: object
       properties:
@@ -9524,21 +9528,13 @@ components:
       type: object
       properties:
         currentLevel:
-          $ref: "#/components/schemas/LevelRule"
+          $ref: "#/components/schemas/RuleStatusLevel"
         previousLevel:
-          $ref: "#/components/schemas/LevelRule"
+          $ref: "#/components/schemas/RuleStatusLevel"
         count:
           type: integer
         period:
           type: string
-    LevelRule:
-      type: object
-      properties:
-        level:
-          $ref: "#/components/schemas/CheckStatusLevel"
-        operation:
-          type: string
-          enum: ["equal", "notequal"]
     HTTPNotificationRuleBase:
       type: object
       required: [type, url]

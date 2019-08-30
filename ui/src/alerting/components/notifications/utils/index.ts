@@ -7,7 +7,6 @@ import {
   StatusRule,
   TagRule,
   StatusRuleDraft,
-  LevelRule,
   SlackNotificationRuleBase,
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
@@ -16,6 +15,7 @@ import {
   NotificationRuleDraft,
   NewNotificationRule,
   HTTPNotificationRuleBase,
+  RuleStatusLevel,
 } from 'src/types'
 
 type RuleVariantFields =
@@ -61,13 +61,13 @@ export const activeChange = (status: StatusRuleDraft) => {
   return 'is equal to'
 }
 
-export const previousLevel: LevelRule = {level: 'OK'}
+export const previousLevel = 'OK' as RuleStatusLevel
 
 export const changeStatusRule = (
   status: StatusRuleDraft,
-  change: Change
+  changeType: Change
 ): StatusRuleDraft => {
-  if (change === 'is equal to') {
+  if (changeType === 'is equal to') {
     return omit(status, 'value.previousLevel') as StatusRuleDraft
   }
 
@@ -95,7 +95,7 @@ export const initRuleDraft = (orgID: string): NotificationRuleDraft => ({
     {
       cid: uuid.v4(),
       value: {
-        currentLevel: {operation: 'equal', level: 'CRIT'},
+        currentLevel: 'CRIT',
         period: '1h',
         count: 1,
       },

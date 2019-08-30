@@ -3,7 +3,7 @@ import {
   NotificationRuleDraft,
   StatusRuleDraft,
   TagRuleDraft,
-  CheckStatusLevel,
+  RuleStatusLevel,
 } from 'src/types'
 
 export type LevelType = 'currentLevel' | 'previousLevel'
@@ -14,7 +14,7 @@ export type Action =
       type: 'UPDATE_STATUS_LEVEL'
       statusID: string
       levelType: LevelType
-      level: CheckStatusLevel
+      level: RuleStatusLevel
     }
   | {type: 'SET_ACTIVE_SCHEDULE'; schedule: 'cron' | 'every'}
   | {type: 'UPDATE_STATUS_RULES'; statusRule: StatusRuleDraft}
