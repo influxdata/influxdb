@@ -24,7 +24,6 @@ import {
   DASHBOARD_NAME_MAX_LENGTH,
 } from 'src/dashboards/constants/index'
 
-
 // Types
 import * as AppActions from 'src/types/actions/app'
 import * as QueriesModels from 'src/types/queries'
