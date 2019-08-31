@@ -15,10 +15,7 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 const AlertingIndex: FunctionComponent = ({children}) => {
   return (
     <>
-      <Page
-        titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}
-        className="alerting-index"
-      >
+      <Page titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}>
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
             <PageTitleWithOrg title="Monitoring & Alerting" />
@@ -27,7 +24,7 @@ const AlertingIndex: FunctionComponent = ({children}) => {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
           <GetResources resource={ResourceTypes.Labels}>
-            <Grid>
+            <Grid className="alerting-index">
               <GridRow testID="grid--row">
                 <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
                   <GetResources resource={ResourceTypes.Checks}>
