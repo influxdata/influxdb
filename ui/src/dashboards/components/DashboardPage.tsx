@@ -67,7 +67,6 @@ interface StateProps {
   timeRange: TimeRange
   dashboard: Dashboard
   autoRefresh: AutoRefresh
-  inPresentationMode: boolean
   showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
@@ -151,7 +150,6 @@ class DashboardPage extends Component<Props> {
       limitedResources,
       manualRefresh,
       onManualRefresh,
-      inPresentationMode,
       showVariablesControls,
       handleClickPresentationButton,
       onToggleShowVariablesControls,
@@ -194,7 +192,6 @@ class DashboardPage extends Component<Props> {
                 timeRange={timeRange}
                 manualRefresh={manualRefresh}
                 onCloneCell={this.handleCloneCell}
-                inPresentationMode={inPresentationMode}
                 onPositionChange={this.handlePositionChange}
                 onDeleteCell={this.handleDeleteDashboardCell}
                 onEditView={this.handleEditView}
@@ -306,9 +303,6 @@ class DashboardPage extends Component<Props> {
 const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const {
     links,
-    app: {
-      ephemeral: {inPresentationMode},
-    },
     ranges,
     dashboards,
     views: {views},
@@ -337,7 +331,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     autoRefresh,
     limitStatus,
     limitedResources,
-    inPresentationMode,
     showVariablesControls,
   }
 }
