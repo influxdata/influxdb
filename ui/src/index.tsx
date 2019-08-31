@@ -32,7 +32,7 @@ import CreateFromTemplateOverlay from 'src/templates/components/createFromTempla
 import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
-import {MePage, Account} from 'src/me'
+import {MePage} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
@@ -215,7 +215,6 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="me" component={MePage} />
-                          <Route path="account/:tab" component={Account} />
                           <Route path="settings">
                             <IndexRoute component={MembersIndex} />
                           </Route>
