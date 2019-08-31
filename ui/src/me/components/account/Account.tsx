@@ -3,11 +3,14 @@ import React, {PureComponent} from 'react'
 import {WithRouterProps} from 'react-router'
 
 // Components
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import TabbedPage from 'src/shared/components/tabbed_page/TabbedPage'
 import TabbedPageSection from 'src/shared/components/tabbed_page/TabbedPageSection'
 import Settings from 'src/me/components/account/Settings'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 export enum Tabs {
   Settings = 'settings',
@@ -18,7 +21,7 @@ export default class Account extends PureComponent<WithRouterProps> {
   public render() {
     const {params} = this.props
     return (
-      <Page titleTag="Account">
+      <Page titleTag={pageTitleSuffixer(['Account'])}>
         <Page.Header fullWidth={false}>
           <Page.Header.Left>
             <PageTitleWithOrg title="Account" />

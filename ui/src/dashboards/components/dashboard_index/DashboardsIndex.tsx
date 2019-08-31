@@ -8,13 +8,16 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Components
 import DashboardsIndexContents from 'src/dashboards/components/dashboard_index/DashboardsIndexContents'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Actions
 import {
@@ -75,7 +78,7 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {searchTerm} = this.state
     return (
       <>
-        <Page titleTag="Dashboards">
+        <Page titleTag={pageTitleSuffixer(['Dashboards'])}>
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
               <PageTitleWithOrg title="Dashboards" />
@@ -92,34 +95,32 @@ class DashboardIndex extends PureComponent<Props, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <div className="col-md-12">
-              <GetResources resource={ResourceTypes.Dashboards}>
-                <GetResources resource={ResourceTypes.Labels}>
-                  <GetAssetLimits>
-                    <AssetLimitAlert
-                      resourceName="dashboards"
-                      limitStatus={limitStatus}
-                    />
-                    <DashboardsIndexContents
-                      filterComponent={
-                        <SearchWidget
-                          placeholderText="Filter dashboards..."
-                          onSearch={this.handleFilterDashboards}
-                          searchTerm={searchTerm}
-                        />
-                      }
-                      onDeleteDashboard={handleDeleteDashboard}
-                      onCreateDashboard={createDashboard}
-                      onCloneDashboard={cloneDashboard}
-                      onUpdateDashboard={handleUpdateDashboard}
-                      searchTerm={searchTerm}
-                      onFilterChange={this.handleFilterDashboards}
-                      onImportDashboard={this.summonImportOverlay}
-                    />
-                  </GetAssetLimits>
-                </GetResources>
+            <GetResources resource={ResourceTypes.Dashboards}>
+              <GetResources resource={ResourceTypes.Labels}>
+                <GetAssetLimits>
+                  <AssetLimitAlert
+                    resourceName="dashboards"
+                    limitStatus={limitStatus}
+                  />
+                  <DashboardsIndexContents
+                    filterComponent={
+                      <SearchWidget
+                        placeholderText="Filter dashboards..."
+                        onSearch={this.handleFilterDashboards}
+                        searchTerm={searchTerm}
+                      />
+                    }
+                    onDeleteDashboard={handleDeleteDashboard}
+                    onCreateDashboard={createDashboard}
+                    onCloneDashboard={cloneDashboard}
+                    onUpdateDashboard={handleUpdateDashboard}
+                    searchTerm={searchTerm}
+                    onFilterChange={this.handleFilterDashboards}
+                    onImportDashboard={this.summonImportOverlay}
+                  />
+                </GetAssetLimits>
               </GetResources>
-            </div>
+            </GetResources>
           </Page.Contents>
         </Page>
         {this.props.children}

@@ -8,8 +8,8 @@ import {
   ComponentColor,
   ComponentSize,
   IconFont,
+  Page,
 } from '@influxdata/clockface'
-import {Page} from 'src/pageLayout'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 
@@ -32,36 +32,34 @@ class VEOHeader extends PureComponent<Props> {
   public render() {
     const {name, onSetName, onCancel, onSave} = this.props
     return (
-      <div className="veo-header">
-        <Page.Header fullWidth={true}>
-          <Page.Header.Left>
-            <RenamablePageTitle
-              name={name}
-              onRename={onSetName}
-              placeholder={DEFAULT_CELL_NAME}
-              maxLength={CELL_NAME_MAX_LENGTH}
-              onClickOutside={this.handleClickOutsideTitle}
-            />
-          </Page.Header.Left>
-          <Page.Header.Right>
-            <ViewTypeDropdown />
-            <VisOptionsButton />
-            <SquareButton
-              icon={IconFont.Remove}
-              onClick={onCancel}
-              size={ComponentSize.Small}
-            />
-            <SquareButton
-              className={saveButtonClass}
-              icon={IconFont.Checkmark}
-              color={ComponentColor.Success}
-              size={ComponentSize.Small}
-              onClick={onSave}
-              testID="save-cell--button"
-            />
-          </Page.Header.Right>
-        </Page.Header>
-      </div>
+      <Page.Header fullWidth={true}>
+        <Page.Header.Left>
+          <RenamablePageTitle
+            name={name}
+            onRename={onSetName}
+            placeholder={DEFAULT_CELL_NAME}
+            maxLength={CELL_NAME_MAX_LENGTH}
+            onClickOutside={this.handleClickOutsideTitle}
+          />
+        </Page.Header.Left>
+        <Page.Header.Right>
+          <ViewTypeDropdown />
+          <VisOptionsButton />
+          <SquareButton
+            icon={IconFont.Remove}
+            onClick={onCancel}
+            size={ComponentSize.Small}
+          />
+          <SquareButton
+            className={saveButtonClass}
+            icon={IconFont.Checkmark}
+            color={ComponentColor.Success}
+            size={ComponentSize.Small}
+            onClick={onSave}
+            testID="save-cell--button"
+          />
+        </Page.Header.Right>
+      </Page.Header>
     )
   }
 

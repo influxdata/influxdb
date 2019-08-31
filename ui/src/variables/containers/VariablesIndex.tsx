@@ -6,9 +6,12 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import VariablesTab from 'src/variables/components/VariablesTab'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -24,7 +27,7 @@ class VariablesIndex extends Component<StateProps> {
 
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Variables', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="variables" orgID={org.id}>
             <GetResources resource={ResourceTypes.Variables}>

@@ -1,12 +1,12 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {Page} from 'src/pageLayout'
 
 // Components
 import {
   SlideToggle,
   ComponentSize,
   ComponentStatus,
+  Page,
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'

@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 
 // Constants
 import {generateRandomGreeting} from 'src/me/constants'

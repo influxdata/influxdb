@@ -1,20 +1,22 @@
+// Libraries
 import React, {PureComponent} from 'react'
-import classnames from 'classnames'
 
+// Components
 import Cells from 'src/shared/components/cells/Cells'
-import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 import DashboardEmpty from 'src/dashboards/components/dashboard_empty/DashboardEmpty'
+import {Page} from '@influxdata/clockface'
 
+// Types
 import {Dashboard, Cell} from 'src/types'
 import {TimeRange} from 'src/types'
 
+// Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   dashboard: Dashboard
   timeRange: TimeRange
   manualRefresh: number
-  inPresentationMode: boolean
   onDeleteCell: (cell: Cell) => void
   onCloneCell: (cell: Cell) => void
   onPositionChange: (cells: Cell[]) => void
@@ -34,36 +36,29 @@ class DashboardComponent extends PureComponent<Props> {
       onCloneCell,
       onEditView,
       onPositionChange,
-      inPresentationMode,
       onAddCell,
       onEditNote,
     } = this.props
 
     return (
-      <FancyScrollbar
-        className={classnames('page-contents', {
-          'presentation-mode': inPresentationMode,
-        })}
-      >
-        <div className="dashboard container-fluid full-width">
-          {dashboard.cells.length ? (
-            <Cells
-              timeRange={timeRange}
-              manualRefresh={manualRefresh}
-              cells={dashboard.cells}
-              onCloneCell={onCloneCell}
-              onDeleteCell={onDeleteCell}
-              onPositionChange={onPositionChange}
-              onEditView={onEditView}
-              onEditNote={onEditNote}
-            />
-          ) : (
-            <DashboardEmpty onAddCell={onAddCell} />
-          )}
-          {/* This element is used as a portal container for note tooltips in cell headers */}
-          <div className="cell-header-note-tooltip-container" />
-        </div>
-      </FancyScrollbar>
+      <Page.Contents fullWidth={true} scrollable={true} className="dashboard">
+        {dashboard.cells.length ? (
+          <Cells
+            timeRange={timeRange}
+            manualRefresh={manualRefresh}
+            cells={dashboard.cells}
+            onCloneCell={onCloneCell}
+            onDeleteCell={onDeleteCell}
+            onPositionChange={onPositionChange}
+            onEditView={onEditView}
+            onEditNote={onEditNote}
+          />
+        ) : (
+          <DashboardEmpty onAddCell={onAddCell} />
+        )}
+        {/* This element is used as a portal container for note tooltips in cell headers */}
+        <div className="cell-header-note-tooltip-container" />
+      </Page.Contents>
     )
   }
 }

@@ -8,7 +8,7 @@ import {connect} from 'react-redux'
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
 import FluxEditor from 'src/shared/components/FluxEditor'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 
 // Actions
 import {
@@ -25,6 +25,7 @@ import {
   taskOptionsToFluxScript,
   addDestinationToFluxScript,
 } from 'src/utils/taskOptionsToFluxScript'
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Authorization} from 'src/types'
@@ -93,7 +94,7 @@ class TaskPage extends PureComponent<
     } = this.props
 
     return (
-      <Page titleTag="Create Task">
+      <Page titleTag={pageTitleSuffixer(['Create Task'])}>
         <TaskHeader
           title="Create Task"
           canSubmit={this.isFormValid}

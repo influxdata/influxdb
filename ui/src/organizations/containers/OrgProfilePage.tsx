@@ -6,8 +6,10 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
-import {Page} from 'src/pageLayout'
-import {Grid, Columns} from '@influxdata/clockface'
+import {Grid, Columns, Page} from '@influxdata/clockface'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -24,7 +26,7 @@ class OrgProfilePage extends Component<StateProps> {
 
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Org Profile', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="profile" orgID={org.id}>
             <Grid>
