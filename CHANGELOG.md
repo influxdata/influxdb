@@ -9,6 +9,7 @@
 1. [14631](https://github.com/influxdata/influxdb/pull/14631): Updated name of Local Metrics template
 1. [14631](https://github.com/influxdata/influxdb/pull/14631): Dashboards for all Telegraf config bundles now created
 1. [14694](https://github.com/influxdata/influxdb/pull/14694): Add ability to find tasks by name.
+1. [14901](https://github.com/influxdata/influxdb/pull/14901): Add ability to Peek() on reads package StreamReader types.
 
 ### UI Improvements
 1. [14917](https://github.com/influxdata/influxdb/pull/14917): Make first steps in Monitoring & Alerting more obvious
