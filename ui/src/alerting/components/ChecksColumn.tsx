@@ -12,10 +12,12 @@ import CheckCards from 'src/alerting/components/CheckCards'
 import AlertsColumnHeader from 'src/alerting/components/AlertsColumn'
 
 // Types
-import {Check, AppState} from 'src/types'
+import {Check, NotificationRuleDraft, AppState} from 'src/types'
 
 interface StateProps {
   checks: Check[]
+  rules: NotificationRuleDraft[]
+  endpoints: AppState['endpoints']['list']
 }
 
 type Props = StateProps & WithRouterProps
@@ -24,6 +26,8 @@ const ChecksColumn: FunctionComponent<Props> = ({
   checks,
   router,
   params: {orgID},
+  rules,
+  endpoints,
 }) => {
   const handleClick = () => {
     router.push(`/orgs/${orgID}/alerting/checks/new`)
@@ -38,6 +42,9 @@ const ChecksColumn: FunctionComponent<Props> = ({
       that will generate a status
     </>
   )
+
+  const noAlertingResourcesExist =
+    !checks.length && !rules.length && !endpoints.length
 
   const createButton = (
     <Button
@@ -55,7 +62,10 @@ const ChecksColumn: FunctionComponent<Props> = ({
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
     >
-      <CheckCards checks={checks} />
+      <CheckCards
+        checks={checks}
+        showFirstTimeWidget={noAlertingResourcesExist}
+      />
     </AlertsColumnHeader>
   )
 }
@@ -64,9 +74,16 @@ const mstp = (state: AppState) => {
   const {
     checks: {list: checks},
     labels: {list: labels},
+    rules: {list: rules},
+    endpoints,
   } = state
 
-  return {checks, labels: viewableLabels(labels)}
+  return {
+    checks,
+    labels: viewableLabels(labels),
+    rules,
+    endpoints: endpoints.list,
+  }
 }
 
 export default connect<StateProps, {}, {}>(
