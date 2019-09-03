@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"go.uber.org/zap"
 )
 
 var (
@@ -359,6 +360,10 @@ func (s *Service) deleteOrgDependentMappings(ctx context.Context, tx Tx, m *infl
 			ResourceID:   b.ID,
 			UserID:       m.UserID,
 		}); err != nil {
+			if influxdb.ErrorCode(err) == influxdb.ENotFound {
+				s.Logger.Info("URM bucket is missing", zap.Stringer("orgID", m.ResourceID))
+				continue
+			}
 			return err
 		}
 		// TODO(desa): add support for all other resource types.
