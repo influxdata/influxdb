@@ -67,6 +67,9 @@ subdirs: $(SUBDIRS)
 $(CMDS): $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
+# Ease of use build for just the go binary
+influxd: bin/$(GOOS)/influxd
+
 #
 # Define targets for the web ui
 #
@@ -180,4 +183,4 @@ protoc:
 	chmod +x /go/bin/protoc
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e
+.PHONY: all subdirs $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd
