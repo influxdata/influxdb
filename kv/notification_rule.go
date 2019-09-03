@@ -176,13 +176,12 @@ func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb
 	nr.SetOwnerID(current.GetOwnerID())
 	nr.SetCreatedAt(current.GetCRUDLog().CreatedAt)
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
+	nr.SetTaskID(current.GetTaskID())
 
-	t, err := s.updateNotificationTask(ctx, tx, nr)
+	_, err = s.updateNotificationTask(ctx, tx, nr)
 	if err != nil {
 		return nil, err
 	}
-
-	nr.SetTaskID(t.ID)
 
 	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
 		return nil, err
@@ -225,17 +224,11 @@ func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.
 	}
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
 
-	t, err := s.updateTask(ctx, tx, nr.GetTaskID(),
-		influxdb.TaskUpdate{
-			Status:      strPtr(string(nr.GetStatus())),
-			Description: upd.Description,
-		},
-	)
+	_, err = s.updateNotificationTask(ctx, tx, nr)
 	if err != nil {
 		return nil, err
 	}
 
-	nr.SetTaskID(t.ID)
 	err = s.putNotificationRule(ctx, tx, nr)
 	if err != nil {
 		return nil, err

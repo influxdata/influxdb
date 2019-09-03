@@ -1802,6 +1802,15 @@ func PatchNotificationRule(
 			fields: NotificationRuleFields{
 				TimeGenerator: fakeGenerator,
 				IDGenerator:   mock.NewIDGenerator(twoID, t),
+				Tasks: []influxdb.TaskCreate{
+					{
+						OwnerID:        MustIDBase16(sixID),
+						OrganizationID: MustIDBase16(fourID),
+						Flux: `from(bucket: "foo") |> range(start: -1m)
+						option task = {name: "bar", every: 1m}
+						`,
+					},
+				},
 				UserResourceMappings: []*influxdb.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
@@ -1858,6 +1867,7 @@ func PatchNotificationRule(
 							Status:      influxdb.Active,
 							OwnerID:     MustIDBase16(sixID),
 							EndpointID:  MustIDBase16(twoID),
+							TaskID:      MustIDBase16(twoID),
 							OrgID:       MustIDBase16(fourID),
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
@@ -1893,6 +1903,7 @@ func PatchNotificationRule(
 						OwnerID:     MustIDBase16(sixID),
 						OrgID:       MustIDBase16(fourID),
 						EndpointID:  MustIDBase16(twoID),
+						TaskID:      MustIDBase16(twoID),
 						RunbookLink: "runbooklink2",
 						SleepUntil:  &time3,
 						Every:       mustDuration("1h"),
