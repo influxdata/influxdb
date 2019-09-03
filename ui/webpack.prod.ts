@@ -35,8 +35,12 @@ module.exports = merge(common, {
       },
       {
         test: /\.js$/,
+        enforce: 'pre', // this forces this rule to run first.
         use: ['source-map-loader'],
-        include: [path.resolve(__dirname, 'node_modules/@influxdata/giraffe')],
+        include: [
+          path.resolve(__dirname, 'node_modules/@influxdata/giraffe'),
+          path.resolve(__dirname, 'node_modules/@influxdata/clockface'),
+        ],
       },
     ],
   },
