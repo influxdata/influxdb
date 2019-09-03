@@ -31,15 +31,15 @@ const AlertingIndex: FunctionComponent = ({children}) => {
                     </GetResources>
                   </GridColumn>
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resource={ResourceTypes.NotificationRules}>
-                      <RulesColumn />
-                    </GetResources>
-                  </GridColumn>
-                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
                     <GetResources
                       resource={ResourceTypes.NotificationEndpoints}
                     >
                       <EndpointsColumn />
+                    </GetResources>
+                  </GridColumn>
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources resource={ResourceTypes.NotificationRules}>
+                      <RulesColumn />
                     </GetResources>
                   </GridColumn>
                 </GridRow>
