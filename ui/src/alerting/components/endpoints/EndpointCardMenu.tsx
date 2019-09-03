@@ -8,16 +8,16 @@ import {ComponentColor} from '@influxdata/clockface'
 interface Props {
   onDelete: () => void
   onClone: () => void
-  onEdit: () => void
+  onView: () => void
 }
 
-const EndpointCardContext: FC<Props> = ({onDelete, onClone, onEdit}) => {
+const EndpointCardContext: FC<Props> = ({onDelete, onClone, onView}) => {
   return (
     <Context>
-      <Context.Menu icon={IconFont.CogThick}>
+      <Context.Menu icon={IconFont.EyeOpen}>
         <Context.Item
-          label="Edit"
-          action={onEdit}
+          label="View History"
+          action={onView}
           testID="endpoint-card-edit"
         />
       </Context.Menu>

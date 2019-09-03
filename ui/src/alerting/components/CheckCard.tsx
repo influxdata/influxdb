@@ -101,11 +101,11 @@ const CheckCard: FunctionComponent<Props> = ({
     }
   }
 
-  const onEdit = () => {
+  const onCheckClick = () => {
     router.push(`/orgs/${orgID}/alerting/checks/${check.id}/edit`)
   }
 
-  const onCheckClick = () => {
+  const onView = () => {
     const historyType: AlertHistoryType = 'statuses'
 
     const queryParams = new URLSearchParams({
@@ -170,7 +170,7 @@ const CheckCard: FunctionComponent<Props> = ({
       disabled={check.status === 'inactive'}
       contextMenu={
         <CheckCardContext
-          onEdit={onEdit}
+          onView={onView}
           onDelete={onDelete}
           onClone={onClone}
         />

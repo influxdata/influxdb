@@ -84,15 +84,9 @@ const EndpointCard: FC<Props> = ({
     onUpdateEndpointProperties(id, {name})
   }
   const handleClick = () => {
-    const historyType: AlertHistoryType = 'notifications'
-
-    const queryParams = new URLSearchParams({
-      [HISTORY_TYPE_QUERY_PARAM]: historyType,
-      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${endpoint.id}"`,
-    })
-
-    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
+    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
   }
+
   const nameComponent = (
     <ResourceCard.EditableName
       key={id}
@@ -119,8 +113,15 @@ const EndpointCard: FC<Props> = ({
     />
   )
 
-  const handleEdit = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
+  const handleView = () => {
+    const historyType: AlertHistoryType = 'notifications'
+
+    const queryParams = new URLSearchParams({
+      [HISTORY_TYPE_QUERY_PARAM]: historyType,
+      [SEARCH_QUERY_PARAM]: `"notificationEndpointID" == "${endpoint.id}"`,
+    })
+
+    router.push(`/orgs/${orgID}/alert-history?${queryParams}`)
   }
   const handleDelete = () => {
     onDeleteEndpoint(id)
@@ -131,7 +132,7 @@ const EndpointCard: FC<Props> = ({
   const contextMenu = (
     <EndpointCardMenu
       onDelete={handleDelete}
-      onEdit={handleEdit}
+      onView={handleView}
       onClone={handleClone}
     />
   )
