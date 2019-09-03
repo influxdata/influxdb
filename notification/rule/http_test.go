@@ -15,8 +15,9 @@ func TestHTTP_GenerateFlux(t *testing.T) {
 import "influxdata/influxdb/monitor"
 import "http"
 import "json"
+import "experimental"
 
-option task = {name: "foo", every: 1h, offset: 1s}
+option task = {name: "foo", every: 2h, offset: 1s}
 
 endpoint = http.endpoint(url: "http://localhost:7777")
 notification = {
@@ -25,10 +26,15 @@ notification = {
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "foo",
 }
-statuses = monitor.from(start: -1h, fn: (r) =>
+statuses = monitor.from(start: -2h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
+any_to_crit = statuses
+	|> monitor.stateChanges(fromLevel: "any", toLevel: "crit")
+all_statuses = any_to_crit
+	|> filter(fn: (r) =>
+		(r._time > experimental.subDuration(from: now(), d: 1h)))
 
-statuses
+all_statuses
 	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) =>
 		({data: json.encode(v: r)})))`
 
@@ -53,6 +59,11 @@ statuses
 						Value: "bang",
 					},
 					Operator: notification.Equal,
+				},
+			},
+			StatusRules: []notification.StatusRule{
+				{
+					CurrentLevel: notification.Critical,
 				},
 			},
 		},

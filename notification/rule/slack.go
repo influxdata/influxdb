@@ -34,7 +34,7 @@ func (s *Slack) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
 func (s *Slack) GenerateFluxAST(e *endpoint.Slack) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "slack", "influxdata/influxdb/secrets"),
+		flux.Imports("influxdata/influxdb/monitor", "slack", "influxdata/influxdb/secrets", "experimental"),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
@@ -47,6 +47,7 @@ func (s *Slack) generateFluxASTBody(e *endpoint.Slack) []ast.Statement {
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
+	statements = append(statements, s.generateAllStateChanges()...)
 	statements = append(statements, s.generateFluxASTNotifyPipe())
 
 	return statements
@@ -83,7 +84,7 @@ func (s *Slack) generateFluxASTNotifyPipe() ast.Statement {
 
 	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
-	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("statuses"), call))
+	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("all_statuses"), call))
 }
 
 type slackAlias Slack
