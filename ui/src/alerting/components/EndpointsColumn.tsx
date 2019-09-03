@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import EndpointCards from 'src/alerting/components/endpoints/EndpointCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
 import {AppState} from 'src/types'
@@ -30,11 +31,20 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
     </>
   )
 
+  const createButton = (
+    <Button
+      color={ComponentColor.Secondary}
+      text="Create"
+      onClick={handleOpenOverlay}
+      testID="create-endpoint"
+      icon={IconFont.Plus}
+    />
+  )
+
   return (
     <AlertsColumn
       title="Notification Endpoints"
-      testID="create-endpoint"
-      onCreate={handleOpenOverlay}
+      createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
     >
       <EndpointCards endpoints={endpoints} />

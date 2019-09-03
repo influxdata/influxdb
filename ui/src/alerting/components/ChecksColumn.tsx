@@ -7,6 +7,7 @@ import {connect} from 'react-redux'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Components
+import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import CheckCards from 'src/alerting/components/CheckCards'
 import AlertsColumnHeader from 'src/alerting/components/AlertsColumn'
 
@@ -38,10 +39,20 @@ const ChecksColumn: FunctionComponent<Props> = ({
     </>
   )
 
+  const createButton = (
+    <Button
+      color={ComponentColor.Primary}
+      text="Create"
+      onClick={handleClick}
+      testID="create-check"
+      icon={IconFont.Plus}
+    />
+  )
+
   return (
     <AlertsColumnHeader
       title="Checks"
-      onCreate={handleClick}
+      createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
     >
       <CheckCards checks={checks} />
