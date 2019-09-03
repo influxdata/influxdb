@@ -47,6 +47,15 @@ func Subtract(lhs, rhs ast.Expression) *ast.BinaryExpression {
 	}
 }
 
+// Add returns a addition *ast.BinaryExpression.
+func Add(lhs, rhs ast.Expression) *ast.BinaryExpression {
+	return &ast.BinaryExpression{
+		Operator: ast.AdditionOperator,
+		Left:     lhs,
+		Right:    rhs,
+	}
+}
+
 // Member returns an *ast.MemberExpression where the key is p and the values is c.
 func Member(p, c string) *ast.MemberExpression {
 	return &ast.MemberExpression{
@@ -185,6 +194,13 @@ func Property(key string, e ast.Expression) *ast.Property {
 func Object(ps ...*ast.Property) *ast.ObjectExpression {
 	return &ast.ObjectExpression{
 		Properties: ps,
+	}
+}
+
+// Array returns *ast.ArrayExpression with elements es.
+func Array(es ...ast.Expression) *ast.ArrayExpression {
+	return &ast.ArrayExpression{
+		Elements: es,
 	}
 }
 
