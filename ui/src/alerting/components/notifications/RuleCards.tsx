@@ -29,13 +29,9 @@ const EmptyNotificationRulesList: FC = () => {
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
       <EmptyState.Text
-        text="A Notification  Rule  will query statuses written by Checks  to determine if a notification should be sent to a Notification  Endpoint"
-        highlightWords={['Notification', 'Rule', 'Endpoint', 'Checks']}
+        text="You need at least 1 Notification  Endpoint  before LINEBREAK you can create a Notification  Rule"
+        highlightWords={['Notification', 'Rule', 'Endpoint']}
       />
-      <br />
-      <a href="#" target="_blank">
-        Documentation
-      </a>
     </EmptyState>
   )
 }

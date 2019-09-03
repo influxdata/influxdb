@@ -29,13 +29,9 @@ const EndpointCards: FC<Props> = ({endpoints}) => {
 const EmptyEndpointList: FC = () => (
   <EmptyState size={ComponentSize.Small} className="alert-column--empty">
     <EmptyState.Text
-      text="A Notification  Endpoint  stores the information to connect to a third party service that can receive notifications like Slack, PagerDuty, or an HTTP server"
+      text="Want to send notifications to Slack, LINEBREAK PagerDuty or an HTTP server? LINEBREAK LINEBREAK Try creating a Notification  Endpoint"
       highlightWords={['Notification', 'Endpoint']}
     />
-    <br />
-    <a href="#" target="_blank">
-      Documentation
-    </a>
   </EmptyState>
 )
 
