@@ -3,6 +3,7 @@ package rule
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/influxdata/flux/ast"
@@ -126,6 +127,104 @@ func (b *Base) generateFluxASTNotificationDefinition(e influxdb.NotificationEndp
 	return flux.DefineVariable("notification", flux.Object(ruleID, ruleName, endpointID, endpointName))
 }
 
+func (b *Base) generateAllStateChanges() []ast.Statement {
+	stmts := []ast.Statement{}
+	tables := []ast.Expression{}
+	for _, r := range b.StatusRules {
+		stmt, table := b.generateStateChanges(r)
+		tables = append(tables, table)
+		stmts = append(stmts, stmt)
+	}
+
+	now := flux.Call(flux.Identifier("now"), flux.Object())
+	timeFilter := flux.Function(
+		flux.FunctionParams("r"),
+		flux.GreaterThan(
+			flux.Member("r", "_time"),
+			flux.Call(
+				flux.Member("experimental", "subDuration"),
+				flux.Object(
+					flux.Property("from", now),
+					flux.Property("d", (*ast.DurationLiteral)(b.Every)),
+				),
+			),
+		),
+	)
+
+	var pipe *ast.PipeExpression
+	if len(tables) == 1 {
+		pipe = flux.Pipe(
+			tables[0],
+			flux.Call(
+				flux.Identifier("filter"),
+				flux.Object(
+					flux.Property("fn", timeFilter),
+				),
+			),
+		)
+	} else {
+		pipe = flux.Pipe(
+			flux.Call(
+				flux.Identifier("union"),
+				flux.Object(
+					flux.Property("tables", flux.Array(tables...)),
+				),
+			),
+			flux.Call(
+				flux.Identifier("sort"),
+				flux.Object(
+					flux.Property("columns", flux.Array(flux.String("_time"))),
+				),
+			),
+			flux.Call(
+				flux.Identifier("filter"),
+				flux.Object(
+					flux.Property("fn", timeFilter),
+				),
+			),
+		)
+	}
+
+	stmts = append(stmts, flux.DefineVariable("all_statuses", pipe))
+
+	return stmts
+}
+
+func (b *Base) generateStateChanges(r notification.StatusRule) (ast.Statement, *ast.Identifier) {
+	fromLevel := "any"
+	if r.PreviousLevel != nil {
+		fromLevel = strings.ToLower(r.PreviousLevel.String())
+	}
+	toLevel := strings.ToLower(r.CurrentLevel.String())
+
+	pipe := flux.Pipe(
+		flux.Identifier("statuses"),
+		flux.Call(
+			flux.Member("monitor", "stateChanges"),
+			flux.Object(
+				flux.Property("fromLevel", flux.String(fromLevel)),
+				flux.Property("toLevel", flux.String(toLevel)),
+			),
+		),
+	)
+
+	name := fmt.Sprintf("%s_to_%s", fromLevel, toLevel)
+	return flux.DefineVariable(name, pipe), flux.Identifier(name)
+}
+
+func increaseDur(d *ast.DurationLiteral) *ast.DurationLiteral {
+	dur := &ast.DurationLiteral{}
+	for i, v := range d.Values {
+		value := v
+		if i == 0 {
+			value.Magnitude += 1
+		}
+		dur.Values = append(dur.Values, value)
+	}
+
+	return dur
+}
+
 func (b *Base) generateTaskOption() ast.Statement {
 	props := []*ast.Property{}
 
@@ -136,7 +235,10 @@ func (b *Base) generateTaskOption() ast.Statement {
 	}
 
 	if b.Every != nil {
-		props = append(props, flux.Property("every", (*ast.DurationLiteral)(b.Every)))
+		dur := increaseDur((*ast.DurationLiteral)(b.Every))
+		// Make the windows overlap and filter records from previous queries.
+		// This is so that we wont miss the first points possible state change.
+		props = append(props, flux.Property("every", dur))
 	}
 
 	if b.Offset != nil {
@@ -149,7 +251,8 @@ func (b *Base) generateTaskOption() ast.Statement {
 func (b *Base) generateFluxASTStatuses() ast.Statement {
 	props := []*ast.Property{}
 
-	props = append(props, flux.Property("start", flux.Negative((*ast.DurationLiteral)(b.Every))))
+	dur := (*ast.DurationLiteral)(b.Every)
+	props = append(props, flux.Property("start", flux.Negative(increaseDur(dur))))
 
 	if len(b.TagRules) > 0 {
 		r := b.TagRules[0]

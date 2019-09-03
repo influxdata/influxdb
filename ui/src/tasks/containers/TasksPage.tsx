@@ -6,13 +6,16 @@ import _ from 'lodash'
 // Components
 import TasksHeader from 'src/tasks/components/TasksHeader'
 import TasksList from 'src/tasks/components/TasksList'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Actions
 import {
@@ -112,11 +115,12 @@ class TasksPage extends PureComponent<Props, State> {
       onRunTask,
       checkTaskLimits,
       limitStatus,
+      children,
     } = this.props
 
     return (
       <>
-        <Page titleTag="Tasks">
+        <Page titleTag={pageTitleSuffixer(['Tasks'])}>
           <TasksHeader
             onCreateTask={this.handleCreateTask}
             setShowInactive={setShowInactive}
@@ -126,55 +130,53 @@ class TasksPage extends PureComponent<Props, State> {
             limitStatus={limitStatus}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
-            <div className="col-xs-12">
-              <GetResources resource={ResourceTypes.Tasks}>
-                <GetResources resource={ResourceTypes.Labels}>
-                  <GetAssetLimits>
-                    <AssetLimitAlert
-                      resourceName="tasks"
-                      limitStatus={limitStatus}
-                    />
-                    <FilterList<Task>
-                      list={this.filteredTasks}
-                      searchTerm={searchTerm}
-                      searchKeys={['name', 'labels[].name']}
-                    >
-                      {ts => (
-                        <TasksList
-                          searchTerm={searchTerm}
-                          tasks={ts}
-                          totalCount={this.totalTaskCount}
-                          onActivate={this.handleActivate}
-                          onDelete={this.handleDelete}
-                          onCreate={this.handleCreateTask}
-                          onClone={this.handleClone}
-                          onSelect={this.props.selectTask}
-                          onAddTaskLabels={onAddTaskLabels}
-                          onRemoveTaskLabels={onRemoveTaskLabels}
-                          onRunTask={onRunTask}
-                          onFilterChange={setSearchTerm}
-                          filterComponent={this.search}
-                          onUpdate={updateTaskName}
-                          onImportTask={this.summonImportOverlay}
-                          onImportFromTemplate={
-                            this.summonImportFromTemplateOverlay
-                          }
-                          sortKey={sortKey}
-                          sortDirection={sortDirection}
-                          sortType={sortType}
-                          onClickColumn={this.handleClickColumn}
-                          checkTaskLimits={checkTaskLimits}
-                        />
-                      )}
-                    </FilterList>
-                    {this.hiddenTaskAlert}
-                  </GetAssetLimits>
-                </GetResources>
+            <GetResources resource={ResourceTypes.Tasks}>
+              <GetResources resource={ResourceTypes.Labels}>
+                <GetAssetLimits>
+                  <AssetLimitAlert
+                    resourceName="tasks"
+                    limitStatus={limitStatus}
+                  />
+                  <FilterList<Task>
+                    list={this.filteredTasks}
+                    searchTerm={searchTerm}
+                    searchKeys={['name', 'labels[].name']}
+                  >
+                    {ts => (
+                      <TasksList
+                        searchTerm={searchTerm}
+                        tasks={ts}
+                        totalCount={this.totalTaskCount}
+                        onActivate={this.handleActivate}
+                        onDelete={this.handleDelete}
+                        onCreate={this.handleCreateTask}
+                        onClone={this.handleClone}
+                        onSelect={this.props.selectTask}
+                        onAddTaskLabels={onAddTaskLabels}
+                        onRemoveTaskLabels={onRemoveTaskLabels}
+                        onRunTask={onRunTask}
+                        onFilterChange={setSearchTerm}
+                        filterComponent={this.search}
+                        onUpdate={updateTaskName}
+                        onImportTask={this.summonImportOverlay}
+                        onImportFromTemplate={
+                          this.summonImportFromTemplateOverlay
+                        }
+                        sortKey={sortKey}
+                        sortDirection={sortDirection}
+                        sortType={sortType}
+                        onClickColumn={this.handleClickColumn}
+                        checkTaskLimits={checkTaskLimits}
+                      />
+                    )}
+                  </FilterList>
+                  {this.hiddenTaskAlert}
+                </GetAssetLimits>
               </GetResources>
-            </div>
+            </GetResources>
           </Page.Contents>
         </Page>
-        {this.props.children}
+        {children}
       </>
     )
   }

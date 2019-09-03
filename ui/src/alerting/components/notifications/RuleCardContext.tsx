@@ -8,18 +8,18 @@ import {ComponentColor} from '@influxdata/clockface'
 interface Props {
   onDelete: () => void
   onClone: () => void
-  onEdit: () => void
+  onView: () => void
 }
 
 const RuleCardContext: FunctionComponent<Props> = ({
   onDelete,
   onClone,
-  onEdit,
+  onView,
 }) => {
   return (
     <Context>
-      <Context.Menu icon={IconFont.CogThick}>
-        <Context.Item label="Edit" action={onEdit} />
+      <Context.Menu icon={IconFont.EyeOpen}>
+        <Context.Item label="View History" action={onView} />
       </Context.Menu>
       <Context.Menu icon={IconFont.Duplicate} color={ComponentColor.Secondary}>
         <Context.Item label="Clone" action={onClone} />

@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import PageTitle from 'src/pageLayout/components/PageTitle'
+import {Page} from '@influxdata/clockface'
 
 // Types
 import {AppState} from 'src/types'
@@ -27,7 +27,7 @@ class PageTitleWithOrg extends PureComponent<Props> {
   render() {
     const {orgName, title, altText} = this.props
 
-    return <PageTitle title={`${orgName} / ${title}`} altText={altText} />
+    return <Page.Title title={`${orgName} / ${title}`} altText={altText} />
   }
 }
 

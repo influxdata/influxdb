@@ -6,9 +6,12 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import Members from 'src/members/components/Members'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -30,7 +33,7 @@ class MembersIndex extends Component<Props> {
 
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Members', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="members" orgID={org.id}>
             <GetResources resource={ResourceTypes.Members}>

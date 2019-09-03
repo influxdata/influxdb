@@ -5,7 +5,7 @@ import {withRouter} from 'react-router'
 import _ from 'lodash'
 
 // Components
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import DashboardHeader from 'src/dashboards/components/DashboardHeader'
 import DashboardComponent from 'src/dashboards/components/Dashboard'
@@ -31,6 +31,7 @@ import {
   extractRateLimitResources,
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
@@ -66,7 +67,6 @@ interface StateProps {
   timeRange: TimeRange
   dashboard: Dashboard
   autoRefresh: AutoRefresh
-  inPresentationMode: boolean
   showVariablesControls: boolean
   views: {[cellID: string]: {view: View; status: RemoteDataState}}
 }
@@ -150,7 +150,6 @@ class DashboardPage extends Component<Props> {
       limitedResources,
       manualRefresh,
       onManualRefresh,
-      inPresentationMode,
       showVariablesControls,
       handleClickPresentationButton,
       onToggleShowVariablesControls,
@@ -166,7 +165,6 @@ class DashboardPage extends Component<Props> {
               dashboard={dashboard}
               timeRange={timeRange}
               autoRefresh={autoRefresh}
-              isHidden={inPresentationMode}
               onAddCell={this.handleAddCell}
               onAddNote={this.showNoteOverlay}
               onManualRefresh={onManualRefresh}
@@ -194,7 +192,6 @@ class DashboardPage extends Component<Props> {
                 timeRange={timeRange}
                 manualRefresh={manualRefresh}
                 onCloneCell={this.handleCloneCell}
-                inPresentationMode={inPresentationMode}
                 onPositionChange={this.handlePositionChange}
                 onDeleteCell={this.handleDeleteDashboardCell}
                 onEditView={this.handleEditView}
@@ -297,17 +294,15 @@ class DashboardPage extends Component<Props> {
 
   private get pageTitle(): string {
     const {dashboard} = this.props
+    const dashboardName = _.get(dashboard, 'name', 'Loading...')
 
-    return _.get(dashboard, 'name', 'Loading...')
+    return pageTitleSuffixer([dashboardName])
   }
 }
 
 const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const {
     links,
-    app: {
-      ephemeral: {inPresentationMode},
-    },
     ranges,
     dashboards,
     views: {views},
@@ -336,7 +331,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     autoRefresh,
     limitStatus,
     limitedResources,
-    inPresentationMode,
     showVariablesControls,
   }
 }

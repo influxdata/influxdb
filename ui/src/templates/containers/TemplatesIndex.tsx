@@ -4,10 +4,13 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import TemplatesPage from 'src/templates/components/TemplatesPage'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -25,7 +28,7 @@ class TemplatesIndex extends Component<Props> {
     const {org, children} = this.props
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
             <GetResources resource={ResourceTypes.Templates}>

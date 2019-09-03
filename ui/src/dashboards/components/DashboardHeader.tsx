@@ -3,7 +3,6 @@ import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Page} from 'src/pageLayout'
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
 import TimeRangeDropdown, {
   RangeType,
@@ -16,6 +15,7 @@ import {
   Button,
   IconFont,
   ComponentColor,
+  Page,
 } from '@influxdata/clockface'
 
 // Constants
@@ -45,7 +45,6 @@ interface Props {
   onRenameDashboard: (name: string) => Promise<void>
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean
-  isHidden: boolean
   onAddNote: () => void
   zoomedTimeRange: QueriesModels.TimeRange
 }
@@ -66,7 +65,6 @@ export default class DashboardHeader extends Component<Props> {
       timeRange,
       timeRange: {upper, lower},
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
-      isHidden,
       toggleVariablesControlBar,
       isShowingVariablesControlBar,
       onAddCell,
@@ -76,7 +74,7 @@ export default class DashboardHeader extends Component<Props> {
     } = this.props
 
     return (
-      <Page.Header fullWidth={true} inPresentationMode={isHidden}>
+      <Page.Header fullWidth={true}>
         <Page.Header.Left>
           <RenamablePageTitle
             prefix={_.get(org, 'name', '')}

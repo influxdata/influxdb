@@ -6,11 +6,14 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import ClientLibraries from 'src/clientLibraries/components/ClientLibraries'
 
 // Types
 import {AppState, Organization} from 'src/types'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Mocks
 import {mockClientLibraries} from 'src/clientLibraries/constants/mocks'
@@ -26,7 +29,7 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
 
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Client Libraries', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="client-libraries" orgID={org.id}>
             {/* TODO: use GetResources here when this resource exists */}

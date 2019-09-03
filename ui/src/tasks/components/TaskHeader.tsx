@@ -2,11 +2,15 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Page} from 'src/pageLayout'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
 // Types
-import {ComponentColor, Button, ComponentStatus} from '@influxdata/clockface'
+import {
+  ComponentColor,
+  Button,
+  ComponentStatus,
+  Page,
+} from '@influxdata/clockface'
 
 interface Props {
   title: string

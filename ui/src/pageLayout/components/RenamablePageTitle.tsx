@@ -8,12 +8,11 @@ import React, {
 import classnames from 'classnames'
 
 // Components
-import {Input, PageTitle, Icon} from '@influxdata/clockface'
+import {Input, PageTitle, Icon, IconFont} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {IconFont} from 'src/clockface'
 
 interface Props {
   onRename: (name: string) => void

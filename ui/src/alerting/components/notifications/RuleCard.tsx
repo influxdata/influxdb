@@ -90,11 +90,11 @@ const RuleCard: FC<Props> = ({
     onUpdateRuleProperties(rule.id, {status})
   }
 
-  const onEdit = () => {
+  const onRuleClick = () => {
     router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/edit`)
   }
 
-  const onRuleClick = () => {
+  const onView = () => {
     const historyType: AlertHistoryType = 'notifications'
 
     const queryParams = new URLSearchParams({
@@ -159,7 +159,7 @@ const RuleCard: FC<Props> = ({
       disabled={rule.status === 'inactive'}
       contextMenu={
         <NotificationRuleCardContext
-          onEdit={onEdit}
+          onView={onView}
           onClone={onClone}
           onDelete={onDelete}
         />
