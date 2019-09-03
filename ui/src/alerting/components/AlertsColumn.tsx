@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, ReactChild} from 'react'
 
 // Components
 import {
@@ -10,12 +10,17 @@ import {
   DapperScrollbars,
   Input,
   IconFont,
+  FlexBox,
+  FlexDirection,
+  ComponentSize,
 } from '@influxdata/clockface'
+import QuestionMarkTooltip from 'src/shared/components/question_mark_tooltip/QuestionMarkTooltip'
 
 interface Props {
   title: string
   testID?: string
   onCreate: () => void
+  questionMarkTooltipContents: ReactChild
 }
 
 const AlertsColumnHeader: FC<Props> = ({
@@ -23,6 +28,7 @@ const AlertsColumnHeader: FC<Props> = ({
   onCreate,
   title,
   testID = '',
+  questionMarkTooltipContents,
 }) => {
   return (
     <Panel
@@ -30,7 +36,15 @@ const AlertsColumnHeader: FC<Props> = ({
       className="alerting-index--column"
     >
       <Panel.Header>
-        <Panel.Title>{title}</Panel.Title>
+        <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
+          <Panel.Title style={{fontSize: '17px', width: 'auto'}}>
+            {title}
+          </Panel.Title>
+          <QuestionMarkTooltip
+            testID={`${testID}--question-mark`}
+            tipContent={questionMarkTooltipContents}
+          />
+        </FlexBox>
         <Button
           text="Create"
           icon={IconFont.Plus}

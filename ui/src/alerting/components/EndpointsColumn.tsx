@@ -20,11 +20,22 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
     router.push(newRuleRoute)
   }
 
+  const tooltipContents = (
+    <>
+      A <strong>Notification Endpoint</strong> stores the information to connect
+      <br />
+      to a third party service that can receive notifications
+      <br />
+      like Slack, PagerDuty, or an HTTP server
+    </>
+  )
+
   return (
     <AlertsColumn
       title="Notification Endpoints"
       testID="create-endpoint"
       onCreate={handleOpenOverlay}
+      questionMarkTooltipContents={tooltipContents}
     >
       <EndpointCards endpoints={endpoints} />
     </AlertsColumn>

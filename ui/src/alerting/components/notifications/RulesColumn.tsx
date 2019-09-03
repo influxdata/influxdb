@@ -26,11 +26,22 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
     router.push(newRuleRoute)
   }
 
+  const tooltipContents = (
+    <>
+      A <strong>Notification Rule</strong> will query statuses
+      <br />
+      written by <strong>Checks</strong> to determine if a notification
+      <br />
+      should be sent to a <strong>Notification Endpoint</strong>
+    </>
+  )
+
   return (
     <AlertsColumn
       title="Notification Rules"
       testID="create-rule"
       onCreate={handleOpenOverlay}
+      questionMarkTooltipContents={tooltipContents}
     >
       <NotificationRuleCards rules={rules} />
     </AlertsColumn>

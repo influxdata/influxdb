@@ -27,8 +27,23 @@ const ChecksColumn: FunctionComponent<Props> = ({
   const handleClick = () => {
     router.push(`/orgs/${orgID}/alerting/checks/new`)
   }
+
+  const tooltipContents = (
+    <>
+      A <strong>Check</strong> is a periodic query that the system
+      <br />
+      performs against your time series data
+      <br />
+      that will generate a status
+    </>
+  )
+
   return (
-    <AlertsColumnHeader title="Checks" onCreate={handleClick}>
+    <AlertsColumnHeader
+      title="Checks"
+      onCreate={handleClick}
+      questionMarkTooltipContents={tooltipContents}
+    >
       <CheckCards checks={checks} />
     </AlertsColumnHeader>
   )
