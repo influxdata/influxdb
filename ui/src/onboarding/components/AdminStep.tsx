@@ -247,7 +247,7 @@ class AdminStep extends PureComponent<Props, State> {
   private orgTip = (): JSX.Element => {
     return (
       <QuestionMarkTooltip
-        tipID="admin_org_tooltip"
+        testID="admin_org_tooltip"
         tipContent="An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
         You can create organizations for different functional groups, teams, or projects."
       />
@@ -257,7 +257,7 @@ class AdminStep extends PureComponent<Props, State> {
   private bucketTip = (): JSX.Element => {
     return (
       <QuestionMarkTooltip
-        tipID="admin_bucket_tooltip"
+        testID="admin_bucket_tooltip"
         tipContent="A bucket is where your time series data is stored with a retention policy."
       />
     )
