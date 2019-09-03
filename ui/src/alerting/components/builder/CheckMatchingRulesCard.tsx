@@ -29,10 +29,7 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
 }) => {
   const getMatchingRules = async (): Promise<NotificationRule[]> => {
     const tags: CheckTagSet[] = get(check, 'tags', [])
-    const tagsList = tags.reduce((acc, t) => {
-      acc.push(['tag', `${t.key}:${t.value}`])
-      return acc
-    }, [])
+    const tagsList = tags.map(t => ['tag', `${t.key}:${t.value}`])
 
     // todo also: get tags from query results
 
