@@ -219,6 +219,7 @@ func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*P
 		run:        run,
 		task:       t,
 		auth:       t.Authorization,
+		createdAt:  time.Now(),
 		done:       make(chan struct{}),
 		ctx:        ctx,
 		cancelFunc: cancel,
@@ -312,8 +313,7 @@ func (w *worker) start(p *Promise) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), backend.RunStarted)
 
 	// add to metrics
-	s, _ := p.run.ScheduledForTime()
-	w.te.metrics.StartRun(p.task.ID, time.Since(s))
+	w.te.metrics.StartRun(p.task.ID, time.Since(p.createdAt))
 }
 
 func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
@@ -427,6 +427,8 @@ type Promise struct {
 
 	done chan struct{}
 	err  error
+
+	createdAt time.Time
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
