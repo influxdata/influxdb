@@ -1,28 +1,40 @@
-import React, {SFC} from 'react'
-import ReactTooltip from 'react-tooltip'
+// Libraries
+import React, {SFC, ReactChild} from 'react'
+
+// Components
+import {Popover, PopoverInteraction} from '@influxdata/clockface'
 
 interface Props {
-  tipID: string
-  tipContent: string
+  testID: string
+  tipContent: ReactChild
 }
 
-const QuestionMarkTooltip: SFC<Props> = ({tipID, tipContent}) => (
-  <div className="question-mark-tooltip">
-    <div
-      className="question-mark-tooltip--icon"
-      data-for={`${tipID}-tooltip`}
-      data-tip={tipContent}
+const QuestionMarkTooltip: SFC<Props> = ({testID, tipContent, children}) => {
+  let trigger = <div className="question-mark-tooltip--icon" />
+
+  if (children) {
+    trigger = (
+      <div className="question-mark-tooltip--children">
+        {children}
+        <div className="question-mark-tooltip--icon question-mark-tooltip--icon__adjacent" />
+      </div>
+    )
+  }
+
+  return (
+    <Popover
+      distanceFromTrigger={6}
+      className="question-mark-tooltip"
+      testID={testID}
+      showEvent={PopoverInteraction.Hover}
+      hideEvent={PopoverInteraction.Hover}
+      contents={() => (
+        <div className="question-mark-tooltip--contents">{tipContent}</div>
+      )}
     >
-      ?
-    </div>
-    <ReactTooltip
-      id={`${tipID}-tooltip`}
-      effect="solid"
-      html={true}
-      place="bottom"
-      class="influx-tooltip"
-    />
-  </div>
-)
+      {trigger}
+    </Popover>
+  )
+}
 
 export default QuestionMarkTooltip
