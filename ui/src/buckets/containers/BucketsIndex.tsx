@@ -6,19 +6,24 @@ import {connect} from 'react-redux'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
-import {Page} from 'src/pageLayout'
 import BucketsTab from 'src/buckets/components/BucketsTab'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
-import {FlexBox, FlexDirection, JustifyContent} from '@influxdata/clockface'
+import {
+  FlexBox,
+  FlexDirection,
+  JustifyContent,
+  Page,
+} from '@influxdata/clockface'
 
 // Utils
 import {
   extractRateLimitResources,
   extractRateLimitStatus,
 } from 'src/cloud/utils/limits'
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Organization} from 'src/types'
@@ -37,7 +42,7 @@ class BucketsIndex extends Component<StateProps> {
 
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Buckets', 'Load Data'])}>
           <LimitChecker>
             <LoadDataHeader />
             <FlexBox

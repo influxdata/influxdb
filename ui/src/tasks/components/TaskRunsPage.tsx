@@ -5,7 +5,7 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Page} from 'src/pageLayout'
+import {Page, IconFont, Sort} from '@influxdata/clockface'
 import TaskRunsList from 'src/tasks/components/TaskRunsList'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 
@@ -22,7 +22,9 @@ import {
 
 // Actions
 import {getRuns, runTask} from 'src/tasks/actions'
-import {IconFont, Sort} from 'src/clockface'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {SortTypes} from 'src/shared/utils/sort'
@@ -75,7 +77,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
         loading={this.props.runStatus}
         spinnerComponent={<TechnoSpinner />}
       >
-        <Page titleTag="Runs">
+        <Page titleTag={pageTitleSuffixer(['Task Runs'])}>
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
               <PageTitleWithOrg title={this.title} />
@@ -94,16 +96,14 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <div className="col-xs-12">
-              <TaskRunsList
-                taskID={params.id}
-                runs={runs}
-                sortKey={sortKey}
-                sortDirection={sortDirection}
-                sortType={sortType}
-                onClickColumn={this.handleClickColumn}
-              />
-            </div>
+            <TaskRunsList
+              taskID={params.id}
+              runs={runs}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              sortType={sortType}
+              onClickColumn={this.handleClickColumn}
+            />
           </Page.Contents>
         </Page>
       </SpinnerContainer>

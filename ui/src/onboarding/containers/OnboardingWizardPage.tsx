@@ -10,6 +10,7 @@ import {client} from 'src/utils/api'
 import {
   Button,
   EmptyState,
+  AppWrapper,
   TechnoSpinner,
   SpinnerContainer,
 } from '@influxdata/clockface'
@@ -98,11 +99,11 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
     }
 
     return (
-      <SpinnerContainer
-        loading={this.state.loading}
-        spinnerComponent={<TechnoSpinner />}
-      >
-        <div className="chronograf-root">
+      <AppWrapper>
+        <SpinnerContainer
+          loading={this.state.loading}
+          spinnerComponent={<TechnoSpinner />}
+        >
           <Notifications inPresentationMode={true} />
           <OnboardingWizard
             onDecrementCurrentStepIndex={this.handleDecrementStepIndex}
@@ -112,8 +113,8 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
             currentStepIndex={+params.stepID}
             onCompleteSetup={this.handleCompleteSetup}
           />
-        </div>
-      </SpinnerContainer>
+        </SpinnerContainer>
+      </AppWrapper>
     )
   }
 

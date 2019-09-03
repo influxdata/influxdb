@@ -5,23 +5,25 @@ import {connect} from 'react-redux'
 
 // Components
 import FilterList from 'src/shared/components/Filter'
-import TemplatesHeader from 'src/templates/components/TemplatesHeader'
 import TemplatesList from 'src/templates/components/TemplatesList'
 import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 
 // Types
 import {TemplateSummary, AppState} from 'src/types'
 import {SortTypes} from 'src/shared/utils/sort'
 import {
   Sort,
+  Button,
+  ComponentColor,
+  IconFont,
   Radio,
   FlexBox,
-  AlignItems,
   FlexDirection,
-  JustifyContent,
+  ComponentSize,
 } from '@influxdata/clockface'
 
 import {staticTemplates as statics} from 'src/templates/constants/defaultTemplates'
@@ -76,39 +78,37 @@ class TemplatesPage extends PureComponent<Props, State> {
 
     return (
       <>
-        <TemplatesHeader
-          onImportTemplate={onImport}
-          showOrgDropdown={false}
-          isFullPage={false}
-          filterComponent={() => this.filterComponent}
-        />
-        <FlexBox
-          direction={FlexDirection.Row}
-          alignItems={AlignItems.Center}
-          justifyContent={JustifyContent.Center}
-          stretchToFitWidth={true}
-        >
-          <Radio>
-            <Radio.Button
-              id="static-templates"
-              active={activeTab === 'static-templates'}
-              value="static-templates"
-              onClick={this.handleClickTab}
-              titleText="Static Templates"
-            >
-              Static Templates
-            </Radio.Button>
-            <Radio.Button
-              id="user-templates"
-              active={activeTab === 'user-templates'}
-              value="user-templates"
-              onClick={this.handleClickTab}
-              titleText="User Templates"
-            >
-              User Templates
-            </Radio.Button>
-          </Radio>
-        </FlexBox>
+        <SettingsTabbedPageHeader>
+          <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
+            {this.filterComponent}
+            <Radio>
+              <Radio.Button
+                id="static-templates"
+                active={activeTab === 'static-templates'}
+                value="static-templates"
+                onClick={this.handleClickTab}
+                titleText="Static Templates"
+              >
+                Static Templates
+              </Radio.Button>
+              <Radio.Button
+                id="user-templates"
+                active={activeTab === 'user-templates'}
+                value="user-templates"
+                onClick={this.handleClickTab}
+                titleText="User Templates"
+              >
+                User Templates
+              </Radio.Button>
+            </Radio>
+          </FlexBox>
+          <Button
+            text="Import Template"
+            icon={IconFont.Plus}
+            color={ComponentColor.Primary}
+            onClick={onImport}
+          />
+        </SettingsTabbedPageHeader>
         {this.templatesList}
       </>
     )

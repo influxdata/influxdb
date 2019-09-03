@@ -32,11 +32,11 @@ import CreateFromTemplateOverlay from 'src/templates/components/createFromTempla
 import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
-import {MePage, Account} from 'src/me'
+import {MePage} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
-import Notifications from 'src/shared/containers/Notifications'
+import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import EditVEO from 'src/dashboards/components/EditVEO'
@@ -112,7 +112,7 @@ const history: History = useRouterHistory(createHistory)({
   basename: basepath, // this is written in when available by the URL prefixer middleware
 })
 
-const store = configureStore(loadLocalStorage(), history)
+export const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
 
 history.listen(() => {
@@ -140,7 +140,7 @@ class Root extends PureComponent {
                   path=":stepID/:substepID"
                   component={OnboardingWizardPage}
                 />
-                <Route component={Notifications}>
+                <Route component={UnauthenticatedApp}>
                   <Route path="/signin" component={SigninPage} />
                   <Route path="/logout" component={Logout} />
                 </Route>
@@ -215,7 +215,6 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="me" component={MePage} />
-                          <Route path="account/:tab" component={Account} />
                           <Route path="settings">
                             <IndexRoute component={MembersIndex} />
                           </Route>

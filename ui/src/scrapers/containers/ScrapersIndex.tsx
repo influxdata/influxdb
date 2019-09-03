@@ -3,11 +3,14 @@ import React, {Component} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import Scrapers from 'src/scrapers/components/Scrapers'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -26,7 +29,7 @@ class ScrapersIndex extends Component<StateProps> {
 
     return (
       <>
-        <Page titleTag={org.name}>
+        <Page titleTag={pageTitleSuffixer(['Scrapers', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="scrapers" orgID={org.id}>
             <GetResources resource={ResourceTypes.Scrapers}>

@@ -173,7 +173,7 @@ class SideNav extends PureComponent<Props, State> {
           )}
           iconLink={className => (
             <Link to={loadDataLink} className={className}>
-              <Icon glyph={IconFont.Disks} />
+              <Icon glyph={IconFont.DisksNav} />
             </Link>
           )}
           active={getNavItemActivation(['load-data'], location.pathname)}
@@ -230,7 +230,7 @@ class SideNav extends PureComponent<Props, State> {
           )}
           iconLink={className => (
             <Link to={settingsLink} className={className}>
-              <Icon glyph={IconFont.Wrench} />
+              <Icon glyph={IconFont.WrenchNav} />
             </Link>
           )}
           active={getNavItemActivation(['settings'], location.pathname)}

@@ -5,14 +5,12 @@
 
 @import "../../style/modules";
 
-.user-page {
-  .link-list {
-    padding: 0;
-    list-style: none;
+.link-list {
+  padding: 0;
+  list-style: none;
 
-    > li {
-      padding: 0;
-    }
+  > li {
+    padding: 0;
   }
 }
 

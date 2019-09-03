@@ -7,7 +7,7 @@ import {connect} from 'react-redux'
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
 import TaskHeader from 'src/tasks/components/TaskHeader'
-import {Page} from 'src/pageLayout'
+import {Page} from '@influxdata/clockface'
 import FluxEditor from 'src/shared/components/FluxEditor'
 
 // Actions
@@ -21,6 +21,9 @@ import {
   setAllTaskOptions,
   setTaskToken,
 } from 'src/tasks/actions'
+
+// Utils
+import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {
@@ -94,9 +97,9 @@ class TaskEditPage extends PureComponent<
     } = this.props
 
     return (
-      <Page titleTag={`Edit ${taskOptions.name}`}>
+      <Page titleTag={pageTitleSuffixer([`Edit ${taskOptions.name}`])}>
         <TaskHeader
-          title="Update Task"
+          title="Edit Task"
           canSubmit={this.isFormValid}
           onCancel={this.handleCancel}
           onSave={this.handleSave}
