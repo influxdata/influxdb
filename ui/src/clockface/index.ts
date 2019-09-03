@@ -10,7 +10,6 @@ import Context from './components/context_menu/Context'
 import GridSizer from 'src/clockface/components/grid_sizer/GridSizer'
 import ResponsiveGridSizer from 'src/clockface/components/grid_sizer/ResponsiveGridSizer'
 import Select from 'src/clockface/components/Select'
-import QuestionMarkTooltip from 'src/clockface/components/tooltips/QuestionMarkTooltip'
 
 // Import Types
 import {
@@ -51,7 +50,6 @@ export {
   MultipleInput,
   NavMenuType,
   ProgressBar,
-  QuestionMarkTooltip,
   ResponsiveGridSizer,
   Select,
   Sort,

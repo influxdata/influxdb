@@ -4,7 +4,7 @@ import {getDeep} from 'src/utils/wrappers'
 
 // Components
 import {Form, Input, Grid} from '@influxdata/clockface'
-import {QuestionMarkTooltip} from 'src/clockface'
+import QuestionMarkTooltip from 'src/shared/components/question_mark_tooltip/QuestionMarkTooltip'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
