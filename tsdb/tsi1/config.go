@@ -1,6 +1,10 @@
 package tsi1
 
-import "github.com/influxdata/influxdb/toml"
+import (
+	"time"
+
+	"github.com/influxdata/influxdb/toml"
+)
 
 // DefaultMaxIndexLogFileSize is the default threshold, in bytes, when an index
 // write-ahead log file will compact into an index file.
@@ -25,6 +29,10 @@ type Config struct {
 	// The cache uses an LRU strategy for eviction. Setting the value to 0 will
 	// disable the cache.
 	SeriesIDSetCacheSize uint64
+
+	// StatsTTL sets the time-to-live for the stats cache. If zero, then caching
+	// is disabled. If set then stats are cached for the given amount of time.
+	StatsTTL time.Duration `toml:"stats-ttl"`
 }
 
 // NewConfig returns a new Config.
