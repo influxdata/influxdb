@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
@@ -86,18 +87,42 @@ func (bd *DatabasesDecoder) Fetch(ctx context.Context) (bool, error) {
 }
 
 func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
-	kb := execute.NewGroupKeyBuilder(nil)
-	if len(bd.databases) == 0 {
-		return nil, errors.New("no 1.x databases found")
+	type databaseInfo struct {
+		*platform.DBRPMapping
+		RetentionPeriod time.Duration
 	}
-	kb.AddKeyValue("organizationID", values.NewString(bd.databases[0].OrganizationID.String()))
+
+	databases := make([]databaseInfo, 0, len(bd.databases))
+	for _, db := range bd.databases {
+		bucket, err := bd.deps.BucketLookup.FindBucketByID(ctx, db.BucketID)
+		if err != nil {
+			code := platform.ErrorCode(err)
+			if code == platform.EUnauthorized || code == platform.EForbidden {
+				continue
+			}
+			return nil, err
+		}
+		databases = append(databases, databaseInfo{
+			DBRPMapping:     db,
+			RetentionPeriod: bucket.RetentionPeriod,
+		})
+	}
+
+	if len(databases) == 0 {
+		return nil, &platform.Error{
+			Code: platform.ENotFound,
+			Msg:  "no 1.x databases found",
+		}
+	}
+
+	kb := execute.NewGroupKeyBuilder(nil)
+	kb.AddKeyValue("organizationID", values.NewString(databases[0].OrganizationID.String()))
 	gk, err := kb.Build()
 	if err != nil {
 		return nil, err
 	}
 
 	b := execute.NewColListTableBuilder(gk, bd.alloc)
-
 	if _, err := b.AddCol(flux.ColMeta{
 		Label: "organizationID",
 		Type:  flux.TString,
@@ -135,17 +160,13 @@ func (bd *DatabasesDecoder) Decode(ctx context.Context) (flux.Table, error) {
 		return nil, err
 	}
 
-	for _, db := range bd.databases {
-		if bucket, err := bd.deps.BucketLookup.FindBucketByID(ctx, db.BucketID); err != nil {
-			return nil, err
-		} else {
-			_ = b.AppendString(0, db.OrganizationID.String())
-			_ = b.AppendString(1, db.Database)
-			_ = b.AppendString(2, db.RetentionPolicy)
-			_ = b.AppendInt(3, bucket.RetentionPeriod.Nanoseconds())
-			_ = b.AppendBool(4, db.Default)
-			_ = b.AppendString(5, db.BucketID.String())
-		}
+	for _, db := range databases {
+		_ = b.AppendString(0, db.OrganizationID.String())
+		_ = b.AppendString(1, db.Database)
+		_ = b.AppendString(2, db.RetentionPolicy)
+		_ = b.AppendInt(3, db.RetentionPeriod.Nanoseconds())
+		_ = b.AppendBool(4, db.Default)
+		_ = b.AppendString(5, db.BucketID.String())
 	}
 
 	return b.Table()
