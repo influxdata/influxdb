@@ -11,7 +11,7 @@ import (
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
 	_ "golang.org/x/tools/cmd/stringer"
-	_ "honnef.co/go/tools/cmd/megacheck"
+	_ "honnef.co/go/tools/cmd/staticcheck"
 )
 
 // This package is a workaround for adding additional paths to the go.mod file
