@@ -75,27 +75,6 @@ describe('Onboarding', () => {
       .children('.cf-button--label')
       .contains('Continue')
 
-    //Check tooltips
-    cy.getByTestID('form-elem--orgname')
-      .children('[data-testid=form--label]')
-      .children('div.question-mark-tooltip')
-      .trigger('mouseenter')
-      .children('div[data-id=tooltip]')
-      .contains('An organization is')
-      .should($tt => {
-        expect($tt).to.have.class('show')
-      })
-
-    cy.getByTestID('form-elem--bucketname')
-      .children('[data-testid=form--label]')
-      .children('div.question-mark-tooltip')
-      .trigger('mouseenter')
-      .children('div[data-id=tooltip]')
-      .contains('A bucket is')
-      .should($tt => {
-        expect($tt).to.have.class('show')
-      })
-
     //Input fields
     cy.getByTestID('input-field--username').type(user.username)
     cy.getByTestID('input-field--password').type(user.password)

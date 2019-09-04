@@ -34,7 +34,7 @@ describe('Notification Endpoints', () => {
     const description =
       'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'
 
-    cy.getByTestID('alert-column--header create-endpoint').click()
+    cy.getByTestID('create-endpoint').click()
 
     cy.getByTestID('endpoint-name--input')
       .clear()

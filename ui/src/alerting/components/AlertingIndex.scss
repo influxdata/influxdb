@@ -23,3 +23,33 @@
   padding: 18px;
   padding-top: 0;
 }
+
+/*
+  First time widget
+  ------------------------------------------------------------------------------
+*/
+
+.alerting-first-time {
+  border: $ix-border solid $c-ocean;
+
+  h1,
+  h5 {
+    user-select: none;
+    color: $c-neutrino;
+  }
+  h1 {
+    letter-spacing: 0;
+    margin-top: 0;
+  }
+
+  h5 {
+    margin-bottom: 0;
+    line-height: 1.5em;
+    font-weight: 500;
+
+    strong {
+      font-weight: 900;
+      color: $g20-white;
+    }
+  }
+}

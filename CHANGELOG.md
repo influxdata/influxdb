@@ -11,6 +11,7 @@
 1. [14694](https://github.com/influxdata/influxdb/pull/14694): Add ability to find tasks by name.
 
 ### UI Improvements
+1. [14917](https://github.com/influxdata/influxdb/pull/14917): Make first steps in Monitoring & Alerting more obvious
 1. [14889](https://github.com/influxdata/influxdb/pull/14889): Make adding data to buckets more discoverable
 1. [14709](https://github.com/influxdata/influxdb/pull/14709): Move Buckets, Telgrafs, and Scrapers pages into a tab called "Load Data" for ease of discovery
 1. [14846](https://github.com/influxdata/influxdb/pull/14846): Standardize formatting of "updated at" timestamp in all resource cards

@@ -4,7 +4,7 @@ import {getDeep} from 'src/utils/wrappers'
 
 // Components
 import {Form, Input, Grid} from '@influxdata/clockface'
-import {QuestionMarkTooltip} from 'src/clockface'
+import QuestionMarkTooltip from 'src/shared/components/question_mark_tooltip/QuestionMarkTooltip'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 import FancyScrollbar from 'src/shared/components/fancy_scrollbar/FancyScrollbar'
 
@@ -247,7 +247,7 @@ class AdminStep extends PureComponent<Props, State> {
   private orgTip = (): JSX.Element => {
     return (
       <QuestionMarkTooltip
-        tipID="admin_org_tooltip"
+        testID="admin_org_tooltip"
         tipContent="An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
         You can create organizations for different functional groups, teams, or projects."
       />
@@ -257,7 +257,7 @@ class AdminStep extends PureComponent<Props, State> {
   private bucketTip = (): JSX.Element => {
     return (
       <QuestionMarkTooltip
-        tipID="admin_bucket_tooltip"
+        testID="admin_bucket_tooltip"
         tipContent="A bucket is where your time series data is stored with a retention policy."
       />
     )
