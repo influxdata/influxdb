@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// TasksSystemBucketID and MonitoringSystemBucketID are IDs that are reserved for system buckets.
+// If any system bucket IDs are added, Bucket.IsSystem must be updated to include them.
 const (
 	// TasksSystemBucketID is the fixed ID for our tasks system bucket
 	TasksSystemBucketID = ID(10)
@@ -25,6 +27,12 @@ type Bucket struct {
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 	CRUDLog
+}
+
+// TODO(jade): move this logic to a type set directly on Bucket.
+// IsSystem returns true if a bucket is a known system bucket
+func (b *Bucket) IsSystem() bool {
+	return b.ID == TasksSystemBucketID || b.ID == MonitoringSystemBucketID
 }
 
 // ops for buckets error and buckets op logs.
