@@ -50,6 +50,7 @@ from(bucket: "${MONITORING_BUCKET}")
                       "_check_name": "checkName",
                       "_level": "level"})
   |> group()${fluxFilter ? `\n  |> filter(fn: (r) => ${fluxFilter})` : ''}
+  |> sort(columns: ["time"], desc: true)
   |> limit(n: ${limit}, offset: ${offset})
 `
 
@@ -86,6 +87,7 @@ from(bucket: "${MONITORING_BUCKET}")
                       "_level": "level",
                       "_sent": "sent"})
   |> group()${fluxFilter ? `\n  |> filter(fn: (r) => ${fluxFilter})` : ''}
+  |> sort(columns: ["time"], desc: true)
   |> limit(n: ${limit}, offset: ${offset})
 `
 
