@@ -1,4 +1,14 @@
-## v2.0.0-alpha.17 [unreleased]
+## v2.0.0-alpha.18 [unreleased]
+
+### Features
+
+### UI Improvements
+
+### Bug Fixes
+1. [14931](https://github.com/influxdata/influxdb/pull/14931): Remove scrollbars blocking onboarding UI step.
+
+
+## v2.0.0-alpha.17 [2019-08-14]
 
 ### Features
 1. [14809](https://github.com/influxdata/influxdb/pull/14809): Add task middleware's for checks and notifications

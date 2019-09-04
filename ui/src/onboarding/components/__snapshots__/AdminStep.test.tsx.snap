@@ -12,187 +12,177 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
     <div
       className="wizard-step--scroll-area"
     >
-      <FancyScrollbar
-        autoHeight={false}
-        autoHide={false}
-        className=""
-        hideTracksWhenNotNeeded={true}
-        maxHeight={null}
-        setScrollTop={[Function]}
-        style={Object {}}
+      <div
+        className="wizard-step--scroll-content"
       >
-        <div
-          className="wizard-step--scroll-content"
+        <h3
+          className="wizard-step--title"
+          data-testid="admin-step--head-main"
         >
-          <h3
-            className="wizard-step--title"
-            data-testid="admin-step--head-main"
+          Setup Initial User
+        </h3>
+        <h5
+          className="wizard-step--sub-title"
+          data-testid="admin-step--head-sub"
+        >
+          You will be able to create additional Users, Buckets and Organizations later
+        </h5>
+        <Grid
+          testID="grid"
+        >
+          <GridRow
+            testID="grid--row"
           >
-            Setup Initial User
-          </h3>
-          <h5
-            className="wizard-step--sub-title"
-            data-testid="admin-step--head-sub"
-          >
-            You will be able to create additional Users, Buckets and Organizations later
-          </h5>
-          <Grid
-            testID="grid"
-          >
-            <GridRow
-              testID="grid--row"
+            <GridColumn
+              offsetMD={1}
+              testID="grid--column"
+              widthMD={10}
+              widthXS={12}
             >
-              <GridColumn
-                offsetMD={1}
-                testID="grid--column"
-                widthMD={10}
-                widthXS={12}
+              <FormElement
+                label="Username"
+                testID="form--element"
               >
-                <FormElement
-                  label="Username"
-                  testID="form--element"
-                >
-                  <Input
-                    autoFocus={true}
-                    autocomplete="off"
-                    disabledTitleText="Username has been set"
-                    icon={null}
-                    name=""
-                    onChange={[Function]}
-                    placeholder=""
-                    required={false}
-                    size="md"
-                    spellCheck={false}
-                    status="default"
-                    testID="input-field--username"
-                    titleText="Username"
-                    type="text"
-                    value=""
-                  />
-                </FormElement>
-              </GridColumn>
-              <GridColumn
-                offsetMD={1}
-                testID="grid--column"
-                widthMD={5}
-                widthXS={6}
+                <Input
+                  autoFocus={true}
+                  autocomplete="off"
+                  disabledTitleText="Username has been set"
+                  icon={null}
+                  name=""
+                  onChange={[Function]}
+                  placeholder=""
+                  required={false}
+                  size="md"
+                  spellCheck={false}
+                  status="default"
+                  testID="input-field--username"
+                  titleText="Username"
+                  type="text"
+                  value=""
+                />
+              </FormElement>
+            </GridColumn>
+            <GridColumn
+              offsetMD={1}
+              testID="grid--column"
+              widthMD={5}
+              widthXS={6}
+            >
+              <FormElement
+                label="Password"
+                testID="form--element"
               >
-                <FormElement
-                  label="Password"
-                  testID="form--element"
-                >
-                  <Input
-                    autoFocus={false}
-                    autocomplete="off"
-                    disabledTitleText="Password has been set"
-                    icon={null}
-                    name=""
-                    onChange={[Function]}
-                    placeholder=""
-                    required={false}
-                    size="md"
-                    spellCheck={false}
-                    status="default"
-                    testID="input-field--password"
-                    titleText="Password"
-                    type="password"
-                    value=""
-                  />
-                </FormElement>
-              </GridColumn>
-              <GridColumn
-                testID="grid--column"
-                widthMD={5}
-                widthXS={6}
+                <Input
+                  autoFocus={false}
+                  autocomplete="off"
+                  disabledTitleText="Password has been set"
+                  icon={null}
+                  name=""
+                  onChange={[Function]}
+                  placeholder=""
+                  required={false}
+                  size="md"
+                  spellCheck={false}
+                  status="default"
+                  testID="input-field--password"
+                  titleText="Password"
+                  type="password"
+                  value=""
+                />
+              </FormElement>
+            </GridColumn>
+            <GridColumn
+              testID="grid--column"
+              widthMD={5}
+              widthXS={6}
+            >
+              <FormElement
+                errorMessage={false}
+                label="Confirm Password"
+                testID="form--element"
               >
-                <FormElement
-                  errorMessage={false}
-                  label="Confirm Password"
-                  testID="form--element"
-                >
-                  <Input
-                    autoFocus={false}
-                    autocomplete="off"
-                    disabledTitleText="password has been set"
-                    icon={null}
-                    name=""
-                    onChange={[Function]}
-                    placeholder=""
-                    required={false}
-                    size="md"
-                    spellCheck={false}
-                    status="default"
-                    testID="input-field--password-chk"
-                    titleText="Confirm Password"
-                    type="password"
-                    value=""
-                  />
-                </FormElement>
-              </GridColumn>
-              <GridColumn
-                offsetMD={1}
-                testID="grid--column"
-                widthMD={10}
-                widthXS={12}
+                <Input
+                  autoFocus={false}
+                  autocomplete="off"
+                  disabledTitleText="password has been set"
+                  icon={null}
+                  name=""
+                  onChange={[Function]}
+                  placeholder=""
+                  required={false}
+                  size="md"
+                  spellCheck={false}
+                  status="default"
+                  testID="input-field--password-chk"
+                  titleText="Confirm Password"
+                  type="password"
+                  value=""
+                />
+              </FormElement>
+            </GridColumn>
+            <GridColumn
+              offsetMD={1}
+              testID="grid--column"
+              widthMD={10}
+              widthXS={12}
+            >
+              <FormElement
+                label="Initial Organization Name"
+                labelAddOn={[Function]}
+                testID="form-elem--orgname"
               >
-                <FormElement
-                  label="Initial Organization Name"
-                  labelAddOn={[Function]}
-                  testID="form-elem--orgname"
-                >
-                  <Input
-                    autoFocus={false}
-                    autocomplete="off"
-                    disabledTitleText="Initial organization name has been set"
-                    icon={null}
-                    name=""
-                    onChange={[Function]}
-                    placeholder="An organization is a workspace for a group of users."
-                    required={false}
-                    size="md"
-                    spellCheck={false}
-                    status="default"
-                    testID="input-field--orgname"
-                    titleText="Initial Organization Name"
-                    type="text"
-                    value=""
-                  />
-                </FormElement>
-              </GridColumn>
-              <GridColumn
-                offsetMD={1}
-                testID="grid--column"
-                widthMD={10}
-                widthXS={12}
+                <Input
+                  autoFocus={false}
+                  autocomplete="off"
+                  disabledTitleText="Initial organization name has been set"
+                  icon={null}
+                  name=""
+                  onChange={[Function]}
+                  placeholder="An organization is a workspace for a group of users."
+                  required={false}
+                  size="md"
+                  spellCheck={false}
+                  status="default"
+                  testID="input-field--orgname"
+                  titleText="Initial Organization Name"
+                  type="text"
+                  value=""
+                />
+              </FormElement>
+            </GridColumn>
+            <GridColumn
+              offsetMD={1}
+              testID="grid--column"
+              widthMD={10}
+              widthXS={12}
+            >
+              <FormElement
+                label="Initial Bucket Name"
+                labelAddOn={[Function]}
+                testID="form-elem--bucketname"
               >
-                <FormElement
-                  label="Initial Bucket Name"
-                  labelAddOn={[Function]}
-                  testID="form-elem--bucketname"
-                >
-                  <Input
-                    autoFocus={false}
-                    autocomplete="off"
-                    disabledTitleText="Initial bucket name has been set"
-                    icon={null}
-                    name=""
-                    onChange={[Function]}
-                    placeholder="A bucket is where your time series data is stored with a retention policy."
-                    required={false}
-                    size="md"
-                    spellCheck={false}
-                    status="default"
-                    testID="input-field--bucketname"
-                    titleText="Initial Bucket Name"
-                    type="text"
-                    value=""
-                  />
-                </FormElement>
-              </GridColumn>
-            </GridRow>
-          </Grid>
-        </div>
-      </FancyScrollbar>
+                <Input
+                  autoFocus={false}
+                  autocomplete="off"
+                  disabledTitleText="Initial bucket name has been set"
+                  icon={null}
+                  name=""
+                  onChange={[Function]}
+                  placeholder="A bucket is where your time series data is stored with a retention policy."
+                  required={false}
+                  size="md"
+                  spellCheck={false}
+                  status="default"
+                  testID="input-field--bucketname"
+                  titleText="Initial Bucket Name"
+                  type="text"
+                  value=""
+                />
+              </FormElement>
+            </GridColumn>
+          </GridRow>
+        </Grid>
+      </div>
     </div>
     <OnboardingButtons
       autoFocusNext={false}
