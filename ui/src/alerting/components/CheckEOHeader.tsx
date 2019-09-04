@@ -53,38 +53,36 @@ const CheckEOHeader: FC<Props> = ({name, onSetName, onCancel, onSave}) => {
       : ComponentStatus.Default
 
   return (
-    <div className="veo-header">
-      <Page.Header fullWidth={true}>
-        <Page.Header.Left>
-          <RenamablePageTitle
-            name={name}
-            onRename={onSetName}
-            placeholder={DEFAULT_CHECK_NAME}
-            maxLength={CHECK_NAME_MAX_LENGTH}
-            onClickOutside={handleClickOutsideTitle}
-          />
-        </Page.Header.Left>
-        <Page.Header.Center>
-          <CheckAlertingButton />
-        </Page.Header.Center>
-        <Page.Header.Right>
-          <SquareButton
-            icon={IconFont.Remove}
-            onClick={onCancel}
-            size={ComponentSize.Small}
-          />
-          <SquareButton
-            className={saveButtonClass}
-            icon={IconFont.Checkmark}
-            color={ComponentColor.Success}
-            size={ComponentSize.Small}
-            status={saveButtonStatus}
-            onClick={handleSave}
-            testID="save-cell--button"
-          />
-        </Page.Header.Right>
-      </Page.Header>
-    </div>
+    <Page.Header fullWidth={true}>
+      <Page.Header.Left>
+        <RenamablePageTitle
+          name={name}
+          onRename={onSetName}
+          placeholder={DEFAULT_CHECK_NAME}
+          maxLength={CHECK_NAME_MAX_LENGTH}
+          onClickOutside={handleClickOutsideTitle}
+        />
+      </Page.Header.Left>
+      <Page.Header.Center widthPixels={300}>
+        <CheckAlertingButton />
+      </Page.Header.Center>
+      <Page.Header.Right>
+        <SquareButton
+          icon={IconFont.Remove}
+          onClick={onCancel}
+          size={ComponentSize.Small}
+        />
+        <SquareButton
+          className={saveButtonClass}
+          icon={IconFont.Checkmark}
+          color={ComponentColor.Success}
+          size={ComponentSize.Small}
+          status={saveButtonStatus}
+          onClick={handleSave}
+          testID="save-cell--button"
+        />
+      </Page.Header.Right>
+    </Page.Header>
   )
 }
 
