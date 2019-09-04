@@ -73,6 +73,15 @@ func And(lhs, rhs ast.Expression) *ast.LogicalExpression {
 	}
 }
 
+// If returns an *ast.ConditionalExpression
+func If(test, consequent, alternate ast.Expression) *ast.ConditionalExpression {
+	return &ast.ConditionalExpression{
+		Test:       test,
+		Consequent: consequent,
+		Alternate:  alternate,
+	}
+}
+
 // Pipe returns a *ast.PipeExpression that is a piped sequence of call expressions starting at base.
 // It requires at least one call expression and will panic otherwise.
 func Pipe(base ast.Expression, calls ...*ast.CallExpression) *ast.PipeExpression {

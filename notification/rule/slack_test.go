@@ -54,7 +54,7 @@ all_statuses = union(tables: [any_to_crit, info_to_warn])
 
 all_statuses
 	|> monitor.notify(data: notification, endpoint: slack_endpoint(mapFn: (r) =>
-		({channel: "bar", text: "blah"})))`
+		({channel: "bar", text: "blah", color: if r._level == "crit" then "danger" else if r._level == "warn" then "warning" else "good"})))`
 
 	s := &rule.Slack{
 		Channel:         "bar",
