@@ -1,10 +1,15 @@
 export {}
-const merge = require('webpack-merge')
+
+// utils
 const common = require('./webpack.common.ts')
-const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
-const TerserJSPlugin = require('terser-webpack-plugin')
+const merge = require('webpack-merge')
+const path = require('path')
+
+// Plugins
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const MiniCssExtractPlugin = require('mini-css-extract-plugin')
+const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
+const TerserJSPlugin = require('terser-webpack-plugin')
 
 module.exports = merge(common, {
   mode: 'production',
@@ -26,6 +31,15 @@ module.exports = merge(common, {
               hmr: true,
             },
           },
+        ],
+      },
+      {
+        test: /\.js$/,
+        enforce: 'pre', // this forces this rule to run first.
+        use: ['source-map-loader'],
+        include: [
+          path.resolve(__dirname, 'node_modules/@influxdata/giraffe'),
+          path.resolve(__dirname, 'node_modules/@influxdata/clockface'),
         ],
       },
     ],

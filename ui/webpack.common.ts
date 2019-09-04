@@ -10,6 +10,7 @@ module.exports = {
   context: __dirname,
   output: {
     path: path.resolve(__dirname, 'build'),
+    sourceMapFilename: '[name].js.map',
   },
   entry: {
     app: './src/bootstrap.ts',
