@@ -338,7 +338,9 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 	t.Run("Empty", func(t *testing.T) {
 		idx := MustOpenIndex(1, tsi1.NewConfig())
 		defer idx.Close()
-		if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{}); diff != "" {
+		if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{}); diff != "" {
 			t.Fatal(diff)
 		}
 	})
@@ -355,7 +357,9 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 2, "mem": 1}); diff != "" {
+		if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 2, "mem": 1}); diff != "" {
 			t.Fatal(diff)
 		}
 	})
@@ -375,14 +379,18 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 		seriesID := idx.SeriesFile.SeriesID([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}), nil)
 		if err := idx.DropSeries(seriesID, idx.SeriesFile.SeriesKey(seriesID), true); err != nil {
 			t.Fatal(err)
-		} else if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1, "mem": 1}); diff != "" {
+		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 1, "mem": 1}); diff != "" {
 			t.Fatal(diff)
 		}
 
 		seriesID = idx.SeriesFile.SeriesID([]byte("mem"), models.NewTags(map[string]string{"region": "east"}), nil)
 		if err := idx.DropSeries(seriesID, idx.SeriesFile.SeriesKey(seriesID), true); err != nil {
 			t.Fatal(err)
-		} else if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1}); diff != "" {
+		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 1}); diff != "" {
 			t.Fatal(diff)
 		}
 	})
@@ -404,14 +412,85 @@ func TestIndex_MeasurementCardinalityStats(t *testing.T) {
 			}
 		}
 
-		if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1000000}); diff != "" {
+		if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 1000000}); diff != "" {
 			t.Fatal(diff)
 		}
 
 		// Reopen and verify count.
 		if err := idx.Reopen(); err != nil {
 			t.Fatal(err)
-		} else if diff := cmp.Diff(idx.MeasurementCardinalityStats(), tsi1.MeasurementCardinalityStats{"cpu": 1000000}); diff != "" {
+		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 1000000}); diff != "" {
+			t.Fatal(diff)
+		}
+	})
+
+	t.Run("LargeWithDelete", func(t *testing.T) {
+		if testing.Short() {
+			t.Skip("short mode, skipping")
+		}
+		config := tsi1.NewConfig()
+		config.MaxIndexLogFileSize = 4096
+		idx := MustOpenIndex(1, config)
+		defer idx.Close()
+
+		a := make([]Series, 1000)
+		for i := range a {
+			a[i] = Series{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": fmt.Sprintf("east%04d", i)})}
+		}
+		if err := idx.CreateSeriesSliceIfNotExists(a); err != nil {
+			t.Fatal(err)
+		}
+
+		// Issue deletion.
+		if err := idx.DropMeasurement([]byte("cpu")); err != nil {
+			t.Fatal(err)
+		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{}); diff != "" {
+			t.Fatal(diff)
+		}
+	})
+
+	t.Run("Cache", func(t *testing.T) {
+		config := tsi1.NewConfig()
+		config.StatsTTL = 1 * time.Second
+		idx := MustOpenIndex(1, config)
+		defer idx.Close()
+
+		// Insert two series & verify series.
+		if err := idx.CreateSeriesSliceIfNotExists([]Series{
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		}); err != nil {
+			t.Fatal(err)
+		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 2}); diff != "" {
+			t.Fatal(diff)
+		}
+
+		// Insert one more series and immediate check. No change should occur.
+		if err := idx.CreateSeriesSliceIfNotExists([]Series{
+			{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "north"})},
+		}); err != nil {
+			t.Fatal(err)
+		} else if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 2}); diff != "" {
+			t.Fatal(diff)
+		}
+
+		// Wait for TTL.
+		time.Sleep(config.StatsTTL)
+
+		// Verify again and stats should be updated.
+		if stats, err := idx.MeasurementCardinalityStats(); err != nil {
+			t.Fatal(err)
+		} else if diff := cmp.Diff(stats, tsi1.MeasurementCardinalityStats{"cpu": 3}); diff != "" {
 			t.Fatal(diff)
 		}
 	})
@@ -621,31 +700,6 @@ func BenchmarkIndex_CreateSeriesListIfNotExist(b *testing.B) {
 				if err := idx.CreateSeriesListIfNotExists(collection); err != nil {
 					b.Fatal(err)
 				}
-			}
-		}
-	})
-}
-
-func BenchmarkIndex_ComputeMeasurementCardinalityStats(b *testing.B) {
-	idx := MustOpenIndex(1, tsi1.NewConfig())
-	defer idx.Close()
-
-	const n = 10000
-	for i := 0; i < n; i++ {
-		name := []byte(fmt.Sprintf("%08x", i))
-		a := make([]Series, 1000)
-		for j := range a {
-			a[j] = Series{Name: name, Tags: models.NewTags(map[string]string{"region": fmt.Sprintf("east%04d", j)})}
-		}
-		if err := idx.CreateSeriesSliceIfNotExists(a); err != nil {
-			b.Fatal(err)
-		}
-	}
-
-	b.Run("", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			if _, err := idx.ComputeMeasurementCardinalityStats(); err != nil {
-				b.Fatal(err)
 			}
 		}
 	})

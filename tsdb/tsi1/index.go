@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/cespare/xxhash"
@@ -126,6 +127,9 @@ type Index struct {
 	// Index's version.
 	version int
 
+	// Cardinality stats caching time-to-live.
+	StatsTTL time.Duration
+
 	// Number of partitions used by the index.
 	PartitionN uint64
 }
@@ -145,6 +149,7 @@ func NewIndex(sfile *tsdb.SeriesFile, c Config, options ...IndexOption) *Index {
 		version:          Version,
 		config:           c,
 		sfile:            sfile,
+		StatsTTL:         c.StatsTTL,
 		PartitionN:       DefaultPartitionN,
 	}
 
@@ -243,6 +248,7 @@ func (i *Index) Open(ctx context.Context) error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
+		p.StatsTTL = i.StatsTTL
 		p.nosync = i.disableFsync
 		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
@@ -1194,25 +1200,13 @@ func (i *Index) SetFieldName(measurement []byte, name string) {}
 func (i *Index) Rebuild() {}
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
-func (i *Index) MeasurementCardinalityStats() MeasurementCardinalityStats {
+func (i *Index) MeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
 	stats := NewMeasurementCardinalityStats()
 	for _, p := range i.partitions {
-		stats.Add(p.MeasurementCardinalityStats())
-	}
-	return stats
-}
-
-// ComputeMeasurementCardinalityStats computes the cardinality stats from raw index data.
-func (i *Index) ComputeMeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-
-	stats := NewMeasurementCardinalityStats()
-	for _, p := range i.partitions {
-		pstats, err := p.ComputeMeasurementCardinalityStats()
+		pstats, err := p.MeasurementCardinalityStats()
 		if err != nil {
 			return nil, err
 		}

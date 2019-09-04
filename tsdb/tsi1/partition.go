@@ -58,16 +58,17 @@ type Partition struct {
 	fileSet       *FileSet // current file set
 	seq           int      // file id sequence
 
-	// Computed measurements stats since last compaction.
-	// NOTE: Does not include active log file stats.
-	stats MeasurementCardinalityStats
-
 	// Running statistics
 	tracker *partitionTracker
 
 	// Fast series lookup of series IDs in the series file that have been present
 	// in this partition. This set tracks both insertions and deletions of a series.
 	seriesIDSet *tsdb.SeriesIDSet
+
+	// Stats caching
+	StatsTTL      time.Duration
+	statsCache    MeasurementCardinalityStats
+	lastStatsTime time.Time
 
 	// Compaction management
 	levels              []CompactionLevel // compaction levels
@@ -123,7 +124,6 @@ func (p *Partition) bytes() int {
 	b += int(unsafe.Sizeof(p.activeLogFile)) + p.activeLogFile.bytes()
 	b += int(unsafe.Sizeof(p.fileSet)) + p.fileSet.bytes()
 	b += int(unsafe.Sizeof(p.seq))
-	b += int(unsafe.Sizeof(p.stats))
 	b += int(unsafe.Sizeof(p.tracker))
 	b += int(unsafe.Sizeof(p.seriesIDSet)) + p.seriesIDSet.Bytes()
 	b += int(unsafe.Sizeof(p.levels))
@@ -278,9 +278,6 @@ func (p *Partition) Open() (err error) {
 	p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
 	p.tracker.SetFiles(uint64(len(p.fileSet.LogFiles())), "log")
 	p.tracker.SetDiskSize(uint64(p.fileSet.Size()))
-
-	// Compute initial stats.
-	p.computeStats()
 
 	// Mark opened.
 	p.res.Open()
@@ -507,9 +504,6 @@ func (p *Partition) prependActiveLogFile() error {
 	p.activeLogFile = f
 	p.replaceFileSet(fileSet)
 	p.manifestSize = manifestSize
-
-	// Compute new stats after fileset has been replaced.
-	p.computeStats()
 
 	// Set the file metrics again.
 	p.tracker.SetFiles(uint64(len(p.fileSet.IndexFiles())), "index")
@@ -1297,40 +1291,73 @@ func (p *Partition) compactLogFile(ctx context.Context, logFile *LogFile, interr
 }
 
 // MeasurementCardinalityStats returns cardinality stats for all measurements.
-func (p *Partition) MeasurementCardinalityStats() MeasurementCardinalityStats {
+func (p *Partition) MeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	stats := p.stats.Clone()
-
-	if p.activeLogFile != nil {
-		stats.Add(p.activeLogFile.MeasurementCardinalityStats())
+	// Return cached version, if enabled and the TTL is less than the last cache time.
+	if p.StatsTTL > 0 && !p.lastStatsTime.IsZero() && time.Since(p.lastStatsTime) < p.StatsTTL {
+		return p.statsCache.Clone(), nil
 	}
-	return stats
+
+	// If cache is unavailable then generate fresh stats.
+	stats, err := p.measurementCardinalityStats()
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache the stats if enabled.
+	if p.StatsTTL > 0 {
+		p.statsCache = stats
+		p.lastStatsTime = time.Now()
+	}
+
+	return stats, nil
 }
 
-// ComputeMeasurementCardinalityStats computes cardinality stats from raw data.
-func (p *Partition) ComputeMeasurementCardinalityStats() (MeasurementCardinalityStats, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
+func (p *Partition) measurementCardinalityStats() (MeasurementCardinalityStats, error) {
 	fs, err := p.fileSet.Duplicate()
 	if err != nil {
 		return nil, err
 	}
 	defer fs.Release()
-	return fs.Stats(), nil
-}
 
-// computeStats calculates the measurement stats from all files except the active log.
-// FileSet must already be retained when calling this function.
-func (p *Partition) computeStats() {
-	// Shallow copy the fileset and trim initial active log file.
-	fs := *p.fileSet
-	fs.files = fs.files[1:]
+	stats := make(MeasurementCardinalityStats)
+	mitr := fs.MeasurementIterator()
+	if mitr == nil {
+		return stats, nil
+	}
 
-	// Compute stats on the remaining files.
-	p.stats = fs.Stats()
+	for {
+		// Iterate over each measurement and set cardinality.
+		mm := mitr.Next()
+		if mm == nil {
+			return stats, nil
+		}
+
+		// Obtain all series for measurement.
+		sitr := fs.MeasurementSeriesIDIterator(mm.Name())
+		if sitr == nil {
+			continue
+		}
+
+		// All iterators should be series id set iterators except legacy 1.x data.
+		// Skip if it does not conform as aggregation would be too slow.
+		ssitr, ok := sitr.(tsdb.SeriesIDSetIterator)
+		if !ok {
+			continue
+		}
+
+		// Intersect with partition set to ensure deleted series are removed.
+		set := p.seriesIDSet.And(ssitr.SeriesIDSet())
+		cardinality := int(set.Cardinality())
+		if cardinality == 0 {
+			continue
+		}
+
+		// Set cardinality for the given measurement.
+		stats[string(mm.Name())] = cardinality
+	}
 }
 
 type partitionTracker struct {
