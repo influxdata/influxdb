@@ -53,3 +53,49 @@
     }
   }
 }
+
+/*
+  Check creation popover
+  ------------------------------------------------------------------------------
+*/
+
+.query-checklist--popover {
+  padding: 16px;
+  user-select: none;
+
+  p,
+  li {
+    font-size: 14px;
+    line-height: 1.5em;
+    font-weight: 500;
+    color: $g15-platinum;
+  }
+  p {
+    margin-top: 0;
+  }
+}
+
+.query-checklist--list {
+  margin-bottom: 0;
+  padding: 0;
+}
+
+.query-checklist--item {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  
+  .cf-icon {
+    display: inline-block;
+    margin-right: 5px;
+    width: 16px;
+  }
+  
+  &.error {
+    color: $c-dreamsicle;
+  }
+
+  &.valid {
+    color: $c-rainforest;
+  }
+}

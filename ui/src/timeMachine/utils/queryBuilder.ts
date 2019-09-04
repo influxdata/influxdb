@@ -20,9 +20,16 @@ export function isConfigValid(builderConfig: BuilderConfig): boolean {
   return isConfigValid
 }
 
+export interface CheckQueryValidity {
+  oneQuery: boolean
+  builderMode: boolean
+  singleAggregateFunc: boolean
+  singleField: boolean
+}
+
 export const isDraftQueryAlertable = (
   draftQueries: DashboardDraftQuery[]
-): boolean => {
+): CheckQueryValidity => {
   const tags: BuilderTagsType[] = get(
     draftQueries,
     '[0].builderConfig.tags',
@@ -31,12 +38,12 @@ export const isDraftQueryAlertable = (
   const fieldSelection = tags.find(t => get(t, 'key') === '_field')
   const fieldValues = get(fieldSelection, 'values', [])
   const functions = draftQueries[0].builderConfig.functions
-  return (
-    draftQueries.length === 1 && // one query
-    draftQueries[0].editMode == 'builder' && // built in builder
-    functions.length === 1 && // one aggregate function
-    fieldValues.length === 1 // one field selection
-  )
+  return {
+    oneQuery: draftQueries.length === 1, // one query
+    builderMode: draftQueries[0].editMode == 'builder', // built in builder
+    singleAggregateFunc: functions.length === 1, // one aggregate function
+    singleField: fieldValues.length === 1, // one field selection
+  }
 }
 
 export function buildQuery(builderConfig: BuilderConfig): string {
