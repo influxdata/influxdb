@@ -19,7 +19,7 @@ import "influxdata/influxdb/secrets"
 option task = {name: "foo", every: 1h}
 
 pagerduty_secret = secrets.get(key: "pagerduty_token")
-pagerduty_endpoint = pagerduty.endpoint(routing_key: pagerduty_secret, url: "http://localhost:7777")
+pagerduty_endpoint = pagerduty.endpoint(token: pagerduty_secret, url: "http://localhost:7777")
 notification = {
 	_notification_rule_id: "0000000000000001",
 	_notification_rule_name: "foo",
@@ -31,7 +31,17 @@ statuses = monitor.from(start: -1h, fn: (r) =>
 
 statuses
 	|> monitor.notify(data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
-		({text: "blah"})))`
+		({
+			routingKey: pagerduty_secret,
+			client: r._check_name,
+			clientURL: "http://localhost:7777",
+			class: r._check_name,
+			group: r._check_name,
+			severity: r._level,
+			source: r._source_measurement,
+			summary: r._message,
+			timestamp: r._status_timestamp,
+		})))`
 
 	s := &rule.PagerDuty{
 		MessageTemplate: "blah",
