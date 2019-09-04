@@ -920,9 +920,12 @@ func (p *Partition) CurrentCompactionN() int {
 // Wait will block until all compactions are finished.
 // Must only be called while they are disabled.
 func (p *Partition) Wait() {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
+	if p.CurrentCompactionN() == 0 { // Is it possible to immediately return?
+		return
+	}
 
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
 	for range ticker.C {
 		if p.CurrentCompactionN() == 0 {
 			return
