@@ -52,6 +52,7 @@ const EditEndpointOverlay: FC<Props> = ({
           <Overlay.Body />
           <EndpointOverlayContents
             onSave={handleEditEndpoint}
+            onCancel={handleDismiss}
             saveButtonText="Edit Notification Endpoint"
           />
         </Overlay.Container>
