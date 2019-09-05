@@ -48,6 +48,7 @@ export default (
         draftState.list[index] = endpoint
         return
       }
+
       case 'REMOVE_ENDPOINT': {
         const {endpointID} = action
 

@@ -1,8 +1,18 @@
 // Libraries
-import React, {FC, ChangeEvent} from 'react'
+import React, {FC, ChangeEvent, useState} from 'react'
 
 // Components
-import {Grid, Form, Panel, Input, TextArea} from '@influxdata/clockface'
+import {
+  Grid,
+  Form,
+  Input,
+  TextArea,
+  Overlay,
+  Columns,
+  Alert,
+  ComponentColor,
+  IconFont,
+} from '@influxdata/clockface'
 import EndpointOptions from 'src/alerting/components/endpoints/EndpointOptions'
 import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
 import EndpointOverlayFooter from 'src/alerting/components/endpoints/EndpointOverlayFooter'
@@ -15,11 +25,18 @@ import {NotificationEndpointType, NotificationEndpoint} from 'src/types'
 
 interface Props {
   onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onCancel: () => void
   saveButtonText: string
 }
 
-const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
+const EndpointOverlayContents: FC<Props> = ({
+  onSave,
+  saveButtonText,
+  onCancel,
+}) => {
   const [endpoint, dispatch] = useEndpointReducer()
+  const [errorMessage, setErrorMessage] = useState<string>(null)
+
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -39,58 +56,81 @@ const EndpointOverlayContents: FC<Props> = ({onSave, saveButtonText}) => {
 
   const handleSelectType = (type: NotificationEndpointType) => {
     dispatch({
-      type: 'UPDATE_ENDPOINT',
+      type: 'UPDATE_ENDPOINT_TYPE',
       endpoint: {...endpoint, type},
     })
   }
 
   return (
-    <Grid>
-      <Form>
-        <Grid.Row>
-          <Grid.Column>
-            <Panel>
-              <Panel.Body>
-                <Form.Element label="Name">
-                  <Input
-                    testID="endpoint-name--input"
-                    placeholder="Name this endpoint"
-                    value={endpoint.name}
-                    name="name"
-                    onChange={handleChange}
-                  />
-                </Form.Element>
-                <Form.Element label="Description">
-                  <TextArea
-                    rows={1}
-                    className="endpoint-description--textarea"
-                    testID="endpoint-description--textarea"
-                    name="description"
-                    value={endpoint.description}
-                    onChange={handleChange}
-                  />
-                </Form.Element>
-                <Form.Element label="Destination">
-                  <EndpointTypeDropdown
-                    onSelectType={handleSelectType}
-                    selectedType={endpoint.type}
-                  />
-                </Form.Element>
-                <EndpointOptions
-                  endpoint={endpoint}
+    <Form>
+      <Overlay.Body>
+        <Grid>
+          <Grid.Row>
+            <Grid.Column widthSM={Columns.Six}>
+              <Form.Element label="Destination">
+                <EndpointTypeDropdown
+                  onSelectType={handleSelectType}
+                  selectedType={endpoint.type}
+                />
+              </Form.Element>
+            </Grid.Column>
+            <Grid.Column widthSM={Columns.Six}>
+              <Form.Element label="Name">
+                <Input
+                  testID="endpoint-name--input"
+                  placeholder="Name this endpoint"
+                  value={endpoint.name}
+                  name="name"
                   onChange={handleChange}
-                  onChangeParameter={handleChangeParameter}
                 />
-                <EndpointOverlayFooter
-                  onSave={onSave}
-                  saveButtonText={saveButtonText}
+              </Form.Element>
+            </Grid.Column>
+            <Grid.Column widthSM={Columns.Twelve}>
+              <Form.Element label="Description">
+                <TextArea
+                  rows={1}
+                  className="endpoint-description--textarea"
+                  testID="endpoint-description--textarea"
+                  name="description"
+                  value={endpoint.description}
+                  onChange={handleChange}
                 />
-              </Panel.Body>
-            </Panel>
-          </Grid.Column>
-        </Grid.Row>
-      </Form>
-    </Grid>
+              </Form.Element>
+            </Grid.Column>
+            <Grid.Column widthSM={Columns.Twelve}>
+              <EndpointOptions
+                endpoint={endpoint}
+                onChange={handleChange}
+                onChangeParameter={handleChangeParameter}
+              />
+            </Grid.Column>
+            <Grid.Column
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                minHeight: '43px',
+              }}
+            >
+              {errorMessage && (
+                <Alert
+                  color={ComponentColor.Danger}
+                  icon={IconFont.AlertTriangle}
+                  style={{width: 'auto', marginTop: '8px'}}
+                >
+                  {errorMessage}
+                </Alert>
+              )}
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
+      </Overlay.Body>
+      <EndpointOverlayFooter
+        onSave={onSave}
+        onCancel={onCancel}
+        saveButtonText={saveButtonText}
+        onSetErrorMessage={setErrorMessage}
+      />
+    </Form>
   )
 }
 

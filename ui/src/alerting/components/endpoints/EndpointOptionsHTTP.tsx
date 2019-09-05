@@ -2,7 +2,15 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {Input, FormElement, InputType, TextArea} from '@influxdata/clockface'
+import {
+  Input,
+  FormElement,
+  InputType,
+  TextArea,
+  Panel,
+  Grid,
+  Columns,
+} from '@influxdata/clockface'
 import MethodTypeDropdown from 'src/alerting/components/endpoints/MethodTypeDropdown'
 import AuthMethodTypeDropdown from 'src/alerting/components/endpoints/AuthMethodTypeDropdown'
 
@@ -33,66 +41,95 @@ const EndpointOptionsHTTP: FC<Props> = ({
   onChangeParameter,
 }) => {
   return (
-    <>
-      <FormElement label="URL">
-        <Input name="url" value={url} onChange={onChange} required={true} />
-      </FormElement>
-      <FormElement label="HTTP method">
-        <MethodTypeDropdown
-          onSelectType={onChangeParameter('method')}
-          selectedType={method}
-        />
-      </FormElement>
-      <FormElement label="auth method">
-        <AuthMethodTypeDropdown
-          onSelectType={onChangeParameter('authMethod')}
-          selectedType={authMethod}
-        />
-      </FormElement>
-      {authMethod === 'bearer' && (
-        <FormElement label="Token">
-          <Input
-            name="token"
-            value={token}
-            onChange={onChange}
-            type={InputType.Password}
-          />
-        </FormElement>
-      )}
-      {authMethod === 'basic' && (
-        <>
-          <FormElement label="username">
-            <Input
-              name="username"
-              value={username}
-              onChange={onChange}
-              type={
-                username && username.includes('secret: ')
-                  ? InputType.Password
-                  : InputType.Text
-              }
-            />
-          </FormElement>
-          <FormElement label="password">
-            <Input
-              name="password"
-              value={password}
-              type={InputType.Password}
-              onChange={onChange}
-            />
-          </FormElement>
-        </>
-      )}
-      <FormElement label="Content Template">
-        <TextArea
-          rows={2}
-          className="endpoint-description--textarea"
-          name="contentTemplate"
-          value={contentTemplate}
-          onChange={onChange}
-        />
-      </FormElement>
-    </>
+    <Panel>
+      <Panel.Header>
+        <Panel.Title>HTTP Options</Panel.Title>
+      </Panel.Header>
+      <Panel.Body>
+        <Grid>
+          <Grid.Row>
+            <Grid.Column widthSM={Columns.Six}>
+              <FormElement label="HTTP Method">
+                <MethodTypeDropdown
+                  onSelectType={onChangeParameter('method')}
+                  selectedType={method}
+                />
+              </FormElement>
+            </Grid.Column>
+            <Grid.Column widthSM={Columns.Six}>
+              <FormElement label="Auth Method">
+                <AuthMethodTypeDropdown
+                  onSelectType={onChangeParameter('authMethod')}
+                  selectedType={authMethod}
+                />
+              </FormElement>
+            </Grid.Column>
+            <Grid.Column widthXS={Columns.Twelve}>
+              <FormElement label="URL">
+                <Input
+                  name="url"
+                  value={url}
+                  onChange={onChange}
+                  required={true}
+                />
+              </FormElement>
+            </Grid.Column>
+
+            {authMethod === 'bearer' && (
+              <Grid.Column widthXS={Columns.Twelve}>
+                <FormElement label="Token">
+                  <Input
+                    name="token"
+                    value={token}
+                    onChange={onChange}
+                    type={InputType.Password}
+                  />
+                </FormElement>
+              </Grid.Column>
+            )}
+            {authMethod === 'basic' && (
+              <>
+                <Grid.Column widthSM={Columns.Six}>
+                  <FormElement label="Username">
+                    <Input
+                      name="username"
+                      value={username}
+                      onChange={onChange}
+                      type={
+                        username && username.includes('secret: ')
+                          ? InputType.Password
+                          : InputType.Text
+                      }
+                    />
+                  </FormElement>
+                </Grid.Column>
+                <Grid.Column widthSM={Columns.Six}>
+                  <FormElement label="Password">
+                    <Input
+                      name="password"
+                      value={password}
+                      type={InputType.Password}
+                      onChange={onChange}
+                    />
+                  </FormElement>
+                </Grid.Column>
+              </>
+            )}
+            <Grid.Column widthXS={Columns.Twelve}>
+              <FormElement label="Content Template">
+                <TextArea
+                  rows={2}
+                  className="endpoint-description--textarea"
+                  name="contentTemplate"
+                  value={contentTemplate}
+                  onChange={onChange}
+                />
+              </FormElement>
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
+      </Panel.Body>
+    </Panel>
   )
 }
 

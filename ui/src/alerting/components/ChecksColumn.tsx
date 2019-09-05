@@ -65,6 +65,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
       <CheckCards
         checks={checks}
         showFirstTimeWidget={noAlertingResourcesExist}
+        onCreateCheck={handleClick}
       />
     </AlertsColumnHeader>
   )

@@ -60,12 +60,7 @@ const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
   )
 
   return (
-    <Dropdown
-      button={button}
-      menu={menu}
-      widthPixels={160}
-      testID="endpoint-change--dropdown"
-    />
+    <Dropdown button={button} menu={menu} testID="endpoint-change--dropdown" />
   )
 }
 

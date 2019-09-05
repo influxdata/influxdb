@@ -20,10 +20,10 @@ const ThresholdConditions: FC<Props> = ({check}) => {
   }
   return (
     <>
-      <ThresholdCondition level="OK" threshold={thresholds['OK']} />
-      <ThresholdCondition level="INFO" threshold={thresholds['INFO']} />
-      <ThresholdCondition level="WARN" threshold={thresholds['WARN']} />
       <ThresholdCondition level="CRIT" threshold={thresholds['CRIT']} />
+      <ThresholdCondition level="WARN" threshold={thresholds['WARN']} />
+      <ThresholdCondition level="INFO" threshold={thresholds['INFO']} />
+      <ThresholdCondition level="OK" threshold={thresholds['OK']} />
     </>
   )
 }

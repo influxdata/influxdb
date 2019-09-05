@@ -30,7 +30,7 @@
 */
 
 .alerting-first-time {
-  border: $ix-border solid $c-ocean;
+  border: $ix-border solid $c-sapphire;
 
   h1,
   h5 {
@@ -43,9 +43,9 @@
   }
 
   h5 {
-    margin-bottom: 0;
     line-height: 1.5em;
     font-weight: 500;
+    margin-bottom: 1.5em;
 
     strong {
       font-weight: 900;

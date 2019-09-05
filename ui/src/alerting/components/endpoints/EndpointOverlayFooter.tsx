@@ -3,12 +3,10 @@ import React, {useState, FC} from 'react'
 
 // Components
 import {
-  Form,
-  Grid,
   Button,
-  Columns,
   ComponentColor,
   ComponentStatus,
+  Overlay,
 } from '@influxdata/clockface'
 
 // Hooks
@@ -20,13 +18,19 @@ import {NotificationEndpoint, RemoteDataState} from 'src/types'
 interface Props {
   saveButtonText: string
   onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onCancel: () => void
+  onSetErrorMessage: (error: string) => void
 }
 
-const EndpointOverlayFooter: FC<Props> = ({saveButtonText, onSave}) => {
+const EndpointOverlayFooter: FC<Props> = ({
+  saveButtonText,
+  onSave,
+  onCancel,
+  onSetErrorMessage,
+}) => {
   const endpoint = useEndpointState()
 
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
-  const [errorMessage, setErrorMessage] = useState<string>(null)
 
   const handleSave = async () => {
     if (saveStatus === RemoteDataState.Loading) {
@@ -35,12 +39,12 @@ const EndpointOverlayFooter: FC<Props> = ({saveButtonText, onSave}) => {
 
     try {
       setSaveStatus(RemoteDataState.Loading)
-      setErrorMessage(null)
+      onSetErrorMessage(null)
 
       await onSave(endpoint)
     } catch (e) {
       setSaveStatus(RemoteDataState.Error)
-      setErrorMessage(e.message)
+      onSetErrorMessage(e.message)
     }
   }
 
@@ -50,24 +54,20 @@ const EndpointOverlayFooter: FC<Props> = ({saveButtonText, onSave}) => {
       : ComponentStatus.Default
 
   return (
-    <>
-      <Grid.Row>
-        <Grid.Column widthXS={Columns.Twelve}>
-          {errorMessage && (
-            <div className="endpoint-overlay-footer--error">{errorMessage}</div>
-          )}
-          <Form.Footer className="endpoint-overlay-footer">
-            <Button
-              testID="endpoint-save--button"
-              onClick={handleSave}
-              text={saveButtonText}
-              status={buttonStatus}
-              color={ComponentColor.Primary}
-            />
-          </Form.Footer>
-        </Grid.Column>
-      </Grid.Row>
-    </>
+    <Overlay.Footer>
+      <Button
+        testID="endpoint-cancel--button"
+        onClick={onCancel}
+        text="Cancel"
+      />
+      <Button
+        testID="endpoint-save--button"
+        onClick={handleSave}
+        text={saveButtonText}
+        status={buttonStatus}
+        color={ComponentColor.Primary}
+      />
+    </Overlay.Footer>
   )
 }
 
