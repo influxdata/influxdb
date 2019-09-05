@@ -3,7 +3,15 @@ import React, {FunctionComponent} from 'react'
 
 //Components
 import CheckCard from 'src/alerting/components/CheckCard'
-import {EmptyState, ResourceList, Panel, Gradients} from '@influxdata/clockface'
+import {
+  EmptyState,
+  ResourceList,
+  Panel,
+  Gradients,
+  Button,
+  IconFont,
+  ComponentColor,
+} from '@influxdata/clockface'
 
 // Types
 import {Check} from 'src/types'
@@ -12,18 +20,23 @@ import {ComponentSize} from '@influxdata/clockface'
 interface Props {
   checks: Check[]
   showFirstTimeWidget: boolean
+  onCreateCheck: () => void
 }
 
 const CheckCards: FunctionComponent<Props> = ({
   checks,
   showFirstTimeWidget,
+  onCreateCheck,
 }) => {
   return (
     <>
       <ResourceList>
         <ResourceList.Body
           emptyState={
-            <EmptyChecksList showFirstTimeWidget={showFirstTimeWidget} />
+            <EmptyChecksList
+              showFirstTimeWidget={showFirstTimeWidget}
+              onCreateCheck={onCreateCheck}
+            />
           }
         >
           {checks.map(check => (
@@ -37,15 +50,17 @@ const CheckCards: FunctionComponent<Props> = ({
 
 interface EmptyProps {
   showFirstTimeWidget: boolean
+  onCreateCheck: () => void
 }
 
 const EmptyChecksList: FunctionComponent<EmptyProps> = ({
   showFirstTimeWidget,
+  onCreateCheck,
 }) => {
   if (showFirstTimeWidget) {
     return (
       <Panel
-        gradient={Gradients.GundamPilot}
+        gradient={Gradients.PolarExpress}
         size={ComponentSize.Large}
         className="alerting-first-time"
       >
@@ -58,8 +73,15 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
           <h5>
             Welcome to our new Monitoring & Alerting feature!
             <br />
-            Try creating a <strong>Check</strong> to get started
+            To get started try creating a Check:
           </h5>
+          <Button
+            size={ComponentSize.Medium}
+            color={ComponentColor.Primary}
+            onClick={onCreateCheck}
+            text="Create a Check"
+            icon={IconFont.Plus}
+          />
         </Panel.Body>
       </Panel>
     )
