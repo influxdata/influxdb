@@ -177,6 +177,15 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
+	// TODO(jade): remove this after system buckets issue is resolved
+	if bucket.IsSystem() {
+		h.HandleHTTPError(ctx, &platform.Error{
+			Code: platform.EForbidden,
+			Op:   "http/handleWrite",
+			Msg:  fmt.Sprintf("cannot write to internal bucket %s", bucket.Name),
+		}, w)
+	}
+
 	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
 	if err != nil {
 		h.HandleHTTPError(ctx, &platform.Error{

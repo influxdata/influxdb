@@ -106,7 +106,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	buckets := bs[:0]
 	for _, b := range bs {
 		// temporary hack for system buckets
-		if b.ID == influxdb.TasksSystemBucketID || b.ID == influxdb.MonitoringSystemBucketID {
+		if b.IsSystem() {
 			buckets = append(buckets, b)
 			continue
 		}
