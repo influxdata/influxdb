@@ -43,7 +43,9 @@ func (s *Slack) GenerateFluxAST(e *endpoint.Slack) (*ast.Package, error) {
 func (s *Slack) generateFluxASTBody(e *endpoint.Slack) []ast.Statement {
 	var statements []ast.Statement
 	statements = append(statements, s.generateTaskOption())
-	statements = append(statements, s.generateFluxASTSecrets(e))
+	if e.Token.Key != "" {
+		statements = append(statements, s.generateFluxASTSecrets(e))
+	}
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
@@ -60,12 +62,14 @@ func (s *Slack) generateFluxASTSecrets(e *endpoint.Slack) ast.Statement {
 }
 
 func (s *Slack) generateFluxASTEndpoint(e *endpoint.Slack) ast.Statement {
-	call := flux.Call(flux.Member("slack", "endpoint"),
-		flux.Object(
-			flux.Property("token", flux.Identifier("slack_secret")),
-			flux.Property("url", flux.String(e.URL)),
-		),
-	)
+	props := []*ast.Property{}
+	if e.Token.Key != "" {
+		props = append(props, flux.Property("token", flux.Identifier("slack_secret")))
+	}
+	if e.URL != "" {
+		props = append(props, flux.Property("url", flux.String(e.URL)))
+	}
+	call := flux.Call(flux.Member("slack", "endpoint"), flux.Object(props...))
 
 	return flux.DefineVariable("slack_endpoint", call)
 }
