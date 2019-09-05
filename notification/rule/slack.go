@@ -34,7 +34,7 @@ func (s *Slack) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
 func (s *Slack) GenerateFluxAST(e *endpoint.Slack) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "slack", "influxdata/influxdb/secrets", "experimental"),
+		flux.Imports("influxdata/influxdb/monitor", "slack", "influxdata/influxdb/secrets", "experimental", "influxdata/influxdb/v1"),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
@@ -75,6 +75,7 @@ func (s *Slack) generateFluxASTNotifyPipe() ast.Statement {
 	endpointProps = append(endpointProps, flux.Property("channel", flux.String(s.Channel)))
 	// TODO(desa): are these values correct?
 	endpointProps = append(endpointProps, flux.Property("text", flux.String(s.MessageTemplate)))
+	endpointProps = append(endpointProps, flux.Property("color", s.generateSlackColors()))
 	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
 
 	props := []*ast.Property{}
@@ -85,6 +86,19 @@ func (s *Slack) generateFluxASTNotifyPipe() ast.Statement {
 	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
 	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("all_statuses"), call))
+}
+
+func (s *Slack) generateSlackColors() ast.Expression {
+	level := flux.Member("r", "_level")
+	return flux.If(
+		flux.Equal(level, flux.String("crit")),
+		flux.String("danger"),
+		flux.If(
+			flux.Equal(level, flux.String("warn")),
+			flux.String("warning"),
+			flux.String("good"),
+		),
+	)
 }
 
 type slackAlias Slack

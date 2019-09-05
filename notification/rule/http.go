@@ -32,7 +32,7 @@ func (s *HTTP) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
 func (s *HTTP) GenerateFluxAST(e *endpoint.HTTP) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "http", "json", "experimental"),
+		flux.Imports("influxdata/influxdb/monitor", "http", "json", "experimental", "influxdata/influxdb/v1"),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil

@@ -30,8 +30,9 @@ import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
+import "influxdata/influxdb/v1"
 
-option task = {name: "foo", every: 2h}
+option task = {name: "foo", every: 1h}
 
 slack_secret = secrets.get(key: "slack_token")
 slack_endpoint = slack.endpoint(token: slack_secret, url: "http://localhost:7777")
@@ -43,6 +44,7 @@ notification = {
 }
 statuses = monitor.from(start: -2h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
+	|> v1.fieldsAsCols()
 any_to_crit = statuses
 	|> monitor.stateChanges(fromLevel: "any", toLevel: "crit")
 info_to_warn = statuses
@@ -54,7 +56,7 @@ all_statuses = union(tables: [any_to_crit, info_to_warn])
 
 all_statuses
 	|> monitor.notify(data: notification, endpoint: slack_endpoint(mapFn: (r) =>
-		({channel: "bar", text: "blah"})))`
+		({channel: "bar", text: "blah", color: if r._level == "crit" then "danger" else if r._level == "warn" then "warning" else "good"})))`
 
 	s := &rule.Slack{
 		Channel:         "bar",
