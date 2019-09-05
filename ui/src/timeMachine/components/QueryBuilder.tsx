@@ -27,7 +27,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onLoadBuckets: () => Promise<void>
+  onLoadBuckets: typeof loadBuckets
   onAddTagSelector: () => void
 }
 
@@ -88,7 +88,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp = {
-  onLoadBuckets: loadBuckets as any,
+  onLoadBuckets: loadBuckets,
   onAddTagSelector: addTagSelector,
 }
 
