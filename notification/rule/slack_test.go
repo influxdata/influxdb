@@ -30,6 +30,7 @@ import "influxdata/influxdb/monitor"
 import "slack"
 import "influxdata/influxdb/secrets"
 import "experimental"
+import "influxdata/influxdb/v1"
 
 option task = {name: "foo", every: 2h}
 
@@ -43,6 +44,7 @@ notification = {
 }
 statuses = monitor.from(start: -2h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
+	|> v1.fieldsAsCols()
 any_to_crit = statuses
 	|> monitor.stateChanges(fromLevel: "any", toLevel: "crit")
 info_to_warn = statuses
