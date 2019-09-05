@@ -49,7 +49,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={Columns.Six}>
-              <FormElement label="HTTP method">
+              <FormElement label="HTTP Method">
                 <MethodTypeDropdown
                   onSelectType={onChangeParameter('method')}
                   selectedType={method}
@@ -57,7 +57,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
               </FormElement>
             </Grid.Column>
             <Grid.Column widthSM={Columns.Six}>
-              <FormElement label="auth method">
+              <FormElement label="Auth Method">
                 <AuthMethodTypeDropdown
                   onSelectType={onChangeParameter('authMethod')}
                   selectedType={authMethod}
@@ -76,7 +76,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
             </Grid.Column>
 
             {authMethod === 'bearer' && (
-              <Grid.Column widthXS={Columns.Six}>
+              <Grid.Column widthXS={Columns.Twelve}>
                 <FormElement label="Token">
                   <Input
                     name="token"
@@ -90,7 +90,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
             {authMethod === 'basic' && (
               <>
                 <Grid.Column widthSM={Columns.Six}>
-                  <FormElement label="username">
+                  <FormElement label="Username">
                     <Input
                       name="username"
                       value={username}
@@ -104,7 +104,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
                   </FormElement>
                 </Grid.Column>
                 <Grid.Column widthSM={Columns.Six}>
-                  <FormElement label="password">
+                  <FormElement label="Password">
                     <Input
                       name="password"
                       value={password}
