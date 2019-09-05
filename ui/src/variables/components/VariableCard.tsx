@@ -76,7 +76,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
       router,
     } = this.props
 
-    router.push(`/orgs/${orgID}/variables/${variable.id}/edit`)
+    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/edit`)
   }
 
   private get labels(): JSX.Element {
@@ -122,7 +122,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
       variable,
       params: {orgID},
     } = this.props
-    router.push(`/orgs/${orgID}/variables/${variable.id}/export`)
+    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/export`)
   }
 
   private handleRenameVariable = async () => {
@@ -132,7 +132,7 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/variables/${variable.id}/rename`)
+    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/rename`)
   }
 }
 

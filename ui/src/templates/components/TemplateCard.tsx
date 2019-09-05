@@ -200,7 +200,7 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
 
   private handleViewTemplate = () => {
     const {router, template, org} = this.props
-    router.push(`/orgs/${org.id}/templates/${template.id}/view`)
+    router.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
   }
 
   private handleAddLabel = (label: ILabel): void => {

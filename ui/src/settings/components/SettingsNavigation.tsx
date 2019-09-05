@@ -29,7 +29,7 @@ class SettingsNavigation extends PureComponent<Props> {
     const {activeTab, orgID, router} = this.props
 
     const handleTabClick = (id: string): void => {
-      router.push(`/orgs/${orgID}/${id}`)
+      router.push(`/orgs/${orgID}/settings/${id}`)
     }
 
     const tabs = [

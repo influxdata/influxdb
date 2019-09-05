@@ -125,7 +125,7 @@ class AddMembersOverlay extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/members`)
+    router.push(`/orgs/${orgID}/settings/members`)
   }
 
   private handleSave = () => {

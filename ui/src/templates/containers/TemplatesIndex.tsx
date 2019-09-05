@@ -43,7 +43,7 @@ class TemplatesIndex extends Component<Props> {
 
   private handleImport = () => {
     const {router, org} = this.props
-    router.push(`/orgs/${org.id}/templates/import`)
+    router.push(`/orgs/${org.id}/settings/templates/import`)
   }
 }
 

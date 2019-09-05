@@ -143,7 +143,7 @@ class VariablesTab extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/variables/import`)
+    router.push(`/orgs/${orgID}/settings/variables/import`)
   }
 
   private handleOpenCreateOverlay = (): void => {
@@ -152,7 +152,7 @@ class VariablesTab extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/variables/new`)
+    router.push(`/orgs/${orgID}/settings/variables/new`)
   }
 
   private handleUpdateVariable = (variable: Partial<Variable>): void => {

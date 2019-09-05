@@ -114,7 +114,7 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
   private handleViewTemplate = () => {
     const {router, org, name} = this.props
 
-    router.push(`/orgs/${org.id}/templates/${name}/static/view`)
+    router.push(`/orgs/${org.id}/settings/templates/${name}/static/view`)
   }
 }
 
