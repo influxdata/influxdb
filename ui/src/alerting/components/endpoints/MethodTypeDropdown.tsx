@@ -18,11 +18,7 @@ interface Props {
   onSelectType: (type: HTTPMethodType) => void
 }
 
-const types: MethodType[] = [
-  {name: 'POST', type: 'POST', id: 'POST'},
-  {name: 'GET', type: 'GET', id: 'GET'},
-  {name: 'PUT', type: 'PUT', id: 'PUT'},
-]
+const types: MethodType[] = [{name: 'POST', type: 'POST', id: 'POST'}]
 
 const MethodTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
   const items = types.map(({id, type, name}) => (
