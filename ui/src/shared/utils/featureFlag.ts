@@ -7,7 +7,7 @@ const OSS_FLAGS = {
 }
 
 const CLOUD_FLAGS = {
-  alerting: false,
+  alerting: true,
   deleteWithPredicate: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
 }
