@@ -2,7 +2,12 @@
 import React, {useState, FC} from 'react'
 
 // Components
-import {Button, ComponentColor, ComponentStatus, Overlay} from '@influxdata/clockface'
+import {
+  Button,
+  ComponentColor,
+  ComponentStatus,
+  Overlay,
+} from '@influxdata/clockface'
 
 // Hooks
 import {useEndpointState} from './EndpointOverlayProvider'
