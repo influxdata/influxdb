@@ -156,7 +156,7 @@ export const saveCheckFromTimeMachine = () => async (
 export const updateCheck = (check: Partial<Check>) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
-  const resp = await api.patchCheck({checkID: check.id, data: check as Check})
+  const resp = await api.putCheck({checkID: check.id, data: check as Check})
 
   if (resp.status === 200) {
     dispatch(setCheck(resp.data))
