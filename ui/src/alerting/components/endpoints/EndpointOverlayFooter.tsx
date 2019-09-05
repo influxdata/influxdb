@@ -2,7 +2,7 @@
 import React, {useState, FC} from 'react'
 
 // Components
-import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
+import {Button, ComponentColor, ComponentStatus, Overlay} from '@influxdata/clockface'
 
 // Hooks
 import {useEndpointState} from './EndpointOverlayProvider'
@@ -14,17 +14,18 @@ interface Props {
   saveButtonText: string
   onSave: (endpoint: NotificationEndpoint) => Promise<void>
   onCancel: () => void
+  onSetErrorMessage: (error: string) => void
 }
 
 const EndpointOverlayFooter: FC<Props> = ({
   saveButtonText,
   onSave,
   onCancel,
+  onSetErrorMessage,
 }) => {
   const endpoint = useEndpointState()
 
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
-  const [errorMessage, setErrorMessage] = useState<string>(null)
 
   const handleSave = async () => {
     if (saveStatus === RemoteDataState.Loading) {
@@ -33,12 +34,12 @@ const EndpointOverlayFooter: FC<Props> = ({
 
     try {
       setSaveStatus(RemoteDataState.Loading)
-      setErrorMessage(null)
+      onSetErrorMessage(null)
 
       await onSave(endpoint)
     } catch (e) {
       setSaveStatus(RemoteDataState.Error)
-      setErrorMessage(e.message)
+      onSetErrorMessage(e.message)
     }
   }
 
@@ -48,10 +49,7 @@ const EndpointOverlayFooter: FC<Props> = ({
       : ComponentStatus.Default
 
   return (
-    <>
-      {errorMessage && (
-        <div className="endpoint-overlay-footer--error">{errorMessage}</div>
-      )}
+    <Overlay.Footer>
       <Button
         testID="endpoint-cancel--button"
         onClick={onCancel}
@@ -64,7 +62,7 @@ const EndpointOverlayFooter: FC<Props> = ({
         status={buttonStatus}
         color={ComponentColor.Primary}
       />
-    </>
+    </Overlay.Footer>
   )
 }
 

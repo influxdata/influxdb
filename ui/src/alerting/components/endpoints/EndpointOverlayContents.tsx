@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC, ChangeEvent} from 'react'
+import React, {FC, ChangeEvent, useState} from 'react'
 
 // Components
 import {
@@ -9,6 +9,9 @@ import {
   TextArea,
   Overlay,
   Columns,
+  Alert,
+  ComponentColor,
+  IconFont,
 } from '@influxdata/clockface'
 import EndpointOptions from 'src/alerting/components/endpoints/EndpointOptions'
 import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
@@ -32,6 +35,7 @@ const EndpointOverlayContents: FC<Props> = ({
   onCancel,
 }) => {
   const [endpoint, dispatch] = useEndpointReducer()
+  const [errorMessage, setErrorMessage] = useState<string>(null)
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -100,16 +104,26 @@ const EndpointOverlayContents: FC<Props> = ({
                 onChangeParameter={handleChangeParameter}
               />
             </Grid.Column>
+            <Grid.Column style={{display: 'flex', justifyContent: 'center', minHeight: '38px'}}>
+              {errorMessage && (
+                <Alert
+                  color={ComponentColor.Danger}
+                  icon={IconFont.AlertTriangle}
+                  style={{width: 'auto', marginTop: '8px'}}
+                >
+                  {errorMessage}
+                </Alert>
+              )}
+            </Grid.Column>
           </Grid.Row>
         </Grid>
       </Overlay.Body>
-      <Overlay.Footer>
-        <EndpointOverlayFooter
-          onSave={onSave}
-          onCancel={onCancel}
-          saveButtonText={saveButtonText}
-        />
-      </Overlay.Footer>
+      <EndpointOverlayFooter
+        onSave={onSave}
+        onCancel={onCancel}
+        saveButtonText={saveButtonText}
+        onSetErrorMessage={setErrorMessage}
+      />
     </Form>
   )
 }
