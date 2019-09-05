@@ -199,6 +199,14 @@ func Property(key string, e ast.Expression) *ast.Property {
 	}
 }
 
+// Dictionary returns an *ast.Property of string key to value expression.
+func Dictionary(key string, v ast.Expression) *ast.Property {
+	return &ast.Property{
+		Key:   String(key),
+		Value: v,
+	}
+}
+
 // Object returns an *ast.ObjectExpression with properties ps.
 func Object(ps ...*ast.Property) *ast.ObjectExpression {
 	return &ast.ObjectExpression{

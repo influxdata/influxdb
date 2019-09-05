@@ -41,6 +41,7 @@ func (s *HTTP) GenerateFluxAST(e *endpoint.HTTP) (*ast.Package, error) {
 func (s *HTTP) generateFluxASTBody(e *endpoint.HTTP) []ast.Statement {
 	var statements []ast.Statement
 	statements = append(statements, s.generateTaskOption())
+	statements = append(statements, s.generateHeaders(e))
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
@@ -48,6 +49,55 @@ func (s *HTTP) generateFluxASTBody(e *endpoint.HTTP) []ast.Statement {
 	statements = append(statements, s.generateFluxASTNotifyPipe())
 
 	return statements
+}
+
+func (s *HTTP) generateHeaders(e *endpoint.HTTP) ast.Statement {
+	props := []*ast.Property{
+		flux.Dictionary(
+			"Content-Type", flux.String("application/json"),
+		),
+	}
+
+	switch e.AuthMethod {
+	case "bearer":
+		token := flux.Call(
+			flux.Member("secrets", "get"),
+			flux.Object(
+				flux.Property("key", flux.String(e.Token.Key)),
+			),
+		)
+		bearer := flux.Add(
+			flux.String("Bearer "),
+			token,
+		)
+		auth := flux.Dictionary("Authorization", bearer)
+		props = append(props, auth)
+	case "basic":
+		username := flux.Call(
+			flux.Member("secrets", "get"),
+			flux.Object(
+				flux.Property("key", flux.String(e.Username.Key)),
+			),
+		)
+		passwd := flux.Call(
+			flux.Member("secrets", "get"),
+			flux.Object(
+				flux.Property("key", flux.String(e.Password.Key)),
+			),
+		)
+
+		basic := flux.Call(
+			flux.Member("http", "basicAuth"),
+			flux.Object(
+				flux.Property("u", username),
+				flux.Property("p", passwd),
+			),
+		)
+
+		auth := flux.Dictionary("Authorization", basic)
+		props = append(props, auth)
+	}
+	return flux.DefineVariable("headers", flux.Object(props...))
 }
 
 func (s *HTTP) generateFluxASTEndpoint(e *endpoint.HTTP) ast.Statement {
@@ -58,9 +108,16 @@ func (s *HTTP) generateFluxASTEndpoint(e *endpoint.HTTP) ast.Statement {
 }
 
 func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
-	endpointProps := []*ast.Property{}
-	endpointBody := flux.Call(flux.Member("json", "encode"), flux.Object(flux.Property("v", flux.Identifier("r"))))
-	endpointProps = append(endpointProps, flux.Property("data", endpointBody))
+	endpointBody := flux.Call(
+		flux.Member("json", "encode"),
+		flux.Object(flux.Property("v", flux.Identifier("r"))),
+	)
+	headers := flux.Property("headers", flux.Identifier("headers"))
+
+	endpointProps := []*ast.Property{
+		headers,
+		flux.Property("data", endpointBody),
+	}
 	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
 
 	props := []*ast.Property{}
@@ -76,26 +133,26 @@ func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 type httpAlias HTTP
 
 // MarshalJSON implement json.Marshaler interface.
-func (c HTTP) MarshalJSON() ([]byte, error) {
+func (s HTTP) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		struct {
 			httpAlias
 			Type string `json:"type"`
 		}{
-			httpAlias: httpAlias(c),
-			Type:      c.Type(),
+			httpAlias: httpAlias(s),
+			Type:      s.Type(),
 		})
 }
 
 // Valid returns where the config is valid.
-func (c HTTP) Valid() error {
-	if err := c.Base.valid(); err != nil {
+func (s HTTP) Valid() error {
+	if err := s.Base.valid(); err != nil {
 		return err
 	}
 	return nil
 }
 
 // Type returns the type of the rule config.
-func (c HTTP) Type() string {
+func (s HTTP) Type() string {
 	return "http"
 }
