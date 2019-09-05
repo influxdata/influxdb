@@ -3,7 +3,6 @@ package rule_test
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/influxdata/influxdb/notification/rule"
@@ -16,7 +15,6 @@ import "influxdata/influxdb/monitor"
 import "http"
 import "json"
 import "experimental"
-import "influxdata/influxdb/v1"
 
 option task = {name: "foo", every: 1h, offset: 1s}
 
@@ -27,9 +25,7 @@ notification = {
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "foo",
 }
-statuses = monitor.from(start: -2h, fn: (r) =>
-	(r.foo == "bar" and r.baz == "bang"))
-	|> v1.fieldsAsCols()
+statuses = monitor.from(start: -2h)
 any_to_crit = statuses
 	|> monitor.stateChanges(fromLevel: "any", toLevel: "crit")
 all_statuses = any_to_crit
@@ -47,22 +43,7 @@ all_statuses
 			Every:      mustDuration("1h"),
 			Offset:     mustDuration("1s"),
 			EndpointID: 2,
-			TagRules: []notification.TagRule{
-				{
-					Tag: influxdb.Tag{
-						Key:   "foo",
-						Value: "bar",
-					},
-					Operator: notification.Equal,
-				},
-				{
-					Tag: influxdb.Tag{
-						Key:   "baz",
-						Value: "bang",
-					},
-					Operator: notification.Equal,
-				},
-			},
+			TagRules:   []notification.TagRule{},
 			StatusRules: []notification.StatusRule{
 				{
 					CurrentLevel: notification.Critical,

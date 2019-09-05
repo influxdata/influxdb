@@ -262,10 +262,7 @@ func (b *Base) generateFluxASTStatuses() ast.Statement {
 		props = append(props, flux.Property("fn", flux.Function(flux.FunctionParams("r"), body)))
 	}
 
-	base := flux.Pipe(
-		flux.Call(flux.Member("monitor", "from"), flux.Object(props...)),
-		flux.Call(flux.Member("v1", "fieldsAsCols"), flux.Object()),
-	)
+	base := flux.Call(flux.Member("monitor", "from"), flux.Object(props...))
 
 	return flux.DefineVariable("statuses", base)
 }
