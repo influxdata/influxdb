@@ -33,9 +33,11 @@ func (s *Slack) BackfillSecretKeys() {
 
 // SecretFields return available secret fields.
 func (s Slack) SecretFields() []influxdb.SecretField {
-	return []influxdb.SecretField{
-		s.Token,
+	arr := []influxdb.SecretField{}
+	if s.Token.Key != "" {
+		arr = append(arr, s.Token)
 	}
+	return arr
 }
 
 // Valid returns error if some configuration is invalid
@@ -56,7 +58,7 @@ func (s Slack) Valid() error {
 		}
 	}
 	// TODO(desa): this requirement seems odd
-	if s.Token.Key != s.ID.String()+slackTokenSuffix {
+	if s.Token.Key != "" && s.Token.Key != s.ID.String()+slackTokenSuffix {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "slack endpoint token is invalid",
