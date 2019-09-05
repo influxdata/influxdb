@@ -5197,6 +5197,45 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+    put:
+      operationId: PutChecksID
+      tags:
+        - Checks
+      summary: Update a check
+      requestBody:
+        description: check update to apply
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Check"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: checkID
+          schema:
+            type: string
+          required: true
+          description: ID of check
+      responses:
+        '200':
+          description: An updated check
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Check"
+        '404':
+          description: The check was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
     patch:
       operationId: PatchChecksID
       tags:
@@ -5208,7 +5247,7 @@ paths:
         content:
           application/json:
             schema:
-                $ref: "#/components/schemas/Check"
+                $ref: "#/components/schemas/CheckPatch"
       parameters:
         - $ref: '#/components/parameters/TraceSpan'
         - in: path
@@ -9289,6 +9328,18 @@ components:
       properties:
         flux:
           type: string
+    CheckPatch:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum:
+            - active
+            - inactive
     Check:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
