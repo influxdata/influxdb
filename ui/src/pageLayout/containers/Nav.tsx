@@ -67,6 +67,7 @@ class SideNav extends PureComponent<Props, State> {
     const loadDataLink = `${orgPrefix}/load-data/buckets`
     const bucketsLink = `${orgPrefix}/load-data/buckets`
     const telegrafsLink = `${orgPrefix}/load-data/telegrafs`
+    const tokensLink = `${orgPrefix}/load-data/tokens`
     const scrapersLink = `${orgPrefix}/load-data/scrapers`
     const clientLibrariesLink = `${orgPrefix}/load-data/client-libraries`
     const settingsLink = `${orgPrefix}/settings`
@@ -207,6 +208,15 @@ class SideNav extends PureComponent<Props, State> {
               key="scrapers"
             />
           </CloudExclude>
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={tokensLink} className={className}>
+                Tokens
+              </Link>
+            )}
+            active={getNavItemActivation(['tokens'], location.pathname)}
+            key="tokens"
+          />
           <FeatureFlag name="clientLibrariesPage">
             <NavMenu.SubItem
               titleLink={className => (

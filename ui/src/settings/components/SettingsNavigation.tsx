@@ -54,11 +54,6 @@ class SettingsNavigation extends PureComponent<Props> {
         cloudExclude: false,
       },
       {
-        text: 'Tokens',
-        id: 'tokens',
-        cloudExclude: false,
-      },
-      {
         text: 'Org Profile',
         id: 'profile',
         cloudExclude: false,

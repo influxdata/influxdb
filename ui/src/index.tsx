@@ -220,6 +220,18 @@ class Root extends PureComponent {
                           </Route>
                           <Route path="load-data">
                             <IndexRoute component={BucketsIndex} />
+                            <Route path="tokens" component={TokensIndex}>
+                              <Route path="generate">
+                                <Route
+                                  path="all-access"
+                                  component={AllAccessTokenOverlay}
+                                />
+                                <Route
+                                  path="buckets"
+                                  component={BucketsTokenOverlay}
+                                />
+                              </Route>
+                            </Route>
                             <Route path="buckets" component={BucketsIndex}>
                               <Route path=":bucketID">
                                 <Route
@@ -271,18 +283,6 @@ class Root extends PureComponent {
                                 component={ClientLibrariesPage}
                               />
                             </FeatureFlag>
-                          </Route>
-                          <Route path="tokens" component={TokensIndex}>
-                            <Route path="generate">
-                              <Route
-                                path="all-access"
-                                component={AllAccessTokenOverlay}
-                              />
-                              <Route
-                                path="buckets"
-                                component={BucketsTokenOverlay}
-                              />
-                            </Route>
                           </Route>
                           <Route path="members" component={MembersIndex}>
                             <Route path="new" component={AddMembersOverlay} />

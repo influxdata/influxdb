@@ -5,8 +5,8 @@ import {connect} from 'react-redux'
 // Components
 import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
-import SettingsHeader from 'src/settings/components/SettingsHeader'
+import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
+import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import TokensTab from 'src/authorizations/components/TokensTab'
 
@@ -27,13 +27,13 @@ class TokensIndex extends Component<StateProps> {
 
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Tokens', 'Settings'])}>
-          <SettingsHeader />
-          <SettingsTabbedPage activeTab="tokens" orgID={org.id}>
+        <Page titleTag={pageTitleSuffixer(['Tokens', 'Load Data'])}>
+          <LoadDataHeader />
+          <LoadDataTabbedPage activeTab="tokens" orgID={org.id}>
             <GetResources resource={ResourceTypes.Authorizations}>
               <TokensTab />
             </GetResources>
-          </SettingsTabbedPage>
+          </LoadDataTabbedPage>
         </Page>
         {children}
       </>

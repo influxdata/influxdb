@@ -276,7 +276,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/tokens`)
+    router.push(`/orgs/${orgID}/load-data/tokens`)
   }
 }
 
