@@ -26,7 +26,7 @@ notification = {
 	_notification_endpoint_id: "0000000000000002",
 	_notification_endpoint_name: "foo",
 }
-statuses = monitor.from(start: -1h, fn: (r) =>
+statuses = monitor.from(start: -2h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
 
 statuses
