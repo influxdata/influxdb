@@ -11,7 +11,7 @@ describe('labels', () => {
       cy.wrap(body.org).as('org')
 
       cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/labels`)
+        cy.visit(`${orgs}/${id}/settings/labels`)
       })
     })
   })
