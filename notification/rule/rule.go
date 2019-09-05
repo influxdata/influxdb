@@ -102,6 +102,12 @@ func (b Base) valid() error {
 			Msg:  "invalid status",
 		}
 	}
+	if b.Offset != nil && b.Every != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
+		return &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "Offset should not be equal or greater than the interval",
+		}
+	}
 	for _, tagRule := range b.TagRules {
 		if err := tagRule.Valid(); err != nil {
 			return err

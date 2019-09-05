@@ -120,6 +120,25 @@ func TestValidRule(t *testing.T) {
 			},
 		},
 		{
+			name: "offset greater then interval",
+			src: &rule.Slack{
+				Base: rule.Base{
+					ID:         influxTesting.MustIDBase16(id1),
+					Name:       "name1",
+					OwnerID:    influxTesting.MustIDBase16(id2),
+					OrgID:      influxTesting.MustIDBase16(id3),
+					EndpointID: 1,
+					Status:     influxdb.Active,
+					Every:      mustDuration("1m"),
+					Offset:     mustDuration("2m"),
+				},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Offset should not be equal or greater than the interval",
+			},
+		},
+		{
 			name: "empty slack message",
 			src: &rule.Slack{
 				Base:    goodBase,

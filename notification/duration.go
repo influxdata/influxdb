@@ -3,6 +3,7 @@ package notification
 import (
 	"bytes"
 	"strconv"
+	"time"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/parser"
@@ -10,6 +11,13 @@ import (
 
 // Duration is a custom type used for generating flux compatible durations.
 type Duration ast.DurationLiteral
+
+// TimeDuration convert notification.Duration to time.Duration.
+func (d Duration) TimeDuration() time.Duration {
+	dl := ast.DurationLiteral(d)
+	dd, _ := ast.DurationFrom(&dl, time.Time{})
+	return dd
+}
 
 // MarshalJSON turns a Duration into a JSON-ified string.
 func (d Duration) MarshalJSON() ([]byte, error) {
