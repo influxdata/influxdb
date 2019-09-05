@@ -32,7 +32,7 @@ import "influxdata/influxdb/secrets"
 import "experimental"
 import "influxdata/influxdb/v1"
 
-option task = {name: "foo", every: 2h}
+option task = {name: "foo", every: 1h}
 
 slack_secret = secrets.get(key: "slack_token")
 slack_endpoint = slack.endpoint(token: slack_secret, url: "http://localhost:7777")

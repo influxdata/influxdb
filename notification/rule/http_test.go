@@ -18,7 +18,7 @@ import "json"
 import "experimental"
 import "influxdata/influxdb/v1"
 
-option task = {name: "foo", every: 2h, offset: 1s}
+option task = {name: "foo", every: 1h, offset: 1s}
 
 endpoint = http.endpoint(url: "http://localhost:7777")
 notification = {

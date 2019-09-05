@@ -235,10 +235,9 @@ func (b *Base) generateTaskOption() ast.Statement {
 	}
 
 	if b.Every != nil {
-		dur := increaseDur((*ast.DurationLiteral)(b.Every))
 		// Make the windows overlap and filter records from previous queries.
 		// This is so that we wont miss the first points possible state change.
-		props = append(props, flux.Property("every", dur))
+		props = append(props, flux.Property("every", (*ast.DurationLiteral)(b.Every)))
 	}
 
 	if b.Offset != nil {
