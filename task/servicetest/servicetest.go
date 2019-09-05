@@ -488,6 +488,22 @@ from(bucket: "b")
 			diff := cmp.Diff(savedTask.Flux, expectedFlux)
 			t.Fatalf("flux unexpected updated: %s", diff)
 		}
+
+		withoutOffset := `option task = {
+	name: "task-Options-Update",
+	every: 10s,
+	concurrency: 100,
+}
+
+from(bucket: "b")
+	|> to(bucket: "two", orgID: "000000000000000")`
+		fNoOffset, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Flux: &withoutOffset})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fNoOffset.Offset != "" {
+			t.Fatal("removing offset failed")
+		}
 	})
 
 }
