@@ -139,7 +139,7 @@ export const DEFAULT_ENDPOINT_URLS = {
 }
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
-  name: 'Name this endpoint',
+  name: 'Name this Endpoint',
   method: 'POST',
   authMethod: 'none',
   description: '',

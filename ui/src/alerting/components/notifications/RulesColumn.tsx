@@ -38,9 +38,11 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
     <>
       A <strong>Notification Rule</strong> will query statuses
       <br />
-      written by <strong>Checks</strong> to determine if a notification
+      written by <strong>Checks</strong> to determine if a
       <br />
-      should be sent to a <strong>Notification Endpoint</strong>
+      notification should be sent to a
+      <br />
+      <strong>Notification Endpoint</strong>
     </>
   )
 

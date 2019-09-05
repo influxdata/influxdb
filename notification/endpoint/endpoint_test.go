@@ -81,10 +81,7 @@ func TestValidEndpoint(t *testing.T) {
 				Base: goodBase,
 				URL:  "localhost",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "slack endpoint token is invalid",
-			},
+			err: nil,
 		},
 		{
 			name: "invalid slack token",

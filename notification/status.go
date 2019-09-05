@@ -59,7 +59,7 @@ func (cl *CheckLevel) UnmarshalJSON(b []byte) error {
 
 // String returns the string value, invalid CheckLevel will return Unknown.
 func (cl CheckLevel) String() string {
-	if cl < Unknown || cl > Critical {
+	if cl < Unknown || cl > Any {
 		cl = Unknown
 	}
 	return checkLevels[cl]
