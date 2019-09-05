@@ -22,10 +22,7 @@ class GettingStarted extends PureComponent<WithRouterProps> {
           >
             <GradientBorder />
             <CollectorGraphic />
-            <h3 className="getting-started--title">
-              Configure a<br />
-              Data Collector
-            </h3>
+            <h3 className="getting-started--title">Load your data</h3>
           </Link>
         </div>
         <div className="getting-started--container">
@@ -35,25 +32,17 @@ class GettingStarted extends PureComponent<WithRouterProps> {
           >
             <GradientBorder />
             <DashboardingGraphic />
-            <h3 className="getting-started--title">
-              Build a Monitoring
-              <br />
-              Dashboard
-            </h3>
+            <h3 className="getting-started--title">Build a dashboard</h3>
           </Link>
         </div>
         <div className="getting-started--container">
           <Link
-            to={`/orgs/${orgID}/data-explorer`}
+            to={`/orgs/${orgID}/alerting`}
             className="getting-started--card"
           >
             <GradientBorder />
             <ExploreGraphic />
-            <h3 className="getting-started--title">
-              Explore your data
-              <br />
-              using Flux
-            </h3>
+            <h3 className="getting-started--title">Set up alerting</h3>
           </Link>
         </div>
       </div>

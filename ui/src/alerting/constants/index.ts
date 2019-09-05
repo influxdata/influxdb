@@ -133,7 +133,7 @@ export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
 }
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
-  name: 'HTTP Endpoint',
+  name: 'Name this Endpoint',
   method: 'POST',
   authMethod: 'none',
   description: '',
