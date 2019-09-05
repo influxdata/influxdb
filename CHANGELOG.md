@@ -3,6 +3,8 @@
 ### Features
 
 ### UI Improvements
+1. [14990](https://github.com/influxdata/influxdb/pull/14990): Move Tokens tab from Settings to Load Data page
+1. [14990](https://github.com/influxdata/influxdb/pull/14990): Expose all Settings tabs in navigation menu
 
 ### Bug Fixes
 1. [14931](https://github.com/influxdata/influxdb/pull/14931): Remove scrollbars blocking onboarding UI step.
