@@ -104,7 +104,13 @@ const EndpointOverlayContents: FC<Props> = ({
                 onChangeParameter={handleChangeParameter}
               />
             </Grid.Column>
-            <Grid.Column style={{display: 'flex', justifyContent: 'center', minHeight: '38px'}}>
+            <Grid.Column
+              style={{
+                display: 'flex',
+                justifyContent: 'center',
+                minHeight: '43px',
+              }}
+            >
               {errorMessage && (
                 <Alert
                   color={ComponentColor.Danger}
