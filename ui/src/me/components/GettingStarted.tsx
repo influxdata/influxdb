@@ -42,7 +42,7 @@ class GettingStarted extends PureComponent<WithRouterProps> {
           >
             <GradientBorder />
             <ExploreGraphic />
-            <h3 className="getting-started--title">Setup alerting</h3>
+            <h3 className="getting-started--title">Set up alerting</h3>
           </Link>
         </div>
       </div>
