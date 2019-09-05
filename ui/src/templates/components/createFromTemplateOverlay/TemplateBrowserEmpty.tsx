@@ -43,7 +43,7 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
   private handleButtonClick = (): void => {
     const {router, org} = this.props
 
-    router.push(`/orgs/${org.id}/templates`)
+    router.push(`/orgs/${org.id}/settings/templates`)
   }
 }
 

@@ -103,7 +103,7 @@ class TokensTab extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/tokens/generate/all-access`)
+    router.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
   }
 
   private handleGenerateReadWrite = () => {
@@ -112,7 +112,7 @@ class TokensTab extends PureComponent<Props, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/tokens/generate/buckets`)
+    router.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
   }
 }
 

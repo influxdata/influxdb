@@ -58,18 +58,29 @@ class SideNav extends PureComponent<Props, State> {
       return null
     }
 
+    // Home page
     const orgPrefix = `/orgs/${orgID}`
-    const dashboardsLink = `${orgPrefix}/dashboards`
+    // Top level nav links
     const dataExplorerLink = `${orgPrefix}/data-explorer`
+    const dashboardsLink = `${orgPrefix}/dashboards`
     const tasksLink = `${orgPrefix}/tasks`
     const alertingLink = `${orgPrefix}/alerting`
     const alertHistoryLink = `${orgPrefix}/alert-history`
+    // Load data
     const loadDataLink = `${orgPrefix}/load-data/buckets`
     const bucketsLink = `${orgPrefix}/load-data/buckets`
     const telegrafsLink = `${orgPrefix}/load-data/telegrafs`
     const scrapersLink = `${orgPrefix}/load-data/scrapers`
+    const tokensLink = `${orgPrefix}/load-data/tokens`
     const clientLibrariesLink = `${orgPrefix}/load-data/client-libraries`
-    const settingsLink = `${orgPrefix}/settings`
+    // Settings
+    const settingsLink = `${orgPrefix}/settings/members`
+    const membersLink = `${orgPrefix}/settings/members`
+    const variablesLink = `${orgPrefix}/settings/variables`
+    const templatesLink = `${orgPrefix}/settings/templates`
+    const labelsLink = `${orgPrefix}/settings/labels`
+    const profileLink = `${orgPrefix}/settings/profile`
+    // Feedback
     const feedbackLink =
       'https://docs.google.com/forms/d/e/1FAIpQLSdGJpnIZGotN1VFJPkgZEhrt4t4f6QY1lMgMSRUnMeN3FjCKA/viewform?usp=sf_link'
 
@@ -207,6 +218,15 @@ class SideNav extends PureComponent<Props, State> {
               key="scrapers"
             />
           </CloudExclude>
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={tokensLink} className={className}>
+                Tokens
+              </Link>
+            )}
+            active={getNavItemActivation(['tokens'], location.pathname)}
+            key="tokens"
+          />
           <FeatureFlag name="clientLibrariesPage">
             <NavMenu.SubItem
               titleLink={className => (
@@ -234,7 +254,53 @@ class SideNav extends PureComponent<Props, State> {
             </Link>
           )}
           active={getNavItemActivation(['settings'], location.pathname)}
-        />
+        >
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={membersLink} className={className}>
+                Members
+              </Link>
+            )}
+            active={getNavItemActivation(['members'], location.pathname)}
+            key="members"
+          />
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={variablesLink} className={className}>
+                Variables
+              </Link>
+            )}
+            active={getNavItemActivation(['variables'], location.pathname)}
+            key="variables"
+          />
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={templatesLink} className={className}>
+                Templates
+              </Link>
+            )}
+            active={getNavItemActivation(['templates'], location.pathname)}
+            key="templates"
+          />
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={labelsLink} className={className}>
+                Labels
+              </Link>
+            )}
+            active={getNavItemActivation(['labels'], location.pathname)}
+            key="labels"
+          />
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={profileLink} className={className}>
+                Profile
+              </Link>
+            )}
+            active={getNavItemActivation(['profile'], location.pathname)}
+            key="profile"
+          />
+        </NavMenu.Item>
         <CloudNav />
         <NavMenu.Item
           titleLink={className => (

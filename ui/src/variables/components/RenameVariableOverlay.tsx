@@ -41,7 +41,7 @@ class RenameVariableOverlay extends PureComponent<WithRouterProps> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/variables`)
+    router.push(`/orgs/${orgID}/settings/variables`)
   }
 }
 

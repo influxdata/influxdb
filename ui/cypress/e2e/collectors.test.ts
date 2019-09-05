@@ -11,7 +11,7 @@ describe('Collectors', () => {
       cy.wrap(body.org).as('org')
 
       cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/telegrafs`)
+        cy.visit(`${orgs}/${id}/load-data/telegrafs`)
       })
     })
   })

@@ -103,7 +103,7 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/members/new`)
+    router.push(`/orgs/${orgID}/settings/members/new`)
   }
 
   private handleFilterChange = (searchTerm: string): void => {

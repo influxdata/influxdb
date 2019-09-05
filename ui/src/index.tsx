@@ -215,11 +215,20 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="me" component={MePage} />
-                          <Route path="settings">
-                            <IndexRoute component={MembersIndex} />
-                          </Route>
                           <Route path="load-data">
                             <IndexRoute component={BucketsIndex} />
+                            <Route path="tokens" component={TokensIndex}>
+                              <Route path="generate">
+                                <Route
+                                  path="all-access"
+                                  component={AllAccessTokenOverlay}
+                                />
+                                <Route
+                                  path="buckets"
+                                  component={BucketsTokenOverlay}
+                                />
+                              </Route>
+                            </Route>
                             <Route path="buckets" component={BucketsIndex}>
                               <Route path=":bucketID">
                                 <Route
@@ -272,73 +281,59 @@ class Root extends PureComponent {
                               />
                             </FeatureFlag>
                           </Route>
-                          <Route path="tokens" component={TokensIndex}>
-                            <Route path="generate">
+                          <Route path="settings">
+                            <IndexRoute component={MembersIndex} />
+                            <Route path="members" component={MembersIndex}>
+                              <Route path="new" component={AddMembersOverlay} />
+                            </Route>
+                            <Route path="templates" component={TemplatesIndex}>
                               <Route
-                                path="all-access"
-                                component={AllAccessTokenOverlay}
+                                path="import"
+                                component={TemplateImportOverlay}
                               />
                               <Route
-                                path="buckets"
-                                component={BucketsTokenOverlay}
+                                path=":id/export"
+                                component={TemplateExportOverlay}
+                              />
+                              <Route
+                                path=":id/view"
+                                component={TemplateViewOverlay}
+                              />
+                              <Route
+                                path=":id/static/view"
+                                component={StaticTemplateViewOverlay}
+                              />
+                            </Route>
+                            <Route path="variables" component={VariablesIndex}>
+                              <Route
+                                path="import"
+                                component={VariableImportOverlay}
+                              />
+                              <Route
+                                path=":id/export"
+                                component={VariableExportOverlay}
+                              />
+                              <Route
+                                path="new"
+                                component={CreateVariableOverlay}
+                              />
+                              <Route
+                                path=":id/rename"
+                                component={RenameVariableOverlay}
+                              />
+                              <Route
+                                path=":id/edit"
+                                component={UpdateVariableOverlay}
+                              />
+                            </Route>
+                            <Route path="labels" component={LabelsIndex} />
+                            <Route path="profile" component={OrgProfilePage}>
+                              <Route
+                                path="rename"
+                                component={RenameOrgOverlay}
                               />
                             </Route>
                           </Route>
-                          <Route path="members" component={MembersIndex}>
-                            <Route path="new" component={AddMembersOverlay} />
-                          </Route>
-                          <Route path="telegrafs" component={TelegrafsPage}>
-                            <Route
-                              path=":id/view"
-                              component={TelegrafConfigOverlay}
-                            />
-                            <Route
-                              path=":id/instructions"
-                              component={TelegrafInstructionsOverlay}
-                            />
-                            <Route path="new" component={CollectorsWizard} />
-                          </Route>
-                          <Route path="templates" component={TemplatesIndex}>
-                            <Route
-                              path="import"
-                              component={TemplateImportOverlay}
-                            />
-                            <Route
-                              path=":id/export"
-                              component={TemplateExportOverlay}
-                            />
-                            <Route
-                              path=":id/view"
-                              component={TemplateViewOverlay}
-                            />
-                            <Route
-                              path=":id/static/view"
-                              component={StaticTemplateViewOverlay}
-                            />
-                          </Route>
-                          <Route path="variables" component={VariablesIndex}>
-                            <Route
-                              path="import"
-                              component={VariableImportOverlay}
-                            />
-                            <Route
-                              path=":id/export"
-                              component={VariableExportOverlay}
-                            />
-                            <Route
-                              path="new"
-                              component={CreateVariableOverlay}
-                            />
-                            <Route
-                              path=":id/rename"
-                              component={RenameVariableOverlay}
-                            />
-                            <Route
-                              path=":id/edit"
-                              component={UpdateVariableOverlay}
-                            />
-                          </Route>
-                          <Route path="labels" component={LabelsIndex} />
                           <FeatureFlag name="alerting">
                             <Route path="alerting" component={AlertingIndex}>
                               <Route path="checks/new" component={NewCheckEO} />
@@ -368,9 +363,6 @@ class Root extends PureComponent {
                               component={AlertHistoryIndex}
                             />
                           </FeatureFlag>
-                          <Route path="profile" component={OrgProfilePage}>
-                            <Route path="rename" component={RenameOrgOverlay} />
-                          </Route>
                         </Route>
                       </Route>
                     </Route>

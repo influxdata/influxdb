@@ -82,7 +82,7 @@ describe('tokens', () => {
         })
 
         cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${id}/tokens`)
+          cy.visit(`${orgs}/${id}/load-data/tokens`)
         })
       })
     })

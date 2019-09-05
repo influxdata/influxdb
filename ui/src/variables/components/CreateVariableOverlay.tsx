@@ -59,7 +59,7 @@ class CreateVariableOverlay extends PureComponent<Props> {
       params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/variables`)
+    router.push(`/orgs/${orgID}/settings/variables`)
   }
 }
 
