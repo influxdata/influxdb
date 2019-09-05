@@ -23,8 +23,7 @@ class GettingStarted extends PureComponent<WithRouterProps> {
             <GradientBorder />
             <CollectorGraphic />
             <h3 className="getting-started--title">
-              Configure a<br />
-              Data Collector
+              Load your data
             </h3>
           </Link>
         </div>
