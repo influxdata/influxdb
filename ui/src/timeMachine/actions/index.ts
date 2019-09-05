@@ -611,7 +611,7 @@ export const setXAxisLabel = (xAxisLabel: string): SetXAxisLabelAction => ({
 })
 
 export const setCheckStatus = (checkStatus: RemoteDataState) => ({
-  type: 'SET_TIMEMACHINE_CHECK_STATUS' as 'SET_TIMEMACHINE_CHECK_STATUS',
+  type: 'SET_TIME_MACHINE_CHECK_STATUS' as 'SET_TIME_MACHINE_CHECK_STATUS',
   payload: {checkStatus},
 })
 
@@ -619,17 +619,17 @@ export const setTimeMachineCheck = (
   checkStatus: RemoteDataState,
   check: Partial<Check>
 ) => ({
-  type: 'SET_TIMEMACHINE_CHECK' as 'SET_TIMEMACHINE_CHECK',
+  type: 'SET_TIME_MACHINE_CHECK' as 'SET_TIME_MACHINE_CHECK',
   payload: {checkStatus, check},
 })
 
 export const updateTimeMachineCheck = (checkUpdate: Partial<Check>) => ({
-  type: 'UPDATE_TIMEMACHINE_CHECK' as 'UPDATE_TIMEMACHINE_CHECK',
+  type: 'UPDATE_TIME_MACHINE_CHECK' as 'UPDATE_TIME_MACHINE_CHECK',
   payload: {checkUpdate},
 })
 
 export const changeCheckType = (toType: CheckType) => ({
-  type: 'CHANGE_TIMEMACHINE_CHECK_TYPE' as 'CHANGE_TIMEMACHINE_CHECK_TYPE',
+  type: 'CHANGE_TIME_MACHINE_CHECK_TYPE' as 'CHANGE_TIME_MACHINE_CHECK_TYPE',
   payload: {toType},
 })
 

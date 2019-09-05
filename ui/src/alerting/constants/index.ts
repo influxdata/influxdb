@@ -18,6 +18,8 @@ export const DEFAULT_CHECK_EVERY = '5m'
 export const DEFAULT_CHECK_OFFSET = '0s'
 export const DEFAULT_CHECK_REPORT_ZERO = false
 export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
+export const DEFAULT_STATUS_MESSAGE =
+  'Check: ${ r._check_name }\n\nIs at level: ${ r._level }'
 
 export const CHECK_EVERY_OPTIONS = DURATIONS
 
@@ -58,6 +60,7 @@ export const DEFAULT_THRESHOLD_CHECK: Partial<ThresholdCheck> = {
   thresholds: [],
   every: DEFAULT_CHECK_EVERY,
   offset: DEFAULT_CHECK_OFFSET,
+  statusMessageTemplate: DEFAULT_STATUS_MESSAGE,
 }
 
 export const DEFAULT_DEADMAN_CHECK: Partial<DeadmanCheck> = {
@@ -68,6 +71,7 @@ export const DEFAULT_DEADMAN_CHECK: Partial<DeadmanCheck> = {
   offset: DEFAULT_CHECK_OFFSET,
   reportZero: DEFAULT_CHECK_REPORT_ZERO,
   level: DEFAULT_DEADMAN_LEVEL,
+  statusMessageTemplate: DEFAULT_STATUS_MESSAGE,
 }
 
 export const CHECK_QUERY_FIXTURE: DashboardQuery = {
