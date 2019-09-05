@@ -2,14 +2,7 @@
 import React, {useState, FC} from 'react'
 
 // Components
-import {
-  Form,
-  Grid,
-  Button,
-  Columns,
-  ComponentColor,
-  ComponentStatus,
-} from '@influxdata/clockface'
+import {Button, ComponentColor, ComponentStatus} from '@influxdata/clockface'
 
 // Hooks
 import {useEndpointState} from './EndpointOverlayProvider'
@@ -20,9 +13,14 @@ import {NotificationEndpoint, RemoteDataState} from 'src/types'
 interface Props {
   saveButtonText: string
   onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onCancel: () => void
 }
 
-const EndpointOverlayFooter: FC<Props> = ({saveButtonText, onSave}) => {
+const EndpointOverlayFooter: FC<Props> = ({
+  saveButtonText,
+  onSave,
+  onCancel,
+}) => {
   const endpoint = useEndpointState()
 
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
@@ -51,22 +49,21 @@ const EndpointOverlayFooter: FC<Props> = ({saveButtonText, onSave}) => {
 
   return (
     <>
-      <Grid.Row>
-        <Grid.Column widthXS={Columns.Twelve}>
-          {errorMessage && (
-            <div className="endpoint-overlay-footer--error">{errorMessage}</div>
-          )}
-          <Form.Footer className="endpoint-overlay-footer">
-            <Button
-              testID="endpoint-save--button"
-              onClick={handleSave}
-              text={saveButtonText}
-              status={buttonStatus}
-              color={ComponentColor.Primary}
-            />
-          </Form.Footer>
-        </Grid.Column>
-      </Grid.Row>
+      {errorMessage && (
+        <div className="endpoint-overlay-footer--error">{errorMessage}</div>
+      )}
+      <Button
+        testID="endpoint-cancel--button"
+        onClick={onCancel}
+        text="Cancel"
+      />
+      <Button
+        testID="endpoint-save--button"
+        onClick={handleSave}
+        text={saveButtonText}
+        status={buttonStatus}
+        color={ComponentColor.Primary}
+      />
     </>
   )
 }

@@ -38,14 +38,14 @@ const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
   return (
     <EndpointOverlayProvider initialState={initialState}>
       <Overlay visible={true}>
-        <Overlay.Container maxWidth={600}>
+        <Overlay.Container maxWidth={666}>
           <Overlay.Header
             title="Create a Notification Endpoint"
             onDismiss={handleDismiss}
           />
-          <Overlay.Body />
           <EndpointOverlayContents
             onSave={handleCreateEndpoint}
+            onCancel={handleDismiss}
             saveButtonText="Create Notification Endpoint"
           />
         </Overlay.Container>

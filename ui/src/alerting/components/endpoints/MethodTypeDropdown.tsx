@@ -61,7 +61,6 @@ const MethodTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
     <Dropdown
       button={button}
       menu={menu}
-      widthPixels={160}
       testID="http-method-change--dropdown"
     />
   )
