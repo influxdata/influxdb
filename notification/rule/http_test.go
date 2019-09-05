@@ -26,9 +26,10 @@ notification = {
 	_notification_endpoint_name: "foo",
 }
 statuses = monitor.from(start: -2h)
-any_to_crit = statuses
-	|> monitor.stateChanges(fromLevel: "any", toLevel: "crit")
-all_statuses = any_to_crit
+crit = statuses
+	|> filter(fn: (r) =>
+		(r._level == "crit"))
+all_statuses = crit
 	|> filter(fn: (r) =>
 		(r._time > experimental.subDuration(from: now(), d: 1h)))
 

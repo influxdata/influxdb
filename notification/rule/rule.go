@@ -191,24 +191,43 @@ func (b *Base) generateAllStateChanges() []ast.Statement {
 }
 
 func (b *Base) generateStateChanges(r notification.StatusRule) (ast.Statement, *ast.Identifier) {
-	fromLevel := "any"
-	if r.PreviousLevel != nil {
-		fromLevel = strings.ToLower(r.PreviousLevel.String())
-	}
-	toLevel := strings.ToLower(r.CurrentLevel.String())
-
-	pipe := flux.Pipe(
-		flux.Identifier("statuses"),
-		flux.Call(
-			flux.Member("monitor", "stateChanges"),
-			flux.Object(
-				flux.Property("fromLevel", flux.String(fromLevel)),
-				flux.Property("toLevel", flux.String(toLevel)),
+	var name string
+	var pipe *ast.PipeExpression
+	if r.PreviousLevel == nil {
+		pipe = flux.Pipe(
+			flux.Identifier("statuses"),
+			flux.Call(
+				flux.Identifier("filter"),
+				flux.Object(
+					flux.Property("fn", flux.Function(
+						flux.FunctionParams("r"),
+						flux.Equal(
+							flux.Member("r", "_level"),
+							flux.String(strings.ToLower(r.CurrentLevel.String())),
+						),
+					),
+					),
+				),
 			),
-		),
-	)
+		)
+		name = strings.ToLower(r.CurrentLevel.String())
+	} else {
+		fromLevel := strings.ToLower(r.PreviousLevel.String())
+		toLevel := strings.ToLower(r.CurrentLevel.String())
 
-	name := fmt.Sprintf("%s_to_%s", fromLevel, toLevel)
+		pipe = flux.Pipe(
+			flux.Identifier("statuses"),
+			flux.Call(
+				flux.Member("monitor", "stateChanges"),
+				flux.Object(
+					flux.Property("fromLevel", flux.String(fromLevel)),
+					flux.Property("toLevel", flux.String(toLevel)),
+				),
+			),
+		)
+		name = fmt.Sprintf("%s_to_%s", fromLevel, toLevel)
+	}
+
 	return flux.DefineVariable(name, pipe), flux.Identifier(name)
 }
 

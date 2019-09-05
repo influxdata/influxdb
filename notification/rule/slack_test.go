@@ -43,11 +43,12 @@ notification = {
 }
 statuses = monitor.from(start: -2h, fn: (r) =>
 	(r.foo == "bar" and r.baz == "bang"))
-any_to_crit = statuses
-	|> monitor.stateChanges(fromLevel: "any", toLevel: "crit")
+crit = statuses
+	|> filter(fn: (r) =>
+		(r._level == "crit"))
 info_to_warn = statuses
 	|> monitor.stateChanges(fromLevel: "info", toLevel: "warn")
-all_statuses = union(tables: [any_to_crit, info_to_warn])
+all_statuses = union(tables: [crit, info_to_warn])
 	|> sort(columns: ["_time"])
 	|> filter(fn: (r) =>
 		(r._time > experimental.subDuration(from: now(), d: 1h)))
