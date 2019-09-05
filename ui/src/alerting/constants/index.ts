@@ -133,9 +133,9 @@ export const NEW_TAG_RULE_DRAFT: TagRuleDraft = {
 }
 
 export const DEFAULT_ENDPOINT_URLS = {
-  slack: 'http://slackurl',
+  slack: 'https://slack.com/api/chat.postMessage',
   pagerduty: 'https://events.pagerduty.com/v2/enqueue',
-  http: 'http://',
+  http: 'https://www.example.com/endpoint',
 }
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
