@@ -121,7 +121,7 @@ const CheckPlot: FunctionComponent<Props> = ({
         x: X_COLUMN,
         y: Y_COLUMN,
         fill: groupKey,
-        interpolation: 'monotoneX',
+        interpolation: 'linear',
         colors,
       },
       {
