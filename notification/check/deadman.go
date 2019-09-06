@@ -62,7 +62,7 @@ func (c Deadman) GenerateFluxAST() (*ast.Package, error) {
 	f := p.Files[0]
 	assignPipelineToData(f)
 
-	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "experimental")...)
+	f.Imports = append(f.Imports, flux.Imports("influxdata/influxdb/monitor", "experimental", "influxdata/influxdb/v1")...)
 	f.Body = append(f.Body, c.generateFluxASTBody()...)
 
 	return p, nil
@@ -92,6 +92,7 @@ func (c Deadman) generateFluxASTChecksFunction() ast.Statement {
 	sub := flux.Call(flux.Member("experimental", "subDuration"), flux.Object(flux.Property("from", now), flux.Property("d", dur)))
 	return flux.ExpressionStatement(flux.Pipe(
 		flux.Identifier("data"),
+		flux.Call(flux.Member("v1", "fieldsAsCols"), flux.Object()),
 		flux.Call(flux.Member("monitor", "deadman"), flux.Object(flux.Property("t", sub))),
 		c.generateFluxASTChecksCall(),
 	))
