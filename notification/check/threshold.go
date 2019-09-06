@@ -208,6 +208,20 @@ func removeStopFromRange(pkg *ast.Package) {
 	})
 }
 
+// TODO(desa): we'll likely want to remove all other arguments to range that are provided, but for now this should work.
+// When we decide to implement the full feature we'll have to do something more sophisticated.
+func removeAggregateWindow(pkg *ast.Package) {
+	ast.Visit(pkg, func(n ast.Node) {
+		if pipe, ok := n.(*ast.PipeExpression); ok {
+			if id, ok := pipe.Call.Callee.(*ast.Identifier); ok && id.Name == "aggregateWindow" {
+				if subPipe, ok := pipe.Argument.(*ast.PipeExpression); ok {
+					*pipe = *subPipe
+				}
+			}
+		}
+	})
+}
+
 func assignPipelineToData(f *ast.File) error {
 	if len(f.Body) != 1 {
 		return fmt.Errorf("expected there to be a single statement in the flux script body, recieved %d", len(f.Body))
