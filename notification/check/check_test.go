@@ -105,6 +105,24 @@ func TestValidCheck(t *testing.T) {
 			},
 		},
 		{
+			name: "offset greater then interval",
+			src: &check.Deadman{
+				Base: check.Base{
+					ID:      influxTesting.MustIDBase16(id1),
+					Name:    "name1",
+					OwnerID: influxTesting.MustIDBase16(id2),
+					OrgID:   influxTesting.MustIDBase16(id3),
+					Status:  influxdb.Active,
+					Every:   mustDuration("1m"),
+					Offset:  mustDuration("2m"),
+				},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Offset should not be equal or greater than the interval",
+			},
+		},
+		{
 			name: "invalid tag",
 			src: &check.Deadman{
 				Base: check.Base{
