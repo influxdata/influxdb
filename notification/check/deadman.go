@@ -45,6 +45,7 @@ func (c Deadman) GenerateFlux() (string, error) {
 // an error for each error found when the script is parsed.
 func (c Deadman) GenerateFluxAST() (*ast.Package, error) {
 	p := parser.ParseSource(c.Query.Text)
+	removeAggregateWindow(p)
 	replaceDurationsWithEvery(p, c.StaleTime)
 	removeStopFromRange(p)
 
