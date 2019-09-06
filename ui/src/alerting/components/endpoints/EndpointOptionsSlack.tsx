@@ -2,13 +2,7 @@
 import React, {FC, ChangeEvent} from 'react'
 
 // Components
-import {
-  Input,
-  FormElement,
-  Panel,
-  Grid,
-  Columns,
-} from '@influxdata/clockface'
+import {Input, FormElement, Panel, Grid, Columns} from '@influxdata/clockface'
 
 interface Props {
   url: string
