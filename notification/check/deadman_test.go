@@ -58,6 +58,7 @@ func TestDeadman_GenerateFlux(t *testing.T) {
 				script: `package main
 import "influxdata/influxdb/monitor"
 import "experimental"
+import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
 	|> range(start: -10m)
@@ -76,6 +77,7 @@ messageFn = (r) =>
 	("whoa! {r.dead}")
 
 data
+	|> v1.fieldsAsCols()
 	|> monitor.deadman(t: experimental.subDuration(from: now(), d: 60s))
 	|> monitor.check(data: check, messageFn: messageFn, info: info)`,
 			},
@@ -117,6 +119,7 @@ data
 				script: `package main
 import "influxdata/influxdb/monitor"
 import "experimental"
+import "influxdata/influxdb/v1"
 
 data = from(bucket: "foo")
 	|> range(start: -10m)
@@ -135,6 +138,7 @@ messageFn = (r) =>
 	("whoa! {r.dead}")
 
 data
+	|> v1.fieldsAsCols()
 	|> monitor.deadman(t: experimental.subDuration(from: now(), d: 60s))
 	|> monitor.check(data: check, messageFn: messageFn, info: info)`,
 			},
