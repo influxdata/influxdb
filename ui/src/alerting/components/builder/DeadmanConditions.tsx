@@ -12,6 +12,7 @@ import {
   InputType,
   Input,
   FlexDirection,
+  InfluxColors,
 } from '@influxdata/clockface'
 import CheckLevelsDropdown from 'src/alerting/components/builder/CheckLevelsDropdown'
 
@@ -42,82 +43,73 @@ const DeadmanConditions: FC<Props> = ({
     onUpdateTimeMachineCheck({level})
   }
   return (
-    <div
-      style={{
-        width: '475px',
-      }}
-    >
-      <Panel backgroundColor="#292933" testID="panel">
-        <PanelBody testID="panel--body">
+    <Panel backgroundColor={InfluxColors.Castle} testID="panel">
+      <PanelBody testID="panel--body">
+        <FlexBox
+          direction={FlexDirection.Column}
+          margin={ComponentSize.Small}
+          testID="component-spacer"
+        >
           <FlexBox
-            direction={FlexDirection.Column}
+            direction={FlexDirection.Row}
             margin={ComponentSize.Small}
+            stretchToFitWidth
             testID="component-spacer"
           >
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <FlexBox.Child testID="component-spacer--flex-child">
-                <TextBlock
-                  testID="when-value-text-block"
-                  text="When values are not reporting"
-                />
-              </FlexBox.Child>
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <TextBlock testID="when-value-text-block" text="for" />
-              <FlexBox.Child testID="component-spacer--flex-child">
-                <Input
-                  onChange={handleChange}
-                  name="timeSince"
-                  testID="input-field"
-                  type={InputType.Text}
-                  value={timeSince}
-                />
-              </FlexBox.Child>
-              <TextBlock
-                testID="set-status-to-text-block"
-                text="set status to"
-              />
-              <FlexBox.Child testID="component-spacer--flex-child">
-                <CheckLevelsDropdown
-                  selectedLevel={level}
-                  onClickLevel={handleChangeLevel}
-                />
-              </FlexBox.Child>
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
+            <FlexBox.Child testID="component-spacer--flex-child">
               <TextBlock
                 testID="when-value-text-block"
-                text="And stop checking after"
+                text="When values are not reporting"
               />
-              <FlexBox.Child testID="component-spacer--flex-child">
-                <Input
-                  onChange={handleChange}
-                  name="staleTime"
-                  testID="input-field"
-                  type={InputType.Text}
-                  value={staleTime}
-                />
-              </FlexBox.Child>
-            </FlexBox>
+            </FlexBox.Child>
           </FlexBox>
-        </PanelBody>
-      </Panel>
-    </div>
+          <FlexBox
+            direction={FlexDirection.Row}
+            margin={ComponentSize.Small}
+            stretchToFitWidth
+            testID="component-spacer"
+          >
+            <TextBlock testID="when-value-text-block" text="for" />
+            <FlexBox.Child testID="component-spacer--flex-child">
+              <Input
+                onChange={handleChange}
+                name="timeSince"
+                testID="input-field"
+                type={InputType.Text}
+                value={timeSince}
+              />
+            </FlexBox.Child>
+            <TextBlock testID="set-status-to-text-block" text="set status to" />
+            <FlexBox.Child testID="component-spacer--flex-child">
+              <CheckLevelsDropdown
+                selectedLevel={level}
+                onClickLevel={handleChangeLevel}
+              />
+            </FlexBox.Child>
+          </FlexBox>
+          <FlexBox
+            direction={FlexDirection.Row}
+            margin={ComponentSize.Small}
+            stretchToFitWidth
+            testID="component-spacer"
+          >
+            <TextBlock
+              testID="when-value-text-block"
+              text="And stop checking after"
+            />
+            <FlexBox.Child testID="component-spacer--flex-child">
+              <Input
+                onChange={handleChange}
+                name="staleTime"
+                testID="input-field"
+                type={InputType.Text}
+                value={staleTime}
+              />
+            </FlexBox.Child>
+          </FlexBox>
+        </FlexBox>
+      </PanelBody>
+    </Panel>
   )
 }
 

@@ -13,6 +13,7 @@ import {
   ButtonType,
   FlexDirection,
   ComponentColor,
+  InfluxColors,
 } from '@influxdata/clockface'
 
 // Types
@@ -59,61 +60,52 @@ const ThresholdStatement: FC<Props> = ({
   }
 
   return (
-    <div
-      style={{
-        width: '475px',
-      }}
-    >
-      <Panel backgroundColor="#292933" testID="panel">
-        <DismissButton
-          color={ComponentColor.Default}
-          onClick={removeLevel}
-          testID="dismiss-button"
-          type={ButtonType.Button}
-        />
-        <PanelBody testID="panel--body">
+    <Panel backgroundColor={InfluxColors.Castle} testID="panel">
+      <DismissButton
+        color={ComponentColor.Default}
+        onClick={removeLevel}
+        testID="dismiss-button"
+        type={ButtonType.Button}
+      />
+      <PanelBody testID="panel--body">
+        <FlexBox
+          direction={FlexDirection.Column}
+          margin={ComponentSize.Small}
+          testID="component-spacer"
+        >
           <FlexBox
-            direction={FlexDirection.Column}
+            direction={FlexDirection.Row}
             margin={ComponentSize.Small}
+            stretchToFitWidth
             testID="component-spacer"
           >
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              <TextBlock testID="when-value-text-block" text="When value" />
-              <FlexBox.Child grow={2} testID="component-spacer--flex-child">
-                <SelectDropdown
-                  options={Object.keys(dropdownOptions)}
-                  selectedOption={selectedOption}
-                  onSelect={onChangeThresholdType}
-                  testID="select-option-dropdown"
-                />
-              </FlexBox.Child>
-            </FlexBox>
-            <FlexBox
-              direction={FlexDirection.Row}
-              margin={ComponentSize.Small}
-              stretchToFitWidth
-              testID="component-spacer"
-            >
-              {children}
-              <TextBlock
-                testID="set-status-to-text-block"
-                text="set status to"
+            <TextBlock testID="when-value-text-block" text="When value" />
+            <FlexBox.Child grow={2} testID="component-spacer--flex-child">
+              <SelectDropdown
+                options={Object.keys(dropdownOptions)}
+                selectedOption={selectedOption}
+                onSelect={onChangeThresholdType}
+                testID="select-option-dropdown"
               />
-              <TextBlock
-                backgroundColor={levelColor}
-                testID="threshold-level-text-block"
-                text={threshold.level}
-              />
-            </FlexBox>
+            </FlexBox.Child>
           </FlexBox>
-        </PanelBody>
-      </Panel>
-    </div>
+          <FlexBox
+            direction={FlexDirection.Row}
+            margin={ComponentSize.Small}
+            stretchToFitWidth
+            testID="component-spacer"
+          >
+            {children}
+            <TextBlock testID="set-status-to-text-block" text="set status to" />
+            <TextBlock
+              backgroundColor={levelColor}
+              testID="threshold-level-text-block"
+              text={threshold.level}
+            />
+          </FlexBox>
+        </FlexBox>
+      </PanelBody>
+    </Panel>
   )
 }
 
