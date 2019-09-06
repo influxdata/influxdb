@@ -96,7 +96,7 @@ describe('Notification Endpoints', () => {
 
   it('can edit a notification endpoint', () => {
     cy.get<SlackNotificationEndpoint>('@endpoint').then(endpoint => {
-      const {name, description, url, token} = endpoint
+      const {name, description, url} = endpoint
       const newName = 'An Endpoint Has No Name'
       const newDescription =
         'A minute, an hour, a month. Notification Endpoint is certain. The time is not.'
