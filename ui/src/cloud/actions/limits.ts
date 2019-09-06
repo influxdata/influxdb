@@ -5,7 +5,7 @@ import {
 } from 'src/cloud/apis/limits'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, Limits} from 'src/types'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -19,30 +19,14 @@ import {
   extractDashboardMax,
   extractBucketMax,
   extractTaskMax,
+  extractChecksMax,
+  extractRulesMax,
+  extractEndpointsMax,
 } from 'src/cloud/utils/limits'
 
 export enum LimitStatus {
   OK = 'ok',
   EXCEEDED = 'exceeded',
-}
-
-interface Limits {
-  rate: {
-    readKBs: number
-    concurrentReadRequests: number
-    writeKBs: number
-    concurrentWriteRequests: number
-    cardinality: number
-  }
-  bucket: {
-    maxBuckets: number
-  }
-  task: {
-    maxTasks: number
-  }
-  dashboard: {
-    maxDashboards: number
-  }
 }
 
 export enum ActionTypes {
@@ -51,6 +35,9 @@ export enum ActionTypes {
   SetDashboardLimitStatus = 'SET_DASHBOARD_LIMIT_STATUS',
   SetBucketLimitStatus = 'SET_BUCKET_LIMIT_STATUS',
   SetTaskLimitStatus = 'SET_TASK_LIMIT_STATUS',
+  SetChecksLimitStatus = 'SET_CHECKS_LIMIT_STATUS',
+  SetRulesLimitStatus = 'SET_RULES_LIMIT_STATUS',
+  SetEndpointsLimitStatus = 'SET_ENDPOINTS_LIMIT_STATUS',
   SetReadRateLimitStatus = 'SET_READ_RATE_LIMIT_STATUS',
   SetWriteRateLimitStatus = 'SET_WRITE_RATE_LIMIT_STATUS',
   SetCardinalityLimitStatus = 'SET_CARDINALITY_LIMIT_STATUS',
@@ -62,6 +49,9 @@ export type Actions =
   | SetDashboardLimitStatus
   | SetBucketLimitStatus
   | SetTaskLimitStatus
+  | SetChecksLimitStatus
+  | SetRulesLimitStatus
+  | SetEndpointsLimitStatus
   | SetReadRateLimitStatus
   | SetWriteRateLimitStatus
   | SetCardinalityLimitStatus
@@ -119,6 +109,49 @@ export const setTaskLimitStatus = (
     payload: {limitStatus},
   }
 }
+
+export interface SetChecksLimitStatus {
+  type: ActionTypes.SetChecksLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setChecksLimitStatus = (
+  limitStatus: LimitStatus
+): SetChecksLimitStatus => {
+  return {
+    type: ActionTypes.SetChecksLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
+export interface SetRulesLimitStatus {
+  type: ActionTypes.SetRulesLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setRulesLimitStatus = (
+  limitStatus: LimitStatus
+): SetRulesLimitStatus => {
+  return {
+    type: ActionTypes.SetRulesLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
+export interface SetEndpointsLimitStatus {
+  type: ActionTypes.SetEndpointsLimitStatus
+  payload: {limitStatus: LimitStatus}
+}
+
+export const setEndpointsLimitStatus = (
+  limitStatus: LimitStatus
+): SetEndpointsLimitStatus => {
+  return {
+    type: ActionTypes.SetEndpointsLimitStatus,
+    payload: {limitStatus},
+  }
+}
+
 export interface SetReadRateLimitStatus {
   type: ActionTypes.SetReadRateLimitStatus
   payload: {limitStatus: LimitStatus}
@@ -217,7 +250,7 @@ export const getAssetLimits = () => async (
       orgs: {org},
     } = getState()
 
-    const limits = (await getLimitsAJAX(org.id)) as Limits
+    const limits = await getLimitsAJAX(org.id)
     dispatch(setLimits(limits))
     dispatch(setLimitsStatus(RemoteDataState.Done))
   } catch (e) {
@@ -288,6 +321,68 @@ export const checkTaskLimits = () => async (
       dispatch(setTaskLimitStatus(LimitStatus.EXCEEDED))
     } else {
       dispatch(setTaskLimitStatus(LimitStatus.OK))
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const checkChecksLimits = () => (dispatch, getState: () => AppState) => {
+  try {
+    const {
+      checks: {list: checksList},
+      cloud: {limits},
+    } = getState()
+
+    const checksMax = extractChecksMax(limits)
+    const checksCount = checksList.length
+    if (checksCount >= checksMax) {
+      dispatch(setChecksLimitStatus(LimitStatus.EXCEEDED))
+    } else {
+      dispatch(setChecksLimitStatus(LimitStatus.OK))
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const checkRulesLimits = () => (dispatch, getState: () => AppState) => {
+  try {
+    const {
+      rules: {list: rulesList},
+      cloud: {limits},
+    } = getState()
+
+    const rulesMax = extractRulesMax(limits)
+    const rulesCount = rulesList.length
+
+    if (rulesCount >= rulesMax) {
+      dispatch(setRulesLimitStatus(LimitStatus.EXCEEDED))
+    } else {
+      dispatch(setRulesLimitStatus(LimitStatus.OK))
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+export const checkEndpointsLimits = () => (
+  dispatch,
+  getState: () => AppState
+) => {
+  try {
+    const {
+      endpoints: {list: endpointsList},
+      cloud: {limits},
+    } = getState()
+
+    const endpointsMax = extractEndpointsMax(limits)
+    const endpoinstCount = endpointsList.length
+
+    if (endpoinstCount >= endpointsMax) {
+      dispatch(setEndpointsLimitStatus(LimitStatus.EXCEEDED))
+    } else {
+      dispatch(setEndpointsLimitStatus(LimitStatus.OK))
     }
   } catch (e) {
     console.error(e)

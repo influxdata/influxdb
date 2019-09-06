@@ -6,6 +6,7 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
+import {checkEndpointsLimits} from 'src/cloud/actions/limits'
 
 // APIs
 import * as api from 'src/client'
@@ -43,7 +44,9 @@ export type Action =
     }
 
 export const getEndpoints = () => async (
-  dispatch: Dispatch<Action | NotificationAction>,
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
+  >,
   getState: GetState
 ) => {
   try {
@@ -67,6 +70,7 @@ export const getEndpoints = () => async (
       status: RemoteDataState.Done,
       endpoints: resp.data.notificationEndpoints,
     })
+    dispatch(checkEndpointsLimits())
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.getEndpointsFailed(e.message)))
@@ -75,7 +79,9 @@ export const getEndpoints = () => async (
 }
 
 export const createEndpoint = (data: NotificationEndpoint) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
+  >
 ) => {
   const resp = await api.postNotificationEndpoint({data})
 
@@ -87,6 +93,7 @@ export const createEndpoint = (data: NotificationEndpoint) => async (
     type: 'SET_ENDPOINT',
     endpoint: resp.data,
   })
+  dispatch(checkEndpointsLimits())
 }
 
 export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
@@ -131,7 +138,9 @@ export const updateEndpointProperties = (
 }
 
 export const deleteEndpoint = (endpointID: string) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
+  >
 ) => {
   try {
     const resp = await api.deleteNotificationEndpoint({endpointID})
@@ -144,6 +153,7 @@ export const deleteEndpoint = (endpointID: string) => async (
       type: 'REMOVE_ENDPOINT',
       endpointID,
     })
+    dispatch(checkEndpointsLimits())
   } catch (e) {
     dispatch(notify(copy.deleteEndpointFailed(e.message)))
   }
@@ -196,7 +206,9 @@ export const deleteEndpointLabel = (endpointID: string, label: Label) => async (
 }
 
 export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
-  dispatch: Dispatch<Action | NotificationAction>,
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
+  >,
   getState: GetState
 ): Promise<void> => {
   try {
@@ -217,6 +229,7 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
     }
 
     dispatch({type: 'SET_ENDPOINT', endpoint: resp.data})
+    dispatch(checkEndpointsLimits())
 
     // add labels?
   } catch (error) {

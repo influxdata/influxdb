@@ -23,6 +23,7 @@ import {
   setCheckStatus,
 } from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
+import {checkChecksLimits} from 'src/cloud/actions/limits'
 
 // Types
 import {
@@ -67,7 +68,9 @@ export const removeLabelFromCheck = (checkID: string, label: Label) => ({
 })
 
 export const getChecks = () => async (
-  dispatch: Dispatch<Action | NotificationAction>,
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkChecksLimits>
+  >,
   getState: GetState
 ) => {
   try {
@@ -85,6 +88,7 @@ export const getChecks = () => async (
     }
 
     dispatch(setAllChecks(RemoteDataState.Done, resp.data.checks))
+    dispatch(checkChecksLimits())
   } catch (e) {
     console.error(e)
     dispatch(setAllChecks(RemoteDataState.Error))
@@ -148,6 +152,7 @@ export const saveCheckFromTimeMachine = () => async (
 
   if (resp.status === 201 || resp.status === 200) {
     dispatch(setCheck(resp.data))
+    dispatch(checkChecksLimits())
   } else {
     throw new Error(resp.data.message)
   }
@@ -168,7 +173,7 @@ export const updateCheck = (check: Partial<Check>) => async (
 }
 
 export const deleteCheck = (checkID: string) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+  dispatch: Dispatch<any>
 ) => {
   try {
     const resp = await api.deleteCheck({checkID})
@@ -180,6 +185,7 @@ export const deleteCheck = (checkID: string) => async (
     }
 
     dispatch(removeCheck(checkID))
+    dispatch(checkChecksLimits())
   } catch (e) {
     console.error(e)
     dispatch(notify(copy.deleteCheckFailed(e.message)))
@@ -222,7 +228,9 @@ export const deleteCheckLabel = (checkID: string, label: Label) => async (
 }
 
 export const cloneCheck = (check: Check) => async (
-  dispatch: Dispatch<Action | NotificationAction>,
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkChecksLimits>
+  >,
   getState: GetState
 ): Promise<void> => {
   try {
@@ -241,6 +249,7 @@ export const cloneCheck = (check: Check) => async (
     }
 
     dispatch(setCheck(resp.data))
+    dispatch(checkChecksLimits())
 
     // add labels
   } catch (error) {

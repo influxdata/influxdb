@@ -1,5 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
 
 //Components
 import {Grid, GridRow, GridColumn, Page} from '@influxdata/clockface'
@@ -8,11 +9,30 @@ import ChecksColumn from 'src/alerting/components/ChecksColumn'
 import RulesColumn from 'src/alerting/components/notifications/RulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
 import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
+import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {
+  extractMonitoringLimitStatus,
+  extractLimitedMonitoringResources,
+} from 'src/cloud/utils/limits'
 
-const AlertingIndex: FunctionComponent = ({children}) => {
+// Types
+import {AppState} from 'src/types'
+import {LimitStatus} from 'src/cloud/actions/limits'
+
+interface StateProps {
+  limitStatus: LimitStatus
+  limitedResources: string
+}
+
+const AlertingIndex: FunctionComponent<StateProps> = ({
+  children,
+  limitStatus,
+  limitedResources,
+}) => {
   return (
     <>
       <Page titleTag={pageTitleSuffixer(['Monitoring & Alerting'])}>
@@ -24,25 +44,34 @@ const AlertingIndex: FunctionComponent = ({children}) => {
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
           <GetResources resource={ResourceTypes.Labels}>
-            <Grid className="alerting-index">
-              <GridRow testID="grid--row">
-                <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <GetResources resource={ResourceTypes.Checks}>
-                    <ChecksColumn />
-                  </GetResources>
-                </GridColumn>
-                <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <GetResources resource={ResourceTypes.NotificationEndpoints}>
-                    <EndpointsColumn />
-                  </GetResources>
-                </GridColumn>
-                <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                  <GetResources resource={ResourceTypes.NotificationRules}>
-                    <RulesColumn />
-                  </GetResources>
-                </GridColumn>
-              </GridRow>
-            </Grid>
+            <GetAssetLimits>
+              <AssetLimitAlert
+                resourceName={limitedResources}
+                limitStatus={limitStatus}
+                className="load-data--asset-alert"
+              />
+              <Grid className="alerting-index">
+                <GridRow testID="grid--row">
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources resource={ResourceTypes.Checks}>
+                      <ChecksColumn />
+                    </GetResources>
+                  </GridColumn>
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources
+                      resource={ResourceTypes.NotificationEndpoints}
+                    >
+                      <EndpointsColumn />
+                    </GetResources>
+                  </GridColumn>
+                  <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
+                    <GetResources resource={ResourceTypes.NotificationRules}>
+                      <RulesColumn />
+                    </GetResources>
+                  </GridColumn>
+                </GridRow>
+              </Grid>
+            </GetAssetLimits>
           </GetResources>
         </Page.Contents>
       </Page>
@@ -51,4 +80,14 @@ const AlertingIndex: FunctionComponent = ({children}) => {
   )
 }
 
-export default AlertingIndex
+const mstp = ({cloud: {limits}}: AppState): StateProps => {
+  return {
+    limitStatus: extractMonitoringLimitStatus(limits),
+    limitedResources: extractLimitedMonitoringResources(limits),
+  }
+}
+
+export default connect(
+  mstp,
+  null
+)(AlertingIndex)

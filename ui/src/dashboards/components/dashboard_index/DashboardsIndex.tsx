@@ -18,6 +18,7 @@ import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {extractDashboardLimits} from 'src/cloud/utils/limits'
 
 // Actions
 import {
@@ -26,18 +27,15 @@ import {
   createDashboard as createDashboardAction,
   cloneDashboard as cloneDashboardAction,
 } from 'src/dashboards/actions'
-import {checkDashboardLimits as checkDashboardLimitsAction} from 'src/cloud/actions/limits'
 
 // Types
 import {AppState} from 'src/types'
 import {LimitStatus} from 'src/cloud/actions/limits'
-import {extractDashboardLimits} from 'src/cloud/utils/limits'
 import {ComponentStatus} from '@influxdata/clockface'
 
 interface DispatchProps {
   handleDeleteDashboard: typeof deleteDashboardAsync
   handleUpdateDashboard: typeof updateDashboardAsync
-  checkDashboardLimits: typeof checkDashboardLimitsAction
   createDashboard: typeof createDashboardAction
   cloneDashboard: typeof cloneDashboardAction
 }
@@ -170,7 +168,6 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   handleDeleteDashboard: deleteDashboardAsync,
   handleUpdateDashboard: updateDashboardAsync,
-  checkDashboardLimits: checkDashboardLimitsAction,
   createDashboard: createDashboardAction,
   cloneDashboard: cloneDashboardAction,
 }
