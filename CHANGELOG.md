@@ -3,6 +3,7 @@
 ### Features
 
 ### UI Improvements
+1. [15040](https://github.com/influxdata/influxdb/pull/15040): Redesign check builder UI to fill the screen and make more room for composing message templates
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Move Tokens tab from Settings to Load Data page
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Expose all Settings tabs in navigation menu
 
