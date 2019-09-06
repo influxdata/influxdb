@@ -10,8 +10,8 @@ import {
 import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
 import {ComponentColor} from '@influxdata/clockface'
 
-export const DEFAULT_CHECK_NAME = 'Name this check'
-export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this notification rule'
+export const DEFAULT_CHECK_NAME = 'Name this Check'
+export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this Notification Rule'
 
 export const CHECK_NAME_MAX_LENGTH = 68
 export const DEFAULT_CHECK_EVERY = '5m'
@@ -19,7 +19,7 @@ export const DEFAULT_CHECK_OFFSET = '0s'
 export const DEFAULT_CHECK_REPORT_ZERO = false
 export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
 export const DEFAULT_STATUS_MESSAGE =
-  'Check: ${ r._check_name }\n\nIs at level: ${ r._level }'
+  'Check: ${ r._check_name } is: ${ r._level }'
 
 export const CHECK_EVERY_OPTIONS = DURATIONS
 
