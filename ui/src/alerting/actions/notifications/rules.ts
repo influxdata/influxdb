@@ -12,6 +12,7 @@ import {
   notify,
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
+import {checkRulesLimits} from 'src/cloud/actions/limits'
 
 // Utils
 import {
@@ -74,7 +75,9 @@ export const removeRule = (ruleID: string) => ({
 })
 
 export const getNotificationRules = () => async (
-  dispatch: Dispatch<Action | NotificationAction>,
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkRulesLimits>
+  >,
   getState: GetState
 ) => {
   try {
@@ -94,6 +97,7 @@ export const getNotificationRules = () => async (
     const draftRules = resp.data.notificationRules.map(ruleToDraftRule)
 
     dispatch(setAllNotificationRules(RemoteDataState.Done, draftRules))
+    dispatch(checkRulesLimits())
   } catch (e) {
     console.error(e)
     dispatch(setAllNotificationRules(RemoteDataState.Error))
@@ -122,7 +126,9 @@ export const getCurrentRule = (ruleID: string) => async (
 }
 
 export const createRule = (rule: NotificationRuleDraft) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkRulesLimits>
+  >
 ) => {
   const data = draftRuleToNewRule(rule) as NotificationRule
 
@@ -133,6 +139,7 @@ export const createRule = (rule: NotificationRuleDraft) => async (
   }
 
   dispatch(setRule(ruleToDraftRule(resp.data)))
+  dispatch(checkRulesLimits())
 }
 
 export const updateRule = (rule: NotificationRuleDraft) => async (
@@ -167,7 +174,9 @@ export const updateRuleProperties = (
 }
 
 export const deleteRule = (ruleID: string) => async (
-  dispatch: Dispatch<Action | NotificationAction>
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkRulesLimits>
+  >
 ) => {
   const resp = await api.deleteNotificationRule({ruleID})
 
@@ -176,6 +185,7 @@ export const deleteRule = (ruleID: string) => async (
   }
 
   dispatch(removeRule(ruleID))
+  dispatch(checkRulesLimits())
 }
 
 export const addRuleLabel = (ruleID: string, label: Label) => async (
@@ -217,7 +227,9 @@ export const deleteRuleLabel = (ruleID: string, label: Label) => async (
 }
 
 export const cloneRule = (draftRule: NotificationRuleDraft) => async (
-  dispatch: Dispatch<Action | NotificationAction>,
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkRulesLimits>
+  >,
   getState: GetState
 ): Promise<void> => {
   try {
@@ -240,6 +252,7 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
     }
 
     dispatch(setRule(ruleToDraftRule(resp.data)))
+    dispatch(checkRulesLimits())
 
     // add labels?
   } catch (error) {

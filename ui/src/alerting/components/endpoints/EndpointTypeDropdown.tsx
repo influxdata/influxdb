@@ -1,11 +1,15 @@
 // Libraries
 import React, {FC} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
 
+// Utils
+import {extractBlockedEndpoints} from 'src/cloud/utils/limits'
+
 // Types
-import {NotificationEndpointType} from 'src/types'
+import {NotificationEndpointType, AppState} from 'src/types'
 
 interface EndpointType {
   id: NotificationEndpointType
@@ -13,10 +17,16 @@ interface EndpointType {
   name: string
 }
 
-interface Props {
+interface StateProps {
+  blockedEndpoints: string[]
+}
+
+interface OwnProps {
   selectedType: string
   onSelectType: (type: NotificationEndpointType) => void
 }
+
+type Props = OwnProps & StateProps
 
 const types: EndpointType[] = [
   {name: 'HTTP', type: 'http', id: 'http'},
@@ -24,18 +34,24 @@ const types: EndpointType[] = [
   {name: 'Pagerduty', type: 'pagerduty', id: 'pagerduty'},
 ]
 
-const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
-  const items = types.map(({id, type, name}) => (
-    <Dropdown.Item
-      key={id}
-      id={id}
-      value={id}
-      testID={`endpoint--dropdown-item ${type}`}
-      onClick={onSelectType}
-    >
-      {name}
-    </Dropdown.Item>
-  ))
+const EndpointTypeDropdown: FC<Props> = ({
+  selectedType,
+  onSelectType,
+  blockedEndpoints,
+}) => {
+  const items = types
+    .filter(({type}) => !blockedEndpoints.includes(type))
+    .map(({id, type, name}) => (
+      <Dropdown.Item
+        key={id}
+        id={id}
+        value={id}
+        testID={`endpoint--dropdown-item ${type}`}
+        onClick={onSelectType}
+      >
+        {name}
+      </Dropdown.Item>
+    ))
 
   const selected = types.find(t => t.type === selectedType)
 
@@ -64,4 +80,10 @@ const EndpointTypeDropdown: FC<Props> = ({selectedType, onSelectType}) => {
   )
 }
 
-export default EndpointTypeDropdown
+const mstp = ({cloud: {limits}}: AppState): StateProps => {
+  return {
+    blockedEndpoints: extractBlockedEndpoints(limits),
+  }
+}
+
+export default connect<StateProps>(mstp)(EndpointTypeDropdown)

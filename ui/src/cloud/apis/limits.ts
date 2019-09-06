@@ -1,6 +1,9 @@
 import AJAX from 'src/utils/ajax'
+import {Limits, LimitsStatus} from 'src/types'
 
-export const getReadWriteCardinalityLimits = async (orgID: string) => {
+export const getReadWriteCardinalityLimits = async (
+  orgID: string
+): Promise<LimitsStatus> => {
   try {
     const {data} = await AJAX({
       method: 'GET',
@@ -14,7 +17,7 @@ export const getReadWriteCardinalityLimits = async (orgID: string) => {
   }
 }
 
-export const getLimits = async (orgID: string) => {
+export const getLimits = async (orgID: string): Promise<Limits> => {
   try {
     const {data} = await AJAX({
       method: 'GET',
