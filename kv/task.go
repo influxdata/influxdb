@@ -713,7 +713,9 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		task.Name = options.Name
 		task.Every = options.Every.String()
 		task.Cron = options.Cron
-		if options.Offset != nil {
+		if options.Offset == nil {
+			task.Offset = ""
+		} else {
 			task.Offset = options.Offset.String()
 		}
 	}
