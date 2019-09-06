@@ -699,6 +699,8 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		return nil, err
 	}
 
+	updatedAt := time.Now().UTC().Format(time.RFC3339)
+
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
 		if err = upd.UpdateFlux(task.Flux); err != nil {
@@ -718,14 +720,19 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		} else {
 			task.Offset = options.Offset.String()
 		}
+		task.UpdatedAt = updatedAt
 	}
 
 	if upd.Description != nil {
 		task.Description = *upd.Description
+		task.UpdatedAt = updatedAt
+
 	}
 
 	if upd.Status != nil {
 		task.Status = *upd.Status
+		task.UpdatedAt = updatedAt
+
 	}
 
 	if upd.LatestCompleted != nil {
@@ -737,8 +744,6 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 			task.LatestCompleted = *upd.LatestCompleted
 		}
 	}
-
-	task.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 
 	// save the updated task
 	bucket, err := tx.Bucket(taskBucket)
