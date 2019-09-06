@@ -6,7 +6,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {Form, Radio, Input, Button, FlexBox, Grid} from '@influxdata/clockface'
 import TaskScheduleFormField from 'src/tasks/components/TaskScheduleFormField'
 import TaskOptionsBucketDropdown from 'src/tasks/components/TasksOptionsBucketDropdown'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Types
 import {
@@ -140,7 +140,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Six}>
                 <Form.Element label="Output Bucket">
-                  <GetResources resource={ResourceTypes.Buckets}>
+                  <GetResources resource={ResourceType.Buckets}>
                     <TaskOptionsBucketDropdown
                       selectedBucketName={toBucketName}
                       onChangeBucketName={onChangeToBucketName}

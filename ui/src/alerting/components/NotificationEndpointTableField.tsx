@@ -3,14 +3,12 @@ import React, {FC} from 'react'
 import {Link} from 'react-router'
 import {connect} from 'react-redux'
 
-// Reducers
-import {getEndpointIDs} from 'src/alerting/reducers/notifications/endpoints'
-
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
+import {getResourceIDs} from 'src/alerting/selectors'
 
 // Types
-import {NotificationRow, AppState} from 'src/types'
+import {NotificationRow, AppState, ResourceType} from 'src/types'
 
 interface OwnProps {
   row: NotificationRow
@@ -45,7 +43,7 @@ const NotificationEndpointTableField: FC<Props> = ({
 
 const mstp = (state: AppState) => {
   return {
-    endpointIDs: getEndpointIDs(state.endpoints),
+    endpointIDs: getResourceIDs(state, ResourceType.NotificationEndpoints),
   }
 }
 

@@ -14,7 +14,7 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
 import {AppState, Organization} from 'src/types'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface StateProps {
   org: Organization
@@ -31,7 +31,7 @@ class TemplatesIndex extends Component<Props> {
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
-            <GetResources resource={ResourceTypes.Templates}>
+            <GetResources resource={ResourceType.Templates}>
               <TemplatesPage onImport={this.handleImport} />
             </GetResources>
           </SettingsTabbedPage>

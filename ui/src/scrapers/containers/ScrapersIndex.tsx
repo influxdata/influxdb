@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Page} from '@influxdata/clockface'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import Scrapers from 'src/scrapers/components/Scrapers'
 
 // Utils
@@ -32,8 +32,8 @@ class ScrapersIndex extends Component<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Scrapers', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="scrapers" orgID={org.id}>
-            <GetResources resource={ResourceTypes.Scrapers}>
-              <GetResources resource={ResourceTypes.Buckets}>
+            <GetResources resource={ResourceType.Scrapers}>
+              <GetResources resource={ResourceType.Buckets}>
                 <Scrapers orgName={org.name} />
               </GetResources>
             </GetResources>

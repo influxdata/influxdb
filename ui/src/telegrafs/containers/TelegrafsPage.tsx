@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import Collectors from 'src/telegrafs/components/Collectors'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import {
@@ -57,8 +57,8 @@ class TelegrafsPage extends PureComponent<StateProps> {
               )}
             </FlexBox>
             <LoadDataTabbedPage activeTab="telegrafs" orgID={org.id}>
-              <GetResources resource={ResourceTypes.Buckets}>
-                <GetResources resource={ResourceTypes.Telegrafs}>
+              <GetResources resource={ResourceType.Buckets}>
+                <GetResources resource={ResourceType.Telegrafs}>
                   <Collectors />
                 </GetResources>
               </GetResources>

@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
 import BucketsTab from 'src/buckets/components/BucketsTab'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import LimitChecker from 'src/cloud/components/LimitChecker'
 import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
@@ -58,8 +58,8 @@ class BucketsIndex extends Component<StateProps> {
               )}
             </FlexBox>
             <LoadDataTabbedPage activeTab="buckets" orgID={org.id}>
-              <GetResources resource={ResourceTypes.Buckets}>
-                <GetResources resource={ResourceTypes.Telegrafs}>
+              <GetResources resource={ResourceType.Buckets}>
+                <GetResources resource={ResourceType.Telegrafs}>
                   <GetAssetLimits>
                     <BucketsTab />
                   </GetAssetLimits>

@@ -24,7 +24,7 @@ import {
 
 // Types
 import {AlertHistoryType} from 'src/types'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface Props {
   params: {orgID: string}
@@ -45,9 +45,9 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}}) => {
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
 
   return (
-    <GetResources resource={ResourceTypes.Checks}>
-      <GetResources resource={ResourceTypes.NotificationEndpoints}>
-        <GetResources resource={ResourceTypes.NotificationRules}>
+    <GetResources resource={ResourceType.Checks}>
+      <GetResources resource={ResourceType.NotificationEndpoints}>
+        <GetResources resource={ResourceType.NotificationRules}>
           <EventViewer loadRows={loadRows} initialState={getInitialState()}>
             {props => (
               <Page

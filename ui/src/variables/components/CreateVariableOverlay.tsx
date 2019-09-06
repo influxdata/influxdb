@@ -12,7 +12,7 @@ import {createVariable} from 'src/variables/actions'
 // Components
 import {Overlay} from '@influxdata/clockface'
 import VariableForm from 'src/variables/components/VariableForm'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Types
 import {AppState} from 'src/types'
@@ -33,7 +33,7 @@ class CreateVariableOverlay extends PureComponent<Props> {
     const {onCreateVariable, variables} = this.props
 
     return (
-      <GetResources resource={ResourceTypes.Variables}>
+      <GetResources resource={ResourceType.Variables}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={1000}>
             <Overlay.Header

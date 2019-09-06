@@ -5,12 +5,10 @@ import {connect} from 'react-redux'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
-
-// Selectors
-import {getRuleIDs} from 'src/alerting/reducers/notifications/rules'
+import {getResourceIDs} from 'src/alerting/selectors'
 
 // Types
-import {NotificationRow, AppState} from 'src/types'
+import {NotificationRow, AppState, ResourceType} from 'src/types'
 
 interface OwnProps {
   row: NotificationRow
@@ -36,6 +34,7 @@ const NotificationRuleTableField: FC<Props> = ({
       </div>
     )
   }
+
   const href = formatOrgRoute(`/alerting/rules/${notificationRuleID}/edit`)
 
   return <Link to={href}>{notificationRuleName}</Link>
@@ -43,7 +42,7 @@ const NotificationRuleTableField: FC<Props> = ({
 
 const mstp = (state: AppState) => {
   return {
-    ruleIDs: getRuleIDs(state.rules),
+    ruleIDs: getResourceIDs(state, ResourceType.NotificationRules),
   }
 }
 export default connect<StateProps>(mstp)(NotificationRuleTableField)

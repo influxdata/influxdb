@@ -13,7 +13,7 @@ import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
 // Utils
@@ -93,8 +93,8 @@ class DashboardIndex extends PureComponent<Props, State> {
             </Page.Header.Right>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources resource={ResourceTypes.Dashboards}>
-              <GetResources resource={ResourceTypes.Labels}>
+            <GetResources resource={ResourceType.Dashboards}>
+              <GetResources resource={ResourceType.Labels}>
                 <GetAssetLimits>
                   <AssetLimitAlert
                     resourceName="dashboards"

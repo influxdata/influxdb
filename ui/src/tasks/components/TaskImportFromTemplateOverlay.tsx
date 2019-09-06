@@ -27,7 +27,7 @@ import {
   RemoteDataState,
   TaskTemplate,
 } from 'src/types'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface StateProps {
   templates: TemplateSummary[]
@@ -59,7 +59,7 @@ class TaskImportFromTemplateOverlay extends PureComponent<
 
   render() {
     return (
-      <GetResources resource={ResourceTypes.Templates}>
+      <GetResources resource={ResourceType.Templates}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={900}>
             <Overlay.Header

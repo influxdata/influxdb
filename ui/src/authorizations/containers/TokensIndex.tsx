@@ -7,7 +7,7 @@ import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import LoadDataTabbedPage from 'src/settings/components/LoadDataTabbedPage'
 import LoadDataHeader from 'src/settings/components/LoadDataHeader'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import TokensTab from 'src/authorizations/components/TokensTab'
 
 // Utils
@@ -30,7 +30,7 @@ class TokensIndex extends Component<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Tokens', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="tokens" orgID={org.id}>
-            <GetResources resource={ResourceTypes.Authorizations}>
+            <GetResources resource={ResourceType.Authorizations}>
               <TokensTab />
             </GetResources>
           </LoadDataTabbedPage>

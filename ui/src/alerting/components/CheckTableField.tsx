@@ -5,12 +5,10 @@ import {connect} from 'react-redux'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
-
-// Selectors
-import {getCheckIDs} from 'src/alerting/reducers/checks'
+import {getResourceIDs} from 'src/alerting/selectors'
 
 // Types
-import {StatusRow, NotificationRow, AppState} from 'src/types'
+import {StatusRow, NotificationRow, AppState, ResourceType} from 'src/types'
 
 interface OwnProps {
   row: StatusRow | NotificationRow
@@ -41,7 +39,7 @@ const CheckTableField: FC<Props> = ({row: {checkName, checkID}, checkIDs}) => {
 
 const mstp = (state: AppState) => {
   return {
-    checkIDs: getCheckIDs(state.checks),
+    checkIDs: getResourceIDs(state, ResourceType.Checks),
   }
 }
 

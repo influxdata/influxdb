@@ -16,7 +16,7 @@ import VersionInfo from 'src/shared/components/VersionInfo'
 
 // Types
 import {AppState} from 'src/types'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface Props {
   me: AppState['me']
@@ -42,7 +42,7 @@ class ResourceLists extends PureComponent<Props> {
             <Panel.Title>Dashboards</Panel.Title>
           </Panel.Header>
           <Panel.Body>
-            <GetResources resource={ResourceTypes.Dashboards}>
+            <GetResources resource={ResourceType.Dashboards}>
               <DashboardsList />
             </GetResources>
           </Panel.Body>

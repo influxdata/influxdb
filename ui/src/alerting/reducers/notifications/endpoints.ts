@@ -75,12 +75,3 @@ export default (
       }
     }
   })
-
-export const getEndpointIDs = (
-  state: NotificationEndpointsState
-): {[x: string]: boolean} => {
-  return state.list.reduce(
-    (acc, endpoint) => ({...acc, [endpoint.id]: true}),
-    {}
-  )
-}
