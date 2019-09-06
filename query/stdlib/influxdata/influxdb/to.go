@@ -574,15 +574,21 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 		var pointTime time.Time
 		var points models.Points
 		var tags models.Tags
+		kv := make([][]byte, 2, er.Len()*2+2) // +2 for field key, value
 		var fieldValues values.Object
 		for i := 0; i < er.Len(); i++ {
+			measurementName = ""
 			fields := make(models.Fields)
-			tags = nil
+			// leave space for measurement key, value at start, in an effort to
+			// keep kv sorted
+			kv = kv[:2]
 			// Gather the timestamp and the tags.
 			for j, col := range er.Cols() {
 				switch {
 				case col.Label == spec.MeasurementColumn:
 					measurementName = string(er.Strings(j).Value(i))
+					kv[0] = models.MeasurementTagKeyBytes
+					kv[1] = er.Strings(j).Value(i)
 				case col.Label == timeColLabel:
 					pointTime = execute.ValueForRow(er, i, j).Time().Time()
 				case isTag[j]:
@@ -590,8 +596,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 						return errors.New("invalid type for tag column")
 					}
 					// TODO(docmerlin): instead of doing this sort of thing, it would be nice if we had a way that allocated a lot less.
-					// Note that tags are 2-tuples of key and then value.
-					tags = append(tags, models.NewTag([]byte(col.Label), er.Strings(j).Value(i)))
+					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))
 				}
 			}
 
@@ -643,7 +648,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				Latest:   pointTime,
 				Earliest: pointTime,
 				NFields:  len(fields),
-				NTags:    len(tags),
+				NTags:    len(kv) / 2,
 			}
 			_, ok := measurementStats[measurementName]
 			if !ok {
@@ -662,11 +667,11 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 
 			for _, k := range fieldNames {
 				v := fields[k]
-				pointTags := models.Tags{{Key: []byte("\x00"), Value: []byte(measurementName)}}
-				pointTags = append(pointTags, tags...)
-				pointTags = append(pointTags, models.Tag{Key: []byte("\xff"), Value: []byte(k)})
+				// append field tag key and field key
+				kvf := append(kv, models.FieldKeyTagKeyBytes, []byte(k))
+				tags, _ = models.NewTagsKeyValues(tags, kvf...)
 
-				pt, err := models.NewPoint(name, pointTags, models.Fields{k: v}, pointTime)
+				pt, err := models.NewPoint(name, tags, models.Fields{k: v}, pointTime)
 				if err != nil {
 					return err
 				}
