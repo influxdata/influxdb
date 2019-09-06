@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -2619,6 +2620,90 @@ func TestValidTagTokens(t *testing.T) {
 	}
 }
 
+func equalError(a, b error) bool {
+	return a == nil && b == nil || a != nil && b != nil && a.Error() == b.Error()
+}
+
+func TestNewTagsKeyValues(t *testing.T) {
+	t.Run("sorted", func(t *testing.T) {
+		t.Run("no dupes", func(t *testing.T) {
+			got, _ := models.NewTagsKeyValuesStrings(nil, "tag0", "v0", "tag1", "v1", "tag2", "v2")
+			exp := models.NewTags(map[string]string{
+				"tag0": "v0",
+				"tag1": "v1",
+				"tag2": "v2",
+			})
+			if !cmp.Equal(got, exp) {
+				t.Errorf("unxpected; -got/+exp\n%s", cmp.Diff(got, exp))
+			}
+		})
+
+		t.Run("dupes", func(t *testing.T) {
+			got, _ := models.NewTagsKeyValuesStrings(nil, "tag0", "v0", "tag1", "v1", "tag1", "v1", "tag2", "v2", "tag2", "v2")
+			exp := models.NewTags(map[string]string{
+				"tag0": "v0",
+				"tag1": "v1",
+				"tag2": "v2",
+			})
+			if !cmp.Equal(got, exp) {
+				t.Errorf("unxpected; -got/+exp\n%s", cmp.Diff(got, exp))
+			}
+		})
+	})
+
+	t.Run("unsorted", func(t *testing.T) {
+		t.Run("no dupes", func(t *testing.T) {
+			got, _ := models.NewTagsKeyValuesStrings(nil, "tag2", "v2", "tag0", "v0", "tag1", "v1")
+			exp := models.NewTags(map[string]string{
+				"tag0": "v0",
+				"tag1": "v1",
+				"tag2": "v2",
+			})
+			if !cmp.Equal(got, exp) {
+				t.Errorf("unxpected; -got/+exp\n%s", cmp.Diff(got, exp))
+			}
+		})
+
+		t.Run("dupes", func(t *testing.T) {
+			got, _ := models.NewTagsKeyValuesStrings(nil, "tag2", "v2", "tag0", "v0", "tag1", "v1", "tag2", "v2", "tag0", "v0", "tag1", "v1")
+			exp := models.NewTags(map[string]string{
+				"tag0": "v0",
+				"tag1": "v1",
+				"tag2": "v2",
+			})
+			if !cmp.Equal(got, exp) {
+				t.Errorf("unxpected; -got/+exp\n%s", cmp.Diff(got, exp))
+			}
+		})
+	})
+
+	t.Run("odd number of keys", func(t *testing.T) {
+		got, err := models.NewTagsKeyValuesStrings(nil, "tag2", "v2", "tag0", "v0", "tag1")
+
+		if !cmp.Equal(got, models.Tags(nil)) {
+			t.Errorf("expected nil")
+		}
+
+		if !cmp.Equal(err, models.ErrInvalidKevValuePairs, cmp.Comparer(equalError)) {
+			t.Errorf("expected ErrInvalidKevValuePairs, got: %v", err)
+		}
+	})
+}
+
+func TestTags_KeyValues(t *testing.T) {
+	tags := models.NewTags(map[string]string{
+		"tag0": "v0",
+		"tag1": "v1",
+		"tag2": "v2",
+	})
+
+	got := tags.KeyValues(nil)
+	exp := [][]byte{[]byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2")}
+	if !cmp.Equal(got, exp) {
+		t.Errorf("unexpected, -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+}
+
 func BenchmarkEscapeStringField_Plain(b *testing.B) {
 	s := "nothing special"
 	for i := 0; i < b.N; i++ {
@@ -2748,4 +2833,54 @@ func BenchmarkMakeKey(b *testing.B) {
 			}
 		})
 	}
+}
+
+func BenchmarkNewTagsKeyValues(b *testing.B) {
+	b.Run("sorted", func(b *testing.B) {
+		b.Run("no dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2")}
+
+			b.Run("preallocate", func(b *testing.B) {
+				t := make(models.Tags, 3)
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					_, _ = models.NewTagsKeyValues(t, kv...)
+				}
+			})
+
+			b.Run("allocate", func(b *testing.B) {
+				b.ReportAllocs()
+				for i := 0; i < b.N; i++ {
+					_, _ = models.NewTagsKeyValues(nil, kv...)
+				}
+			})
+		})
+
+		b.Run("dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2"), []byte("tag2"), []byte("v2")}
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = models.NewTagsKeyValues(nil, kv...)
+			}
+		})
+	})
+	b.Run("unsorted", func(b *testing.B) {
+		b.Run("no dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag1"), []byte("v1"), []byte("tag0"), []byte("v0"), []byte("tag2"), []byte("v2")}
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = models.NewTagsKeyValues(nil, kv...)
+			}
+		})
+		b.Run("dupes", func(b *testing.B) {
+			kv := [][]byte{[]byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2"), []byte("tag0"), []byte("v0"), []byte("tag1"), []byte("v1"), []byte("tag2"), []byte("v2")}
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				_, _ = models.NewTagsKeyValues(nil, kv...)
+			}
+		})
+	})
 }
