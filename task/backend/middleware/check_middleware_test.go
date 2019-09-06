@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/influxdata/influxdb/task/backend"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
@@ -152,6 +155,85 @@ func TestCheckCreate(t *testing.T) {
 	if err.Error() != "schedule task failed: bad\n\tcleanup also failed: AARGH" {
 		t.Fatal(err)
 	}
+}
+
+func TestCheckUpdateFromInactive(t *testing.T) {
+	mocks, checkService := newCheckSvcStack()
+	latest := time.Now().UTC()
+	checkService.Now = func() time.Time {
+		return latest
+	}
+	ch := mocks.pipingCoordinator.taskUpdatedChan()
+
+	mocks.checkSvc.UpdateCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.Check) (influxdb.Check, error) {
+		c.SetTaskID(10)
+		c.SetStatus(influxdb.Active)
+		c.SetUpdatedAt(latest.Add(-20 * time.Hour))
+		return c, nil
+	}
+
+	mocks.checkSvc.PatchCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.CheckUpdate) (influxdb.Check, error) {
+		ic := &check.Deadman{}
+		ic.SetTaskID(10)
+		ic.SetStatus(influxdb.Active)
+		ic.SetUpdatedAt(latest.Add(-20 * time.Hour))
+		return ic, nil
+	}
+
+	mocks.checkSvc.FindCheckByIDFn = func(_ context.Context, id influxdb.ID) (influxdb.Check, error) {
+		c := &check.Deadman{}
+		c.SetID(id)
+		c.SetTaskID(1)
+		c.SetStatus(influxdb.TaskStatusInactive)
+		return c, nil
+	}
+
+	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
+		if id == 1 {
+			return &influxdb.Task{ID: id, Status: string(backend.TaskInactive)}, nil
+		} else if id == 10 {
+			return &influxdb.Task{ID: id, Status: string(backend.TaskActive)}, nil
+		}
+		return &influxdb.Task{ID: id}, nil
+	}
+
+	deadman := &check.Deadman{}
+	deadman.SetTaskID(10)
+	deadman.SetStatus(influxdb.Active)
+
+	thecheck, err := checkService.UpdateCheck(context.Background(), 1, deadman)
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case task := <-ch:
+		if task.ID != thecheck.GetTaskID() {
+			t.Fatalf("task sent to coordinator doesn't match expected")
+		}
+		if task.LatestCompleted != latest.Format(time.RFC3339) {
+			t.Fatalf("update returned incorrect LatestCompleted, expected %s got %s, or ", latest.Format(time.RFC3339), task.LatestCompleted)
+		}
+	default:
+		t.Fatal("didn't receive task")
+	}
+
+	action := influxdb.Active
+	thecheck, err = checkService.PatchCheck(context.Background(), 1, influxdb.CheckUpdate{Status: &action})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case task := <-ch:
+		if task.ID != thecheck.GetTaskID() {
+			t.Fatalf("task sent to coordinator doesn't match expected")
+		}
+		if task.LatestCompleted != latest.Format(time.RFC3339) {
+			t.Fatalf("update returned incorrect LatestCompleted, expected %s got %s, or ", latest.Format(time.RFC3339), task.LatestCompleted)
+		}
+	default:
+		t.Fatal("didn't receive task")
+	}
+
 }
 
 func TestCheckUpdate(t *testing.T) {
