@@ -24,6 +24,7 @@ type HTTP struct {
 	// Path is the API path of HTTP
 	URL string `json:"url"`
 	// Token is the bearer token for authorization
+	Headers         map[string]string    `json:"headers,omitempty"`
 	Token           influxdb.SecretField `json:"token,omitempty"`
 	Username        influxdb.SecretField `json:"username,omitempty"`
 	Password        influxdb.SecretField `json:"password,omitempty"`

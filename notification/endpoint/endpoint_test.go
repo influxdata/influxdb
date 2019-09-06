@@ -227,6 +227,10 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
+				Headers: map[string]string{
+					"x-header-1": "header 1",
+					"x-header-2": "header 2",
+				},
 				AuthMethod: "basic",
 				URL:        "http://example.com",
 				Username:   influxdb.SecretField{Key: "username-key"},
