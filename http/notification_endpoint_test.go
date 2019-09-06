@@ -68,8 +68,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
 									Status: influxdb.Active,
 								},
-								URL:   "http://example.com",
-								Token: influxdb.SecretField{Key: "slack-token-key"},
+								URL: "http://example.com",
 							},
 							&endpoint.HTTP{
 								Base: endpoint.Base{
@@ -139,8 +138,8 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 		     "name": "hello",
 		     "orgID": "50f7ba1150f7ba11",
 		     "status": "active",
-		     "token": "secret: slack-token-key",
-		     "type": "slack",
+			 "type": "slack",
+			 "token": "",
 		     "updatedAt": "0001-01-01T00:00:00Z",
 		     "url": "http://example.com"
 		   },
@@ -697,8 +696,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Status: influxdb.Active,
 								},
-								URL:   "http://example.com",
-								Token: influxdb.SecretField{Key: "slack-token-key"},
+								URL: "http://example.com",
 							}
 
 							if upd.Name != nil {
@@ -734,8 +732,8 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 		  "url": "http://example.com",
 		  "name": "example",
 		  "status": "active",
-          "token": "secret: slack-token-key",
-          "type": "slack",
+		  "type": "slack",
+		  "token": "",
 		  "labels": []
 		}
 		`,
@@ -845,9 +843,6 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 		{
 			name: "update a notification endpoint name",
 			fields: fields{
-				Secrets: map[string]string{
-					"020f755c3c082001-020f755c3c082000-token": "tok-0",
-				},
 				SecretService: &mock.SecretService{
 					PutSecretFn: func(ctx context.Context, orgID influxdb.ID, k string, v string) error {
 						secrets[orgID.String()+"-"+k] = v
@@ -873,14 +868,11 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 					"status": "active",
 					"orgID":  "020f755c3c082001",
 					"type":   "slack",
+					"token":  "",
 					"url":    "example.com",
-					"token":  "token-2",
 				},
 			},
 			wants: wants{
-				secrets: map[string]string{
-					"020f755c3c082001-020f755c3c082000-token": "token-2",
-				},
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `
@@ -897,9 +889,9 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 		  "orgID": "020f755c3c082001",
 		  "name": "example",
 		  "url": "example.com",
-		  "token": "secret: 020f755c3c082000-token",
           "type": "slack",
 		  "status": "active",
+		  "token": "",
           "labels": []
 		}
 		`,
