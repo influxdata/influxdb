@@ -17,16 +17,7 @@ const AlertBuilder: FC = () => {
           <div className="builder-card--list alert-builder--list">
             <CheckMetaCard />
             <CheckMessageCard />
-            <BuilderCard
-              testID="builder-conditions"
-              widthPixels={510}
-              className="alert-builder--card"
-            >
-              <BuilderCard.Header title="Conditions" />
-              <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
-                <CheckConditionsCard />
-              </BuilderCard.Body>
-            </BuilderCard>
+            <CheckConditionsCard />
             <BuilderCard
               testID="builder-matching-rules"
               widthPixels={420}

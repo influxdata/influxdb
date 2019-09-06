@@ -38,8 +38,7 @@ const CheckMessageCard: FC<Props> = ({check, onUpdateTimeMachineCheck}) => {
   return (
     <BuilderCard
       testID="builder-message"
-      widthPixels={480}
-      className="alert-builder--card"
+      className="alert-builder--card alert-builder--message-card"
     >
       <BuilderCard.Header title="Status Message Template" />
       <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
