@@ -3,6 +3,9 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/influxdata/influxdb/task/backend"
 
 	"github.com/influxdata/influxdb"
 )
@@ -13,6 +16,7 @@ type CoordinatingCheckService struct {
 	influxdb.CheckService
 	coordinator Coordinator
 	taskService influxdb.TaskService
+	Now         func() time.Time
 }
 
 // NewCheckService constructs a new coordinating check service
@@ -21,6 +25,9 @@ func NewCheckService(cs influxdb.CheckService, ts influxdb.TaskService, coordina
 		CheckService: cs,
 		taskService:  ts,
 		coordinator:  coordinator,
+		Now: func() time.Time {
+			return time.Now().UTC()
+		},
 	}
 
 	return c
@@ -71,6 +78,12 @@ func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb
 		return nil, err
 	}
 
+	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
+	// this allows us to see not run the task for inactive time
+	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
+		toTask.LatestCompleted = cs.Now().Format(time.RFC3339)
+	}
+
 	return to, cs.coordinator.TaskUpdated(ctx, fromTask, toTask)
 }
 
@@ -94,6 +107,12 @@ func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id influxdb.
 	toTask, err := cs.taskService.FindTaskByID(ctx, to.GetTaskID())
 	if err != nil {
 		return nil, err
+	}
+
+	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
+	// this allows us to see not run the task for inactive time
+	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
+		toTask.LatestCompleted = cs.Now().Format(time.RFC3339)
 	}
 
 	return to, cs.coordinator.TaskUpdated(ctx, fromTask, toTask)

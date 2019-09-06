@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/influxdata/influxdb/task/backend"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/notification/rule"
@@ -45,6 +48,84 @@ func TestNotificationRuleCreate(t *testing.T) {
 	}
 }
 
+func TestNotificationRuleUpdateFromInactive(t *testing.T) {
+	mocks, nrService := newNotificationRuleSvcStack()
+	latest := time.Now().UTC()
+	nrService.Now = func() time.Time {
+		return latest
+	}
+	ch := mocks.pipingCoordinator.taskUpdatedChan()
+
+	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRule, _ influxdb.ID) (influxdb.NotificationRule, error) {
+		c.SetTaskID(10)
+		c.SetStatus(influxdb.Active)
+		c.SetUpdatedAt(latest.Add(-20 * time.Hour))
+		return c, nil
+	}
+
+	mocks.notificationSvc.PatchNotificationRuleF = func(_ context.Context, id influxdb.ID, _ influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+		ic := &rule.HTTP{}
+		ic.SetTaskID(10)
+		ic.SetStatus(influxdb.Active)
+		ic.SetUpdatedAt(latest.Add(-20 * time.Hour))
+		return ic, nil
+	}
+
+	mocks.notificationSvc.FindNotificationRuleByIDF = func(_ context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+		c := &rule.HTTP{}
+		c.SetID(id)
+		c.SetTaskID(1)
+		c.SetStatus(influxdb.TaskStatusInactive)
+		return c, nil
+	}
+
+	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
+		if id == 1 {
+			return &influxdb.Task{ID: id, Status: string(backend.TaskInactive)}, nil
+		} else if id == 10 {
+			return &influxdb.Task{ID: id, Status: string(backend.TaskActive)}, nil
+		}
+		return &influxdb.Task{ID: id}, nil
+	}
+
+	deadman := &rule.HTTP{}
+	deadman.SetTaskID(10)
+	deadman.SetStatus(influxdb.Active)
+
+	therule, err := nrService.UpdateNotificationRule(context.Background(), 1, deadman, 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case task := <-ch:
+		if task.ID != therule.GetTaskID() {
+			t.Fatalf("task sent to coordinator doesn't match expected")
+		}
+		if task.LatestCompleted != latest.Format(time.RFC3339) {
+			t.Fatalf("update returned incorrect LatestCompleted, expected %s got %s, or ", latest.Format(time.RFC3339), task.LatestCompleted)
+		}
+	default:
+		t.Fatal("didn't receive task")
+	}
+
+	action := influxdb.Active
+	therule, err = nrService.PatchNotificationRule(context.Background(), 1, influxdb.NotificationRuleUpdate{Status: &action})
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case task := <-ch:
+		if task.ID != therule.GetTaskID() {
+			t.Fatalf("task sent to coordinator doesn't match expected")
+		}
+		if task.LatestCompleted != latest.Format(time.RFC3339) {
+			t.Fatalf("update returned incorrect LatestCompleted, expected %s got %s, or ", latest.Format(time.RFC3339), task.LatestCompleted)
+		}
+	default:
+		t.Fatal("didn't receive task")
+	}
+
+}
 func TestNotificationRuleUpdate(t *testing.T) {
 	mocks, nrService := newNotificationRuleSvcStack()
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
