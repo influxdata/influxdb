@@ -28,16 +28,16 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20180728074245-46e3a41ad493 // indirect
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/gddo v0.0.0-20181116215533-9bd4a3295021
-	github.com/golang/protobuf v1.3.1
+	github.com/golang/protobuf v1.3.2
 	github.com/golang/snappy v0.0.1
-	github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
+	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.3.0
 	github.com/google/go-github v17.0.0+incompatible
 	github.com/goreleaser/goreleaser v0.97.0
 	github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c // indirect
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
-	github.com/influxdata/flux v0.44.1
+	github.com/influxdata/flux v0.45.0
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
@@ -84,16 +84,15 @@ require (
 	github.com/yudai/pp v2.0.1+incompatible // indirect
 	go.uber.org/multierr v1.1.0
 	go.uber.org/zap v1.9.1
-	golang.org/x/crypto v0.0.0-20190510104115-cbcb75029529
-	golang.org/x/net v0.0.0-20190613194153-d28f0bde5980
-	golang.org/x/oauth2 v0.0.0-20181017192945-9dcd33a902f4
+	golang.org/x/crypto v0.0.0-20190605123033-f99c8df09eb5
+	golang.org/x/net v0.0.0-20190620200207-3b0461eec859
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sync v0.0.0-20190423024810-112230192c58
-	golang.org/x/sys v0.0.0-20190412213103-97732733099d
+	golang.org/x/sys v0.0.0-20190624142023-c5567b49c5d0
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
-	golang.org/x/tools v0.0.0-20190621195816-6e04913cbbac
-	google.golang.org/api v0.0.0-20181021000519-a2651947f503
-	google.golang.org/appengine v1.4.0 // indirect
-	google.golang.org/grpc v1.19.1
+	golang.org/x/tools v0.0.0-20190628153133-6cdbf07be9d0
+	google.golang.org/api v0.7.0
+	google.golang.org/grpc v1.21.1
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
 	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
