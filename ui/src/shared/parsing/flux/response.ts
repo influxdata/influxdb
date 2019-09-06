@@ -19,14 +19,34 @@ export const parseResponseError = (response: string): FluxTable[] => {
   ]
 }
 
+/*
+  A Flux CSV response can contain multiple CSV files each joined by a newline.
+  This function splits up a CSV response into these individual CSV files.
+
+  See https://github.com/influxdata/flux/blob/master/docs/SPEC.md#multiple-tables.
+*/
 export const parseChunks = (response: string): string[] => {
   const trimmedResponse = response.trim()
 
-  if (_.isEmpty(trimmedResponse)) {
+  if (trimmedResponse === '') {
     return []
   }
 
-  const chunks = trimmedResponse.split(/\n\s*\n/)
+  // Split the response into separate chunks whenever we encounter:
+  //
+  // 1. A newline
+  // 2. Followed by any amount of whitespace
+  // 3. Followed by a newline
+  // 4. Followed by a `#` character
+  //
+  // The last condition is [necessary][0] for handling CSV responses with
+  // values containing newlines.
+  //
+  // [0]: https://github.com/influxdata/influxdb/issues/15017
+
+  const chunks = trimmedResponse
+    .split(/\n\s*\n#/)
+    .map((s, i) => (i === 0 ? s : `#${s}`))
 
   return chunks
 }

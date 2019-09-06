@@ -26,9 +26,6 @@ export const parseFiles = (responses: string[]): ParseFilesResult => {
       // exceeded" error for large CSVs
       data.push(parsedChunks[i][j])
     }
-
-    // Add an empty line at the end
-    data.push([])
   }
 
   return {data, maxColumnCount}
