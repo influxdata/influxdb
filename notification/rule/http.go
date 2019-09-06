@@ -118,7 +118,12 @@ func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 		headers,
 		flux.Property("data", endpointBody),
 	}
-	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
+	endpointFn := flux.FuncBlock(flux.FunctionParams("r"),
+		s.generateBody(),
+		&ast.ReturnStatement{
+			Argument: flux.Object(endpointProps...),
+		},
+	)
 
 	props := []*ast.Property{}
 	props = append(props, flux.Property("data", flux.Identifier("notification")))
@@ -128,6 +133,48 @@ func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
 	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("all_statuses"), call))
+}
+
+func (s *HTTP) generateBody() ast.Statement {
+	props := []*ast.Property{
+		flux.Dictionary(
+			"version", flux.Integer(1),
+		),
+		flux.Dictionary(
+			"rule_name", flux.Member("notification", "_notification_rule_name"),
+		),
+		flux.Dictionary(
+			"rule_id", flux.Member("notification", "_notification_rule_id"),
+		),
+		flux.Dictionary(
+			"endpoint_name", flux.Member("notification", "_notification_endpoint_name"),
+		),
+		flux.Dictionary(
+			"endpoint_id", flux.Member("notification", "_notification_endpoint_id"),
+		),
+		flux.Dictionary(
+			"check_name", flux.Member("r", "_check_name"),
+		),
+		flux.Dictionary(
+			"check_id", flux.Member("r", "_check_id"),
+		),
+		flux.Dictionary(
+			"check_type", flux.Member("r", "_type"),
+		),
+		flux.Dictionary(
+			"source_measurement", flux.Member("r", "_source_measurement"),
+		),
+		flux.Dictionary(
+			"source_timestamp", flux.Member("r", "_source_timestamp"),
+		),
+		flux.Dictionary(
+			"level", flux.Member("r", "_level"),
+		),
+		flux.Dictionary(
+			"message", flux.Member("r", "_message"),
+		),
+	}
+	return flux.DefineVariable("body", flux.Object(props...))
 }
 
 type httpAlias HTTP
