@@ -69,7 +69,7 @@ const CheckCard: FunctionComponent<Props> = ({
 }) => {
   const onUpdateName = async (name: string) => {
     try {
-      await updateCheck({id: check.id, name})
+      await updateCheck({...check, name})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -77,7 +77,7 @@ const CheckCard: FunctionComponent<Props> = ({
 
   const onUpdateDescription = async (description: string) => {
     try {
-      await updateCheck({id: check.id, description})
+      await updateCheck({...check, description})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
@@ -95,7 +95,7 @@ const CheckCard: FunctionComponent<Props> = ({
     const status = check.status === 'active' ? 'inactive' : 'active'
 
     try {
-      await updateCheck({id: check.id, status})
+      await updateCheck({...check, status})
     } catch (e) {
       onNotify(updateCheckFailed(e.message))
     }
