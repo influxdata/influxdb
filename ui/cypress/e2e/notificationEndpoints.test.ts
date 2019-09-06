@@ -88,11 +88,6 @@ describe('Notification Endpoints', () => {
       .type('slack.url.us')
       .should('have.value', 'slack.url.us')
 
-    cy.getByTestID('slack-token')
-      .clear()
-      .type('another token')
-      .should('have.value', 'another token')
-
     cy.getByTestID('endpoint-save--button').click()
 
     cy.getByTestID(`endpoint-card ${name}`).should('exist')
@@ -122,8 +117,6 @@ describe('Notification Endpoints', () => {
         .should('have.value', newDescription)
 
       cy.getByTestID('slack-url').should('have.value', url)
-
-      cy.getByTestID('slack-token').should('have.value', token)
 
       cy.getByTestID('endpoint-change--dropdown')
         .click()

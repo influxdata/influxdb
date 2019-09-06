@@ -68,8 +68,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
 									Status: influxdb.Active,
 								},
-								URL:   "http://example.com",
-								Token: influxdb.SecretField{Key: "slack-token-key"},
+								URL: "http://example.com",
 							},
 							&endpoint.HTTP{
 								Base: endpoint.Base{
@@ -139,7 +138,6 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 		     "name": "hello",
 		     "orgID": "50f7ba1150f7ba11",
 		     "status": "active",
-		     "token": "secret: slack-token-key",
 		     "type": "slack",
 		     "updatedAt": "0001-01-01T00:00:00Z",
 		     "url": "http://example.com"
@@ -697,8 +695,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Status: influxdb.Active,
 								},
-								URL:   "http://example.com",
-								Token: influxdb.SecretField{Key: "slack-token-key"},
+								URL: "http://example.com",
 							}
 
 							if upd.Name != nil {
@@ -734,7 +731,6 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 		  "url": "http://example.com",
 		  "name": "example",
 		  "status": "active",
-          "token": "secret: slack-token-key",
           "type": "slack",
 		  "labels": []
 		}
