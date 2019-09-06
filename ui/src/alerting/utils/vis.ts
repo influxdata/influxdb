@@ -1,8 +1,14 @@
+// Libraries
+import {NumericColumnData} from '@influxdata/giraffe'
+import {useMemo} from 'react'
+
 // Utils
 import {parseDuration} from 'src/variables/utils/parseDuration'
+import {useOneWayState} from 'src/shared/utils/useOneWayState'
+import {extent} from 'src/shared/utils/vis'
 
 // Types
-import {TimeRange} from 'src/types'
+import {TimeRange, Threshold} from 'src/types'
 
 const POINTS_PER_CHECK_PLOT = 300
 
@@ -23,4 +29,31 @@ export const getCheckVisTimeRange = (durationStr: string): TimeRange => {
     .join('')
 
   return {lower: `now() - ${durationMultiple}`}
+}
+
+/*
+  Obtain the y domain settings for a threshold check plot.
+  
+  The y domain for a threshold check plot should be large enough to show every
+  threshold value in addition to every y value in the plot.
+*/
+export const useCheckYDomain = (
+  data: NumericColumnData,
+  thresholds: Threshold[]
+) => {
+  const dataDomain = useMemo(() => extent(data as number[]), [data])
+
+  const initialDomain: number[] = useMemo(() => {
+    const extrema: number[] = thresholds
+      .flatMap((t: any) => [t.value, t.min, t.max])
+      .filter(v => v !== undefined && v !== null)
+      .concat(dataDomain)
+
+    return extent(extrema)
+  }, [dataDomain, thresholds])
+
+  const [domain, setDomain] = useOneWayState(initialDomain)
+  const resetDomain = () => setDomain(initialDomain)
+
+  return [domain, setDomain, resetDomain]
 }
