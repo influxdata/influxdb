@@ -3,7 +3,18 @@
   ------------------------------------------------------------------------------
 */
 
+.alert-builder {
+  padding: 0 $ix-marg-c;
+  background-color: $g2-kevlar;
+}
+
+.alert-builder--controls {
+  border-bottom: 0;
+}
+
 .alert-builder--card {
+  margin-bottom: $ix-marg-c;
+
   .builder-card--contents {
     min-height: 100%;
     padding: 16px;
@@ -19,12 +30,29 @@
   justify-content: center;
 }
 
-.alert-builder--message-template {
-  .cf-text-area--container.cf-input-md {
-    height: auto;
-  }
+.alert-builder--message-template.cf-text-area--container.cf-input-md {
+  height: auto;
+
   textarea {
-    height: 90px;
+    height: 120px;
+    font-family: $code-font;
+  }
+}
+
+.alert-builder--message-help {
+  padding: 0 $ix-marg-c;
+
+  p {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  code {
+    background-color: $g2-kevlar;
+    color: $c-potassium;
+    padding: 2px 4px;
+    border-radius: 3px;
+    user-select: text;
   }
 }
 
