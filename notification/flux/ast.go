@@ -126,6 +126,17 @@ func Function(params []*ast.Property, b ast.Expression) *ast.FunctionExpression 
 	}
 }
 
+// FuncBlock takes a series of statements and produces a function.
+func FuncBlock(params []*ast.Property, stms ...ast.Statement) *ast.FunctionExpression {
+	b := &ast.Block{
+		Body: stms,
+	}
+	return &ast.FunctionExpression{
+		Params: params,
+		Body:   b,
+	}
+}
+
 // String returns an *ast.StringLiteral of s.
 func String(s string) *ast.StringLiteral {
 	return &ast.StringLiteral{
@@ -161,6 +172,13 @@ func Identifier(i string) *ast.Identifier {
 func Float(f float64) *ast.FloatLiteral {
 	return &ast.FloatLiteral{
 		Value: f,
+	}
+}
+
+// Integer returns an *ast.IntegerLiteral of i.
+func Integer(i int64) *ast.IntegerLiteral {
+	return &ast.IntegerLiteral{
+		Value: i,
 	}
 }
 

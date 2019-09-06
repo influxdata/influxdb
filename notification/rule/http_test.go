@@ -36,8 +36,24 @@ all_statuses = crit
 		(r._time > experimental.subDuration(from: now(), d: 1h)))
 
 all_statuses
-	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) =>
-		({headers: headers, data: json.encode(v: r)})))`
+	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) => {
+		body = {
+			"version": 1,
+			"rule_name": notification._notification_rule_name,
+			"rule_id": notification._notification_rule_id,
+			"endpoint_name": notification._notification_endpoint_name,
+			"endpoint_id": notification._notification_endpoint_id,
+			"check_name": r._check_name,
+			"check_id": r._check_id,
+			"check_type": r._type,
+			"source_measurement": r._source_measurement,
+			"source_timestamp": r._source_timestamp,
+			"level": r._level,
+			"message": r._message,
+		}
+
+		return {headers: headers, data: json.encode(v: r)}
+	}))`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
@@ -100,9 +116,24 @@ all_statuses = crit
 		(r._time > experimental.subDuration(from: now(), d: 1h)))
 
 all_statuses
-	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) =>
-		({headers: headers, data: json.encode(v: r)})))`
+	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) => {
+		body = {
+			"version": 1,
+			"rule_name": notification._notification_rule_name,
+			"rule_id": notification._notification_rule_id,
+			"endpoint_name": notification._notification_endpoint_name,
+			"endpoint_id": notification._notification_endpoint_id,
+			"check_name": r._check_name,
+			"check_id": r._check_id,
+			"check_type": r._type,
+			"source_measurement": r._source_measurement,
+			"source_timestamp": r._source_timestamp,
+			"level": r._level,
+			"message": r._message,
+		}
 
+		return {headers: headers, data: json.encode(v: r)}
+	}))`
 	s := &rule.HTTP{
 		Base: rule.Base{
 			ID:         1,
@@ -171,8 +202,24 @@ all_statuses = crit
 		(r._time > experimental.subDuration(from: now(), d: 1h)))
 
 all_statuses
-	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) =>
-		({headers: headers, data: json.encode(v: r)})))`
+	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) => {
+		body = {
+			"version": 1,
+			"rule_name": notification._notification_rule_name,
+			"rule_id": notification._notification_rule_id,
+			"endpoint_name": notification._notification_endpoint_name,
+			"endpoint_id": notification._notification_endpoint_id,
+			"check_name": r._check_name,
+			"check_id": r._check_id,
+			"check_type": r._type,
+			"source_measurement": r._source_measurement,
+			"source_timestamp": r._source_timestamp,
+			"level": r._level,
+			"message": r._message,
+		}
+
+		return {headers: headers, data: json.encode(v: r)}
+	}))`
 
 	s := &rule.HTTP{
 		Base: rule.Base{
