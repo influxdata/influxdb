@@ -33,14 +33,15 @@ statuses
 	|> monitor.notify(data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
 		({
 			routingKey: pagerduty_secret,
-			client: r._check_name,
+			client: "influxdata",
 			clientURL: "http://localhost:7777",
 			class: r._check_name,
-			group: r._check_name,
-			severity: r._level,
-			source: r._source_measurement,
+			group: r._source_measurement,
+			severity: pagerduty.severityFromLevel(r._level),
+			eventAction: pagerduty.actionFromLevel(r._level),
+			source: r._notification_rule_name,
 			summary: r._message,
-			timestamp: r._status_timestamp,
+			timestamp: time(v: r._source_timestamp),
 		})))`
 
 	s := &rule.PagerDuty{

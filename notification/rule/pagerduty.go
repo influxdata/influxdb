@@ -114,7 +114,7 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 	// optional
 	// string
 	// name of the client sending the alert.
-	endpointProps = append(endpointProps, flux.Property("client", flux.Identifier("r._check_name")))
+	endpointProps = append(endpointProps, flux.Property("client", flux.String("influxdata")))
 
 	// clientURL
 	// optional
@@ -132,33 +132,37 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 	// optional
 	// string
 	// Logical grouping of components of a service, for example app-stack
-	endpointProps = append(endpointProps, flux.Property("group", flux.Identifier("r._check_name")))
+	endpointProps = append(endpointProps, flux.Property("group", flux.Member("r", "_source_measurement")))
 
 	// severity:
 	// required
 	// string
 	// The perceived severity of the status the event is describing with respect to the affected system. This can be critical, error, warning or info.
-	// TODO: transfrom the influx names to pagerduty names
-	endpointProps = append(endpointProps, flux.Property("severity", flux.Identifier("r._level")))
+	endpointProps = append(endpointProps, flux.Property("severity", severityFromLevel()))
+
+	// event_action:
+	// required
+	// string trigger
+	// The type of event. Can be trigger, acknowledge or resolve. See Event Action.
+	endpointProps = append(endpointProps, flux.Property("eventAction", actionFromLevel()))
 
 	// source:
 	// required
 	// string
 	// The unique location of the affected system, preferably a hostname or FQDN
-	endpointProps = append(endpointProps, flux.Property("source", flux.Identifier("r._source_measurement")))
+	endpointProps = append(endpointProps, flux.Property("source", flux.Member("r", "_notification_rule_name")))
 
 	// summary:
 	// required
 	// string
 	// A brief text summary of the event, used to generate the summaries/titles of any associated alerts. The maximum permitted length of this property is 1024 characters.
-	endpointProps = append(endpointProps, flux.Property("summary", flux.Identifier("r._message")))
+	endpointProps = append(endpointProps, flux.Property("summary", flux.Member("r", "_message")))
 
 	// timestamp:
 	// optional
 	// timestamp (rfc3339 milliseconds)
 	// The time at which the emitting tool detected or generated the event.
-	// TODO: this should be r._status_timestamp
-	endpointProps = append(endpointProps, flux.Property("timestamp", flux.Identifier("r._status_timestamp")))
+	endpointProps = append(endpointProps, flux.Property("timestamp", generateTime()))
 
 	endpointFn := flux.Function(flux.FunctionParams("r"), flux.Object(endpointProps...))
 
@@ -170,4 +174,25 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
 
 	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("statuses"), call))
+}
+
+func severityFromLevel() *ast.CallExpression {
+	return flux.DirectCall(
+		flux.Member("pagerduty", "severityFromLevel"),
+		flux.Member("r", "_level"),
+	)
+}
+
+func actionFromLevel() *ast.CallExpression {
+	return flux.DirectCall(
+		flux.Member("pagerduty", "actionFromLevel"),
+		flux.Member("r", "_level"),
+	)
+}
+
+func generateTime() *ast.CallExpression {
+	props := []*ast.Property{
+		flux.Property("v", flux.Member("r", "_source_timestamp")),
+	}
+	return flux.Call(flux.Identifier("time"), flux.Object(props...))
 }

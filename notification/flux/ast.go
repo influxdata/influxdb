@@ -113,6 +113,16 @@ func Call(fn ast.Expression, args *ast.ObjectExpression) *ast.CallExpression {
 	}
 }
 
+// DirectCall returns a *ast.CallExpression that is a function call of fn with args.
+func DirectCall(fn ast.Expression, args ast.Expression) *ast.CallExpression {
+	return &ast.CallExpression{
+		Callee: fn,
+		Arguments: []ast.Expression{
+			args,
+		},
+	}
+}
+
 // ExpressionStatement returns an *ast.ExpressionStagement of e.
 func ExpressionStatement(e ast.Expression) *ast.ExpressionStatement {
 	return &ast.ExpressionStatement{Expression: e}
