@@ -359,6 +359,12 @@ func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task)
 	ts.nextDue = next
 	ts.authCtx = authCtx
 	ts.nextDueMu.Unlock()
+
+	// update the current runners cached task for logs
+	for _, runner := range ts.runners {
+		runner.task = task
+	}
+
 	// check the concurrency
 	// todo(lh): In the near future we may not be using the scheduler to manage concurrency.
 	maxC := len(ts.runners)
