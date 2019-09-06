@@ -14,7 +14,7 @@ export const DEFAULT_CHECK_NAME = 'Name this Check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this Notification Rule'
 
 export const CHECK_NAME_MAX_LENGTH = 68
-export const DEFAULT_CHECK_EVERY = '5m'
+export const DEFAULT_CHECK_EVERY = '1m'
 export const DEFAULT_CHECK_OFFSET = '0s'
 export const DEFAULT_CHECK_REPORT_ZERO = false
 export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
