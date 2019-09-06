@@ -1,28 +1,25 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 import {Link} from 'react-router'
-import {connect} from 'react-redux'
+
+// Context
+import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
-import {getResourceIDs} from 'src/alerting/selectors'
 
 // Types
-import {NotificationRow, AppState, ResourceType} from 'src/types'
+import {NotificationRow} from 'src/types'
 
-interface OwnProps {
+interface Props {
   row: NotificationRow
 }
-interface StateProps {
-  endpointIDs: {[x: string]: boolean}
-}
-
-type Props = OwnProps & StateProps
 
 const NotificationEndpointTableField: FC<Props> = ({
   row: {notificationEndpointName, notificationEndpointID},
-  endpointIDs,
 }) => {
+  const {endpointIDs} = useContext(ResourceIDsContext)
+
   if (!endpointIDs[notificationEndpointID]) {
     return (
       <div
@@ -41,10 +38,4 @@ const NotificationEndpointTableField: FC<Props> = ({
   return <Link to={href}>{notificationEndpointName}</Link>
 }
 
-const mstp = (state: AppState) => {
-  return {
-    endpointIDs: getResourceIDs(state, ResourceType.NotificationEndpoints),
-  }
-}
-
-export default connect<StateProps>(mstp)(NotificationEndpointTableField)
+export default NotificationEndpointTableField

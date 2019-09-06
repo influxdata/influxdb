@@ -1,26 +1,23 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 import {Link} from 'react-router'
-import {connect} from 'react-redux'
+
+// Components
+import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
-import {getResourceIDs} from 'src/alerting/selectors'
 
 // Types
-import {StatusRow, NotificationRow, AppState, ResourceType} from 'src/types'
+import {StatusRow, NotificationRow} from 'src/types'
 
-interface OwnProps {
+interface Props {
   row: StatusRow | NotificationRow
 }
 
-interface StateProps {
-  checkIDs: {[x: string]: boolean}
-}
+const CheckTableField: FC<Props> = ({row: {checkName, checkID}}) => {
+  const {checkIDs} = useContext(ResourceIDsContext)
 
-type Props = StateProps & OwnProps
-
-const CheckTableField: FC<Props> = ({row: {checkName, checkID}, checkIDs}) => {
   if (!checkIDs[checkID]) {
     return (
       <div
@@ -37,10 +34,4 @@ const CheckTableField: FC<Props> = ({row: {checkName, checkID}, checkIDs}) => {
   return <Link to={href}>{checkName}</Link>
 }
 
-const mstp = (state: AppState) => {
-  return {
-    checkIDs: getResourceIDs(state, ResourceType.Checks),
-  }
-}
-
-export default connect<StateProps>(mstp)(CheckTableField)
+export default CheckTableField
