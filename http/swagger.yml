@@ -9782,6 +9782,11 @@ components:
               enum: ['none', 'basic', 'bearer']
             contentTemplate:
               type: string
+            headers:
+              type: object
+              description: customized headers
+              additionalProperties:
+                type: string
     NotificationEndpointType:
       type: string
       enum: ['slack', 'pagerduty', 'http']

@@ -83,6 +83,10 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 								AuthMethod:      "basic",
 								Method:          "POST",
 								ContentTemplate: "template",
+								Headers: map[string]string{
+									"x-header-1": "header 1",
+									"x-header-2": "header 2",
+								},
 							},
 						}, 2, nil
 					},
@@ -170,7 +174,11 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 			 "token":"",
   			 "method": "POST",
 		     "status": "inactive",
-		     "type": "http",
+			 "type": "http",
+			 "headers": {
+				"x-header-1": "header 1",
+				"x-header-2": "header 2"
+			 },
 		     "updatedAt": "0001-01-01T00:00:00Z",
 		     "username": "secret: http-user-key"
 		   }
