@@ -110,7 +110,7 @@ from(bucket: "${MONITORING_BUCKET}")
   - "notification_rule"
   - "_notification_rule"
 
-  The rewrite rules for the "noficationEndpoint" work similarly.
+  The rewrite rules for the "notificationEndpoint" work similarly.
 */
 const renameTagKeys = (searchExpr: SearchExpr) => {
   const rewrittenExpr = cloneDeep(searchExpr)

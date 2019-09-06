@@ -66,3 +66,7 @@ export default (
         return
     }
   })
+
+export const getCheckIDs = (state: ChecksState): {[x: string]: boolean} => {
+  return state.list.reduce((acc, check) => ({...acc, [check.id]: true}), {})
+}

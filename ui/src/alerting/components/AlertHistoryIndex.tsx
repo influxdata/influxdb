@@ -24,6 +24,7 @@ import {
 
 // Types
 import {AlertHistoryType} from 'src/types'
+import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 
 interface Props {
   params: {orgID: string}
@@ -44,39 +45,45 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}}) => {
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
 
   return (
-    <EventViewer loadRows={loadRows} initialState={getInitialState()}>
-      {props => (
-        <Page
-          titleTag="Check Statuses | InfluxDB 2.0"
-          className="alert-history-page"
-        >
-          <Page.Header fullWidth={true}>
-            <div className="alert-history-page--header">
-              <Page.Title title="Check Statuses" />
-              <AlertHistoryQueryParams
-                searchInput={props.state.searchInput}
-                historyType={historyType}
-              />
-              <AlertHistoryControls
-                historyType={historyType}
-                onSetHistoryType={setHistoryType}
-                eventViewerProps={props}
-              />
-            </div>
-          </Page.Header>
-          <Page.Contents
-            fullWidth={true}
-            fullHeight={true}
-            scrollable={false}
-            className="alert-history-page--contents"
-          >
-            <div className="alert-history">
-              <EventTable {...props} fields={fields} />
-            </div>
-          </Page.Contents>
-        </Page>
-      )}
-    </EventViewer>
+    <GetResources resource={ResourceTypes.Checks}>
+      <GetResources resource={ResourceTypes.NotificationEndpoints}>
+        <GetResources resource={ResourceTypes.NotificationRules}>
+          <EventViewer loadRows={loadRows} initialState={getInitialState()}>
+            {props => (
+              <Page
+                titleTag="Check Statuses | InfluxDB 2.0"
+                className="alert-history-page"
+              >
+                <Page.Header fullWidth={true}>
+                  <div className="alert-history-page--header">
+                    <Page.Title title="Check Statuses" />
+                    <AlertHistoryQueryParams
+                      searchInput={props.state.searchInput}
+                      historyType={historyType}
+                    />
+                    <AlertHistoryControls
+                      historyType={historyType}
+                      onSetHistoryType={setHistoryType}
+                      eventViewerProps={props}
+                    />
+                  </div>
+                </Page.Header>
+                <Page.Contents
+                  fullWidth={true}
+                  fullHeight={true}
+                  scrollable={false}
+                  className="alert-history-page--contents"
+                >
+                  <div className="alert-history">
+                    <EventTable {...props} fields={fields} />
+                  </div>
+                </Page.Contents>
+              </Page>
+            )}
+          </EventViewer>
+        </GetResources>
+      </GetResources>
+    </GetResources>
   )
 }
 

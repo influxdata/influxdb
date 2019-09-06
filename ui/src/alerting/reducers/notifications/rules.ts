@@ -75,3 +75,9 @@ export default (
         return
     }
   })
+
+export const getRuleIDs = (
+  state: NotificationRulesState
+): {[x: string]: boolean} => {
+  return state.list.reduce((acc, rule) => ({...acc, [rule.id]: true}), {})
+}
