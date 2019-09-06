@@ -81,9 +81,9 @@ from(bucket: "${MONITORING_BUCKET}")
                       "_check_id": "checkID",
                       "_check_name": "checkName",
                       "_notification_rule_id": "notificationRuleID",
-                      "_notification_rule_name": "notificationRule",
+                      "_notification_rule_name": "notificationRuleName",
                       "_notification_endpoint_id": "notificationEndpointID",
-                      "_notification_endpoint_name": "notificationEndpoint",
+                      "_notification_endpoint_name": "notificationEndpointName",
                       "_level": "level",
                       "_sent": "sent"})
   |> group()${fluxFilter ? `\n  |> filter(fn: (r) => ${fluxFilter})` : ''}
