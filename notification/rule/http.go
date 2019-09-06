@@ -32,10 +32,25 @@ func (s *HTTP) GenerateFlux(e influxdb.NotificationEndpoint) (string, error) {
 func (s *HTTP) GenerateFluxAST(e *endpoint.HTTP) (*ast.Package, error) {
 	f := flux.File(
 		s.Name,
-		flux.Imports("influxdata/influxdb/monitor", "http", "json", "experimental"),
+		s.imports(e),
 		s.generateFluxASTBody(e),
 	)
 	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
+}
+
+func (s *HTTP) imports(e *endpoint.HTTP) []*ast.ImportDeclaration {
+	packages := []string{
+		"influxdata/influxdb/monitor",
+		"http",
+		"json",
+		"experimental",
+	}
+
+	if e.AuthMethod == "bearer" || e.AuthMethod == "basic" {
+		packages = append(packages, "influxdata/influxdb/secrets")
+	}
+
+	return flux.Imports(packages...)
 }
 
 func (s *HTTP) generateFluxASTBody(e *endpoint.HTTP) []ast.Statement {
@@ -101,7 +116,6 @@ func (s *HTTP) generateHeaders(e *endpoint.HTTP) ast.Statement {
 }
 
 func (s *HTTP) generateFluxASTEndpoint(e *endpoint.HTTP) ast.Statement {
-	// TODO(desa): where does <some key> come from
 	call := flux.Call(flux.Member("http", "endpoint"), flux.Object(flux.Property("url", flux.String(e.URL))))
 
 	return flux.DefineVariable("endpoint", call)
@@ -110,7 +124,7 @@ func (s *HTTP) generateFluxASTEndpoint(e *endpoint.HTTP) ast.Statement {
 func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 	endpointBody := flux.Call(
 		flux.Member("json", "encode"),
-		flux.Object(flux.Property("v", flux.Identifier("r"))),
+		flux.Object(flux.Property("v", flux.Identifier("body"))),
 	)
 	headers := flux.Property("headers", flux.Identifier("headers"))
 
@@ -136,45 +150,15 @@ func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
 }
 
 func (s *HTTP) generateBody() ast.Statement {
+	// {r with "_version": 1}
 	props := []*ast.Property{
-		flux.Dictionary(
-			"version", flux.Integer(1),
-		),
-		flux.Dictionary(
-			"rule_name", flux.Member("notification", "_notification_rule_name"),
-		),
-		flux.Dictionary(
-			"rule_id", flux.Member("notification", "_notification_rule_id"),
-		),
-		flux.Dictionary(
-			"endpoint_name", flux.Member("notification", "_notification_endpoint_name"),
-		),
-		flux.Dictionary(
-			"endpoint_id", flux.Member("notification", "_notification_endpoint_id"),
-		),
-		flux.Dictionary(
-			"check_name", flux.Member("r", "_check_name"),
-		),
-		flux.Dictionary(
-			"check_id", flux.Member("r", "_check_id"),
-		),
-		flux.Dictionary(
-			"check_type", flux.Member("r", "_type"),
-		),
-		flux.Dictionary(
-			"source_measurement", flux.Member("r", "_source_measurement"),
-		),
-		flux.Dictionary(
-			"source_timestamp", flux.Member("r", "_source_timestamp"),
-		),
-		flux.Dictionary(
-			"level", flux.Member("r", "_level"),
-		),
-		flux.Dictionary(
-			"message", flux.Member("r", "_message"),
+		flux.Property(
+			"_version", flux.Integer(1),
 		),
 	}
-	return flux.DefineVariable("body", flux.Object(props...))
+
+	body := flux.ObjectWith("r", props...)
+	return flux.DefineVariable("body", body)
 }
 
 type httpAlias HTTP

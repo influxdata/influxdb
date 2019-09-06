@@ -232,6 +232,15 @@ func Object(ps ...*ast.Property) *ast.ObjectExpression {
 	}
 }
 
+// ObjectWith adds many properties to an existing named identifier.
+func ObjectWith(name string, ps ...*ast.Property) *ast.ObjectExpression {
+	obj := Object(ps...)
+	obj.With = &ast.Identifier{
+		Name: name,
+	}
+	return obj
+}
+
 // Array returns *ast.ArrayExpression with elements es.
 func Array(es ...ast.Expression) *ast.ArrayExpression {
 	return &ast.ArrayExpression{
