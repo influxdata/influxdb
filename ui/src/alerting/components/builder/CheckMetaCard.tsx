@@ -63,8 +63,7 @@ const CheckMetaCard: FC<Props> = ({
   return (
     <BuilderCard
       testID="builder-meta"
-      widthPixels={340}
-      className="alert-builder--card"
+      className="alert-builder--card alert-builder--meta-card"
     >
       <BuilderCard.Header title="Properties" />
       <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
