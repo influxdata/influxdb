@@ -118,6 +118,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "0b501e7e557ab1ed",
       "orgID": "50f7ba1150f7ba11",
+			"type": "user",
       "name": "hello",
       "retentionRules": [{"type": "expire", "everySeconds": 2}],
 			"labels": [
@@ -144,6 +145,7 @@ func TestService_handleGetBuckets(t *testing.T) {
 	  "updatedAt": "0001-01-01T00:00:00Z",
       "id": "c0175f0077a77005",
       "orgID": "7e55e118dbabb1ed",
+			"type": "user",
       "name": "example",
       "retentionRules": [{"type": "expire", "everySeconds": 86400}],
       "labels": [
@@ -286,6 +288,7 @@ func TestService_handleGetBucket(t *testing.T) {
 		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
 		  "orgID": "020f755c3c082000",
+			"type": "user",
 		  "name": "hello",
 		  "retentionRules": [{"type": "expire", "everySeconds": 30}],
       "labels": []
@@ -418,6 +421,7 @@ func TestService_handlePostBucket(t *testing.T) {
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "6f626f7274697320",
+	"type": "user",
   "name": "hello",
   "retentionRules": [],
   "labels": []
@@ -640,6 +644,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "020f755c3c082000",
+	"type": "user",
   "name": "example",
   "retentionRules": [{"type": "expire", "everySeconds": 2}],
   "labels": []
@@ -718,6 +723,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "020f755c3c082000",
+	"type": "user",
   "name": "bucket with no retention",
   "retentionRules": [],
   "labels": []
@@ -777,6 +783,7 @@ func TestService_handlePatchBucket(t *testing.T) {
   "updatedAt": "0001-01-01T00:00:00Z",
   "id": "020f755c3c082000",
   "orgID": "020f755c3c082000",
+	"type": "user",
   "name": "b1",
   "retentionRules": [],
   "labels": []

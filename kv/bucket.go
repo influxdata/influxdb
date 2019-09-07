@@ -147,6 +147,7 @@ func (s *Service) findSystemBucket(n string) (*influxdb.Bucket, error) {
 	case "_tasks":
 		return &influxdb.Bucket{
 			ID:              influxdb.TasksSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
 			Name:            "_tasks",
 			RetentionPeriod: time.Hour * 24 * 3,
 			Description:     "System bucket for task logs",
@@ -154,6 +155,7 @@ func (s *Service) findSystemBucket(n string) (*influxdb.Bucket, error) {
 	case "_monitoring":
 		return &influxdb.Bucket{
 			ID:              influxdb.MonitoringSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
 			Name:            "_monitoring",
 			RetentionPeriod: time.Hour * 24 * 7,
 			Description:     "System bucket for monitoring logs",
@@ -501,6 +503,9 @@ func (s *Service) createBucketUserResourceMappings(ctx context.Context, tx Tx, b
 func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
+
+	// TODO(jade): remove this after we support storing system buckets
+	b.Type = influxdb.BucketTypeUser
 
 	v, err := json.Marshal(b)
 	if err != nil {

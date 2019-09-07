@@ -233,6 +233,7 @@ func (s *Service) findSystemBucket(n string) (*platform.Bucket, error) {
 	case "_tasks":
 		return &platform.Bucket{
 			ID:              platform.TasksSystemBucketID,
+			Type:            platform.BucketTypeSystem,
 			Name:            "_tasks",
 			RetentionPeriod: time.Hour * 24 * 3,
 			Description:     "System bucket for task logs",
@@ -240,6 +241,7 @@ func (s *Service) findSystemBucket(n string) (*platform.Bucket, error) {
 	case "_monitoring":
 		return &platform.Bucket{
 			ID:              platform.MonitoringSystemBucketID,
+			Type:            platform.BucketTypeSystem,
 			Name:            "_monitoring",
 			RetentionPeriod: time.Hour * 24 * 7,
 			Description:     "System bucket for monitoring logs",
