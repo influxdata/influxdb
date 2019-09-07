@@ -134,6 +134,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 type bucket struct {
 	ID                  influxdb.ID     `json:"id,omitempty"`
 	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	Type                string          `json:"type"`
 	Description         string          `json:"description,omitempty"`
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
@@ -190,9 +191,12 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		})
 	}
 
+	bucketType := pb.Type.String()
+
 	return &bucket{
 		ID:                  pb.ID,
 		OrgID:               pb.OrgID,
+		Type:                bucketType,
 		Name:                pb.Name,
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,

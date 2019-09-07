@@ -6731,6 +6731,13 @@ components:
         id:
           readOnly: true
           type: string
+        type:
+          readOnly: true
+          type: string
+          default: user
+          enum:
+            - user
+            - system
         name:
           type: string
         description:

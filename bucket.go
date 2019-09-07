@@ -13,6 +13,11 @@ const (
 	TasksSystemBucketID = ID(10)
 	// MonitoringSystemBucketID is the fixed ID for our monitoring system bucket
 	MonitoringSystemBucketID = ID(11)
+
+	// BucketTypeUser is a user created bucket
+	BucketTypeUser = BucketType(0)
+	// BucketTypeSystem is an internally created bucket that cannot be deleted/renamed.
+	BucketTypeSystem = BucketType(1)
 )
 
 // InfiniteRetention is default infinite retention period.
@@ -22,11 +27,23 @@ const InfiniteRetention = 0
 type Bucket struct {
 	ID                  ID            `json:"id,omitempty"`
 	OrgID               ID            `json:"orgID,omitempty"`
+	Type                BucketType    `json:"type"`
 	Name                string        `json:"name"`
 	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 	CRUDLog
+}
+
+// BucketType differentiates system buckets from user buckets.
+type BucketType int
+
+// String converts a BucketType into a human-readable string.
+func (bt BucketType) String() string {
+	if bt == BucketTypeSystem {
+		return "system"
+	}
+	return "user"
 }
 
 // TODO(jade): move this logic to a type set directly on Bucket.
