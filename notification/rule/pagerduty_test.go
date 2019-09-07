@@ -19,7 +19,7 @@ import "influxdata/influxdb/secrets"
 option task = {name: "foo", every: 1h}
 
 pagerduty_secret = secrets.get(key: "pagerduty_token")
-pagerduty_endpoint = pagerduty.endpoint(token: pagerduty_secret, url: "http://localhost:7777")
+pagerduty_endpoint = pagerduty.endpoint()
 notification = {
 	_notification_rule_id: "0000000000000001",
 	_notification_rule_name: "foo",
