@@ -61,23 +61,36 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             onAddLineProtocol={this.handleAddLineProtocol}
             onAddScraper={this.handleAddScraper}
           />
-          <Button
-            text="Rename"
-            testID="bucket-rename"
-            size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
-          />
-          <FeatureFlag name="deleteWithPredicate">
-            <Button
-              text="Delete Data By Filter"
-              testID="bucket-delete-task"
-              size={ComponentSize.ExtraSmall}
-              onClick={this.handleDeleteData}
-            />
-          </FeatureFlag>
+          {this.renameDeleteButtons}
         </FlexBox>
       </ResourceCard>
     )
+  }
+
+  private renameDeleteButtons() {
+    const {bucket} = this.props
+    {
+      if (bucket.type === 'user') {
+        return (
+          <>
+            <Button
+              text="Rename"
+              testID="bucket-rename"
+              size={ComponentSize.ExtraSmall}
+              onClick={this.handleRenameBucket}
+            />
+            <FeatureFlag name="deleteWithPredicate">
+              <Button
+                text="Delete Data By Filter"
+                testID="bucket-delete-task"
+                size={ComponentSize.ExtraSmall}
+                onClick={this.handleDeleteData}
+              />
+            </FeatureFlag>
+          </>
+        )
+      } else return <></>
+    }
   }
 
   private handleDeleteData = () => {
