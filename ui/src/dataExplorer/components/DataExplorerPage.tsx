@@ -8,7 +8,7 @@ import SaveAsButton from 'src/dataExplorer/components/SaveAsButton'
 import VisOptionsButton from 'src/timeMachine/components/VisOptionsButton'
 import ViewTypeDropdown from 'src/timeMachine/components/view_options/ViewTypeDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
 import DeleteDataButton from 'src/dataExplorer/components/DeleteDataButton'
 
@@ -19,7 +19,7 @@ const DataExplorerPage: SFC = ({children}) => {
   return (
     <Page titleTag={pageTitleSuffixer(['Data Explorer'])}>
       {children}
-      <GetResources resource={ResourceTypes.Variables}>
+      <GetResources resource={ResourceType.Variables}>
         <Page.Header fullWidth={true}>
           <Page.Header.Left>
             <PageTitleWithOrg title="Data Explorer" />

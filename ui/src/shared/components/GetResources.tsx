@@ -77,12 +77,12 @@ interface DispatchProps {
 }
 
 interface PassedProps {
-  resource: ResourceTypes
+  resource: ResourceType
 }
 
 type Props = StateProps & DispatchProps & PassedProps
 
-export enum ResourceTypes {
+export enum ResourceType {
   Labels = 'labels',
   Buckets = 'buckets',
   Telegrafs = 'telegrafs',
@@ -103,59 +103,59 @@ export enum ResourceTypes {
 class GetResources extends PureComponent<Props, StateProps> {
   public async componentDidMount() {
     switch (this.props.resource) {
-      case ResourceTypes.Dashboards: {
+      case ResourceType.Dashboards: {
         return await this.props.getDashboards()
       }
 
-      case ResourceTypes.Labels: {
+      case ResourceType.Labels: {
         return await this.props.getLabels()
       }
 
-      case ResourceTypes.Buckets: {
+      case ResourceType.Buckets: {
         return await this.props.getBuckets()
       }
 
-      case ResourceTypes.Telegrafs: {
+      case ResourceType.Telegrafs: {
         return await this.props.getTelegrafs()
       }
 
-      case ResourceTypes.Scrapers: {
+      case ResourceType.Scrapers: {
         return await this.props.getScrapers()
       }
 
-      case ResourceTypes.Variables: {
+      case ResourceType.Variables: {
         return await this.props.getVariables()
       }
 
-      case ResourceTypes.Tasks: {
+      case ResourceType.Tasks: {
         return await this.props.getTasks()
       }
 
-      case ResourceTypes.Authorizations: {
+      case ResourceType.Authorizations: {
         return await this.props.getAuthorizations()
       }
 
-      case ResourceTypes.Templates: {
+      case ResourceType.Templates: {
         return await this.props.getTemplates()
       }
 
-      case ResourceTypes.Members: {
+      case ResourceType.Members: {
         return await this.props.getMembers()
       }
 
-      case ResourceTypes.Users: {
+      case ResourceType.Users: {
         return await this.props.getUsers()
       }
 
-      case ResourceTypes.Checks: {
+      case ResourceType.Checks: {
         return await this.props.getChecks()
       }
 
-      case ResourceTypes.NotificationRules: {
+      case ResourceType.NotificationRules: {
         return await this.props.getNotificationRules()
       }
 
-      case ResourceTypes.NotificationEndpoints: {
+      case ResourceType.NotificationEndpoints: {
         return await this.props.getEndpoints()
       }
 

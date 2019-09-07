@@ -1,6 +1,9 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 import {Link} from 'react-router'
+
+// Context
+import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
@@ -15,6 +18,19 @@ interface Props {
 const NotificationEndpointTableField: FC<Props> = ({
   row: {notificationEndpointName, notificationEndpointID},
 }) => {
+  const {endpointIDs} = useContext(ResourceIDsContext)
+
+  if (!endpointIDs[notificationEndpointID]) {
+    return (
+      <div
+        className="endpoint-name-field"
+        title="This endpoint no longer exists"
+      >
+        {notificationEndpointName}
+      </div>
+    )
+  }
+
   const href = formatOrgRoute(
     `/alerting/endpoints/${notificationEndpointID}/edit`
   )

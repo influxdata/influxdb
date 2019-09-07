@@ -10,7 +10,7 @@ import {Page} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import FilterList from 'src/shared/components/Filter'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
 
@@ -130,8 +130,8 @@ class TasksPage extends PureComponent<Props, State> {
             limitStatus={limitStatus}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources resource={ResourceTypes.Tasks}>
-              <GetResources resource={ResourceTypes.Labels}>
+            <GetResources resource={ResourceType.Tasks}>
+              <GetResources resource={ResourceType.Labels}>
                 <GetAssetLimits>
                   <AssetLimitAlert
                     resourceName="tasks"

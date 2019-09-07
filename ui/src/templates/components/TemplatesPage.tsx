@@ -9,7 +9,7 @@ import TemplatesList from 'src/templates/components/TemplatesList'
 import StaticTemplatesList from 'src/templates/components/StaticTemplatesList'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 
 // Types
@@ -154,7 +154,7 @@ class TemplatesPage extends PureComponent<Props, State> {
 
     if (activeTab === 'user-templates') {
       return (
-        <GetResources resource={ResourceTypes.Labels}>
+        <GetResources resource={ResourceType.Labels}>
           <FilterList<TemplateSummary>
             searchTerm={searchTerm}
             searchKeys={['meta.name', 'labels[].name']}

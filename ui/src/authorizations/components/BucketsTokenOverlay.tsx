@@ -19,7 +19,7 @@ import {
   Form,
 } from '@influxdata/clockface'
 import BucketsSelector from 'src/authorizations/components/BucketsSelector'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Utils
 import {
@@ -99,7 +99,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                   />
                 </Form.Element>
                 <Form.Element label="">
-                  <GetResources resource={ResourceTypes.Buckets}>
+                  <GetResources resource={ResourceType.Buckets}>
                     <Grid.Row>
                       <Grid.Column
                         widthXS={Columns.Twelve}

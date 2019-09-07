@@ -15,7 +15,7 @@ import {getUsers, addNewMember} from 'src/members/actions'
 import {UsersMap} from 'src/members/reducers'
 import {User} from '@influxdata/influx'
 import {AppState, RemoteDataState} from 'src/types'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 interface StateProps {
   status: RemoteDataState
@@ -51,7 +51,7 @@ class AddMembersOverlay extends PureComponent<Props, State> {
     const {selectedUserIDs, searchTerm, selectedMembers} = this.state
 
     return (
-      <GetResources resource={ResourceTypes.Users}>
+      <GetResources resource={ResourceType.Users}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={720}>
             <Overlay.Header title="Add Member" onDismiss={this.handleDismiss} />

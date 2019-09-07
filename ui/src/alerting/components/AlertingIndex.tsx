@@ -8,9 +8,9 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import ChecksColumn from 'src/alerting/components/ChecksColumn'
 import RulesColumn from 'src/alerting/components/notifications/RulesColumn'
 import EndpointsColumn from 'src/alerting/components/EndpointsColumn'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -43,7 +43,7 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
           <Page.Header.Right />
         </Page.Header>
         <Page.Contents fullWidth={false} scrollable={false}>
-          <GetResources resource={ResourceTypes.Labels}>
+          <GetResources resource={ResourceType.Labels}>
             <GetAssetLimits>
               <AssetLimitAlert
                 resourceName={limitedResources}
@@ -53,19 +53,17 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
               <Grid className="alerting-index">
                 <GridRow testID="grid--row">
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resource={ResourceTypes.Checks}>
+                    <GetResources resource={ResourceType.Checks}>
                       <ChecksColumn />
                     </GetResources>
                   </GridColumn>
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources
-                      resource={ResourceTypes.NotificationEndpoints}
-                    >
+                    <GetResources resource={ResourceType.NotificationEndpoints}>
                       <EndpointsColumn />
                     </GetResources>
                   </GridColumn>
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resource={ResourceTypes.NotificationRules}>
+                    <GetResources resource={ResourceType.NotificationRules}>
                       <RulesColumn />
                     </GetResources>
                   </GridColumn>

@@ -8,7 +8,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Constants
 import {TOKEN_LABEL} from 'src/labels/constants'
@@ -30,7 +30,7 @@ export class TelegrafInstructionsOverlay extends PureComponent<
 > {
   public render() {
     return (
-      <GetResources resource={ResourceTypes.Authorizations}>
+      <GetResources resource={ResourceType.Authorizations}>
         <WizardOverlay
           title="Telegraf Setup Instructions"
           onDismiss={this.handleDismiss}

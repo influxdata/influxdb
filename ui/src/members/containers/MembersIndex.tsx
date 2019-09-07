@@ -7,7 +7,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 import {Page} from '@influxdata/clockface'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import Members from 'src/members/components/Members'
 
 // Utils
@@ -36,7 +36,7 @@ class MembersIndex extends Component<Props> {
         <Page titleTag={pageTitleSuffixer(['Members', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="members" orgID={org.id}>
-            <GetResources resource={ResourceTypes.Members}>
+            <GetResources resource={ResourceType.Members}>
               <Members />
             </GetResources>
           </SettingsTabbedPage>

@@ -7,7 +7,7 @@ import {get} from 'lodash'
 
 // Components
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
@@ -46,7 +46,7 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
       <Overlay.Container maxWidth={600}>
         <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
         <Overlay.Body>
-          <GetResources resource={ResourceTypes.Buckets}>
+          <GetResources resource={ResourceType.Buckets}>
             <DeleteDataForm
               initialBucketName={selectedBucketName}
               initialTimeRange={selectedTimeRange}

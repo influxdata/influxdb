@@ -2,12 +2,12 @@
   Given a route relative to an org, returns an absolute route including the
   current org.
 
-  For example, 
-  
+  For example,
+
       formatOrgRoute('/alerting/history')
 
-  would return 
-  
+  would return
+
       '/orgs/someID/alerting/history'
 
 */

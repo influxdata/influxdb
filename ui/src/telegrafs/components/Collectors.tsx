@@ -12,7 +12,7 @@ import CollectorList from 'src/telegrafs/components/CollectorList'
 import TelegrafExplainer from 'src/telegrafs/components/TelegrafExplainer'
 import FilterList from 'src/shared/components/Filter'
 import NoBucketsWarning from 'src/buckets/components/NoBucketsWarning'
-import GetResources, {ResourceTypes} from 'src/shared/components/GetResources'
+import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Actions
 import {setBucketInfo} from 'src/dataLoaders/actions/steps'
@@ -112,7 +112,7 @@ class Collectors extends PureComponent<Props, State> {
               widthSM={Columns.Eight}
               widthMD={Columns.Ten}
             >
-              <GetResources resource={ResourceTypes.Labels}>
+              <GetResources resource={ResourceType.Labels}>
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}
                   searchKeys={['plugins.0.config.bucket', 'labels[].name']}

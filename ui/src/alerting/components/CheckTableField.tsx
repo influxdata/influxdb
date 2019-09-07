@@ -1,6 +1,9 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 import {Link} from 'react-router'
+
+// Components
+import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
@@ -13,6 +16,19 @@ interface Props {
 }
 
 const CheckTableField: FC<Props> = ({row: {checkName, checkID}}) => {
+  const {checkIDs} = useContext(ResourceIDsContext)
+
+  if (!checkIDs[checkID]) {
+    return (
+      <div
+        className="check-name-field"
+        title="The check that created this no longer exists"
+      >
+        {checkName}
+      </div>
+    )
+  }
+
   const href = formatOrgRoute(`/alerting/checks/${checkID}/edit`)
 
   return <Link to={href}>{checkName}</Link>

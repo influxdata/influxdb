@@ -1,6 +1,9 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useContext} from 'react'
 import {Link} from 'react-router'
+
+// Context
+import {ResourceIDsContext} from 'src/alerting/components/AlertHistoryIndex'
 
 // Utils
 import {formatOrgRoute} from 'src/shared/utils/formatOrgRoute'
@@ -15,6 +18,18 @@ interface Props {
 const NotificationRuleTableField: FC<Props> = ({
   row: {notificationRuleName, notificationRuleID},
 }) => {
+  const {ruleIDs} = useContext(ResourceIDsContext)
+  if (!ruleIDs[notificationRuleID]) {
+    return (
+      <div
+        className="rule-name-field"
+        title="The rule that created this no longer exists"
+      >
+        {notificationRuleName}
+      </div>
+    )
+  }
+
   const href = formatOrgRoute(`/alerting/rules/${notificationRuleID}/edit`)
 
   return <Link to={href}>{notificationRuleName}</Link>
