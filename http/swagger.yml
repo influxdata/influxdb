@@ -6737,6 +6737,8 @@ components:
           type: string
         orgID:
           type: string
+        type:
+          type: string
         rp:
           type: string
         createdAt:
