@@ -191,12 +191,10 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		})
 	}
 
-	bucketType := pb.Type.String()
-
 	return &bucket{
 		ID:                  pb.ID,
 		OrgID:               pb.OrgID,
-		Type:                bucketType,
+		Type:                pb.Type.String(),
 		Name:                pb.Name,
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
