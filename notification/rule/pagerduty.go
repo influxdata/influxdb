@@ -150,7 +150,7 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 	// required
 	// string
 	// The unique location of the affected system, preferably a hostname or FQDN
-	endpointProps = append(endpointProps, flux.Property("source", flux.Member("r", "_notification_rule_name")))
+	endpointProps = append(endpointProps, flux.Property("source", flux.Member("notification", "_notification_rule_name")))
 
 	// summary:
 	// required
@@ -177,16 +177,20 @@ func (s *PagerDuty) generateFluxASTNotifyPipe(url string) ast.Statement {
 }
 
 func severityFromLevel() *ast.CallExpression {
-	return flux.DirectCall(
+	return flux.Call(
 		flux.Member("pagerduty", "severityFromLevel"),
-		flux.Member("r", "_level"),
+		flux.Object(
+			flux.Property("level", flux.Member("r", "_level")),
+		),
 	)
 }
 
 func actionFromLevel() *ast.CallExpression {
-	return flux.DirectCall(
+	return flux.Call(
 		flux.Member("pagerduty", "actionFromLevel"),
-		flux.Member("r", "_level"),
+		flux.Object(
+			flux.Property("level", flux.Member("r", "_level")),
+		),
 	)
 }
 
