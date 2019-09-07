@@ -37,9 +37,9 @@ statuses
 			clientURL: "http://localhost:7777",
 			class: r._check_name,
 			group: r._source_measurement,
-			severity: pagerduty.severityFromLevel(r._level),
-			eventAction: pagerduty.actionFromLevel(r._level),
-			source: r._notification_rule_name,
+			severity: pagerduty.severityFromLevel(level: r._level),
+			eventAction: pagerduty.actionFromLevel(level: r._level),
+			source: notification._notification_rule_name,
 			summary: r._message,
 			timestamp: time(v: r._source_timestamp),
 		})))`
