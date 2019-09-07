@@ -30,5 +30,6 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 }
 
 func TestBucketService(t *testing.T) {
+	t.Skip("bucket service no longer used.  Remove all of this inmem stuff")
 	platformtesting.BucketService(initBucketService, t)
 }

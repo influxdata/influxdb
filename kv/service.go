@@ -24,20 +24,25 @@ type Service struct {
 	Logger *zap.Logger
 	Config ServiceConfig
 
-	IDGenerator    influxdb.IDGenerator
+	IDGenerator influxdb.IDGenerator
+
+	// special ID generator that never returns bytes with backslash,
+	// comma, or space. Used to support very specific encoding of org &
+	// bucket into the old measurement in storage.
+	OrgBucketIDs influxdb.IDGenerator
+
 	TokenGenerator influxdb.TokenGenerator
 	influxdb.TimeGenerator
 	Hash Crypt
-
-	// Organization & bucket specific validation.
-	IsValidOrgBucketID func(influxdb.ID) bool
 }
 
 // NewService returns an instance of a Service.
 func NewService(kv Store, configs ...ServiceConfig) *Service {
 	s := &Service{
-		Logger:         zap.NewNop(),
-		IDGenerator:    snowflake.NewIDGenerator(),
+		Logger:      zap.NewNop(),
+		IDGenerator: snowflake.NewIDGenerator(),
+		// Seed the random number generator with the current time
+		OrgBucketIDs:   rand.NewOrgBucketID(time.Now().UnixNano()),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		Hash:           &Bcrypt{},
 		kv:             kv,
@@ -149,4 +154,12 @@ func (s *Service) Initialize(ctx context.Context) error {
 // Should only be used in tests for mocking.
 func (s *Service) WithStore(store Store) {
 	s.kv = store
+}
+
+// WithSpecialOrgBucketIDs sets the generator for the org
+// and bucket ids.
+//
+// Should only be used in tests for mocking.
+func (s *Service) WithSpecialOrgBucketIDs(gen influxdb.IDGenerator) {
+	s.OrgBucketIDs = gen
 }

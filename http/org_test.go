@@ -14,6 +14,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
@@ -34,14 +35,19 @@ func NewMockOrgBackend() *OrgBackend {
 
 func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T) (platform.OrganizationService, string, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	svc := kv.NewService(inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
+	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = platform.RealTimeGenerator{}
 	}
 
 	ctx := context.Background()
+	if err := svc.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+
 	for _, o := range f.Organizations {
 		if err := svc.PutOrganization(ctx, o); err != nil {
 			t.Fatalf("failed to populate organizations")
@@ -62,6 +68,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	return &client, inmem.OpPrefix, done
 }
 func TestOrganizationService(t *testing.T) {
+
 	t.Parallel()
 	platformtesting.OrganizationService(initOrganizationService, t)
 }

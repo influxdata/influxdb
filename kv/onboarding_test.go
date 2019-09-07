@@ -46,6 +46,7 @@ func initInmemOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T
 func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
 	svc := kv.NewService(s)
 	svc.IDGenerator = f.IDGenerator
+	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {

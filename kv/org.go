@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,13 +14,25 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
-// MaxIDGenerationN is the maximum number of times an ID generation is done before failing.
-const MaxIDGenerationN = 100
+const (
+	// MaxIDGenerationN is the maximum number of times an ID generation is done before failing.
+	MaxIDGenerationN = 100
+	// ReservedIDs are the number of IDs reserved from 1 - ReservedIDs we use
+	// for our system org/buckets
+	ReservedIDs = 1000
+)
 
 var (
 	organizationBucket = []byte("organizationsv1")
 	organizationIndex  = []byte("organizationindexv1")
 )
+
+// ErrFailureGeneratingID occurs ony when the random number generator
+// cannot generate an ID in MaxIDGenerationN times.
+var ErrFailureGeneratingID = &influxdb.Error{
+	Code: influxdb.EInternal,
+	Msg:  "unable to generate valid id",
+}
 
 var _ influxdb.OrganizationService = (*Service)(nil)
 var _ influxdb.OrganizationOperationLogService = (*Service)(nil)
@@ -271,7 +282,7 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 		return err
 	}
 
-	if o.ID, err = s.generateOrgID(); err != nil {
+	if o.ID, err = s.generateOrgID(ctx, tx); err != nil {
 		return err
 	}
 	o.CreatedAt = s.Now()
@@ -290,14 +301,8 @@ func (s *Service) createOrganization(ctx context.Context, tx Tx, o *influxdb.Org
 	return nil
 }
 
-func (s *Service) generateOrgID() (influxdb.ID, error) {
-	for i := 0; i < MaxIDGenerationN; i++ {
-		id := s.IDGenerator.ID()
-		if s.IsValidOrgBucketID == nil || s.IsValidOrgBucketID(id) {
-			return id, nil
-		}
-	}
-	return 0, errors.New("unable to generate valid org id")
+func (s *Service) generateOrgID(ctx context.Context, tx Tx) (influxdb.ID, error) {
+	return s.generateSafeID(ctx, tx, organizationBucket)
 }
 
 // PutOrganization will put a organization without setting an ID.
