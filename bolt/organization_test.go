@@ -36,5 +36,6 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 }
 
 func TestOrganizationService(t *testing.T) {
+	t.Skip("organization service no longer used.  Remove all of this bolt stuff")
 	platformtesting.OrganizationService(initOrganizationService, t)
 }

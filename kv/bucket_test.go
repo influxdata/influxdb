@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
@@ -46,6 +45,7 @@ func initInmemBucketService(f influxdbtesting.BucketFields, t *testing.T) (influ
 
 func initBucketService(s kv.Store, f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
 	svc := kv.NewService(s)
+	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {
@@ -78,17 +78,4 @@ func initBucketService(s kv.Store, f influxdbtesting.BucketFields, t *testing.T)
 			}
 		}
 	}
-}
-
-func TestService_CreateBucket(t *testing.T) {
-	t.Run("InvalidBucketID", func(t *testing.T) {
-		svc := kv.NewService(inmem.NewKVStore())
-		if err := svc.PutOrganization(context.Background(), &influxdb.Organization{ID: 123, Name: "ORG"}); err != nil {
-			t.Fatal(err)
-		}
-		svc.IsValidOrgBucketID = func(id influxdb.ID) bool { return false }
-		if err := svc.CreateBucket(context.Background(), &influxdb.Bucket{OrgID: 123, Name: "BUCKET"}); err == nil || err.Error() != `unable to generate valid bucket id` {
-			t.Fatalf("unexpected error: %s", err)
-		}
-	})
 }

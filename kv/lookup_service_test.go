@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	testID    = influxdb.ID(1)
+	testID    = influxdb.ID(10000)
 	testIDStr = testID.String()
 )
 
@@ -84,9 +84,11 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 					ID:   influxdbtesting.IDPtr(testID),
 				},
 				init: func(ctx context.Context, s *kv.Service) error {
-					_ = s.CreateOrganization(ctx, &influxdb.Organization{
+					o1 := &influxdb.Organization{
 						Name: "o1",
-					})
+					}
+					_ = s.CreateOrganization(ctx, o1)
+					t.Log(o1)
 					return s.CreateBucket(ctx, &influxdb.Bucket{
 						Name:  "b1",
 						OrgID: testID,
@@ -243,6 +245,7 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 			defer done()
 
 			svc.IDGenerator = mock.NewIDGenerator(testIDStr, t)
+			svc.WithSpecialOrgBucketIDs(svc.IDGenerator)
 			ctx := context.Background()
 			if tt.args.init != nil {
 				if err := tt.args.init(ctx, svc); err != nil {
