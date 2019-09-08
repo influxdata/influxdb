@@ -21,14 +21,14 @@ func UnexpectedIndexError(err error) *influxdb.Error {
 // exists.
 var NotUniqueError = &influxdb.Error{
 	Code: influxdb.EConflict,
-	Msg:  fmt.Sprintf("name already exists"),
+	Msg:  "name already exists",
 }
 
 // NotUniqueIDError is used when attempting to create an org or bucket that already
 // exists.
 var NotUniqueIDError = &influxdb.Error{
 	Code: influxdb.EConflict,
-	Msg:  fmt.Sprintf("ID already exists"),
+	Msg:  "ID already exists",
 }
 
 func (s *Service) unique(ctx context.Context, tx Tx, indexBucket, indexKey []byte) error {
