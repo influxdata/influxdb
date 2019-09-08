@@ -60,6 +60,10 @@ func sanitize(n uint64) uint64 {
 	binary.BigEndian.PutUint64(b, n)
 	for i := range b {
 		switch b[i] {
+		// these bytes must be remove here to prevent the need
+		// to escape/unescape.  See the models package for
+		// additional detail.
+		//    \     ,     " "
 		case 0x5C, 0x2C, 0x20:
 			b[i] = b[i] + 1
 		}
