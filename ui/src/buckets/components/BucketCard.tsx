@@ -43,7 +43,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       <ResourceCard
         testID="bucket--card"
         contextMenu={
-          !isSystemBucket(bucket) && (
+          !isSystemBucket(bucket.name) && (
             <BucketContextMenu
               bucket={bucket}
               onDeleteBucket={onDeleteBucket}
@@ -58,7 +58,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           />
         }
         metaData={[
-          isSystemBucket(bucket) && (
+          isSystemBucket(bucket.name) && (
             <span className="system-bucket">System Bucket</span>
           ),
           <>Retention: {bucket.ruleString}</>,
@@ -74,7 +74,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             onAddLineProtocol={this.handleAddLineProtocol}
             onAddScraper={this.handleAddScraper}
           />
-          {!isSystemBucket(bucket) && (
+          {!isSystemBucket(bucket.name) && (
             <Button
               text="Rename"
               testID="bucket-rename"
