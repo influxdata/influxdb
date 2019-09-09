@@ -80,7 +80,7 @@ describe('Collectors', () => {
       cy.getByTestID('collector-card--name').should('contain', newConfigName)
     })
 
-    it.skip('can delete a telegraf config', () => {
+    it('can delete a telegraf config', () => {
       const telegrafConfigName = 'New Config'
       const description = 'Config Description'
 
@@ -89,13 +89,38 @@ describe('Collectors', () => {
         cy.createTelegraf(telegrafConfigName, description, id)
       })
 
-      cy.getByTestID('table-row').should('have.length', 2)
+      cy.getByTestID('resource-card').should('have.length', 2)
 
-      cy.getByTestID('confirmation-button')
+      cy.getByTestID('context-menu')
         .last()
         .click({force: true})
 
-      cy.getByTestID('table-row').should('have.length', 1)
+      cy.getByTestID('context-menu-item')
+        .last()
+        .click({force: true})
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+    })
+
+    it('can view setup instructions for a config', () => {
+      const telegrafConfigName = 'New Config'
+      const description = 'Config Description'
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.createTelegraf(telegrafConfigName, description, id)
+      })
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+
+      cy.getByTestID('setup-instructions-link').click()
+
+      cy.getByTestID('setup-instructions').should('exist')
+
+      cy.getByTestID('overlay--header')
+        .find('button')
+        .click()
+
+      cy.getByTestID('setup-instructions').should('not.exist')
     })
   })
 })
