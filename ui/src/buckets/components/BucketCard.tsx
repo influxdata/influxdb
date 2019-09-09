@@ -61,12 +61,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             onAddLineProtocol={this.handleAddLineProtocol}
             onAddScraper={this.handleAddScraper}
           />
-          <Button
-            text="Rename"
-            testID="bucket-rename"
-            size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
-          />
+          {this.renameButton}
           <FeatureFlag name="deleteWithPredicate">
             <Button
               text="Delete Data By Filter"
@@ -78,6 +73,22 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
         </FlexBox>
       </ResourceCard>
     )
+  }
+
+  private get renameButton() {
+    const {bucket} = this.props
+    if (bucket.type === 'user') {
+      return (
+        <Button
+          text="Rename"
+          testID="bucket-rename"
+          size={ComponentSize.ExtraSmall}
+          onClick={this.handleRenameBucket}
+        />
+      )
+    } else {
+      return null
+    }
   }
 
   private handleDeleteData = () => {
