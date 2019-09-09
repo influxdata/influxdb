@@ -23,8 +23,6 @@ interface Props {
 
 export default class BucketContextMenu extends PureComponent<Props> {
   public render() {
-    const {bucket, onDeleteBucket} = this.props
-
     return (
       <>
         <Context align={Alignment.Center}>
@@ -33,23 +31,34 @@ export default class BucketContextMenu extends PureComponent<Props> {
             direction={FlexDirection.Row}
             margin={ComponentSize.Small}
           >
-            <Context.Menu
-              icon={IconFont.Trash}
-              color={ComponentColor.Danger}
-              shape={ButtonShape.Default}
-              text="Delete Bucket"
-              testID="context-delete-menu"
-            >
-              <Context.Item
-                label="Confirm"
-                action={onDeleteBucket}
-                value={bucket}
-                testID="context-delete-task"
-              />
-            </Context.Menu>
+            {this.deleteButton}
           </FlexBox>
         </Context>
       </>
     )
+  }
+
+  private get deleteButton() {
+    const {bucket, onDeleteBucket} = this.props
+    if (bucket.type === 'user') {
+      return (
+        <Context.Menu
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+          shape={ButtonShape.Default}
+          text="Delete Bucket"
+          testID="context-delete-menu"
+        >
+          <Context.Item
+            label="Confirm"
+            action={onDeleteBucket}
+            value={bucket}
+            testID="context-delete-task"
+          />
+        </Context.Menu>
+      )
+    } else {
+      return null
+    }
   }
 }
