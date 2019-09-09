@@ -3,6 +3,10 @@
 ### Features
 
 ### UI Improvements
+1. [15056](https://github.com/influxdata/influxdb/pull/15056): Remove rename and delete functionality from system buckets
+1. [15056](https://github.com/influxdata/influxdb/pull/15056): Prevent new buckets from being named with the reserved "_" prefix
+1. [15056](https://github.com/influxdata/influxdb/pull/15056): Prevent user from selecting system buckets when creating Scrapers, Telegraf configurations, read/write tokens, and when saving as a task
+1. [15056](https://github.com/influxdata/influxdb/pull/15056): Limit values from draggable threshold handles to 2 decimal places
 1. [15040](https://github.com/influxdata/influxdb/pull/15040): Redesign check builder UI to fill the screen and make more room for composing message templates
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Move Tokens tab from Settings to Load Data page
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Expose all Settings tabs in navigation menu
