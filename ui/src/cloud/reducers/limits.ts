@@ -1,4 +1,5 @@
 import {produce} from 'immer'
+import {get} from 'lodash'
 
 //Types
 import {Actions, ActionTypes} from 'src/cloud/actions/limits'
@@ -70,24 +71,24 @@ export const limitsReducer = (
         const {maxDashboards} = limits.dashboard
         const {maxTasks} = limits.task
 
-        let maxChecks = null
-        if (limits.check) {
-          maxChecks = limits.check
-        }
+        const maxChecks = get(limits.check, 'maxChecks', null)
 
-        let maxNotifications = null
-        let blockedNotificationRules = null
-        if (limits.notificationRule) {
-          maxNotifications = limits.notificationRule.maxNotifications
-          blockedNotificationRules =
-            limits.notificationRule.blockedNotificationRules
-        }
+        const maxNotifications = get(
+          limits.notificationRule,
+          'maxNotifications',
+          null
+        )
+        const blockedNotificationRules = get(
+          limits.notificationRule,
+          'blockedNotificationRules',
+          null
+        )
 
-        let blockedNotificationEndpoints = null
-        if (limits.notificationEndpoint) {
-          blockedNotificationEndpoints =
-            limits.notificationEndpoint.blockedNotificationEndpoints
-        }
+        const blockedNotificationEndpoints = get(
+          limits.notificationEndpoint,
+          'blockedNotificationEndpoints',
+          null
+        )
 
         const {readKBs, writeKBs, cardinality} = limits.rate
 
