@@ -18,19 +18,17 @@ describe('Checks', () => {
     })
   })
 
-  for (let i = 0; i <= 100; i++) {
-    it('can validate a check', () => {
-      cy.getByTestID('create-check').click()
+  it('can validate a check', () => {
+    cy.getByTestID('create-check').click()
 
-      cy.getByTestID(`selector-list ${measurement}`).click()
+    cy.getByTestID(`selector-list ${measurement}`).click()
 
-      cy.getByTestID('save-cell--button').should('be.disabled')
-      cy.getByTestID('checkeo--header alerting-tab').should('be.disabled')
+    cy.getByTestID('save-cell--button').should('be.disabled')
+    cy.getByTestID('checkeo--header alerting-tab').should('be.disabled')
 
-      cy.getByTestID(`selector-list ${field}`).click()
+    cy.getByTestID(`selector-list ${field}`).click()
 
-      cy.getByTestID('save-cell--button').should('be.enabled')
-      cy.getByTestID('checkeo--header alerting-tab').should('be.enabled')
-    })
-  }
+    cy.getByTestID('save-cell--button').should('be.enabled')
+    cy.getByTestID('checkeo--header alerting-tab').should('be.enabled')
+  })
 })
