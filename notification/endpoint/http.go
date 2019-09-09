@@ -111,7 +111,7 @@ func (s HTTP) Valid() error {
 			Msg:  "invalid http username/password for basic auth",
 		}
 	}
-	if s.AuthMethod == "bearer" && s.Token.Key != httpTokenSuffix {
+	if s.AuthMethod == "bearer" && s.Token.Key != s.ID.String()+httpTokenSuffix {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid http token for bearer auth",
