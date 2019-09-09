@@ -305,25 +305,14 @@ export const flush = () => {
 }
 
 export const writeData = (
-  lines: string[],
-  chunkSize: number = 100
+  lines: string[]
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({org, bucket}) => {
-    let chunk: string[]
-    let chunkCt: number = 0
-    while (chunkCt < lines.length) {
-      chunk =
-        chunkCt + chunkSize <= lines.length
-          ? lines.slice(chunkCt, chunkCt + chunkSize - 1)
-          : lines.slice(chunkCt, chunkCt + (chunkSize % lines.length))
-      cy.request({
-        method: 'POST',
-        url: '/api/v2/write?org=' + org + '&bucket=' + bucket,
-        body: chunk.join('\n'),
-      })
-      chunkCt += chunkSize
-      chunk = []
-    }
+    cy.request({
+      method: 'POST',
+      url: '/api/v2/write?org=' + org + '&bucket=' + bucket,
+      body: lines.join('\n'),
+    })
   })
 }
 
