@@ -162,7 +162,7 @@
     "@influxdata/flux-parser": "^0.3.0",
     "@influxdata/giraffe": "0.16.3",
     "@influxdata/influx": "0.5.5",
-    "@influxdata/influxdb-templates": "0.7.0",
+    "@influxdata/influxdb-templates": "0.8.0",
     "@influxdata/react-custom-scrollbars": "4.3.8",
     "abortcontroller-polyfill": "^1.3.0",
     "axios": "^0.19.0",
