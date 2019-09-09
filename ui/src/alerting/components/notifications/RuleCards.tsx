@@ -15,7 +15,7 @@ interface Props {
   searchTerm: string
 }
 
-const NotificationRuleCards: FC<Props> = ({rules}) => {
+const NotificationRuleCards: FC<Props> = ({rules, searchTerm}) => {
   const cards = rules =>
     rules.map(nr => <NotificationRuleCard key={nr.id} rule={nr} />)
 
@@ -23,22 +23,33 @@ const NotificationRuleCards: FC<Props> = ({rules}) => {
     <FilterList<NotificationRuleDraft>
       list={rules}
       searchKeys={['name']}
-      searchTerm=""
+      searchTerm={searchTerm}
     >
-      {filtered => cards(filtered)}
+      {filtered => (
+        <ResourceList.Body
+          emptyState={<EmptyNotificationRulesList searchTerm={searchTerm} />}
+        >
+          {cards(filtered)}
+        </ResourceList.Body>
+      )}
     </FilterList>
   )
 
-  return (
-    <ResourceList>
-      <ResourceList.Body emptyState={<EmptyNotificationRulesList />}>
-        {filteredCards}
-      </ResourceList.Body>
-    </ResourceList>
-  )
+  return <ResourceList>{filteredCards}</ResourceList>
 }
 
-const EmptyNotificationRulesList: FC = () => {
+const EmptyNotificationRulesList: FC<{searchTerm: string}> = ({searchTerm}) => {
+  if (searchTerm) {
+    return (
+      <EmptyState size={ComponentSize.Small} className="alert-column--empty">
+        <EmptyState.Text
+          text="No rules  match your search"
+          highlightWords={['rules']}
+        />
+      </EmptyState>
+    )
+  }
+
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
       <EmptyState.Text

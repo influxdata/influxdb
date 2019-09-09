@@ -20,32 +20,45 @@ const EndpointCards: FC<Props> = ({endpoints, searchTerm}) => {
       <EndpointCard key={endpoint.id} endpoint={endpoint} />
     ))
 
-  const filteredCards = (
+  const body = (
     <FilterList<NotificationEndpoint>
       list={endpoints}
       searchKeys={['name']}
       searchTerm={searchTerm}
     >
-      {filteredEndpoints => cards(filteredEndpoints)}
+      {filteredEndpoints => (
+        <ResourceList.Body
+          emptyState={<EmptyEndpointList searchTerm={searchTerm} />}
+        >
+          {cards(filteredEndpoints)}
+        </ResourceList.Body>
+      )}
     </FilterList>
   )
 
-  return (
-    <ResourceList>
-      <ResourceList.Body emptyState={<EmptyEndpointList />}>
-        {filteredCards}
-      </ResourceList.Body>
-    </ResourceList>
-  )
+  return <ResourceList>{body}</ResourceList>
 }
 
-const EmptyEndpointList: FC = () => (
-  <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-    <EmptyState.Text
-      text="Want to send notifications to Slack, LINEBREAK PagerDuty or an HTTP server? LINEBREAK LINEBREAK Try creating a Notification  Endpoint"
-      highlightWords={['Notification', 'Endpoint']}
-    />
-  </EmptyState>
-)
+const EmptyEndpointList: FC<{searchTerm: string}> = ({searchTerm}) => {
+  if (searchTerm) {
+    return (
+      <EmptyState size={ComponentSize.Small} className="alert-column--empty">
+        <EmptyState.Text
+          text="No endpoints  match your search"
+          highlightWords={['endpoints']}
+        />
+      </EmptyState>
+    )
+  }
+
+  return (
+    <EmptyState size={ComponentSize.Small} className="alert-column--empty">
+      <EmptyState.Text
+        text="Want to send notifications to Slack, LINEBREAK PagerDuty or an HTTP server? LINEBREAK LINEBREAK Try creating a Notification  Endpoint"
+        highlightWords={['Notification', 'Endpoint']}
+      />
+    </EmptyState>
+  )
+}
 
 export default EndpointCards

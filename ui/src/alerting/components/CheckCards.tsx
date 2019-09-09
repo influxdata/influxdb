@@ -32,30 +32,32 @@ const CheckCards: FunctionComponent<Props> = ({
   onCreateCheck,
 }) => {
   const cards = cs => cs.map(c => <CheckCard key={c.id} check={c} />)
-  const filteredCards = (
+  const body = filtered => (
+    <ResourceList.Body
+      emptyState={
+        <EmptyChecksList
+          showFirstTimeWidget={showFirstTimeWidget}
+          onCreateCheck={onCreateCheck}
+          searchTerm={searchTerm}
+        />
+      }
+    >
+      {cards(filtered)}
+    </ResourceList.Body>
+  )
+  const filteredChecks = (
     <FilterList<Check>
       list={checks}
       searchKeys={['name']}
       searchTerm={searchTerm}
     >
-      {filtered => cards(filtered)}
+      {filtered => body(filtered)}
     </FilterList>
   )
 
   return (
     <>
-      <ResourceList>
-        <ResourceList.Body
-          emptyState={
-            <EmptyChecksList
-              showFirstTimeWidget={showFirstTimeWidget}
-              onCreateCheck={onCreateCheck}
-            />
-          }
-        >
-          {filteredCards}
-        </ResourceList.Body>
-      </ResourceList>
+      <ResourceList>{filteredChecks}</ResourceList>
     </>
   )
 }
@@ -63,12 +65,25 @@ const CheckCards: FunctionComponent<Props> = ({
 interface EmptyProps {
   showFirstTimeWidget: boolean
   onCreateCheck: () => void
+  searchTerm: string
 }
 
 const EmptyChecksList: FunctionComponent<EmptyProps> = ({
   showFirstTimeWidget,
   onCreateCheck,
+  searchTerm,
 }) => {
+  if (searchTerm) {
+    return (
+      <EmptyState size={ComponentSize.Small} className="alert-column--empty">
+        <EmptyState.Text
+          text="No checks  match your search"
+          highlightWords={['checks']}
+        />
+      </EmptyState>
+    )
+  }
+
   if (showFirstTimeWidget) {
     return (
       <Panel
