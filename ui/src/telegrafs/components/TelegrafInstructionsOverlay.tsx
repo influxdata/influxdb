@@ -83,7 +83,7 @@ export class TelegrafInstructionsOverlay extends PureComponent<
       collectorID: null,
     })
 
-    router.push(`/orgs/${orgID}/telegrafs/`)
+    router.push(`/orgs/${orgID}/load-data/telegrafs/`)
   }
 }
 
