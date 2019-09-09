@@ -173,7 +173,7 @@ export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
     name: 'PagerDuty',
     status: 'active',
     type: 'pagerduty',
-    url: 'insert.pagerduty.url.here',
+    clientURL: 'insert.pagerduty.client.url.here',
     routingKey: 'plerps',
   },
 ]

@@ -2,8 +2,6 @@ package endpoint
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/url"
 
 	"github.com/influxdata/influxdb"
 )
@@ -15,8 +13,8 @@ const routingKeySuffix = "-routing-key"
 // PagerDuty is the notification endpoint config of pagerduty.
 type PagerDuty struct {
 	Base
-	// Path is the PagerDuty API URL, should not need to be changed.
-	URL string `json:"url"`
+	// ClientURL is the url that is presented in the PagerDuty UI when this alert is triggered
+	ClientURL string `json:"clientURL"`
 	// RoutingKey is a version 4 UUID expressed as a 32-digit hexadecimal number.
 	// This is the Integration Key for an integration on any given service.
 	RoutingKey influxdb.SecretField `json:"routingKey"`
@@ -42,16 +40,10 @@ func (s PagerDuty) Valid() error {
 	if err := s.Base.valid(); err != nil {
 		return err
 	}
-	if s.URL == "" {
+	if s.ClientURL == "" {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  "pagerduty endpoint URL is empty",
-		}
-	}
-	if _, err := url.Parse(s.URL); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  fmt.Sprintf("pagerduty endpoint URL is invalid: %s", err.Error()),
+			Msg:  "pagerduty endpoint ClientURL is empty",
 		}
 	}
 	if s.RoutingKey.Key != s.ID.String()+routingKeySuffix {
