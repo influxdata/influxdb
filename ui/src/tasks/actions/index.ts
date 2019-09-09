@@ -33,7 +33,7 @@ import {setExportTemplate} from 'src/templates/actions'
 import * as copy from 'src/shared/copy/notifications'
 
 // Types
-import {AppState, Label, TaskTemplate, Authorization} from 'src/types'
+import {AppState, Label, TaskTemplate} from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
 
@@ -44,7 +44,6 @@ import {TaskOptionKeys, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 import {taskToTemplate} from 'src/shared/utils/resourceToTemplate'
 import {isLimitError} from 'src/cloud/utils/limits'
 import {checkTaskLimits} from 'src/cloud/actions/limits'
-import {getAuthorization} from 'src/authorizations/actions'
 
 export type Action =
   | SetNewScript
@@ -62,7 +61,6 @@ export type Action =
   | SetLogs
   | UpdateTask
   | SetTaskStatus
-  | SetTaskToken
 
 type GetStateFunc = () => AppState
 
@@ -163,12 +161,6 @@ export interface UpdateTask {
     task: Task
   }
 }
-export interface SetTaskToken {
-  type: 'SET_TASK_TOKEN'
-  payload: {
-    token: Authorization
-  }
-}
 
 export const setTaskOption = (taskOption: {
   key: TaskOptionKeys
@@ -235,11 +227,6 @@ export const setLogs = (logs: LogEvent[]): SetLogs => ({
 export const updateTask = (task: Task): UpdateTask => ({
   type: 'UPDATE_TASK',
   payload: {task},
-})
-
-export const setTaskToken = (token: Authorization): SetTaskToken => ({
-  type: 'SET_TASK_TOKEN',
-  payload: {token},
 })
 
 // Thunks
@@ -356,8 +343,6 @@ export const selectTaskByID = (id: string) => async (
 ): Promise<void> => {
   try {
     const task = await client.tasks.get(id)
-    const token = await getAuthorization(task.authorizationID)
-    dispatch(setTaskToken(token))
     dispatch(setCurrentTask(task))
   } catch (e) {
     console.error(e)
@@ -394,7 +379,7 @@ export const cancel = () => async dispatch => {
 export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   try {
     const {
-      tasks: {currentScript: script, currentTask: task, taskOptions, taskToken},
+      tasks: {currentScript: script, currentTask: task, taskOptions},
     } = getState()
 
     const updatedTask: Partial<Task> & {
@@ -405,7 +390,7 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
       flux: script,
       name: taskOptions.name,
       offset: taskOptions.offset,
-      token: taskToken.token,
+      token: null,
     }
 
     if (taskOptions.taskScheduleType === TaskSchedule.interval) {
@@ -428,18 +413,17 @@ export const updateScript = () => async (dispatch, getState: GetStateFunc) => {
   }
 }
 
-export const saveNewScript = (
-  script: string,
-  preamble: string,
-  token: string
-) => async (dispatch, getState: GetStateFunc): Promise<void> => {
+export const saveNewScript = (script: string, preamble: string) => async (
+  dispatch,
+  getState: GetStateFunc
+): Promise<void> => {
   try {
     const fluxScript = await insertPreambleInScript(script, preamble)
 
     const {
       orgs: {org},
     } = getState()
-    await client.tasks.createByOrgID(org.id, fluxScript, token)
+    await client.tasks.createByOrgID(org.id, fluxScript, null)
 
     dispatch(setNewScript(''))
     dispatch(clearTask())

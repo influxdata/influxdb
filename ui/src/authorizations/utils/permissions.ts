@@ -1,4 +1,4 @@
-import {Bucket, Permission, Authorization} from 'src/types'
+import {Bucket, Permission} from 'src/types'
 
 export const allAccessPermissions = (orgID: string): Permission[] => [
   {
@@ -155,25 +155,4 @@ export const selectBucket = (
 export enum BucketTab {
   AllBuckets = 'All Buckets',
   Scoped = 'Scoped',
-}
-
-/*
-  Given a list of authorizations, return only those that allow performing the
-  supplied `action` to all of the supplied `bucketNames`.
-*/
-export const filterIrrelevantAuths = (
-  auths: Authorization[],
-  action: 'read' | 'write',
-  bucketNames: string[]
-): Authorization[] => {
-  return auths.filter(auth =>
-    bucketNames.every(bucketName =>
-      auth.permissions.some(
-        permission =>
-          permission.action === action &&
-          permission.resource.type === 'buckets' &&
-          (!permission.resource.name || permission.resource.name === bucketName)
-      )
-    )
-  )
 }
