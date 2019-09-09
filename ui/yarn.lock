@@ -1102,10 +1102,10 @@
   dependencies:
     axios "^0.19.0"
 
-"@influxdata/influxdb-templates@0.7.0":
-  version "0.7.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.7.0.tgz#c2d8061a8e1ed0ce4efffdab61f765518b0e4be3"
-  integrity sha512-iNRgGzM2/qqu1F8Ug1gyKh47EPHBVTEFeu8lY76XPWSzX9m8K+p+c9emVOR0BR0i2FymMKFqYJKBPQWMYAwWUg==
+"@influxdata/influxdb-templates@0.8.0":
+  version "0.8.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.8.0.tgz#16e5f8c157b8c02bb6e5fa657a805b85d97b920b"
+  integrity sha512-e+tx021ZWR/cYb6Q+IpH8zFAyF/HeNEp/3Auu1K3OOaMU6nxJ8AnG4tpAlWbjGoSa/lqUYbZKv65w7nWxboH5Q==
 
 "@influxdata/oats@0.4.0":
   version "0.4.0"
