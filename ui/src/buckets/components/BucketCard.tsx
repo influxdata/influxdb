@@ -15,6 +15,9 @@ import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
+// Constants
+import {isSystemBucket} from 'src/buckets/constants/index'
+
 // Types
 import {Bucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
@@ -40,7 +43,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       <ResourceCard
         testID="bucket--card"
         contextMenu={
-          <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
+          !isSystemBucket(bucket) && (
+            <BucketContextMenu
+              bucket={bucket}
+              onDeleteBucket={onDeleteBucket}
+            />
+          )
         }
         name={
           <ResourceCard.Name
@@ -61,12 +69,14 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             onAddLineProtocol={this.handleAddLineProtocol}
             onAddScraper={this.handleAddScraper}
           />
-          <Button
-            text="Rename"
-            testID="bucket-rename"
-            size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
-          />
+          {!isSystemBucket(bucket) && (
+            <Button
+              text="Rename"
+              testID="bucket-rename"
+              size={ComponentSize.ExtraSmall}
+              onClick={this.handleRenameBucket}
+            />
+          )}
           <FeatureFlag name="deleteWithPredicate">
             <Button
               text="Delete Data By Filter"
