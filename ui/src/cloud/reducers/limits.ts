@@ -69,12 +69,25 @@ export const limitsReducer = (
         const {maxBuckets} = limits.bucket
         const {maxDashboards} = limits.dashboard
         const {maxTasks} = limits.task
-        const {maxChecks} = limits.check
-        const {
-          maxNotifications,
-          blockedNotificationRules,
-        } = limits.notificationRule
-        const {blockedNotificationEndpoints} = limits.notificationEndpoint
+
+        let maxChecks = null
+        if (limits.check) {
+          maxChecks = limits.check
+        }
+
+        let maxNotifications = null
+        let blockedNotificationRules = null
+        if (limits.notificationRule) {
+          maxNotifications = limits.notificationRule.maxNotifications
+          blockedNotificationRules =
+            limits.notificationRule.blockedNotificationRules
+        }
+
+        let blockedNotificationEndpoints = null
+        if (limits.notificationEndpoint) {
+          blockedNotificationEndpoints =
+            limits.notificationEndpoint.blockedNotificationEndpoints
+        }
 
         const {readKBs, writeKBs, cardinality} = limits.rate
 
