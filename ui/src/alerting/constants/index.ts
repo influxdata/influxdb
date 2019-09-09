@@ -72,6 +72,8 @@ export const DEFAULT_DEADMAN_CHECK: Partial<DeadmanCheck> = {
   reportZero: DEFAULT_CHECK_REPORT_ZERO,
   level: DEFAULT_DEADMAN_LEVEL,
   statusMessageTemplate: DEFAULT_STATUS_MESSAGE,
+  timeSince: '90s',
+  staleTime: '10m',
 }
 
 export const CHECK_QUERY_FIXTURE: DashboardQuery = {

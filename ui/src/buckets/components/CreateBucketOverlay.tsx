@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 
 // Components
-import {Overlay, ComponentStatus} from '@influxdata/clockface'
+import {Overlay} from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Types
@@ -17,8 +17,6 @@ interface Props {
 interface State {
   bucket: Bucket
   ruleType: 'expire'
-  nameInputStatus: ComponentStatus
-  nameErrorMessage: string
 }
 
 const emptyBucket = {
@@ -30,16 +28,14 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
-      nameErrorMessage: '',
       bucket: emptyBucket,
       ruleType: null,
-      nameInputStatus: ComponentStatus.Default,
     }
   }
 
   public render() {
     const {onCloseModal} = this.props
-    const {bucket, nameInputStatus, nameErrorMessage, ruleType} = this.state
+    const {bucket, ruleType} = this.state
 
     return (
       <Overlay.Container maxWidth={500}>
@@ -51,11 +47,10 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
           <BucketOverlayForm
             name={bucket.name}
             buttonText="Create"
+            disableRenaming={false}
             ruleType={ruleType}
             onCloseModal={onCloseModal}
-            nameErrorMessage={nameErrorMessage}
             onSubmit={this.handleSubmit}
-            nameInputStatus={nameInputStatus}
             onChangeInput={this.handleChangeInput}
             retentionSeconds={this.retentionSeconds}
             onChangeRuleType={this.handleChangeRuleType}
@@ -113,18 +108,6 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
     const key = e.target.name
     const bucket = {...this.state.bucket, [key]: value}
 
-    if (!value) {
-      return this.setState({
-        bucket,
-        nameInputStatus: ComponentStatus.Error,
-        nameErrorMessage: `Bucket ${key} cannot be empty`,
-      })
-    }
-
-    this.setState({
-      bucket,
-      nameInputStatus: ComponentStatus.Valid,
-      nameErrorMessage: '',
-    })
+    this.setState({bucket})
   }
 }

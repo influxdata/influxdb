@@ -15,6 +15,9 @@ import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
+// Constants
+import {isSystemBucket} from 'src/buckets/constants/index'
+
 // Types
 import {Bucket} from 'src/types'
 import {DataLoaderType} from 'src/types/dataLoaders'
@@ -40,7 +43,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
       <ResourceCard
         testID="bucket--card"
         contextMenu={
-          <BucketContextMenu bucket={bucket} onDeleteBucket={onDeleteBucket} />
+          !isSystemBucket(bucket.name) && (
+            <BucketContextMenu
+              bucket={bucket}
+              onDeleteBucket={onDeleteBucket}
+            />
+          )
         }
         name={
           <ResourceCard.Name
@@ -49,7 +57,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             name={bucket.name}
           />
         }
-        metaData={[<>Retention: {bucket.ruleString}</>]}
+        metaData={[
+          isSystemBucket(bucket.name) && (
+            <span className="system-bucket">System Bucket</span>
+          ),
+          <>Retention: {bucket.ruleString}</>,
+        ]}
       >
         <FlexBox
           direction={FlexDirection.Row}

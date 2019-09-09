@@ -1,6 +1,7 @@
 // Libraries
 import React, {useRef, FunctionComponent} from 'react'
 import {Scale} from '@influxdata/giraffe'
+import {round} from 'lodash'
 
 // Components
 import RangeThresholdMarkers from 'src/shared/components/RangeThresholdMarkers'
@@ -12,6 +13,9 @@ import {clamp} from 'src/shared/utils/vis'
 
 // Types
 import {Threshold} from 'src/types'
+
+// Constants
+const DRAGGABLE_THRESHOLD_PRECISION = 2
 
 interface Props {
   thresholds: Threshold[]
@@ -52,7 +56,21 @@ const ThresholdMarkers: FunctionComponent<Props> = ({
       i === index ? nextThreshold : t
     )
 
-    onSetThresholds(nextThresholds)
+    const roundedThresholds = nextThresholds.map(nt => {
+      if (nt.type === 'greater' || nt.type === 'lesser') {
+        return {...nt, value: round(nt.value, DRAGGABLE_THRESHOLD_PRECISION)}
+      }
+
+      if (nt.type === 'range') {
+        return {
+          ...nt,
+          min: round(nt.min, DRAGGABLE_THRESHOLD_PRECISION),
+          max: round(nt.max, DRAGGABLE_THRESHOLD_PRECISION),
+        }
+      }
+    })
+
+    onSetThresholds(roundedThresholds)
   }
 
   return (
