@@ -34,7 +34,7 @@ statuses
 		({
 			routingKey: pagerduty_secret,
 			client: "influxdata",
-			clientURL: "http://localhost:7777",
+			clientURL: "http://localhost:7777/host/${r.host}",
 			class: r._check_name,
 			group: r._source_measurement,
 			severity: pagerduty.severityFromLevel(level: r._level),
@@ -74,7 +74,7 @@ statuses
 			ID:   2,
 			Name: "foo",
 		},
-		URL: "http://localhost:7777",
+		ClientURL: "http://localhost:7777/host/${r.host}",
 		RoutingKey: influxdb.SecretField{
 			Key: "pagerduty_token",
 		},

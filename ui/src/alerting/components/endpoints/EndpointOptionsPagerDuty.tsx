@@ -5,12 +5,16 @@ import React, {FC, ChangeEvent} from 'react'
 import {Input, FormElement, InputType, Panel, Grid} from '@influxdata/clockface'
 
 interface Props {
-  url: string
+  clientURL: string
   routingKey: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
-const EndpointOptionsPagerDuty: FC<Props> = ({url, routingKey, onChange}) => {
+const EndpointOptionsPagerDuty: FC<Props> = ({
+  clientURL,
+  routingKey,
+  onChange,
+}) => {
   return (
     <Panel>
       <Panel.Header>
@@ -20,10 +24,10 @@ const EndpointOptionsPagerDuty: FC<Props> = ({url, routingKey, onChange}) => {
         <Grid>
           <Grid.Row>
             <Grid.Column>
-              <FormElement label="URL">
+              <FormElement label="Client URL">
                 <Input
-                  name="url"
-                  value={url}
+                  name="clientURL"
+                  value={clientURL}
                   testID="pagerduty-url"
                   onChange={onChange}
                 />

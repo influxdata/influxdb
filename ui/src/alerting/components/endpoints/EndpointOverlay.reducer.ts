@@ -17,12 +17,22 @@ export const reducer = (state: EndpointState, action: Action) => {
     }
     case 'UPDATE_ENDPOINT_TYPE': {
       const {endpoint} = action
-
-      if (!endpoint.url || state.type !== endpoint.type) {
-        return {
-          ...state,
-          ...endpoint,
-          url: DEFAULT_ENDPOINT_URLS[endpoint.type],
+      if (state.type != endpoint.type) {
+        switch (endpoint.type) {
+          case 'pagerduty':
+            return {
+              ...state,
+              ...endpoint,
+              clientURL: `${location.origin}/orgs/${
+                endpoint.orgID
+              }/alert-history`,
+            }
+          default:
+            return {
+              ...state,
+              ...endpoint,
+              url: DEFAULT_ENDPOINT_URLS[endpoint.type],
+            }
         }
       }
 

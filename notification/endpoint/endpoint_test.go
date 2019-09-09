@@ -102,25 +102,14 @@ func TestValidEndpoint(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "pagerduty endpoint URL is empty",
-			},
-		},
-		{
-			name: "invalid pagerduty url",
-			src: &endpoint.PagerDuty{
-				Base: goodBase,
-				URL:  "posts://er:{DEf1=ghi@:5432/db?ssl",
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "pagerduty endpoint URL is invalid: parse posts://er:{DEf1=ghi@:5432/db?ssl: net/url: invalid userinfo",
+				Msg:  "pagerduty endpoint ClientURL is empty",
 			},
 		},
 		{
 			name: "invalid routine key",
 			src: &endpoint.PagerDuty{
 				Base:       goodBase,
-				URL:        "localhost",
+				ClientURL:  "localhost",
 				RoutingKey: influxdb.SecretField{Key: "bad-key"},
 			},
 			err: &influxdb.Error{
@@ -167,8 +156,10 @@ func TestValidEndpoint(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		got := c.src.Valid()
-		influxTesting.ErrorsEqual(t, got, c.err)
+		t.Run(c.name, func(t *testing.T) {
+			got := c.src.Valid()
+			influxTesting.ErrorsEqual(t, got, c.err)
+		})
 	}
 }
 
@@ -210,7 +201,7 @@ func TestJSON(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				URL:        "https://events.pagerduty.com/v2/enqueue",
+				ClientURL:  "https://events.pagerduty.com/v2/enqueue",
 				RoutingKey: influxdb.SecretField{Key: "pagerduty-routing-key"},
 			},
 		},
@@ -308,7 +299,7 @@ func TestBackFill(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				URL: "https://events.pagerduty.com/v2/enqueue",
+				ClientURL: "https://events.pagerduty.com/v2/enqueue",
 				RoutingKey: influxdb.SecretField{
 					Value: strPtr("routing-key-value"),
 				},
@@ -324,7 +315,7 @@ func TestBackFill(t *testing.T) {
 						UpdatedAt: timeGen2.Now(),
 					},
 				},
-				URL: "https://events.pagerduty.com/v2/enqueue",
+				ClientURL: "https://events.pagerduty.com/v2/enqueue",
 				RoutingKey: influxdb.SecretField{
 					Key:   id1 + "-routing-key",
 					Value: strPtr("routing-key-value"),

@@ -33,10 +33,10 @@ const EndpointOptions: FC<Props> = ({
       )
     }
     case 'pagerduty': {
-      const {url, routingKey} = endpoint as PagerDutyNotificationEndpoint
+      const {clientURL, routingKey} = endpoint as PagerDutyNotificationEndpoint
       return (
         <EndpointOptionsPagerDuty
-          url={url}
+          clientURL={clientURL}
           routingKey={routingKey}
           onChange={onChange}
         />

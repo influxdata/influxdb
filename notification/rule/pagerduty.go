@@ -79,7 +79,7 @@ func (s *PagerDuty) generateFluxASTBody(e *endpoint.PagerDuty) []ast.Statement {
 	statements = append(statements, s.generateFluxASTEndpoint(e))
 	statements = append(statements, s.generateFluxASTNotificationDefinition(e))
 	statements = append(statements, s.generateFluxASTStatuses())
-	statements = append(statements, s.generateFluxASTNotifyPipe(e.URL))
+	statements = append(statements, s.generateFluxASTNotifyPipe(e.ClientURL))
 
 	return statements
 }
