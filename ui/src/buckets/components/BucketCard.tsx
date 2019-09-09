@@ -1,6 +1,6 @@
 // Libraries
-import React, { PureComponent } from 'react'
-import { withRouter, WithRouterProps } from 'react-router'
+import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -13,11 +13,11 @@ import {
 } from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
-import { FeatureFlag } from 'src/shared/utils/featureFlag'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
-import { Bucket } from 'src/types'
-import { DataLoaderType } from 'src/types/dataLoaders'
+import {Bucket} from 'src/types'
+import {DataLoaderType} from 'src/types/dataLoaders'
 
 export interface PrettyBucket extends Bucket {
   ruleString: string
@@ -35,7 +35,7 @@ interface Props {
 
 class BucketRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const { bucket, onDeleteBucket } = this.props
+    const {bucket, onDeleteBucket} = this.props
     return (
       <ResourceCard
         testID="bucket--card"
@@ -54,7 +54,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
         <FlexBox
           direction={FlexDirection.Row}
           margin={ComponentSize.Small}
-          style={{ marginTop: '4px' }}
+          style={{marginTop: '4px'}}
         >
           <BucketAddDataButton
             onAddCollector={this.handleAddCollector}
@@ -76,9 +76,9 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private get renameButton() {
-    const { bucket } = this.props
+    const {bucket} = this.props
     if (bucket.type === 'user') {
-      console.log("here")
+      console.log('here')
       return (
         <Button
           text="Rename"
@@ -91,15 +91,15 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleDeleteData = () => {
-    const { onDeleteData, bucket } = this.props
+    const {onDeleteData, bucket} = this.props
 
     onDeleteData(bucket)
   }
 
   private handleRenameBucket = () => {
     const {
-      params: { orgID },
-      bucket: { id },
+      params: {orgID},
+      bucket: {id},
       router,
     } = this.props
 
@@ -108,8 +108,8 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
   private handleNameClick = (): void => {
     const {
-      params: { orgID },
-      bucket: { id },
+      params: {orgID},
+      bucket: {id},
       router,
     } = this.props
 
@@ -118,8 +118,8 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
   private handleAddCollector = (): void => {
     const {
-      params: { orgID },
-      bucket: { id },
+      params: {orgID},
+      bucket: {id},
     } = this.props
 
     const link = `/orgs/${orgID}/load-data/buckets/${id}/telegrafs/new`
@@ -128,8 +128,8 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
   private handleAddLineProtocol = (): void => {
     const {
-      params: { orgID },
-      bucket: { id },
+      params: {orgID},
+      bucket: {id},
     } = this.props
 
     const link = `/orgs/${orgID}/load-data/buckets/${id}/line-protocols/new`
@@ -138,8 +138,8 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
   private handleAddScraper = (): void => {
     const {
-      params: { orgID },
-      bucket: { id },
+      params: {orgID},
+      bucket: {id},
     } = this.props
 
     const link = `/orgs/${orgID}/load-data/buckets/${id}/scrapers/new`

@@ -1,8 +1,8 @@
 // Libraries
-import React, { PureComponent } from 'react'
+import React, {PureComponent} from 'react'
 
 // Components
-import { Context, Alignment, ComponentSize } from 'src/clockface'
+import {Context, Alignment, ComponentSize} from 'src/clockface'
 
 import {
   ButtonShape,
@@ -14,7 +14,7 @@ import {
 } from '@influxdata/clockface'
 
 // Types
-import { PrettyBucket } from 'src/buckets/components/BucketCard'
+import {PrettyBucket} from 'src/buckets/components/BucketCard'
 
 interface Props {
   bucket: PrettyBucket
@@ -23,8 +23,6 @@ interface Props {
 
 export default class BucketContextMenu extends PureComponent<Props> {
   public render() {
-    const { bucket, onDeleteBucket } = this.props
-
     return (
       <>
         <Context align={Alignment.Center}>
@@ -41,23 +39,24 @@ export default class BucketContextMenu extends PureComponent<Props> {
   }
 
   private get deleteButton() {
-    const { bucket, onDeleteBucket } = this.props
-    if (bucket.type === "user") {
-      return (<Context.Menu
-        icon={IconFont.Trash}
-        color={ComponentColor.Danger}
-        shape={ButtonShape.Default}
-        text="Delete Bucket"
-        testID="context-delete-menu"
-      >
-        <Context.Item
-          label="Confirm"
-          action={onDeleteBucket}
-          value={bucket}
-          testID="context-delete-task"
-        />
-      </Context.Menu>)
-    }
-    else return (<></>)
+    const {bucket, onDeleteBucket} = this.props
+    if (bucket.type === 'user') {
+      return (
+        <Context.Menu
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+          shape={ButtonShape.Default}
+          text="Delete Bucket"
+          testID="context-delete-menu"
+        >
+          <Context.Item
+            label="Confirm"
+            action={onDeleteBucket}
+            value={bucket}
+            testID="context-delete-task"
+          />
+        </Context.Menu>
+      )
+    } else return <></>
   }
 }
