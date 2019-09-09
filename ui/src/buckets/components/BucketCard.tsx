@@ -57,7 +57,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             name={bucket.name}
           />
         }
-        metaData={[<>Retention: {bucket.ruleString}</>]}
+        metaData={[
+          isSystemBucket(bucket) && (
+            <span className="system-bucket">System Bucket</span>
+          ),
+          <>Retention: {bucket.ruleString}</>,
+        ]}
       >
         <FlexBox
           direction={FlexDirection.Row}
