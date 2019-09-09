@@ -17,7 +17,6 @@ import {
   setTaskOption,
   clearTask,
   cancel,
-  setTaskToken,
 } from 'src/tasks/actions'
 
 // Utils
@@ -28,56 +27,41 @@ import {
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Types
-import {AppState, Authorization} from 'src/types'
+import {AppState} from 'src/types'
 import {
   TaskOptions,
   TaskOptionKeys,
   TaskSchedule,
 } from 'src/utils/taskOptionsToFluxScript'
-import {getAuthorizations} from 'src/authorizations/actions'
-import {
-  RemoteDataState,
-  SpinnerContainer,
-  TechnoSpinner,
-} from '@influxdata/clockface'
 
-interface PassedInProps {
+interface OwnProps {
   router: InjectedRouter
 }
 
-interface ConnectStateProps {
+interface StateProps {
   taskOptions: TaskOptions
   newScript: string
-  tokens: Authorization[]
-  tokenStatus: RemoteDataState
-  selectedToken: Authorization
 }
 
-interface ConnectDispatchProps {
+interface DispatchProps {
   setNewScript: typeof setNewScript
   saveNewScript: typeof saveNewScript
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
   cancel: typeof cancel
-  getTokens: typeof getAuthorizations
-  setTaskToken: typeof setTaskToken
 }
 
-class TaskPage extends PureComponent<
-  PassedInProps & ConnectStateProps & ConnectDispatchProps
-> {
+type Props = OwnProps & StateProps & DispatchProps
+
+class TaskPage extends PureComponent<Props> {
   constructor(props) {
     super(props)
   }
-  public async componentDidMount() {
+  public componentDidMount() {
     this.props.setTaskOption({
       key: 'taskScheduleType',
       value: TaskSchedule.interval,
     })
-    await this.props.getTokens()
-    if (this.props.tokens.length > 0) {
-      this.props.setTaskToken(this.props.tokens[0])
-    }
   }
 
   public componentWillUnmount() {
@@ -85,13 +69,7 @@ class TaskPage extends PureComponent<
   }
 
   public render(): JSX.Element {
-    const {
-      newScript,
-      taskOptions,
-      tokens,
-      tokenStatus,
-      selectedToken,
-    } = this.props
+    const {newScript, taskOptions} = this.props
 
     return (
       <Page titleTag={pageTitleSuffixer(['Create Task'])}>
@@ -104,20 +82,12 @@ class TaskPage extends PureComponent<
         <Page.Contents fullWidth={true} scrollable={false}>
           <div className="task-form">
             <div className="task-form--options">
-              <SpinnerContainer
-                loading={tokenStatus}
-                spinnerComponent={<TechnoSpinner />}
-              >
-                <TaskForm
-                  taskOptions={taskOptions}
-                  canSubmit={this.isFormValid}
-                  onChangeInput={this.handleChangeInput}
-                  onChangeScheduleType={this.handleChangeScheduleType}
-                  tokens={tokens}
-                  selectedToken={selectedToken}
-                  onTokenChange={this.handleTokenChange}
-                />
-              </SpinnerContainer>
+              <TaskForm
+                taskOptions={taskOptions}
+                canSubmit={this.isFormValid}
+                onChangeInput={this.handleChangeInput}
+                onChangeScheduleType={this.handleChangeScheduleType}
+              />
             </div>
             <div className="task-form--editor">
               <FluxEditor
@@ -152,13 +122,13 @@ class TaskPage extends PureComponent<
   }
 
   private handleSave = () => {
-    const {newScript, taskOptions, selectedToken} = this.props
+    const {newScript, taskOptions} = this.props
 
     const taskOption: string = taskOptionsToFluxScript(taskOptions)
     const script: string = addDestinationToFluxScript(newScript, taskOptions)
     const preamble = `${taskOption}`
 
-    this.props.saveNewScript(script, preamble, selectedToken.token)
+    this.props.saveNewScript(script, preamble)
   }
 
   private handleCancel = () => {
@@ -171,33 +141,24 @@ class TaskPage extends PureComponent<
 
     this.props.setTaskOption({key, value})
   }
-
-  private handleTokenChange = (selectedToken: Authorization) => {
-    this.props.setTaskToken(selectedToken)
-  }
 }
 
-const mstp = ({tasks, tokens}: AppState): ConnectStateProps => {
+const mstp = ({tasks}: AppState): StateProps => {
   return {
     taskOptions: tasks.taskOptions,
     newScript: tasks.newScript,
-    tokens: tokens.list,
-    tokenStatus: tokens.status,
-    selectedToken: tasks.taskToken,
   }
 }
 
-const mdtp: ConnectDispatchProps = {
+const mdtp: DispatchProps = {
   setNewScript,
   saveNewScript,
   setTaskOption,
   clearTask,
   cancel,
-  getTokens: getAuthorizations,
-  setTaskToken,
 }
 
-export default connect<ConnectStateProps, ConnectDispatchProps, {}>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
 )(TaskPage)

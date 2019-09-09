@@ -91,21 +91,6 @@ exports[`TaskForm rendering renders 1`] = `
       <TaskScheduleFormFields
         onChangeInput={[MockFunction]}
       />
-      <GridColumn
-        testID="grid--column"
-        widthXS={12}
-      >
-        <FormElement
-          label="Token"
-          testID="form--element"
-        >
-          <TaskTokenDropdown
-            onTokenChange={[MockFunction]}
-            selectedToken=""
-            tokens={Array []}
-          />
-        </FormElement>
-      </GridColumn>
     </GridRow>
   </Grid>
 </Form>

@@ -2,7 +2,6 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {intersectionBy} from 'lodash'
 
 // Components
 import TaskForm from 'src/tasks/components/TaskForm'
@@ -13,13 +12,9 @@ import {
   setTaskOption,
   clearTask,
   setNewScript,
-  setTaskToken,
 } from 'src/tasks/actions'
-import {getAuthorizations} from 'src/authorizations/actions'
 
 // Utils
-import {filterIrrelevantAuths} from 'src/authorizations/utils/permissions'
-import {getReadBuckets} from 'src/shared/utils/getReadBuckets'
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
@@ -30,14 +25,13 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, TimeRange, RemoteDataState, Authorization} from 'src/types'
+import {AppState, TimeRange} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
 } from 'src/utils/taskOptionsToFluxScript'
 import {DashboardDraftQuery} from 'src/types/dashboards'
-import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 interface OwnProps {
   dismiss: () => void
@@ -48,8 +42,6 @@ interface DispatchProps {
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
   setNewScript: typeof setNewScript
-  getTokens: typeof getAuthorizations
-  setTaskToken: typeof setTaskToken
 }
 
 interface StateProps {
@@ -57,9 +49,6 @@ interface StateProps {
   activeQuery: DashboardDraftQuery
   newScript: string
   timeRange: TimeRange
-  tokens: Authorization[]
-  tokenStatus: RemoteDataState
-  selectedToken: Authorization
 }
 
 type Props = StateProps & OwnProps & DispatchProps
@@ -74,14 +63,6 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     })
 
     setNewScript(this.activeScript)
-
-    await this.props.getTokens()
-
-    const relevantTokens = this.relevantTokens
-
-    if (relevantTokens.length > 0) {
-      this.props.setTaskToken(relevantTokens[0])
-    }
   }
 
   public componentWillUnmount() {
@@ -91,56 +72,20 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   public render() {
-    const {taskOptions, dismiss, tokenStatus, selectedToken} = this.props
+    const {taskOptions, dismiss} = this.props
 
     return (
-      <SpinnerContainer
-        loading={tokenStatus}
-        spinnerComponent={<TechnoSpinner />}
-      >
-        <TaskForm
-          taskOptions={taskOptions}
-          onChangeScheduleType={this.handleChangeScheduleType}
-          onChangeInput={this.handleChangeInput}
-          onChangeToBucketName={this.handleChangeToBucketName}
-          isInOverlay={true}
-          onSubmit={this.handleSubmit}
-          canSubmit={this.isFormValid}
-          dismiss={dismiss}
-          tokens={this.relevantTokens}
-          selectedToken={selectedToken}
-          onTokenChange={this.handleTokenChange}
-        />
-      </SpinnerContainer>
+      <TaskForm
+        taskOptions={taskOptions}
+        onChangeScheduleType={this.handleChangeScheduleType}
+        onChangeInput={this.handleChangeInput}
+        onChangeToBucketName={this.handleChangeToBucketName}
+        isInOverlay={true}
+        onSubmit={this.handleSubmit}
+        canSubmit={this.isFormValid}
+        dismiss={dismiss}
+      />
     )
-  }
-
-  private get relevantTokens() {
-    const {
-      tokens,
-      taskOptions: {toBucketName},
-    } = this.props
-
-    const readAuths = filterIrrelevantAuths(
-      tokens,
-      'read',
-      this.readBucketNames
-    )
-
-    const writeAuths = filterIrrelevantAuths(tokens, 'write', [toBucketName])
-    const relevantAuths = intersectionBy(readAuths, writeAuths, 'id')
-
-    return relevantAuths
-  }
-
-  private get readBucketNames(): string[] {
-    const {activeQuery} = this.props
-
-    if (activeQuery.editMode === 'builder') {
-      return activeQuery.builderConfig.buckets
-    }
-
-    return getReadBuckets(this.activeScript)
   }
 
   private get isFormValid(): boolean {
@@ -160,13 +105,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleSubmit = async () => {
-    const {
-      saveNewScript,
-      newScript,
-      taskOptions,
-      timeRange,
-      selectedToken,
-    } = this.props
+    const {saveNewScript, newScript, taskOptions, timeRange} = this.props
 
     // When a task runs, it does not have access to variables that we typically
     // inject into the script via the front end. So any variables that are used
@@ -187,7 +126,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     const preamble = `${varOption}\n\n${taskOption}`
     const script = addDestinationToFluxScript(newScript, taskOptions)
 
-    saveNewScript(script, preamble, selectedToken.token)
+    saveNewScript(script, preamble)
   }
 
   private handleChangeToBucketName = (bucketName: string) => {
@@ -210,16 +149,11 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
 
     setTaskOption({key, value})
   }
-
-  private handleTokenChange = (selectedToken: Authorization) => {
-    this.props.setTaskToken(selectedToken)
-  }
 }
 
 const mstp = (state: AppState): StateProps => {
   const {
-    tasks: {newScript, taskOptions, taskToken},
-    tokens,
+    tasks: {newScript, taskOptions},
     orgs: {org},
   } = state
 
@@ -231,9 +165,6 @@ const mstp = (state: AppState): StateProps => {
     taskOptions: {...taskOptions, toOrgName: org.name},
     timeRange,
     activeQuery,
-    tokens: tokens.list,
-    tokenStatus: tokens.status,
-    selectedToken: taskToken,
   }
 }
 
@@ -242,8 +173,6 @@ const mdtp: DispatchProps = {
   setTaskOption,
   clearTask,
   setNewScript,
-  getTokens: getAuthorizations,
-  setTaskToken,
 }
 
 export default connect<StateProps, DispatchProps>(

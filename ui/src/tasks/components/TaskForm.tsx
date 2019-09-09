@@ -20,8 +20,6 @@ import {
   ComponentSize,
 } from '@influxdata/clockface'
 import {TaskOptions, TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
-import {Authorization} from 'src/types'
-import TaskTokenDropdown from './TaskTokenDropdown'
 
 interface Props {
   taskOptions: TaskOptions
@@ -32,9 +30,6 @@ interface Props {
   onChangeScheduleType: (schedule: TaskSchedule) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   onChangeToBucketName: (bucketName: string) => void
-  tokens: Authorization[]
-  selectedToken: Authorization
-  onTokenChange: (token: Authorization) => void
 }
 
 interface State {
@@ -71,9 +66,6 @@ export default class TaskForm extends PureComponent<Props, State> {
         toBucketName,
       },
       isInOverlay,
-      tokens,
-      onTokenChange,
-      selectedToken,
     } = this.props
 
     return (
@@ -128,17 +120,8 @@ export default class TaskForm extends PureComponent<Props, State> {
               offset={offset}
               cron={cron}
             />
-            <Grid.Column widthXS={Columns.Twelve}>
-              <Form.Element label="Token">
-                <TaskTokenDropdown
-                  tokens={tokens}
-                  onTokenChange={onTokenChange}
-                  selectedToken={selectedToken}
-                />
-              </Form.Element>
-            </Grid.Column>
             {isInOverlay && (
-              <Grid.Column widthXS={Columns.Six}>
+              <Grid.Column widthXS={Columns.Twelve}>
                 <Form.Element label="Output Bucket">
                   <GetResources resource={ResourceType.Buckets}>
                     <TaskOptionsBucketDropdown

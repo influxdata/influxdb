@@ -6,7 +6,6 @@ import {Action} from 'src/tasks/actions'
 import {ITask as Task} from '@influxdata/influx'
 import {RemoteDataState} from '@influxdata/clockface'
 import {Run} from 'src/tasks/components/TaskRunsPage'
-import {Authorization} from 'src/types'
 
 export interface TasksState {
   status: RemoteDataState
@@ -20,7 +19,6 @@ export interface TasksState {
   runs: Run[]
   runStatus: RemoteDataState
   logs: LogEvent[]
-  taskToken: Authorization
 }
 
 export const defaultTaskOptions: TaskOptions = {
@@ -46,7 +44,6 @@ export const defaultState: TasksState = {
   runs: [],
   runStatus: RemoteDataState.NotStarted,
   logs: [],
-  taskToken: {},
 }
 
 export default (
@@ -141,9 +138,6 @@ export default (
     case 'SET_LOGS':
       const {logs} = action.payload
       return {...state, logs}
-    case 'SET_TASK_TOKEN':
-      const {token} = action.payload
-      return {...state, taskToken: token}
     default:
       return state
   }
