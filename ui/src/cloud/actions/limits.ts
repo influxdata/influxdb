@@ -292,7 +292,7 @@ export const checkBucketLimits = () => async (
     } = getState()
 
     const bucketsMax = extractBucketMax(limits)
-    const buckets = list.filter(function(bucket) {
+    const buckets = list.filter(bucket => {
       return bucket.type == 'user'
     })
     const bucketsCount = buckets.length

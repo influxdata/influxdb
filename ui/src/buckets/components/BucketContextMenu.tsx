@@ -57,6 +57,8 @@ export default class BucketContextMenu extends PureComponent<Props> {
           />
         </Context.Menu>
       )
-    } else return <></>
+    } else {
+      return null
+    }
   }
 }

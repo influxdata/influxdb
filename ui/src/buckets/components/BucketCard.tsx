@@ -78,7 +78,6 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
   private get renameButton() {
     const {bucket} = this.props
     if (bucket.type === 'user') {
-      console.log('here')
       return (
         <Button
           text="Rename"
@@ -87,7 +86,9 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           onClick={this.handleRenameBucket}
         />
       )
-    } else return <></>
+    } else {
+      return null
+    }
   }
 
   private handleDeleteData = () => {
