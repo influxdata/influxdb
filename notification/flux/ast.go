@@ -73,6 +73,15 @@ func And(lhs, rhs ast.Expression) *ast.LogicalExpression {
 	}
 }
 
+// Or returns an or *ast.LogicalExpression.
+func Or(lhs, rhs ast.Expression) *ast.LogicalExpression {
+	return &ast.LogicalExpression{
+		Operator: ast.OrOperator,
+		Left:     lhs,
+		Right:    rhs,
+	}
+}
+
 // If returns an *ast.ConditionalExpression
 func If(test, consequent, alternate ast.Expression) *ast.ConditionalExpression {
 	return &ast.ConditionalExpression{

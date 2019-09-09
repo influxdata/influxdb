@@ -316,13 +316,19 @@ func (td Lesser) generateFluxASTThresholdFunction(field string) ast.Statement {
 }
 
 func (td Range) generateFluxASTThresholdFunction(field string) ast.Statement {
+	var fnBody *ast.LogicalExpression
 	if !td.Within {
-		td.Min, td.Max = td.Max, td.Min
+		fnBody = flux.Or(
+			flux.LessThan(flux.Member("r", field), flux.Float(td.Min)),
+			flux.GreaterThan(flux.Member("r", field), flux.Float(td.Max)),
+		)
+	} else {
+		fnBody = flux.And(
+			flux.LessThan(flux.Member("r", field), flux.Float(td.Max)),
+			flux.GreaterThan(flux.Member("r", field), flux.Float(td.Min)),
+		)
 	}
-	fnBody := flux.And(
-		flux.LessThan(flux.Member("r", field), flux.Float(td.Max)),
-		flux.GreaterThan(flux.Member("r", field), flux.Float(td.Min)),
-	)
+
 	fn := flux.Function(flux.FunctionParams("r"), fnBody)
 
 	lvl := strings.ToLower(td.Level.String())

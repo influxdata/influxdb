@@ -80,7 +80,7 @@ func TestThreshold_GenerateFlux(t *testing.T) {
 							},
 							Min:    l,
 							Max:    u,
-							Within: true,
+							Within: false,
 						},
 					},
 				},
@@ -109,7 +109,7 @@ info = (r) =>
 warn = (r) =>
 	(r.usage_user < 40.0 and r.usage_user > 10.0)
 crit = (r) =>
-	(r.usage_user < 40.0 and r.usage_user > 10.0)
+	(r.usage_user < 10.0 or r.usage_user > 40.0)
 messageFn = (r) =>
 	("whoa! {r.usage_user}")
 
@@ -180,7 +180,7 @@ data
 							},
 							Min:    l,
 							Max:    u,
-							Within: true,
+							Within: false,
 						},
 					},
 				},
@@ -209,7 +209,7 @@ info = (r) =>
 warn = (r) =>
 	(r.usage_user < 40.0 and r.usage_user > 10.0)
 crit = (r) =>
-	(r.usage_user < 40.0 and r.usage_user > 10.0)
+	(r.usage_user < 10.0 or r.usage_user > 40.0)
 messageFn = (r) =>
 	("whoa! {r.usage_user}")
 
