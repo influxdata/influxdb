@@ -46,6 +46,18 @@ export const isDraftQueryAlertable = (
   }
 }
 
+export const isCheckSaveable = (
+  draftQueries: DashboardDraftQuery[]
+): boolean => {
+  const {
+    oneQuery,
+    builderMode,
+    singleAggregateFunc,
+    singleField,
+  } = isDraftQueryAlertable(draftQueries)
+  return oneQuery && builderMode && singleAggregateFunc && singleField
+}
+
 export function buildQuery(builderConfig: BuilderConfig): string {
   const {functions} = builderConfig
 
