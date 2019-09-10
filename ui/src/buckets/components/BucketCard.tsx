@@ -50,17 +50,31 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             />
           )
         }
-        name={
-          <ResourceCard.Name
-            testID={`bucket--card ${bucket.name}`}
-            onClick={this.handleNameClick}
-            name={bucket.name}
-          />
-        }
+        name={this.cardName}
         metaData={this.cardMetaItems}
       >
         {this.actionButtons}
       </ResourceCard>
+    )
+  }
+
+  private get cardName(): JSX.Element {
+    const {bucket} = this.props
+    if (bucket.type === 'user') {
+      return (
+        <ResourceCard.Name
+          testID={`bucket--card ${bucket.name}`}
+          onClick={this.handleNameClick}
+          name={bucket.name}
+        />
+      )
+    }
+
+    return (
+      <ResourceCard.Name
+        testID={`bucket--card ${bucket.name}`}
+        name={bucket.name}
+      />
     )
   }
 
