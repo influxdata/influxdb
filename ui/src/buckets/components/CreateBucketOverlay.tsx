@@ -5,6 +5,9 @@ import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {Overlay} from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
+// Constants
+import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
+
 // Types
 import {Organization, Bucket} from 'src/types'
 
@@ -38,7 +41,7 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
     const {bucket, ruleType} = this.state
 
     return (
-      <Overlay.Container maxWidth={500}>
+      <Overlay.Container maxWidth={400}>
         <Overlay.Header
           title="Create Bucket"
           onDismiss={this.props.onCloseModal}
@@ -80,8 +83,23 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
     this.setState({bucket})
   }
 
-  private handleChangeRuleType = ruleType => {
-    this.setState({ruleType})
+  private handleChangeRuleType = (ruleType: 'expire' | null) => {
+    if (ruleType === 'expire') {
+      this.setState({
+        ruleType,
+        bucket: {
+          ...this.state.bucket,
+          retentionRules: [
+            {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
+          ],
+        },
+      })
+    } else {
+      this.setState({
+        ruleType,
+        bucket: {...this.state.bucket, retentionRules: []},
+      })
+    }
   }
 
   private handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
