@@ -7,7 +7,7 @@ import {Button} from '@influxdata/clockface'
 const HelpButton: FunctionComponent = () => {
   const handleClick = () => {
     const newTab = window.open(
-      'https://github.com/influxdata/docs-v2/blob/monitor-alert/content/v2.0/monitor-alert/checks/create.md#configure-the-check'
+      'https://v2.docs.influxdata.com/v2.0/monitor-alert/checks/create/#configure-the-check'
     )
     newTab.focus()
   }
