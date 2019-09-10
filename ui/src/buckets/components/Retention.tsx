@@ -37,7 +37,7 @@ export default class Retention extends PureComponent<Props> {
             active={type === null}
             onClick={this.handleRadioClick}
             value={null}
-            titleText="Never compress data"
+            titleText="Never expire data"
           >
             Never
           </Radio.Button>
@@ -47,7 +47,7 @@ export default class Retention extends PureComponent<Props> {
             onClick={this.handleRadioClick}
             value={'expire'}
             testID="retention-intervals--button"
-            titleText="Compress data at regular intervals"
+            titleText="Expire old data"
           >
             Periodically
           </Radio.Button>
@@ -62,7 +62,6 @@ export default class Retention extends PureComponent<Props> {
   }
 
   private handleRadioClick = (type: BucketRetentionRules) => {
-    this.props.onChangeRetentionRule(DEFAULT_SECONDS)
     this.props.onChangeRuleType(type)
   }
 
