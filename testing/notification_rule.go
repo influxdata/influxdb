@@ -310,6 +310,117 @@ func CreateNotificationRule(
 				},
 			},
 		},
+		{
+			name: "validate notification rule",
+			fields: NotificationRuleFields{
+				IDGenerator:   mock.NewIDGenerator(twoID, t),
+				TimeGenerator: fakeGenerator,
+				Orgs: []*influxdb.Organization{
+					{
+						Name: "org",
+						ID:   MustIDBase16(fourID),
+					},
+				},
+				Endpoints: []influxdb.NotificationEndpoint{
+					&endpoint.Slack{
+						URL: "http://localhost:7777",
+						Token: influxdb.SecretField{
+							// TODO(desa): not sure why this has to end in token, but it does
+							Key:   "020f755c3c082001-token",
+							Value: strPtr("abc123"),
+						},
+						Base: endpoint.Base{
+							OrgID:  MustIDBase16(fourID),
+							Name:   "foo",
+							Status: influxdb.Active,
+						},
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:          MustIDBase16(oneID),
+							Name:        "name1",
+							OwnerID:     MustIDBase16(sixID),
+							OrgID:       MustIDBase16(fourID),
+							Status:      influxdb.Active,
+							EndpointID:  MustIDBase16(twoID),
+							RunbookLink: "runbooklink1",
+							SleepUntil:  &time3,
+							StatusRules: []notification.StatusRule{
+								{
+									CurrentLevel: notification.Critical,
+								},
+							},
+							TagRules: []notification.TagRule{
+								{
+									Tag: influxdb.Tag{
+										Key:   "k1",
+										Value: "v1",
+									},
+									Operator: notification.NotEqual,
+								},
+								{
+									Tag: influxdb.Tag{
+										Key:   "k2",
+										Value: "v2",
+									},
+									Operator: notification.RegexEqual,
+								},
+							},
+							CRUDLog: influxdb.CRUDLog{
+								CreatedAt: timeGen1.Now(),
+								UpdatedAt: timeGen2.Now(),
+							},
+						},
+						Channel:         "channel1",
+						MessageTemplate: "msg1",
+					},
+				},
+			},
+			args: args{
+				userID: MustIDBase16(sixID),
+				notificationRule: &rule.Slack{
+					Base: rule.Base{
+						OwnerID:     MustIDBase16(sixID),
+						OrgID:       MustIDBase16(fourID),
+						EndpointID:  MustIDBase16(twoID),
+						Status:      influxdb.Inactive,
+						RunbookLink: "runbooklink1",
+						SleepUntil:  &time3,
+						Every:       mustDuration("1h"),
+						StatusRules: []notification.StatusRule{
+							{
+								CurrentLevel: notification.Critical,
+							},
+						},
+						TagRules: []notification.TagRule{
+							{
+								Tag: influxdb.Tag{
+									Key:   "k1",
+									Value: "v1",
+								},
+								Operator: notification.NotEqual,
+							},
+							{
+								Tag: influxdb.Tag{
+									Key:   "k2",
+									Value: "v2",
+								},
+								Operator: notification.RegexEqual,
+							},
+						},
+					},
+					MessageTemplate: "msg1",
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Msg:  "Notification Rule Name can't be empty",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

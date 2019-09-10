@@ -79,6 +79,9 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 	nr.SetOwnerID(userID)
 	nr.SetCreatedAt(now)
 	nr.SetUpdatedAt(now)
+	if err := nr.Valid(); err != nil {
+		return err
+	}
 
 	t, err := s.createNotificationTask(ctx, tx, nr)
 	if err != nil {
