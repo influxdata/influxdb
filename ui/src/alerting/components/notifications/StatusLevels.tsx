@@ -9,7 +9,7 @@ import {
   ComponentSize,
 } from '@influxdata/clockface'
 import RuleLevelsDropdown from 'src/alerting/components/notifications/RuleLevelsDropdown'
-import StatusChangeDropdown from 'src/alerting/components/notifications/StatusChangeDropdown'
+// import StatusChangeDropdown from 'src/alerting/components/notifications/StatusChangeDropdown'
 import {LevelType} from 'src/alerting/components/notifications/RuleOverlay.reducer'
 
 // Utils
@@ -35,13 +35,15 @@ const StatusLevels: FC<Props> = ({status}) => {
     })
   }
 
+  // TODO: remove these comments when status change actually works
   return (
     <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
       <TextBlock text="When status" />
       <FlexBox.Child grow={0} basis={140}>
-        <StatusChangeDropdown status={status} />
+        <TextBlock text="is equal to" />
+        {/*<StatusChangeDropdown status={status} />*/}
       </FlexBox.Child>
-      {!!previousLevel && (
+      {/*{!!previousLevel && (
         <FlexBox.Child grow={0} basis={140}>
           <RuleLevelsDropdown
             type="previousLevel"
@@ -50,8 +52,8 @@ const StatusLevels: FC<Props> = ({status}) => {
             onClickLevel={onClickLevel}
           />
         </FlexBox.Child>
-      )}
-      {!!previousLevel && <TextBlock text="to" />}
+      )*/}
+      {/* !!previousLevel && <TextBlock text="to" /> */}
       <FlexBox.Child grow={0} basis={140}>
         <RuleLevelsDropdown
           type="currentLevel"
