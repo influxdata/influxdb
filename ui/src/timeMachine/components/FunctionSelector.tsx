@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
-import DurationSelector from 'src/timeMachine/components/DurationSelector'
+import DurationSelector from 'src/shared/components/DurationSelector'
 
 // Actions
 import {

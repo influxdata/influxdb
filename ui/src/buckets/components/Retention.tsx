@@ -1,28 +1,34 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
 
 // Components
 import {Radio, ButtonShape} from '@influxdata/clockface'
-import RetentionDuration from 'src/buckets/components/RetentionDuration'
+import DurationSelector from 'src/shared/components/DurationSelector'
 
 // Utils
-import {
-  Duration,
-  durationToSeconds,
-  secondsToDuration,
-} from 'src/utils/formatting'
-
-// Types
-import {BucketRetentionRules} from 'src/types'
+import {parseDuration, durationToMilliseconds} from 'src/shared/utils/duration'
 
 interface Props {
   retentionSeconds: number
   type: 'expire'
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (type: BucketRetentionRules) => void
+  onChangeRuleType: (type: 'expire' | null) => void
 }
 
-export const DEFAULT_SECONDS = 0
+export const DEFAULT_SECONDS = 259200 // 72 hours
+export const DURATION_OPTIONS = [
+  {duration: '1h', displayText: '1 hour'},
+  {duration: '6h', displayText: '6 hours'},
+  {duration: '12h', displayText: '12 hours'},
+  {duration: '24h', displayText: '24 hours'},
+  {duration: '48h', displayText: '48 hours'},
+  {duration: '72h', displayText: '72 hours'},
+  {duration: '7d', displayText: '7 days'},
+  {duration: '14d', displayText: '14 days'},
+  {duration: '30d', displayText: '30 days'},
+  {duration: '90d', displayText: '90 days'},
+  {duration: '1y', displayText: '1 year'},
+]
 
 export default class Retention extends PureComponent<Props> {
   public render() {
@@ -37,7 +43,7 @@ export default class Retention extends PureComponent<Props> {
             active={type === null}
             onClick={this.handleRadioClick}
             value={null}
-            titleText="Never expire data"
+            titleText="Never delete data"
           >
             Never
           </Radio.Button>
@@ -45,37 +51,32 @@ export default class Retention extends PureComponent<Props> {
             id="intervals"
             active={type === 'expire'}
             onClick={this.handleRadioClick}
-            value={'expire'}
+            value="expire"
             testID="retention-intervals--button"
-            titleText="Expire old data"
+            titleText="Delete data older than a duration"
           >
-            Periodically
+            Older Than
           </Radio.Button>
         </Radio>
-        <RetentionDuration
-          type={type}
-          retentionSeconds={retentionSeconds}
-          onChangeInput={this.handleChangeInput}
-        />
+        {type === 'expire' && (
+          <DurationSelector
+            selectedDuration={`${retentionSeconds}s`}
+            onSelectDuration={this.handleSelectDuration}
+            durations={DURATION_OPTIONS}
+          />
+        )}
       </>
     )
   }
 
-  private handleRadioClick = (type: BucketRetentionRules) => {
+  private handleRadioClick = (type: 'expire' | null) => {
     this.props.onChangeRuleType(type)
   }
 
-  private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
-    const {retentionSeconds} = this.props
-    const value = e.target.value
-    const key = e.target.name as keyof Duration
-    const time = {
-      ...secondsToDuration(retentionSeconds),
-      [key]: Number(value),
-    }
+  private handleSelectDuration = (durationStr: string) => {
+    const durationSeconds =
+      durationToMilliseconds(parseDuration(durationStr)) / 1000
 
-    const seconds = durationToSeconds(time)
-
-    this.props.onChangeRetentionRule(seconds)
+    this.props.onChangeRetentionRule(durationSeconds)
   }
 }
