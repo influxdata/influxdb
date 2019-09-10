@@ -12,13 +12,14 @@ import {
   secondsToDuration,
 } from 'src/utils/formatting'
 
-import {BucketRetentionRules} from '@influxdata/influx'
+// Types
+import {BucketRetentionRules} from 'src/types'
 
 interface Props {
   retentionSeconds: number
   type: 'expire'
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (type: BucketRetentionRules.TypeEnum) => void
+  onChangeRuleType: (type: BucketRetentionRules) => void
 }
 
 export const DEFAULT_SECONDS = 0
@@ -42,9 +43,9 @@ export default class Retention extends PureComponent<Props> {
           </Radio.Button>
           <Radio.Button
             id="intervals"
-            active={type === BucketRetentionRules.TypeEnum.Expire}
+            active={type === 'expire'}
             onClick={this.handleRadioClick}
-            value={BucketRetentionRules.TypeEnum.Expire}
+            value={'expire'}
             testID="retention-intervals--button"
             titleText="Compress data at regular intervals"
           >
@@ -60,7 +61,7 @@ export default class Retention extends PureComponent<Props> {
     )
   }
 
-  private handleRadioClick = (type: BucketRetentionRules.TypeEnum) => {
+  private handleRadioClick = (type: BucketRetentionRules) => {
     this.props.onChangeRetentionRule(DEFAULT_SECONDS)
     this.props.onChangeRuleType(type)
   }
