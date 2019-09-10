@@ -146,13 +146,11 @@ export const DEFAULT_ENDPOINT_URLS = {
 
 export const NEW_ENDPOINT_DRAFT: NotificationEndpoint = {
   name: 'Name this Endpoint',
-  method: 'POST',
-  authMethod: 'none',
   description: '',
   status: 'active',
-  type: 'http',
+  type: 'slack',
   token: '',
-  url: DEFAULT_ENDPOINT_URLS['http'],
+  url: DEFAULT_ENDPOINT_URLS['slack'],
 }
 
 export const NEW_ENDPOINT_FIXTURES: NotificationEndpoint[] = [
