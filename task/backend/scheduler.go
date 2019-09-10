@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -469,6 +471,16 @@ func newTaskScheduler(
 		return nil, err
 	}
 	maxC := defaultConcurrency
+
+	// if an environment variable for default concurrency is set, use this value
+	// this will be overwritten if the Flux script for the task has a concurrency set
+	if envConcurrency := os.Getenv("DEFAULT_CONCURRENCY"); envConcurrency != "" {
+		c, err := strconv.Atoi(envConcurrency)
+		if err == nil {
+			maxC = c
+		}
+	}
+
 	if opt.Concurrency != nil {
 		maxC = int(*opt.Concurrency)
 	}
