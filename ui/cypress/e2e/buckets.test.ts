@@ -41,17 +41,14 @@ describe('Buckets', () => {
       })
 
       cy.getByTestID('retention-intervals--button').click()
-
-      cy.getByInputName('days').type('{uparrow}')
-      cy.getByInputName('hours').type('{uparrow}')
-      cy.getByInputName('minutes').type('{uparrow}')
-      cy.getByInputName('seconds').type('{uparrow}')
+      cy.getByTestID('duration-selector--button').click()
+      cy.getByTestID('duration-selector--7d').click()
 
       cy.getByTestID('overlay--container').within(() => {
         cy.contains('Save').click()
       })
 
-      cy.getByTestID('bucket--card').should('contain', '1 day')
+      cy.getByTestID('bucket--card').should('contain', '7 days')
 
       cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
         cy.getByTestID(`bucket--card ${name}`).click()

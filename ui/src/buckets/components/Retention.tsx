@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Radio, ButtonShape} from '@influxdata/clockface'
@@ -7,15 +8,13 @@ import DurationSelector from 'src/shared/components/DurationSelector'
 
 // Utils
 import {parseDuration, durationToMilliseconds} from 'src/shared/utils/duration'
+import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
 
-interface Props {
-  retentionSeconds: number
-  type: 'expire'
-  onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (type: 'expire' | null) => void
-}
+// Types
+import {AppState} from 'src/types'
 
 export const DEFAULT_SECONDS = 259200 // 72 hours
+
 export const DURATION_OPTIONS = [
   {duration: '1h', displayText: '1 hour'},
   {duration: '6h', displayText: '6 hours'},
@@ -30,9 +29,22 @@ export const DURATION_OPTIONS = [
   {duration: '1y', displayText: '1 year'},
 ]
 
-export default class Retention extends PureComponent<Props> {
+interface StateProps {
+  maxRetentionSeconds: number
+}
+
+interface OwnProps {
+  retentionSeconds: number
+  type: 'expire'
+  onChangeRetentionRule: (seconds: number) => void
+  onChangeRuleType: (type: 'expire' | null) => void
+}
+
+type Props = OwnProps & StateProps
+
+class Retention extends PureComponent<Props> {
   public render() {
-    const {retentionSeconds, type} = this.props
+    const {retentionSeconds, maxRetentionSeconds, type} = this.props
 
     return (
       <>
@@ -44,6 +56,7 @@ export default class Retention extends PureComponent<Props> {
             onClick={this.handleRadioClick}
             value={null}
             titleText="Never delete data"
+            disabled={!!maxRetentionSeconds}
           >
             Never
           </Radio.Button>
@@ -62,10 +75,24 @@ export default class Retention extends PureComponent<Props> {
           <DurationSelector
             selectedDuration={`${retentionSeconds}s`}
             onSelectDuration={this.handleSelectDuration}
-            durations={DURATION_OPTIONS}
+            durations={this.durations}
           />
         )}
       </>
+    )
+  }
+
+  private get durations() {
+    const {maxRetentionSeconds} = this.props
+
+    if (!maxRetentionSeconds) {
+      return DURATION_OPTIONS
+    }
+
+    return DURATION_OPTIONS.filter(
+      ({duration}) =>
+        durationToMilliseconds(parseDuration(duration)) <=
+        maxRetentionSeconds * 1000
     )
   }
 
@@ -80,3 +107,9 @@ export default class Retention extends PureComponent<Props> {
     this.props.onChangeRetentionRule(durationSeconds)
   }
 }
+
+const mstp = (state: AppState): StateProps => ({
+  maxRetentionSeconds: extractBucketMaxRetentionSeconds(state.cloud.limits),
+})
+
+export default connect<StateProps, {}, OwnProps>(mstp)(Retention)

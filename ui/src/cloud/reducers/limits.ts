@@ -17,7 +17,7 @@ interface LimitWithBlocked extends Limit {
 export interface LimitsState {
   dashboards: Limit
   tasks: Limit
-  buckets: Limit
+  buckets: Limit & {maxRetentionSeconds: number | null}
   checks: Limit
   rules: LimitWithBlocked
   endpoints: LimitWithBlocked
@@ -39,7 +39,7 @@ const defaultLimitWithBlocked: LimitWithBlocked = {...defaultLimit, blocked: []}
 export const defaultState: LimitsState = {
   dashboards: defaultLimit,
   tasks: defaultLimit,
-  buckets: defaultLimit,
+  buckets: {...defaultLimit, maxRetentionSeconds: null},
   checks: defaultLimit,
   rules: defaultLimitWithBlocked,
   endpoints: defaultLimitWithBlocked,
@@ -66,7 +66,7 @@ export const limitsReducer = (
       case ActionTypes.SetLimits: {
         const {limits} = action.payload
 
-        const {maxBuckets} = limits.bucket
+        const {maxBuckets, maxRetentionDuration} = limits.bucket
         const {maxDashboards} = limits.dashboard
         const {maxTasks} = limits.task
         const {maxChecks} = limits.check
@@ -79,6 +79,7 @@ export const limitsReducer = (
         const {readKBs, writeKBs, cardinality} = limits.rate
 
         draftState.buckets.maxAllowed = maxBuckets
+        draftState.buckets.maxRetentionSeconds = maxRetentionDuration / 1e9
         draftState.dashboards.maxAllowed = maxDashboards
         draftState.tasks.maxAllowed = maxTasks
         draftState.checks.maxAllowed = maxChecks

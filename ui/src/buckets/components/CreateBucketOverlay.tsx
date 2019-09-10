@@ -1,38 +1,51 @@
 // Libraries
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
 import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
+// Utils
+import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
+
 // Constants
 import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
 
 // Types
-import {Organization, Bucket} from 'src/types'
+import {Organization, Bucket, AppState} from 'src/types'
 
-interface Props {
+const DEFAULT_RULES = [
+  {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
+]
+
+interface StateProps {
+  isRetentionLimitEnforced: boolean
+}
+
+interface OwnProps {
   org: Organization
   onCloseModal: () => void
   onCreateBucket: (bucket: Partial<Bucket>) => Promise<void>
 }
+
+type Props = StateProps & OwnProps
 
 interface State {
   bucket: Bucket
   ruleType: 'expire'
 }
 
-const emptyBucket = {
-  name: '',
-  retentionRules: [],
-} as Bucket
-
-export default class CreateBucketOverlay extends PureComponent<Props, State> {
-  constructor(props) {
+class CreateBucketOverlay extends PureComponent<Props, State> {
+  constructor(props: Props) {
     super(props)
+
     this.state = {
-      bucket: emptyBucket,
-      ruleType: null,
+      bucket: {
+        name: '',
+        retentionRules: props.isRetentionLimitEnforced ? DEFAULT_RULES : [],
+      },
+      ruleType: props.isRetentionLimitEnforced ? 'expire' : null,
     }
   }
 
@@ -87,12 +100,7 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
     if (ruleType === 'expire') {
       this.setState({
         ruleType,
-        bucket: {
-          ...this.state.bucket,
-          retentionRules: [
-            {type: 'expire' as 'expire', everySeconds: DEFAULT_SECONDS},
-          ],
-        },
+        bucket: {...this.state.bucket, retentionRules: DEFAULT_RULES},
       })
     } else {
       this.setState({
@@ -129,3 +137,11 @@ export default class CreateBucketOverlay extends PureComponent<Props, State> {
     this.setState({bucket})
   }
 }
+
+const mstp = (state: AppState): StateProps => ({
+  isRetentionLimitEnforced: !!extractBucketMaxRetentionSeconds(
+    state.cloud.limits
+  ),
+})
+
+export default connect<StateProps, {}, OwnProps>(mstp)(CreateBucketOverlay)

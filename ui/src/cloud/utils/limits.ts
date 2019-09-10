@@ -14,6 +14,12 @@ export const extractBucketMax = (limits: LimitsState): number => {
   return get(limits, 'buckets.maxAllowed') || Infinity // if maxAllowed == 0, there are no limits on asset
 }
 
+export const extractBucketMaxRetentionSeconds = (
+  limits: LimitsState
+): number => {
+  return get(limits, 'buckets.maxRetentionSeconds', null)
+}
+
 export const extractDashboardLimits = (limits: LimitsState): LimitStatus => {
   return get(limits, 'dashboards.limitStatus')
 }
