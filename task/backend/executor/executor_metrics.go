@@ -11,8 +11,8 @@ import (
 type ExecutorMetrics struct {
 	totalRunsComplete *prometheus.CounterVec
 	activeRuns        prometheus.Collector
-	queueDelta        prometheus.Summary
-	runDuration       prometheus.Summary
+	queueDelta        *prometheus.SummaryVec
+	runDuration       *prometheus.SummaryVec
 	errorsCounter     prometheus.Counter
 	manualRunsCounter *prometheus.CounterVec
 	resumeRunsCounter *prometheus.CounterVec
@@ -39,21 +39,21 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 
 		activeRuns: NewRunCollector(te),
 
-		queueDelta: prometheus.NewSummary(prometheus.SummaryOpts{
+		queueDelta: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace:  namespace,
 			Subsystem:  subsystem,
 			Name:       "run_queue_delta",
 			Help:       "The duration in seconds between a run being due to start and actually starting.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}),
+		}, []string{"taskID"}),
 
-		runDuration: prometheus.NewSummary(prometheus.SummaryOpts{
+		runDuration: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace:  namespace,
 			Subsystem:  subsystem,
 			Name:       "run_duration",
 			Help:       "The duration in seconds between a run starting and finishing.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}),
+		}, []string{"taskID"}),
 
 		errorsCounter: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -118,14 +118,16 @@ func (em *ExecutorMetrics) PrometheusCollectors() []prometheus.Collector {
 
 // StartRun store the delta time between when a run is due to start and actually starting.
 func (em *ExecutorMetrics) StartRun(taskID influxdb.ID, queueDelta time.Duration) {
-	em.queueDelta.Observe(queueDelta.Seconds())
+	em.queueDelta.WithLabelValues("all").Observe(queueDelta.Seconds())
+	em.queueDelta.WithLabelValues(taskID.String()).Observe(queueDelta.Seconds())
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.
 func (em *ExecutorMetrics) FinishRun(taskID influxdb.ID, status backend.RunStatus, runDuration time.Duration) {
 	em.totalRunsComplete.WithLabelValues(status.String()).Inc()
 
-	em.runDuration.Observe(runDuration.Seconds())
+	em.runDuration.WithLabelValues("all").Observe(runDuration.Seconds())
+	em.runDuration.WithLabelValues(taskID.String()).Observe(runDuration.Seconds())
 }
 
 // LogError increments the count of errors.

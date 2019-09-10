@@ -19,7 +19,8 @@ type schedulerMetrics struct {
 	claimsComplete *prometheus.CounterVec
 	claimsActive   prometheus.Gauge
 
-	queueDelta prometheus.Summary
+	queueDelta     *prometheus.SummaryVec
+	executionDelta *prometheus.SummaryVec
 }
 
 func newSchedulerMetrics() *schedulerMetrics {
@@ -65,13 +66,20 @@ func newSchedulerMetrics() *schedulerMetrics {
 			Name:      "claims_active",
 			Help:      "Total number of claims currently held.",
 		}),
-		queueDelta: prometheus.NewSummary(prometheus.SummaryOpts{
+		queueDelta: prometheus.NewSummaryVec(prometheus.SummaryOpts{
 			Namespace:  namespace,
 			Subsystem:  subsystem,
 			Name:       "run_queue_delta",
 			Help:       "The duration in seconds between a run being due to start and actually starting.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
-		}),
+		}, []string{"taskID"}),
+		executionDelta: prometheus.NewSummaryVec(prometheus.SummaryOpts{
+			Namespace:  namespace,
+			Subsystem:  subsystem,
+			Name:       "run_execution_delta",
+			Help:       "The duration in seconds between a run being due to start and complete execution.",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+		}, []string{"taskID"}),
 	}
 }
 
@@ -85,6 +93,7 @@ func (sm *schedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 		sm.claimsComplete,
 		sm.claimsActive,
 		sm.queueDelta,
+		sm.executionDelta,
 	}
 }
 
@@ -92,12 +101,13 @@ func (sm *schedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 // We are also storing the delta time between when a run is due to start and actually starting.
 func (sm *schedulerMetrics) StartRun(tid string, queueDelta time.Duration) {
 	sm.totalRunsActive.Inc()
-	sm.queueDelta.Observe(queueDelta.Seconds())
+	sm.queueDelta.WithLabelValues("all").Observe(queueDelta.Seconds())
+	sm.queueDelta.WithLabelValues(tid).Observe(queueDelta.Seconds())
 	sm.runsActive.WithLabelValues(tid).Inc()
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.
-func (sm *schedulerMetrics) FinishRun(tid string, succeeded bool) {
+func (sm *schedulerMetrics) FinishRun(tid string, succeeded bool, executionDelta time.Duration) {
 	status := statusString(succeeded)
 
 	sm.totalRunsActive.Dec()
@@ -105,6 +115,9 @@ func (sm *schedulerMetrics) FinishRun(tid string, succeeded bool) {
 
 	sm.runsActive.WithLabelValues(tid).Dec()
 	sm.runsComplete.WithLabelValues(tid, status).Inc()
+
+	sm.executionDelta.WithLabelValues("all").Observe(executionDelta.Seconds())
+	sm.executionDelta.WithLabelValues(tid).Observe(executionDelta.Seconds())
 }
 
 // ClaimTask adjusts the metrics to indicate the result of an attempted claim.
