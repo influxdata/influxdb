@@ -25,6 +25,44 @@ describe('Tasks', () => {
     })
   })
 
+  // TODO: remove skip when https://github.com/influxdata/flux/issues/1801 is resolved
+  // The flux parser response is returning invalidly parsed AST and strips parens
+  // from the end of function expressions assigned to variables
+  // crit, ok, and messageFn vars all have their parens stripped after parsing
+  it.skip('flux does not become malformed when parsed', () => {
+    createFirstTask('stock price', () => {
+      return `package main
+      import "influxdata/influxdb/monitor"
+      import "influxdata/influxdb/v1"
+
+      option task = {{} name: "stock price", every: 1m, offset: 0s }
+
+      data = from(bucket: "defbuck")
+        |> range(start: -5m)
+        |> filter(fn: (r) => (r._measurement == "iexapis"))
+        |> filter(fn: (r) => (r._field == "changePercent"))
+        |> filter(fn: (r) => (r.isUSMarketOpen == "true"))
+        |> aggregateWindow(every: 5m, fn: max, createEmpty: false)
+
+      check = {{}
+        _check_id: "04725fb11fa63000",
+        _check_name: "Stock Change",
+        _type: "threshold",
+        tags: {{}},
+      }
+
+      crit = (r) => (r.changePercent < -0.01 or r.changePercent > 0.01)
+      ok = (r) => (r.changePercent < 0.01 and r.changePercent > -0.01)
+      messageFn = (r) => ("Task: \${{}r.symbol} changed by \${{}string(v:r.changedPercent)}")
+
+      data |> v1.fieldsAsCols() |> monitor.check(data: check, messageFn: messageFn, crit: crit, ok: ok)`
+    })
+
+    cy.contains('Save').click()
+
+    cy.getByTestID('task-card').should('have.length', 1)
+  })
+
   it('cannot create a task with an invalid to() function', () => {
     const taskName = 'Bad Task'
 
