@@ -74,6 +74,15 @@ const CheckMessageCard: FC<Props> = ({check, onUpdateTimeMachineCheck}) => {
             <code>{'${string(v: r.numericColumn)}'}</code> Functions can be used{' '}
             as well
           </p>
+          <p>
+            Need help? Check out the Status Message Template{' '}
+            <a
+              href="https://github.com/influxdata/docs-v2/blob/monitor-alert/content/v2.0/monitor-alert/checks/create.md#flux-only-interpolates-string-values"
+              target="_blank"
+            >
+              Documentation
+            </a>
+          </p>
         </div>
       </BuilderCard.Body>
     </BuilderCard>

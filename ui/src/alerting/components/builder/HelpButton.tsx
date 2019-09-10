@@ -5,7 +5,12 @@ import React, {FunctionComponent} from 'react'
 import {Button} from '@influxdata/clockface'
 
 const HelpButton: FunctionComponent = () => {
-  const handleClick = () => {}
+  const handleClick = () => {
+    const newTab = window.open(
+      'https://github.com/influxdata/docs-v2/blob/monitor-alert/content/v2.0/monitor-alert/checks/create.md#configure-the-check'
+    )
+    newTab.focus()
+  }
 
   return (
     <Button
