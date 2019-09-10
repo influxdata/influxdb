@@ -33,8 +33,7 @@ export const RANGE: FluxToolbarFunction = {
     },
     {
       name: 'stop',
-      desc:
-        'The latest time to include in results. Defaults to `now()`.',
+      desc: 'The latest time to include in results. Defaults to `now()`.',
       type: 'Duration',
     },
   ],
