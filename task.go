@@ -262,14 +262,34 @@ func (t TaskUpdate) Validate() error {
 	return nil
 }
 
+// safeParseSource calls the Flux parser.ParseSource function
+// and is guaranteed not to panic.
+func safeParseSource(f string) (pkg *ast.Package, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = &Error{
+				Code: EInternal,
+				Msg:  "internal error in flux engine; unable to parse",
+			}
+		}
+	}()
+
+	pkg = parser.ParseSource(f)
+	return pkg, err
+}
+
 // UpdateFlux updates the TaskUpdate to go from updating options to updating a flux string, that now has those updated options in it
 // It zeros the options in the TaskUpdate.
-func (t *TaskUpdate) UpdateFlux(oldFlux string) error {
+func (t *TaskUpdate) UpdateFlux(oldFlux string) (err error) {
 	if t.Flux != nil && *t.Flux != "" {
 		oldFlux = *t.Flux
 	}
 	toDelete := map[string]struct{}{}
-	parsedPKG := parser.ParseSource(oldFlux)
+	parsedPKG, err := safeParseSource(oldFlux)
+	if err != nil {
+		return err
+	}
+
 	if ast.Check(parsedPKG) > 0 {
 		return ast.GetError(parsedPKG)
 	}
