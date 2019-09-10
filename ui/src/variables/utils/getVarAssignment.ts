@@ -1,5 +1,5 @@
 // Utils
-import {parseDuration} from 'src/variables/utils/parseDuration'
+import {parseDuration} from 'src/shared/utils/duration'
 
 // Types
 import {VariableValues} from 'src/variables/types'

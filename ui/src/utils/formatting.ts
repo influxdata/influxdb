@@ -7,24 +7,7 @@ export interface Duration {
   seconds: number
 }
 
-export const durationToSeconds = ({
-  days,
-  hours,
-  minutes,
-  seconds,
-}: Duration): number => {
-  const sInMinute = 60
-  const sInHour = sInMinute * 60
-  const sInDay = sInHour * 24
-
-  const sDays = sInDay * days
-  const sHours = sInHour * hours
-  const sMinutes = sInMinute * minutes
-
-  return sDays + sHours + sMinutes + seconds
-}
-
-export const secondsToDuration = (seconds: number): Duration => {
+const secondsToDuration = (seconds: number): Duration => {
   let minutes = Math.floor(seconds / 60)
   seconds = seconds % 60
   let hours = Math.floor(minutes / 60)

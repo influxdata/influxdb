@@ -24,7 +24,7 @@ interface Props {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void
   onCloseModal: () => void
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (t: 'expire') => void
+  onChangeRuleType: (t: 'expire' | null) => void
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   disableRenaming: boolean
   buttonText: string
@@ -57,6 +57,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 label="Name"
                 helpText={this.nameHelpText}
                 validationFunc={this.handleNameValidation}
+                required={true}
               >
                 {status => (
                   <Input
@@ -70,7 +71,7 @@ export default class BucketOverlayForm extends PureComponent<Props> {
                 )}
               </Form.ValidationElement>
               <Form.Element
-                label="Delete data older than"
+                label="Delete Data"
                 errorMessage={this.ruleErrorMessage}
               >
                 <Retention

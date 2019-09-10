@@ -7,7 +7,7 @@ import {Form, ComponentSize, ComponentColor, Grid} from '@influxdata/clockface'
 import {Input} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
-import DurationSelector from 'src/timeMachine/components/DurationSelector'
+import DurationSelector from 'src/shared/components/DurationSelector'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 
 // Actions & Selectors

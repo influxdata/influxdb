@@ -3,7 +3,7 @@ import {NumericColumnData} from '@influxdata/giraffe'
 import {useMemo} from 'react'
 
 // Utils
-import {parseDuration} from 'src/variables/utils/parseDuration'
+import {parseDuration} from 'src/shared/utils/duration'
 import {useOneWayState} from 'src/shared/utils/useOneWayState'
 import {extent} from 'src/shared/utils/vis'
 
