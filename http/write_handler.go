@@ -184,6 +184,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			Op:   "http/handleWrite",
 			Msg:  fmt.Sprintf("cannot write to internal bucket %s", bucket.Name),
 		}, w)
+		return
 	}
 
 	p, err := platform.NewPermissionAtID(bucket.ID, platform.WriteAction, platform.BucketsResourceType, org.ID)
