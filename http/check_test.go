@@ -1077,9 +1077,11 @@ func TestService_handleUpdateCheck(t *testing.T) {
 				id: "020f755c3c082000",
 				chk: &check.Deadman{
 					Base: check.Base{
-						Name:   "example",
-						Status: influxdb.Active,
-						TaskID: 3,
+						Name:    "example",
+						Status:  influxdb.Active,
+						TaskID:  3,
+						OwnerID: 42,
+						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
 					},
 					Level: notification.Critical,
 				},
@@ -1099,6 +1101,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		  "updatedAt": "0001-01-01T00:00:00Z",
 		  "id": "020f755c3c082000",
 		  "orgID": "020f755c3c082000",
+		  "ownerID": "000000000000002a",
 		  "level": "CRIT",
 		  "name": "example",
 		  "query": {
@@ -1140,7 +1143,10 @@ func TestService_handleUpdateCheck(t *testing.T) {
 				id: "020f755c3c082000",
 				chk: &check.Deadman{
 					Base: check.Base{
-						Name: "example",
+						Name:    "example",
+						Status:  influxdb.Active,
+						OwnerID: 42,
+						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
 					},
 				},
 			},
@@ -1183,7 +1189,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			body, _ := ioutil.ReadAll(res.Body)
 
 			if res.StatusCode != tt.wants.statusCode {
-				t.Errorf("%q. handlePutCheck() = %v, want %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header())
+				t.Errorf("%q. handlePutCheck() = %v, want %v %v %v", tt.name, res.StatusCode, tt.wants.statusCode, w.Header(), string(body))
 			}
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. handlePutCheck() = %v, want %v", tt.name, content, tt.wants.contentType)
