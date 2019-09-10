@@ -3,8 +3,10 @@
 ### Features
 
 ### UI Improvements
+
+1. [15099](https://github.com/influxdata/influxdb/pull/15099): Add viewport scaling to html meta for responsive mobile scaling
 1. [15056](https://github.com/influxdata/influxdb/pull/15056): Remove rename and delete functionality from system buckets
-1. [15056](https://github.com/influxdata/influxdb/pull/15056): Prevent new buckets from being named with the reserved "_" prefix
+1. [15056](https://github.com/influxdata/influxdb/pull/15056): Prevent new buckets from being named with the reserved "\_" prefix
 1. [15056](https://github.com/influxdata/influxdb/pull/15056): Prevent user from selecting system buckets when creating Scrapers, Telegraf configurations, read/write tokens, and when saving as a task
 1. [15056](https://github.com/influxdata/influxdb/pull/15056): Limit values from draggable threshold handles to 2 decimal places
 1. [15040](https://github.com/influxdata/influxdb/pull/15040): Redesign check builder UI to fill the screen and make more room for composing message templates
@@ -12,12 +14,13 @@
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Expose all Settings tabs in navigation menu
 
 ### Bug Fixes
-1. [14931](https://github.com/influxdata/influxdb/pull/14931): Remove scrollbars blocking onboarding UI step.
 
+1. [14931](https://github.com/influxdata/influxdb/pull/14931): Remove scrollbars blocking onboarding UI step.
 
 ## v2.0.0-alpha.17 [2019-08-14]
 
 ### Features
+
 1. [14809](https://github.com/influxdata/influxdb/pull/14809): Add task middleware's for checks and notifications
 1. [14495](https://github.com/influxdata/influxdb/pull/14495): optional gzip compression of the query CSV response.
 1. [14567](https://github.com/influxdata/influxdb/pull/14567): Add task types.
@@ -29,6 +32,7 @@
 1. [14901](https://github.com/influxdata/influxdb/pull/14901): Add ability to Peek() on reads package StreamReader types.
 
 ### UI Improvements
+
 1. [14917](https://github.com/influxdata/influxdb/pull/14917): Make first steps in Monitoring & Alerting more obvious
 1. [14889](https://github.com/influxdata/influxdb/pull/14889): Make adding data to buckets more discoverable
 1. [14709](https://github.com/influxdata/influxdb/pull/14709): Move Buckets, Telgrafs, and Scrapers pages into a tab called "Load Data" for ease of discovery
