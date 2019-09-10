@@ -68,6 +68,7 @@ export const loadNotifications = (
 from(bucket: "${MONITORING_BUCKET}")
   |> range(start: ${start}, stop: ${Math.round(until / 1000)})
   |> filter(fn: (r) => r._measurement == "notifications")
+  |> filter(fn: (r) => r._field !~ /^_/)
   |> keep(columns: ["_time",
                     "_check_id",
                     "_check_name",
