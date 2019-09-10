@@ -28,13 +28,12 @@ export const RANGE: FluxToolbarFunction = {
   args: [
     {
       name: 'start',
-      desc: 'Specifies the oldest time to be included in the results.',
+      desc: 'The earliest time to include in results.',
       type: 'Duration',
     },
     {
       name: 'stop',
-      desc:
-        'Specifies the exclusive newest time to be included in the results. Defaults to `now()`.',
+      desc: 'The latest time to include in results. Defaults to `now()`.',
       type: 'Duration',
     },
   ],
@@ -249,6 +248,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Inputs',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/inputs/buckets/',
+  },
+  {
+    name: 'bytes',
+    args: [
+      {
+        name: 'v',
+        desc: 'The value to convert.',
+        type: 'String, Integer, UInteger, Float, Boolean',
+      },
+    ],
+    package: '',
+    desc: 'Converts a single value to bytes.',
+    example: 'bytes(t: r._value)',
+    category: 'Type Conversions',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/type-conversions/bytes/',
   },
   {
     name: 'chandeMomentumOscillator',
@@ -1298,6 +1313,61 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/join/',
+  },
+  {
+    name: 'json.encode',
+    args: [
+      {
+        name: 'v',
+        desc: 'The value to encode.',
+        type: 'Boolean, Duration, Float, Integer, String, Time, UInteger',
+      },
+    ],
+    package: 'json',
+    desc: 'Converts a value into JSON bytes.',
+    example: 'json.encode(v: r._value)',
+    category: 'Type Conversions',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/json/encode/',
+  },
+  {
+    name: 'kaufmansAMA',
+    args: [
+      {
+        name: 'n',
+        desc: 'The period or number of points to use in the calculation.',
+        type: 'Integer',
+      },
+      {
+        name: 'column',
+        desc: 'The column to operate on. Defaults to `"_value"`.',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates Kaufman’s Adaptive Moving Average (KAMA) using values in an input table.',
+    example: 'kaufmansAMA(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/kaufmansama/',
+  },
+  {
+    name: 'kaufmansER',
+    args: [
+      {
+        name: 'n',
+        desc: 'The period or number of points to use in the calculation.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates the Kaufman’s Efficiency Ratio (KER) using values in an input table.',
+    example: 'kaufmansER(n: 5)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/kaufmanser/',
   },
   {
     name: 'keep',
@@ -3020,6 +3090,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/selectors/sample/',
   },
   {
+    name: 'secrets.get',
+    args: [
+      {
+        name: 'key',
+        desc: 'The secret key to retrieve.',
+        type: 'String',
+      },
+    ],
+    package: 'influxdata/influxdb/secrets',
+    desc: 'Retrieves a secret from the InfluxDB secret store.',
+    example: 'secrets.get(key: "KEY_NAME")',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/secrets/get/',
+  },
+  {
     name: 'set',
     args: [
       {
@@ -4299,6 +4385,39 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Aggregates',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/tripleema/',
+  },
+  {
+    name: 'tripleExponentialDerivative',
+    args: [
+      {
+        name: 'n',
+        desc: 'The number of points to use in the calculation.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Calculates a triple exponential derivative (TRIX) of input tables using n points.',
+    example: 'tripleExponentialDerivative(n: 5)',
+    category: 'Aggregates',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/aggregates/tripleexponentialderivative/',
+  },
+  {
+    name: 'truncateTimeColumn',
+    args: [
+      {
+        name: 'unit',
+        desc: 'The unit of time to truncate to.',
+        type: 'Duration',
+      },
+    ],
+    package: '',
+    desc: 'Truncates all `_time` values to a specified unit.',
+    example: 'truncateTimeColumn(unit: 1m)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/functions/built-in/transformations/truncatetimecolumn/',
   },
   {
     name: 'uint',
