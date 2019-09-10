@@ -327,7 +327,7 @@ func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
 
 	// add to metrics
-	s, _ := p.run.ScheduledForTime()
+	s, _ := p.run.StartedAtTime()
 	rd := time.Since(s)
 	w.te.metrics.FinishRun(p.task.ID, rs, rd)
 

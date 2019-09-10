@@ -61,6 +61,8 @@ type QueuedRun struct {
 	// The Unix timestamp (seconds since January 1, 1970 UTC) that will be set
 	// as the "now" option when executing the task.
 	Now int64
+
+	startedAt time.Time
 }
 
 // RunPromise represents an in-progress run whose result is not yet known.
@@ -802,16 +804,17 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 	switch s {
 	case RunStarted:
 		dueAt := time.Unix(qr.DueAt, 0)
+		qr.startedAt = time.Now()
 		r.ts.metrics.StartRun(r.task.ID.String(), time.Since(dueAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Flux))
 	case RunSuccess:
-		r.ts.metrics.FinishRun(r.task.ID.String(), true)
+		r.ts.metrics.FinishRun(r.task.ID.String(), true, time.Since(qr.startedAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Completed successfully")
 	case RunFail:
-		r.ts.metrics.FinishRun(r.task.ID.String(), false)
+		r.ts.metrics.FinishRun(r.task.ID.String(), false, time.Since(qr.startedAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Failed")
 	case RunCanceled:
-		r.ts.metrics.FinishRun(r.task.ID.String(), false)
+		r.ts.metrics.FinishRun(r.task.ID.String(), false, time.Since(qr.startedAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Canceled")
 	default: // We are deliberately not handling RunQueued yet.
 		// There is not really a notion of being queued in this runner architecture.
