@@ -28,6 +28,14 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
       to a third party service that can receive notifications
       <br />
       like Slack, PagerDuty, or an HTTP server
+      <br />
+      <br />
+      <a
+        href="https://v2.docs.influxdata.com/v2.0/monitor-alert/notification-endpoints/create-notification-endpoints"
+        target="_blank"
+      >
+        Read Documentation
+      </a>
     </>
   )
 

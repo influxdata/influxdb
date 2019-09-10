@@ -43,6 +43,14 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
       notification should be sent to a
       <br />
       <strong>Notification Endpoint</strong>
+      <br />
+      <br />
+      <a
+        href="https://v2.docs.influxdata.com/v2.0/monitor-alert/notification-rules/create-notification-rules"
+        target="_blank"
+      >
+        Read Documentation
+      </a>
     </>
   )
 
