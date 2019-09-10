@@ -65,7 +65,7 @@ export interface NotificationRow {
   notificationRuleName: string
   notificationEndpointID: string
   notificationEndpointName: string
-  sent: boolean
+  sent: 'true' | 'false' // See https://github.com/influxdata/idpe/issues/4645
 }
 
 export {
