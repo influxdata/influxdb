@@ -66,7 +66,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
   private get cardMetaItems(): JSX.Element[] {
     const {bucket} = this.props
-    if (bucket.type === 'user') {
+    if (bucket.type === 'system') {
       return [
         <span
           className="system-bucket"
