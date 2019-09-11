@@ -861,7 +861,7 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 1 {
 		t.Fatalf("expected 1 run active for task ID %s, got %v", task.ID.String(), got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_run_queue_delta", nil)
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_run_queue_delta", map[string]string{"taskID": "all"})
 	if got := m.Summary.GetSampleCount(); got != 1.0 {
 		t.Fatalf("expected 1 delta in summary: got: %v", got)
 	}
@@ -879,7 +879,7 @@ func TestScheduler_Metrics(t *testing.T) {
 	if got := *m.Gauge.Value; got != 2 {
 		t.Fatalf("expected 2 runs active for task ID %s, got %v", task.ID.String(), got)
 	}
-	m = promtest.MustFindMetric(t, mfs, "task_scheduler_run_queue_delta", nil)
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_run_queue_delta", map[string]string{"taskID": "all"})
 	if got := m.Summary.GetSampleCount(); got != 2.0 {
 		t.Fatalf("expected 2 delta in summary: got: %v", got)
 	}

@@ -10,6 +10,7 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 import HelpButton from 'src/alerting/components/builder/HelpButton'
+import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 
 const TimeMachineAlerting: FunctionComponent = () => {
   return (
@@ -22,6 +23,7 @@ const TimeMachineAlerting: FunctionComponent = () => {
             justifyContent={JustifyContent.FlexEnd}
             margin={ComponentSize.Small}
           >
+            <RawDataToggle />
             <HelpButton />
           </FlexBox>
         </div>

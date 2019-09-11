@@ -1,31 +1,50 @@
 // Libraries
-import React, {PureComponent, ChangeEvent} from 'react'
+import React, {PureComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Radio, ButtonShape} from '@influxdata/clockface'
-import RetentionDuration from 'src/buckets/components/RetentionDuration'
+import DurationSelector from 'src/shared/components/DurationSelector'
 
 // Utils
-import {
-  Duration,
-  durationToSeconds,
-  secondsToDuration,
-} from 'src/utils/formatting'
+import {parseDuration, durationToMilliseconds} from 'src/shared/utils/duration'
+import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
 
-import {BucketRetentionRules} from '@influxdata/influx'
+// Types
+import {AppState} from 'src/types'
 
-interface Props {
+export const DEFAULT_SECONDS = 259200 // 72 hours
+
+export const DURATION_OPTIONS = [
+  {duration: '1h', displayText: '1 hour'},
+  {duration: '6h', displayText: '6 hours'},
+  {duration: '12h', displayText: '12 hours'},
+  {duration: '24h', displayText: '24 hours'},
+  {duration: '48h', displayText: '48 hours'},
+  {duration: '72h', displayText: '72 hours'},
+  {duration: '7d', displayText: '7 days'},
+  {duration: '14d', displayText: '14 days'},
+  {duration: '30d', displayText: '30 days'},
+  {duration: '90d', displayText: '90 days'},
+  {duration: '1y', displayText: '1 year'},
+]
+
+interface StateProps {
+  maxRetentionSeconds: number
+}
+
+interface OwnProps {
   retentionSeconds: number
   type: 'expire'
   onChangeRetentionRule: (seconds: number) => void
-  onChangeRuleType: (type: BucketRetentionRules.TypeEnum) => void
+  onChangeRuleType: (type: 'expire' | null) => void
 }
 
-export const DEFAULT_SECONDS = 0
+type Props = OwnProps & StateProps
 
-export default class Retention extends PureComponent<Props> {
+class Retention extends PureComponent<Props> {
   public render() {
-    const {retentionSeconds, type} = this.props
+    const {retentionSeconds, maxRetentionSeconds, type} = this.props
 
     return (
       <>
@@ -36,46 +55,61 @@ export default class Retention extends PureComponent<Props> {
             active={type === null}
             onClick={this.handleRadioClick}
             value={null}
-            titleText="Never compress data"
+            titleText="Never delete data"
+            disabled={!!maxRetentionSeconds}
           >
             Never
           </Radio.Button>
           <Radio.Button
             id="intervals"
-            active={type === BucketRetentionRules.TypeEnum.Expire}
+            active={type === 'expire'}
             onClick={this.handleRadioClick}
-            value={BucketRetentionRules.TypeEnum.Expire}
+            value="expire"
             testID="retention-intervals--button"
-            titleText="Compress data at regular intervals"
+            titleText="Delete data older than a duration"
           >
-            Periodically
+            Older Than
           </Radio.Button>
         </Radio>
-        <RetentionDuration
-          type={type}
-          retentionSeconds={retentionSeconds}
-          onChangeInput={this.handleChangeInput}
-        />
+        {type === 'expire' && (
+          <DurationSelector
+            selectedDuration={`${retentionSeconds}s`}
+            onSelectDuration={this.handleSelectDuration}
+            durations={this.durations}
+          />
+        )}
       </>
     )
   }
 
-  private handleRadioClick = (type: BucketRetentionRules.TypeEnum) => {
-    this.props.onChangeRetentionRule(DEFAULT_SECONDS)
+  private get durations() {
+    const {maxRetentionSeconds} = this.props
+
+    if (!maxRetentionSeconds) {
+      return DURATION_OPTIONS
+    }
+
+    return DURATION_OPTIONS.filter(
+      ({duration}) =>
+        durationToMilliseconds(parseDuration(duration)) <=
+        maxRetentionSeconds * 1000
+    )
+  }
+
+  private handleRadioClick = (type: 'expire' | null) => {
     this.props.onChangeRuleType(type)
   }
 
-  private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
-    const {retentionSeconds} = this.props
-    const value = e.target.value
-    const key = e.target.name as keyof Duration
-    const time = {
-      ...secondsToDuration(retentionSeconds),
-      [key]: Number(value),
-    }
+  private handleSelectDuration = (durationStr: string) => {
+    const durationSeconds =
+      durationToMilliseconds(parseDuration(durationStr)) / 1000
 
-    const seconds = durationToSeconds(time)
-
-    this.props.onChangeRetentionRule(seconds)
+    this.props.onChangeRetentionRule(durationSeconds)
   }
 }
+
+const mstp = (state: AppState): StateProps => ({
+  maxRetentionSeconds: extractBucketMaxRetentionSeconds(state.cloud.limits),
+})
+
+export default connect<StateProps, {}, OwnProps>(mstp)(Retention)

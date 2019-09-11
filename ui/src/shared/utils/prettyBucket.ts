@@ -1,6 +1,5 @@
 import {Bucket} from 'src/types'
 
-import {BucketRetentionRules} from '@influxdata/influx'
 import {PrettyBucket} from 'src/buckets/components/BucketCard'
 
 // Utils
@@ -8,9 +7,7 @@ import {ruleToString} from 'src/utils/formatting'
 
 export const prettyBuckets = (buckets: Bucket[]): PrettyBucket[] => {
   return buckets.map(b => {
-    const expire = b.retentionRules.find(
-      rule => rule.type === BucketRetentionRules.TypeEnum.Expire
-    )
+    const expire = b.retentionRules.find(rule => rule.type === 'expire')
 
     if (!expire) {
       return {

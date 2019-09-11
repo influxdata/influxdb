@@ -4,6 +4,9 @@ import React, {FunctionComponent} from 'react'
 // Components
 import {Dropdown, ComponentStatus} from '@influxdata/clockface'
 
+// Utils
+import {areDurationsEqual} from 'src/shared/utils/duration'
+
 interface Props {
   selectedDuration: string
   onSelectDuration: (duration: string) => any
@@ -18,7 +21,11 @@ const DurationSelector: FunctionComponent<Props> = ({
   disabled = false,
 }) => {
   let resolvedDurations = durations
-  let selected = durations.find(d => d.duration === selectedDuration)
+  let selected = durations.find(
+    d =>
+      selectedDuration === d.duration ||
+      areDurationsEqual(selectedDuration, d.duration)
+  )
 
   if (!selected) {
     selected = {duration: selectedDuration, displayText: selectedDuration}

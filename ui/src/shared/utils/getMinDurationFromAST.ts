@@ -3,6 +3,7 @@ import {get} from 'lodash'
 
 // Utils
 import {findNodes} from 'src/shared/utils/ast'
+import {durationToMilliseconds} from 'src/shared/utils/duration'
 
 // Types
 import {
@@ -82,10 +83,12 @@ function rangeTimes(ast: any, rangeNode: CallExpression): [number, number] {
 function propertyTime(ast: any, value: Expression, now: number): number {
   switch (value.type) {
     case 'UnaryExpression':
-      return now - durationDuration(value.argument as DurationLiteral)
+      return (
+        now - durationToMilliseconds((value.argument as DurationLiteral).values)
+      )
 
     case 'DurationLiteral':
-      return now + durationDuration(value)
+      return now + durationToMilliseconds(value.values)
 
     case 'DateTimeLiteral':
       return Date.parse(value.value)
@@ -95,7 +98,9 @@ function propertyTime(ast: any, value: Expression, now: number): number {
 
     case 'BinaryExpression':
       const leftTime = Date.parse((value.left as DateTimeLiteral).value)
-      const rightDuration = durationDuration(value.right as DurationLiteral)
+      const rightDuration = durationToMilliseconds(
+        (value.right as DurationLiteral).values
+      )
 
       switch (value.operator) {
         case '+':
@@ -126,29 +131,6 @@ function propertyTime(ast: any, value: Expression, now: number): number {
     default:
       throw new Error(`unexpected expression type ${value.type}`)
   }
-}
-
-const UNIT_TO_APPROX_DURATION = {
-  ns: 1 / 1000000,
-  µs: 1 / 1000,
-  us: 1 / 1000,
-  ms: 1,
-  s: 1000,
-  m: 1000 * 60,
-  h: 1000 * 60 * 60,
-  d: 1000 * 60 * 60 * 24,
-  w: 1000 * 60 * 60 * 24 * 7,
-  mo: 1000 * 60 * 60 * 24 * 30,
-  y: 1000 * 60 * 60 * 24 * 365,
-}
-
-function durationDuration(durationLiteral: DurationLiteral): number {
-  const duration = durationLiteral.values.reduce(
-    (sum, {magnitude, unit}) => sum + magnitude * UNIT_TO_APPROX_DURATION[unit],
-    0
-  )
-
-  return duration
 }
 
 /*

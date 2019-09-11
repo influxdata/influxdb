@@ -50,20 +50,55 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             />
           )
         }
-        name={
-          <ResourceCard.Name
-            testID={`bucket--card ${bucket.name}`}
-            onClick={this.handleNameClick}
-            name={bucket.name}
-          />
-        }
-        metaData={[
-          isSystemBucket(bucket.name) && (
-            <span className="system-bucket">System Bucket</span>
-          ),
-          <>Retention: {bucket.ruleString}</>,
-        ]}
+        name={this.cardName}
+        metaData={this.cardMetaItems}
       >
+        {this.actionButtons}
+      </ResourceCard>
+    )
+  }
+
+  private get cardName(): JSX.Element {
+    const {bucket} = this.props
+    if (bucket.type === 'user') {
+      return (
+        <ResourceCard.Name
+          testID={`bucket--card ${bucket.name}`}
+          onClick={this.handleNameClick}
+          name={bucket.name}
+        />
+      )
+    }
+
+    return (
+      <ResourceCard.Name
+        testID={`bucket--card ${bucket.name}`}
+        name={bucket.name}
+      />
+    )
+  }
+
+  private get cardMetaItems(): JSX.Element[] {
+    const {bucket} = this.props
+    if (bucket.type === 'system') {
+      return [
+        <span
+          className="system-bucket"
+          key={`system-bucket-indicator-${bucket.id}`}
+        >
+          System Bucket
+        </span>,
+        <>Retention: {bucket.ruleString}</>,
+      ]
+    }
+
+    return [<>Retention: {bucket.ruleString}</>]
+  }
+
+  private get actionButtons(): JSX.Element {
+    const {bucket} = this.props
+    if (bucket.type === 'user') {
+      return (
         <FlexBox
           direction={FlexDirection.Row}
           margin={ComponentSize.Small}
@@ -74,7 +109,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             onAddLineProtocol={this.handleAddLineProtocol}
             onAddScraper={this.handleAddScraper}
           />
-          {this.renameButton}
+          <Button
+            text="Rename"
+            testID="bucket-rename"
+            size={ComponentSize.ExtraSmall}
+            onClick={this.handleRenameBucket}
+          />
           <FeatureFlag name="deleteWithPredicate">
             <Button
               text="Delete Data By Filter"
@@ -84,23 +124,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             />
           </FeatureFlag>
         </FlexBox>
-      </ResourceCard>
-    )
-  }
-
-  private get renameButton() {
-    const {bucket} = this.props
-    if (bucket.type === 'user') {
-      return (
-        <Button
-          text="Rename"
-          testID="bucket-rename"
-          size={ComponentSize.ExtraSmall}
-          onClick={this.handleRenameBucket}
-        />
       )
-    } else {
-      return null
     }
   }
 

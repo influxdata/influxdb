@@ -316,7 +316,7 @@ func (w *worker) start(p *Promise) {
 	w.te.metrics.StartRun(p.task.ID, time.Since(p.createdAt))
 }
 
-func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
+func (w *worker) finish(p *Promise, rs backend.RunStatus, err *influxdb.Error) {
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
@@ -327,14 +327,14 @@ func (w *worker) finish(p *Promise, rs backend.RunStatus, err error) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
 
 	// add to metrics
-	s, _ := p.run.ScheduledForTime()
+	s, _ := p.run.StartedAtTime()
 	rd := time.Since(s)
 	w.te.metrics.FinishRun(p.task.ID, rs, rd)
 
 	// log error
-	if err != nil {
+	if err.Err != nil {
 		w.te.logger.Debug("execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
-		w.te.metrics.LogError()
+		w.te.metrics.LogError(err)
 		p.err = err
 	} else {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
@@ -350,13 +350,13 @@ func (w *worker) executeQuery(p *Promise) {
 
 	pkg, err := flux.Parse(p.task.Flux)
 	if err != nil {
-		w.finish(p, backend.RunFail, err)
+		w.finish(p, backend.RunFail, influxdb.ErrFluxParseError(err))
 		return
 	}
 
 	sf, err := p.run.ScheduledForTime()
 	if err != nil {
-		w.finish(p, backend.RunFail, err)
+		w.finish(p, backend.RunFail, influxdb.ErrTaskTimeParse(err))
 		return
 	}
 
@@ -372,7 +372,7 @@ func (w *worker) executeQuery(p *Promise) {
 	it, err := w.te.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
-		w.finish(p, backend.RunFail, err)
+		w.finish(p, backend.RunFail, influxdb.ErrQueryError(err))
 		return
 	}
 
@@ -400,7 +400,7 @@ func (w *worker) executeQuery(p *Promise) {
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), string(b))
 	}
 
-	w.finish(p, backend.RunSuccess, runErr)
+	w.finish(p, backend.RunSuccess, influxdb.ErrResultIteratorError(runErr))
 }
 
 // RunsActive returns the current number of workers, which is equivalent to

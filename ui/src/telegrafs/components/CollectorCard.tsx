@@ -159,7 +159,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
 
   private handleOpenConfig = (): void => {
     const {collector, router, org} = this.props
-    router.push(`/orgs/${org.id}/telegrafs/${collector.id}/view`)
+    router.push(`/orgs/${org.id}/load-data/telegrafs/${collector.id}/view`)
   }
 
   private handleDeleteConfig = (): void => {

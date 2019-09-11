@@ -18,6 +18,7 @@ export interface Limits {
   }
   bucket: {
     maxBuckets: number
+    maxRetentionDuration: number // nanoseconds
   }
   task: {
     maxTasks: number

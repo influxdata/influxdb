@@ -1,12 +1,14 @@
 package oauth2
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
 	"github.com/influxdata/influxdb/chronograf"
 	"golang.org/x/oauth2"
 	goauth2 "google.golang.org/api/oauth2/v2"
+	"google.golang.org/api/option"
 )
 
 // GoogleEndpoint is Google's OAuth 2.0 endpoint.
@@ -63,7 +65,7 @@ func (g *Google) Config() *oauth2.Config {
 
 // PrincipalID returns the google email address of the user.
 func (g *Google) PrincipalID(provider *http.Client) (string, error) {
-	srv, err := goauth2.New(provider)
+	srv, err := goauth2.NewService(context.TODO(), option.WithHTTPClient(provider))
 	if err != nil {
 		g.Logger.Error("Unable to communicate with Google ", err.Error())
 		return "", err
@@ -90,7 +92,7 @@ func (g *Google) PrincipalID(provider *http.Client) (string, error) {
 
 // Group returns the string of domain a user belongs to in Google
 func (g *Google) Group(provider *http.Client) (string, error) {
-	srv, err := goauth2.New(provider)
+	srv, err := goauth2.NewService(context.TODO(), option.WithHTTPClient(provider))
 	if err != nil {
 		g.Logger.Error("Unable to communicate with Google ", err.Error())
 		return "", err
