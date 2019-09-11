@@ -1,10 +1,12 @@
+// Utils
+import {parseDuration, timeRangeToDuration} from 'src/shared/utils/duration'
+
 // Constants
 import {TIME_RANGE_START, TIME_RANGE_STOP} from 'src/variables/constants'
 
 // Types
 import {TimeRange} from 'src/types'
-import {VariableAssignment, Duration} from 'src/types/ast'
-import {parseDuration} from 'src/shared/utils/duration'
+import {VariableAssignment} from 'src/types/ast'
 
 export const getTimeRangeVars = (
   timeRange: TimeRange
@@ -35,7 +37,7 @@ export const getTimeRangeVars = (
         operator: '-',
         argument: {
           type: 'DurationLiteral',
-          values: toFluxDuration(timeRange.lower),
+          values: parseDuration(timeRangeToDuration(timeRange)),
         },
       },
     }
@@ -77,6 +79,3 @@ export const getTimeRangeVars = (
 
 const isDate = (ambiguousString: string): boolean =>
   !isNaN(Date.parse(ambiguousString))
-
-const toFluxDuration = (relativeInfluxQLTime: string): Duration[] =>
-  parseDuration(relativeInfluxQLTime.replace(/\s/g, '').replace(/now\(\)-/, ''))

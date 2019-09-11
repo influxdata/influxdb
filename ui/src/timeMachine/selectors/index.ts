@@ -12,6 +12,9 @@ import {
   getNumericColumns as getNumericColumnsUtil,
   getGroupableColumns as getGroupableColumnsUtil,
 } from 'src/shared/utils/vis'
+import {getVariableAssignments as getVariableAssignmentsForContext} from 'src/variables/selectors'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {getWindowPeriod} from 'src/variables/utils/getWindowVars'
 
 // Types
 import {
@@ -20,6 +23,7 @@ import {
   AppState,
   DashboardDraftQuery,
   TimeRange,
+  VariableAssignment,
 } from 'src/types'
 
 export const getActiveTimeMachine = (state: AppState) => {
@@ -47,6 +51,28 @@ export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
   const {draftQueries, activeQueryIndex} = getActiveTimeMachine(state)
 
   return draftQueries[activeQueryIndex]
+}
+
+export const getVariableAssignments = (
+  state: AppState
+): VariableAssignment[] => {
+  return [
+    ...getTimeRangeVars(getTimeRange(state)),
+    ...getVariableAssignmentsForContext(
+      state,
+      state.timeMachines.activeTimeMachineID
+    ),
+  ]
+}
+
+/*
+  Get the value of the `v.windowPeriod` variable for the currently active query, in milliseconds.
+*/
+export const getActiveWindowPeriod = (state: AppState) => {
+  const {text} = getActiveQuery(state)
+  const variables = getVariableAssignments(state)
+
+  return getWindowPeriod(text, variables)
 }
 
 const getTablesMemoized = memoizeOne(

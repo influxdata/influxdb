@@ -30,6 +30,11 @@ export function getMinDurationFromAST(ast: Package): number {
   // 4. Take the minimum duration
   //
   const times = allRangeTimes(ast)
+
+  if (!times.length) {
+    throw new Error('no time ranges found in query')
+  }
+
   const starts = times.map(t => t[0])
   const stops = times.map(t => t[1])
   const cartesianProduct = starts.map(start => stops.map(stop => [start, stop]))

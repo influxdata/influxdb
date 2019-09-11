@@ -16,11 +16,6 @@ export const DURATIONS = [
   {duration: '30d', displayText: 'Every 30 days'},
 ]
 
-export const AUTO_NONE_DURATIONS = [
-  {duration: AGG_WINDOW_AUTO, displayText: 'Auto'},
-  {duration: AGG_WINDOW_NONE, displayText: 'None'},
-]
-
 export interface QueryFn {
   name: string
   flux: (period?: string) => string
