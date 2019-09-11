@@ -13,9 +13,10 @@ import {notify} from 'src/shared/actions/notifications'
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Utils
-import {getActiveTimeMachine, getTimeRange} from 'src/timeMachine/selectors'
-import {getVariableAssignments} from 'src/variables/selectors'
-import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import {
+  getActiveTimeMachine,
+  getVariableAssignments,
+} from 'src/timeMachine/selectors'
 import {filterUnusedVars} from 'src/shared/utils/filterUnusedVars'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {
@@ -89,7 +90,6 @@ let pendingResults: Array<CancelBox<RunQueryResult>> = []
 
 export const executeQueries = () => async (dispatch, getState: GetState) => {
   const {view} = getActiveTimeMachine(getState())
-  const timeRange = getTimeRange(getState())
   const queries = view.properties.queries.filter(({text}) => !!text.trim())
 
   if (!queries.length) {
@@ -102,11 +102,8 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     await dispatch(refreshTimeMachineVariableValues())
 
     const orgID = getState().orgs.org.id
-    const activeTimeMachineID = getState().timeMachines.activeTimeMachineID
-    const variableAssignments = [
-      ...getVariableAssignments(getState(), activeTimeMachineID),
-      ...getTimeRangeVars(timeRange),
-    ]
+
+    const variableAssignments = getVariableAssignments(getState())
 
     const startTime = Date.now()
 

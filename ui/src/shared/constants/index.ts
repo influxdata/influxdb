@@ -14,8 +14,6 @@ import {AutoRefreshStatus} from 'src/types'
 
 export const DEFAULT_TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss ZZ'
 
-export const DEFAULT_DURATION_MS = 1000
-
 export const DROPDOWN_MENU_MAX_HEIGHT = 240
 
 export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.

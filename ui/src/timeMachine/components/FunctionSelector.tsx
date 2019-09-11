@@ -6,7 +6,9 @@ import {connect} from 'react-redux'
 import {Input} from '@influxdata/clockface'
 import SelectorList from 'src/timeMachine/components/SelectorList'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
-import DurationSelector from 'src/shared/components/DurationSelector'
+import DurationSelector, {
+  DurationOption,
+} from 'src/shared/components/DurationSelector'
 
 // Actions
 import {
@@ -15,14 +17,19 @@ import {
 } from 'src/timeMachine/actions/queryBuilder'
 
 // Utils
-import {getActiveQuery, getIsInCheckOverlay} from 'src/timeMachine/selectors'
+import {
+  getActiveQuery,
+  getIsInCheckOverlay,
+  getActiveWindowPeriod,
+} from 'src/timeMachine/selectors'
+import {millisecondsToDuration} from 'src/shared/utils/duration'
 
 // Constants
 import {
   FUNCTIONS,
   AGG_WINDOW_AUTO,
+  AGG_WINDOW_NONE,
   DURATIONS,
-  AUTO_NONE_DURATIONS,
 } from 'src/timeMachine/constants/queryBuilder'
 
 // Types
@@ -31,6 +38,7 @@ import {AppState, BuilderConfig} from 'src/types'
 const FUNCTION_NAMES = FUNCTIONS.map(f => f.name)
 
 interface StateProps {
+  autoWindowPeriod: number | null
   aggregateWindow: BuilderConfig['aggregateWindow']
   selectedFunctions: BuilderConfig['functions']
   isInCheckOverlay: boolean
@@ -92,10 +100,22 @@ class FunctionSelector extends PureComponent<Props, State> {
     return aggregateWindow.period || AGG_WINDOW_AUTO
   }
 
-  private get durations(): Array<{duration: string; displayText: string}> {
+  private get durations(): DurationOption[] {
     return this.props.isInCheckOverlay
       ? DURATIONS
-      : [...DURATIONS, ...AUTO_NONE_DURATIONS]
+      : [...this.autoNoneDurations, ...DURATIONS]
+  }
+
+  private get autoNoneDurations(): DurationOption[] {
+    const {autoWindowPeriod} = this.props
+    const autoLabel = autoWindowPeriod
+      ? `Auto (${millisecondsToDuration(autoWindowPeriod)})`
+      : 'Auto'
+
+    return [
+      {duration: AGG_WINDOW_AUTO, displayText: autoLabel},
+      {duration: AGG_WINDOW_NONE, displayText: 'None'},
+    ]
   }
 
   private get functions(): string[] {
@@ -122,14 +142,16 @@ class FunctionSelector extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState) => {
-  const {functions: selectedFunctions, aggregateWindow} = getActiveQuery(
-    state
-  ).builderConfig
+const mstp = (state: AppState): StateProps => {
+  const {builderConfig} = getActiveQuery(state)
+  const {functions: selectedFunctions, aggregateWindow} = builderConfig
 
-  const isInCheckOverlay = getIsInCheckOverlay(state)
-
-  return {selectedFunctions, aggregateWindow, isInCheckOverlay}
+  return {
+    selectedFunctions,
+    aggregateWindow,
+    autoWindowPeriod: getActiveWindowPeriod(state),
+    isInCheckOverlay: getIsInCheckOverlay(state),
+  }
 }
 
 const mdtp = {

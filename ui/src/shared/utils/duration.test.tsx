@@ -2,6 +2,7 @@ import {
   parseDuration,
   durationToMilliseconds,
   areDurationsEqual,
+  millisecondsToDuration,
 } from 'src/shared/utils/duration'
 
 const TEST_CASES = [
@@ -54,5 +55,14 @@ describe('areDurationsEqual', () => {
     expect(areDurationsEqual('howdy', '1h')).toBe(false)
     expect(areDurationsEqual('howdy', 'howdy')).toBe(false)
     expect(areDurationsEqual('howdy', 'hi')).toBe(false)
+  })
+})
+
+describe('millisecondsToDuration', () => {
+  test('can convert millisecond duration to duration ast', () => {
+    expect(millisecondsToDuration(150_000)).toEqual('2m30s')
+    expect(millisecondsToDuration(7_200_005)).toEqual('2h5ms')
+    expect(millisecondsToDuration(9_000_000)).toEqual('2h30m')
+    expect(millisecondsToDuration(2 / 1_000_000)).toEqual('2ns')
   })
 })

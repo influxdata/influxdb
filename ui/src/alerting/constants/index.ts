@@ -9,6 +9,7 @@ import {
 } from 'src/types'
 import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
 import {ComponentColor} from '@influxdata/clockface'
+import {DurationOption} from 'src/shared/components/DurationSelector'
 
 export const DEFAULT_CHECK_NAME = 'Name this Check'
 export const DEFAULT_NOTIFICATION_RULE_NAME = 'Name this Notification Rule'
@@ -21,9 +22,9 @@ export const DEFAULT_DEADMAN_LEVEL: CheckStatusLevel = 'CRIT'
 export const DEFAULT_STATUS_MESSAGE =
   'Check: ${ r._check_name } is: ${ r._level }'
 
-export const CHECK_EVERY_OPTIONS = DURATIONS
+export const CHECK_EVERY_OPTIONS: DurationOption[] = DURATIONS
 
-export const CHECK_OFFSET_OPTIONS = [
+export const CHECK_OFFSET_OPTIONS: DurationOption[] = [
   {duration: '0s', displayText: 'None'},
   {duration: '5s', displayText: '5 seconds'},
   {duration: '15s', displayText: '15 seconds'},

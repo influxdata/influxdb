@@ -4,7 +4,9 @@ import {connect} from 'react-redux'
 
 // Components
 import {Radio, ButtonShape} from '@influxdata/clockface'
-import DurationSelector from 'src/shared/components/DurationSelector'
+import DurationSelector, {
+  DurationOption,
+} from 'src/shared/components/DurationSelector'
 
 // Utils
 import {parseDuration, durationToMilliseconds} from 'src/shared/utils/duration'
@@ -15,7 +17,7 @@ import {AppState} from 'src/types'
 
 export const DEFAULT_SECONDS = 259200 // 72 hours
 
-export const DURATION_OPTIONS = [
+export const DURATION_OPTIONS: DurationOption[] = [
   {duration: '1h', displayText: '1 hour'},
   {duration: '6h', displayText: '6 hours'},
   {duration: '12h', displayText: '12 hours'},
