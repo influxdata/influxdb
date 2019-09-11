@@ -20,6 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	httppprof "net/http/pprof"
+
 	"github.com/bmizerany/pat"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
@@ -154,6 +156,19 @@ func NewHandler(c Config) *Handler {
 		writeLogEnabled = false
 	}
 
+	var authWrapper func(handler func(http.ResponseWriter, *http.Request)) interface{}
+	if h.Config.AuthEnabled && h.Config.PingAuthEnabled {
+		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
+			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				handler(w, r)
+			}
+		}
+	} else {
+		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
+			return handler
+		}
+	}
+
 	h.AddRoutes([]Route{
 		Route{
 			"query-options", // Satisfy CORS checks.
@@ -185,25 +200,66 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{ // Ping
 			"ping",
-			"GET", "/ping", false, true, h.servePing,
+			"GET", "/ping", false, true, authWrapper(h.servePing),
 		},
 		Route{ // Ping
 			"ping-head",
-			"HEAD", "/ping", false, true, h.servePing,
+			"HEAD", "/ping", false, true, authWrapper(h.servePing),
 		},
 		Route{ // Ping w/ status
 			"status",
-			"GET", "/status", false, true, h.serveStatus,
+			"GET", "/status", false, true, authWrapper(h.serveStatus),
 		},
 		Route{ // Ping w/ status
 			"status-head",
-			"HEAD", "/status", false, true, h.serveStatus,
+			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
 		},
 		Route{
 			"prometheus-metrics",
-			"GET", "/metrics", false, true, promhttp.Handler().ServeHTTP,
+			"GET", "/metrics", false, true, authWrapper(promhttp.Handler().ServeHTTP),
 		},
 	}...)
+
+	// When PprofAuthEnabled is enabled, create debug/pprof endpoints with the
+	// same authentication handlers as other endpoints.
+	if h.Config.AuthEnabled && h.Config.PprofEnabled && h.Config.PprofAuthEnabled {
+		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
+			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				if user == nil || !user.AuthorizeUnrestricted() {
+					h.Logger.Info("Unauthorized request", zap.String("user", user.ID()), zap.String("path", r.URL.Path))
+					h.httpError(w, "error authorizing admin access", http.StatusForbidden)
+					return
+				}
+				handler(w, r)
+			}
+		}
+		h.AddRoutes([]Route{
+			Route{
+				"pprof-cmdline",
+				"GET", "/debug/pprof/cmdline", true, true, authWrapper(httppprof.Cmdline),
+			},
+			Route{
+				"pprof-profile",
+				"GET", "/debug/pprof/profile", true, true, authWrapper(httppprof.Profile),
+			},
+			Route{
+				"pprof-symbol",
+				"GET", "/debug/pprof/symbol", true, true, authWrapper(httppprof.Symbol),
+			},
+			Route{
+				"pprof-all",
+				"GET", "/debug/pprof/all", true, true, authWrapper(h.archiveProfilesAndQueries),
+			},
+			Route{
+				"debug-expvar",
+				"GET", "/debug/vars", true, true, authWrapper(h.serveExpvar),
+			},
+			Route{
+				"debug-requests",
+				"GET", "/debug/requests", true, true, authWrapper(h.serveDebugRequests),
+			},
+		}...)
+	}
 
 	fluxRoute := Route{
 		"flux-read",
@@ -376,7 +432,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-Influxdb-Version", h.Version)
 	w.Header().Add("X-Influxdb-Build", h.BuildType)
 
-	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
+	// Maintain backwards compatibility by using unwrapped pprof/debug handlers
+	// when PprofAuthEnabled is false.
+	if h.Config.AuthEnabled && h.Config.PprofEnabled && h.Config.PprofAuthEnabled {
+		h.mux.ServeHTTP(w, r)
+	} else if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
 		h.handleProfiles(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)

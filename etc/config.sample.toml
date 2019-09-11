@@ -288,9 +288,18 @@
   # troubleshooting and monitoring.
   # pprof-enabled = true
 
+  # Enables authentication on pprof endpoints. Users will need admin permissions
+  # to access the pprof endpoints when this setting is enabled. This setting has
+  # no effect if either auth-enabled or pprof-enabled are set to false.
+  # pprof-auth-enabled = false
+
   # Enables a pprof endpoint that binds to localhost:6060 immediately on startup.
   # This is only needed to debug startup issues.
   # debug-pprof-enabled = false
+
+  # Enables authentication on the /ping, /metrics, and deprecated /status
+  # endpoints. This setting has no effect if auth-enabled is set to false.
+  # ping-auth-enabled = false
 
   # Determines whether HTTPS is enabled.
   # https-enabled = false
