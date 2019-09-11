@@ -199,7 +199,22 @@ func (b *Base) generateAllStateChanges() []ast.Statement {
 func (b *Base) generateStateChanges(r notification.StatusRule) (ast.Statement, *ast.Identifier) {
 	var name string
 	var pipe *ast.PipeExpression
-	if r.PreviousLevel == nil {
+	if r.PreviousLevel == nil && r.CurrentLevel == notification.Any {
+		pipe = flux.Pipe(
+			flux.Identifier("statuses"),
+			flux.Call(
+				flux.Identifier("filter"),
+				flux.Object(
+					flux.Property("fn", flux.Function(
+						flux.FunctionParams("r"),
+						flux.Bool(true),
+					),
+					),
+				),
+			),
+		)
+		name = strings.ToLower(r.CurrentLevel.String())
+	} else if r.PreviousLevel == nil {
 		pipe = flux.Pipe(
 			flux.Identifier("statuses"),
 			flux.Call(

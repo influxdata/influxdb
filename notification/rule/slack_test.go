@@ -31,6 +31,75 @@ func TestSlack_GenerateFlux(t *testing.T) {
 		endpoint *endpoint.Slack
 	}{
 		{
+			name: "with any status",
+			want: `package main
+// foo
+import "influxdata/influxdb/monitor"
+import "slack"
+import "influxdata/influxdb/secrets"
+import "experimental"
+
+option task = {name: "foo", every: 1h}
+
+slack_endpoint = slack.endpoint(url: "http://localhost:7777")
+notification = {
+	_notification_rule_id: "0000000000000001",
+	_notification_rule_name: "foo",
+	_notification_endpoint_id: "0000000000000002",
+	_notification_endpoint_name: "foo",
+}
+statuses = monitor.from(start: -2h, fn: (r) =>
+	(r.foo == "bar" and r.baz == "bang"))
+any = statuses
+	|> filter(fn: (r) =>
+		(true))
+all_statuses = any
+	|> filter(fn: (r) =>
+		(r._time > experimental.subDuration(from: now(), d: 1h)))
+
+all_statuses
+	|> monitor.notify(data: notification, endpoint: slack_endpoint(mapFn: (r) =>
+		({channel: "bar", text: "blah", color: if r._level == "crit" then "danger" else if r._level == "warn" then "warning" else "good"})))`,
+			rule: &rule.Slack{
+				Channel:         "bar",
+				MessageTemplate: "blah",
+				Base: rule.Base{
+					ID:         1,
+					EndpointID: 2,
+					Name:       "foo",
+					Every:      mustDuration("1h"),
+					TagRules: []notification.TagRule{
+						{
+							Tag: influxdb.Tag{
+								Key:   "foo",
+								Value: "bar",
+							},
+							Operator: notification.Equal,
+						},
+						{
+							Tag: influxdb.Tag{
+								Key:   "baz",
+								Value: "bang",
+							},
+							Operator: notification.Equal,
+						},
+					},
+					StatusRules: []notification.StatusRule{
+						{
+							CurrentLevel: notification.Any,
+						},
+					},
+				},
+			},
+			endpoint: &endpoint.Slack{
+				Base: endpoint.Base{
+					ID:   2,
+					Name: "foo",
+				},
+				URL: "http://localhost:7777",
+			},
+		},
+		{
 			name: "with url",
 			want: `package main
 // foo
