@@ -3,6 +3,7 @@ package limiter_test
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -13,7 +14,7 @@ func TestWriter_Limited(t *testing.T) {
 	r := bytes.NewReader(bytes.Repeat([]byte{0}, 1024*1024))
 
 	limit := 512 * 1024
-	w := limiter.NewWriter(discardCloser{}, limit, 10*1024*1024)
+	w := limiter.NewWriter(nopWriteCloser{ioutil.Discard}, limit, 10*1024*1024)
 
 	start := time.Now()
 	n, err := io.Copy(w, r)
@@ -28,7 +29,26 @@ func TestWriter_Limited(t *testing.T) {
 	}
 }
 
-type discardCloser struct{}
+func TestWriter_Limiter_ExceedBurst(t *testing.T) {
+	limit := 10
+	burstLimit := 20
 
-func (d discardCloser) Write(b []byte) (int, error) { return len(b), nil }
-func (d discardCloser) Close() error                { return nil }
+	twentyOneBytes := make([]byte, 21)
+
+	b := nopWriteCloser{bytes.NewBuffer(nil)}
+
+	w := limiter.NewWriter(b, limit, burstLimit)
+	n, err := w.Write(twentyOneBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != len(twentyOneBytes) {
+		t.Errorf("exected %d bytes written, but got %d", len(twentyOneBytes), n)
+	}
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (d nopWriteCloser) Close() error { return nil }
