@@ -77,7 +77,7 @@ func newSchedulerMetrics() *schedulerMetrics {
 			Namespace:  namespace,
 			Subsystem:  subsystem,
 			Name:       "run_execution_delta",
-			Help:       "The duration in seconds between a run being due to start and complete execution.",
+			Help:       "The duration in seconds between a run starting and complete execution.",
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 		}, []string{"taskID"}),
 	}

@@ -726,7 +726,7 @@ func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason 
 
 func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
 	r.updateRunState(qr, RunStarted, runLogger)
-
+	qr.startedAt = time.Now()
 	defer r.wg.Done()
 	errMsg := "Failed to finish run"
 	defer func() {
@@ -816,7 +816,6 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 	switch s {
 	case RunStarted:
 		dueAt := time.Unix(qr.DueAt, 0)
-		qr.startedAt = time.Now()
 		r.ts.metrics.StartRun(r.task.ID.String(), time.Since(dueAt))
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), fmt.Sprintf("Started task from script: %q", r.task.Flux))
 	case RunSuccess:
