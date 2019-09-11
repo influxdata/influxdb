@@ -16,6 +16,7 @@ v1.7.8 [2019-08-20]
 
 -	[#14224](https://github.com/influxdata/influxdb/pull/14224): Update flux version to v0.33.2
 -	[#14345](https://github.com/influxdata/influxdb/pull/14345): Update flux version to v0.36.2
+-	[#15222](https://github.com/influxdata/influxdb/pull/15222): Add options to authenticate pprof and ping endpoints.
 
 v1.7.7 [2019-06-26]
 -------------------
