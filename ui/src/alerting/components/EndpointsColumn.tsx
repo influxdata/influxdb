@@ -31,7 +31,7 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
       <br />
       <br />
       <a
-        href="https://v2.docs.influxdata.com/v2.0/monitor-alert/notification-endpoints/create-notification-endpoints"
+        href="https://v2.docs.influxdata.com/v2.0/monitor-alert/notification-endpoints/create"
         target="_blank"
       >
         Read Documentation
