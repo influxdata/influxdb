@@ -9760,7 +9760,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-          required: [clientURL, routingKey]
+          required: [routingKey]
           properties:
             clientURL:
               type: string
