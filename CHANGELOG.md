@@ -1,7 +1,6 @@
 ## v2.0.0-alpha.18 [unreleased]
 
 ### Features
-1. [15110](https://github.com/influxdata/influxdb/pull/15110): Adds ability to set the default concurrency for tasks with an environment variable called DEFAULT_CONCURRENCY
 
 ### UI Improvements
 
