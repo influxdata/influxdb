@@ -58,7 +58,7 @@ var (
 
 	// ErrInvalidKevValuePairs is returned when the number of key, value pairs
 	// is odd, indicating a missing value.
-	ErrInvalidKevValuePairs = errors.New("key, value pairs is an odd length")
+	ErrInvalidKevValuePairs = errors.New("key/value pairs is an odd length")
 )
 
 const (
@@ -2182,7 +2182,7 @@ func (a Tags) KeyValues(v [][]byte) [][]byte {
 // performance as much as 50%.
 func (a Tags) sorted() bool {
 	for i := len(a) - 1; i > 0; i-- {
-		if string(a[i].Key) < string(a[i-1].Key) {
+		if bytes.Compare(a[i].Key, a[i-1].Key) == -1 {
 			return false
 		}
 	}
