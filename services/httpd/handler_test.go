@@ -593,6 +593,158 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 	}
 }
 
+// Ensure the handler returns an appropriate 401 status when authentication
+// fails on ping endpoints.
+func TestHandler_Ping_ErrAuthorize(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPingAuthEnabled()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		users := []meta.UserInfo{
+			{
+				Name:  "admin",
+				Hash:  "admin",
+				Admin: true,
+			},
+			{
+				Name: "user1",
+				Hash: "abcd",
+				Privileges: map[string]influxql.Privilege{
+					"db0": influxql.ReadPrivilege,
+				},
+			},
+		}
+
+		for _, user := range users {
+			if u == user.Name {
+				if p == user.Hash {
+					return &user, nil
+				}
+				return nil, meta.ErrAuthenticate
+			}
+		}
+		return nil, meta.ErrUserNotFound
+	}
+
+	for i, tt := range []struct {
+		user     string
+		password string
+		query    string
+		code     int
+	}{
+		{
+			query: "/ping",
+			code:  http.StatusUnauthorized,
+		},
+		{
+			user:     "user1",
+			password: "abcd",
+			query:    "/ping",
+			code:     http.StatusNoContent,
+		},
+		{
+			user:     "user2",
+			password: "abcd",
+			query:    "/ping",
+			code:     http.StatusUnauthorized,
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := MustNewJSONRequest("GET", tt.query, nil)
+		params := r.URL.Query()
+		if tt.user != "" {
+			params.Set("u", tt.user)
+		}
+		if tt.password != "" {
+			params.Set("p", tt.password)
+		}
+		r.URL.RawQuery = params.Encode()
+
+		h.ServeHTTP(w, r)
+		if w.Code != tt.code {
+			t.Errorf("%d. unexpected status: got=%d exp=%d\noutput: %s", i, w.Code, tt.code, w.Body.String())
+		}
+	}
+}
+
+// Ensure the handler returns an appropriate 403 status when authentication or
+// authorization fails on debug endpoints.
+func TestHandler_Debug_ErrAuthorize(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		users := []meta.UserInfo{
+			{
+				Name:  "admin",
+				Hash:  "admin",
+				Admin: true,
+			},
+			{
+				Name: "user1",
+				Hash: "abcd",
+				Privileges: map[string]influxql.Privilege{
+					"db0": influxql.ReadPrivilege,
+				},
+			},
+		}
+
+		for _, user := range users {
+			if u == user.Name {
+				if p == user.Hash {
+					return &user, nil
+				}
+				return nil, meta.ErrAuthenticate
+			}
+		}
+		return nil, meta.ErrUserNotFound
+	}
+
+	for i, tt := range []struct {
+		user     string
+		password string
+		query    string
+		code     int
+	}{
+		{
+			query: "/debug/vars",
+			code:  http.StatusUnauthorized,
+		},
+		{
+			user:     "user1",
+			password: "abcd",
+			query:    "/debug/vars",
+			code:     http.StatusForbidden,
+		},
+		{
+			user:     "user2",
+			password: "abcd",
+			query:    "/debug/vars",
+			code:     http.StatusUnauthorized,
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := MustNewJSONRequest("GET", tt.query, nil)
+		params := r.URL.Query()
+		if tt.user != "" {
+			params.Set("u", tt.user)
+		}
+		if tt.password != "" {
+			params.Set("p", tt.password)
+		}
+		r.URL.RawQuery = params.Encode()
+
+		h.ServeHTTP(w, r)
+		if w.Code != tt.code {
+			t.Errorf("%d. unexpected status: got=%d exp=%d\noutput: %s", i, w.Code, tt.code, w.Body.String())
+		}
+	}
+}
+
 // Ensure the prometheus remote write works with valid values.
 func TestHandler_PromWrite(t *testing.T) {
 	req := &remote.WriteRequest{
@@ -1246,7 +1398,6 @@ func TestHandler_Flux_Auth(t *testing.T) {
 }
 
 // Ensure the handler handles ping requests correctly.
-// TODO: This should be expanded to verify the MetaClient check in servePing is working correctly
 func TestHandler_Ping(t *testing.T) {
 	h := NewHandler(false)
 	w := httptest.NewRecorder()
@@ -1623,6 +1774,19 @@ func WithAuthentication() configOption {
 	return func(c *httpd.Config) {
 		c.AuthEnabled = true
 		c.SharedSecret = "super secret key"
+	}
+}
+
+func WithPprofAuthEnabled() configOption {
+	return func(c *httpd.Config) {
+		c.PprofEnabled = true
+		c.PprofAuthEnabled = true
+	}
+}
+
+func WithPingAuthEnabled() configOption {
+	return func(c *httpd.Config) {
+		c.PingAuthEnabled = true
 	}
 }
 
