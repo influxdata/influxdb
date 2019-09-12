@@ -121,16 +121,16 @@ func (h *AuthenticationHandler) extractSession(ctx context.Context, r *http.Requ
 		return ctx, err
 	}
 
-	s, e := h.SessionService.FindSession(ctx, k)
-	if e != nil {
-		return ctx, e
+	s, err := h.SessionService.FindSession(ctx, k)
+	if err != nil {
+		return ctx, err
 	}
 
 	if !h.SessionRenewDisabled {
 		// if the session is not expired, renew the session
-		e = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
-		if e != nil {
-			return ctx, e
+		err = h.SessionService.RenewSession(ctx, s, time.Now().Add(platform.RenewSessionTime))
+		if err != nil {
+			return ctx, err
 		}
 	}
 

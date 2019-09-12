@@ -15,6 +15,12 @@ const (
 )
 
 // queryOrganization returns the organization for any http request.
+//
+// It checks the org= and then orgID= parameter of the request.
+//
+// This will try to find the organization using an ID string or
+// the name.  It interprets the &org= parameter as either the name
+// or the ID.
 func queryOrganization(ctx context.Context, r *http.Request, svc platform.OrganizationService) (o *platform.Organization, err error) {
 
 	filter := platform.OrganizationFilter{}

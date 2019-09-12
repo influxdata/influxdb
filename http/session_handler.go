@@ -125,7 +125,7 @@ type signoutRequest struct {
 	Key string
 }
 
-func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest, *platform.Error) {
+func decodeSignoutRequest(ctx context.Context, r *http.Request) (*signoutRequest, error) {
 	key, err := decodeCookieSession(ctx, r)
 	if err != nil {
 		return nil, err
@@ -145,12 +145,12 @@ func encodeCookieSession(w http.ResponseWriter, s *platform.Session) {
 
 	http.SetCookie(w, c)
 }
-func decodeCookieSession(ctx context.Context, r *http.Request) (string, *platform.Error) {
+func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 	c, err := r.Cookie(cookieSessionName)
 	if err != nil {
 		return "", &platform.Error{
-			Err:  err,
 			Code: platform.EInvalid,
+			Err:  err,
 		}
 	}
 	return c.Value, nil
