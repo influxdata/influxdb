@@ -19,3 +19,9 @@ type Event struct {
 	ResponseBytes int
 	Status        int
 }
+
+// NopEventRecorder never records events.
+type NopEventRecorder struct{}
+
+// Record never records events.
+func (n *NopEventRecorder) Record(ctx context.Context, e Event) {}
