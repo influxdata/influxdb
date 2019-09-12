@@ -5,22 +5,12 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	cron "gopkg.in/robfig/cron.v2"
 )
 
 // ID duplicates the influxdb ID so users of the scheduler don't have to
 // import influxdb for the id.
 // TODO(lh): maybe make this its own thing sometime in the future.
 type ID influxdb.ID
-
-// Checkpointer allows us to restart a service from the last time we executed.
-type Checkpointer interface {
-	// Checkpoint saves the last checkpoint a id has reached.
-	Checkpoint(ctx context.Context, id ID, t time.Time) error
-
-	// Last stored checkpoint.
-	Last(ctx context.Context, id ID) (time.Time, error)
-}
 
 // Executor is a system used by the scheduler to actually execute the scheduleable item.
 type Executor interface {
@@ -30,78 +20,43 @@ type Executor interface {
 	// Errors returned from the execute request imply that this attempt has failed and
 	// should be put back in scheduler and re executed at a alter time. We will add scheduler specific errors
 	// so the time can be configurable.
-	Execute(ctx context.Context, id ID, scheduledAt time.Time) (Promise, error)
-
-	// Cancel is used to cancel a running execution
-	Cancel(ctx context.Context, promiseID ID) error
+	Execute(ctx context.Context, id ID, scheduledAt time.Time) error
 }
 
-// Promise is the currently executing element from the a call to Execute.
-type Promise interface {
-	// ID is a unique ID usable to look up or cancel a run.
-	ID() ID
-
-	// Cancel a promise, identical to calling executor.Cancel().
-	Cancel(ctx context.Context)
-
-	// Done returns a read only channel that when closed indicates the execution is complete.
-	Done() <-chan struct{}
-
-	// Error returns an error only when the execution is complete.
-	// This is a hanging call until Done() is closed.
-	Error() error
-}
-
-// Schedulable is a object that can be scheduled by the scheduler.
+// Schedulable is the interface that encapsulates work that
+// is to be executed on a specified schedule.
 type Schedulable interface {
-	// ID a unique ID we can to lookup a scheduler
+	// ID is the unique identifier for this Schedulable
 	ID() ID
 
-	// Schedule is the schedule you want execution.
+	// Schedule defines the frequency for which this Schedulable should be
+	// queued for execution.
 	Schedule() Schedule
+
+	// Offset defines a negative or positive duration that should be added
+	// to the scheduled time, resulting in the instance running earlier or later
+	// than the scheduled time.
+	Offset() time.Duration
+
+	// LastScheduled specifies last time this Schedulable was queued
+	// for execution.
+	LastScheduled() time.Time
+
+	// UpdateLastScheduled notifies the instance that it was scheduled for
+	// execution at the specified time
+	UpdateLastScheduled(time.Time)
 }
 
-// Schedule is a timing mechanism that helps us know when the next schedulable is due.
 type Schedule struct {
-	Schedule string
-	Offset   time.Duration
-}
-
-// Valid check to see if the schedule has a valid schedule string.
-// Valid schedule strings are a cron syntax `* * * * *` or `@every 1s`.
-func (s Schedule) Valid() error {
-	_, err := cron.Parse(s.Schedule)
-	return err
-}
-
-// Next returns the next time a schedule needs to run after checkpoint time.
-func (s Schedule) Next(checkpoint time.Time) (time.Time, error) {
-	sch, err := cron.Parse(s.Schedule)
-	if err != nil {
-		return time.Time{}, err
-	}
-	nextScheduled := sch.Next(checkpoint)
-	return nextScheduled.Add(s.Offset), nil
 }
 
 // Scheduler is a example interface of a Scheduler.
 // // todo(lh): remove this once we start building the actual scheduler
-// type Scheduler interface {
-// 	// Start allows the scheduler to Tick. A scheduler without start will do nothing
-// 	Start(ctx context.Context)
+type Scheduler interface {
 
-// 	// Stop a scheduler from ticking.
-// 	Stop()
+	// Schedule adds the specified task to the scheduler.
+	Schedule(task Schedulable) error
 
-// 	Now() time.Time
-
-// 	// ClaimTask begins control of task execution in this scheduler.
-// 	ClaimTask(authCtx context.Context, task Schedulable) error
-
-// 	// UpdateTask will update the concurrency and the runners for a task
-// 	UpdateTask(authCtx context.Context, task Schedulable) error
-
-// 	// ReleaseTask immediately cancels any in-progress runs for the given task ID,
-// 	// and releases any resources related to management of that task.
-// 	ReleaseTask(taskID ID) error
-// }
+	// Release removes the specified task from the scheduler.
+	Release(taskID ID) error
+}
