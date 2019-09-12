@@ -5811,7 +5811,7 @@ paths:
               $ref: "#/components/schemas/NotificationEndpoint"
       responses:
         '201':
-          description: Notification rule created
+          description: Notification endpoint created
           content:
             application/json:
               schema:
@@ -9714,7 +9714,7 @@ components:
           $ref: "#/components/schemas/Links"
     NotificationEndpointBase:
       type: object
-      required: [type]
+      required: [type, name]
       properties:
         id:
           type: string
@@ -9742,6 +9742,27 @@ components:
           enum: ["active", "inactive"]
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/notificationEndpoints/1"
+            labels: "/api/v2/notificationEndpoints/1/labels"
+            members: "/api/v2/notificationEndpoints/1/members"
+            owners: "/api/v2/notificationEndpoints/1/owners"
+          properties:
+            self:
+              description: URL for this endpoint
+              $ref: "#/components/schemas/Link"
+            labels:
+              description: URL to retrieve labels for this endpoint
+              $ref: "#/components/schemas/Link"
+            members:
+              description: URL to retrieve members for this endpoint
+              $ref: "#/components/schemas/Link"
+            owners:
+              description: URL to retrieve owners for this endpoint
+              $ref: "#/components/schemas/Link"
         type:
           $ref: "#/components/schemas/NotificationEndpointType"
     SlackNotificationEndpoint:
@@ -9749,11 +9770,12 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-          required: [url, token]
           properties:
             url:
+              description: specifies the URL of the slack endpoint; either URL or Token should be specified
               type: string
             token:
+              description: specifies the api token string; either URL or Token should be specified
               type: string
     PagerDutyNotificationEndpoint:
       type: object

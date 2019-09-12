@@ -55,6 +55,22 @@ func TestValidEndpoint(t *testing.T) {
 			},
 		},
 		{
+			name: "empty name",
+			src: &endpoint.PagerDuty{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16(id1),
+					OrgID:  influxTesting.MustIDBase16(id3),
+					Status: influxdb.Active,
+				},
+				ClientURL:  "https://events.pagerduty.com/v2/enqueue",
+				RoutingKey: influxdb.SecretField{Key: id1 + "-routing-key"},
+			},
+			err: &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  "Notification Endpoint Name can't be empty",
+			},
+		},
+		{
 			name: "empty slack url and token",
 			src: &endpoint.Slack{
 				Base: goodBase,
@@ -186,6 +202,22 @@ func TestJSON(t *testing.T) {
 				},
 				URL:   "https://slack.com/api/chat.postMessage",
 				Token: influxdb.SecretField{Key: "token-key-1"},
+			},
+		},
+		{
+			name: "Slack without token",
+			src: &endpoint.Slack{
+				Base: endpoint.Base{
+					ID:     influxTesting.MustIDBase16(id1),
+					Name:   "name1",
+					OrgID:  influxTesting.MustIDBase16(id3),
+					Status: influxdb.Active,
+					CRUDLog: influxdb.CRUDLog{
+						CreatedAt: timeGen1.Now(),
+						UpdatedAt: timeGen2.Now(),
+					},
+				},
+				URL: "https://hooks.slack.com/services/x/y/z",
 			},
 		},
 		{
