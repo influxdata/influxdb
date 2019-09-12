@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,8 +18,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
-
-const defaultConcurrency = 11
 
 // Executor handles execution of a run.
 type Executor interface {
@@ -154,6 +150,13 @@ func WithTicker(ctx context.Context, d time.Duration) TickSchedulerOption {
 	}
 }
 
+// WithMaxConcurrency sets a maximum number of task runs that can be run in parallel by this scheduler
+func WithMaxConcurrency(ctx context.Context, d int) TickSchedulerOption {
+	return func(s *TickScheduler) {
+		s.maxConcurrency = d
+	}
+}
+
 // WithLogger sets the logger for the scheduler.
 // If not set, the scheduler will use a no-op logger.
 func WithLogger(logger *zap.Logger) TickSchedulerOption {
@@ -172,6 +175,7 @@ func NewScheduler(taskControlService TaskControlService, executor Executor, now 
 		logger:             zap.NewNop(),
 		wg:                 &sync.WaitGroup{},
 		metrics:            newSchedulerMetrics(),
+		maxConcurrency:     1,
 	}
 
 	for _, opt := range opts {
@@ -185,8 +189,9 @@ type TickScheduler struct {
 	taskControlService TaskControlService
 	executor           Executor
 
-	now    int64
-	logger *zap.Logger
+	maxConcurrency int
+	now            int64
+	logger         *zap.Logger
 
 	metrics *schedulerMetrics
 
@@ -470,16 +475,7 @@ func newTaskScheduler(
 	if err != nil {
 		return nil, err
 	}
-	maxC := defaultConcurrency
-
-	// if an environment variable for default concurrency is set, use this value
-	// this will be overwritten if the Flux script for the task has a concurrency set
-	if envConcurrency := os.Getenv("DEFAULT_CONCURRENCY"); envConcurrency != "" {
-		c, err := strconv.Atoi(envConcurrency)
-		if err == nil {
-			maxC = c
-		}
-	}
+	maxC := s.maxConcurrency
 
 	if opt.Concurrency != nil {
 		maxC = int(*opt.Concurrency)
