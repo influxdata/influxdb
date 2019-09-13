@@ -12,15 +12,16 @@ type Subscriber interface {
 type QueueSubscriber struct {
 	ClientID   string
 	Connection stan.Conn
+	Addr       string
 }
 
-func NewQueueSubscriber(clientID string) *QueueSubscriber {
-	return &QueueSubscriber{ClientID: clientID}
+func NewQueueSubscriber(clientID string, addr string) *QueueSubscriber {
+	return &QueueSubscriber{ClientID: clientID, Addr: addr}
 }
 
 // Open creates and maintains a connection to NATS server
 func (s *QueueSubscriber) Open() error {
-	sc, err := stan.Connect(ServerName, s.ClientID)
+	sc, err := stan.Connect(ServerName, s.ClientID, stan.NatsURL(s.Addr))
 	if err != nil {
 		return err
 	}
