@@ -3,6 +3,7 @@ package backend
 import (
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -15,6 +16,8 @@ type schedulerMetrics struct {
 
 	runsComplete *prometheus.CounterVec
 	runsActive   *prometheus.GaugeVec
+
+	errorsCounter *prometheus.CounterVec
 
 	claimsComplete *prometheus.CounterVec
 	claimsActive   prometheus.Gauge
@@ -53,6 +56,13 @@ func newSchedulerMetrics() *schedulerMetrics {
 			Name:      "runs_active",
 			Help:      "Total number of runs that have started but not yet completed, split out by task ID.",
 		}, []string{"task_id"}),
+
+		errorsCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "errors_counter",
+			Help:      "The number of errors thrown by scheduler with the type of error (ex. Invalid, Internal, etc.",
+		}, []string{"error_type"}),
 
 		claimsComplete: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace,
@@ -94,6 +104,7 @@ func (sm *schedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 		sm.claimsActive,
 		sm.queueDelta,
 		sm.executionDelta,
+		sm.errorsCounter,
 	}
 }
 
@@ -118,6 +129,11 @@ func (sm *schedulerMetrics) FinishRun(tid string, succeeded bool, executionDelta
 
 	sm.executionDelta.WithLabelValues("all").Observe(executionDelta.Seconds())
 	sm.executionDelta.WithLabelValues(tid).Observe(executionDelta.Seconds())
+}
+
+// LogError increments the count of errors.
+func (sm *schedulerMetrics) LogError(err *influxdb.Error) {
+	sm.errorsCounter.WithLabelValues(err.Code).Inc()
 }
 
 // ClaimTask adjusts the metrics to indicate the result of an attempted claim.

@@ -53,6 +53,11 @@ var (
 		Msg:  "run not found",
 	}
 
+	ErrRunKeyNotFound = &Error{
+		Code: ENotFound,
+		Msg:  "run key not found",
+	}
+
 	ErrPageSizeTooSmall = &Error{
 		Msg:  "cannot have negative page limit",
 		Code: EInvalid,
@@ -109,7 +114,7 @@ func ErrQueryError(err error) *Error {
 // ErrResultIteratorError is returned when an error is thrown by exhaustResultIterators in the executor
 func ErrResultIteratorError(err error) *Error {
 	return &Error{
-		Code: EInternal,
+		Code: EInvalid,
 		Msg:  fmt.Sprintf("Error exhausting result iterator; Err: %v", err),
 		Op:   "kv/taskExecutor",
 		Err:  err,
@@ -159,5 +164,32 @@ func ErrRunNotDueYet(dueAt int64) *Error {
 	return &Error{
 		Code: EInvalid,
 		Msg:  fmt.Sprintf("run not due until: %v", time.Unix(dueAt, 0).UTC().Format(time.RFC3339)),
+	}
+}
+
+func ErrCouldNotLogError(err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("unable to log error; Err: %v", err),
+		Op:   "kv/taskScheduler",
+		Err:  err,
+	}
+}
+
+func ErrJsonMarshalError(err error) *Error {
+	return &Error{
+		Code: EInvalid,
+		Msg:  fmt.Sprintf("unable to marshal JSON; Err: %v", err),
+		Op:   "kv/taskScheduler",
+		Err:  err,
+	}
+}
+
+func ErrRunExecutionError(err error) *Error {
+	return &Error{
+		Code: EInternal,
+		Msg:  fmt.Sprintf("could not execute task run; Err: %v", err),
+		Op:   "kv/taskScheduler",
+		Err:  err,
 	}
 }
