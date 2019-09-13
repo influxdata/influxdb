@@ -7,7 +7,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -74,12 +73,6 @@ func (e *SQLIndexExporter) ExportIndex(idx *Index) error {
 }
 
 func (e *SQLIndexExporter) exportMeasurement(idx *Index, name []byte) error {
-	// Log measurements that can't be parsed into org/bucket.
-	if len(name) != 16 {
-		e.Logger.With(zap.Binary("name", name)).Warn("cannot parse non-standard measurement, skipping")
-		return nil
-	}
-
 	if err := e.exportMeasurementSeries(idx, name); err != nil {
 		return err
 	}
@@ -108,8 +101,6 @@ func (e *SQLIndexExporter) exportMeasurement(idx *Index, name []byte) error {
 }
 
 func (e *SQLIndexExporter) exportMeasurementSeries(idx *Index, name []byte) error {
-	orgID, bucketID := tsdb.DecodeNameSlice(name[:16])
-
 	itr, err := idx.MeasurementSeriesIDIterator(name)
 	if err != nil {
 		return err
@@ -126,12 +117,7 @@ func (e *SQLIndexExporter) exportMeasurementSeries(idx *Index, name []byte) erro
 			break
 		}
 
-		if _, err := fmt.Fprintf(e.w,
-			"INSERT INTO measurement_series (org_id, bucket_id, series_id) VALUES (%d, %d, %d);\n",
-			orgID,
-			bucketID,
-			elem.SeriesID.ID,
-		); err != nil {
+		if _, err := fmt.Fprintf(e.w, "INSERT INTO measurement_series (name, series_id) VALUES ('%x', %d);\n", name, elem.SeriesID.ID); err != nil {
 			return err
 		}
 	}
@@ -163,8 +149,6 @@ func (e *SQLIndexExporter) exportTagKey(idx *Index, name, key []byte) error {
 }
 
 func (e *SQLIndexExporter) exportTagValue(idx *Index, name, key, value []byte) error {
-	orgID, bucketID := tsdb.DecodeNameSlice(name[:16])
-
 	itr, err := idx.TagValueSeriesIDIterator(name, key, value)
 	if err != nil {
 		return err
@@ -183,15 +167,14 @@ func (e *SQLIndexExporter) exportTagValue(idx *Index, name, key, value []byte) e
 
 		// Replace special case keys for measurement & field.
 		if bytes.Equal(key, []byte{0}) {
-			key = []byte("_m")
+			key = []byte("_measurement")
 		} else if bytes.Equal(key, []byte{0xff}) {
-			key = []byte("_f")
+			key = []byte("_field")
 		}
 
 		if _, err := fmt.Fprintf(e.w,
-			"INSERT INTO tag_value_series (org_id, bucket_id, key, value, series_id) VALUES (%d, %d, %s, %s, %d);\n",
-			orgID,
-			bucketID,
+			"INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('%x', %s, %s, %d);\n",
+			name,
 			quoteSQL(string(key)),
 			quoteSQL(string(value)),
 			elem.SeriesID.ID,
@@ -213,14 +196,12 @@ func (e *SQLIndexExporter) initialize() error {
 	}
 	fmt.Fprintln(e.w, `
 CREATE TABLE IF NOT EXISTS measurement_series (
-	org_id    INTEGER NOT NULL,
-	bucket_id INTEGER NOT NULL,
+	name      TEXT NOT NULL,
 	series_id INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tag_value_series (
-	org_id    INTEGER NOT NULL,
-	bucket_id INTEGER NOT NULL,
+	name      TEXT NOT NULL,
 	key       TEXT NOT NULL,
 	value     TEXT NOT NULL,
 	series_id INTEGER NOT NULL

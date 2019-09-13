@@ -1,6 +1,7 @@
 package inspect
 
 import (
+	"bufio"
 	"context"
 	"os"
 	"path/filepath"
@@ -17,7 +18,7 @@ func NewExportIndexCommand() *cobra.Command {
 		Short: "Exports TSI index data",
 		Long: `
 This command will export all series in a TSI index to
-another format for easier inspection and debugging.`,
+SQL format for easier inspection and debugging.`,
 	}
 
 	defaultDataDir, _ := fs.InfluxDir()
@@ -45,10 +46,13 @@ another format for easier inspection and debugging.`,
 		defer idx.Close()
 
 		// Dump out index data.
-		e := tsi1.NewSQLIndexExporter(os.Stdout)
+		w := bufio.NewWriter(os.Stdout)
+		e := tsi1.NewSQLIndexExporter(w)
 		if err := e.ExportIndex(idx); err != nil {
 			return err
 		} else if err := e.Close(); err != nil {
+			return err
+		} else if err := w.Flush(); err != nil {
 			return err
 		}
 		return nil

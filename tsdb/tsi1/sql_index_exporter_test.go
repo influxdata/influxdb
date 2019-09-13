@@ -27,13 +27,13 @@ func TestSQLIndexExporter_ExportIndex(t *testing.T) {
 	// Expected output.
 	want := `
 BEGIN TRANSACTION;
-INSERT INTO measurement_series (org_id, bucket_id, series_id) VALUES (1, 2, 1);
-INSERT INTO measurement_series (org_id, bucket_id, series_id) VALUES (1, 2, 5);
-INSERT INTO tag_value_series (org_id, bucket_id, key, value, series_id) VALUES (1, 2, 'region', 'east', 1);
-INSERT INTO tag_value_series (org_id, bucket_id, key, value, series_id) VALUES (1, 2, 'region', 'west', 5);
-INSERT INTO tag_value_series (org_id, bucket_id, key, value, series_id) VALUES (1, 2, 'status', 'ok', 1);
-INSERT INTO measurement_series (org_id, bucket_id, series_id) VALUES (3, 4, 2);
-INSERT INTO tag_value_series (org_id, bucket_id, key, value, series_id) VALUES (3, 4, 'region', 'east', 2);
+INSERT INTO measurement_series (name, series_id) VALUES ('00000000000000010000000000000002', 1);
+INSERT INTO measurement_series (name, series_id) VALUES ('00000000000000010000000000000002', 5);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('00000000000000010000000000000002', 'region', 'east', 1);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('00000000000000010000000000000002', 'region', 'west', 5);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('00000000000000010000000000000002', 'status', 'ok', 1);
+INSERT INTO measurement_series (name, series_id) VALUES ('00000000000000030000000000000004', 2);
+INSERT INTO tag_value_series (name, key, value, series_id) VALUES ('00000000000000030000000000000004', 'region', 'east', 2);
 COMMIT;
 `[1:]
 
