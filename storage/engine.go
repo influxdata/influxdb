@@ -30,19 +30,29 @@ var timeBytes = []byte("time")
 // it's closed.
 var ErrEngineClosed = errors.New("engine is closed")
 
+// runner lets us mock out the retention enforcer in tests
+type runner interface{ run() }
+
+// runnable is a function that lets the caller know if they can proceed with their
+// task. A runnable returns a function that should be called by the caller to
+// signal they finished their task.
+type runnable func() (done func())
+
 type Engine struct {
 	config   Config
 	path     string
 	engineID *int // Not used by default.
 	nodeID   *int // Not used by default.
 
-	mu                sync.RWMutex
-	closing           chan struct{} //closing returns the zero value when the engine is shutting down.
-	index             *tsi1.Index
-	sfile             *tsdb.SeriesFile
-	engine            *tsm1.Engine
-	wal               *wal.WAL
-	retentionEnforcer *retentionEnforcer
+	mu      sync.RWMutex
+	closing chan struct{} //closing returns the zero value when the engine is shutting down.
+	index   *tsi1.Index
+	sfile   *tsdb.SeriesFile
+	engine  *tsm1.Engine
+	wal     *wal.WAL
+
+	retentionEnforcer        runner
+	retentionEnforcerLimiter runnable
 
 	defaultMetricLabels prometheus.Labels
 
@@ -97,6 +107,16 @@ func WithRetentionEnforcer(finder BucketFinder) Option {
 	}
 }
 
+// WithRetentionEnforcerLimiter sets a limiter used to control when the
+// retention enforcer can proceed. If this option is not used then the default
+// limiter (or the absence of one) is a no-op, and no limitations will be put
+// on running the retention enforcer.
+func WithRetentionEnforcerLimiter(f runnable) Option {
+	return func(e *Engine) {
+		e.retentionEnforcerLimiter = f
+	}
+}
+
 // WithFileStoreObserver makes the engine have the provided file store observer.
 func WithFileStoreObserver(obs tsm1.FileStoreObserver) Option {
 	return func(e *Engine) {
@@ -148,7 +168,9 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.sfile.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.index.SetDefaultMetricLabels(e.defaultMetricLabels)
 	e.wal.SetDefaultMetricLabels(e.defaultMetricLabels)
-	e.retentionEnforcer.SetDefaultMetricLabels(e.defaultMetricLabels)
+	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
+		r.SetDefaultMetricLabels(e.defaultMetricLabels)
+	}
 
 	return e
 }
@@ -170,7 +192,9 @@ func (e *Engine) WithLogger(log *zap.Logger) {
 	e.index.WithLogger(e.logger)
 	e.engine.WithLogger(e.logger)
 	e.wal.WithLogger(e.logger)
-	e.retentionEnforcer.WithLogger(e.logger)
+	if r, ok := e.retentionEnforcer.(*retentionEnforcer); ok {
+		r.WithLogger(e.logger)
+	}
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
@@ -311,7 +335,36 @@ func (e *Engine) runRetentionEnforcer() {
 				l.Info("Stopping")
 				return
 			case <-ticker.C:
-				e.retentionEnforcer.run()
+				// canRun will signal to this goroutine that the enforcer can
+				// run. It will also carry from the blocking goroutine a function
+				// that needs to be called when the enforcer has finished its work.
+				canRun := make(chan func())
+
+				// This goroutine blocks until the retention enforcer has permission
+				// to proceed.
+				go func() {
+					if e.retentionEnforcerLimiter != nil {
+						// The limiter will block until the enforcer can proceed.
+						// The limiter returns a function that needs to be called
+						// when the enforcer has finished its work.
+						canRun <- e.retentionEnforcerLimiter()
+						return
+					}
+					canRun <- func() {}
+				}()
+
+				// Is it possible to get a slot? We need to be able to close
+				// whilst waiting...
+				select {
+				case <-e.closing:
+					l.Info("Stopping")
+					return
+				case done := <-canRun:
+					e.retentionEnforcer.run()
+					if done != nil {
+						done()
+					}
+				}
 			}
 		}
 	}()
