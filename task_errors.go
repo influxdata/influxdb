@@ -189,7 +189,7 @@ func ErrRunExecutionError(err error) *Error {
 	return &Error{
 		Code: EInternal,
 		Msg:  fmt.Sprintf("could not execute task run; Err: %v", err),
-		Op:   "kv/taskScheduler",
+		Op:   "kv/taskExecutor",
 		Err:  err,
 	}
 }

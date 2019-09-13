@@ -3,14 +3,12 @@ package scheduler
 import (
 	"context"
 	"time"
-
-	"github.com/influxdata/influxdb"
 )
 
 // ID duplicates the influxdb ID so users of the scheduler don't have to
 // import influxdb for the id.
 // TODO(lh): maybe make this its own thing sometime in the future.
-type ID influxdb.ID
+type ID uint64
 
 // Executor is a system used by the scheduler to actually execute the scheduleable item.
 type Executor interface {
@@ -23,8 +21,7 @@ type Executor interface {
 	Execute(ctx context.Context, id ID, scheduledAt time.Time) error
 }
 
-// Schedulable is the interface that encapsulates work that
-// is to be executed on a specified schedule.
+// Schedulable is the interface that encapsulates the state that is required to schedule a job.
 type Schedulable interface {
 	// ID is the unique identifier for this Schedulable
 	ID() ID
@@ -41,10 +38,14 @@ type Schedulable interface {
 	// LastScheduled specifies last time this Schedulable was queued
 	// for execution.
 	LastScheduled() time.Time
+}
+
+// SchedulableService encapsulates the work necessary to schedule a job
+type SchedulableService interface {
 
 	// UpdateLastScheduled notifies the instance that it was scheduled for
 	// execution at the specified time
-	UpdateLastScheduled(time.Time)
+	UpdateLastScheduled(ctx context.Context, id ID, t time.Time) error
 }
 
 type Schedule struct {
