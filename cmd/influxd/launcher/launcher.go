@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -227,6 +228,7 @@ type Launcher struct {
 	httpServer *nethttp.Server
 
 	natsServer *nats.Server
+	natsPort   int
 
 	scheduler          *taskbackend.TickScheduler
 	taskControlService taskbackend.TaskControlService
@@ -274,6 +276,11 @@ func (m *Launcher) Logger() *zap.Logger {
 // URL returns the URL to connect to the HTTP server.
 func (m *Launcher) URL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", m.httpPort)
+}
+
+// NatsURL returns the URL to connection to the NATS server.
+func (m *Launcher) NatsURL() string {
+	return fmt.Sprintf("http://127.0.0.1:%d", m.natsPort)
 }
 
 // Engine returns a reference to the storage engine. It should only be called
@@ -577,20 +584,49 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// NATS streaming server
-	m.natsServer = nats.NewServer()
+	natsOpts := nats.NewDefaultServerOptions()
+	nextPort := int64(4222)
+
+	// Welcome to ghetto land. It doesn't seem possible to tell NATS to initialise
+	// a random port. In some integration-style tests, this launcher gets initialised
+	// multiple times, and sometimes the port from the previous instantiation is
+	// still open.
+	//
+	// This atrocity checks if the port is free, and if it's not, moves on to the
+	// next one.
+	var total int
+	for {
+		l, err := net.Listen("tcp", fmt.Sprintf(":%d", nextPort))
+		if err == nil {
+			if err := l.Close(); err != nil {
+				return err
+			}
+			break
+		}
+		time.Sleep(time.Second)
+		nextPort++
+		total++
+		if total > 50 {
+			return errors.New("unable to find free port for Nats server")
+		}
+	}
+	natsOpts.Port = int(nextPort)
+	m.natsServer = nats.NewServer(&natsOpts)
+	m.natsPort = int(nextPort)
+
 	if err := m.natsServer.Open(); err != nil {
 		m.logger.Error("failed to start nats streaming server", zap.Error(err))
 		return err
 	}
 
-	publisher := nats.NewAsyncPublisher("nats-publisher")
+	publisher := nats.NewAsyncPublisher(fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
 	if err := publisher.Open(); err != nil {
 		m.logger.Error("failed to connect to streaming server", zap.Error(err))
 		return err
 	}
 
 	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
-	subscriber := nats.NewQueueSubscriber("nats-subscriber")
+	subscriber := nats.NewQueueSubscriber(fmt.Sprintf("nats-subscriber-%d", m.natsPort), m.NatsURL())
 	if err := subscriber.Open(); err != nil {
 		m.logger.Error("failed to connect to streaming server", zap.Error(err))
 		return err

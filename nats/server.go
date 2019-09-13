@@ -3,7 +3,8 @@ package nats
 import (
 	"errors"
 
-	stand "github.com/nats-io/nats-streaming-server/server"
+	"github.com/nats-io/gnatsd/server"
+	sserver "github.com/nats-io/nats-streaming-server/server"
 	"github.com/nats-io/nats-streaming-server/stores"
 )
 
@@ -13,15 +14,18 @@ var ErrNoNatsConnection = errors.New("nats connection has not been established. 
 
 // Server wraps a connection to a NATS streaming server
 type Server struct {
-	Server *stand.StanServer
+	serverOpts *server.Options
+	Server     *sserver.StanServer
 }
 
 // Open starts a NATS streaming server
 func (s *Server) Open() error {
-	opts := stand.GetDefaultOptions()
+	// Streaming options
+	opts := sserver.GetDefaultOptions()
 	opts.StoreType = stores.TypeMemory
 	opts.ID = ServerName
-	server, err := stand.RunServerWithOpts(opts, nil)
+
+	server, err := sserver.RunServerWithOpts(opts, s.serverOpts)
 	if err != nil {
 		return err
 	}
@@ -36,7 +40,17 @@ func (s *Server) Close() {
 	s.Server.Shutdown()
 }
 
-// NewServer creates and returns a new server struct from the provided config
-func NewServer() *Server {
-	return &Server{}
+// NewDefaultServerOptions returns the default NATS server options, allowing the
+// caller to  override specific fields.
+func NewDefaultServerOptions() server.Options {
+	return sserver.DefaultNatsServerOptions
+}
+
+// NewServer creates a new streaming server with the provided server options.
+func NewServer(opts *server.Options) *Server {
+	if opts == nil {
+		o := NewDefaultServerOptions()
+		opts = &o
+	}
+	return &Server{serverOpts: opts}
 }

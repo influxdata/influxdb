@@ -17,15 +17,16 @@ type AsyncPublisher struct {
 	ClientID   string
 	Connection stan.Conn
 	Logger     *zap.Logger
+	Addr       string
 }
 
-func NewAsyncPublisher(clientID string) *AsyncPublisher {
-	return &AsyncPublisher{ClientID: clientID}
+func NewAsyncPublisher(clientID string, addr string) *AsyncPublisher {
+	return &AsyncPublisher{ClientID: clientID, Addr: addr}
 }
 
 // Open creates and maintains a connection to NATS server
 func (p *AsyncPublisher) Open() error {
-	sc, err := stan.Connect(ServerName, p.ClientID)
+	sc, err := stan.Connect(ServerName, p.ClientID, stan.NatsURL(p.Addr))
 	if err != nil {
 		return err
 	}
