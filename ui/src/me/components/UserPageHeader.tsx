@@ -30,7 +30,7 @@ export default class UserPageHeader extends PureComponent<Props> {
     let title = ''
 
     if (process.env.CLOUD === 'true') {
-      title = `${text}, ${userName}! Welcome to InfluxCloud!`
+      title = `${text}, ${userName}! Welcome to InfluxDB Cloud!`
     } else {
       title = `${text}, ${userName}! Welcome to ${orgName}!`
     }
