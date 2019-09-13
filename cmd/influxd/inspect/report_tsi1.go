@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/influxdata/influxdb"
-
 	"github.com/influxdata/influxdb/tsdb/tsi1"
 	"github.com/spf13/cobra"
 )
