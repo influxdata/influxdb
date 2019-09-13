@@ -27,6 +27,12 @@ func EncodeName(org, bucket platform.ID) [16]byte {
 	return nameBytes
 }
 
+// EncodeNameSlice converts org/bucket pairs to the tsdb internal serialization but returns a byte slice.
+func EncodeNameSlice(org, bucket platform.ID) []byte {
+	buf := EncodeName(org, bucket)
+	return buf[:]
+}
+
 // EncodeOrgName converts org to the tsdb internal serialization that may be used
 // as a prefix when searching for keys matching a specific organization.
 func EncodeOrgName(org platform.ID) [8]byte {
