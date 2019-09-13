@@ -61,14 +61,11 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
       type={PopoverType.Outline}
       contents={onHide => (
         <div className="query-checklist--popover">
-          <p>In order to define a Check your query must:</p>
+          <p>To create a check, your query must include:</p>
           <ul className="query-checklist--list">
+            <QueryChecklistItem text="One field" selected={singleField} />
             <QueryChecklistItem
-              text="Have 1 field selected"
-              selected={singleField}
-            />
-            <QueryChecklistItem
-              text="Have 1 aggregate function selected"
+              text="One aggregate function"
               selected={singleAggregateFunc}
             />
           </ul>
