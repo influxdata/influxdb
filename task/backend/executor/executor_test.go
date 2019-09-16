@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
@@ -261,24 +262,27 @@ type system struct {
 	ex   backend.Executor
 	// We really just want an authorization service here, but we take a whole inmem service
 	// to ensure that the authorization service validates org and user existence properly.
-	i *kv.Service
+	i     *kv.Service
+	store *inmem.KVStore
 }
 
 type createSysFn func() *system
 
 func createAsyncSystem() *system {
 	svc := newFakeQueryService()
-	i := kv.NewService(inmem.NewKVStore())
+	store := inmem.NewKVStore()
+	i := kv.NewService(store)
 	if err := i.Initialize(context.Background()); err != nil {
 		panic(err)
 	}
 
 	return &system{
-		name: "AsyncExecutor",
-		svc:  svc,
-		ts:   i,
-		ex:   NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
-		i:    i,
+		name:  "AsyncExecutor",
+		svc:   svc,
+		ts:    i,
+		ex:    NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
+		i:     i,
+		store: store,
 	}
 }
 
@@ -312,6 +316,7 @@ func TestExecutor(t *testing.T) {
 		testExecutorPromiseCancel(t, fn)
 		testExecutorServiceError(t, fn)
 		testExecutorWait(t, fn)
+		testExecutorExecuteErrors(t, fn)
 	}
 }
 
@@ -407,6 +412,37 @@ func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
 		if got := res.Err(); got != expErr {
 			t.Fatalf("expected error %v; got %v", expErr, got)
 		}
+	})
+}
+
+func errCmp(x, y error) bool {
+	if x == nil {
+		return y == nil
+	}
+	if y == nil {
+		return false
+	}
+	return x.Error() == y.Error()
+}
+
+func errTr(x error) string {
+	if x == nil {
+		return ""
+	}
+	return x.Error()
+}
+
+func testExecutorExecuteErrors(t *testing.T, fn createSysFn) {
+	sys := fn()
+	t.Run(sys.name+"/Execute", func(t *testing.T) {
+		t.Run("no task", func(t *testing.T) {
+			t.Parallel()
+			qr := backend.QueuedRun{TaskID: platform.ID(10), RunID: platform.ID(1), Now: 123}
+			_, err := sys.ex.Execute(context.Background(), qr)
+			if !cmp.Equal(err, platform.ErrTaskNotFound, cmp.Comparer(errCmp)) {
+				t.Fatalf("unexpected error. -got/+exp\n%s", cmp.Diff(err, platform.ErrTaskNotFound, cmp.Transformer("err", errTr)))
+			}
+		})
 	})
 }
 
