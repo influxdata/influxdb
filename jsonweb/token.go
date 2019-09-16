@@ -9,12 +9,16 @@ import (
 
 const kind = "jwt"
 
-// ErrKeyNotFound should be returned by a KeyStore when
-// a key cannot be located for the provided key ID
-var ErrKeyNotFound = errors.New("key not found")
+var (
+	// ErrKeyNotFound should be returned by a KeyStore when
+	// a key cannot be located for the provided key ID
+	ErrKeyNotFound = errors.New("key not found")
 
-// ensure Token implements Authorizer
-var _ influxdb.Authorizer = (*Token)(nil)
+	// EmptyKeyStore is a KeyStore implementation which contains no keys
+	EmptyKeyStore = KeyStoreFunc(func(string) ([]byte, error) {
+		return nil, ErrKeyNotFound
+	})
+)
 
 // KeyStore is a type which holds a set of keys accessed
 // via an id
@@ -36,8 +40,8 @@ type TokenParser struct {
 
 // NewTokenParser returns a configured token parser used to
 // parse Token types from strings
-func NewTokenParser(keyStore KeyStore) TokenParser {
-	return TokenParser{
+func NewTokenParser(keyStore KeyStore) *TokenParser {
+	return &TokenParser{
 		keyStore: keyStore,
 		parser: &jwt.Parser{
 			ValidMethods: []string{jwt.SigningMethodHS256.Alg()},
@@ -68,6 +72,13 @@ func (t *TokenParser) Parse(v string) (*Token, error) {
 	}
 
 	return token, nil
+}
+
+// IsMalformedError returns true if the error returned represents
+// a jwt malformed token error
+func IsMalformedError(err error) bool {
+	verr, ok := err.(*jwt.ValidationError)
+	return ok && verr.Errors&jwt.ValidationErrorMalformed > 0
 }
 
 // Token is a structure which is serialized as a json web token
