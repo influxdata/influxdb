@@ -106,7 +106,14 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
             size={ComponentSize.Medium}
             color={ComponentColor.Primary}
             onClick={onCreateCheck}
-            text="Create a Check"
+            text="Threshold Check"
+            icon={IconFont.Plus}
+          />
+          <Button
+            size={ComponentSize.Medium}
+            color={ComponentColor.Primary}
+            onClick={onCreateCheck}
+            text="Deadman Check"
             icon={IconFont.Plus}
           />
         </Panel.Body>

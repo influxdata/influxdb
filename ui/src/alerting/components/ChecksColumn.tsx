@@ -9,7 +9,7 @@ import {viewableLabels} from 'src/labels/selectors'
 // Components
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import CheckCards from 'src/alerting/components/CheckCards'
-import AlertsColumnHeader from 'src/alerting/components/AlertsColumn'
+import AlertsColumn from 'src/alerting/components/AlertsColumn'
 
 // Types
 import {Check, NotificationRuleDraft, AppState} from 'src/types'
@@ -29,7 +29,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
   rules,
   endpoints,
 }) => {
-  const handleClick = () => {
+  const handleCreateCheck = () => {
     router.push(`/orgs/${orgID}/alerting/checks/new`)
   }
 
@@ -65,7 +65,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
   )
 
   return (
-    <AlertsColumnHeader
+    <AlertsColumn
       title="Checks"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -74,11 +74,11 @@ const ChecksColumn: FunctionComponent<Props> = ({
         <CheckCards
           checks={checks}
           searchTerm={searchTerm}
-          onCreateCheck={handleClick}
+          onCreateCheck={handleCreateCheck}
           showFirstTimeWidget={noAlertingResourcesExist}
         />
       )}
-    </AlertsColumnHeader>
+    </AlertsColumn>
   )
 }
 

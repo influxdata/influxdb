@@ -45,12 +45,17 @@
   h5 {
     line-height: 1.5em;
     font-weight: 500;
-    margin-bottom: 1.5em;
+    margin-bottom: 1em;
 
     strong {
       font-weight: 900;
       color: $g20-white;
     }
+  }
+
+  .cf-button {
+    margin-top: $ix-marg-c;
+    margin-right: $ix-marg-b;
   }
 }
 
