@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Radio, ButtonShape, Icon, IconFont} from '@influxdata/clockface'
+import {Radio, ButtonShape} from '@influxdata/clockface'
 
 // Actions
 import {setActiveTab} from 'src/timeMachine/actions'
@@ -55,25 +55,3 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
 }
 
 export default CheckAlertingButton
-
-interface ChecklistItemProps {
-  selected: boolean
-  text: string
-}
-
-const QueryChecklistItem: FunctionComponent<ChecklistItemProps> = ({
-  selected,
-  text,
-}) => {
-  const className = selected
-    ? 'query-checklist--item valid'
-    : 'query-checklist--item error'
-  const icon = selected ? IconFont.Checkmark : IconFont.Remove
-
-  return (
-    <li className={className}>
-      <Icon glyph={icon} />
-      {text}
-    </li>
-  )
-}
