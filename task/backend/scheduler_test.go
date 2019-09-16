@@ -921,6 +921,11 @@ func TestScheduler_Metrics(t *testing.T) {
 		t.Fatalf("expected 1 run failed for task ID %s, got %v", task.ID.String(), got)
 	}
 
+	m = promtest.MustFindMetric(t, mfs, "task_scheduler_errors_counter", map[string]string{"error_type": "internal error"})
+	if got := *m.Counter.Value; got != 1 {
+		t.Fatalf("expected error type in metric to be internal error, got %v", got)
+	}
+
 	// Runs label removed after task released.
 	if err := s.ReleaseTask(task.ID); err != nil {
 		t.Fatal(err)

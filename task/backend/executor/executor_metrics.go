@@ -59,7 +59,7 @@ func NewExecutorMetrics(te *TaskExecutor) *ExecutorMetrics {
 			Namespace: namespace,
 			Subsystem: subsystem,
 			Name:      "errors_counter",
-			Help:      "The number of errors thrown by the executor with the type of error (ex. Flux compile, query, etc).",
+			Help:      "The number of errors thrown by the executor with the type of error (ex. Invalid, Internal, etc.)",
 		}, []string{"errorType"}),
 
 		manualRunsCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
