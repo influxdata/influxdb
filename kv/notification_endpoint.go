@@ -384,7 +384,7 @@ func (s *Service) findNotificationEndpointByID(ctx context.Context, tx Tx,
 // Additional options provide pagination & sorting.
 func (s *Service) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) (edps []influxdb.NotificationEndpoint, n int, err error) {
 	err = s.kv.View(ctx, func(tx Tx) error {
-		edps, n, err = s.findNotificationEndpoints(ctx, tx, filter)
+		edps, n, err = s.findNotificationEndpoints(ctx, tx, filter, opt...)
 		return err
 	})
 	return edps, n, err

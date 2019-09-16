@@ -119,7 +119,7 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
-	h.HandlerFunc("GET", notificationEndpointsIDLabelsIDPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("GET", notificationEndpointsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", notificationEndpointsIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", notificationEndpointsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
