@@ -2,6 +2,8 @@
 
 ### Features
 
+1. [15151](https://github.com/influxdata/influxdb/pull/15151): Add jsonweb package for future JWT support
+
 ### UI Improvements
 
 1. [15099](https://github.com/influxdata/influxdb/pull/15099): Add viewport scaling to html meta for responsive mobile scaling
