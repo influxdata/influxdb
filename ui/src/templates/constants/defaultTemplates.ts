@@ -34,7 +34,7 @@ export const influxdbTemplateList: DashboardTemplate[] = [
   docker,
   gettingStarted,
   github,
-  jmeter
+  jmeter,
   kubernetes,
   nginx,
   ossMetrics,
