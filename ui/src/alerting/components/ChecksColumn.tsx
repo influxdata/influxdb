@@ -7,9 +7,9 @@ import {connect} from 'react-redux'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Components
-import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import CheckCards from 'src/alerting/components/CheckCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
+import CreateCheckDropdown from 'src/alerting/components/CreateCheckDropdown'
 
 // Types
 import {Check, NotificationRuleDraft, AppState} from 'src/types'
@@ -55,12 +55,9 @@ const ChecksColumn: FunctionComponent<Props> = ({
     !checks.length && !rules.length && !endpoints.length
 
   const createButton = (
-    <Button
-      color={ComponentColor.Primary}
-      text="Create"
-      onClick={handleClick}
-      testID="create-check"
-      icon={IconFont.Plus}
+    <CreateCheckDropdown
+      onCreateThreshold={handleCreateCheck}
+      onCreateDeadman={handleCreateCheck}
     />
   )
 
