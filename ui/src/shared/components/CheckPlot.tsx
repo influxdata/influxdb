@@ -8,6 +8,7 @@ import {flatMap} from 'lodash'
 import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 import GraphLoadingDots from 'src/shared/components/GraphLoadingDots'
 import ThresholdMarkers from 'src/shared/components/ThresholdMarkers'
+import EventMarkers from 'src/shared/components/EventMarkers'
 
 // Utils
 import {getFormatter, filterNoisyColumns} from 'src/shared/utils/vis'
@@ -15,6 +16,7 @@ import {getFormatter, filterNoisyColumns} from 'src/shared/utils/vis'
 // Constants
 import {VIS_THEME} from 'src/shared/constants'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
+import {events} from 'src/shared/constants/events'
 
 // Types
 import {RemoteDataState, CheckViewProperties, TimeZone, Check} from 'src/types'
@@ -115,11 +117,22 @@ const CheckPlot: FunctionComponent<Props> = ({
         type: 'custom',
         render: ({yScale, yDomain}) => (
           <ThresholdMarkers
-            key="custom"
+            key="thresholds"
             thresholds={thresholds || []}
             onSetThresholds={thresholds => updateTimeMachineCheck({thresholds})}
             yScale={yScale}
             yDomain={yDomain}
+          />
+        ),
+      },
+      {
+        type: 'custom',
+        render: ({xScale, xDomain}) => (
+          <EventMarkers
+            key="events"
+            events={events || []}
+            xScale={xScale}
+            xDomain={xDomain}
           />
         ),
       },
