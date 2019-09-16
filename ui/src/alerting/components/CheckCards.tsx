@@ -22,14 +22,16 @@ interface Props {
   checks: Check[]
   searchTerm: string
   showFirstTimeWidget: boolean
-  onCreateCheck: () => void
+  onCreateThreshold: () => void
+  onCreateDeadman: () => void
 }
 
 const CheckCards: FunctionComponent<Props> = ({
   checks,
   searchTerm,
   showFirstTimeWidget,
-  onCreateCheck,
+  onCreateThreshold,
+  onCreateDeadman,
 }) => {
   const cards = cs => cs.map(c => <CheckCard key={c.id} check={c} />)
   const body = filtered => (
@@ -37,7 +39,8 @@ const CheckCards: FunctionComponent<Props> = ({
       emptyState={
         <EmptyChecksList
           showFirstTimeWidget={showFirstTimeWidget}
-          onCreateCheck={onCreateCheck}
+          onCreateThreshold={onCreateThreshold}
+          onCreateDeadman={onCreateDeadman}
           searchTerm={searchTerm}
         />
       }
@@ -64,13 +67,15 @@ const CheckCards: FunctionComponent<Props> = ({
 
 interface EmptyProps {
   showFirstTimeWidget: boolean
-  onCreateCheck: () => void
+  onCreateThreshold: () => void
+  onCreateDeadman: () => void
   searchTerm: string
 }
 
 const EmptyChecksList: FunctionComponent<EmptyProps> = ({
   showFirstTimeWidget,
-  onCreateCheck,
+  onCreateThreshold,
+  onCreateDeadman,
   searchTerm,
 }) => {
   if (searchTerm) {
@@ -105,14 +110,14 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
           <Button
             size={ComponentSize.Medium}
             color={ComponentColor.Primary}
-            onClick={onCreateCheck}
+            onClick={onCreateThreshold}
             text="Threshold Check"
             icon={IconFont.Plus}
           />
           <Button
             size={ComponentSize.Medium}
             color={ComponentColor.Primary}
-            onClick={onCreateCheck}
+            onClick={onCreateDeadman}
             text="Deadman Check"
             icon={IconFont.Plus}
           />

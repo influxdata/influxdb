@@ -29,8 +29,12 @@ const ChecksColumn: FunctionComponent<Props> = ({
   rules,
   endpoints,
 }) => {
-  const handleCreateCheck = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new`)
+  const handleCreateThreshold = () => {
+    router.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
+  }
+
+  const handleCreateDeadman = () => {
+    router.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
   }
 
   const tooltipContents = (
@@ -56,8 +60,8 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
   const createButton = (
     <CreateCheckDropdown
-      onCreateThreshold={handleCreateCheck}
-      onCreateDeadman={handleCreateCheck}
+      onCreateThreshold={handleCreateThreshold}
+      onCreateDeadman={handleCreateDeadman}
     />
   )
 
@@ -71,7 +75,8 @@ const ChecksColumn: FunctionComponent<Props> = ({
         <CheckCards
           checks={checks}
           searchTerm={searchTerm}
-          onCreateCheck={handleCreateCheck}
+          onCreateThreshold={handleCreateThreshold}
+          onCreateDeadman={handleCreateDeadman}
           showFirstTimeWidget={noAlertingResourcesExist}
         />
       )}

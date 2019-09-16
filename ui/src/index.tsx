@@ -336,7 +336,14 @@ class Root extends PureComponent {
                           </Route>
                           <FeatureFlag name="alerting">
                             <Route path="alerting" component={AlertingIndex}>
-                              <Route path="checks/new" component={NewCheckEO} />
+                              <Route
+                                path="checks/new-threshold"
+                                component={NewCheckEO}
+                              />
+                              <Route
+                                path="checks/new-deadman"
+                                component={NewCheckEO}
+                              />
                               <Route
                                 path="checks/:checkID/edit"
                                 component={EditCheckEO}
