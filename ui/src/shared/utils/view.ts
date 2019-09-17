@@ -246,7 +246,7 @@ const NEW_VIEW_CREATORS = {
       ySuffix: '',
     },
   }),
-  check: (): NewView<CheckViewProperties> => ({
+  thresholdCheck: (): NewView<CheckViewProperties> => ({
     name: 'check',
     properties: {
       type: 'check',
@@ -268,10 +268,33 @@ const NEW_VIEW_CREATORS = {
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
+  deadmanCheck: (): NewView<CheckViewProperties> => ({
+    name: 'check',
+    properties: {
+      type: 'check',
+      shape: 'chronograf-v2',
+      checkID: '',
+      queries: [
+        {
+          name: '',
+          text: '',
+          editMode: 'builder',
+          builderConfig: {
+            buckets: [],
+            tags: [{key: '_measurement', values: []}],
+            functions: [],
+          },
+        },
+      ],
+      colors: NINETEEN_EIGHTY_FOUR,
+    },
+  }),
 }
 
+type weeeee = ViewType | 'deadmanCheck' | 'thresholdCheck'
+
 export function createView<T extends ViewProperties = ViewProperties>(
-  viewType: ViewType = 'xy'
+  viewType: weeeee = 'xy'
 ): NewView<T> {
   const creator = NEW_VIEW_CREATORS[viewType]
 
