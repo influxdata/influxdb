@@ -24,7 +24,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {Check, AppState, RemoteDataState, CheckViewProperties} from 'src/types'
-import {DEFAULT_THRESHOLD_CHECK} from 'src/alerting/constants'
+import {DEFAULT_DEADMAN_CHECK} from 'src/alerting/constants'
 
 interface DispatchProps {
   setTimeMachineCheck: typeof setTimeMachineCheck
@@ -53,12 +53,12 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
   notify,
 }) => {
   useEffect(() => {
-    const view = createView<CheckViewProperties>('check')
+    const view = createView<CheckViewProperties>('deadmanCheck')
     onSetActiveTimeMachine('alerting', {
       view,
       alerting: {
         checkStatus: RemoteDataState.Done,
-        check: DEFAULT_THRESHOLD_CHECK,
+        check: DEFAULT_DEADMAN_CHECK,
       },
     })
   }, [])
