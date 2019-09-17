@@ -18,17 +18,17 @@ describe('Checks', () => {
     })
   })
 
-  it('can validate a check', () => {
+  it('can validate a threshold check', () => {
     cy.getByTestID('create-check').click()
+
+    cy.getByTestID('create-threshold-check').click()
 
     cy.getByTestID(`selector-list ${measurement}`).click()
 
     cy.getByTestID('save-cell--button').should('be.disabled')
-    cy.getByTestID('checkeo--header alerting-tab').should('be.disabled')
 
     cy.getByTestID(`selector-list ${field}`).click()
 
     cy.getByTestID('save-cell--button').should('be.enabled')
-    cy.getByTestID('checkeo--header alerting-tab').should('be.enabled')
   })
 })

@@ -37,6 +37,7 @@ const CreateCheckDropdown: FunctionComponent<Props> = ({
       color={ComponentColor.Primary}
       active={active}
       onClick={onClick}
+      testID="create-check"
     >
       Create
     </Dropdown.Button>
@@ -44,10 +45,18 @@ const CreateCheckDropdown: FunctionComponent<Props> = ({
 
   const DropdownMenu = (onCollapse: () => void) => (
     <Dropdown.Menu onCollapse={onCollapse}>
-      <Dropdown.Item value={CheckType.Threshold} onClick={handleItemClick}>
+      <Dropdown.Item
+        value={CheckType.Threshold}
+        onClick={handleItemClick}
+        testID="create-threshold-check"
+      >
         Threshold Check
       </Dropdown.Item>
-      <Dropdown.Item value={CheckType.Deadman} onClick={handleItemClick}>
+      <Dropdown.Item
+        value={CheckType.Deadman}
+        onClick={handleItemClick}
+        testID="create-deadman-check"
+      >
         Deadman Check
       </Dropdown.Item>
     </Dropdown.Menu>
