@@ -15,9 +15,6 @@ import {AppState, Organization} from 'src/types'
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
-// Mocks
-import {mockClientLibraries} from 'src/clientLibraries/constants/mocks'
-
 interface StateProps {
   org: Organization
 }
@@ -32,8 +29,7 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Client Libraries', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="client-libraries" orgID={org.id}>
-            {/* TODO: use GetResources here when this resource exists */}
-            <ClientLibraries libraries={mockClientLibraries} />
+            <ClientLibraries orgID={org.id} />
           </LoadDataTabbedPage>
         </Page>
         {children}

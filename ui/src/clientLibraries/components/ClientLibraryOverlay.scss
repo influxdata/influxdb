@@ -1,0 +1,26 @@
+/*
+  Client Library Overlay
+*/
+
+.client-library-overlay {
+  code {
+    font-weight: 600;
+    color: $c-potassium;
+  }
+
+  pre {
+    display: inline-block;
+    width: 100%;
+    padding: $ix-marg-c;
+    background-color: $g0-obsidian;
+    border-radius: $ix-radius;
+    margin-bottom: $ix-marg-c;
+    overflow-x: auto;
+
+    &:last-of-type {
+      margin-bottom: 0;
+    }
+
+    @include custom-scrollbar-round($g0-obsidian, $c-star);
+  }
+}
