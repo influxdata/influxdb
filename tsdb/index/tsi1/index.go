@@ -593,6 +593,10 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 // DropMeasurement deletes a measurement from the index. It returns the first
 // error encountered, if any.
 func (i *Index) DropMeasurement(name []byte) error {
+	// acquire an exclusive lock, because it may manipulate the in-memory map of a partition's LogFile
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	n := i.availableThreads()
 
 	// Store results.
@@ -617,10 +621,6 @@ func (i *Index) DropMeasurement(name []byte) error {
 			return err
 		}
 	}
-
-	// Update sketches under lock.
-	i.mu.Lock()
-	defer i.mu.Unlock()
 
 	i.mTSketch.Add(name)
 	if err := i.updateSeriesSketches(); err != nil {
