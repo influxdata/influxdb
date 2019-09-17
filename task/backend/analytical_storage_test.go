@@ -6,7 +6,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
@@ -15,10 +14,13 @@ import (
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/query/control"
+	stdlib "github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/readservice"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -156,19 +158,18 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		queueSize                = 10
 	)
 
+	// TODO(adam): do we need a proper secret service here?
+	reader := reads.NewReader(readservice.NewStore(engine))
+	deps, err := stdlib.NewDependencies(reader, engine, bucketSvc, orgSvc, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cc := control.Config{
-		ExecutorDependencies:     make(execute.Dependencies),
+		ExecutorDependencies:     deps,
 		ConcurrencyQuota:         concurrencyQuota,
 		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
 		QueueSize:                queueSize,
 		Logger:                   logger.With(zap.String("service", "storage-reads")),
-	}
-
-	// TODO(adam): do we need a proper secret service here?
-	if err := readservice.AddControllerConfigDependencies(
-		&cc, engine, bucketSvc, orgSvc, nil,
-	); err != nil {
-		t.Fatal(err)
 	}
 
 	queryController, err := control.New(cc)

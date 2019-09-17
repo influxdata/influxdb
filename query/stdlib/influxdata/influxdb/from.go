@@ -5,7 +5,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
-	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
@@ -152,12 +151,4 @@ func (s *FromProcedureSpec) PostPhysicalValidate(id plan.NodeID) error {
 		Code: codes.Invalid,
 		Msg:  fmt.Sprintf("cannot submit unbounded read to %q; try bounding 'from' with a call to 'range'", bucket),
 	}
-}
-
-func InjectFromDependencies(depsMap execute.Dependencies, deps Dependencies) error {
-	if err := deps.Validate(); err != nil {
-		return err
-	}
-	depsMap[FromKind] = deps
-	return nil
 }

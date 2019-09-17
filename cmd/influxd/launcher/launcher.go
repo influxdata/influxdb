@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/flux/execute"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/bolt"
@@ -34,9 +33,11 @@ import (
 	infprom "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/snowflake"
 	"github.com/influxdata/influxdb/source"
 	"github.com/influxdata/influxdb/storage"
+	"github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/readservice"
 	taskbackend "github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/coordinator"
@@ -47,7 +48,7 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
@@ -516,7 +517,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		)
 
 		cc := control.Config{
-			ExecutorDependencies:     make(execute.Dependencies),
 			ConcurrencyQuota:         concurrencyQuota,
 			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
 			QueueSize:                QueueSize,
@@ -526,12 +526,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		authBucketSvc := authorizer.NewBucketService(bucketSvc)
 		authOrgSvc := authorizer.NewOrgService(orgSvc)
 		authSecretSvc := authorizer.NewSecretService(secretSvc)
-		if err := readservice.AddControllerConfigDependencies(
-			&cc, m.engine, authBucketSvc, authOrgSvc, authSecretSvc,
-		); err != nil {
-			m.logger.Error("Failed to configure query controller dependencies", zap.Error(err))
+		reader := reads.NewReader(readservice.NewStore(m.engine))
+		deps, err := influxdb.NewDependencies(reader, m.engine, authBucketSvc, authOrgSvc, authSecretSvc, cc.MetricLabelKeys)
+		if err != nil {
+			m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
 			return err
 		}
+		cc.ExecutorDependencies = deps
 
 		c, err := control.New(cc)
 		if err != nil {
