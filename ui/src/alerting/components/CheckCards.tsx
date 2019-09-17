@@ -12,6 +12,7 @@ import {
   Button,
   IconFont,
   ComponentColor,
+  ButtonShape,
 } from '@influxdata/clockface'
 
 // Types
@@ -97,29 +98,24 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
         className="alerting-first-time"
       >
         <Panel.Body>
-          <h1>
-            Looks like it's your
-            <br />
-            first time here
-          </h1>
-          <h5>
-            Welcome to our new Monitoring & Alerting feature!
-            <br />
-            To get started try creating a Check:
-          </h5>
+          <h1>Get started monitoring by creating a check</h1>
+          <h5>When a value crosses a specific threshold:</h5>
           <Button
             size={ComponentSize.Medium}
             color={ComponentColor.Primary}
             onClick={onCreateThreshold}
             text="Threshold Check"
             icon={IconFont.Plus}
+            shape={ButtonShape.StretchToFit}
           />
+          <h5>If a service stops sending metrics:</h5>
           <Button
             size={ComponentSize.Medium}
             color={ComponentColor.Primary}
             onClick={onCreateDeadman}
             text="Deadman Check"
             icon={IconFont.Plus}
+            shape={ButtonShape.StretchToFit}
           />
         </Panel.Body>
       </Panel>

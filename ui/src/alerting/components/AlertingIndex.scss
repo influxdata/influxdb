@@ -45,7 +45,7 @@
   h5 {
     line-height: 1.5em;
     font-weight: 500;
-    margin-bottom: 1em;
+    margin-bottom: 0.25em;
 
     strong {
       font-weight: 900;
@@ -54,7 +54,7 @@
   }
 
   .cf-button {
-    margin-top: $ix-marg-c;
+    margin-bottom: $ix-marg-c;
     margin-right: $ix-marg-b;
   }
 }
