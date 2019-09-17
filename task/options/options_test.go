@@ -78,6 +78,27 @@ func TestFromScript(t *testing.T) {
 		{script: "option task = {\n  name: \"name8\",\n  retry: 0,\n  every: 1m0s,\n\n}\n\nfrom(bucket: \"test\")\n    |> range(start:-1h)", shouldErr: true},
 		{script: scriptGenerator(options.Options{Name: "name9"}, ""), shouldErr: true},
 		{script: scriptGenerator(options.Options{}, ""), shouldErr: true},
+		{script: `option task = {
+			name: "test",
+			every: 1d,
+			offset: 1m
+		}
+			from(bucket: "metrics")
+			|> range(start: now(), stop: 8w)
+
+		`, shouldErr: true}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+		{script: `option task = {
+			name: "test",
+			every: 1m,
+			offset: 1d
+		}
+			from(bucket: "metrics")
+			|> range(start: now(), stop: 8w)
+
+		`, shouldErr: true}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+		{script: "option task = {name:\"test_task_smoke_name\", every:30s} from(bucket:\"test_tasks_smoke_bucket_source\") |> range(start: -1h) |> map(fn: (r) => ({r with _time: r._time, _value:r._value, t : \"quality_rocks\"}))|> to(bucket:\"test_tasks_smoke_bucket_dest\", orgID:\"3e73e749495d37d5\")",
+			exp: options.Options{Name: "test_task_smoke_name", Every: *(options.MustParseDuration("30s")), Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}, shouldErr: false}, // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+
 	} {
 		o, err := options.FromScript(c.script)
 		if c.shouldErr && err == nil {
