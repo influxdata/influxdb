@@ -31,7 +31,7 @@ const ClientLibraryOverlay: FunctionComponent<Props> = ({
 
   return (
     <Overlay visible={true}>
-      <Overlay.Container maxWidth={666}>
+      <Overlay.Container maxWidth={808}>
         <Overlay.Header title={title} onDismiss={onDismiss} />
         <Overlay.Body className="client-library-overlay">
           {children}
