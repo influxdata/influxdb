@@ -29,6 +29,7 @@ import {
   TimeZone,
   Check,
 } from 'src/types'
+import {events} from 'src/shared/constants/events'
 
 interface StateProps {
   loading: RemoteDataState
@@ -108,6 +109,7 @@ const TimeMachineVis: SFC<Props> = ({
               properties={resolvedViewProperties}
               check={check}
               timeZone={timeZone}
+              events={events}
             />
           )}
         </EmptyQueryView>

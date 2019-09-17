@@ -143,7 +143,7 @@ const renameTagKeys = (searchExpr: SearchExpr) => {
 /*
   Convert a Flux CSV response into a list of objects.
 */
-const processResponse = ({
+export const processResponse = ({
   promise: queryPromise,
   cancel,
 }: CancelBox<RunQueryResult>): CancelBox<Row[]> => {

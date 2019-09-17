@@ -8,13 +8,10 @@ import EventMarker from 'src/shared/components/EventMarker'
 
 // Types
 import {Scale} from '@influxdata/giraffe'
-
-export interface Event {
-  time: number
-}
+import {StatusRow} from 'src/types'
 
 interface Props {
-  events: Event[]
+  events: StatusRow[]
   xScale: Scale<number, number>
   xDomain: number[]
 }

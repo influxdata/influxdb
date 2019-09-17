@@ -16,10 +16,15 @@ import {getFormatter, filterNoisyColumns} from 'src/shared/utils/vis'
 // Constants
 import {VIS_THEME} from 'src/shared/constants'
 import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
-import {events} from 'src/shared/constants/events'
 
 // Types
-import {RemoteDataState, CheckViewProperties, TimeZone, Check} from 'src/types'
+import {
+  RemoteDataState,
+  CheckViewProperties,
+  TimeZone,
+  Check,
+  StatusRow,
+} from 'src/types'
 import {updateTimeMachineCheck} from 'src/timeMachine/actions'
 import {useCheckYDomain} from 'src/alerting/utils/vis'
 
@@ -38,6 +43,7 @@ interface OwnProps {
   timeZone: TimeZone
   viewProperties: CheckViewProperties
   children: (config: Config) => JSX.Element
+  events: StatusRow[]
 }
 
 type Props = OwnProps & DispatchProps
@@ -50,6 +56,7 @@ const CheckPlot: FunctionComponent<Props> = ({
   loading,
   children,
   timeZone,
+  events,
   viewProperties: {colors},
 }) => {
   const thresholds = check && check.type === 'threshold' ? check.thresholds : []

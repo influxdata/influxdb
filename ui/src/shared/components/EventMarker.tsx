@@ -1,11 +1,11 @@
 // Libraries
 import React, {FC} from 'react'
 import {Scale} from '@influxdata/giraffe'
-import {Event} from 'src/shared/components/EventMarkers'
 import {isInDomain} from 'src/shared/utils/vis'
+import {StatusRow} from 'src/types'
 
 interface Props {
-  event: Event
+  event: StatusRow
   xScale: Scale<number, number>
   xDomain: number[]
 }
