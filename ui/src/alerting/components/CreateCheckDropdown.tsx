@@ -4,14 +4,12 @@ import React, {FunctionComponent, MouseEvent} from 'react'
 // Components
 import {Dropdown, ComponentColor, IconFont} from '@influxdata/clockface'
 
+// Types
+import {CheckType} from 'src/types'
+
 interface Props {
   onCreateThreshold: () => void
   onCreateDeadman: () => void
-}
-
-enum CheckType {
-  Deadman = 'deadman',
-  Threshold = 'threshold',
 }
 
 const CreateCheckDropdown: FunctionComponent<Props> = ({
@@ -19,11 +17,11 @@ const CreateCheckDropdown: FunctionComponent<Props> = ({
   onCreateDeadman,
 }) => {
   const handleItemClick = (type: CheckType): void => {
-    if (type === CheckType.Threshold) {
+    if (type === 'threshold') {
       onCreateThreshold()
     }
 
-    if (type === CheckType.Deadman) {
+    if (type === 'deadman') {
       onCreateDeadman()
     }
   }
@@ -46,14 +44,14 @@ const CreateCheckDropdown: FunctionComponent<Props> = ({
   const DropdownMenu = (onCollapse: () => void) => (
     <Dropdown.Menu onCollapse={onCollapse}>
       <Dropdown.Item
-        value={CheckType.Threshold}
+        value="threshold"
         onClick={handleItemClick}
         testID="create-threshold-check"
       >
         Threshold Check
       </Dropdown.Item>
       <Dropdown.Item
-        value={CheckType.Deadman}
+        value="deadman"
         onClick={handleItemClick}
         testID="create-deadman-check"
       >
