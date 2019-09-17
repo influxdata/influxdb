@@ -295,9 +295,9 @@ func (p *asyncRunPromise) Cancel() {
 	p.finish(nil, influxdb.ErrRunCanceled)
 }
 
-// followQuery waits for the query to become ready and sets p's results.
+// doQuery waits for the query to become ready and sets p's results.
 // If the promise is finished somewhere else first, such as if it is canceled,
-// followQuery will return.
+// doQuery will return.
 func (p *asyncRunPromise) doQuery(wg *sync.WaitGroup) {
 	defer wg.Done()
 
