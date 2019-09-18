@@ -175,3 +175,47 @@ func TestPreAuthorizer_PreAuthorize_FailToParse(t *testing.T) {
 		t.Fatalf(errfmt, code, perr.Code)
 	}
 }
+
+func TestPreAuthorizer_ImportSecretService(t *testing.T) {
+	ctx := context.Background()
+	// fresh pre-authorizer
+
+	bucketID, err := platform.IDFromString("deadbeefdeadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	orgID := platform.ID(1)
+	bucketService := newBucketServiceWithOneBucket(platform.Bucket{
+		Name:  "my_bucket",
+		ID:    *bucketID,
+		OrgID: orgID,
+	})
+	preAuthorizer := query.NewPreAuthorizer(bucketService)
+
+	p, err := platform.NewPermissionAtID(*bucketID, platform.ReadAction, platform.BucketsResourceType, orgID)
+	if err != nil {
+		t.Fatalf("Error creating read bucket permission query: %v", err)
+	}
+	auth := &platform.Authorization{
+		Status:      platform.Active,
+		Permissions: []platform.Permission{*p},
+	}
+
+	// Try to pre-authorize invalid bucketID
+	script := `import "influxdata/influxdb/secrets"
+webhookUri = secrets.get(key: "foo")
+
+from(bucket: "my_bucket")
+|> range(start: -1h, stop: now())
+|> set(key: "key", value: webhookUri)`
+
+	ast, err := flux.Parse(script)
+	if err != nil {
+		t.Fatalf("Error compiling query: %v", err)
+	}
+	err = preAuthorizer.PreAuthorize(ctx, ast, auth, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+}
