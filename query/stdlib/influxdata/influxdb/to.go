@@ -570,6 +570,7 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 
 	measurementStats := make(map[string]Stats)
 	measurementName := ""
+	rowNum := 0
 	return tbl.Do(func(er flux.ColReader) error {
 		var pointTime time.Time
 		var points models.Points
@@ -678,9 +679,10 @@ func writeTable(ctx context.Context, t *ToTransformation, tbl flux.Table) (err e
 				points = append(points, pt)
 			}
 
-			if err := execute.AppendRecord(i, er, builder); err != nil {
+			if err := execute.AppendRecord(rowNum, er, builder); err != nil {
 				return err
 			}
+			rowNum++
 		}
 
 		return t.buf.WritePoints(ctx, points)
