@@ -3140,28 +3140,6 @@ paths:
                 schema:
                   type: string
                   format: binary
-          '400':
-            description: error processing query
-            headers:
-              X-Influx-Error:
-                description: error string describing the problem
-                schema:
-                  type: string
-              X-Influx-Reference:
-                description: reference code unique to the error type
-                schema:
-                  type: integer
-            content:
-              text/csv:
-                schema:
-                  type: string
-                  example: >
-                    error,reference
-                    Failed to parse query,897
-              application/vnd.influx.arrow:
-                schema:
-                    type: string
-                    format: binary
           '429':
             description: token is temporarily over quota. The Retry-After header describes when to try the read again.
             headers:
@@ -3171,27 +3149,11 @@ paths:
                   type: integer
                   format: int32
           default:
-            description: internal server error
-            headers:
-              X-Influx-Error:
-                description: error string describing the problem
-                schema:
-                  type: string
-              X-Influx-Reference:
-                description: reference code unique to the error type
-                schema:
-                  type: integer
+            description: error processing query
             content:
-              text/csv:
+              application/json:
                 schema:
-                  type: string
-                  example: >
-                    error,reference
-                    Failed to parse query,897
-              application/vnd.influx.arrow:
-                schema:
-                    type: string
-                    format: binary
+                  $ref: "#/components/schemas/Error"
   /buckets:
     get:
       operationId: GetBuckets
@@ -7296,14 +7258,6 @@ components:
         message:
           readOnly: true
           description: message is a human-readable message.
-          type: string
-        op:
-          readOnly: true
-          description: op describes the logical code operation during error. Useful for debugging.
-          type: string
-        err:
-          readOnly: true
-          description: err is a stack of errors that occurred during processing of the request. Useful for debugging.
           type: string
       required: [code, message]
     LineProtocolError:
