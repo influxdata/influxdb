@@ -58,10 +58,11 @@ type Partition struct {
 	// Close management.
 	once    sync.Once
 	closing chan struct{} // closing is used to inform iterators the partition is closing.
-	wg      sync.WaitGroup
 
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
+
+	currentCompactionN int // counter of in-progress compactions
 
 	// Directory of the Partition's index files.
 	path string
@@ -123,7 +124,7 @@ func (p *Partition) bytes() int {
 	}
 	b += 12 // once sync.Once is 12 bytes
 	b += int(unsafe.Sizeof(p.closing))
-	b += 16 // wg sync.WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(p.currentCompactionN))
 	b += int(unsafe.Sizeof(p.fieldset)) + p.fieldset.Bytes()
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
@@ -322,9 +323,24 @@ func (p *Partition) buildSeriesSet() error {
 	return nil
 }
 
-// Wait returns once outstanding compactions have finished.
+// CurrentCompactionN returns the number of compactions currently running.
+func (p *Partition) CurrentCompactionN() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.currentCompactionN
+}
+
+// Wait will block until all compactions are finished.
+// Must only be called while they are disabled.
 func (p *Partition) Wait() {
-	p.wg.Wait()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if p.CurrentCompactionN() == 0 {
+			return
+		}
+		<-ticker.C
+	}
 }
 
 // Close closes the index.
@@ -334,7 +350,7 @@ func (p *Partition) Close() error {
 		close(p.closing)
 		close(p.compactionInterrupt)
 	})
-	p.wg.Wait()
+	p.Wait()
 
 	// Lock index and close remaining
 	p.mu.Lock()
@@ -906,7 +922,7 @@ func (p *Partition) compact() {
 		// Execute in closure to save reference to the group within the loop.
 		func(files []*IndexFile, level int) {
 			// Start compacting in a separate goroutine.
-			p.wg.Add(1)
+			p.currentCompactionN++
 			go func() {
 
 				// Compact to a new level.
@@ -915,8 +931,8 @@ func (p *Partition) compact() {
 				// Ensure compaction lock for the level is released.
 				p.mu.Lock()
 				p.levelCompacting[level] = false
+				p.currentCompactionN--
 				p.mu.Unlock()
-				p.wg.Done()
 
 				// Check for new compactions
 				p.Compact()
@@ -1065,10 +1081,14 @@ func (p *Partition) checkLogFile() error {
 	}
 
 	// Begin compacting in a background goroutine.
-	p.wg.Add(1)
+	p.currentCompactionN++
 	go func() {
-		defer p.wg.Done()
 		p.compactLogFile(logFile)
+
+		p.mu.Lock()
+		p.currentCompactionN-- // compaction is now complete
+		p.mu.Unlock()
+
 		p.Compact() // check for new compactions
 	}()
 
