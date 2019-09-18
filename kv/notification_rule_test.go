@@ -77,7 +77,11 @@ func initNotificationRuleStore(s kv.Store, f influxdbtesting.NotificationRuleFie
 	}
 
 	for _, nr := range f.NotificationRules {
-		if err := svc.PutNotificationRule(ctx, nr); err != nil {
+		nrc := influxdb.NotificationRuleCreate{
+			NotificationRule: nr,
+			Status:           influxdb.Active,
+		}
+		if err := svc.PutNotificationRule(ctx, nrc); err != nil {
 			t.Fatalf("failed to populate notification rule: %v", err)
 		}
 	}

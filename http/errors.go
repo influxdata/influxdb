@@ -136,6 +136,14 @@ func UnauthorizedError(ctx context.Context, h platform.HTTPErrorHandler, w http.
 	}, w)
 }
 
+// InactiveUserError encode a error message and status code for inactive users.
+func InactiveUserError(ctx context.Context, h platform.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &platform.Error{
+		Code: platform.EForbidden,
+		Msg:  "User is inactive",
+	}, w)
+}
+
 // statusCodePlatformError is the map convert platform.Error to error
 var statusCodePlatformError = map[string]int{
 	platform.EInternal:            http.StatusInternalServerError,

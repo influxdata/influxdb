@@ -20,6 +20,7 @@ type CheckBackend struct {
 	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
+	TaskService                influxdb.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
@@ -33,6 +34,7 @@ func NewCheckBackend(b *APIBackend) *CheckBackend {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "check")),
 
+		TaskService:                b.TaskService,
 		CheckService:               b.CheckService,
 		UserResourceMappingService: b.UserResourceMappingService,
 		LabelService:               b.LabelService,
@@ -47,6 +49,7 @@ type CheckHandler struct {
 	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
+	TaskService                influxdb.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
@@ -77,6 +80,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		LabelService:               b.LabelService,
 		UserService:                b.UserService,
+		TaskService:                b.TaskService,
 		OrganizationService:        b.OrganizationService,
 	}
 	h.HandlerFunc("POST", checksPath, h.handlePostCheck)
@@ -133,6 +137,7 @@ type checkLinks struct {
 
 type checkResponse struct {
 	influxdb.Check
+	Status string           `json:"status"`
 	Labels []influxdb.Label `json:"labels"`
 	Links  checkLinks       `json:"links"`
 }
@@ -146,9 +151,11 @@ func (resp checkResponse) MarshalJSON() ([]byte, error) {
 	b2, err := json.Marshal(struct {
 		Labels []influxdb.Label `json:"labels"`
 		Links  checkLinks       `json:"links"`
+		Status string           `json:"status"`
 	}{
 		Links:  resp.Links,
 		Labels: resp.Labels,
+		Status: resp.Status,
 	})
 	if err != nil {
 		return nil, err
@@ -162,7 +169,7 @@ type checksResponse struct {
 	Links  *influxdb.PagingLinks `json:"links"`
 }
 
-func newCheckResponse(chk influxdb.Check, labels []*influxdb.Label) *checkResponse {
+func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check, labels []*influxdb.Label) (*checkResponse, error) {
 	// Ensure that we don't expose that this creates a task behind the scene
 	chk.ClearPrivateData()
 
@@ -181,17 +188,30 @@ func newCheckResponse(chk influxdb.Check, labels []*influxdb.Label) *checkRespon
 		res.Labels = append(res.Labels, *l)
 	}
 
-	return res
+	task, err := h.TaskService.FindTaskByID(ctx, chk.GetTaskID())
+	if err != nil {
+		return nil, err
+	}
+
+	res.Status = task.Status
+
+	return res, nil
 }
 
-func newChecksResponse(ctx context.Context, chks []influxdb.Check, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *checksResponse {
+func (h *CheckHandler) newChecksResponse(ctx context.Context, chks []influxdb.Check, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *checksResponse {
 	resp := &checksResponse{
-		Checks: make([]*checkResponse, len(chks)),
+		Checks: []*checkResponse{},
 		Links:  newPagingLinks(checksPath, opts, f, len(chks)),
 	}
-	for i, chk := range chks {
+	for _, chk := range chks {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
-		resp.Checks[i] = newCheckResponse(chk, labels)
+		cr, err := h.newCheckResponse(ctx, chk, labels)
+		if err != nil {
+			h.Logger.Info("Failed to retrieve task associated with check", zap.String("checkID", chk.GetID().String()))
+			continue
+		}
+
+		resp.Checks = append(resp.Checks, cr)
 	}
 	return resp
 }
@@ -228,7 +248,7 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Logger.Debug("checks retrieved", zap.String("checks", fmt.Sprint(chks)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newChecksResponse(ctx, chks, h.LabelService, filter, *opts)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusOK, h.newChecksResponse(ctx, chks, h.LabelService, filter, *opts)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -289,7 +309,13 @@ func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newCheckResponse(chk, labels)); err != nil {
+	cr, err := h.newCheckResponse(ctx, chk, labels)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, cr); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -320,11 +346,17 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 	return f, opts, err
 }
 
-func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check, error) {
+type decodeStatus struct {
+	Status influxdb.Status `json:"status"`
+}
+
+func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.CheckCreate, error) {
+	var cc influxdb.CheckCreate
+
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return cc, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
@@ -332,20 +364,33 @@ func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.Chec
 	defer r.Body.Close()
 	chk, err := check.UnmarshalJSON(buf.Bytes())
 	if err != nil {
-		return nil, &influxdb.Error{
+		return cc, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
-	return chk, nil
+	var ds decodeStatus
+	err = json.Unmarshal(buf.Bytes(), &ds)
+	if err != nil {
+		return cc, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	cc = influxdb.CheckCreate{Check: chk, Status: ds.Status}
+
+	return cc, nil
 }
 
-func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check, error) {
+func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.CheckCreate, error) {
+	var cc influxdb.CheckCreate
+
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
+		return cc, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "url missing id",
 		}
@@ -353,7 +398,7 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 
 	i := new(influxdb.ID)
 	if err := i.DecodeFromString(id); err != nil {
-		return nil, &influxdb.Error{
+		return cc, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "invalid check id format",
 		}
@@ -363,7 +408,7 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return cc, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "unable to read HTTP body",
 			Err:  err,
@@ -372,7 +417,7 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 
 	chk, err := check.UnmarshalJSON(buf.Bytes())
 	if err != nil {
-		return nil, &influxdb.Error{
+		return cc, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "malformed check body",
 			Err:  err,
@@ -381,10 +426,21 @@ func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.Check
 	chk.SetID(*i)
 
 	if err := chk.Valid(); err != nil {
-		return nil, err
+		return cc, err
 	}
 
-	return chk, nil
+	var ds decodeStatus
+	err = json.Unmarshal(buf.Bytes(), &ds)
+	if err != nil {
+		return cc, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	cc = influxdb.CheckCreate{Check: chk, Status: ds.Status}
+
+	return cc, nil
 }
 
 type patchCheckRequest struct {
@@ -450,7 +506,12 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	h.Logger.Debug("check created", zap.String("check", fmt.Sprint(chk)))
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newCheckResponse(chk, []*influxdb.Label{})); err != nil {
+	cr, err := h.newCheckResponse(ctx, chk, []*influxdb.Label{})
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, cr); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -467,20 +528,26 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chk, err = h.CheckService.UpdateCheck(ctx, chk.GetID(), chk)
+	c, err := h.CheckService.UpdateCheck(ctx, chk.GetID(), chk)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: c.GetID()})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("check replaced", zap.String("check", fmt.Sprint(chk)))
+	h.Logger.Debug("check replaced", zap.String("check", fmt.Sprint(c)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newCheckResponse(chk, labels)); err != nil {
+	cr, err := h.newCheckResponse(ctx, c, labels)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, cr); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
@@ -510,7 +577,13 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 	}
 	h.Logger.Debug("check patch", zap.String("check", fmt.Sprint(chk)))
 
-	if err := encodeResponse(ctx, w, http.StatusOK, newCheckResponse(chk, labels)); err != nil {
+	cr, err := h.newCheckResponse(ctx, chk, labels)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	if err := encodeResponse(ctx, w, http.StatusOK, cr); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}

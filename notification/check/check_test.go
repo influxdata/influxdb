@@ -28,7 +28,6 @@ var goodBase = check.Base{
 	Name:                  "name1",
 	OwnerID:               influxTesting.MustIDBase16(id2),
 	OrgID:                 influxTesting.MustIDBase16(id3),
-	Status:                influxdb.Active,
 	StatusMessageTemplate: "temp1",
 	Tags: []influxdb.Tag{
 		{Key: "k1", Value: "v1"},
@@ -90,21 +89,6 @@ func TestValidCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid status",
-			src: &check.Deadman{
-				Base: check.Base{
-					ID:      influxTesting.MustIDBase16(id1),
-					Name:    "name1",
-					OwnerID: influxTesting.MustIDBase16(id2),
-					OrgID:   influxTesting.MustIDBase16(id3),
-				},
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid status",
-			},
-		},
-		{
 			name: "offset greater then interval",
 			src: &check.Deadman{
 				Base: check.Base{
@@ -112,7 +96,6 @@ func TestValidCheck(t *testing.T) {
 					Name:    "name1",
 					OwnerID: influxTesting.MustIDBase16(id2),
 					OrgID:   influxTesting.MustIDBase16(id3),
-					Status:  influxdb.Active,
 					Every:   mustDuration("1m"),
 					Offset:  mustDuration("2m"),
 				},
@@ -130,7 +113,6 @@ func TestValidCheck(t *testing.T) {
 					Name:                  "name1",
 					OwnerID:               influxTesting.MustIDBase16(id2),
 					OrgID:                 influxTesting.MustIDBase16(id3),
-					Status:                influxdb.Active,
 					StatusMessageTemplate: "temp1",
 					Tags:                  []influxdb.Tag{{Key: "key1"}},
 				},
@@ -185,7 +167,6 @@ func TestJSON(t *testing.T) {
 					OwnerID: influxTesting.MustIDBase16(id2),
 					Name:    "name1",
 					OrgID:   influxTesting.MustIDBase16(id3),
-					Status:  influxdb.Active,
 					Every:   mustDuration("1h"),
 					Tags: []influxdb.Tag{
 						{
@@ -215,7 +196,6 @@ func TestJSON(t *testing.T) {
 					Name:    "name1",
 					OwnerID: influxTesting.MustIDBase16(id2),
 					OrgID:   influxTesting.MustIDBase16(id3),
-					Status:  influxdb.Active,
 					Every:   mustDuration("1h"),
 					Tags: []influxdb.Tag{
 						{

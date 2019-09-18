@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/mock"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/servicetest"
 	"go.uber.org/zap"
@@ -30,6 +31,11 @@ func TestTaskService(t *testing.T) {
 
 			h := http.NewAuthenticationHandler(http.ErrorHandler(0))
 			h.AuthorizationService = service
+			h.UserService = &mock.UserService{
+				FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					return &platform.User{}, nil
+				},
+			}
 			th := http.NewTaskHandler(&http.TaskBackend{
 				HTTPErrorHandler:           http.ErrorHandler(0),
 				Logger:                     zaptest.NewLogger(t).With(zap.String("handler", "task")),

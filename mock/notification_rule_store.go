@@ -14,8 +14,8 @@ type NotificationRuleStore struct {
 	UserResourceMappingService
 	FindNotificationRuleByIDF func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error)
 	FindNotificationRulesF    func(ctx context.Context, filter influxdb.NotificationRuleFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationRule, int, error)
-	CreateNotificationRuleF   func(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error
-	UpdateNotificationRuleF   func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error)
+	CreateNotificationRuleF   func(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error
+	UpdateNotificationRuleF   func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error)
 	PatchNotificationRuleF    func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error)
 	DeleteNotificationRuleF   func(ctx context.Context, id influxdb.ID) error
 }
@@ -32,13 +32,13 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 }
 
 // CreateNotificationRule creates a new notification rule and sets ID with the new identifier.
-func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
+func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 	return s.CreateNotificationRuleF(ctx, nr, userID)
 }
 
 // UpdateNotificationRule updates a single notification rule.
 // Returns the new notification rule after update.
-func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
 	return s.UpdateNotificationRuleF(ctx, id, nr, userID)
 }
 

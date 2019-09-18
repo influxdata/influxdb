@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/inmem"
@@ -491,6 +492,11 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	auth := NewAuthenticationHandler(ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
+	auth.UserService = &influxmock.UserService{
+		FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
+			return &influxdb.User{}, nil
+		},
+	}
 
 	ts := httptest.NewServer(auth)
 	defer ts.Close()

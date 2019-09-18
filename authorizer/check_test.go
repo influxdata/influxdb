@@ -301,7 +301,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.Check) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -346,7 +346,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.Check) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -384,7 +384,12 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			_, err := s.UpdateCheck(ctx, tt.args.id, &check.Deadman{})
+			cc := influxdb.CheckCreate{
+				Check:  &check.Deadman{},
+				Status: influxdb.Active,
+			}
+
+			_, err := s.UpdateCheck(ctx, tt.args.id, cc)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -640,7 +645,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			name: "authorized to create check with org owner",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
+					CreateCheckFn: func(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -663,7 +668,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			name: "unauthorized to create check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
+					CreateCheckFn: func(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -694,10 +699,17 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateCheck(ctx, &check.Deadman{
+			c := &check.Deadman{
 				Base: check.Base{
 					OrgID: tt.args.orgID},
-			}, 3)
+			}
+
+			cc := influxdb.CheckCreate{
+				Check:  c,
+				Status: influxdb.Active,
+			}
+
+			err := s.CreateCheck(ctx, cc, 3)
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

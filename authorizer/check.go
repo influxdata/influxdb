@@ -76,7 +76,7 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 }
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
-func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check, userID influxdb.ID) error {
+func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
 	if err := authorizeWriteOrg(ctx, chk.GetOrgID()); err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.Check, user
 }
 
 // UpdateCheck checks to see if the authorizer on context has write access to the check provided.
-func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, upd influxdb.Check) (influxdb.Check, error) {
+func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
 	chk, err := s.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err

@@ -285,7 +285,7 @@ func (s *Service) findChecks(ctx context.Context, tx Tx, filter influxdb.CheckFi
 }
 
 // CreateCheck creates a influxdb check and sets ID.
-func (s *Service) CreateCheck(ctx context.Context, c influxdb.Check, userID influxdb.ID) error {
+func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -294,7 +294,7 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.Check, userID infl
 	})
 }
 
-func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, userID influxdb.ID) error {
+func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.CheckCreate, userID influxdb.ID) error {
 	if c.GetOrgID().Valid() {
 		span, ctx := tracing.StartSpanFromContext(ctx)
 		defer span.Finish()
@@ -331,6 +331,14 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, user
 
 	c.SetTaskID(t.ID)
 
+	if err := c.Valid(); err != nil {
+		return err
+	}
+
+	if err := c.Status.Valid(); err != nil {
+		return err
+	}
+
 	if err := s.putCheck(ctx, tx, c); err != nil {
 		return err
 	}
@@ -341,7 +349,7 @@ func (s *Service) createCheck(ctx context.Context, tx Tx, c influxdb.Check, user
 	return nil
 }
 
-func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.Check) (*influxdb.Task, error) {
+func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.CheckCreate) (*influxdb.Task, error) {
 	script, err := c.GenerateFlux()
 	if err != nil {
 		return nil, err
@@ -352,7 +360,7 @@ func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.Check) 
 		Flux:           script,
 		OwnerID:        c.GetOwnerID(),
 		OrganizationID: c.GetOrgID(),
-		Status:         string(c.GetStatus()),
+		Status:         string(c.Status),
 	}
 
 	t, err := s.createTask(ctx, tx, tc)
@@ -366,12 +374,11 @@ func (s *Service) createCheckTask(ctx context.Context, tx Tx, c influxdb.Check) 
 // PutCheck will put a check without setting an ID.
 func (s *Service) PutCheck(ctx context.Context, c influxdb.Check) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		var err error
-		pe := s.putCheck(ctx, tx, c)
-		if pe != nil {
-			err = pe
+		if err := c.Valid(); err != nil {
+			return err
 		}
-		return err
+
+		return s.putCheck(ctx, tx, c)
 	})
 }
 
@@ -408,10 +415,6 @@ func (s *Service) createCheckUserResourceMappings(ctx context.Context, tx Tx, c 
 func (s *Service) putCheck(ctx context.Context, tx Tx, c influxdb.Check) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
-
-	if err := c.Valid(); err != nil {
-		return err
-	}
 
 	v, err := json.Marshal(c)
 	if err != nil {
@@ -526,7 +529,7 @@ func (s *Service) PatchCheck(ctx context.Context, id influxdb.ID, upd influxdb.C
 }
 
 // UpdateCheck updates the check.
-func (s *Service) UpdateCheck(ctx context.Context, id influxdb.ID, chk influxdb.Check) (influxdb.Check, error) {
+func (s *Service) UpdateCheck(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -543,7 +546,7 @@ func (s *Service) UpdateCheck(ctx context.Context, id influxdb.ID, chk influxdb.
 	return c, err
 }
 
-func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk influxdb.Check) (influxdb.Check, error) {
+func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -578,13 +581,17 @@ func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk in
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.updateTask(ctx, tx, chk.GetTaskID(),
-		influxdb.TaskUpdate{
-			Flux:        &flux,
-			Status:      strPtr(string(chk.GetStatus())),
-			Description: strPtr(chk.GetDescription()),
-		},
-	); err != nil {
+
+	tu := influxdb.TaskUpdate{
+		Flux:        &flux,
+		Description: strPtr(chk.GetDescription()),
+	}
+
+	if chk.Status != "" {
+		tu.Status = strPtr(string(chk.Status))
+	}
+
+	if _, err := s.updateTask(ctx, tx, chk.GetTaskID(), tu); err != nil {
 		return nil, err
 	}
 
@@ -595,11 +602,19 @@ func (s *Service) updateCheck(ctx context.Context, tx Tx, id influxdb.ID, chk in
 	chk.SetCreatedAt(current.GetCRUDLog().CreatedAt)
 	chk.SetUpdatedAt(s.Now())
 
-	if err := s.putCheck(ctx, tx, chk); err != nil {
+	if err := chk.Valid(); err != nil {
 		return nil, err
 	}
 
-	return chk, nil
+	if err := chk.Status.Valid(); err != nil {
+		return nil, err
+	}
+
+	if err := s.putCheck(ctx, tx, chk.Check); err != nil {
+		return nil, err
+	}
+
+	return chk.Check, nil
 }
 
 func strPtr(s string) *string {
@@ -643,18 +658,20 @@ func (s *Service) patchCheck(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		c.SetDescription(*upd.Description)
 	}
 
-	if upd.Status != nil {
-		c.SetStatus(*upd.Status)
+	c.SetUpdatedAt(s.Now())
+	tu := influxdb.TaskUpdate{
+		Description: strPtr(c.GetDescription()),
 	}
 
-	c.SetUpdatedAt(s.Now())
+	if upd.Status != nil {
+		tu.Status = strPtr(string(*upd.Status))
+	}
 
-	if _, err := s.updateTask(ctx, tx, c.GetTaskID(),
-		influxdb.TaskUpdate{
-			Status:      strPtr(string(c.GetStatus())),
-			Description: strPtr(c.GetDescription()),
-		},
-	); err != nil {
+	if _, err := s.updateTask(ctx, tx, c.GetTaskID(), tu); err != nil {
+		return nil, err
+	}
+
+	if err := c.Valid(); err != nil {
 		return nil, err
 	}
 
