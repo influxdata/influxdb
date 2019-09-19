@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb"
@@ -333,5 +334,74 @@ stream2 |> filter(fn: (r) => contains(value: r._value, set: col)) |> group() |> 
 	}
 	if want := 1; noRes != want {
 		t.Fatalf("wrong number of results: -want/+got:\n\t- %d\n\t+ %d", want, noRes)
+	}
+}
+
+func TestPipeline_Query_ExperimentalTo(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Last row of data tests nil field value
+	data := `
+#datatype,string,long,dateTime:RFC3339,double,string,string,string,string
+#group,false,false,false,false,true,true,true,true
+#default,_result,,,,,,,
+,result,table,_time,_value,_field,_measurement,cpu,host
+,,0,2018-05-22T19:53:26Z,1.0,usage_guest,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:36Z,1.1,usage_guest,cpu,cpu-total,host.local
+,,1,2018-05-22T19:53:26Z,2.0,usage_guest_nice,cpu,cpu-total,host.local
+,,1,2018-05-22T19:53:36Z,2.1,usage_guest_nice,cpu,cpu-total,host.local
+,,2,2018-05-22T19:53:26Z,91.7364670583823,usage_idle,cpu,cpu-total,host.local
+,,2,2018-05-22T19:53:36Z,89.51118889861233,usage_idle,cpu,cpu-total,host.local
+,,3,2018-05-22T19:53:26Z,3.0,usage_iowait,cpu,cpu-total,host.local
+,,3,2018-05-22T19:53:36Z,,usage_iowait,cpu,cpu-total,host.local
+`
+	pivotQuery := fmt.Sprintf(`
+import "csv"
+import "experimental"
+import "influxdata/influxdb/v1"
+csv.from(csv: "%s")
+    |> range(start: 2018-05-21T00:00:00Z, stop: 2018-05-23T00:00:00Z)
+    |> v1.fieldsAsCols()
+`, data)
+	res := l.MustExecuteQuery(pivotQuery)
+	defer res.Done()
+	pivotedResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	toQuery := pivotQuery + fmt.Sprintf(`|> experimental.to(bucket: "%s", org: "%s") |> yield(name: "_result")`,
+		l.Bucket.Name, l.Org.Name)
+	res = l.MustExecuteQuery(toQuery)
+	defer res.Done()
+	toOutputResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	// Make sure that experimental.to() echoes its input to its output
+	if err := executetest.EqualResultIterators(pivotedResultIterator, toOutputResultIterator); err != nil {
+		t.Fatal(err)
+	}
+
+	csvQuery := fmt.Sprintf(`
+import "csv"
+csv.from(csv: "%s")
+  |> filter(fn: (r) => exists r._value)
+`,
+		data)
+	res = l.MustExecuteQuery(csvQuery)
+	defer res.Done()
+	csvResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	fromQuery := fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: 2018-05-15T00:00:00Z, stop: 2018-06-01T00:00:00Z)
+  |> drop(columns: ["_start", "_stop"])
+`,
+		l.Bucket.Name)
+	res = l.MustExecuteQuery(fromQuery)
+	defer res.Done()
+	fromResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	// Make sure that the data we stored matches the CSV
+	if err := executetest.EqualResultIterators(csvResultIterator, fromResultIterator); err != nil {
+		t.Fatal(err)
 	}
 }
