@@ -28,6 +28,7 @@ import {
   Axis,
   Color,
   CheckViewProperties,
+  CheckType,
 } from 'src/types'
 
 function defaultView() {
@@ -246,7 +247,7 @@ const NEW_VIEW_CREATORS = {
       ySuffix: '',
     },
   }),
-  thresholdCheck: (): NewView<CheckViewProperties> => ({
+  threshold: (): NewView<CheckViewProperties> => ({
     name: 'check',
     properties: {
       type: 'check',
@@ -268,7 +269,7 @@ const NEW_VIEW_CREATORS = {
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
-  deadmanCheck: (): NewView<CheckViewProperties> => ({
+  deadman: (): NewView<CheckViewProperties> => ({
     name: 'check',
     properties: {
       type: 'check',
@@ -291,10 +292,10 @@ const NEW_VIEW_CREATORS = {
   }),
 }
 
-type weeeee = ViewType | 'deadmanCheck' | 'thresholdCheck'
+type CreateViewType = ViewType | CheckType
 
 export function createView<T extends ViewProperties = ViewProperties>(
-  viewType: weeeee = 'xy'
+  viewType: CreateViewType = 'xy'
 ): NewView<T> {
   const creator = NEW_VIEW_CREATORS[viewType]
 
