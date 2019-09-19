@@ -36,7 +36,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -64,7 +63,7 @@ type Controller struct {
 
 	logger *zap.Logger
 
-	dependencies flux.Dependency
+	dependencies []flux.Dependency
 }
 
 type Config struct {
@@ -85,7 +84,7 @@ type Config struct {
 	// The context value must be a string or an implementation of the Stringer interface.
 	MetricLabelKeys []string
 
-	ExecutorDependencies flux.Dependency
+	ExecutorDependencies []flux.Dependency
 }
 
 func (c *Config) Validate() error {
@@ -147,7 +146,9 @@ func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query,
 	// Set the org label value for controller metrics
 	ctx = context.WithValue(ctx, orgLabel, req.OrganizationID.String()) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
 	// The controller injects the dependencies for each incoming request.
-	ctx = c.dependencies.Inject(ctx)
+	for _, dep := range c.dependencies {
+		ctx = dep.Inject(ctx)
+	}
 	q, err := c.query(ctx, req.Compiler)
 	if err != nil {
 		return q, err
@@ -426,8 +427,10 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 // PrometheusCollectors satisfies the prom.PrometheusCollector interface.
 func (c *Controller) PrometheusCollectors() []prometheus.Collector {
 	collectors := c.metrics.PrometheusCollectors()
-	if pc, ok := c.dependencies.(prom.PrometheusCollector); ok {
-		collectors = append(collectors, pc.PrometheusCollectors()...)
+	for _, dep := range c.dependencies {
+		if pc, ok := dep.(prom.PrometheusCollector); ok {
+			collectors = append(collectors, pc.PrometheusCollectors()...)
+		}
 	}
 	return collectors
 }

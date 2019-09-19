@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/inmem"
@@ -20,7 +21,6 @@ import (
 	"github.com/influxdata/influxdb/storage/readservice"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -165,7 +165,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		t.Fatal(err)
 	}
 	cc := control.Config{
-		ExecutorDependencies:     deps,
+		ExecutorDependencies:     []flux.Dependency{deps},
 		ConcurrencyQuota:         concurrencyQuota,
 		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
 		QueueSize:                queueSize,

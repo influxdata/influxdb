@@ -46,7 +46,11 @@ var (
 		ConcurrencyQuota:         1,
 		MemoryBytesQuotaPerQuery: 1024,
 		QueueSize:                1,
-		ExecutorDependencies:     influxdb.Dependencies{FluxDeps: executetest.NewTestExecuteDependencies()},
+		ExecutorDependencies: []flux.Dependency{
+			influxdb.Dependencies{
+				FluxDeps: executetest.NewTestExecuteDependencies(),
+			},
+		},
 	}
 )
 

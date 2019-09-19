@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/bolt"
@@ -532,7 +533,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
 			return err
 		}
-		cc.ExecutorDependencies = deps
+		cc.ExecutorDependencies = []flux.Dependency{deps}
 
 		c, err := control.New(cc)
 		if err != nil {
