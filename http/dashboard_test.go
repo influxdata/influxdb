@@ -991,7 +991,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"code":"invalid","message":"bad request json body","error":"EOF"}`,
+				body:        `{"code":"invalid","message":"bad request json body: EOF"}`,
 			},
 		},
 		{
@@ -1117,7 +1117,7 @@ func TestService_handlePostDashboardCell(t *testing.T) {
 				t.Errorf("%q. handlePostDashboardCell() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if tt.wants.body != "" {
-				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
 					t.Errorf("%q, handlePostDashboardCell(). error unmarshaling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostDashboardCell() = ***%s***", tt.name, diff)

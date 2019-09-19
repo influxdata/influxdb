@@ -1298,7 +1298,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	exp := backend.RequestStillQueuedError{Start: rc.Created.Now, End: rc.Created.Now}
 
 	// Retrying a run which has been queued but not started, should be rejected.
-	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp && err.Error() != "<conflict> run already queued" {
+	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.Created.RunID); err != exp && err.Error() != "run already queued" {
 		t.Fatalf("subsequent retry should have been rejected with %v; got %v", exp, err)
 	}
 }

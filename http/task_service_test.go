@@ -380,12 +380,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `{
 "code": "invalid",
-"error": {
-"code": "not found",
-"error": "org not found or unauthorized",
-"message": "org non-existent-org not found or unauthorized"
-},
-"message": "failed to decode request"
+"message": "failed to decode request: org non-existent-org not found or unauthorized: org not found or unauthorized"
 }`,
 			},
 		},
@@ -414,7 +409,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 				t.Errorf("%q. handleGetTasks() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if tt.wants.body != "" {
-				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
 					t.Errorf("%q, handleGetTasks(). error unmarshaling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetTasks() = ***%s***", tt.name, diff)
@@ -517,8 +512,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 				body: `
 {
     "code": "invalid",
-    "message": "something really went wrong",
-    "error": "something went wrong"
+    "message": "something really went wrong: something went wrong"
 }
 `,
 			},
@@ -544,8 +538,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 				body: `
 {
     "code": "internal error",
-    "message": "failed to create task",
-    "error": "something bad happened"
+    "message": "failed to create task: something bad happened"
 }
 `,
 			},
@@ -582,7 +575,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 				t.Errorf("%q. handlePostTask() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if tt.wants.body != "" {
-				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
 					t.Errorf("%q, handlePostTask(). error unmarshaling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostTask() = ***%s***", tt.name, diff)

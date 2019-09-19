@@ -285,7 +285,7 @@ from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
 					return fmt.Errorf(errfmt, "platform.Error.Err to be present", perr.Err)
 				}
 
-				if !strings.Contains(perr.Err.Error(), "<not found> bucket \"bad\" not found") {
+				if !strings.Contains(perr.Err.Error(), "bucket \"bad\" not found") {
 					return fmt.Errorf(errfmt, "to container bucket not found", perr.Err)
 				}
 
