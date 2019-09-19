@@ -29,7 +29,11 @@ func TestEncodeError(t *testing.T) {
 
 func TestEncodeErrorWithError(t *testing.T) {
 	ctx := context.TODO()
-	err := fmt.Errorf("there's an error here, be aware")
+	err := &influxdb.Error{
+		Code: influxdb.EInternal,
+		Msg:  "an error occurred",
+		Err:  fmt.Errorf("there's an error here, be aware"),
+	}
 
 	w := httptest.NewRecorder()
 
@@ -44,14 +48,15 @@ func TestEncodeErrorWithError(t *testing.T) {
 		t.Errorf("expected X-Platform-Error-Code: %s, got: %s", influxdb.EInternal, errHeader)
 	}
 
-	expected := &influxdb.Error{
-		Code: influxdb.EInternal,
-		Err:  err,
+	// The http handler will flatten the message and it will not
+	// have an error property, so reading the serialization results
+	// in a different error.
+	pe := http.CheckError(w.Result()).(*influxdb.Error)
+	if want, got := influxdb.EInternal, pe.Code; want != got {
+		t.Errorf("unexpected code -want/+got:\n\t- %q\n\t+ %q", want, got)
 	}
-
-	pe := http.CheckError(w.Result())
-	if pe.(*influxdb.Error).Err.Error() != expected.Err.Error() {
-		t.Errorf("errors encode err: got %s", w.Body.String())
+	if want, got := "an error occurred: there's an error here, be aware", pe.Msg; want != got {
+		t.Errorf("unexpected message -want/+got:\n\t- %q\n\t+ %q", want, got)
 	}
 }
 

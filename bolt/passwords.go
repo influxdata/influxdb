@@ -16,13 +16,15 @@ var (
 	// EIncorrectPassword is returned when any password operation fails in which
 	// we do not want to leak information.
 	EIncorrectPassword = &platform.Error{
-		Msg: "<forbidden> your username or password is incorrect",
+		Code: platform.EForbidden,
+		Msg:  "your username or password is incorrect",
 	}
 
 	// EShortPassword is used when a password is less than the minimum
 	// acceptable password length.
 	EShortPassword = &platform.Error{
-		Msg: "<invalid> passwords must be at least 8 characters long",
+		Code: platform.EInvalid,
+		Msg:  "passwords must be at least 8 characters long",
 	}
 )
 

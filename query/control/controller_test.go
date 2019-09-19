@@ -344,9 +344,7 @@ func TestController_CompileError(t *testing.T) {
 	}
 	if _, err := ctrl.Query(context.Background(), makeRequest(compiler)); err == nil {
 		t.Error("expected error")
-	} else if got, want := err.Error(), "<invalid> expected error"; got != want {
-		// TODO(jsternberg): This should be "<invalid> compilation error: expected error", but the
-		// influxdb error library does not include the message when it is wrapping an error for some reason.
+	} else if got, want := err.Error(), "compilation failed: expected error"; got != want {
 		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
 	}
 }

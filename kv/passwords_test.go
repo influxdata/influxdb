@@ -131,7 +131,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -160,7 +160,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -192,7 +192,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("kv/setPassword: <internal error> User ID for user1 has been corrupted; Err: <invalid> invalid ID"),
+				err: fmt.Errorf("User ID for user1 has been corrupted; Err: invalid ID"),
 			},
 		},
 		{
@@ -227,7 +227,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("kv/setPassword: <unavailable> Unable to connect to password service. Please try again; Err: internal bucket error"),
+				err: fmt.Errorf("Unable to connect to password service. Please try again; Err: internal bucket error"),
 			},
 		},
 		{
@@ -265,7 +265,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				fmt.Errorf("kv/setPassword: <internal error> Unable to generate password; Err: generate error"),
+				fmt.Errorf("Unable to generate password; Err: generate error"),
 			},
 		},
 		{
@@ -304,7 +304,7 @@ func TestService_SetPassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				fmt.Errorf("kv/setPassword: <unavailable> Unable to connect to password service. Please try again; Err: internal error"),
+				fmt.Errorf("Unable to connect to password service. Please try again; Err: internal error"),
 			},
 		},
 	}
@@ -371,7 +371,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("<forbidden> your username or password is incorrect"),
+				err: fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 		{
@@ -403,7 +403,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("kv/setPassword: <internal error> User ID for user1 has been corrupted; Err: <invalid> invalid ID"),
+				err: fmt.Errorf("User ID for user1 has been corrupted; Err: invalid ID"),
 			},
 		},
 		{
@@ -438,7 +438,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("kv/setPassword: <unavailable> Unable to connect to password service. Please try again; Err: internal bucket error"),
+				err: fmt.Errorf("Unable to connect to password service. Please try again; Err: internal bucket error"),
 			},
 		},
 		{
@@ -480,7 +480,7 @@ func TestService_ComparePassword(t *testing.T) {
 				password: "howdydoody",
 			},
 			wants: wants{
-				fmt.Errorf("<forbidden> your username or password is incorrect"),
+				fmt.Errorf("your username or password is incorrect"),
 			},
 		},
 	}
