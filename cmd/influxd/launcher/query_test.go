@@ -255,3 +255,83 @@ from(bucket: "%s")
 		t.Errorf("unexpected error code -want/+got:\n\t- %v\n\t+ %v", got, want)
 	}
 }
+
+// We need a separate test for dynamic queries because our Flux e2e tests cannot test them now.
+// Indeed, tableFind would fail while initializing the data in the input bucket, because the data is not
+// written, and tableFind would complain not finding the tables.
+// This will change once we make side effects drive execution and remove from/to concurrency in our e2e tests.
+// See https://github.com/influxdata/flux/issues/1799.
+func TestPipeline_DynamicQuery(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	l.WritePointsOrFail(t, `
+m0,k=k0 f=0i 0
+m0,k=k0 f=1i 1
+m0,k=k0 f=2i 2
+m0,k=k0 f=3i 3
+m0,k=k0 f=4i 4
+m0,k=k1 f=5i 5
+m0,k=k1 f=6i 6
+m1,k=k0 f=5i 7
+m1,k=k2 f=0i 8
+m1,k=k0 f=6i 9
+m1,k=k1 f=6i 10
+m1,k=k0 f=7i 11
+m1,k=k0 f=5i 12
+m1,k=k1 f=8i 13
+m1,k=k2 f=9i 14
+m1,k=k3 f=5i 15`)
+
+	// How many points do we have in stream2 with the same values of the ones in the table with key k0 in stream1?
+	// The only point matching the description is `m1,k=k2 f=0i 8`, because its value is in the set [0, 1, 2, 3, 4].
+	dq := fmt.Sprintf(`
+stream1 = from(bucket: "%s") |> range(start: 0) |> filter(fn: (r) => r._measurement == "m0" and r._field == "f")
+stream2 = from(bucket: "%s") |> range(start: 0) |> filter(fn: (r) => r._measurement == "m1" and r._field == "f")
+col = stream1 |> tableFind(fn: (key) => key.k == "k0") |> getColumn(column: "_value")
+// Here is where dynamicity kicks in.
+stream2 |> filter(fn: (r) => contains(value: r._value, set: col)) |> group() |> count() |> yield(name: "dynamic")`,
+		l.Bucket.Name, l.Bucket.Name)
+	req := &query.Request{
+		Authorization:  l.Auth,
+		OrganizationID: l.Org.ID,
+		Compiler:       lang.FluxCompiler{Query: dq},
+	}
+	noRes := 0
+	if err := l.QueryAndConsume(ctx, req, func(r flux.Result) error {
+		noRes++
+		if n := r.Name(); n != "dynamic" {
+			t.Fatalf("got unexpected result: %s", n)
+		}
+		noTables := 0
+		if err := r.Tables().Do(func(tbl flux.Table) error {
+			return tbl.Do(func(cr flux.ColReader) error {
+				noTables++
+				j := execute.ColIdx("_value", cr.Cols())
+				if j == -1 {
+					return errors.New("cannot find table column \"_value\"")
+				}
+				if want := 1; cr.Len() != want {
+					t.Fatalf("wrong number of rows in table: -want/+got:\n\t- %d\n\t+ %d", want, cr.Len())
+				}
+				v := execute.ValueForRow(cr, 0, j)
+				if got, want := v, values.NewInt(1); !got.Equal(want) {
+					t.Errorf("unexpected value at row %d -want/+got:\n\t- %v\n\t+ %v", 0, want, got)
+				}
+				return nil
+			})
+		}); err != nil {
+			return err
+		}
+		if want := 1; noTables != want {
+			t.Fatalf("wrong number of tables in result: -want/+got:\n\t- %d\n\t+ %d", want, noRes)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if want := 1; noRes != want {
+		t.Fatalf("wrong number of results: -want/+got:\n\t- %d\n\t+ %d", want, noRes)
+	}
+}

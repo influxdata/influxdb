@@ -13,7 +13,7 @@ import (
 )
 
 type Test struct {
-	dir string
+	dir          string
 	corruptFiles []string
 }
 
@@ -45,7 +45,7 @@ func TestVerifyWALL_CleanFile(t *testing.T) {
 		t.Fatalf("Unexpected error: %v\n", err)
 	}
 
-	expectedEntries :=  numTestEntries
+	expectedEntries := numTestEntries
 	if summary.EntryCount != expectedEntries {
 		t.Fatalf("Error: expected %d entries, checked %d entries", expectedEntries, summary.EntryCount)
 	}
@@ -65,7 +65,7 @@ func CreateTest(t *testing.T, createFiles func() (string, []string, error)) *Tes
 	}
 
 	return &Test{
-		dir: dir,
+		dir:          dir,
 		corruptFiles: corruptFiles,
 	}
 }
@@ -96,7 +96,7 @@ func TestVerifyWALL_CorruptFile(t *testing.T) {
 
 	want := test.corruptFiles
 	got := summary.CorruptFiles
-	lessFunc := func(a, b string) bool {return a < b}
+	lessFunc := func(a, b string) bool { return a < b }
 
 	if !cmp.Equal(summary.CorruptFiles, want, cmpopts.SortSlices(lessFunc)) {
 		t.Fatalf("Error: unexpected list of corrupt files %v", cmp.Diff(got, want))
