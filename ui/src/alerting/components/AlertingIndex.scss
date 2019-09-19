@@ -45,12 +45,17 @@
   h5 {
     line-height: 1.5em;
     font-weight: 500;
-    margin-bottom: 1.5em;
+    margin-bottom: 0.25em;
 
     strong {
       font-weight: 900;
       color: $g20-white;
     }
+  }
+
+  .cf-button {
+    margin-bottom: $ix-marg-c;
+    margin-right: $ix-marg-b;
   }
 }
 
@@ -60,6 +65,7 @@
 */
 
 .query-checklist--popover {
+  width: 300px;
   padding: 16px;
   user-select: none;
 

@@ -786,7 +786,7 @@ func TestService_handlePostDocuments(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json; charset=utf-8",
-				body:        `{"code":"invalid","error":"EOF","message": "document body error"}`,
+				body:        `{"code":"invalid","message": "document body error: EOF"}`,
 			},
 		},
 		{
@@ -933,7 +933,7 @@ func TestService_handlePostDocuments(t *testing.T) {
 				t.Errorf("%q. handlePostDocument() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if tt.wants.body != "" {
-				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				if eq, diff, err := jsonEqual(tt.wants.body, string(body)); err != nil {
 					t.Errorf("%q, handlePostDocument(). error unmarshaling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostDocument() = ***%s***", tt.name, diff)

@@ -53,8 +53,15 @@ func (a Duration) String() string {
 func (a *Duration) Parse(s string) error {
 	q, err := parseSignedDuration(s)
 	if err != nil {
-		return err
+		return ErrTaskInvalidDuration(err)
 	}
+	// TODO(docmerlin): the following needs to be removed once we can support duration units longer than an hour.
+	// This is here to check to make sure that the duration is compatible with golang durations as well, as the current task
+	// cron doesn't support certain duration units that flux supports. For historical reasons empty-string needs to parse without error
+	if _, err := time.ParseDuration(s); strings.TrimSpace(s) != "" && err != nil {
+		return ErrTaskInvalidDuration(err)
+	}
+
 	a.Node = *q
 	return nil
 }
@@ -134,7 +141,7 @@ func (o *Options) IsZero() bool {
 	return o.Name == "" &&
 		o.Cron == "" &&
 		o.Every.IsZero() &&
-		o.Offset == nil &&
+		(o.Offset == nil || o.Offset.IsZero()) &&
 		o.Concurrency == nil &&
 		o.Retry == nil
 }
@@ -275,9 +282,14 @@ func FromScript(script string) (Options, error) {
 		if err != nil {
 			return opt, err
 		}
+		if _, err := time.ParseDuration(dur.Location().Source); err != nil { // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+			return opt, ErrParseTaskOptionField("every")
+		}
+
 		if !ok || durNode == nil {
 			return opt, ErrParseTaskOptionField("every")
 		}
+
 		durNode.BaseNode = ast.BaseNode{}
 		opt.Every.Node = *durNode
 	}
@@ -293,6 +305,9 @@ func FromScript(script string) (Options, error) {
 		durNode, err := parseSignedDuration(dur.Location().Source)
 		if err != nil {
 			return opt, err
+		}
+		if _, err := time.ParseDuration(dur.Location().Source); err != nil { // TODO(docmerlin): remove this once tasks fully supports all flux duration units.
+			return opt, ErrParseTaskOptionField("every")
 		}
 		if !ok || durNode == nil {
 			return opt, ErrParseTaskOptionField("offset")

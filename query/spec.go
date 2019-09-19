@@ -1,8 +1,11 @@
 package query
 
 import (
+	"context"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/dependencies"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
 )
@@ -12,9 +15,24 @@ type BucketAwareOperationSpec interface {
 	BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter)
 }
 
+type constantSecretService struct{}
+
+func (s constantSecretService) LoadSecret(ctx context.Context, k string) (string, error) {
+	return "", nil
+}
+
+func newDeps() dependencies.Dependencies {
+	deps := dependencies.NewDefaults()
+	deps.Deps.HTTPClient = nil
+	deps.Deps.URLValidator = nil
+	deps.Deps.SecretService = constantSecretService{}
+
+	return deps
+}
+
 // BucketsAccessed returns the set of buckets read and written by a query spec
 func BucketsAccessed(ast *ast.Package, orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter, err error) {
-	err = lang.WalkIR(ast, func(o *flux.Operation) error {
+	err = lang.WalkIR(ast, newDeps(), func(o *flux.Operation) error {
 		bucketAwareOpSpec, ok := o.Spec.(BucketAwareOperationSpec)
 		if ok {
 			opBucketsRead, opBucketsWritten := bucketAwareOpSpec.BucketsAccessed(orgID)

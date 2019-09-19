@@ -173,8 +173,7 @@ func TestRouter_Panic(t *testing.T) {
 				body: `
 {
   "code": "internal error",
-  "message": "a panic has occurred",
-  "error": "not implemented"
+  "message": "a panic has occurred: not implemented"
 }`,
 			},
 		},
@@ -207,7 +206,7 @@ func TestRouter_Panic(t *testing.T) {
 			if tt.wants.contentType != "" && content != tt.wants.contentType {
 				t.Errorf("%q. get %v, want %v", tt.name, content, tt.wants.contentType)
 			}
-			if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+			if eq, diff, _ := jsonEqual(tt.wants.body, string(body)); tt.wants.body != "" && !eq {
 				t.Errorf("%q. get ***%s***", tt.name, diff)
 			}
 			if tt.wants.logged != tw.Logged() {
