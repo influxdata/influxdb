@@ -9366,6 +9366,27 @@ components:
           type: string
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/checks/1"
+            labels: "/api/v2/checks/1/labels"
+            members: "/api/v2/checks/1/members"
+            owners: "/api/v2/checks/1/owners"
+          properties:
+            self:
+              description: URL for this check
+              $ref: "#/components/schemas/Link"
+            labels:
+              description: URL to retrieve labels for this check
+              $ref: "#/components/schemas/Link"
+            members:
+              description: URL to retrieve members for this check
+              $ref: "#/components/schemas/Link"
+            owners:
+              description: URL to retrieve owners for this check
+              $ref: "#/components/schemas/Link"
       required: [name, type, orgID, query]
     ThresholdCheck:
       allOf:
@@ -9384,6 +9405,12 @@ components:
         - $ref: "#/components/schemas/GreaterThreshold"
         - $ref: "#/components/schemas/LesserThreshold"
         - $ref: "#/components/schemas/RangeThreshold"
+      discriminator:
+        propertyName: type
+        mapping:
+          greater: "#/components/schemas/GreaterThreshold"
+          lesser:  "#/components/schemas/LesserThreshold"
+          range: "#/components/schemas/RangeThreshold"
     DeadmanCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
