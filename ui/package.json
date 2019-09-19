@@ -158,7 +158,7 @@
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {
-    "@influxdata/clockface": "0.0.28",
+    "@influxdata/clockface": "0.0.32",
     "@influxdata/flux-parser": "^0.3.0",
     "@influxdata/giraffe": "0.16.3",
     "@influxdata/influx": "0.5.5",
