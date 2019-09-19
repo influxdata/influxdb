@@ -1,0 +1,39 @@
+/*
+  Dashboards Card Grid Styles
+  ------------------------------------------------------------------------------
+*/
+
+.dashboards-card-grid {
+   display: grid;
+   grid-template-columns: 1fr;
+   grid-template-rows: 150px 150px 150px;
+   grid-column-gap: $ix-marg-a;
+   grid-row-gap: $ix-marg-a;
+
+   .cf-resource-card {
+      margin-bottom: 0;
+   }
+
+   .resource-description {
+      height: 60px;
+      overflow: hidden;
+   }
+}
+
+@media screen and (min-width: $grid--breakpoint-sm) {
+  .dashboards-card-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media screen and (min-width: $grid--breakpoint-md) {
+  .dashboards-card-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+@media screen and (min-width: $grid--breakpoint-lg) {
+  .dashboards-card-grid {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
