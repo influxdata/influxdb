@@ -6,7 +6,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 // Components
 import {Grid, SelectableCard} from '@influxdata/clockface'
 import {ResponsiveGridSizer} from 'src/clockface'
-// import ClientLibraryList from 'src/clientLibraries/components/ClientLibraryList'
 
 // Mocks
 import {clientLibraries} from 'src/clientLibraries/constants'
