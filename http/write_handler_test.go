@@ -137,7 +137,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 			wants: wants{
 				code: 500,
-				body: `{"code":"internal error","message":"unexpected error writing points to database","op":"http/handleWrite","error":"error"}`,
+				body: `{"code":"internal error","message":"unexpected error writing points to database: error"}`,
 			},
 		},
 		{
@@ -153,7 +153,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 			wants: wants{
 				code: 400,
-				body: `{"code":"invalid","message":"writing requires points","op":"http/handleWrite"}`,
+				body: `{"code":"invalid","message":"writing requires points"}`,
 			},
 		},
 		{
@@ -236,7 +236,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 			wants: wants{
 				code: 403,
-				body: `{"code":"forbidden","message":"cannot write to internal bucket ","op":"http/handleWrite"}`,
+				body: `{"code":"forbidden","message":"cannot write to internal bucket "}`,
 			},
 		},
 		{
@@ -253,7 +253,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 			wants: wants{
 				code: 403,
-				body: `{"code":"forbidden","message":"insufficient permissions for write","op":"http/handleWrite"}`,
+				body: `{"code":"forbidden","message":"insufficient permissions for write"}`,
 			},
 		},
 		{

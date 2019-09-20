@@ -250,7 +250,7 @@ func TestFluxHandler_postFluxAST(t *testing.T) {
 			name:   "error from bad json",
 			w:      httptest.NewRecorder(),
 			r:      httptest.NewRequest("POST", "/api/v2/query/ast", bytes.NewBufferString(`error!`)),
-			want:   `{"code":"invalid","message":"invalid json","error":"invalid character 'e' looking for beginning of value"}`,
+			want:   `{"code":"invalid","message":"invalid json: invalid character 'e' looking for beginning of value"}`,
 			status: http.StatusBadRequest,
 		},
 	}

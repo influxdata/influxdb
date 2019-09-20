@@ -7,9 +7,9 @@ import {connect} from 'react-redux'
 import {viewableLabels} from 'src/labels/selectors'
 
 // Components
-import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import CheckCards from 'src/alerting/components/CheckCards'
-import AlertsColumnHeader from 'src/alerting/components/AlertsColumn'
+import AlertsColumn from 'src/alerting/components/AlertsColumn'
+import CreateCheckDropdown from 'src/alerting/components/CreateCheckDropdown'
 
 // Types
 import {Check, NotificationRuleDraft, AppState} from 'src/types'
@@ -29,8 +29,12 @@ const ChecksColumn: FunctionComponent<Props> = ({
   rules,
   endpoints,
 }) => {
-  const handleClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new`)
+  const handleCreateThreshold = () => {
+    router.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
+  }
+
+  const handleCreateDeadman = () => {
+    router.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
   }
 
   const tooltipContents = (
@@ -55,17 +59,14 @@ const ChecksColumn: FunctionComponent<Props> = ({
     !checks.length && !rules.length && !endpoints.length
 
   const createButton = (
-    <Button
-      color={ComponentColor.Primary}
-      text="Create"
-      onClick={handleClick}
-      testID="create-check"
-      icon={IconFont.Plus}
+    <CreateCheckDropdown
+      onCreateThreshold={handleCreateThreshold}
+      onCreateDeadman={handleCreateDeadman}
     />
   )
 
   return (
-    <AlertsColumnHeader
+    <AlertsColumn
       title="Checks"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
@@ -74,11 +75,12 @@ const ChecksColumn: FunctionComponent<Props> = ({
         <CheckCards
           checks={checks}
           searchTerm={searchTerm}
-          onCreateCheck={handleClick}
+          onCreateThreshold={handleCreateThreshold}
+          onCreateDeadman={handleCreateDeadman}
           showFirstTimeWidget={noAlertingResourcesExist}
         />
       )}
-    </AlertsColumnHeader>
+    </AlertsColumn>
   )
 }
 

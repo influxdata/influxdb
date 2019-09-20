@@ -110,7 +110,7 @@ export const getCheckForTimeMachine = (checkID: string) => async (
 
     const check = resp.data
 
-    const view = createView<CheckViewProperties>('check')
+    const view = createView<CheckViewProperties>(check.type)
     // todo: when check has own view get view here until then:
     view.properties.queries = [check.query]
 

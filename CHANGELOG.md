@@ -2,8 +2,11 @@
 
 ### Features
 
+1. [15151](https://github.com/influxdata/influxdb/pull/15151): Add jsonweb package for future JWT support
+
 ### UI Improvements
 
+1. [15211](https://github.com/influxdata/influxdb/pull/15211): Display dashboards index as a grid
 1. [15099](https://github.com/influxdata/influxdb/pull/15099): Add viewport scaling to html meta for responsive mobile scaling
 1. [15056](https://github.com/influxdata/influxdb/pull/15056): Remove rename and delete functionality from system buckets
 1. [15056](https://github.com/influxdata/influxdb/pull/15056): Prevent new buckets from being named with the reserved "\_" prefix

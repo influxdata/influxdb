@@ -411,7 +411,7 @@ func FindTelegrafConfigByID(
 				id: platform.ID(0),
 			},
 			wants: wants{
-				err: fmt.Errorf("<invalid> provided telegraf configuration ID has invalid format"),
+				err: fmt.Errorf("provided telegraf configuration ID has invalid format"),
 			},
 		},
 		{
@@ -1387,7 +1387,7 @@ func DeleteTelegrafConfig(
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("<invalid> provided telegraf configuration ID has invalid format"),
+				err: fmt.Errorf("provided telegraf configuration ID has invalid format"),
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),
@@ -1485,7 +1485,7 @@ func DeleteTelegrafConfig(
 				userID: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: fmt.Errorf("<not found> telegraf configuration not found"),
+				err: fmt.Errorf("telegraf configuration not found"),
 				userResourceMappings: []*platform.UserResourceMapping{
 					{
 						ResourceID:   MustIDBase16(oneID),

@@ -3,9 +3,11 @@ package tsm1
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/models"
@@ -18,6 +20,10 @@ import (
 // that only bucket data for that range is removed.
 func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, max int64, pred Predicate) error {
 	span, ctx := tracing.StartSpanFromContext(rootCtx)
+	span.LogKV("name_prefix", fmt.Sprintf("%x", name),
+		"min", time.Unix(0, min), "max", time.Unix(0, max),
+		"has_pred", pred != nil,
+	)
 	defer span.Finish()
 	// TODO(jeff): we need to block writes to this prefix while deletes are in progress
 	// otherwise we can end up in a situation where we have staged data in the cache or
@@ -219,6 +225,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 
 			// Remove the measurement from the index before the series file.
 			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "TSI drop measurement")
+			span.LogKV("measurement_name", fmt.Sprintf("%x", name))
 			if err := e.index.DropMeasurement(name); err != nil {
 				return err
 			}
@@ -227,7 +234,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 			// Iterate over the series ids we previously extracted from the index
 			// and remove from the series file.
 			span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "SFile Delete Series IDs")
-			span.LogKV("series_id_set_size", set.Cardinality())
+			span.LogKV("measurement_name", fmt.Sprintf("%x", name), "series_id_set_size", set.Cardinality())
 			set.ForEachNoLock(func(id tsdb.SeriesID) {
 				if err = e.sfile.DeleteSeriesID(id); err != nil {
 					return
@@ -239,7 +246,7 @@ func (e *Engine) DeletePrefixRange(rootCtx context.Context, name []byte, min, ma
 
 		// This is the slow path, when not dropping the entire bucket (measurement)
 		span, _ = tracing.StartSpanFromContextWithOperationName(rootCtx, "TSI/SFile Delete keys")
-		span.LogKV("keys_to_delete", len(possiblyDead.keys))
+		span.LogKV("measurement_name", fmt.Sprintf("%x", name), "keys_to_delete", len(possiblyDead.keys))
 		for key := range possiblyDead.keys {
 			// TODO(jeff): ugh reduce copies here
 			keyb := []byte(key)

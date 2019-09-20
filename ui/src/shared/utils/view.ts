@@ -28,6 +28,7 @@ import {
   Axis,
   Color,
   CheckViewProperties,
+  CheckType,
 } from 'src/types'
 
 function defaultView() {
@@ -246,7 +247,7 @@ const NEW_VIEW_CREATORS = {
       ySuffix: '',
     },
   }),
-  check: (): NewView<CheckViewProperties> => ({
+  threshold: (): NewView<CheckViewProperties> => ({
     name: 'check',
     properties: {
       type: 'check',
@@ -268,10 +269,33 @@ const NEW_VIEW_CREATORS = {
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
+  deadman: (): NewView<CheckViewProperties> => ({
+    name: 'check',
+    properties: {
+      type: 'check',
+      shape: 'chronograf-v2',
+      checkID: '',
+      queries: [
+        {
+          name: '',
+          text: '',
+          editMode: 'builder',
+          builderConfig: {
+            buckets: [],
+            tags: [{key: '_measurement', values: []}],
+            functions: [],
+          },
+        },
+      ],
+      colors: NINETEEN_EIGHTY_FOUR,
+    },
+  }),
 }
 
+type CreateViewType = ViewType | CheckType
+
 export function createView<T extends ViewProperties = ViewProperties>(
-  viewType: ViewType = 'xy'
+  viewType: CreateViewType = 'xy'
 ): NewView<T> {
   const creator = NEW_VIEW_CREATORS[viewType]
 

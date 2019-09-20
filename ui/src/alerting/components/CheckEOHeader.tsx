@@ -6,17 +6,20 @@ import {connect} from 'react-redux'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import {
   SquareButton,
-  ComponentColor,
   ComponentSize,
   ComponentStatus,
   IconFont,
   Page,
 } from '@influxdata/clockface'
 import CheckAlertingButton from 'src/alerting/components/CheckAlertingButton'
+import CheckEOSaveButton from 'src/alerting/components/CheckEOSaveButton'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {isCheckSaveable} from 'src/timeMachine/utils/queryBuilder'
+import {
+  isCheckSaveable,
+  isDraftQueryAlertable,
+} from 'src/timeMachine/utils/queryBuilder'
 
 // Actions
 import {setActiveTab} from 'src/timeMachine/actions'
@@ -26,6 +29,7 @@ import {DEFAULT_CHECK_NAME, CHECK_NAME_MAX_LENGTH} from 'src/alerting/constants'
 
 // Types
 import {
+  Check,
   TimeMachineTab,
   RemoteDataState,
   AppState,
@@ -42,6 +46,7 @@ interface OwnProps {
 interface StateProps {
   activeTab: TimeMachineTab
   draftQueries: DashboardDraftQuery[]
+  check: Partial<Check>
 }
 
 interface DispatchProps {
@@ -60,6 +65,7 @@ const CheckEOHeader: FC<Props> = ({
   setActiveTab,
   activeTab,
   draftQueries,
+  check,
 }) => {
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
 
@@ -80,7 +86,7 @@ const CheckEOHeader: FC<Props> = ({
   }
 
   const saveButtonStatus = () => {
-    if (!isCheckSaveable(draftQueries)) {
+    if (!isCheckSaveable(draftQueries, check.type)) {
       return ComponentStatus.Disabled
     }
 
@@ -90,6 +96,8 @@ const CheckEOHeader: FC<Props> = ({
 
     return ComponentStatus.Default
   }
+
+  const {singleField, singleAggregateFunc} = isDraftQueryAlertable(draftQueries)
 
   return (
     <Page.Header fullWidth={true}>
@@ -115,14 +123,13 @@ const CheckEOHeader: FC<Props> = ({
           onClick={onCancel}
           size={ComponentSize.Small}
         />
-        <SquareButton
-          className={saveButtonClass}
-          icon={IconFont.Checkmark}
-          color={ComponentColor.Success}
-          size={ComponentSize.Small}
+        <CheckEOSaveButton
           status={saveButtonStatus()}
-          onClick={handleSave}
-          testID="save-cell--button"
+          onSave={handleSave}
+          className={saveButtonClass}
+          checkType={check.type}
+          singleField={singleField}
+          singleAggregateFunc={singleAggregateFunc}
         />
       </Page.Header.Right>
     </Page.Header>
@@ -130,9 +137,13 @@ const CheckEOHeader: FC<Props> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
-  const {activeTab, draftQueries} = getActiveTimeMachine(state)
+  const {
+    activeTab,
+    draftQueries,
+    alerting: {check},
+  } = getActiveTimeMachine(state)
 
-  return {activeTab, draftQueries}
+  return {activeTab, draftQueries, check}
 }
 
 const mdtp: DispatchProps = {

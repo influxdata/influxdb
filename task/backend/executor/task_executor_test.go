@@ -68,7 +68,7 @@ func testQuerySuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func testQueryFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func testManualRun(t *testing.T) {
 		t.Fatal("manual run not created by force run")
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,14 +193,14 @@ func testResumingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
 	promiseID := influxdb.ID(promise.ID())
 
 	// ensure that it doesn't recreate a promise
-	promise2, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise2, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func testWorkerLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func testLimitFunc(t *testing.T) {
 		return nil
 	})
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func testMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +400,7 @@ func testIteratorFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
