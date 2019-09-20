@@ -3,6 +3,7 @@ package testing
 import (
 	"bytes"
 	"context"
+	"errors"
 	"sort"
 	"testing"
 
@@ -29,7 +30,8 @@ type Secret struct {
 
 // SecretServiceFields contain the
 type SecretServiceFields struct {
-	Secrets []Secret
+	Secrets       []Secret
+	Organizations []*platform.Organization
 }
 
 // SecretService will test all methods for the secrets service.
@@ -312,9 +314,15 @@ func PatchSecrets(
 		{
 			name: "patch secrets",
 			fields: SecretServiceFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "orgOne",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
 				Secrets: []Secret{
 					{
-						OrganizationID: platform.ID(1),
+						OrganizationID: MustIDBase16(orgOneID),
 						Env: map[string]string{
 							"api_key": "abc123xyz",
 						},
@@ -322,7 +330,7 @@ func PatchSecrets(
 				},
 			},
 			args: args{
-				orgID: platform.ID(1),
+				orgID: MustIDBase16(orgOneID),
 				secrets: map[string]string{
 					"api_key2": "abc123xyz",
 					"batman":   "potato",
@@ -330,6 +338,34 @@ func PatchSecrets(
 			},
 			wants: wants{
 				keys: []string{"api_key", "api_key2", "batman"},
+			},
+		}, {
+			name: "patch secrets to a non-existant org",
+			fields: SecretServiceFields{
+				Organizations: []*platform.Organization{
+					{
+						Name: "orgOne",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Secrets: []Secret{
+					{
+						OrganizationID: MustIDBase16(orgOneID),
+						Env: map[string]string{
+							"api_key": "abc123xyz",
+						},
+					},
+				},
+			},
+			args: args{
+				orgID: MustIDBase16(orgTwoID),
+				secrets: map[string]string{
+					"api_key2": "abc123xyz",
+					"batman":   "potato",
+				},
+			},
+			wants: wants{
+				err: errors.New("organization not found"),
 			},
 		},
 	}
@@ -349,6 +385,11 @@ func PatchSecrets(
 				if err.Error() != tt.wants.err.Error() {
 					t.Fatalf("expected error messages to match '%v' got '%v'", tt.wants.err, err.Error())
 				}
+			}
+
+			// if we're testing for failure conditions, there won't be a secret to load
+			if err != nil {
+				return
 			}
 
 			for k, v := range tt.args.secrets {

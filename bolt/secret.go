@@ -223,6 +223,11 @@ func (c *Client) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string
 
 // PatchSecrets patches all provided secrets and updates any previous values.
 func (c *Client) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+	_, err := c.FindOrganizationByID(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
 	return c.db.Update(func(tx *bolt.Tx) error {
 		for k, v := range m {
 			if err := c.putSecret(ctx, tx, orgID, k, v); err != nil {

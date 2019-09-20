@@ -246,6 +246,11 @@ func (s *Service) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[strin
 
 // PatchSecrets patches all provided secrets and updates any previous values.
 func (s *Service) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+	_, err := s.FindOrganizationByID(ctx, orgID)
+	if err != nil {
+		return err
+	}
+
 	return s.kv.Update(ctx, func(tx Tx) error {
 		for k, v := range m {
 			if err := s.putSecret(ctx, tx, orgID, k, v); err != nil {

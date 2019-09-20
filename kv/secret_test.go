@@ -50,6 +50,11 @@ func initSecretService(s kv.Store, f influxdbtesting.SecretServiceFields, t *tes
 		t.Fatalf("error initializing secret service: %v", err)
 	}
 
+	for _, o := range f.Organizations {
+		if err := svc.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate organizations")
+		}
+	}
 	for _, s := range f.Secrets {
 		for k, v := range s.Env {
 			if err := svc.PutSecret(ctx, s.OrganizationID, k, v); err != nil {
@@ -58,5 +63,11 @@ func initSecretService(s kv.Store, f influxdbtesting.SecretServiceFields, t *tes
 		}
 	}
 
-	return svc, func() {}
+	return svc, func() {
+		for _, o := range f.Organizations {
+			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
+				t.Logf("failed to remove organization: %v", err)
+			}
+		}
+	}
 }
