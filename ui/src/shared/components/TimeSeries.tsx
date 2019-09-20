@@ -17,6 +17,7 @@ import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 import {getWindowVars} from 'src/variables/utils/getWindowVars'
 import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
@@ -186,10 +187,10 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
 
       let events = [[]] as StatusRow[][]
-      if (check) {
+      if (check && isFlagEnabled('eventMarkers')) {
         const extern = buildVarsOption(variables)
         this.pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
-        events = await this.pendingCheckStatuses.promise  // TODO handle errors
+        events = await this.pendingCheckStatuses.promise // TODO handle errors
       }
 
       const duration = Date.now() - startTime
