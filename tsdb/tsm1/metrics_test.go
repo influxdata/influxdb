@@ -25,7 +25,7 @@ func TestMetrics_Filestore(t *testing.T) {
 	t2.AddBytes(200, 0)
 	t2.SetFileCount(map[int]uint64{0: 4, 4: 3, 5: 1})
 
-	t3.SetBytes(map[int]uint64{0: 300, 1: 500, 4:100, 5: 100})
+	t3.SetBytes(map[int]uint64{0: 300, 1: 500, 4: 100, 5: 100})
 
 	// Test that all the correct metrics are present.
 	mfs, err := reg.Gather()

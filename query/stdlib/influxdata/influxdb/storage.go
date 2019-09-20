@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/semantic"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,14 +30,14 @@ type OrganizationLookup interface {
 	LookupName(ctx context.Context, id platform.ID) string
 }
 
-type Dependencies struct {
+type FromDependencies struct {
 	Reader             Reader
 	BucketLookup       BucketLookup
 	OrganizationLookup OrganizationLookup
 	Metrics            *metrics
 }
 
-func (d Dependencies) Validate() error {
+func (d FromDependencies) Validate() error {
 	if d.Reader == nil {
 		return errors.New("missing reader dependency")
 	}
@@ -50,11 +51,15 @@ func (d Dependencies) Validate() error {
 }
 
 // PrometheusCollectors satisfies the PrometheusCollector interface.
-func (d Dependencies) PrometheusCollectors() []prometheus.Collector {
-	if d.Metrics != nil {
-		return d.Metrics.PrometheusCollectors()
+func (d FromDependencies) PrometheusCollectors() []prometheus.Collector {
+	collectors := make([]prometheus.Collector, 0)
+	if pc, ok := d.Reader.(prom.PrometheusCollector); ok {
+		collectors = append(collectors, pc.PrometheusCollectors()...)
 	}
-	return nil
+	if d.Metrics != nil {
+		collectors = append(collectors, d.Metrics.PrometheusCollectors()...)
+	}
+	return collectors
 }
 
 type StaticLookup struct {
