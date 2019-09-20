@@ -17,6 +17,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var _ scheduler.Executor = (*TaskExecutor)(nil)
+
 // MultiLimit allows us to create a single limit func that applies more then one limit.
 func MultiLimit(limits ...LimitFunc) LimitFunc {
 	return func(run *influxdb.Run) error {
@@ -86,18 +88,23 @@ func (e *TaskExecutor) SetLimitFunc(l LimitFunc) {
 	e.limitFunc = l
 }
 
-// Execute begins execution for the tasks id with a specific scheduledAt time.
+// Execute is a executor to satisfy the needs of tasks
+func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) error {
+	_, err := e.PromisedExecute(ctx, id, scheduledAt)
+	return err
+}
+
+// PromisedExecute begins execution for the tasks id with a specific scheduledAt time.
 // When we execute we will first build a run for the scheduledAt time,
 // We then want to add to the queue anything that was manually queued to run.
 // If the queue is full the call to execute should hang and apply back pressure to the caller
 // We then start a worker to work the newly queued jobs.
-func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) (*Promise, error) {
+func (e *TaskExecutor) PromisedExecute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) (*Promise, error) {
 	iid := influxdb.ID(id)
 	var p *Promise
 	var err error
 
 	// look for manual run by scheduledAt
-
 	p, err = e.startManualRun(ctx, iid, scheduledAt)
 	if err == nil && p != nil {
 		e.metrics.manualRunsCounter.WithLabelValues(string(iid)).Inc()
