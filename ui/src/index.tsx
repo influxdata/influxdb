@@ -47,6 +47,11 @@ import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
 import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
+import ClientCSharpOverlay from 'src/clientLibraries/components/ClientCSharpOverlay'
+import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
+import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
+import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
+import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
 import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
@@ -279,7 +284,25 @@ class Root extends PureComponent {
                               <Route
                                 path="client-libraries"
                                 component={ClientLibrariesPage}
-                              />
+                              >
+                                <Route
+                                  path="csharp"
+                                  component={ClientCSharpOverlay}
+                                />
+                                <Route path="go" component={ClientGoOverlay} />
+                                <Route
+                                  path="java"
+                                  component={ClientJavaOverlay}
+                                />
+                                <Route
+                                  path="javascript-node"
+                                  component={ClientJSOverlay}
+                                />
+                                <Route
+                                  path="python"
+                                  component={ClientPythonOverlay}
+                                />
+                              </Route>
                             </FeatureFlag>
                           </Route>
                           <Route path="settings">
