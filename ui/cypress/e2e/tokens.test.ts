@@ -205,7 +205,8 @@ describe('tokens', () => {
       .parents('[data-testid=table-row]')
       .within(() => {
         cy.getByTestID('delete-token--button').click()
-      }).then(() => {
+      })
+      .then(() => {
         cy.getByTestID('delete-token--popover').within(() => {
           cy.getByTestID('button').click()
         })
