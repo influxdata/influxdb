@@ -43,7 +43,7 @@ interface OwnProps {
   timeZone: TimeZone
   viewProperties: CheckViewProperties
   children: (config: Config) => JSX.Element
-  events: StatusRow[]
+  events: StatusRow[][]
 }
 
 type Props = OwnProps & DispatchProps
@@ -137,7 +137,7 @@ const CheckPlot: FunctionComponent<Props> = ({
         render: ({xScale, xDomain}) => (
           <EventMarkers
             key="events"
-            events={events || []}
+            events={events || [[]]}
             xScale={xScale}
             xDomain={xDomain}
           />

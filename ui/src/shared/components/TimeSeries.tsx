@@ -38,7 +38,7 @@ interface QueriesState {
   isInitialFetch: boolean
   duration: number
   giraffeResult: FromFluxResult
-  events: StatusRow[]
+  events: StatusRow[][]
 }
 
 interface StateProps {
@@ -69,7 +69,7 @@ interface State {
   fetchCount: number
   duration: number
   giraffeResult: FromFluxResult
-  events: StatusRow[]
+  events: StatusRow[][]
 }
 
 const defaultState = (): State => ({
@@ -79,7 +79,7 @@ const defaultState = (): State => ({
   errorMessage: '',
   duration: 0,
   giraffeResult: null,
-  events: [],
+  events: [[]],
 })
 
 class TimeSeries extends Component<Props & WithRouterProps, State> {
@@ -97,7 +97,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   private pendingReload: boolean = true
 
   private pendingResults: Array<CancelBox<RunQueryResult>> = []
-  private pendingCheckStatuses: CancelBox<StatusRow[]> = null
+  private pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
   public async componentDidMount() {
     this.observer = new IntersectionObserver(entries => {
@@ -185,11 +185,11 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       // Wait for new queries to complete
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
 
-      let events = []
+      let events = [[]] as StatusRow[][]
       if (check) {
         const extern = buildVarsOption(variables)
         this.pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
-        events = await this.pendingCheckStatuses.promise // TODO handle errors.
+        events = await this.pendingCheckStatuses.promise  // TODO handle errors
       }
 
       const duration = Date.now() - startTime
@@ -234,7 +234,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         errorMessage: error.message,
         giraffeResult: null,
         loading: RemoteDataState.Error,
-        events: [],
+        events: [[]],
       })
     }
 

@@ -33,7 +33,7 @@ interface Props {
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
-  events: StatusRow[]
+  events: StatusRow[][]
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({

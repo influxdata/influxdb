@@ -1,18 +1,20 @@
 // Utils
 import {runQuery} from 'src/shared/apis/query'
-import {processResponse} from 'src/alerting/utils/history'
+import {fromFlux} from '@influxdata/giraffe'
 
 // Constants
 import {MONITORING_BUCKET} from 'src/alerting/constants/history'
 
 // Types
 import {CancelBox, StatusRow, File} from 'src/types'
+import {RunQueryResult} from 'src/shared/apis/query'
+import {Row} from 'src/eventViewer/types'
 
 export const runStatusesQuery = (
   orgID: string,
   checkID: string,
   extern: File
-): CancelBox<StatusRow[]> => {
+): CancelBox<StatusRow[][]> => {
   const query = `
 from(bucket: "${MONITORING_BUCKET}")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
@@ -23,11 +25,51 @@ from(bucket: "${MONITORING_BUCKET}")
                       "_check_id": "checkID",
                       "_check_name": "checkName",
                       "_level": "level"})
-  |> group()
+  |> window(every: 1s, timeColumn: "time", startColumn: "_start", stopColumn: "_stop")
+  |> group(columns: ["_start", "_stop"])
   |> filter(fn: (r) => r["checkID"] == "${checkID}")
-  |> sort(columns: ["time"], desc: true)
 `
-  return processResponse(runQuery(orgID, query, extern)) as CancelBox<
-    StatusRow[]
+  return processStatusesResponse(runQuery(orgID, query, extern)) as CancelBox<
+    StatusRow[][]
   >
+}
+
+/*
+  Convert a Flux CSV response that is grouped into tables into a list of objects.
+*/
+export const processStatusesResponse = ({
+  promise: queryPromise,
+  cancel,
+}: CancelBox<RunQueryResult>): CancelBox<Row[][]> => {
+  const promise = queryPromise.then<Row[][]>(resp => {
+    if (resp.type !== 'SUCCESS') {
+      return Promise.reject(new Error(resp.message))
+    }
+
+    const {table} = fromFlux(resp.csv)
+    const rows: Row[][] = [[]]
+
+    for (let i = 0; i < table.length; i++) {
+      const row = {}
+
+      for (const key of table.columnKeys) {
+        row[key] = table.getColumn(key)[i]
+      }
+
+      const tableIndex = row['table']
+
+      if (!rows[tableIndex]) {
+        rows[tableIndex] = [row]
+      } else {
+        rows[tableIndex].push(row)
+      }
+    }
+
+    return rows
+  })
+
+  return {
+    promise,
+    cancel,
+  }
 }
