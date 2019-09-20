@@ -1,14 +1,20 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, useState, useRef} from 'react'
+
+// Utils
 import {Scale} from '@influxdata/giraffe'
 import {isInDomain} from 'src/shared/utils/vis'
+
+// Components
+import BoxTooltip from './BoxTooltip'
+
+//Types
 import {StatusRow, CheckStatusLevel} from 'src/types'
 
 interface Props {
   event: StatusRow[]
   xScale: Scale<number, number>
   xDomain: number[]
-  onHover: (time: number, visible: boolean) => () => void
 }
 
 const findMaxLevel = (event: StatusRow[]): CheckStatusLevel => {
@@ -22,7 +28,16 @@ const findMaxLevel = (event: StatusRow[]): CheckStatusLevel => {
   return 'UNKNOWN'
 }
 
-const EventMarker: FC<Props> = ({xScale, xDomain, event, onHover}) => {
+const EventMarker: FC<Props> = ({xScale, xDomain, event}) => {
+  const trigger = useRef<HTMLDivElement>(null)
+
+  const [tooltipVisible, setTooltipVisible] = useState(false)
+  let triggerRect: DOMRect = null
+
+  if (trigger.current) {
+    triggerRect = trigger.current.getBoundingClientRect() as DOMRect
+  }
+
   const {time} = event[0]
   const level = findMaxLevel(event)
 
@@ -36,10 +51,15 @@ const EventMarker: FC<Props> = ({xScale, xDomain, event, onHover}) => {
         <div
           className={`event-marker--line ${levelClass}`}
           style={style}
-          onMouseEnter={onHover(time, true)}
-          onMouseLeave={onHover(time, false)}
+          onMouseEnter={() => setTooltipVisible(true)}
+          onMouseLeave={() => setTooltipVisible(false)}
         >
-          <div className="event-marker--line-triangle" />
+          <div className="event-marker--line-triangle" ref={trigger} />
+          {tooltipVisible && (
+            <BoxTooltip triggerRect={triggerRect as DOMRect}>
+              <div> omgomg</div>
+            </BoxTooltip>
+          )}
         </div>
       )}
     </>

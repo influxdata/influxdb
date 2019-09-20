@@ -1,5 +1,5 @@
 // Libraries
-import React, {useRef, FunctionComponent} from 'react'
+import React, {FunctionComponent} from 'react'
 
 // Components
 import EventMarker from 'src/shared/components/EventMarker'
@@ -17,10 +17,8 @@ interface Props {
 }
 
 const EventMarkers: FunctionComponent<Props> = ({xScale, xDomain, events}) => {
-  const originRef = useRef<HTMLDivElement>(null)
-
   return (
-    <div className="event-markers" ref={originRef}>
+    <div className="event-markers">
       {events
         .filter(e => e.length)
         .map((event, index) => {
@@ -30,9 +28,6 @@ const EventMarkers: FunctionComponent<Props> = ({xScale, xDomain, events}) => {
               xScale={xScale}
               xDomain={xDomain}
               event={event}
-              onHover={(time, visible) => () => {
-                console.log(time, visible)
-              }}
             />
           )
         })}
