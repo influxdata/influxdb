@@ -41,7 +41,9 @@ type Config struct {
 	FluxEnabled             bool           `toml:"flux-enabled"`
 	FluxLogEnabled          bool           `toml:"flux-log-enabled"`
 	PprofEnabled            bool           `toml:"pprof-enabled"`
+	PprofAuthEnabled        bool           `toml:"pprof-auth-enabled"`
 	DebugPprofEnabled       bool           `toml:"debug-pprof-enabled"`
+	PingAuthEnabled         bool           `toml:"ping-auth-enabled"`
 	HTTPSEnabled            bool           `toml:"https-enabled"`
 	HTTPSCertificate        string         `toml:"https-certificate"`
 	HTTPSPrivateKey         string         `toml:"https-private-key"`
@@ -71,7 +73,9 @@ func NewConfig() Config {
 		BindAddress:           DefaultBindAddress,
 		LogEnabled:            true,
 		PprofEnabled:          true,
+		PprofAuthEnabled:      false,
 		DebugPprofEnabled:     false,
+		PingAuthEnabled:       false,
 		HTTPSEnabled:          false,
 		HTTPSCertificate:      "/etc/ssl/influxdb.pem",
 		MaxRowLimit:           0,
