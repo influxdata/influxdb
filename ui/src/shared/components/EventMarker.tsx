@@ -10,6 +10,7 @@ import BoxTooltip from './BoxTooltip'
 
 //Types
 import {StatusRow, CheckStatusLevel} from 'src/types'
+import EventMarkerTooltip from './EventMarkerTooltip'
 
 interface Props {
   event: StatusRow[]
@@ -46,23 +47,27 @@ const EventMarker: FC<Props> = ({xScale, xDomain, event}) => {
   const levelClass = `event-marker--${level.toLowerCase()}`
 
   return (
-    <>
-      {isInDomain(time, xDomain) && (
+    isInDomain(time, xDomain) && (
+      <>
+        <div className={`event-marker--line ${levelClass}`} style={style} />
         <div
-          className={`event-marker--line ${levelClass}`}
+          className={`event-marker--line-rect ${levelClass}`}
           style={style}
-          onMouseEnter={() => setTooltipVisible(true)}
-          onMouseLeave={() => setTooltipVisible(false)}
-        >
-          <div className="event-marker--line-triangle" ref={trigger} />
-          {tooltipVisible && (
-            <BoxTooltip triggerRect={triggerRect as DOMRect}>
-              <div> omgomg</div>
-            </BoxTooltip>
-          )}
-        </div>
-      )}
-    </>
+          ref={trigger}
+          onMouseEnter={() => {
+            setTooltipVisible(true)
+          }}
+          onMouseLeave={() => {
+            setTooltipVisible(false)
+          }}
+        />
+        {tooltipVisible && (
+          <BoxTooltip triggerRect={triggerRect as DOMRect}>
+            <EventMarkerTooltip events={event} />
+          </BoxTooltip>
+        )}
+      </>
+    )
   )
 }
 

@@ -44,14 +44,28 @@ $event-marker-z-index: 2;
   }
 }
 
-.event-marker--line-triangle {
+// .event-marker--line-triangle {
+//   position: absolute;
+//   left: 50%;
+//   top: -($event-marker-triangle-offset - 2px);
+//   transform: translate(-50%, -100%) rotate(360deg);
+//   border-width: ($event-marker-triangle * 0.86625) ($event-marker-triangle * 0.5) 0 ($event-marker-triangle * 0.5);
+//   border-style: solid;
+//   border-color: transparent;
+//   z-index: $event-marker-z-index + 1;
+// }
+
+.event-marker--line-rect {
+  width: 4px;
+  height: 20px;
+  color: white;
   position: absolute;
   left: 50%;
   top: -($event-marker-triangle-offset - 2px);
-  transform: translate(-50%, -100%) rotate(360deg);
-  border-width: ($event-marker-triangle * 0.86625) ($event-marker-triangle * 0.5) 0 ($event-marker-triangle * 0.5);
-  border-style: solid;
-  border-color: transparent;
+  transform: translate(-50%, -100%);// rotate(360deg);
+  // border-width: ($event-marker-triangle * 0.86625) ($event-marker-triangle * 0.5) 0 ($event-marker-triangle * 0.5);
+  // border-style: solid;
+  // border-color: transparent;
   z-index: $event-marker-z-index + 1;
 }
 
