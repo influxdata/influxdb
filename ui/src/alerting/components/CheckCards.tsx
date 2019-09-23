@@ -92,8 +92,12 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
 
   if (showFirstTimeWidget) {
     return (
-      <Panel gradient={Gradients.PolarExpress} className="alerting-first-time">
-        <Panel.Body size={ComponentSize.Large}>
+      <Panel
+        gradient={Gradients.PolarExpress}
+        size={ComponentSize.Large}
+        className="alerting-first-time"
+      >
+        <Panel.Body>
           <h1>Get started monitoring by creating a check</h1>
           <h5>When a value crosses a specific threshold:</h5>
           <Button

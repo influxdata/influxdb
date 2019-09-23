@@ -28,12 +28,11 @@ class TemplateBrowserDetails extends PureComponent<Props> {
         autoSize={false}
       >
         <Panel
+          size={ComponentSize.Medium}
           testID="template-panel"
           className="import-template-overlay--panel"
         >
-          <Panel.Body size={ComponentSize.Medium}>
-            {this.panelContents}
-          </Panel.Body>
+          <Panel.Body>{this.panelContents}</Panel.Body>
         </Panel>
       </DapperScrollbars>
     )

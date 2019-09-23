@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent, createRef, RefObject} from 'react'
+import React, {FunctionComponent} from 'react'
 
 // Components
 import {
@@ -32,35 +32,30 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
   singleField,
   singleAggregateFunc,
 }) => {
-  const triggerRef: RefObject<HTMLButtonElement> = createRef()
   return (
-    <>
-      <Popover
-        visible={status !== ComponentStatus.Default}
-        position={PopoverPosition.Below}
-        enableDefaultStyles={false}
-        showEvent={PopoverInteraction.None}
-        hideEvent={PopoverInteraction.None}
-        color={ComponentColor.Secondary}
-        type={PopoverType.Outline}
-        triggerRef={triggerRef}
-        contents={() => (
-          <div className="query-checklist--popover">
-            <p>{`To create a ${checkType} check, your query must include:`}</p>
-            <ul className="query-checklist--list">
-              <QueryChecklistItem text="One field" selected={singleField} />
-              {checkType === 'threshold' && (
-                <QueryChecklistItem
-                  text="One aggregate function"
-                  selected={singleAggregateFunc}
-                />
-              )}
-            </ul>
-          </div>
-        )}
-      />
+    <Popover
+      visible={status !== ComponentStatus.Default}
+      position={PopoverPosition.Below}
+      showEvent={PopoverInteraction.None}
+      hideEvent={PopoverInteraction.None}
+      color={ComponentColor.Secondary}
+      type={PopoverType.Outline}
+      contents={() => (
+        <div className="query-checklist--popover">
+          <p>{`To create a ${checkType} check, your query must include:`}</p>
+          <ul className="query-checklist--list">
+            <QueryChecklistItem text="One field" selected={singleField} />
+            {checkType === 'threshold' && (
+              <QueryChecklistItem
+                text="One aggregate function"
+                selected={singleAggregateFunc}
+              />
+            )}
+          </ul>
+        </div>
+      )}
+    >
       <SquareButton
-        refObject={triggerRef}
         className={className}
         icon={IconFont.Checkmark}
         color={ComponentColor.Success}
@@ -69,7 +64,7 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
         onClick={onSave}
         testID="save-cell--button"
       />
-    </>
+    </Popover>
   )
 }
 

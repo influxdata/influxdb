@@ -37,11 +37,11 @@ exports[`Account rendering renders! 1`] = `
             >
               <Panel
                 backgroundColor="#292933"
-                dismissButtonColor="primary"
+                size="sm"
                 testID="panel"
               >
                 <div
-                  className="cf-panel cf-panel__light-text"
+                  className="cf-panel cf-panel--sm cf-panel__light-text"
                   data-testid="panel"
                   style={
                     Object {
@@ -53,11 +53,10 @@ exports[`Account rendering renders! 1`] = `
                     alignItems="center"
                     flexDirection="row"
                     justifyContent="space-between"
-                    size="sm"
                     testID="panel--header"
                   >
                     <div
-                      className="cf-panel--header cf-panel--header__sm"
+                      className="cf-panel--header"
                       data-testid="panel--header"
                     >
                       <FlexBox
@@ -73,11 +72,10 @@ exports[`Account rendering renders! 1`] = `
                           data-testid="flex-box"
                         >
                           <PanelTitle
-                            size="sm"
                             testID="panel--title"
                           >
                             <div
-                              className="cf-panel--title cf-panel--title__sm"
+                              className="cf-panel--title"
                               data-testid="panel--title"
                             >
                               About Me
@@ -126,11 +124,10 @@ exports[`Account rendering renders! 1`] = `
                     </div>
                   </PanelHeader>
                   <PanelBody
-                    size="sm"
                     testID="panel--body"
                   >
                     <div
-                      className="cf-panel--body cf-panel--body__sm"
+                      className="cf-panel--body"
                       data-testid="panel--body"
                     >
                       <Form
