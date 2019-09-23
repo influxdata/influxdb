@@ -6,7 +6,6 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/dependencies"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -128,7 +127,7 @@ type REPLQuerier struct {
 
 // Query will pack a query to be sent to a remote server for execution.  deps may be safely ignored since
 // they will be correctly initialized on the server side.
-func (q *REPLQuerier) Query(ctx context.Context, deps dependencies.Interface, compiler flux.Compiler) (flux.ResultIterator, error) {
+func (q *REPLQuerier) Query(ctx context.Context, deps flux.Dependencies, compiler flux.Compiler) (flux.ResultIterator, error) {
 	req := &Request{
 		Authorization:  q.Authorization,
 		OrganizationID: q.OrganizationID,

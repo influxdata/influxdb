@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/influxdata/flux"
@@ -110,7 +109,7 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 
 	// the dependencies used for FromKind are adequate for what we need here
 	// so there's no need to inject custom dependencies for buckets()
-	deps := a.Dependencies()[influxdb.BucketsKind].(BucketDependencies)
+	deps := GetStorageDependencies(a.Context()).BucketDeps
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
 		return nil, &flux.Error{
@@ -129,11 +128,3 @@ type AllBucketLookup interface {
 	FindAllBuckets(ctx context.Context, orgID platform.ID) ([]*platform.Bucket, int)
 }
 type BucketDependencies AllBucketLookup
-
-func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependencies) error {
-	if deps == nil {
-		return errors.New("missing all bucket lookup dependency")
-	}
-	depsMap[influxdb.BucketsKind] = deps
-	return nil
-}

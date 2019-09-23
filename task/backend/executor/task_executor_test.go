@@ -68,7 +68,7 @@ func testQuerySuccess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func testQueryFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,27 +145,26 @@ func testManualRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mr, err := tes.i.ManualRuns(ctx, task.ID)
+	mrs, err := tes.i.ManualRuns(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(mr) != 1 {
+	if len(mrs) != 1 {
 		t.Fatal("manual run not created by force run")
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
-	if err != nil {
-		t.Fatal(err)
-	}
-	promiseID := influxdb.ID(promise.ID())
-
-	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
+	promise, err := tes.ex.ManualRun(ctx, task.ID, manualRun.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if run.ID != promiseID || manualRun.ID != promiseID {
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promise.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if run.ID != promise.ID() || manualRun.ID != promise.ID() {
 		t.Fatal("promise and run and manual run dont match")
 	}
 
@@ -193,28 +192,22 @@ func testResumingRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.ResumeCurrentRun(ctx, task.ID, stalledRun.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
 
 	// ensure that it doesn't recreate a promise
-	promise2, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	if _, err := tes.ex.ResumeCurrentRun(ctx, task.ID, stalledRun.ID); err != influxdb.ErrRunNotFound {
+		t.Fatal("failed to error when run has already been resumed")
+	}
+
+	run, err := tes.i.FindRunByID(context.Background(), task.ID, promise.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if promise2 != promise {
-		t.Fatal("executing a current promise for a task that is already running created a new promise")
-	}
-
-	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if run.ID != promiseID || stalledRun.ID != promiseID {
+	if run.ID != promise.ID() || stalledRun.ID != promise.ID() {
 		t.Fatal("promise and run and manual run dont match")
 	}
 
@@ -237,7 +230,7 @@ func testWorkerLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +272,7 @@ func testLimitFunc(t *testing.T) {
 		return nil
 	})
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +308,7 @@ func testMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,14 +357,12 @@ func testMetrics(t *testing.T) {
 
 	scheduledFor := int64(123)
 
-	_, err = tes.i.ForceRun(ctx, mt.ID, scheduledFor)
+	r, err := tes.i.ForceRun(ctx, mt.ID, scheduledFor)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	scheduledForTime := time.Unix(scheduledFor, 0).UTC()
-
-	tes.ex.Execute(ctx, scheduler.ID(mt.ID), scheduledForTime)
+	tes.ex.ManualRun(ctx, mt.ID, r.ID)
 
 	mg = promtest.MustGather(t, reg)
 
@@ -400,7 +391,7 @@ func testIteratorFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	promise, err := tes.ex.Execute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
 	if err != nil {
 		t.Fatal(err)
 	}

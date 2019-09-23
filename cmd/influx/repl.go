@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/flux/dependencies"
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
@@ -106,5 +106,5 @@ func getFluxREPL(addr, token string, orgID platform.ID) (*repl.REPL, error) {
 	}
 	// background context is OK here, and DefaultDependencies are noop deps.  Also safe since we send all queries to the
 	// server side.
-	return repl.New(context.Background(), dependencies.NewDefaults(), q), nil
+	return repl.New(context.Background(), flux.NewDefaultDependencies(), q), nil
 }

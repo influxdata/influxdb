@@ -2,20 +2,177 @@ package storage
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"math"
 	"math/rand"
+	"os"
 	"reflect"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
+	"github.com/influxdata/influxdb/logger"
+	"github.com/influxdata/influxdb/toml"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
+func TestEngine_runRetentionEnforcer(t *testing.T) {
+	t.Parallel()
+	c := NewConfig()
+	c.RetentionInterval = toml.Duration(time.Second)
+	log := zap.NewNop()
+	if testing.Verbose() {
+		log = logger.New(os.Stdout)
+	}
+
+	t.Run("no limiter", func(t *testing.T) {
+		t.Parallel()
+
+		path := MustTempDir()
+		defer os.RemoveAll(path)
+
+		var runner MockRunner
+		engine := NewEngine(path, c, WithNodeID(100), WithEngineID(30))
+		engine.retentionEnforcer = &runner
+
+		done := make(chan struct{})
+		runner.runf = func() {
+			close(done)
+		}
+
+		if err := engine.Open(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer engine.Close()
+
+		timer := time.NewTimer(5 * time.Second)
+		select {
+		case <-timer.C:
+			t.Fatal("Test timed out")
+		case <-done:
+			return
+		}
+	})
+
+	t.Run("close during limit", func(t *testing.T) {
+		t.Parallel()
+
+		path := MustTempDir()
+		defer os.RemoveAll(path)
+
+		// close(running)
+		// time.Sleep(time.Minute)
+		blocked := make(chan struct{})
+		limiter := func() func() {
+			close(blocked)
+			time.Sleep(time.Hour) // block forever
+			return func() {}
+		}
+
+		engine := NewEngine(path, c, WithNodeID(101), WithEngineID(32), WithRetentionEnforcerLimiter(limiter))
+
+		var runner MockRunner
+		engine.retentionEnforcer = &runner
+
+		done := make(chan struct{})
+		runner.runf = func() {
+			close(done)
+		}
+
+		if err := engine.Open(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer engine.Close()
+
+		select {
+		case <-blocked: // Now we are stuck waiting on the limiter
+			// Close the service early. We should return
+			if err := engine.Close(); err != nil {
+				t.Fatal(err)
+			}
+		case <-done:
+			return
+		}
+	})
+
+	t.Run("limiter", func(t *testing.T) {
+		t.Parallel()
+
+		path := MustTempDir()
+		defer os.RemoveAll(path)
+
+		var mu sync.Mutex
+		limiter := func() func() {
+			mu.Lock()
+			return func() { mu.Unlock() }
+		}
+
+		engine1 := NewEngine(path, c, WithNodeID(2), WithEngineID(1), WithRetentionEnforcerLimiter(limiter))
+		engine1.WithLogger(log)
+		engine2 := NewEngine(path, c, WithNodeID(3), WithEngineID(2), WithRetentionEnforcerLimiter(limiter))
+		engine2.WithLogger(log)
+
+		var runner1, runner2 MockRunner
+		engine1.retentionEnforcer = &runner1
+		engine2.retentionEnforcer = &runner2
+
+		var running int64
+		errCh := make(chan error, 2)
+
+		runner1.runf = func() {
+			x := atomic.AddInt64(&running, 1)
+			if x > 1 {
+				errCh <- errors.New("runner 1 ran concurrently with runner 2")
+				return
+			}
+
+			time.Sleep(time.Second) //Running retention
+
+			atomic.AddInt64(&running, -1)
+			runner1.runf = func() {} // Don't run again.
+			errCh <- nil
+		}
+
+		runner2.runf = func() {
+			x := atomic.AddInt64(&running, 1)
+			if x > 1 {
+				errCh <- errors.New("runner 2 ran concurrently with runner 1")
+				return
+			}
+
+			time.Sleep(time.Second) //Running retention
+
+			atomic.AddInt64(&running, -1)
+			runner2.runf = func() {} // Don't run again.
+			errCh <- nil
+		}
+
+		if err := engine1.Open(context.Background()); err != nil {
+			t.Fatal(err)
+		} else if err := engine2.Open(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		defer engine1.Close()
+		defer engine2.Close()
+
+		for i := 0; i < 2; i++ {
+			if err := <-errCh; err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}
+
 func TestRetentionService(t *testing.T) {
+	t.Parallel()
 	engine := NewTestEngine()
 	service := newRetentionEnforcer(engine, &TestSnapshotter{}, NewTestBucketFinder())
 	now := time.Date(2018, 4, 10, 23, 12, 33, 0, time.UTC)
@@ -84,6 +241,7 @@ func TestRetentionService(t *testing.T) {
 }
 
 func TestMetrics_Retention(t *testing.T) {
+	t.Parallel()
 	// metrics to be shared by multiple file stores.
 	metrics := newRetentionMetrics(prometheus.Labels{"engine_id": "", "node_id": ""})
 
@@ -144,6 +302,17 @@ func genMeasurementName() []byte {
 	return b
 }
 
+type MockRunner struct {
+	runf func()
+}
+
+func (r *MockRunner) run() {
+	if r.runf == nil {
+		return
+	}
+	r.runf()
+}
+
 type TestEngine struct {
 	DeleteBucketRangeFn func(context.Context, influxdb.ID, influxdb.ID, int64, int64) error
 }
@@ -178,4 +347,12 @@ func NewTestBucketFinder() *TestBucketFinder {
 
 func (f *TestBucketFinder) FindBuckets(ctx context.Context, filter influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
 	return f.FindBucketsFn(ctx, filter, opts...)
+}
+
+func MustTempDir() string {
+	dir, err := ioutil.TempDir("", "storage-engine-test")
+	if err != nil {
+		panic(fmt.Sprintf("failed to create temp dir: %v", err))
+	}
+	return dir
 }

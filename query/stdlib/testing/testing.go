@@ -46,11 +46,12 @@ var FluxEndToEndSkipList = map[string]string{
 	"fill_default": "unknown field type for f1",
 
 	// these may just be missing calls to range() in the tests.  easy to fix in a new PR.
-	"group_nulls":      "unbounded test",
-	"integral":         "unbounded test",
-	"integral_columns": "unbounded test",
-	"map":              "unbounded test",
-	"buckets":          "unbounded test",
+	"group_nulls":         "unbounded test",
+	"integral":            "unbounded test",
+	"integral_columns":    "unbounded test",
+	"map":                 "unbounded test",
+	"buckets":             "unbounded test",
+	"join_missing_on_col": "unbounded test",
 
 	// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
 	"columns":            "group key mismatch",

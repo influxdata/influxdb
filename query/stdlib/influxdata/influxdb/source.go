@@ -123,7 +123,7 @@ func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a
 	src.reader = r
 	src.readSpec = readSpec
 
-	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
 	src.op = "readFilter"
 
@@ -158,7 +158,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 		}
 	}
 
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context()).FromDeps
 
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
@@ -206,7 +206,7 @@ func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a e
 	src.reader = r
 	src.readSpec = readSpec
 
-	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
 	src.op = "readGroup"
 
@@ -238,7 +238,7 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 		return nil, errors.New("nil bounds passed to from")
 	}
 
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context()).FromDeps
 
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
@@ -278,7 +278,7 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 	defer span.Finish()
 
 	spec := prSpec.(*ReadTagKeysPhysSpec)
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context()).FromDeps
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
 		return nil, errors.New("missing request on context")
@@ -326,7 +326,7 @@ func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec,
 	src.id = id
 	src.alloc = a.Allocator()
 
-	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
 	src.op = "readTagKeys"
 
@@ -347,7 +347,7 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 	defer span.Finish()
 
 	spec := prSpec.(*ReadTagValuesPhysSpec)
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context()).FromDeps
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
 		return nil, errors.New("missing request on context")
@@ -396,7 +396,7 @@ func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesS
 	src.id = id
 	src.alloc = a.Allocator()
 
-	src.m = getMetricsFromDependencies(a.Dependencies())
+	src.m = GetStorageDependencies(a.Context()).FromDeps.Metrics
 	src.orgID = readSpec.OrganizationID
 	src.op = "readTagValues"
 

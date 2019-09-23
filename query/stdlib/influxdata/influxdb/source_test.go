@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies/dependenciestest"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
@@ -52,11 +52,11 @@ func (mockReader) Close() {
 }
 
 type mockAdministration struct {
-	DependenciesFn func() execute.Dependencies
+	Ctx context.Context
 }
 
-func (mockAdministration) Context() context.Context {
-	return context.Background()
+func (a mockAdministration) Context() context.Context {
+	return a.Ctx
 }
 
 func (mockAdministration) ResolveTime(qt flux.Time) execute.Time {
@@ -75,10 +75,6 @@ func (mockAdministration) Parents() []execute.DatasetID {
 	return nil
 }
 
-func (a mockAdministration) Dependencies() execute.Dependencies {
-	return a.DependenciesFn()
-}
-
 const (
 	labelKey   = "key1"
 	labelValue = "value1"
@@ -93,31 +89,24 @@ func TestMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var a execute.Administration
-	{
-		fromDeps := influxdb.Dependencies{
-			Reader:             &mockReader{},
-			BucketLookup:       mock.BucketLookup{},
-			OrganizationLookup: mock.OrganizationLookup{},
-			Metrics:            influxdb.NewMetrics([]string{labelKey}),
-		}
-		a = &mockAdministration{
-			DependenciesFn: func() execute.Dependencies {
-				deps := make(map[string]interface{})
-				deps[influxdb.FromKind] = fromDeps
-				return deps
+	deps := influxdb.Dependencies{
+		FluxDeps: dependenciestest.Default(),
+		StorageDeps: influxdb.StorageDependencies{
+			FromDeps: influxdb.FromDependencies{
+				Reader:             &mockReader{},
+				BucketLookup:       mock.BucketLookup{},
+				OrganizationLookup: mock.OrganizationLookup{},
+				Metrics:            influxdb.NewMetrics([]string{labelKey}),
 			},
-		}
+		},
 	}
-
-	for _, v := range a.Dependencies() {
-		if pc, ok := v.(prom.PrometheusCollector); ok {
-			reg.MustRegister(pc.PrometheusCollectors()...)
-		}
-	}
+	reg.MustRegister(deps.PrometheusCollectors()...)
 
 	// This key/value pair added to the context will appear as a label in the prometheus histogram.
 	ctx := context.WithValue(context.Background(), labelKey, labelValue) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
+	// Injecting deps
+	ctx = deps.Inject(ctx)
+	a := &mockAdministration{Ctx: ctx}
 	rfs := influxdb.ReadFilterSource(
 		execute.DatasetID(uuid.FromTime(time.Now())),
 		&mockReader{},

@@ -17,6 +17,15 @@ import (
 	"go.uber.org/zap"
 )
 
+var _ scheduler.Executor = (*TaskExecutor)(nil)
+
+type Promise interface {
+	ID() influxdb.ID
+	Cancel(ctx context.Context)
+	Done() <-chan struct{}
+	Error() error
+}
+
 // MultiLimit allows us to create a single limit func that applies more then one limit.
 func MultiLimit(limits ...LimitFunc) LimitFunc {
 	return func(run *influxdb.Run) error {
@@ -42,7 +51,7 @@ func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.Authoriz
 		as:     as,
 
 		currentPromises: sync.Map{},
-		promiseQueue:    make(chan *Promise, 1000),                //TODO(lh): make this configurable
+		promiseQueue:    make(chan *promise, 1000),                //TODO(lh): make this configurable
 		workerLimit:     make(chan struct{}, 100),                 //TODO(lh): make this configurable
 		limitFunc:       func(*influxdb.Run) error { return nil }, // noop
 	}
@@ -72,7 +81,7 @@ type TaskExecutor struct {
 	currentPromises sync.Map
 
 	// keep a pool of promise's we have in queue
-	promiseQueue chan *Promise
+	promiseQueue chan *promise
 
 	limitFunc LimitFunc
 
@@ -86,47 +95,82 @@ func (e *TaskExecutor) SetLimitFunc(l LimitFunc) {
 	e.limitFunc = l
 }
 
-// Execute begins execution for the tasks id with a specific scheduledAt time.
+// Execute is a executor to satisfy the needs of tasks
+func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) error {
+	_, err := e.PromisedExecute(ctx, id, scheduledAt)
+	return err
+}
+
+// PromisedExecute begins execution for the tasks id with a specific scheduledAt time.
 // When we execute we will first build a run for the scheduledAt time,
 // We then want to add to the queue anything that was manually queued to run.
 // If the queue is full the call to execute should hang and apply back pressure to the caller
 // We then start a worker to work the newly queued jobs.
-func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) (*Promise, error) {
+func (e *TaskExecutor) PromisedExecute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) (Promise, error) {
 	iid := influxdb.ID(id)
-	var p *Promise
-	var err error
-
-	// look for manual run by scheduledAt
-
-	p, err = e.startManualRun(ctx, iid, scheduledAt)
-	if err == nil && p != nil {
-		e.metrics.manualRunsCounter.WithLabelValues(string(iid)).Inc()
-		goto PROMISEMADE
-	}
-
-	// look in currentlyrunning
-	p, err = e.resumeRun(ctx, iid, scheduledAt)
-	if err == nil && p != nil {
-		e.metrics.resumeRunsCounter.WithLabelValues(string(iid)).Inc()
-		goto PROMISEMADE
-	}
 
 	// create a run
-	p, err = e.createRun(ctx, iid, scheduledAt)
+	p, err := e.createRun(ctx, iid, scheduledAt)
 	if err != nil {
 		return nil, err
 	}
 
-PROMISEMADE:
+	e.startWorker()
+	return p, nil
+}
 
+func (e *TaskExecutor) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (Promise, error) {
+	// create promises for any manual runs
+	r, err := e.tcs.StartManualRun(ctx, id, runID)
+	if err != nil {
+		return nil, err
+	}
+	p, err := e.createPromise(ctx, r)
+
+	e.startWorker()
+	e.metrics.manualRunsCounter.WithLabelValues(string(id)).Inc()
+	return p, err
+}
+
+func (e *TaskExecutor) ResumeCurrentRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (Promise, error) {
+	cr, err := e.tcs.CurrentlyRunning(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, run := range cr {
+		if run.ID == runID {
+			if _, ok := e.currentPromises.Load(run.ID); ok {
+				continue
+			}
+
+			p, err := e.createPromise(ctx, run)
+
+			e.startWorker()
+			e.metrics.resumeRunsCounter.WithLabelValues(string(id)).Inc()
+			return p, err
+		}
+	}
+	return nil, influxdb.ErrRunNotFound
+}
+
+func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*promise, error) {
+	r, err := e.tcs.CreateRun(ctx, id, scheduledAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return e.createPromise(ctx, r)
+}
+
+func (e *TaskExecutor) startWorker() {
 	// see if have available workers
 	select {
 	case e.workerLimit <- struct{}{}:
 	default:
 		// we have reached our worker limit and we cannot start any more.
-		return p, nil
+		return
 	}
-
 	// fire up some workers
 	worker := e.workerPool.Get().(*worker)
 	if worker != nil {
@@ -140,63 +184,16 @@ PROMISEMADE:
 			<-e.workerLimit
 		}()
 	}
-	return p, nil
 }
 
-func (e *TaskExecutor) startManualRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
-	// create promises for any manual runs
-	mr, err := e.tcs.ManualRuns(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	for _, run := range mr {
-		sa, err := run.ScheduledForTime()
-		if err == nil && sa.UTC() == scheduledAt.UTC() {
-			r, err := e.tcs.StartManualRun(ctx, id, run.ID)
-			if err != nil {
-				return nil, err
-			}
-			return e.createPromise(ctx, r)
-		}
-	}
-	return nil, influxdb.ErrRunNotFound
-}
-
-func (e *TaskExecutor) resumeRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
-	cr, err := e.tcs.CurrentlyRunning(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	for _, run := range cr {
-		sa, err := run.ScheduledForTime()
-		if err == nil && sa.UTC() == scheduledAt.UTC() {
-			if currentPromise, ok := e.currentPromises.Load(run.ID); ok {
-				// if we already have a promise we should just return that
-				return currentPromise.(*Promise), nil
-			}
-			return e.createPromise(ctx, run)
-		}
-	}
-	return nil, influxdb.ErrRunNotFound
-}
-
-func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*Promise, error) {
-	r, err := e.tcs.CreateRun(ctx, id, scheduledAt)
-	if err != nil {
-		return nil, err
-	}
-
-	return e.createPromise(ctx, r)
-}
-
-// Cancel a run of a specific task. promiseID is the id of the run object
-func (e *TaskExecutor) Cancel(ctx context.Context, promiseID scheduler.ID) error {
+// Cancel a run of a specific task.
+func (e *TaskExecutor) Cancel(ctx context.Context, runID influxdb.ID) error {
 	// find the promise
-	val, ok := e.currentPromises.Load(influxdb.ID(promiseID))
+	val, ok := e.currentPromises.Load(runID)
 	if !ok {
 		return nil
 	}
-	promise := val.(*Promise)
+	promise := val.(*promise)
 
 	// call cancel on it.
 	promise.Cancel(ctx)
@@ -204,7 +201,7 @@ func (e *TaskExecutor) Cancel(ctx context.Context, promiseID scheduler.ID) error
 	return nil
 }
 
-func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*Promise, error) {
+func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*promise, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -215,7 +212,7 @@ func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*P
 
 	ctx, cancel := context.WithCancel(ctx)
 	// create promise
-	p := &Promise{
+	p := &promise{
 		run:        run,
 		task:       t,
 		auth:       t.Authorization,
@@ -253,7 +250,7 @@ type worker struct {
 func (w *worker) work() {
 	// loop until we have no more work to do in the promise queue
 	for {
-		var prom *Promise
+		var prom *promise
 		// check to see if we can execute
 		select {
 		case p, ok := <-w.te.promiseQueue:
@@ -302,7 +299,7 @@ func (w *worker) work() {
 	}
 }
 
-func (w *worker) start(p *Promise) {
+func (w *worker) start(p *promise) {
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
@@ -316,7 +313,7 @@ func (w *worker) start(p *Promise) {
 	w.te.metrics.StartRun(p.task.ID, time.Since(p.createdAt))
 }
 
-func (w *worker) finish(p *Promise, rs backend.RunStatus, err *influxdb.Error) {
+func (w *worker) finish(p *promise, rs backend.RunStatus, err *influxdb.Error) {
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
@@ -341,7 +338,7 @@ func (w *worker) finish(p *Promise, rs backend.RunStatus, err *influxdb.Error) {
 	}
 }
 
-func (w *worker) executeQuery(p *Promise) {
+func (w *worker) executeQuery(p *promise) {
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
 
@@ -419,8 +416,8 @@ func (e *TaskExecutor) PromiseQueueUsage() float64 {
 	return float64(len(e.promiseQueue)) / float64(cap(e.promiseQueue))
 }
 
-// Promise represents a promise the executor makes to finish a run's execution asynchronously.
-type Promise struct {
+// promise represents a promise the executor makes to finish a run's execution asynchronously.
+type promise struct {
 	run  *influxdb.Run
 	task *influxdb.Task
 	auth *influxdb.Authorization
@@ -435,12 +432,12 @@ type Promise struct {
 }
 
 // ID is the id of the run that was created
-func (p *Promise) ID() scheduler.ID {
-	return scheduler.ID(p.run.ID)
+func (p *promise) ID() influxdb.ID {
+	return p.run.ID
 }
 
 // Cancel is used to cancel a executing query
-func (p *Promise) Cancel(ctx context.Context) {
+func (p *promise) Cancel(ctx context.Context) {
 	// call cancelfunc
 	p.cancelFunc()
 
@@ -452,13 +449,13 @@ func (p *Promise) Cancel(ctx context.Context) {
 }
 
 // Done provides a channel that closes on completion of a rpomise
-func (p *Promise) Done() <-chan struct{} {
+func (p *promise) Done() <-chan struct{} {
 	return p.done
 }
 
 // Error returns the error resulting from a run execution.
 // If the execution is not complete error waits on Done().
-func (p *Promise) Error() error {
+func (p *promise) Error() error {
 	<-p.done
 	return p.err
 }

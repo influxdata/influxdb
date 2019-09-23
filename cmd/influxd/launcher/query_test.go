@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb"
@@ -253,5 +254,154 @@ from(bucket: "%s")
 		t.Error("expected error")
 	} else if got, want := influxdb.ErrorCode(err), influxdb.EUnauthorized; got != want {
 		t.Errorf("unexpected error code -want/+got:\n\t- %v\n\t+ %v", got, want)
+	}
+}
+
+// We need a separate test for dynamic queries because our Flux e2e tests cannot test them now.
+// Indeed, tableFind would fail while initializing the data in the input bucket, because the data is not
+// written, and tableFind would complain not finding the tables.
+// This will change once we make side effects drive execution and remove from/to concurrency in our e2e tests.
+// See https://github.com/influxdata/flux/issues/1799.
+func TestPipeline_DynamicQuery(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	l.WritePointsOrFail(t, `
+m0,k=k0 f=0i 0
+m0,k=k0 f=1i 1
+m0,k=k0 f=2i 2
+m0,k=k0 f=3i 3
+m0,k=k0 f=4i 4
+m0,k=k1 f=5i 5
+m0,k=k1 f=6i 6
+m1,k=k0 f=5i 7
+m1,k=k2 f=0i 8
+m1,k=k0 f=6i 9
+m1,k=k1 f=6i 10
+m1,k=k0 f=7i 11
+m1,k=k0 f=5i 12
+m1,k=k1 f=8i 13
+m1,k=k2 f=9i 14
+m1,k=k3 f=5i 15`)
+
+	// How many points do we have in stream2 with the same values of the ones in the table with key k0 in stream1?
+	// The only point matching the description is `m1,k=k2 f=0i 8`, because its value is in the set [0, 1, 2, 3, 4].
+	dq := fmt.Sprintf(`
+stream1 = from(bucket: "%s") |> range(start: 0) |> filter(fn: (r) => r._measurement == "m0" and r._field == "f")
+stream2 = from(bucket: "%s") |> range(start: 0) |> filter(fn: (r) => r._measurement == "m1" and r._field == "f")
+col = stream1 |> tableFind(fn: (key) => key.k == "k0") |> getColumn(column: "_value")
+// Here is where dynamicity kicks in.
+stream2 |> filter(fn: (r) => contains(value: r._value, set: col)) |> group() |> count() |> yield(name: "dynamic")`,
+		l.Bucket.Name, l.Bucket.Name)
+	req := &query.Request{
+		Authorization:  l.Auth,
+		OrganizationID: l.Org.ID,
+		Compiler:       lang.FluxCompiler{Query: dq},
+	}
+	noRes := 0
+	if err := l.QueryAndConsume(ctx, req, func(r flux.Result) error {
+		noRes++
+		if n := r.Name(); n != "dynamic" {
+			t.Fatalf("got unexpected result: %s", n)
+		}
+		noTables := 0
+		if err := r.Tables().Do(func(tbl flux.Table) error {
+			return tbl.Do(func(cr flux.ColReader) error {
+				noTables++
+				j := execute.ColIdx("_value", cr.Cols())
+				if j == -1 {
+					return errors.New("cannot find table column \"_value\"")
+				}
+				if want := 1; cr.Len() != want {
+					t.Fatalf("wrong number of rows in table: -want/+got:\n\t- %d\n\t+ %d", want, cr.Len())
+				}
+				v := execute.ValueForRow(cr, 0, j)
+				if got, want := v, values.NewInt(1); !got.Equal(want) {
+					t.Errorf("unexpected value at row %d -want/+got:\n\t- %v\n\t+ %v", 0, want, got)
+				}
+				return nil
+			})
+		}); err != nil {
+			return err
+		}
+		if want := 1; noTables != want {
+			t.Fatalf("wrong number of tables in result: -want/+got:\n\t- %d\n\t+ %d", want, noRes)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	if want := 1; noRes != want {
+		t.Fatalf("wrong number of results: -want/+got:\n\t- %d\n\t+ %d", want, noRes)
+	}
+}
+
+func TestPipeline_Query_ExperimentalTo(t *testing.T) {
+	l := launcher.RunTestLauncherOrFail(t, ctx)
+	l.SetupOrFail(t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Last row of data tests nil field value
+	data := `
+#datatype,string,long,dateTime:RFC3339,double,string,string,string,string
+#group,false,false,false,false,true,true,true,true
+#default,_result,,,,,,,
+,result,table,_time,_value,_field,_measurement,cpu,host
+,,0,2018-05-22T19:53:26Z,1.0,usage_guest,cpu,cpu-total,host.local
+,,0,2018-05-22T19:53:36Z,1.1,usage_guest,cpu,cpu-total,host.local
+,,1,2018-05-22T19:53:26Z,2.0,usage_guest_nice,cpu,cpu-total,host.local
+,,1,2018-05-22T19:53:36Z,2.1,usage_guest_nice,cpu,cpu-total,host.local
+,,2,2018-05-22T19:53:26Z,91.7364670583823,usage_idle,cpu,cpu-total,host.local
+,,2,2018-05-22T19:53:36Z,89.51118889861233,usage_idle,cpu,cpu-total,host.local
+,,3,2018-05-22T19:53:26Z,3.0,usage_iowait,cpu,cpu-total,host.local
+,,3,2018-05-22T19:53:36Z,,usage_iowait,cpu,cpu-total,host.local
+`
+	pivotQuery := fmt.Sprintf(`
+import "csv"
+import "experimental"
+import "influxdata/influxdb/v1"
+csv.from(csv: "%s")
+    |> range(start: 2018-05-21T00:00:00Z, stop: 2018-05-23T00:00:00Z)
+    |> v1.fieldsAsCols()
+`, data)
+	res := l.MustExecuteQuery(pivotQuery)
+	defer res.Done()
+	pivotedResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	toQuery := pivotQuery + fmt.Sprintf(`|> experimental.to(bucket: "%s", org: "%s") |> yield(name: "_result")`,
+		l.Bucket.Name, l.Org.Name)
+	res = l.MustExecuteQuery(toQuery)
+	defer res.Done()
+	toOutputResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	// Make sure that experimental.to() echoes its input to its output
+	if err := executetest.EqualResultIterators(pivotedResultIterator, toOutputResultIterator); err != nil {
+		t.Fatal(err)
+	}
+
+	csvQuery := fmt.Sprintf(`
+import "csv"
+csv.from(csv: "%s")
+  |> filter(fn: (r) => exists r._value)
+`,
+		data)
+	res = l.MustExecuteQuery(csvQuery)
+	defer res.Done()
+	csvResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	fromQuery := fmt.Sprintf(`
+from(bucket: "%s")
+  |> range(start: 2018-05-15T00:00:00Z, stop: 2018-06-01T00:00:00Z)
+  |> drop(columns: ["_start", "_stop"])
+`,
+		l.Bucket.Name)
+	res = l.MustExecuteQuery(fromQuery)
+	defer res.Done()
+	fromResultIterator := flux.NewSliceResultIterator(res.Results)
+
+	// Make sure that the data we stored matches the CSV
+	if err := executetest.EqualResultIterators(csvResultIterator, fromResultIterator); err != nil {
+		t.Fatal(err)
 	}
 }
