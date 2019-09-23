@@ -29,21 +29,20 @@ type Props = WithRouterProps
 class OrgProfileTab extends PureComponent<Props> {
   public render() {
     return (
-      <Panel backgroundColor={InfluxColors.Onyx}>
-        <Panel.Header size={ComponentSize.Small}>
-          <Panel.Title size={ComponentSize.Small}>
-            Organization Profile
-          </Panel.Title>
+      <Panel size={ComponentSize.Small} backgroundColor={InfluxColors.Onyx}>
+        <Panel.Header>
+          <Panel.Title>Organization Profile</Panel.Title>
         </Panel.Header>
-        <Panel.Body size={ComponentSize.Small}>
+        <Panel.Body>
           <Form onSubmit={this.handleShowEditOverlay}>
-            <Panel gradient={Gradients.DocScott}>
-              <Panel.Header size={ComponentSize.ExtraSmall}>
-                <Panel.Title size={ComponentSize.ExtraSmall}>
-                  Danger Zone!
-                </Panel.Title>
+            <Panel
+              gradient={Gradients.DocScott}
+              size={ComponentSize.ExtraSmall}
+            >
+              <Panel.Header>
+                <Panel.Title>Danger Zone!</Panel.Title>
               </Panel.Header>
-              <Panel.Body size={ComponentSize.ExtraSmall}>
+              <Panel.Body>
                 <FlexBox
                   stretchToFitWidth={true}
                   alignItems={AlignItems.Center}

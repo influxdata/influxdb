@@ -40,9 +40,8 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
                   testID={`client-libraries-cards--${cl.id}`}
                   selected={false}
                   onClick={handleClick}
-                >
-                  <img src={cl.logoUrl} width="100%" />
-                </SelectableCard>
+                  image={<img src={cl.logoUrl} />}
+                />
               )
             })}
           </ResponsiveGridSizer>

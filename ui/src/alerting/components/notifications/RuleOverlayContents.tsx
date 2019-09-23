@@ -46,8 +46,8 @@ const RuleOverlayContents: FC<Props> = ({saveButtonText, onSave}) => {
         <Grid.Row>
           <Grid.Column widthSM={Columns.Two}>About</Grid.Column>
           <Grid.Column widthSM={Columns.Ten}>
-            <Panel>
-              <Panel.Body size={ComponentSize.ExtraSmall}>
+            <Panel size={ComponentSize.ExtraSmall}>
+              <Panel.Body>
                 <Form.Element label="Name">
                   <Input
                     testID="rule-name--input"

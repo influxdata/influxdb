@@ -11,14 +11,13 @@ import {
   FlexBox,
   FlexDirection,
   ComponentSize,
-  QuestionMarkTooltip,
-  ComponentColor,
 } from '@influxdata/clockface'
+import QuestionMarkTooltip from 'src/shared/components/question_mark_tooltip/QuestionMarkTooltip'
 
 interface Props {
   title: string
   createButton: JSX.Element
-  questionMarkTooltipContents: JSX.Element | string
+  questionMarkTooltipContents: ReactChild
   children: (searchTerm: string) => ReactChild
 }
 
@@ -40,10 +39,8 @@ const AlertsColumnHeader: FC<Props> = ({
             {title}
           </Panel.Title>
           <QuestionMarkTooltip
-            diameter={18}
-            color={ComponentColor.Primary}
             testID={`${title}--question-mark`}
-            tooltipContents={questionMarkTooltipContents}
+            tipContent={questionMarkTooltipContents}
           />
         </FlexBox>
         {createButton}
