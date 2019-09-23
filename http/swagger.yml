@@ -22,6 +22,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        '403':
+          description: user account is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unsuccessful authentication
           content:

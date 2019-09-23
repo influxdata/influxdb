@@ -61,7 +61,7 @@ func (s *NotificationRuleStore) FindNotificationRules(ctx context.Context, filte
 }
 
 // CreateNotificationRule checks to see if the authorizer on context has write access to the global notification rule resource.
-func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
+func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 	if err := authorizeWriteOrg(ctx, nr.GetOrgID()); err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (s *NotificationRuleStore) CreateNotificationRule(ctx context.Context, nr i
 }
 
 // UpdateNotificationRule checks to see if the authorizer on context has write access to the notification rule provided.
-func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *NotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
 	nr, err := s.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err

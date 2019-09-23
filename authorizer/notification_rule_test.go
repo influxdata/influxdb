@@ -301,7 +301,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+					UpdateNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -346,7 +346,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+					UpdateNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -384,7 +384,12 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{tt.args.permissions})
 
-			_, err := s.UpdateNotificationRule(ctx, tt.args.id, &rule.Slack{}, influxdb.ID(1))
+			nrc := influxdb.NotificationRuleCreate{
+				NotificationRule: &rule.Slack{},
+				Status:           influxdb.Active,
+			}
+
+			_, err := s.UpdateNotificationRule(ctx, tt.args.id, nrc, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -640,7 +645,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			name: "authorized to create notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRule, userID influxdb.ID) error {
+					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -663,7 +668,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			name: "unauthorized to create notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRule, userID influxdb.ID) error {
+					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 						return nil
 					},
 				},
@@ -694,10 +699,17 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			err := s.CreateNotificationRule(ctx, &rule.Slack{
+			nr := &rule.Slack{
 				Base: rule.Base{
 					OrgID: tt.args.orgID},
-			}, influxdb.ID(1))
+			}
+
+			nrc := influxdb.NotificationRuleCreate{
+				NotificationRule: nr,
+				Status:           influxdb.Active,
+			}
+
+			err := s.CreateNotificationRule(ctx, nrc, influxdb.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

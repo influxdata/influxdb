@@ -427,6 +427,10 @@ func decodePatchUserRequest(ctx context.Context, r *http.Request) (*patchUserReq
 		return nil, err
 	}
 
+	if err := upd.Valid(); err != nil {
+		return nil, err
+	}
+
 	return &patchUserRequest{
 		Update: upd,
 		UserID: i,

@@ -125,6 +125,11 @@ func TestAuthenticationHandler(t *testing.T) {
 			h := platformhttp.NewAuthenticationHandler(platformhttp.ErrorHandler(0))
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.SessionService = tt.fields.SessionService
+			h.UserService = &mock.UserService{
+				FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					return &platform.User{}, nil
+				},
+			}
 			h.Handler = handler
 
 			w := httptest.NewRecorder()

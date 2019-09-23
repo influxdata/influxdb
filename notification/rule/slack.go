@@ -108,23 +108,23 @@ func (s *Slack) generateSlackColors() ast.Expression {
 type slackAlias Slack
 
 // MarshalJSON implement json.Marshaler interface.
-func (c Slack) MarshalJSON() ([]byte, error) {
+func (s Slack) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		struct {
 			slackAlias
 			Type string `json:"type"`
 		}{
-			slackAlias: slackAlias(c),
-			Type:       c.Type(),
+			slackAlias: slackAlias(s),
+			Type:       s.Type(),
 		})
 }
 
 // Valid returns where the config is valid.
-func (c Slack) Valid() error {
-	if err := c.Base.valid(); err != nil {
+func (s Slack) Valid() error {
+	if err := s.Base.valid(); err != nil {
 		return err
 	}
-	if c.MessageTemplate == "" {
+	if s.MessageTemplate == "" {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "slack msg template is empty",
@@ -134,6 +134,6 @@ func (c Slack) Valid() error {
 }
 
 // Type returns the type of the rule config.
-func (c Slack) Type() string {
+func (s Slack) Type() string {
 	return "slack"
 }

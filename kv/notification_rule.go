@@ -66,13 +66,13 @@ func (s *Service) notificationRuleBucket(tx Tx) (Bucket, error) {
 }
 
 // CreateNotificationRule creates a new notification rule and sets b.ID with the new identifier.
-func (s *Service) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
+func (s *Service) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
 		return s.createNotificationRule(ctx, tx, nr, userID)
 	})
 }
 
-func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb.NotificationRule, userID influxdb.ID) error {
+func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 	id := s.IDGenerator.ID()
 	nr.SetID(id)
 	now := s.TimeGenerator.Now()
@@ -87,6 +87,14 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 
 	nr.SetTaskID(t.ID)
 
+	if err := nr.Valid(); err != nil {
+		return err
+	}
+
+	if err := nr.Status.Valid(); err != nil {
+		return err
+	}
+
 	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
 		return err
 	}
@@ -100,7 +108,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 	return s.createUserResourceMapping(ctx, tx, urm)
 }
 
-func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule) (*influxdb.Task, error) {
+func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
 	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
@@ -111,12 +119,14 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 		return nil, err
 	}
 
+	status := string(r.Status)
+
 	tc := influxdb.TaskCreate{
 		Type:           r.Type(),
 		Flux:           script,
 		OwnerID:        r.GetOwnerID(),
 		OrganizationID: r.GetOrgID(),
-		Status:         string(r.GetStatus()),
+		Status:         status,
 	}
 
 	t, err := s.createTask(ctx, tx, tc)
@@ -127,7 +137,7 @@ func (s *Service) createNotificationTask(ctx context.Context, tx Tx, r influxdb.
 	return t, nil
 }
 
-func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule) (*influxdb.Task, error) {
+func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
 	ep, _, _, err := s.findNotificationEndpointByID(ctx, tx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
@@ -140,8 +150,8 @@ func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.
 
 	tu := influxdb.TaskUpdate{
 		Flux:        &script,
-		Status:      strPtr(string(r.GetStatus())),
 		Description: strPtr(r.GetDescription()),
+		Status:      status,
 	}
 
 	t, err := s.updateTask(ctx, tx, r.GetTaskID(), tu)
@@ -154,16 +164,19 @@ func (s *Service) updateNotificationTask(ctx context.Context, tx Tx, r influxdb.
 
 // UpdateNotificationRule updates a single notification rule.
 // Returns the new notification rule after update.
-func (s *Service) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *Service) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
 	var err error
+	var rule influxdb.NotificationRule
+
 	err = s.kv.Update(ctx, func(tx Tx) error {
-		nr, err = s.updateNotificationRule(ctx, tx, id, nr, userID)
+		rule, err = s.updateNotificationRule(ctx, tx, id, nr, userID)
 		return err
 	})
-	return nr, err
+
+	return rule, err
 }
 
-func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb.ID, nr influxdb.NotificationRule, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb.ID, nr influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
 
 	current, err := s.findNotificationRuleByID(ctx, tx, id)
 	if err != nil {
@@ -178,16 +191,24 @@ func (s *Service) updateNotificationRule(ctx context.Context, tx Tx, id influxdb
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
 	nr.SetTaskID(current.GetTaskID())
 
-	_, err = s.updateNotificationTask(ctx, tx, nr)
+	if err := nr.Valid(); err != nil {
+		return nil, err
+	}
+
+	if err := nr.Status.Valid(); err != nil {
+		return nil, err
+	}
+
+	_, err = s.updateNotificationTask(ctx, tx, nr, strPtr(string(nr.Status)))
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
+	if err := s.putNotificationRule(ctx, tx, nr.NotificationRule); err != nil {
 		return nil, err
 	}
 
-	return nr, nil
+	return nr.NotificationRule, nil
 }
 
 // PatchNotificationRule updates a single  notification rule with changeset.
@@ -219,12 +240,14 @@ func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.
 	if upd.Description != nil {
 		nr.SetDescription(*upd.Description)
 	}
-	if upd.Status != nil {
-		nr.SetStatus(*upd.Status)
-	}
+
 	nr.SetUpdatedAt(s.TimeGenerator.Now())
 
-	_, err = s.updateNotificationTask(ctx, tx, nr)
+	if err := nr.Valid(); err != nil {
+		return nil, err
+	}
+
+	_, err = s.updateNotificationTask(ctx, tx, nr, strPtr(string(*upd.Status)))
 	if err != nil {
 		return nil, err
 	}
@@ -238,16 +261,21 @@ func (s *Service) patchNotificationRule(ctx context.Context, tx Tx, id influxdb.
 }
 
 // PutNotificationRule put a notification rule to storage.
-func (s *Service) PutNotificationRule(ctx context.Context, nr influxdb.NotificationRule) error {
+func (s *Service) PutNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate) error {
 	return s.kv.Update(ctx, func(tx Tx) (err error) {
+		if err := nr.Valid(); err != nil {
+			return err
+		}
+
+		if err := nr.Status.Valid(); err != nil {
+			return err
+		}
+
 		return s.putNotificationRule(ctx, tx, nr)
 	})
 }
 
 func (s *Service) putNotificationRule(ctx context.Context, tx Tx, nr influxdb.NotificationRule) error {
-	if err := nr.Valid(); err != nil {
-		return err
-	}
 	encodedID, _ := nr.GetID().Encode()
 
 	v, err := json.Marshal(nr)

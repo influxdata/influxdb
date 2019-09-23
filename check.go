@@ -22,8 +22,18 @@ type Check interface {
 	SetOwnerID(ID)
 	GenerateFlux() (string, error)
 	json.Marshaler
-	Updater
-	Getter
+
+	CRUDLogSetter
+	SetID(id ID)
+	SetOrgID(id ID)
+	SetName(name string)
+	SetDescription(description string)
+
+	GetID() ID
+	GetCRUDLog() CRUDLog
+	GetOrgID() ID
+	GetName() string
+	GetDescription() string
 }
 
 // ops for checks error
@@ -38,12 +48,6 @@ var (
 
 // CheckService represents a service for managing checks.
 type CheckService interface {
-	// UserResourceMappingService must be part of all CheckService service,
-	// for create, delete.
-	UserResourceMappingService
-	// OrganizationService is needed for search filter
-	OrganizationService
-
 	// FindCheckByID returns a single check by ID.
 	FindCheckByID(ctx context.Context, id ID) (Check, error)
 
@@ -55,11 +59,11 @@ type CheckService interface {
 	FindChecks(ctx context.Context, filter CheckFilter, opt ...FindOptions) ([]Check, int, error)
 
 	// CreateCheck creates a new check and sets b.ID with the new identifier.
-	CreateCheck(ctx context.Context, c Check, userID ID) error
+	CreateCheck(ctx context.Context, c CheckCreate, userID ID) error
 
 	// UpdateCheck updates the whole check.
 	// Returns the new check state after update.
-	UpdateCheck(ctx context.Context, id ID, c Check) (Check, error)
+	UpdateCheck(ctx context.Context, id ID, c CheckCreate) (Check, error)
 
 	// PatchCheck updates a single bucket with changeset.
 	// Returns the new check state after update.
@@ -74,6 +78,12 @@ type CheckUpdate struct {
 	Name        *string `json:"name,omitempty"`
 	Status      *Status `json:"status,omitempty"`
 	Description *string `json:"description,omitempty"`
+}
+
+// CheckCreate represent data to create a new Check
+type CheckCreate struct {
+	Check
+	Status Status `json:"status"`
 }
 
 // Valid returns err is the update is invalid.

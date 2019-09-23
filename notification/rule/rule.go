@@ -43,14 +43,13 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationRule, error) {
 
 // Base is the embed struct of every notification rule.
 type Base struct {
-	ID          influxdb.ID     `json:"id,omitempty"`
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	EndpointID  influxdb.ID     `json:"endpointID,omitempty"`
-	OrgID       influxdb.ID     `json:"orgID,omitempty"`
-	OwnerID     influxdb.ID     `json:"ownerID,omitempty"`
-	TaskID      influxdb.ID     `json:"taskID,omitempty"`
-	Status      influxdb.Status `json:"status"`
+	ID          influxdb.ID `json:"id,omitempty"`
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	EndpointID  influxdb.ID `json:"endpointID,omitempty"`
+	OrgID       influxdb.ID `json:"orgID,omitempty"`
+	OwnerID     influxdb.ID `json:"ownerID,omitempty"`
+	TaskID      influxdb.ID `json:"taskID,omitempty"`
 	// SleepUntil is an optional sleeptime to start a task.
 	SleepUntil *time.Time             `json:"sleepUntil,omitempty"`
 	Cron       string                 `json:"cron,omitempty"`
@@ -94,12 +93,6 @@ func (b Base) valid() error {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "Notification Rule EndpointID is invalid",
-		}
-	}
-	if b.Status != influxdb.Active && b.Status != influxdb.Inactive {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "invalid status",
 		}
 	}
 	if b.Offset != nil && b.Every != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
@@ -257,7 +250,7 @@ func increaseDur(d *ast.DurationLiteral) *ast.DurationLiteral {
 	for i, v := range d.Values {
 		value := v
 		if i == 0 {
-			value.Magnitude += 1
+			value.Magnitude++
 		}
 		dur.Values = append(dur.Values, value)
 	}
@@ -332,7 +325,7 @@ func (b *Base) SetTaskID(id influxdb.ID) {
 	b.TaskID = id
 }
 
-// Clears the task ID from the base.
+// ClearPrivateData clears the task ID from the base.
 func (b *Base) ClearPrivateData() {
 	b.TaskID = 0
 }
@@ -373,11 +366,6 @@ func (b *Base) GetDescription() string {
 	return b.Description
 }
 
-// GetStatus implements influxdb.Getter interface.
-func (b *Base) GetStatus() influxdb.Status {
-	return b.Status
-}
-
 // SetID will set the primary key.
 func (b *Base) SetID(id influxdb.ID) {
 	b.ID = id
@@ -401,9 +389,4 @@ func (b *Base) SetName(name string) {
 // SetDescription implements influxdb.Updator interface.
 func (b *Base) SetDescription(description string) {
 	b.Description = description
-}
-
-// SetStatus implements influxdb.Updator interface.
-func (b *Base) SetStatus(status influxdb.Status) {
-	b.Status = status
 }

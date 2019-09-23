@@ -6,12 +6,29 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/notification"
+	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/notification/rule"
 	influxTesting "github.com/influxdata/influxdb/testing"
 )
+
+func NewMockNotificationRuleBackend() *NotificationRuleBackend {
+	return &NotificationRuleBackend{
+		Logger: zap.NewNop().With(zap.String("handler", "check")),
+
+		UserResourceMappingService: mock.NewUserResourceMappingService(),
+		LabelService:               mock.NewLabelService(),
+		UserService:                mock.NewUserService(),
+		OrganizationService:        mock.NewOrganizationService(),
+		TaskService: &mock.TaskService{
+			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				return &influxdb.Task{Status: "active"}, nil
+			},
+		},
+	}
+}
 
 func Test_newNotificationRuleResponses(t *testing.T) {
 	type args struct {
@@ -45,7 +62,6 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 							EndpointID:  4,
 							Name:        "name1",
 							Description: "desc1",
-							Status:      influxdb.Active,
 							Every:       mustDuration("5m"),
 							Offset:      mustDuration("15s"),
 							TagRules: []notification.TagRule{
@@ -77,7 +93,6 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 							EndpointID:  44,
 							Name:        "name2",
 							Description: "desc2",
-							Status:      influxdb.Inactive,
 						},
 					},
 				},
@@ -108,7 +123,6 @@ func Test_newNotificationRuleResponses(t *testing.T) {
       "orgID": "0000000000000002",
       "ownerID": "0000000000000003",
       "runbookLink": "",
-      "status": "active",
       "statusRules": [
         {
           "currentLevel": "CRIT",
@@ -132,7 +146,8 @@ func Test_newNotificationRuleResponses(t *testing.T) {
         }
       ],
       "type": "slack",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "updatedAt": "0001-01-01T00:00:00Z",
+      "status": "active"
     },
     {
       "createdAt": "0001-01-01T00:00:00Z",
@@ -152,19 +167,24 @@ func Test_newNotificationRuleResponses(t *testing.T) {
       "orgID": "0000000000000002",
       "ownerID": "0000000000000021",
       "runbookLink": "",
-      "status": "inactive",
       "type": "pagerduty",
-      "updatedAt": "0001-01-01T00:00:00Z"
+      "updatedAt": "0001-01-01T00:00:00Z",
+      "status": "active"
     }
   ]
 }`,
 		},
 	}
+	handler := NewNotificationRuleHandler(NewMockNotificationRuleBackend())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			res := newNotificationRulesResponse(ctx, tt.args.nrs, mock.NewLabelService(), tt.args.filter, tt.args.opt)
+			res, err := handler.newNotificationRulesResponse(ctx, tt.args.nrs, mock.NewLabelService(), tt.args.filter, tt.args.opt)
+			if err != nil {
+				t.Fatalf("newNotificationRulesResponse() build response %v", err)
+			}
+
 			got, err := json.Marshal(res)
 			if err != nil {
 				t.Fatalf("newNotificationRulesResponse() JSON marshal %v", err)
@@ -197,7 +217,6 @@ func Test_newNotificationRuleResponse(t *testing.T) {
 						EndpointID:  4,
 						Name:        "name1",
 						Description: "desc1",
-						Status:      influxdb.Active,
 						Every:       mustDuration("5m"),
 						Offset:      mustDuration("15s"),
 						TagRules: []notification.TagRule{
@@ -270,9 +289,13 @@ func Test_newNotificationRuleResponse(t *testing.T) {
 }`,
 		},
 	}
+	handler := NewNotificationRuleHandler(NewMockNotificationRuleBackend())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res := newNotificationRuleResponse(tt.args.nr, []*influxdb.Label{})
+			res, err := handler.newNotificationRuleResponse(context.Background(), tt.args.nr, []*influxdb.Label{})
+			if err != nil {
+				t.Fatalf("newNotificationRuleResponse() building response %v", err)
+			}
 			got, err := json.Marshal(res)
 			if err != nil {
 				t.Fatalf("newNotificationRuleResponse() JSON marshal %v", err)

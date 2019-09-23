@@ -355,6 +355,25 @@ func (s *Service) updateUser(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		u.Name = *upd.Name
 	}
 
+	if upd.Status != nil {
+		if *upd.Status != u.Status && *upd.Status == "inactive" {
+			// Disable tasks
+			tasks, _, err := s.findTasksByUser(ctx, tx, influxdb.TaskFilter{User: &id})
+			if err != nil {
+				return nil, err
+			}
+			status := influxdb.TaskStatusInactive
+
+			for _, task := range tasks {
+				_, err := s.UpdateTask(ctx, task.ID, influxdb.TaskUpdate{Status: &status})
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+		u.Status = *upd.Status
+	}
+
 	if err := s.appendUserEventToLog(ctx, tx, u.ID, userUpdatedEvent); err != nil {
 		return nil, err
 	}
