@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -380,12 +381,20 @@ func TestEngine_InitializeMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	files := promtest.MustFindMetric(t, mfs, "storage_tsm_files_total", prometheus.Labels{"level": "0"})
+	files := promtest.MustFindMetric(t, mfs, "storage_tsm_files_total", prometheus.Labels{
+		"node_id":   fmt.Sprint(engine.nodeID),
+		"engine_id": fmt.Sprint(engine.engineID),
+		"level":     "0",
+	})
 	if m, got, exp := files, files.GetGauge().GetValue(), 0.0; got != exp {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
 	}
 
-	bytes := promtest.MustFindMetric(t, mfs, "storage_tsm_files_disk_bytes", prometheus.Labels{"level": "0"})
+	bytes := promtest.MustFindMetric(t, mfs, "storage_tsm_files_disk_bytes", prometheus.Labels{
+		"node_id":   fmt.Sprint(engine.nodeID),
+		"engine_id": fmt.Sprint(engine.engineID),
+		"level":     "0",
+	})
 	if m, got, exp := bytes, bytes.GetGauge().GetValue(), 0.0; got != exp {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
 	}
@@ -435,7 +444,7 @@ func TestEngine_WALDisabled(t *testing.T) {
 	config := storage.NewConfig()
 	config.WAL.Enabled = false
 
-	engine := NewEngine(config)
+	engine := NewEngine(config, rand.Int(), rand.Int())
 	defer engine.Close()
 	engine.MustOpen()
 
@@ -528,14 +537,16 @@ type Engine struct {
 	path        string
 	org, bucket influxdb.ID
 
+	engineID int
+	nodeID   int
 	*storage.Engine
 }
 
 // NewEngine create a new wrapper around a storage engine.
-func NewEngine(c storage.Config) *Engine {
+func NewEngine(c storage.Config, engineID, nodeID int) *Engine {
 	path, _ := ioutil.TempDir("", "storage_engine_test")
 
-	engine := storage.NewEngine(path, c)
+	engine := storage.NewEngine(path, c, storage.WithEngineID(engineID), storage.WithNodeID(nodeID))
 
 	org, err := influxdb.IDFromString("3131313131313131")
 	if err != nil {
@@ -548,16 +559,18 @@ func NewEngine(c storage.Config) *Engine {
 	}
 
 	return &Engine{
-		path:   path,
-		org:    *org,
-		bucket: *bucket,
-		Engine: engine,
+		path:     path,
+		org:      *org,
+		bucket:   *bucket,
+		engineID: engineID,
+		nodeID:   nodeID,
+		Engine:   engine,
 	}
 }
 
 // NewDefaultEngine returns a new Engine with a default configuration.
 func NewDefaultEngine() *Engine {
-	return NewEngine(storage.NewConfig())
+	return NewEngine(storage.NewConfig(), rand.Int(), rand.Int())
 }
 
 // MustOpen opens the engine or panicks.
