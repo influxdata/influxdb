@@ -1,6 +1,6 @@
 # InfluxDB Client
 
-[![GoDoc](https://godoc.org/github.com/influxdata/influxdb?status.svg)](http://godoc.org/github.com/influxdata/influxdb/client/v2)
+[![GoDoc](https://godoc.org/github.com/influxdata/influxdb?status.svg)](http://godoc.org/github.com/influxdata/influxdb1-client/v2)
 
 ## Description
 
@@ -304,7 +304,7 @@ cause fields to have differing timestamps when processed by the server.
 ## Go Docs
 
 Please refer to
-[http://godoc.org/github.com/influxdata/influxdb/client/v2](http://godoc.org/github.com/influxdata/influxdb/client/v2)
+[http://godoc.org/github.com/influxdata/influxdb/client/v2](http://godoc.org/github.com/influxdata/influxdb1-client/v2)
 for documentation.
 
 ## See Also
