@@ -25,11 +25,7 @@ describe('Collectors', () => {
 
       cy.contains('Create Configuration').click()
       cy.getByTestID('overlay--container').within(() => {
-        cy.getByTestID('telegraf-plugins--System').within(() => {
-          // This extra get could be avoided by fixing this issue:
-          // https://github.com/influxdata/clockface/issues/245
-          cy.get('.cf-selectable-card--container').click()
-        })
+        cy.getByTestID('telegraf-plugins--System').click()
         cy.getByTestID('next').click()
         cy.getByInputName('name')
           .clear()

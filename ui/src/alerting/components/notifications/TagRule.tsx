@@ -65,9 +65,9 @@ const TagRule: FC<Props> = ({tagRule}) => {
   }
 
   return (
-    <Panel testID="tag-rule" size={ComponentSize.ExtraSmall}>
+    <Panel testID="tag-rule">
       <DismissButton onClick={onDelete} color={ComponentColor.Default} />
-      <Panel.Body>
+      <Panel.Body size={ComponentSize.ExtraSmall}>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
           <TextBlock
             text="AND"

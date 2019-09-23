@@ -3,8 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {getDeep} from 'src/utils/wrappers'
 
 // Components
-import {Form, Input, Grid} from '@influxdata/clockface'
-import QuestionMarkTooltip from 'src/shared/components/question_mark_tooltip/QuestionMarkTooltip'
+import {Form, Input, Grid, QuestionMarkTooltip} from '@influxdata/clockface'
 import OnboardingButtons from 'src/onboarding/components/OnboardingButtons'
 
 // Actions
@@ -18,6 +17,7 @@ import {
   InputType,
   ComponentSize,
   ComponentStatus,
+  ComponentColor,
 } from '@influxdata/clockface'
 import {StepStatus} from 'src/clockface/constants/wizard'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
@@ -244,8 +244,12 @@ class AdminStep extends PureComponent<Props, State> {
   private orgTip = (): JSX.Element => {
     return (
       <QuestionMarkTooltip
+        diameter={16}
+        style={{marginLeft: '8px'}}
+        color={ComponentColor.Primary}
         testID="admin_org_tooltip"
-        tipContent="An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
+        tooltipStyle={{width: '300px'}}
+        tooltipContents="An organization is a workspace for a group of users requiring access to time series data, dashboards, and other resources.
         You can create organizations for different functional groups, teams, or projects."
       />
     )
@@ -254,8 +258,12 @@ class AdminStep extends PureComponent<Props, State> {
   private bucketTip = (): JSX.Element => {
     return (
       <QuestionMarkTooltip
+        diameter={16}
+        style={{marginLeft: '8px'}}
+        color={ComponentColor.Primary}
         testID="admin_bucket_tooltip"
-        tipContent="A bucket is where your time series data is stored with a retention policy."
+        tooltipStyle={{width: '300px'}}
+        tooltipContents="A bucket is where your time series data is stored with a retention policy."
       />
     )
   }
