@@ -67,11 +67,11 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 							TagRules: []notification.TagRule{
 								{
 									Tag:      influxdb.Tag{Key: "k1", Value: "v1"},
-									Operator: notification.Equal,
+									Operator: influxdb.Equal,
 								},
 								{
 									Tag:      influxdb.Tag{Key: "k2", Value: "v2"},
-									Operator: notification.NotRegexEqual,
+									Operator: influxdb.NotRegexEqual,
 								},
 							},
 							StatusRules: []notification.StatusRule{
@@ -222,11 +222,11 @@ func Test_newNotificationRuleResponse(t *testing.T) {
 						TagRules: []notification.TagRule{
 							{
 								Tag:      influxdb.Tag{Key: "k1", Value: "v1"},
-								Operator: notification.Equal,
+								Operator: influxdb.Equal,
 							},
 							{
 								Tag:      influxdb.Tag{Key: "k2", Value: "v2"},
-								Operator: notification.NotRegexEqual,
+								Operator: influxdb.NotRegexEqual,
 							},
 						},
 						StatusRules: []notification.StatusRule{

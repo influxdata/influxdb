@@ -156,7 +156,7 @@ func TestValidRule(t *testing.T) {
 								Key:   "k1",
 								Value: "v1",
 							},
-							Operator: notification.Operator("bad"),
+							Operator: influxdb.Operator("bad"),
 						},
 					},
 				},
@@ -182,7 +182,7 @@ func TestValidRule(t *testing.T) {
 								Key:   "k1",
 								Value: "v1",
 							},
-							Operator: notification.RegexEqual,
+							Operator: influxdb.RegexEqual,
 						},
 					},
 					Limit: &influxdb.Limit{
@@ -231,14 +231,14 @@ func TestJSON(t *testing.T) {
 								Key:   "k1",
 								Value: "v1",
 							},
-							Operator: notification.NotEqual,
+							Operator: influxdb.NotEqual,
 						},
 						{
 							Tag: influxdb.Tag{
 								Key:   "k2",
 								Value: "v2",
 							},
-							Operator: notification.RegexEqual,
+							Operator: influxdb.RegexEqual,
 						},
 					},
 					CRUDLog: influxdb.CRUDLog{
@@ -267,14 +267,14 @@ func TestJSON(t *testing.T) {
 								Key:   "k1",
 								Value: "v1",
 							},
-							Operator: notification.NotEqual,
+							Operator: influxdb.NotEqual,
 						},
 						{
 							Tag: influxdb.Tag{
 								Key:   "k2",
 								Value: "v2",
 							},
-							Operator: notification.RegexEqual,
+							Operator: influxdb.RegexEqual,
 						},
 					},
 					CRUDLog: influxdb.CRUDLog{
@@ -302,7 +302,7 @@ func TestJSON(t *testing.T) {
 								Key:   "k1",
 								Value: "v1",
 							},
-							Operator: notification.NotEqual,
+							Operator: influxdb.NotEqual,
 						},
 					},
 					StatusRules: []notification.StatusRule{

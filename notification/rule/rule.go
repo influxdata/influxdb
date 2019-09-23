@@ -340,7 +340,7 @@ func (b *Base) ClearPrivateData() {
 // HasTag returns true if the Rule has a matching tagRule
 func (b *Base) HasTag(key, value string) bool {
 	for _, tr := range b.TagRules {
-		if tr.Operator == notification.Equal && tr.Key == key && tr.Value == value {
+		if tr.Operator == influxdb.Equal && tr.Key == key && tr.Value == value {
 			return true
 		}
 	}
