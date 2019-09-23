@@ -5745,6 +5745,7 @@ paths:
           - NotificationEndpoints
       summary: Get all notification endpoints
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - in: query
