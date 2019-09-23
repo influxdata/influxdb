@@ -267,6 +267,11 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 			s.Logger.Info("failed to make user owner of organization", zap.Error(err))
 		}
 
+		if err := s.createSystemBuckets(ctx, tx, o); err != nil {
+			s.Logger.Info("failed to create system buckets of organization", zap.Error(err))
+			return err
+		}
+
 		return nil
 	})
 }

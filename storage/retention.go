@@ -133,7 +133,7 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 			zap.String("org_id", b.OrgID.String()),
 			zap.String("bucket_id", b.ID.String()),
 			zap.Duration("retention_period", b.RetentionPeriod),
-			zap.Bool("system", b.IsSystem()),
+			zap.String("system_type", b.Type.String()),
 		}
 
 		if b.RetentionPeriod == 0 {
@@ -153,7 +153,7 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 		span.LogKV(
 			"bucket", b.ID,
 			"org_id", b.OrgID,
-			"system", b.IsSystem(),
+			"system", b.Type,
 			"retention_period", b.RetentionPeriod,
 			"retention_policy", b.RetentionPolicyName,
 			"from", time.Unix(0, min).UTC(),

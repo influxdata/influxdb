@@ -3274,7 +3274,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Bucket"
+              $ref: "#/components/schemas/PostBucketRequest"
       responses:
         '201':
           description: Bucket created
@@ -6763,6 +6763,34 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Authorization"
+    PostBucketRequest:
+      properties:
+        orgID:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        rp:
+          type: string
+        retentionRules:
+          type: array
+          description: Rules to expire or retain data.  No rules means data never expires.
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                default: expire
+                enum:
+                  - expire
+              everySeconds:
+                type: integer
+                description: Duration in seconds for how long data will be kept in the database.
+                example: 86400
+                minimum: 1
+            required: [type, everySeconds]
+      required: [name, retentionRules]
     Bucket:
       properties:
         links:

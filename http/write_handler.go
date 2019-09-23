@@ -174,16 +174,6 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		bucket = b
 	}
 
-	// TODO(jade): remove this after system buckets issue is resolved
-	if bucket.IsSystem() {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EForbidden,
-			Op:   "http/handleWrite",
-			Msg:  fmt.Sprintf("cannot write to internal bucket %s", bucket.Name),
-		}, w)
-		return
-	}
-
 	p, err := influxdb.NewPermissionAtID(bucket.ID, influxdb.WriteAction, influxdb.BucketsResourceType, org.ID)
 	if err != nil {
 		h.HandleHTTPError(ctx, &influxdb.Error{

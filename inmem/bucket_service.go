@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	platform "github.com/influxdata/influxdb"
 )
@@ -210,14 +209,6 @@ func (s *Service) findBuckets(ctx context.Context, filter platform.BucketFilter,
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 // Additional options provide pagination & sorting.
 func (s *Service) FindBuckets(ctx context.Context, filter platform.BucketFilter, opt ...platform.FindOptions) ([]*platform.Bucket, int, error) {
-	if filter.Name != nil {
-		internal, err := s.findSystemBucket(*filter.Name)
-		// if found in our internals list, return mock
-		if err == nil {
-			return []*platform.Bucket{internal}, 0, nil
-		}
-	}
-
 	var err error
 	bs, pe := s.findBuckets(ctx, filter, opt...)
 	if pe != nil {
@@ -226,32 +217,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter platform.BucketFilter,
 		return nil, 0, err
 	}
 	return bs, len(bs), nil
-}
-
-func (s *Service) findSystemBucket(n string) (*platform.Bucket, error) {
-	switch n {
-	case "_tasks":
-		return &platform.Bucket{
-			ID:              platform.TasksSystemBucketID,
-			Type:            platform.BucketTypeSystem,
-			Name:            "_tasks",
-			RetentionPeriod: time.Hour * 24 * 3,
-			Description:     "System bucket for task logs",
-		}, nil
-	case "_monitoring":
-		return &platform.Bucket{
-			ID:              platform.MonitoringSystemBucketID,
-			Type:            platform.BucketTypeSystem,
-			Name:            "_monitoring",
-			RetentionPeriod: time.Hour * 24 * 7,
-			Description:     "System bucket for monitoring logs",
-		}, nil
-	default:
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
-			Msg:  fmt.Sprintf("system bucket %q not found", n),
-		}
-	}
 }
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.

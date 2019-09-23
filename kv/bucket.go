@@ -119,21 +119,14 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	internal, err := s.findSystemBucket(n)
-	// if found in our internals list, return mock
-	if err == nil {
-		internal.OrgID = orgID
-		return internal, nil
-	}
-
 	var b *influxdb.Bucket
-
-	err = s.kv.View(ctx, func(tx Tx) error {
+	err := s.kv.View(ctx, func(tx Tx) error {
 		bkt, pe := s.findBucketByName(ctx, tx, orgID, n)
 		if pe != nil {
-			err = pe
+			err := pe
 			return err
 		}
+
 		b = bkt
 		return nil
 	})
@@ -141,30 +134,33 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 	return b, err
 }
 
-func (s *Service) findSystemBucket(n string) (*influxdb.Bucket, error) {
-	switch n {
-	case "_tasks":
-		return &influxdb.Bucket{
-			ID:              influxdb.TasksSystemBucketID,
-			Type:            influxdb.BucketTypeSystem,
-			Name:            "_tasks",
-			RetentionPeriod: time.Hour * 24 * 3,
-			Description:     "System bucket for task logs",
-		}, nil
-	case "_monitoring":
-		return &influxdb.Bucket{
-			ID:              influxdb.MonitoringSystemBucketID,
-			Type:            influxdb.BucketTypeSystem,
-			Name:            "_monitoring",
-			RetentionPeriod: time.Hour * 24 * 7,
-			Description:     "System bucket for monitoring logs",
-		}, nil
-	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("system bucket %q not found", n),
-		}
+// CreateSystemBuckets creates the task and monitoring system buckets for an organization
+func (s *Service) createSystemBuckets(ctx context.Context, tx Tx, o *influxdb.Organization) error {
+	tb := &influxdb.Bucket{
+		OrgID:           o.ID,
+		Type:            influxdb.BucketTypeSystem,
+		Name:            influxdb.TasksSystemBucketName,
+		RetentionPeriod: time.Hour * 24 * 3,
+		Description:     "System bucket for task logs",
 	}
+
+	if err := s.createBucket(ctx, tx, tb); err != nil {
+		return err
+	}
+
+	mb := &influxdb.Bucket{
+		OrgID:           o.ID,
+		Type:            influxdb.BucketTypeSystem,
+		Name:            influxdb.MonitoringSystemBucketName,
+		RetentionPeriod: time.Hour * 24 * 7,
+		Description:     "System bucket for monitoring logs",
+	}
+
+	if err := s.createBucket(ctx, tx, mb); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
@@ -334,17 +330,6 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 	if err != nil {
 		return nil, 0, err
 	}
-
-	tasks, error := s.findSystemBucket("_tasks")
-	if error != nil {
-		return bs, 0, error
-	}
-
-	monitoring, error := s.findSystemBucket("_monitoring")
-	if error != nil {
-		return bs, 0, error
-	}
-	bs = append(bs, tasks, monitoring)
 
 	return bs, len(bs), nil
 }
@@ -611,7 +596,7 @@ func (s *Service) validBucketName(ctx context.Context, tx Tx, b *influxdb.Bucket
 	}
 
 	// names starting with an underscore are reserved for system buckets
-	if strings.HasPrefix(b.Name, "_") {
+	if strings.HasPrefix(b.Name, "_") && b.Type != influxdb.BucketTypeSystem {
 		return ReservedBucketNameError(b)
 	}
 

@@ -148,6 +148,20 @@ type retentionRule struct {
 	EverySeconds int64  `json:"everySeconds"`
 }
 
+func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
+	var t time.Duration
+
+	t = time.Duration(rr.EverySeconds) * time.Second
+	if t < time.Second {
+		return t, &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "expiration seconds must be greater than or equal to one second",
+		}
+	}
+
+	return t, nil
+}
+
 func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 	if b == nil {
 		return nil, nil
@@ -217,13 +231,12 @@ func (b *bucketUpdate) toInfluxDB() (*influxdb.BucketUpdate, error) {
 
 	// For now, only use a single retention rule.
 	var d time.Duration
+	var err error
+
 	if len(b.RetentionRules) > 0 {
-		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
-		if d < time.Second {
-			return nil, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  "expiration seconds must be greater than or equal to one second",
-			}
+		d, err = b.RetentionRules[0].RetentionPeriod()
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -309,24 +322,34 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.BucketService.CreateBucket(ctx, req.Bucket); err != nil {
+	bucket, err := req.toInfluxDB()
+	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("bucket created", zap.String("bucket", fmt.Sprint(req.Bucket)))
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(req.Bucket, []*influxdb.Label{})); err != nil {
+	if err := h.BucketService.CreateBucket(ctx, bucket); err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+	h.Logger.Debug("bucket created", zap.String("bucket", fmt.Sprint(bucket)))
+
+	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(bucket, []*influxdb.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
 
 type postBucketRequest struct {
-	Bucket *influxdb.Bucket
+	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	Name                string          `json:"name"`
+	Description         string          `json:"description"`
+	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
+	RetentionRules      []retentionRule `json:"retentionRules"`
 }
 
 func (b postBucketRequest) Validate() error {
-	if !b.Bucket.OrgID.Valid() {
+	if !b.OrgID.Valid() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "bucket requires an organization",
@@ -336,8 +359,30 @@ func (b postBucketRequest) Validate() error {
 	return nil
 }
 
+func (b postBucketRequest) toInfluxDB() (*influxdb.Bucket, error) {
+	var dur time.Duration // zero value implies infinite retention policy
+	var err error
+
+	// Only support a single retention period for the moment
+	if len(b.RetentionRules) > 0 {
+		dur, err = b.RetentionRules[0].RetentionPeriod()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &influxdb.Bucket{
+		OrgID:               b.OrgID,
+		Description:         b.Description,
+		Name:                b.Name,
+		Type:                influxdb.BucketTypeUser,
+		RetentionPolicyName: b.RetentionPolicyName,
+		RetentionPeriod:     dur,
+	}, err
+}
+
 func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketRequest, error) {
-	b := &bucket{}
+	b := &postBucketRequest{}
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return nil, &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -345,16 +390,7 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 		}
 	}
 
-	pb, err := b.toInfluxDB()
-	if err != nil {
-		return nil, err
-	}
-
-	req := &postBucketRequest{
-		Bucket: pb,
-	}
-
-	return req, req.Validate()
+	return b, b.Validate()
 }
 
 // handleGetBucket is the HTTP handler for the GET /api/v2/buckets/:id route.

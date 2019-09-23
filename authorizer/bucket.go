@@ -105,12 +105,6 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	buckets := bs[:0]
 	for _, b := range bs {
-		// temporary hack for system buckets
-		if b.IsSystem() {
-			buckets = append(buckets, b)
-			continue
-		}
-
 		err := authorizeReadBucket(ctx, b.OrgID, b.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
