@@ -431,7 +431,11 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 
 		// write and sync
 		if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
-			return -1, fmt.Errorf("error writing WAL entry: %v", err)
+			// If a write failed, most likely there was some IO error and the underlying
+			// buffer writer can hardly recover from it.
+			// panicking and restarting the process can at least truncate the corrupt WAL
+			// entry. Escalating the critical problem also avoids silent failure.
+			panic(err)
 		}
 
 		select {
