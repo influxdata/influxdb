@@ -1,6 +1,9 @@
+import {omit} from 'lodash'
+
 // Types
 import {NotificationEndpoint} from 'src/types'
 import {DEFAULT_ENDPOINT_URLS} from 'src/alerting/constants'
+import {NotificationEndpointBase} from 'src/client'
 
 export type Action =
   | {type: 'UPDATE_ENDPOINT'; endpoint: NotificationEndpoint}
@@ -9,7 +12,10 @@ export type Action =
 
 export type EndpointState = NotificationEndpoint
 
-export const reducer = (state: EndpointState, action: Action) => {
+export const reducer = (
+  state: EndpointState,
+  action: Action
+): EndpointState => {
   switch (action.type) {
     case 'UPDATE_ENDPOINT': {
       const {endpoint} = action
@@ -20,18 +26,50 @@ export const reducer = (state: EndpointState, action: Action) => {
       if (state.type != endpoint.type) {
         switch (endpoint.type) {
           case 'pagerduty':
+            const pgBaseProps: NotificationEndpointBase = omit(endpoint, [
+              'url',
+              'token',
+              'username',
+              'password',
+              'method',
+              'authMethod',
+              'contentTemplate',
+              'headers',
+            ])
             return {
-              ...state,
-              ...endpoint,
+              ...pgBaseProps,
+              type: 'pagerduty',
               clientURL: `${location.origin}/orgs/${
-                endpoint.orgID
+                pgBaseProps.orgID
               }/alert-history`,
             }
-          default:
+          case 'http':
+            const httpBaseProps: NotificationEndpointBase = omit(endpoint, [
+              'clientURL',
+              'routingKey',
+            ])
             return {
-              ...state,
-              ...endpoint,
-              url: DEFAULT_ENDPOINT_URLS[endpoint.type],
+              ...httpBaseProps,
+              type: 'http',
+              method: 'POST',
+              authMethod: 'none',
+              url: DEFAULT_ENDPOINT_URLS.http,
+            }
+          case 'slack':
+            const slackBaseProps: NotificationEndpointBase = omit(endpoint, [
+              'clientURL',
+              'routingKey',
+              'username',
+              'password',
+              'method',
+              'authMethod',
+              'contentTemplate',
+              'headers',
+            ])
+            return {
+              ...slackBaseProps,
+              type: 'slack',
+              url: DEFAULT_ENDPOINT_URLS.slack,
             }
         }
       }

@@ -98,6 +98,7 @@ export {
   SlackNotificationEndpoint,
   HTTPNotificationEndpoint,
   NotificationEndpointUpdate,
+  NotificationEndpointBase,
 } from '../client'
 
 import {Check, Threshold, HTTPNotificationEndpoint} from '../client'
