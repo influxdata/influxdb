@@ -244,12 +244,24 @@ func (b *Base) generateStateChanges(r notification.StatusRule) (ast.Statement, *
 	return flux.DefineVariable(name, pipe), flux.Identifier(name)
 }
 
+// increaseDur increases the duration of leading duration in a duration literal.
+// It is used so that we will have overlapping windows. If the unit of the literal
+// is `s`, we double the interval; otherwise we increase the value by 1. The reason
+// for this is to that we query the minimal amount of time that is likely to have data
+// in the time range.
+//
+// This is currently a hack around https://github.com/influxdata/flux/issues/1877
 func increaseDur(d *ast.DurationLiteral) *ast.DurationLiteral {
 	dur := &ast.DurationLiteral{}
 	for i, v := range d.Values {
 		value := v
 		if i == 0 {
-			value.Magnitude++
+			switch v.Unit {
+			case "s", "ms", "us", "ns":
+				value.Magnitude *= 2
+			default:
+				value.Magnitude += 1
+			}
 		}
 		dur.Values = append(dur.Values, value)
 	}
