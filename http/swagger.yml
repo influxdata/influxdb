@@ -6376,7 +6376,7 @@ components:
           items:
             $ref: "#/components/schemas/Property"
     ParenExpression:
-      description: represents an expression wrapped in parenthesis
+      description: Represents an expression wrapped in parenthesis
       type: object
       properties:
         type:
