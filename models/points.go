@@ -190,6 +190,8 @@ func (t FieldType) String() string {
 		return "String"
 	case Empty:
 		return "Empty"
+	case Unsigned:
+		return "Unsigned"
 	default:
 		return "<unknown>"
 	}
