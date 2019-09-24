@@ -76,6 +76,25 @@ describe('Notification Endpoints', () => {
           cy.contains('Pagerduty')
         })
 
+        cy.getByTestID('endpoint--dropdown-item http').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('HTTP')
+        })
+      })
+
+    cy.getByTestID('http-url')
+      .clear()
+      .type('http.url.us')
+      .should('have.value', 'http.url.us')
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('HTTP')
+        })
+
         cy.getByTestID('endpoint--dropdown-item slack').click()
 
         cy.getByTestID('endpoint--dropdown--button').within(() => {
@@ -87,6 +106,11 @@ describe('Notification Endpoints', () => {
       .clear()
       .type('slack.url.us')
       .should('have.value', 'slack.url.us')
+
+    cy.getByTestID('slack-token')
+      .clear()
+      .type('tokenzzzzzz')
+      .should('have.value', 'tokenzzzzzz')
 
     cy.getByTestID('endpoint-save--button').click()
 
