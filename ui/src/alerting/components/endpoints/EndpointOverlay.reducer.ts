@@ -24,57 +24,46 @@ export const reducer = (
     case 'UPDATE_ENDPOINT_TYPE': {
       const {endpoint} = action
       if (state.type != endpoint.type) {
+        const baseProps: NotificationEndpointBase = omit(endpoint, [
+          'url',
+          'token',
+          'username',
+          'password',
+          'method',
+          'authMethod',
+          'contentTemplate',
+          'headers',
+          'clientURL',
+          'routingKey',
+        ])
         switch (endpoint.type) {
           case 'pagerduty':
-            const pgBaseProps: NotificationEndpointBase = omit(endpoint, [
-              'url',
-              'token',
-              'username',
-              'password',
-              'method',
-              'authMethod',
-              'contentTemplate',
-              'headers',
-            ])
             return {
-              ...pgBaseProps,
+              ...baseProps,
               type: 'pagerduty',
               clientURL: `${location.origin}/orgs/${
-                pgBaseProps.orgID
+                baseProps.orgID
               }/alert-history`,
+              routingKey: '',
             }
           case 'http':
-            const httpBaseProps: NotificationEndpointBase = omit(endpoint, [
-              'clientURL',
-              'routingKey',
-            ])
             return {
-              ...httpBaseProps,
+              ...baseProps,
               type: 'http',
               method: 'POST',
               authMethod: 'none',
               url: DEFAULT_ENDPOINT_URLS.http,
             }
           case 'slack':
-            const slackBaseProps: NotificationEndpointBase = omit(endpoint, [
-              'clientURL',
-              'routingKey',
-              'username',
-              'password',
-              'method',
-              'authMethod',
-              'contentTemplate',
-              'headers',
-            ])
             return {
-              ...slackBaseProps,
+              ...baseProps,
               type: 'slack',
               url: DEFAULT_ENDPOINT_URLS.slack,
+              token: '',
             }
         }
       }
-
-      return {...state, ...endpoint}
+      return state
     }
     case 'DELETE_ENDPOINT': {
       return state
