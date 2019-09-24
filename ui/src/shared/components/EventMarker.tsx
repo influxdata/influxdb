@@ -13,7 +13,7 @@ import {StatusRow, LowercaseCheckStatusLevel} from 'src/types'
 import EventMarkerTooltip from './EventMarkerTooltip'
 
 interface Props {
-  event: StatusRow[]
+  events: StatusRow[]
   xScale: Scale<number, number>
   xDomain: number[]
 }
@@ -29,7 +29,7 @@ const findMaxLevel = (event: StatusRow[]) => {
   return 'unknown'
 }
 
-const EventMarker: FC<Props> = ({xScale, xDomain, event}) => {
+const EventMarker: FC<Props> = ({xScale, xDomain, events}) => {
   const trigger = useRef<HTMLDivElement>(null)
 
   const [tooltipVisible, setTooltipVisible] = useState(false)
@@ -39,8 +39,8 @@ const EventMarker: FC<Props> = ({xScale, xDomain, event}) => {
     triggerRect = trigger.current.getBoundingClientRect() as DOMRect
   }
 
-  const {time} = event[0]
-  const level = findMaxLevel(event)
+  const {time} = events[0]
+  const level = findMaxLevel(events)
 
   const x = xScale(time)
   const style = {left: `${x}px`}
@@ -63,7 +63,7 @@ const EventMarker: FC<Props> = ({xScale, xDomain, event}) => {
         />
         {tooltipVisible && (
           <BoxTooltip triggerRect={triggerRect as DOMRect}>
-            <EventMarkerTooltip events={event} />
+            <EventMarkerTooltip events={events} />
           </BoxTooltip>
         )}
       </>

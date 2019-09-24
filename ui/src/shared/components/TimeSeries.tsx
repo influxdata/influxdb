@@ -39,7 +39,7 @@ interface QueriesState {
   isInitialFetch: boolean
   duration: number
   giraffeResult: FromFluxResult
-  events: StatusRow[][]
+  statuses: StatusRow[][]
 }
 
 interface StateProps {
@@ -70,7 +70,7 @@ interface State {
   fetchCount: number
   duration: number
   giraffeResult: FromFluxResult
-  events: StatusRow[][]
+  statuses: StatusRow[][]
 }
 
 const defaultState = (): State => ({
@@ -80,7 +80,7 @@ const defaultState = (): State => ({
   errorMessage: '',
   duration: 0,
   giraffeResult: null,
-  events: [[]],
+  statuses: [[]],
 })
 
 class TimeSeries extends Component<Props & WithRouterProps, State> {
@@ -133,7 +133,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       errorMessage,
       fetchCount,
       duration,
-      events,
+      statuses,
     } = this.state
     const {className, style} = this.props
 
@@ -146,7 +146,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
           errorMessage,
           duration,
           isInitialFetch: fetchCount === 1,
-          events,
+          statuses,
         })}
       </div>
     )
@@ -186,11 +186,11 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       // Wait for new queries to complete
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
 
-      let events = [[]] as StatusRow[][]
+      let statuses = [[]] as StatusRow[][]
       if (check && isFlagEnabled('eventMarkers')) {
         const extern = buildVarsOption(variables)
         this.pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
-        events = await this.pendingCheckStatuses.promise // TODO handle errors
+        statuses = await this.pendingCheckStatuses.promise // TODO handle errors
       }
 
       const duration = Date.now() - startTime
@@ -222,7 +222,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         files,
         duration,
         loading: RemoteDataState.Done,
-        events,
+        statuses,
       })
     } catch (error) {
       if (error.name === 'CancellationError') {
@@ -235,7 +235,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
         errorMessage: error.message,
         giraffeResult: null,
         loading: RemoteDataState.Error,
-        events: [[]],
+        statuses: [[]],
       })
     }
 

@@ -43,7 +43,7 @@ interface OwnProps {
   timeZone: TimeZone
   viewProperties: CheckViewProperties
   children: (config: Config) => JSX.Element
-  events: StatusRow[][]
+  statuses: StatusRow[][]
 }
 
 type Props = OwnProps & DispatchProps
@@ -56,7 +56,7 @@ const CheckPlot: FunctionComponent<Props> = ({
   loading,
   children,
   timeZone,
-  events,
+  statuses,
   viewProperties: {colors},
 }) => {
   const thresholds = check && check.type === 'threshold' ? check.thresholds : []
@@ -137,7 +137,7 @@ const CheckPlot: FunctionComponent<Props> = ({
         render: ({xScale, xDomain}) => (
           <EventMarkers
             key="events"
-            events={events || [[]]}
+            eventsArray={statuses || [[]]}
             xScale={xScale}
             xDomain={xDomain}
           />

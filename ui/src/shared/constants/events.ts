@@ -1,6 +1,6 @@
 import {StatusRow} from 'src/types'
 
-export const events: StatusRow[] = [
+export const statuses: StatusRow[] = [
   {
     time: 1568660694814,
     checkID: '1',

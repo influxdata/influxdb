@@ -62,7 +62,7 @@ interface QueryResultsState {
   isInitialFetch: boolean
   fetchDuration: number
   errorMessage: string
-  events: StatusRow[][]
+  statuses: StatusRow[][]
 }
 
 interface AlertingState {
@@ -248,7 +248,7 @@ export const timeMachineReducer = (
           files,
           fetchDuration,
           errorMessage,
-          events,
+          statuses,
         } = action.payload
 
         draftState.queryResults.status = status
@@ -258,8 +258,8 @@ export const timeMachineReducer = (
           draftState.queryResults.files = files
           draftState.queryResults.isInitialFetch = false
         }
-        if (events) {
-          draftState.queryResults.events = events
+        if (statuses) {
+          draftState.queryResults.statuses = statuses
         }
 
         if (isNumber(fetchDuration)) {
@@ -1017,7 +1017,7 @@ const initialQueryResultsState = (): QueryResultsState => ({
   isInitialFetch: true,
   fetchDuration: null,
   errorMessage: null,
-  events: null,
+  statuses: null,
 })
 
 const buildActiveQuery = (draftState: TimeMachineState) => {

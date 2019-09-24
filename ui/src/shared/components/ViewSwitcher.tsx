@@ -33,7 +33,7 @@ interface Props {
   loading: RemoteDataState
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
-  events: StatusRow[][]
+  statuses: StatusRow[][]
 }
 
 const ViewSwitcher: FunctionComponent<Props> = ({
@@ -43,7 +43,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
   timeZone,
-  events,
+  statuses,
 }) => {
   switch (properties.type) {
     case 'single-stat':
@@ -171,7 +171,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           loading={loading}
           timeZone={timeZone}
           viewProperties={properties}
-          events={events}
+          statuses={statuses}
         >
           {config => <Plot config={config} />}
         </CheckPlot>

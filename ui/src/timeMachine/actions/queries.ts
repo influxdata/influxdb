@@ -43,7 +43,7 @@ interface SetQueryResults {
     files?: string[]
     fetchDuration?: number
     errorMessage?: string
-    events?: StatusRow[][]
+    statuses?: StatusRow[][]
   }
 }
 
@@ -52,7 +52,7 @@ const setQueryResults = (
   files?: string[],
   fetchDuration?: number,
   errorMessage?: string,
-  events?: StatusRow[][]
+  statuses?: StatusRow[][]
 ): SetQueryResults => ({
   type: 'SET_QUERY_RESULTS',
   payload: {
@@ -60,7 +60,7 @@ const setQueryResults = (
     files,
     fetchDuration,
     errorMessage,
-    events,
+    statuses,
   },
 })
 
@@ -128,11 +128,11 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     const results = await Promise.all(pendingResults.map(r => r.promise))
     const duration = Date.now() - startTime
 
-    let events = [[]] as StatusRow[][]
+    let statuses = [[]] as StatusRow[][]
     if (check && isFlagEnabled('eventMarkers')) {
       const extern = buildVarsOption(variableAssignments)
       pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
-      events = await pendingCheckStatuses.promise // TODO handle errors
+      statuses = await pendingCheckStatuses.promise // TODO handle errors
     }
 
     for (const result of results) {
@@ -156,7 +156,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
     const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
 
     dispatch(
-      setQueryResults(RemoteDataState.Done, files, duration, null, events)
+      setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
     )
   } catch (e) {
     if (e.name === 'CancellationError') {

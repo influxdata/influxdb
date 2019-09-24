@@ -11,23 +11,27 @@ import {Scale} from '@influxdata/giraffe'
 import {StatusRow} from 'src/types'
 
 interface Props {
-  events: StatusRow[][]
+  eventsArray: StatusRow[][]
   xScale: Scale<number, number>
   xDomain: number[]
 }
 
-const EventMarkers: FunctionComponent<Props> = ({xScale, xDomain, events}) => {
+const EventMarkers: FunctionComponent<Props> = ({
+  xScale,
+  xDomain,
+  eventsArray,
+}) => {
   return (
     <div className="event-markers">
-      {events
-        .filter(e => e.length)
-        .map((event, index) => {
+      {eventsArray
+        .filter(events => events.length)
+        .map((events, index) => {
           return (
             <EventMarker
               key={index}
               xScale={xScale}
               xDomain={xDomain}
-              event={event}
+              events={events}
             />
           )
         })}

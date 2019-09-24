@@ -45,7 +45,7 @@ interface StateProps {
   fillColumns: string[]
   symbolColumns: string[]
   timeZone: TimeZone
-  events: StatusRow[][]
+  statuses: StatusRow[][]
 }
 
 type Props = StateProps
@@ -64,7 +64,7 @@ const TimeMachineVis: SFC<Props> = ({
   fillColumns,
   symbolColumns,
   timeZone,
-  events,
+  statuses,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -111,7 +111,7 @@ const TimeMachineVis: SFC<Props> = ({
               properties={resolvedViewProperties}
               check={check}
               timeZone={timeZone}
-              events={events}
+              statuses={statuses}
             />
           )}
         </EmptyQueryView>
@@ -129,7 +129,7 @@ const mstp = (state: AppState): StateProps => {
       errorMessage,
       isInitialFetch,
       files,
-      events,
+      statuses,
     },
     alerting: {check},
   } = getActiveTimeMachine(state)
@@ -156,7 +156,7 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
-    events,
+    statuses,
   }
 }
 

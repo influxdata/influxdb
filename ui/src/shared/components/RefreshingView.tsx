@@ -84,7 +84,7 @@ class RefreshingView extends PureComponent<Props, State> {
           loading,
           errorMessage,
           isInitialFetch,
-          events,
+          statuses,
         }) => {
           return (
             <EmptyQueryView
@@ -100,7 +100,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 giraffeResult={giraffeResult}
                 files={files}
                 check={check}
-                events={events}
+                statuses={statuses}
                 loading={loading}
                 properties={properties}
                 timeZone={timeZone}
