@@ -573,7 +573,10 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 
 // FindResourceLabels returns a list of labels, derived from a label mapping filter.
 func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
-	url, err := NewURL(s.Addr, resourceIDPath(s.BasePath, filter.ResourceID))
+	if err := filter.Valid(); err != nil {
+		return nil, err
+	}
+	url, err := NewURL(s.Addr, resourceIDPath(filter.ResourceType, filter.ResourceID, "labels"))
 	if err != nil {
 		return nil, err
 	}
@@ -646,12 +649,13 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 	return nil
 }
 
+// CreateLabelMapping will create a labbel mapping
 func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
 
-	url, err := NewURL(s.Addr, resourceIDPath(s.BasePath, m.ResourceID))
+	url, err := NewURL(s.Addr, resourceIDPath(m.ResourceType, m.ResourceID, "labels"))
 	if err != nil {
 		return err
 	}
