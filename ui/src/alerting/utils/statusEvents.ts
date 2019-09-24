@@ -3,7 +3,7 @@ import {runQuery} from 'src/shared/apis/query'
 import {fromFlux} from '@influxdata/giraffe'
 
 // Constants
-import {MONITORING_BUCKET} from 'src/alerting/constants/history'
+import {MONITORING_BUCKET} from 'src/alerting/constants'
 
 // Types
 import {CancelBox, StatusRow, File} from 'src/types'

@@ -40,6 +40,8 @@ export const CHECK_OFFSET_OPTIONS: DurationOption[] = [
   {duration: '30d', displayText: '30 days'},
 ]
 
+export const MONITORING_BUCKET = '_monitoring'
+
 export const LEVEL_COLORS = {
   OK: '#32B08C',
   INFO: '#4591ED',

@@ -28,8 +28,8 @@ import {
   QueryViewProperties,
   TimeZone,
   Check,
+  StatusRow,
 } from 'src/types'
-import {events} from 'src/shared/constants/events'
 
 interface StateProps {
   loading: RemoteDataState
@@ -45,6 +45,7 @@ interface StateProps {
   fillColumns: string[]
   symbolColumns: string[]
   timeZone: TimeZone
+  events: StatusRow[][]
 }
 
 type Props = StateProps
@@ -63,6 +64,7 @@ const TimeMachineVis: SFC<Props> = ({
   fillColumns,
   symbolColumns,
   timeZone,
+  events,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -122,7 +124,13 @@ const mstp = (state: AppState): StateProps => {
   const {
     isViewingRawData,
     view: {properties: viewProperties},
-    queryResults: {status: loading, errorMessage, isInitialFetch, files},
+    queryResults: {
+      status: loading,
+      errorMessage,
+      isInitialFetch,
+      files,
+      events,
+    },
     alerting: {check},
   } = getActiveTimeMachine(state)
 
@@ -148,6 +156,7 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
+    events,
   }
 }
 
