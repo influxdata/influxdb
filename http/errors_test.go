@@ -99,6 +99,18 @@ func TestCheckError(t *testing.T) {
 			},
 			want: errors.Wrap(stderrors.New("upstream timeout"), "invalid character 'u' looking for beginning of value"),
 		},
+		{
+			name: "non-platform error",
+			write: func(w *httptest.ResponseRecorder) {
+				h := http.ErrorHandler(0)
+				err := stderrors.New("expected error")
+				h.HandleHTTPError(context.Background(), err, w)
+			},
+			want: &influxdb.Error{
+				Code: influxdb.EInternal,
+				Msg:  "expected error",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()

@@ -114,15 +114,12 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	w.Header().Set(PlatformErrorCodeHeader, code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(httpCode)
-	var e struct {
+	e := struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
-	}
-	e.Code = platform.ErrorCode(err)
-	if err, ok := err.(*platform.Error); ok {
-		e.Message = err.Error()
-	} else {
-		e.Message = "An internal error has occurred"
+	}{
+		Code:    platform.ErrorCode(err),
+		Message: err.Error(),
 	}
 	b, _ := json.Marshal(e)
 	_, _ = w.Write(b)
