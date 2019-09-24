@@ -6265,6 +6265,7 @@ components:
         - $ref: "#/components/schemas/MemberExpression"
         - $ref: "#/components/schemas/IndexExpression"
         - $ref: "#/components/schemas/ObjectExpression"
+        - $ref: "#/components/schemas/ParenExpression"
         - $ref: "#/components/schemas/PipeExpression"
         - $ref: "#/components/schemas/UnaryExpression"
         - $ref: "#/components/schemas/BooleanLiteral"
@@ -6381,6 +6382,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Property"
+    ParenExpression:
+      description: Represents an expression wrapped in parenthesis
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        expression:
+          $ref: "#/components/schemas/Expression"
     PipeExpression:
       description: Call expression with pipe argument
       type: object
