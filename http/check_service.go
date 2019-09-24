@@ -170,6 +170,12 @@ type checksResponse struct {
 }
 
 func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check, labels []*influxdb.Label) (*checkResponse, error) {
+	// TODO(desa): this should be handled in the check and not exposed in http land, but is currently blocking the FE. https://github.com/influxdata/influxdb/issues/15259
+	task, err := h.TaskService.FindTaskByID(ctx, chk.GetTaskID())
+	if err != nil {
+		return nil, err
+	}
+
 	// Ensure that we don't expose that this creates a task behind the scene
 	chk.ClearPrivateData()
 
@@ -186,11 +192,6 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 
 	for _, l := range labels {
 		res.Labels = append(res.Labels, *l)
-	}
-
-	task, err := h.TaskService.FindTaskByID(ctx, chk.GetTaskID())
-	if err != nil {
-		return nil, err
 	}
 
 	res.Status = task.Status
@@ -509,6 +510,7 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	cr, err := h.newCheckResponse(ctx, chk, []*influxdb.Label{})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
+		return
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, cr); err != nil {
