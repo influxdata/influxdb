@@ -9,7 +9,7 @@ import {isInDomain} from 'src/shared/utils/vis'
 import BoxTooltip from './BoxTooltip'
 
 //Types
-import {StatusRow, CheckStatusLevel} from 'src/types'
+import {StatusRow, LowercaseCheckStatusLevel} from 'src/types'
 import EventMarkerTooltip from './EventMarkerTooltip'
 
 interface Props {
@@ -18,15 +18,15 @@ interface Props {
   xDomain: number[]
 }
 
-const findMaxLevel = (event: StatusRow[]): CheckStatusLevel => {
-  const levels: CheckStatusLevel[] = ['CRIT', 'WARN', 'INFO', 'OK']
+const findMaxLevel = (event: StatusRow[]) => {
+  const levels: LowercaseCheckStatusLevel[] = ['crit', 'warn', 'info', 'ok']
   const eventLevels = event.map(e => e.level)
   for (let l of levels) {
     if (eventLevels.includes(l)) {
       return l
     }
   }
-  return 'UNKNOWN'
+  return 'unknown'
 }
 
 const EventMarker: FC<Props> = ({xScale, xDomain, event}) => {
