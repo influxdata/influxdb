@@ -1260,8 +1260,9 @@ func TestService_handlePostCheckMember(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						return &influxdb.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
 						}, nil
 					},
 				},
@@ -1283,7 +1284,8 @@ func TestService_handlePostCheckMember(t *testing.T) {
   },
   "role": "member",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},
@@ -1357,8 +1359,9 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						return &influxdb.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
 						}, nil
 					},
 				},
@@ -1380,7 +1383,8 @@ func TestService_handlePostCheckOwner(t *testing.T) {
   },
   "role": "owner",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},
