@@ -149,6 +149,10 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.User.Status == "" {
+		req.User.Status = influxdb.Active
+	}
+
 	if err := h.UserService.CreateUser(ctx, req.User); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return

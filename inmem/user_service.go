@@ -181,6 +181,10 @@ func (s *Service) UpdateUser(ctx context.Context, id platform.ID, upd platform.U
 		o.Name = *upd.Name
 	}
 
+	if upd.Status != nil {
+		o.Status = *upd.Status
+	}
+
 	s.userKV.Store(o.ID.String(), o)
 
 	return o, nil

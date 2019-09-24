@@ -917,8 +917,9 @@ func TestService_handlePostBucketMember(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
 						return &platform.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: platform.Active,
 						}, nil
 					},
 				},
@@ -940,7 +941,8 @@ func TestService_handlePostBucketMember(t *testing.T) {
   },
   "role": "member",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},
@@ -1009,8 +1011,9 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
 						return &platform.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: platform.Active,
 						}, nil
 					},
 				},
@@ -1032,7 +1035,8 @@ func TestService_handlePostBucketOwner(t *testing.T) {
   },
   "role": "owner",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},
