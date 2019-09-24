@@ -5093,6 +5093,7 @@ paths:
           - Checks
       summary: Get all checks
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - in: query
@@ -5374,6 +5375,7 @@ paths:
           - NotificationRules
       summary: Get all notification rules
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - in: query
@@ -9490,6 +9492,13 @@ components:
         - $ref: "#/components/schemas/SMTPNotificationRule"
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
         - $ref: "#/components/schemas/HTTPNotificationRule"
+      discriminator:
+        propertyName: type
+        mapping:
+          slack: "#/components/schemas/SlackNotificationRule"
+          smtp: "#/components/schemas/SMTPNotificationRule"
+          pagerduty: "#/components/schemas/PagerDutyNotificationRule"
+          http: "#/components/schemas/HTTPNotificationRule"
     NotificationRules:
       properties:
         notificationRules:
@@ -9507,13 +9516,13 @@ components:
         - name
         - tagRules
         - statusRules
+        - endpointID
       properties:
         id:
           readOnly: true
           type: string
         endpointID:
           type: string
-          readOnly: true
         orgID:
           description: The ID of the organization that owns this notification rule.
           type: string
@@ -9566,6 +9575,27 @@ components:
             $ref: "#/components/schemas/StatusRule"
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/notificationRules/1"
+            labels: "/api/v2/notificationRules/1/labels"
+            members: "/api/v2/notificationRules/1/members"
+            owners: "/api/v2/notificationRules/1/owners"
+          properties:
+            self:
+              description: URL for this endpoint.
+              $ref: "#/components/schemas/Link"
+            labels:
+              description: URL to retrieve labels for this notification rule.
+              $ref: "#/components/schemas/Link"
+            members:
+              description: URL to retrieve members for this notification rule.
+              $ref: "#/components/schemas/Link"
+            owners:
+              description: URL to retrieve owners for this notification rule.
+              $ref: "#/components/schemas/Link"
     TagRule:
       type: object
       properties:
