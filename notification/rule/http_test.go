@@ -68,7 +68,7 @@ all_statuses
 
 	f, err := s.GenerateFlux(e)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	if f != want {
@@ -142,7 +142,7 @@ all_statuses
 
 	f, err := s.GenerateFlux(e)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	if f != want {
@@ -214,7 +214,79 @@ all_statuses
 
 	f, err := s.GenerateFlux(e)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
+	}
+
+	if f != want {
+		t.Errorf("scripts did not match. want:\n%v\n\ngot:\n%v", want, f)
+	}
+}
+
+func TestHTTP_GenerateFlux_bearer_every_second(t *testing.T) {
+	want := `package main
+// foo
+import "influxdata/influxdb/monitor"
+import "http"
+import "json"
+import "experimental"
+import "influxdata/influxdb/secrets"
+
+option task = {name: "foo", every: 5s, offset: 1s}
+
+headers = {"Content-Type": "application/json", "Authorization": "Bearer " + secrets.get(key: "000000000000000e-token")}
+endpoint = http.endpoint(url: "http://localhost:7777")
+notification = {
+	_notification_rule_id: "0000000000000001",
+	_notification_rule_name: "foo",
+	_notification_endpoint_id: "0000000000000002",
+	_notification_endpoint_name: "foo",
+}
+statuses = monitor.from(start: -10s)
+crit = statuses
+	|> filter(fn: (r) =>
+		(r._level == "crit"))
+all_statuses = crit
+	|> filter(fn: (r) =>
+		(r._time > experimental.subDuration(from: now(), d: 5s)))
+
+all_statuses
+	|> monitor.notify(data: notification, endpoint: endpoint(mapFn: (r) => {
+		body = {r with _version: 1}
+
+		return {headers: headers, data: json.encode(v: body)}
+	}))`
+
+	s := &rule.HTTP{
+		Base: rule.Base{
+			ID:         1,
+			Name:       "foo",
+			Every:      mustDuration("5s"),
+			Offset:     mustDuration("1s"),
+			EndpointID: 2,
+			TagRules:   []notification.TagRule{},
+			StatusRules: []notification.StatusRule{
+				{
+					CurrentLevel: notification.Critical,
+				},
+			},
+		},
+	}
+
+	e := &endpoint.HTTP{
+		Base: endpoint.Base{
+			ID:   2,
+			Name: "foo",
+		},
+		URL:        "http://localhost:7777",
+		AuthMethod: "bearer",
+		Token: influxdb.SecretField{
+			Key: "000000000000000e-token",
+		},
+	}
+
+	f, err := s.GenerateFlux(e)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	if f != want {
