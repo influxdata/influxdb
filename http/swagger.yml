@@ -9361,9 +9361,6 @@ components:
         offset:
           description: Duration to delay after the schedule, before executing check.
           type: string
-        cron:
-          description: The check repetition interval in the form `* * * * * *`.
-          type: string
         tags:
           description: List of tags to write to each status.
           type: array
@@ -9544,9 +9541,6 @@ components:
           type: string
         offset:
           description: Duration to delay after the schedule, before executing check.
-          type: string
-        cron:
-          description: The notification repetition interval in the form `* * * * * *`.
           type: string
         runbookLink:
           type: string

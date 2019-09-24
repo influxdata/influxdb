@@ -52,7 +52,6 @@ type Base struct {
 	TaskID      influxdb.ID `json:"taskID,omitempty"`
 	// SleepUntil is an optional sleeptime to start a task.
 	SleepUntil *time.Time             `json:"sleepUntil,omitempty"`
-	Cron       string                 `json:"cron,omitempty"`
 	Every      *notification.Duration `json:"every,omitempty"`
 	// Offset represents a delay before execution.
 	// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
@@ -262,10 +261,6 @@ func (b *Base) generateTaskOption() ast.Statement {
 	props := []*ast.Property{}
 
 	props = append(props, flux.Property("name", flux.String(b.Name)))
-
-	if b.Cron != "" {
-		props = append(props, flux.Property("cron", flux.String(b.Cron)))
-	}
 
 	if b.Every != nil {
 		// Make the windows overlap and filter records from previous queries.

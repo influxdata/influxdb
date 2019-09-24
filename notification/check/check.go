@@ -84,10 +84,6 @@ func (b Base) generateTaskOption() ast.Statement {
 
 	props = append(props, flux.Property("name", flux.String(b.Name)))
 
-	if b.Cron != "" {
-		props = append(props, flux.Property("cron", flux.String(b.Cron)))
-	}
-
 	if b.Every != nil {
 		props = append(props, flux.Property("every", (*ast.DurationLiteral)(b.Every)))
 	}
