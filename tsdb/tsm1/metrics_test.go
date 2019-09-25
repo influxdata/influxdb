@@ -10,8 +10,6 @@ import (
 func TestMetrics_Filestore(t *testing.T) {
 	// metrics to be shared by multiple file stores.
 	metrics := newFileMetrics(prometheus.Labels{"engine_id": "", "node_id": ""})
-
-	t1 := newFileTracker(metrics, prometheus.Labels{"engine_id": "0", "node_id": "0"})
 	t2 := newFileTracker(metrics, prometheus.Labels{"engine_id": "1", "node_id": "0"})
 	t3 := newFileTracker(metrics, prometheus.Labels{"engine_id": "2", "node_id": "0"})
 
@@ -19,13 +17,9 @@ func TestMetrics_Filestore(t *testing.T) {
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	// Generate some measurements.
-	t1.AddBytes(100, 0)
-	t1.SetFileCount(map[int]uint64{0: 3})
-
-	t2.AddBytes(200, 0)
-	t2.SetFileCount(map[int]uint64{0: 4, 4: 3, 5: 1})
-
-	t3.SetBytes(map[int]uint64{0: 300, 1: 500, 4: 100, 5: 100})
+	t2.AddBytes(200, 1)
+	t2.SetFileCount(map[int]uint64{1: 4, 4: 3, 5: 1})
+	t3.SetBytes(map[int]uint64{1: 500, 4: 100, 5: 100})
 
 	// Test that all the correct metrics are present.
 	mfs, err := reg.Gather()
@@ -34,21 +28,11 @@ func TestMetrics_Filestore(t *testing.T) {
 	}
 
 	base := namespace + "_" + fileStoreSubsystem + "_"
-	m1Bytes := promtest.MustFindMetric(t, mfs, base+"disk_bytes", prometheus.Labels{"engine_id": "0", "node_id": "0", "level": "0"})
-	m2Bytes := promtest.MustFindMetric(t, mfs, base+"disk_bytes", prometheus.Labels{"engine_id": "1", "node_id": "0", "level": "0"})
-	m1Files := promtest.MustFindMetric(t, mfs, base+"total", prometheus.Labels{"engine_id": "0", "node_id": "0", "level": "0"})
-	m2Files1 := promtest.MustFindMetric(t, mfs, base+"total", prometheus.Labels{"engine_id": "1", "node_id": "0", "level": "0"})
+	m2Bytes := promtest.MustFindMetric(t, mfs, base+"disk_bytes", prometheus.Labels{"engine_id": "1", "node_id": "0", "level": "1"})
+	m2Files1 := promtest.MustFindMetric(t, mfs, base+"total", prometheus.Labels{"engine_id": "1", "node_id": "0", "level": "1"})
 	m2Files2 := promtest.MustFindMetric(t, mfs, base+"total", prometheus.Labels{"engine_id": "1", "node_id": "0", "level": "4+"})
-	m3Bytes1 := promtest.MustFindMetric(t, mfs, base+"disk_bytes", prometheus.Labels{"engine_id": "2", "node_id": "0", "level": "0"})
+	m3Bytes1 := promtest.MustFindMetric(t, mfs, base+"disk_bytes", prometheus.Labels{"engine_id": "2", "node_id": "0", "level": "1"})
 	m3Bytes2 := promtest.MustFindMetric(t, mfs, base+"disk_bytes", prometheus.Labels{"engine_id": "2", "node_id": "0", "level": "4+"})
-
-	if m, got, exp := m1Bytes, m1Bytes.GetGauge().GetValue(), 100.0; got != exp {
-		t.Errorf("[%s] got %v, expected %v", m, got, exp)
-	}
-
-	if m, got, exp := m1Files, m1Files.GetGauge().GetValue(), 3.0; got != exp {
-		t.Errorf("[%s] got %v, expected %v", m, got, exp)
-	}
 
 	if m, got, exp := m2Bytes, m2Bytes.GetGauge().GetValue(), 200.0; got != exp {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
@@ -62,7 +46,7 @@ func TestMetrics_Filestore(t *testing.T) {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
 	}
 
-	if m, got, exp := m3Bytes1, m3Bytes1.GetGauge().GetValue(), 300.0; got != exp {
+	if m, got, exp := m3Bytes1, m3Bytes1.GetGauge().GetValue(), 500.0; got != exp {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
 	}
 
