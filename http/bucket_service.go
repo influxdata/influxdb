@@ -303,8 +303,6 @@ func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influx
 // handlePostBucket is the HTTP handler for the POST /api/v2/buckets route.
 func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	h.Logger.Debug("create bucket request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePostBucketRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -363,8 +361,6 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	h.Logger.Debug("retrieve bucket request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetBucketRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -419,8 +415,6 @@ func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketReq
 // handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("delete bucket request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteBucketRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -468,8 +462,6 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 	defer span.Finish()
 
 	ctx := r.Context()
-	h.Logger.Debug("retrieve buckets request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetBucketsRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -535,8 +527,6 @@ func decodeGetBucketsRequest(ctx context.Context, r *http.Request) (*getBucketsR
 // handlePatchBucket is the HTTP handler for the PATCH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("update bucket request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchBucketRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -869,8 +859,6 @@ func bucketIDPath(id influxdb.ID) string {
 // hanldeGetBucketLog retrieves a bucket log by the buckets ID.
 func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("retrieve bucket log request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetBucketLogRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

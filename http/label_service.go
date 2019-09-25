@@ -50,8 +50,6 @@ func NewLabelHandler(s influxdb.LabelService, he influxdb.HTTPErrorHandler) *Lab
 // handlePostLabel is the HTTP handler for the POST /api/v2/labels route.
 func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label create request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePostLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -110,8 +108,6 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 // handleGetLabels is the HTTP handler for the GET /api/v2/labels route.
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("labels retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetLabelsRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -153,8 +149,6 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 // handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
 func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -201,8 +195,6 @@ func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelReque
 // handleDeleteLabel is the HTTP handler for the DELETE /api/v2/labels/:id route.
 func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label delete request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -245,8 +237,6 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 // handlePatchLabel is the HTTP handler for the PATCH /api/v2/labels route.
 func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label update request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

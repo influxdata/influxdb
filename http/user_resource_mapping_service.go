@@ -70,7 +70,6 @@ type MemberBackend struct {
 func newPostMemberHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		b.Logger.Debug("member/owner create request", zap.String("r", fmt.Sprint(r)))
 		req, err := decodePostMemberRequest(ctx, r)
 		if err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -145,8 +144,6 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		b.Logger.Debug("members/owners retrieve request", zap.String("r", fmt.Sprint(r)))
-
 		req, err := decodeGetMembersRequest(ctx, r)
 		if err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -219,8 +216,6 @@ func decodeGetMembersRequest(ctx context.Context, r *http.Request) (*getMembersR
 func newDeleteMemberHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		b.Logger.Debug("member delete request", zap.String("r", fmt.Sprint(r)))
-
 		req, err := decodeDeleteMemberRequest(ctx, r)
 		if err != nil {
 			b.HandleHTTPError(ctx, err, w)

@@ -234,7 +234,6 @@ func decodeGetCheckRequest(ctx context.Context, r *http.Request) (i influxdb.ID,
 
 func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("checks retrieve request", zap.String("r", fmt.Sprint(r)))
 	filter, opts, err := decodeCheckFilter(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -290,7 +289,6 @@ func newFluxResponse(flux string) fluxResp {
 
 func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("check retrieve request", zap.String("r", fmt.Sprint(r)))
 	id, err := decodeGetCheckRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -486,7 +484,6 @@ func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckR
 // handlePostCheck is the HTTP handler for the POST /api/v2/checks route.
 func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("check create request", zap.String("r", fmt.Sprint(r)))
 	chk, err := decodePostCheckRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -520,7 +517,6 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 // handlePutCheck is the HTTP handler for the PUT /api/v2/checks route.
 func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("check replace request", zap.String("r", fmt.Sprint(r)))
 	chk, err := decodePutCheckRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -556,7 +552,6 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 // handlePatchCheck is the HTTP handler for the PATCH /api/v2/checks/:id route.
 func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("check patch request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePatchCheckRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -591,7 +586,6 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 
 func (h *CheckHandler) handleDeleteCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("check delete request", zap.String("r", fmt.Sprint(r)))
 	i, err := decodeGetCheckRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
