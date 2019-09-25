@@ -264,7 +264,7 @@ func testLimitFunc(t *testing.T) {
 	tes.svc.FailNextQuery(forcedErr)
 
 	count := 0
-	tes.ex.SetLimitFunc(func(*influxdb.Run) error {
+	tes.ex.SetLimitFunc(func(*influxdb.Task, *influxdb.Run) error {
 		count++
 		if count < 2 {
 			return errors.New("not there yet")

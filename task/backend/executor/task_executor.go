@@ -28,9 +28,9 @@ type Promise interface {
 
 // MultiLimit allows us to create a single limit func that applies more then one limit.
 func MultiLimit(limits ...LimitFunc) LimitFunc {
-	return func(run *influxdb.Run) error {
+	return func(task *influxdb.Task, run *influxdb.Run) error {
 		for _, lf := range limits {
-			if err := lf(run); err != nil {
+			if err := lf(task, run); err != nil {
 				return err
 			}
 		}
@@ -39,7 +39,7 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 }
 
 // LimitFunc is a function the executor will use to
-type LimitFunc func(*influxdb.Run) error
+type LimitFunc func(*influxdb.Task, *influxdb.Run) error
 
 // NewExecutor creates a new task executor
 func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService, tcs backend.TaskControlService) (*TaskExecutor, *ExecutorMetrics) {
@@ -51,9 +51,9 @@ func NewExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.Authoriz
 		as:     as,
 
 		currentPromises: sync.Map{},
-		promiseQueue:    make(chan *promise, 1000),                //TODO(lh): make this configurable
-		workerLimit:     make(chan struct{}, 100),                 //TODO(lh): make this configurable
-		limitFunc:       func(*influxdb.Run) error { return nil }, // noop
+		promiseQueue:    make(chan *promise, 1000),                                //TODO(lh): make this configurable
+		workerLimit:     make(chan struct{}, 100),                                 //TODO(lh): make this configurable
+		limitFunc:       func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
 	}
 
 	te.metrics = NewExecutorMetrics(te)
@@ -267,7 +267,7 @@ func (w *worker) work() {
 
 		// check to make sure we are below the limits.
 		for {
-			err := w.te.limitFunc(prom.run)
+			err := w.te.limitFunc(prom.task, prom.run)
 			if err == nil {
 				break
 			}
