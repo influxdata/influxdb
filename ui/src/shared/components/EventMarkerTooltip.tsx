@@ -1,7 +1,8 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, Fragment, CSSProperties} from 'react'
 
-// Components
+// Constants
+import {LEVEL_COLORS} from 'src/alerting/constants'
 
 // Types
 import {StatusRow} from 'src/types'
@@ -10,61 +11,40 @@ interface Props {
   events: StatusRow[]
 }
 
-const columns = ['time', 'checkName', 'level', 'message']
-
 const EventMarkerTooltip: FunctionComponent<Props> = ({events}) => {
-  // return <div className="box-tooltip--contents" />
+  const columns = ['time', 'checkName', 'level', 'message']
+
+  const calculateLevelStyle = (
+    level: string,
+    colorize: boolean
+  ): CSSProperties => {
+    if (!colorize) {
+      return
+    }
+
+    const color = LEVEL_COLORS[`${level.toUpperCase()}`]
+    return {color}
+  }
+
   return (
-    <div
-      className="giraffe-tooltip"
-      style={{
-        border: 'pink',
-        backgroundColor: 'gray',
-        color: 'green',
-        borderRadius: '3px',
-        padding: '10px',
-        cursor: 'crosshair',
-      }}
-      data-testid="giraffe-tooltip"
-    >
-      <div
-        className="giraffe-tooltip-table"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-        }}
-        data-testid="giraffe-tooltip-table"
-      >
-        {columns.map(c => (
-          <div
-            key={c}
-            className="giraffe-tooltip-column"
-            style={{
-              marginRight: '15px',
-              textAlign: 'right',
-            }}
-          >
-            <div
-              className="giraffe-tooltip-column-header"
-              style={{marginBottom: '5px', color: 'blue'}}
-            >
-              {c}
-            </div>
-            {events.map((event, j) => (
-              <div
-                className="giraffe-tooltip-column-value"
-                key={j}
-                style={{
-                  color: 'black',
-                  maxWidth: '200px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {event[c]}
-              </div>
-            ))}
+    <div className="box-tooltip--contents event-marker-tooltip">
+      <div className="event-marker-tooltip--table">
+        {columns.map(colName => (
+          <div key={colName} className="event-marker-tooltip--column">
+            <div className="event-marker-tooltip--header">{colName}</div>
+            {events.map((event, i) => {
+              const {time, checkName, level} = event
+              return (
+                <Fragment key={`${time}-${checkName}-${level}-${i}`}>
+                  <div
+                    className="event-marker-tooltip--cell"
+                    style={calculateLevelStyle(level, colName === 'level')}
+                  >
+                    {event[colName]}
+                  </div>
+                </Fragment>
+              )
+            })}
           </div>
         ))}
       </div>

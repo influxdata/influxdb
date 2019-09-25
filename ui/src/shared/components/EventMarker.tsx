@@ -42,27 +42,27 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events}) => {
   const {time} = events[0]
   const level = findMaxLevel(events)
 
-  const x = xScale(time)
+  const x = Math.ceil(xScale(time))
   const style = {left: `${x}px`}
-  const levelClass = `event-marker--${level.toLowerCase()}`
+  const markerClass = `event-marker--line__${level.toLowerCase()}`
 
   return (
     isInDomain(time, xDomain) && (
       <>
-        <div className={`event-marker--line ${levelClass}`} style={style} />
-        <div
-          className={`event-marker--line-rect ${levelClass}`}
-          style={style}
-          ref={trigger}
-          onMouseEnter={() => {
-            setTooltipVisible(true)
-          }}
-          onMouseLeave={() => {
-            setTooltipVisible(false)
-          }}
-        />
-        {tooltipVisible && (
-          <BoxTooltip triggerRect={triggerRect as DOMRect}>
+        <div className={markerClass} style={style}>
+          <div
+            className="event-marker--line-rect"
+            ref={trigger}
+            onMouseOver={() => {
+              setTooltipVisible(true)
+            }}
+            onMouseOut={() => {
+              setTooltipVisible(false)
+            }}
+          />
+        </div>
+        {tooltipVisible && trigger.current && (
+          <BoxTooltip triggerRect={triggerRect as DOMRect} maxWidth={500}>
             <EventMarkerTooltip events={events} />
           </BoxTooltip>
         )}

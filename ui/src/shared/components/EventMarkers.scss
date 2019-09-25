@@ -44,79 +44,44 @@ $event-marker-z-index: 2;
   }
 }
 
-// .event-marker--line-triangle {
-//   position: absolute;
-//   left: 50%;
-//   top: -($event-marker-triangle-offset - 2px);
-//   transform: translate(-50%, -100%) rotate(360deg);
-//   border-width: ($event-marker-triangle * 0.86625) ($event-marker-triangle * 0.5) 0 ($event-marker-triangle * 0.5);
-//   border-style: solid;
-//   border-color: transparent;
-//   z-index: $event-marker-z-index + 1;
-// }
-
 .event-marker--line-rect {
   width: 4px;
+  border-radius: 2px 2px 0 0;
   height: 20px;
   color: white;
   position: absolute;
   left: 50%;
-  top: -($event-marker-triangle-offset - 2px);
-  transform: translate(-50%, -100%);// rotate(360deg);
-  // border-width: ($event-marker-triangle * 0.86625) ($event-marker-triangle * 0.5) 0 ($event-marker-triangle * 0.5);
-  // border-style: solid;
-  // border-color: transparent;
+  top: 0;
+  transform: translate(-50%, -100%) rotate(360deg);
   z-index: $event-marker-z-index + 1;
 }
 
 // Color Variations
+@mixin eventMarkerColorizer($color) {
+  @extend .event-marker--line;
 
-.event-marker--crit {
-  &,
-  &:after {
-    background-color: $c-fire;
-  }
-  .event-marker--line-triangle {
-    border-top-color: $c-fire;
+  &:after,
+  .event-marker--line-rect {
+    background-color: $color;
   }
 }
 
-.event-marker--warn {
-  &,
-  &:after {
-    background-color: $c-thunder;
-  }
-  .event-marker--line-triangle {
-    border-top-color: $c-thunder;
-  }
+.event-marker--line__crit {
+  @include eventMarkerColorizer($c-fire);
 }
 
-.event-marker--ok {
-  &,
-  &:after {
-    background-color: $c-viridian;
-  }
-  .event-marker--line-triangle {
-    border-top-color: $c-viridian;
-  }
+.event-marker--line__warn {
+  @include eventMarkerColorizer($c-thunder);
 }
 
-.event-marker--info {
-  &,
-  &:after {
-    background-color: $c-ocean;
-  }
-  .event-marker--line-triangle {
-    border-top-color: $c-ocean;
-  }
+.event-marker--line__ok {
+  @include eventMarkerColorizer($c-viridian);
 }
 
-.event-marker--unknown {
-  &,
-  &:after {
-    background-color: $c-amethyst;
-  }
-  .event-marker--line-triangle {
-    border-top-color: $c-amethyst;
-  }
+.event-marker--line__info {
+  @include eventMarkerColorizer($c-ocean);
+}
+
+.event-marker--line__unknown {
+  @include eventMarkerColorizer($c-amethyst);
 }
