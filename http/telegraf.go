@@ -236,7 +236,6 @@ func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.
 
 func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("telegrafs retrieve request", zap.String("r", fmt.Sprint(r)))
 	filter, err := decodeTelegrafConfigFilter(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -258,7 +257,6 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 
 func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("telegraf retrieve request", zap.String("r", fmt.Sprint(r)))
 	id, err := decodeGetTelegrafRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -352,7 +350,6 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("telegraf create request", zap.String("r", fmt.Sprint(r)))
 	tc, err := decodePostTelegrafRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -380,7 +377,6 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 // handlePutTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("telegraf update request", zap.String("r", fmt.Sprint(r)))
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -414,7 +410,6 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 
 func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("telegraf delete request", zap.String("r", fmt.Sprint(r)))
 	i, err := decodeGetTelegrafRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

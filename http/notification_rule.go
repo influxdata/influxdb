@@ -238,7 +238,6 @@ func decodeGetNotificationRuleRequest(ctx context.Context, r *http.Request) (i i
 
 func (h *NotificationRuleHandler) handleGetNotificationRules(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notification rules retrieve request", zap.String("r", fmt.Sprint(r)))
 	filter, opts, err := decodeNotificationRuleFilter(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -299,7 +298,6 @@ func (h *NotificationRuleHandler) handleGetNotificationRuleQuery(w http.Response
 
 func (h *NotificationRuleHandler) handleGetNotificationRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notification rule retrieve request", zap.String("r", fmt.Sprint(r)))
 	id, err := decodeGetNotificationRuleRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -514,7 +512,6 @@ func decodePatchNotificationRuleRequest(ctx context.Context, r *http.Request) (*
 // handlePostNotificationRule is the HTTP handler for the POST /api/v2/notificationRules route.
 func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notification rule create request", zap.String("r", fmt.Sprint(r)))
 	nr, err := decodePostNotificationRuleRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -549,7 +546,6 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 // handlePutNotificationRule is the HTTP handler for the PUT /api/v2/notificationRule route.
 func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notification rule update request", zap.String("r", fmt.Sprint(r)))
 	nrc, err := decodePutNotificationRuleRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -590,7 +586,6 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 // handlePatchNotificationRule is the HTTP handler for the PATCH /api/v2/notificationRule/:id route.
 func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notification rule patch request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePatchNotificationRuleRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -625,7 +620,6 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 
 func (h *NotificationRuleHandler) handleDeleteNotificationRule(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notification rule delete request", zap.String("r", fmt.Sprint(r)))
 	i, err := decodeGetNotificationRuleRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

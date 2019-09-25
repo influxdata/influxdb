@@ -269,7 +269,6 @@ func newRunsResponse(rs []*influxdb.Run, taskID influxdb.ID) runsResponse {
 
 func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.logger.Debug("tasks retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetTasksRequest(ctx, r, h.OrganizationService)
 	if err != nil {
 		err = &influxdb.Error{
@@ -370,8 +369,6 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 
 func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.logger.Debug("task create request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePostTaskRequest(ctx, r)
 	if err != nil {
 		err = &influxdb.Error{
@@ -459,7 +456,6 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 
 func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.logger.Debug("task retrieve request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeGetTaskRequest(ctx, r)
 	if err != nil {
 		err = &influxdb.Error{
@@ -526,7 +522,6 @@ func decodeGetTaskRequest(ctx context.Context, r *http.Request) (*getTaskRequest
 
 func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.logger.Debug("task update request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeUpdateTaskRequest(ctx, r)
 	if err != nil {
 		err = &influxdb.Error{
@@ -603,7 +598,6 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 
 func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.logger.Debug("task delete request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeDeleteTaskRequest(ctx, r)
 	if err != nil {
 		err = &influxdb.Error{
