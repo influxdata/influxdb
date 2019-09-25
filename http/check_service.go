@@ -121,7 +121,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
-	h.HandlerFunc("GET", checksIDLabelsIDPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("GET", checksIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", checksIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", checksIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
