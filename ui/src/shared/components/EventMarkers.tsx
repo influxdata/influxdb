@@ -14,12 +14,14 @@ interface Props {
   eventsArray: StatusRow[][]
   xScale: Scale<number, number>
   xDomain: number[]
+  xFormatter: (x: number) => string
 }
 
 const EventMarkers: FunctionComponent<Props> = ({
   xScale,
   xDomain,
   eventsArray,
+  xFormatter,
 }) => {
   return (
     <div className="event-markers">
@@ -32,6 +34,7 @@ const EventMarkers: FunctionComponent<Props> = ({
               xScale={xScale}
               xDomain={xDomain}
               events={events}
+              xFormatter={xFormatter}
             />
           )
         })}

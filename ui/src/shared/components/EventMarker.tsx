@@ -16,6 +16,7 @@ interface Props {
   events: StatusRow[]
   xScale: Scale<number, number>
   xDomain: number[]
+  xFormatter: (x: number) => string
 }
 
 const findMaxLevel = (event: StatusRow[]) => {
@@ -29,7 +30,7 @@ const findMaxLevel = (event: StatusRow[]) => {
   return 'unknown'
 }
 
-const EventMarker: FC<Props> = ({xScale, xDomain, events}) => {
+const EventMarker: FC<Props> = ({xScale, xDomain, events, xFormatter}) => {
   const trigger = useRef<HTMLDivElement>(null)
 
   const [tooltipVisible, setTooltipVisible] = useState(false)
@@ -40,11 +41,13 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events}) => {
   }
 
   const {time} = events[0]
-  const level = findMaxLevel(events)
-
   const x = Math.ceil(xScale(time))
   const style = {left: `${x}px`}
+
+  const level = findMaxLevel(events)
   const markerClass = `event-marker--line__${level.toLowerCase()}`
+
+  const formattedEvents = events.map(e => ({...e, time: xFormatter(e.time)}))
 
   return (
     isInDomain(time, xDomain) && (
@@ -63,7 +66,7 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events}) => {
         </div>
         {tooltipVisible && trigger.current && (
           <BoxTooltip triggerRect={triggerRect as DOMRect} maxWidth={500}>
-            <EventMarkerTooltip events={events} />
+            <EventMarkerTooltip events={formattedEvents} />
           </BoxTooltip>
         )}
       </>

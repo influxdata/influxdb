@@ -137,9 +137,10 @@ const CheckPlot: FunctionComponent<Props> = ({
         render: ({xScale, xDomain}) => (
           <EventMarkers
             key="events"
-            eventsArray={statuses || [[]]}
+            eventsArray={statuses}
             xScale={xScale}
             xDomain={xDomain}
+            xFormatter={xFormatter}
           />
         ),
       },

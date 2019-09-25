@@ -4,11 +4,15 @@ import React, {FunctionComponent, Fragment, CSSProperties} from 'react'
 // Constants
 import {LEVEL_COLORS} from 'src/alerting/constants'
 
-// Types
-import {StatusRow} from 'src/types'
+interface EventsRow {
+  time: string
+  checkName: string
+  level: string
+  message: string
+}
 
 interface Props {
-  events: StatusRow[]
+  events: EventsRow[]
 }
 
 const EventMarkerTooltip: FunctionComponent<Props> = ({events}) => {
