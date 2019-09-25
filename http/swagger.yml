@@ -9321,6 +9321,11 @@ components:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
+      discriminator:
+        propertyName: type
+        mapping:
+          deadman:  "#/components/schemas/DeadmanCheck"
+          threshold: "#/components/schemas/ThresholdCheck"
     Checks:
       properties:
         checks:
