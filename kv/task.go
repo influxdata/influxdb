@@ -1313,7 +1313,16 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	if err != nil {
 		return backend.RunCreation{}, influxdb.ErrTaskTimeParse(err)
 	}
-	nextScheduled := sch.Next(dueAt).UTC()
+
+	nextScheduled := sch.Next(time.Unix(scheduledFor, 0)).UTC()
+	offset := &options.Duration{}
+	if err := offset.Parse(task.Offset); err != nil {
+		return backend.RunCreation{}, influxdb.ErrTaskTimeParse(err)
+	}
+	nextDueAt, err := offset.Add(nextScheduled)
+	if err != nil {
+		return backend.RunCreation{}, influxdb.ErrTaskTimeParse(err)
+	}
 
 	// populate RunCreation
 	return backend.RunCreation{
@@ -1323,7 +1332,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 			DueAt:  dueAt.Unix(),
 			Now:    scheduledFor,
 		},
-		NextDue:  nextScheduled.Unix(),
+		NextDue:  nextDueAt.Unix(),
 		HasQueue: false,
 	}, nil
 }
