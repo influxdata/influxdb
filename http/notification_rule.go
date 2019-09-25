@@ -178,6 +178,12 @@ type notificationRulesResponse struct {
 }
 
 func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Context, nr influxdb.NotificationRule, labels []*influxdb.Label) (*notificationRuleResponse, error) {
+	// TODO(desa): this should be handled in the rule service and not exposed in http land, but is currently blocking the FE. https://github.com/influxdata/influxdb/issues/15259
+	t, err := h.TaskService.FindTaskByID(ctx, nr.GetTaskID())
+	if err != nil {
+		return nil, err
+	}
+
 	nr.ClearPrivateData()
 	res := &notificationRuleResponse{
 		NotificationRule: nr,
@@ -188,18 +194,12 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 			Owners:  fmt.Sprintf("/api/v2/notificationRules/%s/owners", nr.GetID()),
 		},
 		Labels: []influxdb.Label{},
+		Status: t.Status,
 	}
 
 	for _, l := range labels {
 		res.Labels = append(res.Labels, *l)
 	}
-
-	t, err := h.TaskService.FindTaskByID(ctx, nr.GetTaskID())
-	if err != nil {
-		return nil, err
-	}
-
-	res.Status = t.Status
 
 	return res, nil
 }
