@@ -370,7 +370,7 @@ func (t *fileTracker) SetFileCount(files map[int]uint64) {
 
 func (t *fileTracker) ClearFileCounts() {
 	labels := t.Labels()
-	for i := uint64(0); i <= 4; i++ {
+	for i := uint64(1); i <= 4; i++ {
 		labels["level"] = formatLevel(i)
 		t.metrics.Files.With(labels).Set(float64(0))
 	}
@@ -378,7 +378,7 @@ func (t *fileTracker) ClearFileCounts() {
 
 func (t *fileTracker) ClearDiskSizes() {
 	labels := t.Labels()
-	for i := uint64(0); i <= 4; i++ {
+	for i := uint64(1); i <= 4; i++ {
 		labels["level"] = formatLevel(i)
 		t.metrics.DiskSize.With(labels).Set(float64(0))
 	}
