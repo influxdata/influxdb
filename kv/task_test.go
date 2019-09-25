@@ -119,7 +119,25 @@ func TestNextRunDue(t *testing.T) {
 
 	ctx = icontext.SetAuthorizer(ctx, &authz)
 
-	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
+	task1, err := service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",cron: "0 * * * *", offset: 20s} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: o.ID,
+		OwnerID:        u.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	task2, err := service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",every: 1h, offset: 20s} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: o.ID,
+		OwnerID:        u.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	task3, err := service.CreateTask(ctx, influxdb.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
 		OwnerID:        u.ID,
@@ -128,28 +146,35 @@ func TestNextRunDue(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	nd, err := service.NextDueRun(ctx, task.ID)
-	if err != nil {
-		t.Fatal(err)
+	for _, task := range []*influxdb.Task{task1, task2, task3} {
+		nd, err := service.NextDueRun(ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// +20 to account for the 20 second offset in the flux script
+		oldNextDue := run.Created.Now
+		if task.Offset != "" {
+			oldNextDue += 20
+		}
+		if oldNextDue != nd {
+			t.Fatalf("expected nextRunDue and created run to match, %d, %d", nd, run.Created.Now)
+		}
+		nd1, err := service.NextDueRun(ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if run.NextDue != nd1 {
+			t.Fatalf("expected returned next run to be the same as teh next due after scheduling %d, %d", run.NextDue, nd1)
+		}
 	}
 
-	run, err := service.CreateNextRun(ctx, task.ID, time.Now().Add(time.Hour).Unix())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if run.Created.Now != nd {
-		t.Fatalf("expected nextRunDue and created run to match, %d, %d", nd, run.Created.Now)
-	}
-
-	nd1, err := service.NextDueRun(ctx, task.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if run.NextDue != nd1 {
-		t.Fatalf("expected returned next run to be the same as teh next due after scheduling %d, %d", run.NextDue, nd1)
-	}
 }
 
 func TestRetrieveTaskWithBadAuth(t *testing.T) {
