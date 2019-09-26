@@ -569,7 +569,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 
 		taskSvc = middleware.New(combinedTaskService, coordinator)
-		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
+		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
 		m.taskControlService = combinedTaskService
 	}
 

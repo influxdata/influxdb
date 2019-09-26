@@ -127,14 +127,6 @@ from(bucket: "${name}")
     cy.getByTestID('task-card').should('contain', newName)
   })
 
-  it('fails to create a task without a valid script', () => {
-    createFirstTask('Task', () => '{}')
-
-    cy.contains('Save').click()
-
-    cy.getByTestID('notification-error').should('exist')
-  })
-
   describe('labeling', () => {
     it('can click to filter tasks by labels', () => {
       const newLabelName = 'click-me'
