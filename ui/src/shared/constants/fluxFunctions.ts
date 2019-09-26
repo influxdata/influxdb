@@ -961,6 +961,40 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
   },
   FROM,
   {
+    name: 'getColumn',
+    args: [
+      {
+        name: 'column',
+        desc: 'The name of the column to extract.',
+        type: 'String',
+      },
+    ],
+    package: '',
+    desc:
+      'Extracts a column from a table given its label. If the label is not present in the set of columns, the function errors.',
+    example: 'getColumn(column: "_value")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/stream-table/getcolumn/',
+  },
+  {
+    name: 'getRecord',
+    args: [
+      {
+        name: 'idx',
+        desc: 'The index of the record to extract.',
+        type: 'Integer',
+      },
+    ],
+    package: '',
+    desc:
+      'Extracts a record from a table given the record’s index. If the index is out of bounds, the function errors.',
+    example: 'getRecord(idx: 0)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/stream-table/getrecord/',
+  },
+  {
     name: 'group',
     args: [
       {
@@ -4053,6 +4087,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Miscellaneous',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/system/time/',
+  },
+  {
+    name: 'tableFind',
+    args: [
+      {
+        name: 'fn',
+        desc: 'A predicate function for matching keys in a table group key.',
+        type: 'Function',
+      },
+    ],
+    package: '',
+    desc:
+      'Extracts the first table in a stream of tables whose group key values match a predicate. If no table is found, the function errors.',
+    example: 'tableFind(fn: (key) => key._field == "fieldName")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/stream-table/tablefind/',
   },
   {
     name: 'tail',
