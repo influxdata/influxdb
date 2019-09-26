@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	scheduler struct {
+	schedulerS struct {
 		backend.Scheduler
 
 		claimErr,
@@ -35,25 +35,25 @@ type (
 	}
 )
 
-func (s *scheduler) ClaimTask(_ context.Context, task *influxdb.Task) error {
+func (s *schedulerS) ClaimTask(_ context.Context, task *influxdb.Task) error {
 	s.calls = append(s.calls, claimCall{task})
 
 	return s.claimErr
 }
 
-func (s *scheduler) UpdateTask(_ context.Context, task *influxdb.Task) error {
+func (s *schedulerS) UpdateTask(_ context.Context, task *influxdb.Task) error {
 	s.calls = append(s.calls, updateCall{task})
 
 	return s.updateErr
 }
 
-func (s *scheduler) ReleaseTask(taskID influxdb.ID) error {
+func (s *schedulerS) ReleaseTask(taskID influxdb.ID) error {
 	s.calls = append(s.calls, releaseCall{taskID})
 
 	return s.releaseErr
 }
 
-func (s *scheduler) CancelRun(_ context.Context, taskID influxdb.ID, runID influxdb.ID) error {
+func (s *schedulerS) CancelRun(_ context.Context, taskID influxdb.ID, runID influxdb.ID) error {
 	s.calls = append(s.calls, cancelCall{taskID, runID})
 
 	return nil

@@ -60,7 +60,24 @@ func (t *Task) EffectiveCron() string {
 	return ""
 }
 
-// Run is a record created when a run of a task is scheduled.
+// LatestCompletedTime gives the time.Time that the task was last queued to be run in RFC3339 format.
+func (t *Task) LatestCompletedTime() (time.Time, error) {
+	tm := t.LatestCompleted
+	if tm == "" {
+		tm = t.CreatedAt
+	}
+	return time.Parse(time.RFC3339, tm)
+}
+
+// OffsetDuration gives the time.Duration of the Task's Offset property, which represents a delay before execution
+func (t *Task) OffsetDuration() (time.Duration, error) {
+	if t.Offset == "" {
+		return time.Duration(0), nil
+	}
+	return time.ParseDuration(t.Offset)
+}
+
+// Run is a record createId when a run of a task is scheduled.
 type Run struct {
 	ID           ID     `json:"id,omitempty"`
 	TaskID       ID     `json:"taskID"`
