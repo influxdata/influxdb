@@ -370,9 +370,17 @@ func (t *fileTracker) SetFileCount(files map[int]uint64) {
 
 func (t *fileTracker) ClearFileCounts() {
 	labels := t.Labels()
-	for i := uint64(0); i <= 4; i++ {
+	for i := uint64(1); i <= 4; i++ {
 		labels["level"] = formatLevel(i)
 		t.metrics.Files.With(labels).Set(float64(0))
+	}
+}
+
+func (t *fileTracker) ClearDiskSizes() {
+	labels := t.Labels()
+	for i := uint64(1); i <= 4; i++ {
+		labels["level"] = formatLevel(i)
+		t.metrics.DiskSize.With(labels).Set(float64(0))
 	}
 }
 
@@ -676,9 +684,9 @@ func (f *FileStore) Open(ctx context.Context) error {
 	}
 
 	var lm int64
-	counts := make(map[int]uint64, 5)
-	sizes := make(map[int]uint64, 5)
-	for i := 0; i <= 5; i++ {
+	counts := make(map[int]uint64, 4)
+	sizes := make(map[int]uint64, 4)
+	for i := 1; i <= 4; i++ {
 		counts[i] = 0
 		sizes[i] = 0
 	}
@@ -1015,10 +1023,11 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
 	f.tracker.ClearFileCounts()
+	f.tracker.ClearDiskSizes()
 
 	// Recalculate the disk size stat
-	sizes := make(map[int]uint64, 5)
-	counts := make(map[int]uint64, 5)
+	sizes := make(map[int]uint64, 4)
+	counts := make(map[int]uint64, 4)
 	for _, file := range f.files {
 		size := uint64(file.Size())
 		for _, ts := range file.TombstoneFiles() {

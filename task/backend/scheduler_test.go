@@ -625,6 +625,8 @@ func pollForRunStatus(t *testing.T, r *runListener, taskID platform.ID, expCount
 }
 
 func TestScheduler_RunStatus(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/15273")
+
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()

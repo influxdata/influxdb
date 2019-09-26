@@ -384,7 +384,7 @@ func TestEngine_InitializeMetrics(t *testing.T) {
 	files := promtest.MustFindMetric(t, mfs, "storage_tsm_files_total", prometheus.Labels{
 		"node_id":   fmt.Sprint(engine.nodeID),
 		"engine_id": fmt.Sprint(engine.engineID),
-		"level":     "0",
+		"level":     "1",
 	})
 	if m, got, exp := files, files.GetGauge().GetValue(), 0.0; got != exp {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
@@ -393,7 +393,7 @@ func TestEngine_InitializeMetrics(t *testing.T) {
 	bytes := promtest.MustFindMetric(t, mfs, "storage_tsm_files_disk_bytes", prometheus.Labels{
 		"node_id":   fmt.Sprint(engine.nodeID),
 		"engine_id": fmt.Sprint(engine.engineID),
-		"level":     "0",
+		"level":     "1",
 	})
 	if m, got, exp := bytes, bytes.GetGauge().GetValue(), 0.0; got != exp {
 		t.Errorf("[%s] got %v, expected %v", m, got, exp)
