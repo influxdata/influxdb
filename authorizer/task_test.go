@@ -2,8 +2,6 @@ package authorizer_test
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb"
@@ -20,7 +18,7 @@ import (
 
 func TestOnboardingValidation(t *testing.T) {
 	svc := inmem.NewService()
-	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1), svc)
+	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
 	r, err := svc.Generate(context.Background(), &influxdb.OnboardingRequest{
 		User:            "Setec Astronomy",
@@ -149,7 +147,7 @@ func TestValidations(t *testing.T) {
 
 	var (
 		orgID            = r.Org.ID
-		validTaskService = authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(orgID, taskID, runID), inmem)
+		validTaskService = authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(orgID, taskID, runID))
 
 		// Read all tasks in org.
 		orgReadAllTaskPermissions = []influxdb.Permission{
@@ -247,53 +245,6 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 				})
 				return err
-			},
-		},
-		{
-			name: "create bad bucket",
-			auth: r.Auth,
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				var (
-					expMsg  = "Failed to create task."
-					expCode = influxdb.EUnauthorized
-					errfmt  = "expected %q, got %q"
-					_, err  = svc.CreateTask(ctx, influxdb.TaskCreate{
-						OrganizationID: r.Org.ID,
-						OwnerID:        r.Auth.GetUserID(),
-						Flux: `option task = {
- name: "my_task",
- every: 1s,
-}
-from(bucket:"bad") |> range(start:-5m) |> to(bucket:"bad", org:"thing")`,
-					})
-				)
-
-				if err == nil {
-					return errors.New("created task without bucket permission")
-				}
-
-				perr, ok := err.(*influxdb.Error)
-				if !ok {
-					return fmt.Errorf(errfmt, &influxdb.Error{}, err)
-				}
-
-				if perr.Code != expCode {
-					return fmt.Errorf(errfmt, expCode, perr.Code)
-				}
-
-				if perr.Err == nil {
-					return fmt.Errorf(errfmt, "platform.Error.Err to be present", perr.Err)
-				}
-
-				if !strings.Contains(perr.Err.Error(), "bucket \"bad\" not found") {
-					return fmt.Errorf(errfmt, "to container bucket not found", perr.Err)
-				}
-
-				if perr.Msg != expMsg {
-					return fmt.Errorf(errfmt, expMsg, perr.Msg)
-				}
-
-				return nil
 			},
 		},
 		{
@@ -410,64 +361,6 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 					Flux: &flux,
 				})
 				return err
-			},
-		},
-		{
-			name: "UpdateTask with bad bucket",
-			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				flux := `option task = {
- name: "my_task",
- every: 1s,
-}
-from(bucket:"cows") |> range(start:-5m) |> to(bucket:"cows", org:"thing")`
-				_, err := svc.UpdateTask(ctx, taskID, influxdb.TaskUpdate{
-					Flux: &flux,
-				})
-				if err == nil {
-					return errors.New("returned no error with unauthorized bucket")
-				}
-				return nil
-			},
-		},
-		{
-			name: "UpdateTask with bad org",
-			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskBucketPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				var (
-					flux = `option task = {
- name: "my_task",
- every: 1s,
-}
-from(bucket:"cows") |> range(start:-5m) |> to(bucket:"other_bucket", org:"other_org")`
-					_, err = svc.UpdateTask(ctx, taskID, influxdb.TaskUpdate{
-						Flux: &flux,
-					})
-				)
-
-				perr, ok := err.(*influxdb.Error)
-				if !ok {
-					return fmt.Errorf("expected influxdb.error, got %q of type %T", err, err)
-				}
-
-				if perr.Code != influxdb.EUnauthorized {
-					return fmt.Errorf(`expected "unauthorized", got %q`, perr.Code)
-				}
-
-				if perr.Msg != "Failed to create task." {
-					return fmt.Errorf(`expected "Failed to authorize.", got %q`, perr.Msg)
-				}
-
-				cerr, ok := errors.Cause(perr.Err).(*influxdb.Error)
-				if !ok {
-					return fmt.Errorf("expected influxdb.error, got %q of type %T", perr.Err, perr.Err)
-				}
-
-				if cerr.Code != influxdb.ENotFound {
-					return fmt.Errorf(`expected "not found", got %q`, perr.Code)
-				}
-
-				return nil
 			},
 		},
 		{
