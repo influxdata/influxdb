@@ -3,6 +3,7 @@
 ### Features
 
 1. [15151](https://github.com/influxdata/influxdb/pull/15151): Add jsonweb package for future JWT support
+1. [15168](https://github.com/influxdata/influxdb/pull/15168): Added the JMeter Template dashboard
 
 ### UI Improvements
 
