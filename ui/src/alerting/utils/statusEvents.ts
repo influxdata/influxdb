@@ -20,14 +20,14 @@ from(bucket: "${MONITORING_BUCKET}")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
   |> filter(fn: (r) => r._measurement == "statuses" and r._field == "_message")
   |> keep(columns: ["_time", "_value", "_check_id", "_check_name", "_level"])
+  |> window(every: 1s, timeColumn: "_time", startColumn: "_start", stopColumn: "_stop")
+  |> group(columns: ["_start", "_stop"])
+  |> filter(fn: (r) => r["_check_id"] == "${checkID}")
   |> rename(columns: {"_time": "time",
                       "_value": "message",
                       "_check_id": "checkID",
                       "_check_name": "checkName",
                       "_level": "level"})
-  |> window(every: 1s, timeColumn: "time", startColumn: "_start", stopColumn: "_stop")
-  |> group(columns: ["_start", "_stop"])
-  |> filter(fn: (r) => r["checkID"] == "${checkID}")
 `
   return processStatusesResponse(runQuery(orgID, query, extern)) as CancelBox<
     StatusRow[][]
