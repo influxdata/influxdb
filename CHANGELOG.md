@@ -1,3 +1,7 @@
+## v2.0.0-alpha.19 [unreleased]
+### Bug Fixes
+1. [15295](https://github.com/influxdata/influxdb/pull/15295): Ensures users are created with an active status 
+
 ## v2.0.0-alpha.18 [2019-09-26]
 
 ### Features
