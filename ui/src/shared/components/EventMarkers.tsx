@@ -4,8 +4,6 @@ import React, {FunctionComponent} from 'react'
 // Components
 import EventMarker from 'src/shared/components/EventMarker'
 
-// Utils
-
 // Types
 import {Scale} from '@influxdata/giraffe'
 import {StatusRow} from 'src/types'
