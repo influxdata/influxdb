@@ -149,9 +149,7 @@ type retentionRule struct {
 }
 
 func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
-	var t time.Duration
-
-	t = time.Duration(rr.EverySeconds) * time.Second
+	t := time.Duration(rr.EverySeconds) * time.Second
 	if t < time.Second {
 		return t, &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,

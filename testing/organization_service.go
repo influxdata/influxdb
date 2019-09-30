@@ -3,21 +3,26 @@ package testing
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
+	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
-	"github.com/influxdata/influxdb/rand"
 )
 
 const (
 	orgOneID = "020f755c3c083000"
 	orgTwoID = "020f755c3c083001"
 )
+
+var orgBucketsIDGenerator *mock.MockIDGenerator
+
+func init() {
+	orgBucketsIDGenerator = mock.NewMockIDGenerator()
+}
 
 var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
@@ -34,10 +39,10 @@ var organizationCmpOptions = cmp.Options{
 
 // OrganizationFields will include the IDGenerator, and organizations
 type OrganizationFields struct {
-	IDGenerator   influxdb.IDGenerator
+	IDGenerator   *mock.MockIDGenerator
 	Organizations []*influxdb.Organization
 	TimeGenerator influxdb.TimeGenerator
-	OrgBucketIDs  influxdb.IDGenerator
+	OrgBucketIDs  *mock.MockIDGenerator
 }
 
 // OrganizationService tests all the service functions.
@@ -103,8 +108,8 @@ func CreateOrganization(
 		{
 			name: "create organizations with empty set",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgOneID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgOneID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  mock.NewMockIDGenerator(),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{},
 			},
@@ -119,7 +124,7 @@ func CreateOrganization(
 				organizations: []*influxdb.Organization{
 					{
 						Name:        "name1",
-						ID:          MustIDBase16(orgOneID),
+						ID:          platform.ID(mock.FirstMockID),
 						Description: "desc1",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -132,8 +137,8 @@ func CreateOrganization(
 		{
 			name: "basic create organization",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  mock.NewMockIDGenerator(),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
@@ -155,7 +160,7 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
+						ID:   platform.ID(mock.FirstMockID),
 						Name: "organization2",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -168,8 +173,8 @@ func CreateOrganization(
 		{
 			name: "empty name",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  orgBucketsIDGenerator,
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
@@ -196,8 +201,8 @@ func CreateOrganization(
 		{
 			name: "name only have spaces",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  orgBucketsIDGenerator,
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
@@ -225,8 +230,8 @@ func CreateOrganization(
 		{
 			name: "names should be unique",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  orgBucketsIDGenerator,
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
@@ -258,8 +263,8 @@ func CreateOrganization(
 		{
 			name: "create organization with no id",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  mock.NewMockIDGenerator(),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
@@ -280,7 +285,7 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 					{
-						ID:   MustIDBase16(orgTwoID),
+						ID:   platform.ID(mock.FirstMockID),
 						Name: "organization2",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -293,8 +298,8 @@ func CreateOrganization(
 		{
 			name: "names should be unique",
 			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgTwoID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgTwoID, t),
+				IDGenerator:   mock.NewMockIDGenerator(),
+				OrgBucketIDs:  orgBucketsIDGenerator,
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
 				Organizations: []*influxdb.Organization{
 					{
@@ -320,96 +325,6 @@ func CreateOrganization(
 					Code: influxdb.EConflict,
 					Op:   influxdb.OpCreateOrganization,
 					Msg:  "organization with name organization1 already exists",
-				},
-			},
-		},
-		{
-			name: "ids should be unique",
-			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator(orgOneID, t),
-				OrgBucketIDs:  mock.NewIDGenerator(orgOneID, t),
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-			},
-			args: args{
-				organization: &influxdb.Organization{
-					ID:   MustIDBase16(orgOneID),
-					Name: "organization2",
-				},
-			},
-			wants: wants{
-				organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EInternal,
-					Msg:  fmt.Sprintf("unable to generate valid id"),
-				},
-			},
-		},
-		{
-			name: "reserved ids should not be created",
-			fields: OrganizationFields{
-				IDGenerator:   mock.NewIDGenerator("000000000000000a", t),
-				OrgBucketIDs:  mock.NewIDGenerator("000000000000000a", t),
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-			},
-			args: args{
-				organization: &influxdb.Organization{
-					ID:   MustIDBase16(orgOneID),
-					Name: "organization2",
-				},
-			},
-			wants: wants{
-				organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16(orgOneID),
-						Name: "organization1",
-					},
-				},
-				err: &influxdb.Error{
-					Code: influxdb.EInternal,
-					Msg:  fmt.Sprintf("unable to generate valid id"),
-				},
-			},
-		},
-		{
-			name: "randomly generted org ids should not have commas, spaces, or backslashes",
-			fields: OrganizationFields{
-				OrgBucketIDs:  rand.NewOrgBucketID(42),
-				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Organizations: []*influxdb.Organization{},
-			},
-			args: args{
-				organization: &influxdb.Organization{
-					Name: "o1",
-				},
-			},
-			wants: wants{
-				organizations: []*influxdb.Organization{
-					{
-						ID:   MustIDBase16("afbf64b1967f8c53"),
-						Name: "o1",
-
-						CRUDLog: influxdb.CRUDLog{
-							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
-							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
-						},
-					},
 				},
 			},
 		},
