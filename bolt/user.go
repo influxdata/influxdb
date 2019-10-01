@@ -7,6 +7,7 @@ import (
 	"time"
 
 	bolt "github.com/coreos/bbolt"
+	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	platformcontext "github.com/influxdata/influxdb/context"
 )
@@ -226,6 +227,7 @@ func (c *Client) CreateUser(ctx context.Context, u *platform.User) error {
 		}
 
 		u.ID = c.IDGenerator.ID()
+		u.Status = influxdb.Active
 
 		if err := c.appendUserEventToLog(ctx, tx, u.ID, userCreatedEvent); err != nil {
 			return err
