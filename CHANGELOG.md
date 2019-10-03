@@ -1,4 +1,8 @@
 ## v2.0.0-alpha.19 [unreleased]
+
+### Features
+1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
+
 ### Bug Fixes
 1. [15295](https://github.com/influxdata/influxdb/pull/15295): Ensures users are created with an active status 
 
