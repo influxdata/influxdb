@@ -20,7 +20,7 @@ export default class GenerateTokenDropdown extends PureComponent<Props> {
     return (
       <Dropdown
         testID="dropdown--gen-token"
-        widthPixels={160}
+        style={{width: '160px'}}
         button={(active, onClick) => (
           <Dropdown.Button
             active={active}

@@ -32,7 +32,7 @@ class ViewTypeDropdown extends PureComponent<Props> {
   public render() {
     return (
       <Dropdown
-        widthPixels={215}
+        style={{width: '215px'}}
         className="view-type-dropdown"
         button={(active, onClick) => (
           <Dropdown.Button

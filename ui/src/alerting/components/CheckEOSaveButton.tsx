@@ -60,7 +60,7 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
         )}
       />
       <SquareButton
-        refObject={triggerRef}
+        ref={triggerRef}
         className={className}
         icon={IconFont.Checkmark}
         color={ComponentColor.Success}

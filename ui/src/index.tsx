@@ -100,7 +100,7 @@ import {disablePresentationMode} from 'src/shared/actions/app'
 
 // Styles
 import 'src/style/chronograf.scss'
-import '@influxdata/clockface/dist/index.css'
+import '@influxdata/clockface/index.css'
 
 const rootNode = getRootNode()
 const basepath = getBasepath()

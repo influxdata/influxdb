@@ -5,6 +5,7 @@ import React, {PureComponent, createRef, RefObject} from 'react'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import {
   Button,
+  ButtonRef,
   IconFont,
   ComponentSize,
   ComponentColor,
@@ -20,7 +21,7 @@ interface Props {
 }
 
 export default class BucketAddDataButton extends PureComponent<Props> {
-  private triggerRef: RefObject<HTMLButtonElement> = createRef()
+  private triggerRef: RefObject<ButtonRef> = createRef()
 
   public render() {
     const {onAddCollector, onAddLineProtocol, onAddScraper} = this.props
@@ -68,7 +69,7 @@ export default class BucketAddDataButton extends PureComponent<Props> {
           )}
         />
         <Button
-          refObject={this.triggerRef}
+          ref={this.triggerRef}
           text="Add Data"
           icon={IconFont.Plus}
           size={ComponentSize.ExtraSmall}

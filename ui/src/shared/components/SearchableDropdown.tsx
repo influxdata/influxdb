@@ -61,11 +61,13 @@ export default class SearchableDropdown extends Component<Props> {
       menuTestID,
     } = this.props
 
+    const style = widthPixels ? {width: `${widthPixels}px`} : null
+
     return (
       <Dropdown
         testID={testID}
         className={className}
-        widthPixels={widthPixels}
+        style={style}
         button={(active, onClick) => (
           <Dropdown.Button
             active={active}

@@ -51,7 +51,7 @@ export default class AddMembersForm extends PureComponent<Props> {
                 <Input
                   icon={IconFont.Search}
                   placeholder="Filter users..."
-                  widthPixels={200}
+                  style={{width: '200px'}}
                   value={searchTerm}
                   onChange={onFilterChange}
                   onBlur={onFilterBlur}
