@@ -1,0 +1,112 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`VariableForm rendering renders 1`] = `
+<Form
+  onSubmit={[Function]}
+  preventDefault={true}
+  testID="form-container"
+>
+  <Grid
+    testID="grid"
+  >
+    <GridRow
+      testID="grid--row"
+    >
+      <GridColumn
+        testID="grid--column"
+        widthXS={6}
+      >
+        <div
+          className="overlay-flux-editor--spacing"
+        >
+          <FormValidationElement
+            label="Name"
+            required={true}
+            testID="form--validation-element"
+            validationFunc={[Function]}
+            value=""
+          >
+            <Component />
+          </FormValidationElement>
+        </div>
+      </GridColumn>
+      <GridColumn
+        testID="grid--column"
+        widthXS={6}
+      >
+        <FormElement
+          label="Type"
+          required={true}
+          testID="form--element"
+        >
+          <Dropdown
+            button={[Function]}
+            dropUp={false}
+            menu={[Function]}
+            testID="dropdown"
+          />
+        </FormElement>
+      </GridColumn>
+    </GridRow>
+    <GridRow
+      testID="grid--row"
+    >
+      <GridColumn
+        testID="grid--column"
+        widthXS={12}
+      >
+        <VariableArgumentsEditor
+          args={
+            Object {
+              "type": "query",
+              "values": Object {
+                "language": "flux",
+                "query": "Hello There!",
+              },
+            }
+          }
+          onChange={[Function]}
+          onSelectMapDefault={[Function]}
+          selected={null}
+        />
+      </GridColumn>
+    </GridRow>
+    <GridRow
+      testID="grid--row"
+    >
+      <GridColumn
+        testID="grid--column"
+        widthXS={12}
+      >
+        <FormFooter
+          testID="form--footer"
+        >
+          <Button
+            active={false}
+            color="danger"
+            onClick={[MockFunction]}
+            placeIconAfterText={false}
+            shape="none"
+            size="sm"
+            status="default"
+            testID="button"
+            text="Cancel"
+            type="button"
+          />
+          <Button
+            active={false}
+            color="primary"
+            placeIconAfterText={false}
+            shape="none"
+            size="sm"
+            status="disabled"
+            testID="button"
+            text="Create"
+            type="submit"
+          />
+        </FormFooter>
+      </GridColumn>
+    </GridRow>
+  </Grid>
+</Form>
+`;

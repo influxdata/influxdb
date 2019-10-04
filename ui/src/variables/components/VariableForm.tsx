@@ -198,6 +198,10 @@ export default class VariableForm extends PureComponent<Props, State> {
     const {isNameValid} = this.state
     const defaults = {selected: null, hasValidArgs: false, isNameValid}
 
+    if (this.state.args.type === selectedType) {
+        return;
+    }
+
     switch (selectedType) {
       case 'query':
         return this.setState({
