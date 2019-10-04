@@ -40,6 +40,8 @@ describe('VariableForm', () => {
 
       wrapper.instance().setState = stateStub
 
+      // this way of accessing the instance function
+      // bypasses typescript's private function check
       wrapper.instance()['handleChangeType'](defaultType)
       expect(stateStub.mock.calls.length).toBe(0)
     })
@@ -51,6 +53,8 @@ describe('VariableForm', () => {
 
       wrapper.instance().setState = stateStub
 
+      // this way of accessing the instance function
+      // bypasses typescript's private function check
       wrapper.instance()['handleChangeType']('map')
       expect(stateStub.mock.calls.length).toBe(1)
     })
