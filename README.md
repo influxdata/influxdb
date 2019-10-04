@@ -181,6 +181,17 @@ Table: keys: [_start, _stop, _field, _measurement]
 
 We recently announced Flux, the MIT-licensed data scripting language (previously named IFQL). The source for Flux is [available on GitHub](https://github.com/influxdata/flux). Learn more about Flux from [CTO Paul Dix's presentation](https://speakerdeck.com/pauldix/flux-number-fluxlang-a-new-time-series-data-scripting-language).
 
+## Contributors
+
+### Contributor License Agreement
+
+All contributors to influxdb are required to sign our Individual Contributor License Agreement which can be found [here](https://influxdata.com/community/cla/). This is also explained in our pull request template.
+
+This is part of the legal framework of the open-source ecosystem that adds some red tape, but protects both the contributor and the company / foundation behind the project. It also gives us the option to relicense the code with a more permissive license in the future.
+
+When a contributor opens a new pull request to influxdb a github action is triggered which looks up the user in our contributor list.
+The configuration for this workflow can be found in the [main workflow](./.github/workflows/main.yml). The public github action itself (clasee) can be found [here](https://github.com/influxdata/clasee).
+
 ## CI and Static Analysis
 
 ### CI
