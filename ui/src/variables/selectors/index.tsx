@@ -8,7 +8,7 @@ import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 // Types
 import {RemoteDataState} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
-import {AppState, VariableArguments} from 'src/types'
+import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
 import {
   VariableValues,
   VariableValuesByID,
@@ -29,6 +29,52 @@ const extractVariablesListMemoized = memoizeOne(
 
 export const extractVariablesList = (state: AppState): Variable[] => {
   return extractVariablesListMemoized(state.variables.variables)
+}
+
+export const extractVariableEditorName = (state: AppState): string => {
+  return state.variableEditor.name
+}
+
+export const extractVariableEditorType = (
+  state: AppState
+): VariableArgumentType => {
+  return state.variableEditor.selected
+}
+
+export const extractVariableEditorQuery = (
+  state: AppState
+): VariableArguments => {
+  return (
+    state.variableEditor.argsQuery || {
+      type: 'query',
+      values: {
+        query: '',
+        language: 'flux',
+      },
+    }
+  )
+}
+
+export const extractVariableEditorMap = (
+  state: AppState
+): VariableArguments => {
+  return (
+    state.variableEditor.argsMap || {
+      type: 'map',
+      values: {},
+    }
+  )
+}
+
+export const extractVariableEditorConstant = (
+  state: AppState
+): VariableArguments => {
+  return (
+    state.variableEditor.argsConstant || {
+      type: 'constant',
+      values: [],
+    }
+  )
 }
 
 const getVariablesForDashboardMemoized = memoizeOne(

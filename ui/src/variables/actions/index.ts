@@ -31,13 +31,79 @@ import * as copy from 'src/shared/copy/notifications'
 // Types
 import {Dispatch} from 'redux-thunk'
 import {RemoteDataState, VariableTemplate} from 'src/types'
-import {GetState} from 'src/types'
+import {GetState, VariableArguments, VariableArgumentType} from 'src/types'
 import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 import {
   addVariableLabelFailed,
   removeVariableLabelFailed,
 } from 'src/shared/copy/notifications'
+
+export type EditorAction =
+  | ClearEditor
+  | SetName
+  | SelectType
+  | SetQuery
+  | SetMap
+  | SetConstant
+
+interface ClearEditor {
+  type: 'CLEAR_VARIABLE_EDITOR'
+}
+
+export const clearEditor = (): ClearEditor => ({
+  type: 'CLEAR_VARIABLE_EDITOR',
+})
+
+interface SelectType {
+  type: 'CHANGE_VARIABLE_EDITOR_TYPE'
+  payload: VariableArgumentType
+}
+
+export const updateType = (type: VariableArgumentType): SelectType => ({
+  type: 'CHANGE_VARIABLE_EDITOR_TYPE',
+  payload: type,
+})
+
+interface SetName {
+  type: 'UPDATE_VARIABLE_EDITOR_NAME'
+  payload: string
+}
+
+export const updateName = (name: string): SetName => ({
+  type: 'UPDATE_VARIABLE_EDITOR_NAME',
+  payload: name,
+})
+
+interface SetQuery {
+  type: 'UPDATE_VARIABLE_EDITOR_QUERY'
+  payload: VariableArguments
+}
+
+export const updateQuery = (arg: VariableArguments): SetQuery => ({
+  type: 'UPDATE_VARIABLE_EDITOR_QUERY',
+  payload: arg,
+})
+
+interface SetMap {
+  type: 'UPDATE_VARIABLE_EDITOR_MAP'
+  payload: VariableArguments
+}
+
+export const updateMap = (arg: VariableArguments): SetMap => ({
+  type: 'UPDATE_VARIABLE_EDITOR_MAP',
+  payload: arg,
+})
+
+interface SetConstant {
+  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT'
+  payload: VariableArguments
+}
+
+export const updateConstant = (arg: VariableArguments): SetConstant => ({
+  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT',
+  payload: arg,
+})
 
 export type Action =
   | SetVariables

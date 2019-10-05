@@ -13,6 +13,7 @@ import {
   KeyValueMap,
   QueryArguments,
   VariableArguments,
+  VariableArgumentType,
   CSVArguments,
 } from 'src/types'
 
@@ -21,20 +22,21 @@ interface Props {
   onChange: (update: {args: VariableArguments; isValid: boolean}) => void
   onSelectMapDefault: (selectedKey: string) => void
   selected: string[]
+  variableType: VariableArgumentType
 }
 
 class VariableArgumentsEditor extends PureComponent<Props> {
   render() {
-    const {args, onSelectMapDefault, selected} = this.props
+    const {args, onSelectMapDefault, selected, variableType} = this.props
 
-    switch (args.type) {
+    switch (variableType) {
       case 'query':
         return (
           <Form.Element label="Script">
             <Grid.Column>
               <div className="overlay-flux-editor">
                 <FluxEditor
-                  script={args.values.query}
+                  script={(args as QueryArguments).values.query}
                   onChangeScript={this.handleChangeQuery}
                   visibility="visible"
                   suggestions={[]}
@@ -47,7 +49,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
         return (
           <MapVariableBuilder
             onChange={this.handleChangeMap}
-            values={args.values}
+            values={(args as MapArguments).values}
             onSelectDefault={onSelectMapDefault}
             selected={selected}
           />
@@ -56,7 +58,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
         return (
           <CSVVariableBuilder
             onChange={this.handleChangeCSV}
-            values={args.values}
+            values={(args as CSVArguments).values}
             onSelectDefault={onSelectMapDefault}
             selected={selected}
           />

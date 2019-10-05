@@ -7,11 +7,26 @@ import {connect} from 'react-redux'
 import VariableForm from 'src/variables/components/VariableForm'
 
 // Utils
-import {createVariable} from 'src/variables/actions'
-import {extractVariablesList} from 'src/variables/selectors'
+import {
+  createVariable,
+  updateName,
+  updateType,
+  updateQuery,
+  updateMap,
+  updateConstant,
+  clearEditor,
+} from 'src/variables/actions'
+import {
+  extractVariablesList,
+  extractVariableEditorName,
+  extractVariableEditorType,
+  extractVariableEditorQuery,
+  extractVariableEditorMap,
+  extractVariableEditorConstant,
+} from 'src/variables/selectors'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 import {IVariable as Variable} from '@influxdata/influx'
 
@@ -21,11 +36,22 @@ interface OwnProps {
 
 interface DispatchProps {
   onCreateVariable: typeof createVariable
+  onNameUpdate: typeof updateName
+  onTypeUpdate: typeof updateType
+  onQueryUpdate: typeof updateQuery
+  onMapUpdate: typeof updateMap
+  onConstantUpdate: typeof updateConstant
+  onEditorClose: typeof clearEditor
 }
 
 interface StateProps {
   initialScript?: string
   variables: Variable[]
+  name: string
+  variableType: VariableArgumentType
+  query: VariableArguments
+  map: VariableArguments
+  constant: VariableArguments
 }
 
 type Props = StateProps & DispatchProps & OwnProps
@@ -33,35 +59,77 @@ type Props = StateProps & DispatchProps & OwnProps
 class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
   render() {
     const {
-      onHideOverlay,
       onCreateVariable,
+      onNameUpdate,
+      onTypeUpdate,
+      onQueryUpdate,
+      onMapUpdate,
+      onConstantUpdate,
+      name,
       initialScript,
       variables,
+      variableType,
+      query,
+      map,
+      constant,
     } = this.props
 
     return (
       <VariableForm
-        onHideOverlay={onHideOverlay}
-        onCreateVariable={onCreateVariable}
-        initialScript={initialScript}
+        name={name}
+        variableType={variableType}
+        query={query}
+        map={map}
+        constant={constant}
         variables={variables}
+        initialScript={initialScript}
+        onHideOverlay={this.handleHideOverlay}
+        onCreateVariable={onCreateVariable}
+        onNameUpdate={onNameUpdate}
+        onTypeUpdate={onTypeUpdate}
+        onQueryUpdate={onQueryUpdate}
+        onMapUpdate={onMapUpdate}
+        onConstantUpdate={onConstantUpdate}
       />
     )
+  }
+
+  private handleHideOverlay = () => {
+    const {onEditorClose, onHideOverlay} = this.props
+
+    onEditorClose()
+    onHideOverlay()
   }
 }
 
 const mstp = (state: AppState): StateProps => {
-  const activeQuery = getActiveQuery(state)
-  const variables = extractVariablesList(state)
+  const activeQuery = getActiveQuery(state),
+    variables = extractVariablesList(state),
+    name = extractVariableEditorName(state),
+    variableType = extractVariableEditorType(state),
+    query = extractVariableEditorQuery(state),
+    map = extractVariableEditorMap(state),
+    constant = extractVariableEditorConstant(state)
 
   return {
     initialScript: activeQuery.text,
     variables,
+    name,
+    variableType,
+    query,
+    map,
+    constant,
   }
 }
 
 const mdtp = {
   onCreateVariable: createVariable,
+  onNameUpdate: updateName,
+  onTypeUpdate: updateType,
+  onQueryUpdate: updateQuery,
+  onMapUpdate: updateMap,
+  onConstantUpdate: updateConstant,
+  onEditorClose: clearEditor,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

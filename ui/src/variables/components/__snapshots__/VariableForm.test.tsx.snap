@@ -24,7 +24,6 @@ exports[`VariableForm rendering renders 1`] = `
             required={true}
             testID="form--validation-element"
             validationFunc={[Function]}
-            value=""
           >
             <Component />
           </FormValidationElement>
@@ -68,6 +67,7 @@ exports[`VariableForm rendering renders 1`] = `
           onChange={[Function]}
           onSelectMapDefault={[Function]}
           selected={null}
+          variableType="query"
         />
       </GridColumn>
     </GridRow>
