@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import AddMembersForm from 'src/members/components/AddMembersForm'
@@ -27,13 +26,17 @@ interface DispatchProps {
   addMember: typeof addNewMember
 }
 
+interface OwnProps {
+  onDismiss: () => void
+}
+
 interface State {
   selectedUserIDs: string[]
   searchTerm: string
   selectedMembers: UsersMap
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps
 
 class AddMembersOverlay extends PureComponent<Props, State> {
   public state: State = {
@@ -47,14 +50,14 @@ class AddMembersOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {status} = this.props
+    const {status, onDismiss} = this.props
     const {selectedUserIDs, searchTerm, selectedMembers} = this.state
 
     return (
       <GetResources resource={ResourceType.Users}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={720}>
-            <Overlay.Header title="Add Member" onDismiss={this.handleDismiss} />
+            <Overlay.Header title="Add Member" onDismiss={onDismiss} />
             <Overlay.Body>
               <SpinnerContainer
                 loading={status}
@@ -67,7 +70,7 @@ class AddMembersOverlay extends PureComponent<Props, State> {
                 >
                   {ts => (
                     <AddMembersForm
-                      onCloseModal={this.handleDismiss}
+                      onCloseModal={onDismiss}
                       users={ts}
                       onSelect={this.handleSelectUserID}
                       selectedUserIDs={selectedUserIDs}
@@ -119,24 +122,15 @@ class AddMembersOverlay extends PureComponent<Props, State> {
     })
   }
 
-  private handleDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/members`)
-  }
-
   private handleSave = () => {
-    const {addMember} = this.props
+    const {addMember, onDismiss} = this.props
     const {selectedMembers} = this.state
 
     Object.keys(selectedMembers).map(id => {
       addMember({id: id, name: selectedMembers[id].name})
     })
 
-    this.handleDismiss()
+    onDismiss()
   }
 }
 
@@ -152,4 +146,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<Props>(AddMembersOverlay))
+)(AddMembersOverlay)

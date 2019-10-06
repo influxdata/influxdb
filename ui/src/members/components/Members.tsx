@@ -2,7 +2,6 @@
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
@@ -10,6 +9,7 @@ import {Button, EmptyState, Sort} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import MemberList from 'src/members/components/MemberList'
 import FilterList from 'src/shared/components/Filter'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Actions
 import {deleteMember} from 'src/members/actions'
@@ -38,7 +38,7 @@ interface State {
 
 type SortKey = keyof Member
 
-class Members extends PureComponent<Props & WithRouterProps, State> {
+class Members extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -59,12 +59,16 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
             searchTerm={searchTerm}
             onSearch={this.handleFilterChange}
           />
-          <Button
-            text="Add Member"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={this.handleOpenOverlay}
-          />
+          <OverlayLink overlayID="add-members">
+            {onClick => (
+              <Button
+                text="Add Member"
+                icon={IconFont.Plus}
+                color={ComponentColor.Primary}
+                onClick={onClick}
+              />
+            )}
+          </OverlayLink>
         </SettingsTabbedPageHeader>
         <FilterList<Member>
           list={this.props.members}
@@ -95,15 +99,6 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
   private removeMember = (member: Member) => {
     const {onRemoveMember} = this.props
     onRemoveMember(member)
-  }
-
-  private handleOpenOverlay = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/members/new`)
   }
 
   private handleFilterChange = (searchTerm: string): void => {
@@ -143,4 +138,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter<Props>(Members))
+)(Members)

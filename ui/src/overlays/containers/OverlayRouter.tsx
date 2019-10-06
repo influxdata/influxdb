@@ -9,6 +9,7 @@ import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverl
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
 import DeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
 import SaveAsOverlay from 'src/dataExplorer/components/SaveAsOverlay'
+import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) => {
   const {overlay} = queryString.parse(location.search)
@@ -36,6 +37,9 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
       break
     case 'save-as':
       activeOverlay = <SaveAsOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'add-members':
+      activeOverlay = <AddMembersOverlay onDismiss={handleDismissOverlay} />
       break
     default:
       break

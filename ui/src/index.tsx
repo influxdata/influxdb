@@ -69,7 +69,6 @@ import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverla
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
-import AddMembersOverlay from 'src/members/components/AddMembersOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
 import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
@@ -286,9 +285,7 @@ class Root extends PureComponent {
                           </Route>
                           <Route path="settings">
                             <IndexRoute component={MembersIndex} />
-                            <Route path="members" component={MembersIndex}>
-                              <Route path="new" component={AddMembersOverlay} />
-                            </Route>
+                            <Route path="members" component={MembersIndex} />
                             <Route path="templates" component={TemplatesIndex}>
                               <Route
                                 path="import"
