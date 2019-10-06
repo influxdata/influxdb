@@ -17,18 +17,25 @@ interface State {
   saveAsOption: SaveAsOption
 }
 
-class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & WithRouterProps
+
+class SaveAsOverlay extends PureComponent<Props, State> {
   public state: State = {
     saveAsOption: SaveAsOption.Dashboard,
   }
 
   render() {
     const {saveAsOption} = this.state
+    const {onDismiss} = this.props
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
-          <Overlay.Header title="Save As" onDismiss={this.handleHideOverlay} />
+          <Overlay.Header title="Save As" onDismiss={onDismiss} />
           <Overlay.Body>
             <div className="save-as--options">
               <Radio>
@@ -73,18 +80,15 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
 
   private get saveAsForm(): JSX.Element {
     const {saveAsOption} = this.state
+    const {onDismiss} = this.props
 
     if (saveAsOption === SaveAsOption.Dashboard) {
-      return <SaveAsCellForm dismiss={this.handleHideOverlay} />
+      return <SaveAsCellForm dismiss={onDismiss} />
     } else if (saveAsOption === SaveAsOption.Task) {
-      return <SaveAsTaskForm dismiss={this.handleHideOverlay} />
+      return <SaveAsTaskForm dismiss={onDismiss} />
     } else if (saveAsOption === SaveAsOption.Variable) {
-      return <SaveAsVariable onHideOverlay={this.handleHideOverlay} />
+      return <SaveAsVariable onHideOverlay={onDismiss} />
     }
-  }
-
-  private handleHideOverlay = () => {
-    this.props.router.goBack()
   }
 
   private handleSetSaveAsOption = (saveAsOption: SaveAsOption) => {
@@ -92,4 +96,4 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
   }
 }
 
-export default withRouter<{}, {}>(SaveAsOverlay)
+export default withRouter<OwnProps, {}>(SaveAsOverlay)

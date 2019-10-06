@@ -1,32 +1,24 @@
 // Libraries
-import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import React, {FunctionComponent} from 'react'
 
 // Components
 import {IconFont, Button, ComponentColor} from '@influxdata/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
-class SaveAsButton extends PureComponent<WithRouterProps, {}> {
-  public render() {
-    return (
-      <>
+const SaveAsButton: FunctionComponent<{}> = () => {
+  return (
+    <OverlayLink overlayID="save-as">
+      {onClick => (
         <Button
           icon={IconFont.Export}
           text="Save As"
-          onClick={this.handleShowOverlay}
+          onClick={onClick}
           color={ComponentColor.Primary}
           titleText="Save your query as a Dashboard Cell or a Task"
         />
-      </>
-    )
-  }
-
-  private handleShowOverlay = () => {
-    const {
-      location: {pathname},
-    } = this.props
-
-    this.props.router.push(`${pathname}/save`)
-  }
+      )}
+    </OverlayLink>
+  )
 }
 
-export default withRouter<{}, {}>(SaveAsButton)
+export default SaveAsButton
