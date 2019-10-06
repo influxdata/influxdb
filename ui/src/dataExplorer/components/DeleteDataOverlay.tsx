@@ -33,18 +33,20 @@ interface StateProps {
   selectedTimeRange?: [number, number]
 }
 
-const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
+interface OwnProps {
+  onDismiss: () => void
+}
+
+const DeleteDataOverlay: FunctionComponent<OwnProps & StateProps & WithRouterProps> = ({
   selectedBucketName,
   selectedTimeRange,
-  router,
   params: {orgID},
+  onDismiss,
 }) => {
-  const handleDismiss = () => router.push(`/orgs/${orgID}/data-explorer`)
-
   return (
     <Overlay visible={true}>
       <Overlay.Container maxWidth={600}>
-        <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
+        <Overlay.Header title="Delete Data" onDismiss={onDismiss} />
         <Overlay.Body>
           <GetResources resource={ResourceType.Buckets}>
             <DeleteDataForm
@@ -70,5 +72,5 @@ const mstp = (state: AppState): StateProps => {
 }
 
 export default connect<StateProps>(mstp)(
-  withRouter<StateProps>(DeleteDataOverlay)
+  withRouter<OwnProps>(DeleteDataOverlay)
 )
