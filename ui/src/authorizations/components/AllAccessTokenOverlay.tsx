@@ -38,13 +38,18 @@ interface State {
   description: string
 }
 
-type Props = WithRouterProps & DispatchProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps& WithRouterProps & DispatchProps
 
 @ErrorHandling
 class AllAccessTokenOverlay extends PureComponent<Props, State> {
   public state = {description: ''}
 
   render() {
+    const {onDismiss} = this.props
     const {description} = this.state
 
     return (
@@ -52,7 +57,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
         <Overlay.Container maxWidth={500}>
           <Overlay.Header
             title="Generate All Access Token"
-            onDismiss={this.handleDismiss}
+            onDismiss={onDismiss}
           />
           <Overlay.Body>
             <Form onSubmit={this.handleSave}>
@@ -80,7 +85,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
                   <Button
                     text="Cancel"
                     icon={IconFont.Remove}
-                    onClick={this.handleDismiss}
+                    onClick={onDismiss}
                   />
 
                   <Button
@@ -102,6 +107,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
     const {
       params: {orgID},
       onCreateAuthorization,
+      onDismiss,
     } = this.props
 
     const token: Authorization = {
@@ -112,22 +118,13 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
 
     await onCreateAuthorization(token)
 
-    this.handleDismiss()
+    onDismiss()
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const {value} = e.target
 
     this.setState({description: value})
-  }
-
-  private handleDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens`)
   }
 }
 

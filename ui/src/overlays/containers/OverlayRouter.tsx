@@ -5,6 +5,7 @@ import queryString from 'query-string'
 
 // Components
 import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
+import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
 import DeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
 
@@ -20,8 +21,11 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
   let activeOverlay = <></>
 
   switch (overlay) {
-    case 'all-access-token':
+    case 'generate-all-access-token':
       activeOverlay = <AllAccessTokenOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'generate-read-write-token':
+      activeOverlay = <BucketsTokenOverlay onDismiss={handleDismissOverlay} />
       break
     case 'new-endpoint':
       activeOverlay = <NewEndpointOverlay onDismiss={handleDismissOverlay} />

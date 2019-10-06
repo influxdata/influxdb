@@ -1,82 +1,66 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FunctionComponent, MouseEvent} from 'react'
 import _ from 'lodash'
 
 // Components
 import {Dropdown} from '@influxdata/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
 
-interface OwnProps {
-  onSelectAllAccess: () => void
-  onSelectReadWrite: () => void
-}
+type Props = {}
 
-type Props = OwnProps
+const GenerateTokenDropdown: FunctionComponent<Props> = () => {
+  const button = (active: boolean, onClick: (e?: MouseEvent<HTMLButtonElement>) => void) => (
+    <Dropdown.Button
+      active={active}
+      onClick={onClick}
+      icon={IconFont.Plus}
+      color={ComponentColor.Primary}
+      testID="dropdown-button--gen-token"
+    >
+      Generate
+    </Dropdown.Button>
+  )
 
-export default class GenerateTokenDropdown extends PureComponent<Props> {
-  public render() {
-    return (
-      <Dropdown
-        testID="dropdown--gen-token"
-        widthPixels={160}
-        button={(active, onClick) => (
-          <Dropdown.Button
-            active={active}
+  const menu = (onCollapse: () => void) => (
+    <Dropdown.Menu onCollapse={onCollapse}>
+      <OverlayLink overlayID="generate-read-write-token">
+        {onClick => (
+          <Dropdown.Item
+            testID="dropdown-item generate-token--read-write"
+            id="Read/Write Token"
+            value="Read/Write Token"
             onClick={onClick}
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            testID="dropdown-button--gen-token"
           >
-            Generate
-          </Dropdown.Button>
+            Read/Write Token
+          </Dropdown.Item>
         )}
-        menu={onCollapse => (
-          <Dropdown.Menu onCollapse={onCollapse}>
-            {this.optionItems}
-          </Dropdown.Menu>
+      </OverlayLink>
+      <OverlayLink overlayID="generate-all-access-token">
+        {onClick => (
+          <Dropdown.Item
+            testID="dropdown-item generate-token--all-access"
+            id="All Access Token"
+            value="All Access Token"
+            onClick={onClick}
+          >
+            All Access Token
+        </Dropdown.Item>
         )}
-      />
-    )
-  }
+      </OverlayLink>
+    </Dropdown.Menu>
+  )
 
-  private get optionItems(): JSX.Element[] {
-    return [
-      <Dropdown.Item
-        testID="dropdown-item generate-token--read-write"
-        id={this.bucketReadWriteOption}
-        key={this.bucketReadWriteOption}
-        value={this.bucketReadWriteOption}
-        onClick={this.handleSelect}
-      >
-        {this.bucketReadWriteOption}
-      </Dropdown.Item>,
-      <Dropdown.Item
-        testID="dropdown-item generate-token--all-access"
-        id={this.allAccessOption}
-        key={this.allAccessOption}
-        value={this.allAccessOption}
-        onClick={this.handleSelect}
-      >
-        {this.allAccessOption}
-      </Dropdown.Item>,
-    ]
-  }
-
-  private get bucketReadWriteOption(): string {
-    return 'Read/Write Token'
-  }
-
-  private get allAccessOption(): string {
-    return 'All Access Token'
-  }
-
-  private handleSelect = (selection: string): void => {
-    if (selection === this.allAccessOption) {
-      this.props.onSelectAllAccess()
-    } else if (selection === this.bucketReadWriteOption) {
-      this.props.onSelectReadWrite()
-    }
-  }
+  return (
+    <Dropdown
+      testID="dropdown--gen-token"
+      widthPixels={160}
+      button={button}
+      menu={menu}
+    />
+  )
 }
+
+export default GenerateTokenDropdown

@@ -77,8 +77,6 @@ import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
-import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
-import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
@@ -223,18 +221,7 @@ class Root extends PureComponent {
                           <Route path="me" component={MePage} />
                           <Route path="load-data">
                             <IndexRoute component={BucketsIndex} />
-                            <Route path="tokens" component={TokensIndex}>
-                              <Route path="generate">
-                                <Route
-                                  path="all-access"
-                                  component={AllAccessTokenOverlay}
-                                />
-                                <Route
-                                  path="buckets"
-                                  component={BucketsTokenOverlay}
-                                />
-                              </Route>
-                            </Route>
+                            <Route path="tokens" component={TokensIndex} />
                             <Route path="buckets" component={BucketsIndex}>
                               <Route path=":bucketID">
                                 <Route

@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Sort} from '@influxdata/clockface'
@@ -33,7 +32,7 @@ interface StateProps {
 
 type SortKey = keyof Authorization
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps
 
 class TokensTab extends PureComponent<Props, State> {
   constructor(props) {
@@ -59,10 +58,7 @@ class TokensTab extends PureComponent<Props, State> {
             onSearch={this.handleChangeSearchTerm}
             testID="input-field--filter"
           />
-          <GenerateTokenDropdown
-            onSelectAllAccess={this.handleGenerateAllAccess}
-            onSelectReadWrite={this.handleGenerateReadWrite}
-          />
+          <GenerateTokenDropdown />
         </TabbedPageHeader>
         <FilterList<Authorization>
           list={tokens}
@@ -96,24 +92,6 @@ class TokensTab extends PureComponent<Props, State> {
   private get searchKeys(): AuthSearchKeys[] {
     return [AuthSearchKeys.Status, AuthSearchKeys.Description]
   }
-
-  private handleGenerateAllAccess = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/all-access`)
-  }
-
-  private handleGenerateReadWrite = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens/generate/buckets`)
-  }
 }
 
 const mstp = ({tokens}: AppState) => ({tokens: tokens.list})
@@ -121,4 +99,4 @@ const mstp = ({tokens}: AppState) => ({tokens: tokens.list})
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter(TokensTab))
+)(TokensTab)

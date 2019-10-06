@@ -55,7 +55,11 @@ interface State {
   activeTabWrite: BucketTab
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & WithRouterProps & DispatchProps & StateProps
 
 @ErrorHandling
 class BucketsTokenOverlay extends PureComponent<Props, State> {
@@ -75,13 +79,14 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
       activeTabRead,
       activeTabWrite,
     } = this.state
+    const {onDismiss} = this.props
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={700}>
           <Overlay.Header
             title="Generate Read/Write Token"
-            onDismiss={this.handleDismiss}
+            onDismiss={onDismiss}
           />
           <Overlay.Body>
             <Form onSubmit={this.handleSave}>
@@ -138,7 +143,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                   <Button
                     text="Cancel"
                     icon={IconFont.Remove}
-                    onClick={this.handleDismiss}
+                    onClick={onDismiss}
                     testID="button--cancel"
                   />
 
@@ -200,6 +205,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
     const {
       params: {orgID},
       onCreateAuthorization,
+      onDismiss,
     } = this.props
     const {activeTabRead, activeTabWrite} = this.state
 
@@ -225,7 +231,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
 
     await onCreateAuthorization(token)
 
-    this.handleDismiss()
+    onDismiss()
   }
 
   private get writeBucketPermissions(): Permission[] {
@@ -275,15 +281,6 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
 
     this.setState({description: value})
   }
-
-  private handleDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens`)
-  }
 }
 
 const mstp = ({buckets: {list}}: AppState): StateProps => {
@@ -297,4 +294,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter(BucketsTokenOverlay))
+)(withRouter<OwnProps>(BucketsTokenOverlay))
