@@ -82,7 +82,6 @@ import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateVi
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
-import DEDeleteDataOverlay from 'src/dataExplorer/components/DeleteDataOverlay'
 import NewThresholdCheckEO from 'src/alerting/components/NewThresholdCheckEO'
 import NewDeadmanCheckEO from 'src/alerting/components/NewDeadmanCheckEO'
 import EditCheckEO from 'src/alerting/components/EditCheckEO'
@@ -183,10 +182,6 @@ class Root extends PureComponent {
                             component={DataExplorerPage}
                           >
                             <Route path="save" component={SaveAsOverlay} />
-                            <Route
-                              path="delete-data"
-                              component={DEDeleteDataOverlay}
-                            />
                           </Route>
                           <Route path="dashboards" component={DashboardsIndex}>
                             <Route
