@@ -1,22 +1,18 @@
 // Libraries
 import _ from 'lodash'
 import React, {FunctionComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Grid, SelectableCard} from '@influxdata/clockface'
 import {ResponsiveGridSizer} from 'src/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Mocks
 import {clientLibraries} from 'src/clientLibraries/constants'
 
-interface OwnProps {
-  orgID: string
-}
+interface Props {}
 
-type Props = OwnProps & WithRouterProps
-
-const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
+const ClientLibraries: FunctionComponent<Props> = () => {
   const clientLibrariesCount = clientLibraries.length
 
   return (
@@ -25,23 +21,21 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
         <Grid.Column>
           <ResponsiveGridSizer columns={clientLibrariesCount}>
             {clientLibraries.map(cl => {
-              const handleClick = (): void => {
-                router.push(
-                  `/orgs/${orgID}/load-data/client-libraries/${cl.id}`
-                )
-              }
-
               return (
-                <SelectableCard
-                  key={cl.id}
-                  id={cl.id}
-                  formName="client-libraries-cards"
-                  label={cl.name}
-                  testID={`client-libraries-cards--${cl.id}`}
-                  selected={false}
-                  onClick={handleClick}
-                  image={<img src={cl.logoUrl} />}
-                />
+                <OverlayLink overlayID={`${cl.id}-client`}>
+                  {onClick => (
+                    <SelectableCard
+                      key={cl.id}
+                      id={cl.id}
+                      formName="client-libraries-cards"
+                      label={cl.name}
+                      testID={`client-libraries-cards--${cl.id}`}
+                      selected={false}
+                      onClick={onClick}
+                      image={<img src={cl.logoUrl} />}
+                    />
+                  )}
+                </OverlayLink>
               )
             })}
           </ResponsiveGridSizer>
@@ -51,4 +45,4 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
   )
 }
 
-export default withRouter<OwnProps>(ClientLibraries)
+export default ClientLibraries

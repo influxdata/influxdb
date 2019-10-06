@@ -1,34 +1,19 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
 
-// Types
-import {AppState, Organization} from 'src/types'
-
-interface OwnProps {
+interface Props {
   title: string
+  onDismiss: () => void
 }
-
-interface StateProps {
-  org: Organization
-}
-
-type Props = OwnProps & StateProps & WithRouterProps
 
 const ClientLibraryOverlay: FunctionComponent<Props> = ({
   title,
   children,
-  router,
-  org,
+  onDismiss,
 }) => {
-  const onDismiss = () => {
-    router.push(`/orgs/${org.id}/load-data/client-libraries`)
-  }
-
   return (
     <Overlay visible={true}>
       <Overlay.Container maxWidth={980}>
@@ -41,10 +26,4 @@ const ClientLibraryOverlay: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = ({orgs: {org}}: AppState): StateProps => ({
-  org,
-})
-
-export default connect<StateProps>(mstp)(
-  withRouter<OwnProps>(ClientLibraryOverlay)
-)
+export default ClientLibraryOverlay

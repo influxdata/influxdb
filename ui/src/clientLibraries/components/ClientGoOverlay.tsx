@@ -7,11 +7,15 @@ import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOv
 // Constants
 import {clientGoLibrary} from 'src/clientLibraries/constants'
 
-const ClientGoOverlay: FunctionComponent<{}> = () => {
+interface Props {
+  onDismiss: () => void
+}
+
+const ClientGoOverlay: FunctionComponent<Props> = ({onDismiss}) => {
   const {name, url} = clientGoLibrary
 
   return (
-    <ClientLibraryOverlay title={`${name} Client Library`}>
+    <ClientLibraryOverlay title={`${name} Client Library`} onDismiss={onDismiss}>
       <p>
         For more detailed and up to date information check out the{' '}
         <a href={url} target="_blank">

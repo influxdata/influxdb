@@ -29,7 +29,7 @@ class ClientLibrariesPage extends PureComponent<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Client Libraries', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="client-libraries" orgID={org.id}>
-            <ClientLibraries orgID={org.id} />
+            <ClientLibraries />
           </LoadDataTabbedPage>
         </Page>
         {children}
