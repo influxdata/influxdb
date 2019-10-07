@@ -25,6 +25,22 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   router,
 }) => {
   const {overlay, resource} = queryString.parse(location.search)
+  let overlayID = ''
+  let resourceID = ''
+
+  if (Array.isArray(overlay)) {
+    overlayID = overlay[0]
+  } else {
+    overlayID = `${overlay}`
+  }
+
+  if (Array.isArray(resource)) {
+    resourceID = resource[0]
+  } else {
+    resourceID = `${resource}`
+  }
+
+  console.log(queryString.parse(location.search))
 
   const handleDismissOverlay = (): void => {
     const newPath = `${location.pathname}`
@@ -33,7 +49,7 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
 
   let activeOverlay = <></>
 
-  switch (overlay) {
+  switch (overlayID) {
     case 'generate-all-access-token':
       activeOverlay = <AllAccessTokenOverlay onDismiss={handleDismissOverlay} />
       break
@@ -84,7 +100,7 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       activeOverlay = (
         <DashboardExportOverlay
           onDismiss={handleDismissOverlay}
-          dashboardID={resource}
+          dashboardID={resourceID}
         />
       )
       break
@@ -95,4 +111,4 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   return activeOverlay
 }
 
-export default withRouter(OverlayRouter)
+export default withRouter<{}>(OverlayRouter)
