@@ -28,6 +28,7 @@ import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverl
 import NewThresholdCheckEO from 'src/alerting/components/NewThresholdCheckEO'
 import NewDeadmanCheckEO from 'src/alerting/components/NewDeadmanCheckEO'
 import EditCheckEO from 'src/alerting/components/EditCheckEO'
+import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -163,6 +164,9 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       break
     case 'rename-organization':
       activeOverlay = <RenameOrgOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'create-organization':
+      activeOverlay = <CreateOrgOverlay onDismiss={handleDismissOverlay} />
       break
     default:
       break

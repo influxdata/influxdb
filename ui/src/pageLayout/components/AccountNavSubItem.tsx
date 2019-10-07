@@ -6,6 +6,7 @@ import {Link} from 'react-router'
 import {NavMenu} from '@influxdata/clockface'
 import SortingHat from 'src/shared/components/sorting_hat/SortingHat'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {Organization} from 'src/types'
@@ -46,9 +47,13 @@ class AccountNavSubItem extends PureComponent<Props> {
 
           <NavMenu.SubItem
             titleLink={className => (
-              <Link to="/orgs/new" className={className}>
-                Create Organization
-              </Link>
+              <OverlayLink overlayID="create-organization">
+                {onClick => (
+                    <div onClick={onClick} className={className}>
+                      Create Organization
+                    </div>
+                  )}
+              </OverlayLink>
             )}
             active={false}
           />

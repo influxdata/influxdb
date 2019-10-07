@@ -19,7 +19,9 @@ import {
 // Actions
 import {createOrgWithBucket} from 'src/organizations/actions/orgs'
 
-interface OwnProps {}
+interface OwnProps {
+  onDismiss: () => void
+}
 
 interface DispatchProps {
   createOrgWithBucket: typeof createOrgWithBucket
@@ -58,13 +60,14 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
       bucketNameInputStatus,
       bucketErrorMessage,
     } = this.state
+    const {onDismiss} = this.props
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={500}>
           <Overlay.Header
             title="Create Organization"
-            onDismiss={this.closeModal}
+            onDismiss={onDismiss}
           />
           <Form onSubmit={this.handleCreateOrg}>
             <Overlay.Body>
@@ -98,7 +101,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
               </Form.Element>
             </Overlay.Body>
             <Overlay.Footer>
-              <Button text="Cancel" onClick={this.closeModal} />
+              <Button text="Cancel" onClick={onDismiss} />
               <Button
                 text="Create"
                 type={ButtonType.Submit}
@@ -125,13 +128,10 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
 
   private handleCreateOrg = async () => {
     const {org, bucket} = this.state
-    const {createOrgWithBucket} = this.props
+    const {createOrgWithBucket, onDismiss} = this.props
 
     await createOrgWithBucket(org, bucket as any)
-  }
-
-  private closeModal = () => {
-    this.props.router.goBack()
+    onDismiss()
   }
 
   private handleChangeOrgInput = (e: ChangeEvent<HTMLInputElement>) => {
