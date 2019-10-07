@@ -1,7 +1,6 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -39,18 +38,21 @@ interface StateProps {
   checkStatus: RemoteDataState
 }
 
-type Props = DispatchProps & StateProps & WithRouterProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & DispatchProps & StateProps
 
 const NewCheckOverlay: FunctionComponent<Props> = ({
   onSetActiveTimeMachine,
   updateTimeMachineCheck,
   setTimeMachineCheck,
   saveCheckFromTimeMachine,
-  params,
-  router,
   checkStatus,
   check,
   notify,
+  onDismiss,
 }) => {
   useEffect(() => {
     const view = createView<CheckViewProperties>('deadman')
@@ -69,7 +71,7 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
 
   const handleClose = () => {
     setTimeMachineCheck(RemoteDataState.NotStarted, null)
-    router.push(`/orgs/${params.orgID}/alerting`)
+    onDismiss()
   }
 
   const handleSave = async () => {
@@ -127,4 +129,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter(NewCheckOverlay))
+)(NewCheckOverlay)

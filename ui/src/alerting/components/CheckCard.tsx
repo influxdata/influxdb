@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import CheckCardContext from 'src/alerting/components/CheckCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Constants
 import {DEFAULT_CHECK_NAME} from 'src/alerting/constants'
@@ -101,10 +102,6 @@ const CheckCard: FunctionComponent<Props> = ({
     }
   }
 
-  const onCheckClick = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/${check.id}/edit`)
-  }
-
   const onView = () => {
     const historyType: AlertHistoryType = 'statuses'
 
@@ -133,15 +130,19 @@ const CheckCard: FunctionComponent<Props> = ({
       key={`check-id--${check.id}`}
       testID="check-card"
       name={
-        <ResourceCard.EditableName
-          onUpdate={onUpdateName}
-          onClick={onCheckClick}
-          name={check.name}
-          noNameString={DEFAULT_CHECK_NAME}
-          testID="check-card--name"
-          buttonTestID="check-card--name-button"
-          inputTestID="check-card--input"
-        />
+        <OverlayLink overlayID="edit-check" resourceID={check.id}>
+          {onClick => (
+            <ResourceCard.EditableName
+              onUpdate={onUpdateName}
+              onClick={onClick}
+              name={check.name}
+              noNameString={DEFAULT_CHECK_NAME}
+              testID="check-card--name"
+              buttonTestID="check-card--name-button"
+              inputTestID="check-card--input"
+            />
+          )}
+        </OverlayLink>
       }
       toggle={
         <SlideToggle

@@ -23,6 +23,9 @@ import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
 import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay'
 import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
+import NewThresholdCheckEO from 'src/alerting/components/NewThresholdCheckEO'
+import NewDeadmanCheckEO from 'src/alerting/components/NewDeadmanCheckEO'
+import EditCheckEO from 'src/alerting/components/EditCheckEO'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -59,6 +62,17 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       break
     case 'generate-read-write-token':
       activeOverlay = <BucketsTokenOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'create-threshold-check':
+      activeOverlay = <NewThresholdCheckEO onDismiss={handleDismissOverlay} />
+      break
+    case 'create-deadman-check':
+      activeOverlay = <NewDeadmanCheckEO onDismiss={handleDismissOverlay} />
+      break
+    case 'edit-check':
+      activeOverlay = (
+        <EditCheckEO onDismiss={handleDismissOverlay} checkID={resourceID} />
+      )
       break
     case 'create-endpoint':
       activeOverlay = <NewEndpointOverlay onDismiss={handleDismissOverlay} />

@@ -71,9 +71,6 @@ import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateVi
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
-import NewThresholdCheckEO from 'src/alerting/components/NewThresholdCheckEO'
-import NewDeadmanCheckEO from 'src/alerting/components/NewDeadmanCheckEO'
-import EditCheckEO from 'src/alerting/components/EditCheckEO'
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -288,20 +285,7 @@ class Root extends PureComponent {
                             <Route path="labels" component={LabelsIndex} />
                             <Route path="profile" component={OrgProfilePage} />
                           </Route>
-                          <Route path="alerting" component={AlertingIndex}>
-                            <Route
-                              path="checks/new-threshold"
-                              component={NewThresholdCheckEO}
-                            />
-                            <Route
-                              path="checks/new-deadman"
-                              component={NewDeadmanCheckEO}
-                            />
-                            <Route
-                              path="checks/:checkID/edit"
-                              component={EditCheckEO}
-                            />
-                          </Route>
+                          <Route path="alerting" component={AlertingIndex} />
                           <Route
                             path="alert-history"
                             component={AlertHistoryIndex}

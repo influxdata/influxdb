@@ -14,6 +14,7 @@ import {
   ComponentColor,
   ButtonShape,
 } from '@influxdata/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {Check} from 'src/types'
@@ -23,16 +24,12 @@ interface Props {
   checks: Check[]
   searchTerm: string
   showFirstTimeWidget: boolean
-  onCreateThreshold: () => void
-  onCreateDeadman: () => void
 }
 
 const CheckCards: FunctionComponent<Props> = ({
   checks,
   searchTerm,
   showFirstTimeWidget,
-  onCreateThreshold,
-  onCreateDeadman,
 }) => {
   const cards = cs => cs.map(c => <CheckCard key={c.id} check={c} />)
   const body = filtered => (
@@ -40,8 +37,6 @@ const CheckCards: FunctionComponent<Props> = ({
       emptyState={
         <EmptyChecksList
           showFirstTimeWidget={showFirstTimeWidget}
-          onCreateThreshold={onCreateThreshold}
-          onCreateDeadman={onCreateDeadman}
           searchTerm={searchTerm}
         />
       }
@@ -68,15 +63,11 @@ const CheckCards: FunctionComponent<Props> = ({
 
 interface EmptyProps {
   showFirstTimeWidget: boolean
-  onCreateThreshold: () => void
-  onCreateDeadman: () => void
   searchTerm: string
 }
 
 const EmptyChecksList: FunctionComponent<EmptyProps> = ({
   showFirstTimeWidget,
-  onCreateThreshold,
-  onCreateDeadman,
   searchTerm,
 }) => {
   if (searchTerm) {
@@ -100,23 +91,31 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
         <Panel.Body>
           <h1>Get started monitoring by creating a check</h1>
           <h5>When a value crosses a specific threshold:</h5>
-          <Button
-            size={ComponentSize.Medium}
-            color={ComponentColor.Primary}
-            onClick={onCreateThreshold}
-            text="Threshold Check"
-            icon={IconFont.Plus}
-            shape={ButtonShape.StretchToFit}
-          />
+          <OverlayLink overlayID="create-threshold-check">
+            {onClick => (
+              <Button
+                size={ComponentSize.Medium}
+                color={ComponentColor.Primary}
+                onClick={onClick}
+                text="Threshold Check"
+                icon={IconFont.Plus}
+                shape={ButtonShape.StretchToFit}
+              />
+            )}
+          </OverlayLink>
           <h5>If a service stops sending metrics:</h5>
-          <Button
-            size={ComponentSize.Medium}
-            color={ComponentColor.Primary}
-            onClick={onCreateDeadman}
-            text="Deadman Check"
-            icon={IconFont.Plus}
-            shape={ButtonShape.StretchToFit}
-          />
+          <OverlayLink overlayID="create-deadman-check">
+            {onClick => (
+              <Button
+                size={ComponentSize.Medium}
+                color={ComponentColor.Primary}
+                onClick={onClick}
+                text="Deadman Check"
+                icon={IconFont.Plus}
+                shape={ButtonShape.StretchToFit}
+              />
+            )}
+          </OverlayLink>
         </Panel.Body>
       </Panel>
     )

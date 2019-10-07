@@ -1,6 +1,5 @@
 // Libraries
 import React, {FunctionComponent, useEffect} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -50,7 +49,12 @@ interface StateProps {
   activeTimeMachineID: TimeMachineID
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+interface OwnProps {
+  onDismiss: () => void
+  checkID: string
+}
+
+type Props = OwnProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onUpdateCheck,
@@ -58,11 +62,11 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   onGetCheckForTimeMachine,
   onUpdateTimeMachineCheck,
   onSetTimeMachineCheck,
-  onNotify,
   activeTimeMachineID,
   checkStatus,
-  router,
-  params: {checkID, orgID},
+  onDismiss,
+  onNotify,
+  checkID,
   query,
   check,
   view,
@@ -80,7 +84,7 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }
 
   const handleClose = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    onDismiss()
     onSetTimeMachineCheck(RemoteDataState.NotStarted, null)
   }
 
@@ -159,4 +163,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter(EditCheckEditorOverlay))
+)(EditCheckEditorOverlay)

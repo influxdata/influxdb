@@ -1,6 +1,5 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Selectors
@@ -20,23 +19,11 @@ interface StateProps {
   endpoints: AppState['endpoints']['list']
 }
 
-type Props = StateProps & WithRouterProps
-
-const ChecksColumn: FunctionComponent<Props> = ({
+const ChecksColumn: FunctionComponent<StateProps> = ({
   checks,
-  router,
-  params: {orgID},
   rules,
   endpoints,
 }) => {
-  const handleCreateThreshold = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
-  }
-
-  const handleCreateDeadman = () => {
-    router.push(`/orgs/${orgID}/alerting/checks/new-deadman`)
-  }
-
   const tooltipContents = (
     <>
       A <strong>Check</strong> is a periodic query that the system
@@ -58,12 +45,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
   const noAlertingResourcesExist =
     !checks.length && !rules.length && !endpoints.length
 
-  const createButton = (
-    <CreateCheckDropdown
-      onCreateThreshold={handleCreateThreshold}
-      onCreateDeadman={handleCreateDeadman}
-    />
-  )
+  const createButton = <CreateCheckDropdown />
 
   return (
     <AlertsColumn
@@ -75,8 +57,6 @@ const ChecksColumn: FunctionComponent<Props> = ({
         <CheckCards
           checks={checks}
           searchTerm={searchTerm}
-          onCreateThreshold={handleCreateThreshold}
-          onCreateDeadman={handleCreateDeadman}
           showFirstTimeWidget={noAlertingResourcesExist}
         />
       )}
@@ -103,4 +83,4 @@ const mstp = (state: AppState) => {
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter(ChecksColumn))
+)(ChecksColumn)
