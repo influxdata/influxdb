@@ -40,8 +40,6 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
     resourceID = `${resource}`
   }
 
-  console.log(queryString.parse(location.search))
-
   const handleDismissOverlay = (): void => {
     const newPath = `${location.pathname}`
     router.push(newPath)
