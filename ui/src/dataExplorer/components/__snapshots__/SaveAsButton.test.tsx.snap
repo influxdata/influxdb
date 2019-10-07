@@ -1,3 +1,9 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`SaveAsButton rendering renders 1`] = `<SaveAsButton />`;
+exports[`SaveAsButton rendering renders 1`] = `
+<withRouter(OverlayLink)
+  overlayID="save-as"
+>
+  <Component />
+</withRouter(OverlayLink)>
+`;
