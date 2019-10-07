@@ -1,7 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Types
 import {NotificationRuleDraft, AppState} from 'src/types'
@@ -15,25 +14,19 @@ import {
 } from '@influxdata/clockface'
 import NotificationRuleCards from 'src/alerting/components/notifications/RuleCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 interface StateProps {
   rules: NotificationRuleDraft[]
   endpoints: AppState['endpoints']['list']
 }
 
-type Props = StateProps & WithRouterProps
+type Props = StateProps
 
 const NotificationRulesColumn: FunctionComponent<Props> = ({
   rules,
-  router,
-  params,
   endpoints,
 }) => {
-  const handleOpenOverlay = () => {
-    const newRuleRoute = `/orgs/${params.orgID}/alerting/rules/new`
-    router.push(newRuleRoute)
-  }
-
   const tooltipContents = (
     <>
       A <strong>Notification Rule</strong> will query statuses
@@ -63,15 +56,19 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
     : 'You need at least 1 Notifcation Endpoint to create a Notification Rule'
 
   const createButton = (
-    <Button
-      color={ComponentColor.Secondary}
-      text="Create"
-      onClick={handleOpenOverlay}
-      testID="create-rule"
-      icon={IconFont.Plus}
-      status={buttonStatus}
-      titleText={buttonTitleText}
-    />
+    <OverlayLink overlayID="create-notification-rule">
+      {onClick => (
+        <Button
+          color={ComponentColor.Secondary}
+          text="Create"
+          onClick={onClick}
+          testID="create-rule"
+          icon={IconFont.Plus}
+          status={buttonStatus}
+          titleText={buttonTitleText}
+        />
+      )}
+    </OverlayLink>
   )
 
   return (
@@ -99,4 +96,4 @@ const mstp = (state: AppState) => {
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter(NotificationRulesColumn))
+)(NotificationRulesColumn)

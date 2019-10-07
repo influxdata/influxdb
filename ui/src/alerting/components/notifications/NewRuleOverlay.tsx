@@ -21,17 +21,21 @@ interface DispatchProps {
   onCreateRule: (rule: Partial<NotificationRuleDraft>) => Promise<void>
 }
 
-type Props = WithRouterProps & DispatchProps
+interface OwnProps {
+  onDismiss: () => void
+}
 
-const NewRuleOverlay: FC<Props> = ({params: {orgID}, router, onCreateRule}) => {
-  const handleDismiss = () => {
-    router.push(`/orgs/${orgID}/alerting`)
-  }
+type Props = OwnProps & WithRouterProps & DispatchProps
 
+const NewRuleOverlay: FC<Props> = ({
+  params: {orgID},
+  onCreateRule,
+  onDismiss,
+}) => {
   const handleCreateRule = async (rule: NotificationRuleDraft) => {
     await onCreateRule(rule)
 
-    handleDismiss()
+    onDismiss()
   }
 
   const initialState = useMemo(() => initRuleDraft(orgID), [orgID])
@@ -42,7 +46,7 @@ const NewRuleOverlay: FC<Props> = ({params: {orgID}, router, onCreateRule}) => {
         <Overlay.Container maxWidth={800}>
           <Overlay.Header
             title="Create a Notification Rule"
-            onDismiss={handleDismiss}
+            onDismiss={onDismiss}
           />
           <Overlay.Body>
             <RuleOverlayContents
@@ -63,4 +67,4 @@ const mdtp = {
 export default connect<{}, DispatchProps>(
   null,
   mdtp
-)(withRouter<Props>(NewRuleOverlay))
+)(withRouter<OwnProps>(NewRuleOverlay))

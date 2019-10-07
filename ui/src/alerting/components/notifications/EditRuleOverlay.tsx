@@ -1,6 +1,5 @@
 // Libraries
 import React, {FC} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -24,26 +23,22 @@ interface DispatchProps {
   onUpdateRule: (rule: NotificationRuleDraft) => Promise<void>
 }
 
-type Props = WithRouterProps & StateProps & DispatchProps
+interface OwnProps {
+  onDismiss: () => void
+  ruleID: string
+}
 
-const EditRuleOverlay: FC<Props> = ({
-  params: {orgID},
-  router,
-  stateRule,
-  onUpdateRule,
-}) => {
+type Props = OwnProps & StateProps & DispatchProps
+
+const EditRuleOverlay: FC<Props> = ({stateRule, onUpdateRule, onDismiss}) => {
   if (!stateRule) {
     return null
-  }
-
-  const handleDismiss = () => {
-    router.push(`/orgs/${orgID}/alerting`)
   }
 
   const handleUpdateRule = async (rule: NotificationRuleDraft) => {
     await onUpdateRule(rule)
 
-    handleDismiss()
+    onDismiss()
   }
 
   return (
@@ -52,7 +47,7 @@ const EditRuleOverlay: FC<Props> = ({
         <Overlay.Container maxWidth={800}>
           <Overlay.Header
             title="Edit this Notification Rule"
-            onDismiss={handleDismiss}
+            onDismiss={onDismiss}
           />
           <Overlay.Body>
             <RuleOverlayContents
@@ -66,8 +61,8 @@ const EditRuleOverlay: FC<Props> = ({
   )
 }
 
-const mstp = ({rules}: AppState, {params}: Props): StateProps => {
-  const stateRule = rules.list.find(r => r.id === params.ruleID)
+const mstp = ({rules}: AppState, {ruleID}: OwnProps): StateProps => {
+  const stateRule = rules.list.find(r => r.id === ruleID)
 
   return {
     stateRule,
@@ -81,4 +76,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<Props>(EditRuleOverlay))
+)(EditRuleOverlay)

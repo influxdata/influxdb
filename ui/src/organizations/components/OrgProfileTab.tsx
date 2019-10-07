@@ -29,39 +29,35 @@ class OrgProfileTab extends PureComponent<Props> {
           <Panel.Title>Organization Profile</Panel.Title>
         </Panel.Header>
         <Panel.Body>
-            <Panel
-              gradient={Gradients.DocScott}
-              size={ComponentSize.ExtraSmall}
-            >
-              <Panel.Header>
-                <Panel.Title>Danger Zone!</Panel.Title>
-              </Panel.Header>
-              <Panel.Body>
-                <FlexBox
-                  stretchToFitWidth={true}
-                  alignItems={AlignItems.Center}
-                  direction={FlexDirection.Row}
-                  justifyContent={JustifyContent.SpaceBetween}
-                >
-                  <div>
-                    <h5 style={{marginBottom: '0'}}>Rename Organization</h5>
-                    <p style={{marginTop: '2px'}}>
-                      This action can have wide-reaching unintended
-                      consequences.
-                    </p>
-                  </div>
-                  <OverlayLink overlayID="rename-organization">
-                    {onClick => (
-                      <Button
-                        text="Rename"
-                        icon={IconFont.Pencil}
-                        onClick={onClick}
-                      />
-                    )}
-                  </OverlayLink>
-                </FlexBox>
-              </Panel.Body>
-            </Panel>
+          <Panel gradient={Gradients.DocScott} size={ComponentSize.ExtraSmall}>
+            <Panel.Header>
+              <Panel.Title>Danger Zone!</Panel.Title>
+            </Panel.Header>
+            <Panel.Body>
+              <FlexBox
+                stretchToFitWidth={true}
+                alignItems={AlignItems.Center}
+                direction={FlexDirection.Row}
+                justifyContent={JustifyContent.SpaceBetween}
+              >
+                <div>
+                  <h5 style={{marginBottom: '0'}}>Rename Organization</h5>
+                  <p style={{marginTop: '2px'}}>
+                    This action can have wide-reaching unintended consequences.
+                  </p>
+                </div>
+                <OverlayLink overlayID="rename-organization">
+                  {onClick => (
+                    <Button
+                      text="Rename"
+                      icon={IconFont.Pencil}
+                      onClick={onClick}
+                    />
+                  )}
+                </OverlayLink>
+              </FlexBox>
+            </Panel.Body>
+          </Panel>
         </Panel.Body>
       </Panel>
     )

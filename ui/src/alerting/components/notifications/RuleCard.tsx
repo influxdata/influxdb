@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import NotificationRuleCardContext from 'src/alerting/components/notifications/RuleCardContext'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Constants
 import {DEFAULT_NOTIFICATION_RULE_NAME} from 'src/alerting/constants'
@@ -90,10 +91,6 @@ const RuleCard: FC<Props> = ({
     onUpdateRuleProperties(rule.id, {status})
   }
 
-  const onRuleClick = () => {
-    router.push(`/orgs/${orgID}/alerting/rules/${rule.id}/edit`)
-  }
-
   const onView = () => {
     const historyType: AlertHistoryType = 'notifications'
 
@@ -122,15 +119,19 @@ const RuleCard: FC<Props> = ({
       key={`rule-id--${rule.id}`}
       testID="rule-card"
       name={
-        <ResourceCard.EditableName
-          onUpdate={onUpdateName}
-          onClick={onRuleClick}
-          name={rule.name}
-          noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
-          testID="rule-card--name"
-          buttonTestID="rule-card--name-button"
-          inputTestID="rule-card--input"
-        />
+        <OverlayLink overlayID="edit-notification-rule" resourceID={rule.id}>
+          {onClick => (
+            <ResourceCard.EditableName
+              onUpdate={onUpdateName}
+              onClick={onClick}
+              name={rule.name}
+              noNameString={DEFAULT_NOTIFICATION_RULE_NAME}
+              testID="rule-card--name"
+              buttonTestID="rule-card--name-button"
+              inputTestID="rule-card--input"
+            />
+          )}
+        </OverlayLink>
       }
       toggle={
         <SlideToggle

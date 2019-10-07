@@ -17,7 +17,7 @@ interface Props {
 class RenameOrgOverlay extends PureComponent<Props> {
   public render() {
     const {onDismiss} = this.props
-  
+
     return (
       <DangerConfirmationOverlay
         title="Rename Organization"

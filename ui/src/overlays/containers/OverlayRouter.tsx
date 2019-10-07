@@ -21,6 +21,8 @@ import CreateFromTemplateOverlay from 'src/templates/components/createFromTempla
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
+import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay'
+import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -30,6 +32,7 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   let overlayID = ''
   let resourceID = ''
 
+  // Coerce type into string
   if (Array.isArray(overlay)) {
     overlayID = overlay[0]
   } else {
@@ -42,6 +45,7 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
     resourceID = `${resource}`
   }
 
+  // TODO: make this less destructive
   const handleDismissOverlay = (): void => {
     const newPath = `${location.pathname}`
     router.push(newPath)
@@ -65,6 +69,14 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
           onDismiss={handleDismissOverlay}
           endpointID={resourceID}
         />
+      )
+      break
+    case 'create-notification-rule':
+      activeOverlay = <NewRuleOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'edit-notification-rule':
+      activeOverlay = (
+        <EditRuleOverlay onDismiss={handleDismissOverlay} ruleID={resourceID} />
       )
       break
     case 'delete-data':
