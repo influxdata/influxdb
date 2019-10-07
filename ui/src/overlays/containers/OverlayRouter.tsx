@@ -15,6 +15,7 @@ import ClientGoOverlay from 'src/clientLibraries/components/ClientGoOverlay'
 import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
 import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
 import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
+import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) => {
   const {overlay} = queryString.parse(location.search)
@@ -60,6 +61,9 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
       break
     case 'python-client':
       activeOverlay = <ClientPythonOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'create-bucket':
+      activeOverlay = <CreateBucketOverlay onDismiss={handleDismissOverlay} />
       break
     default:
       break

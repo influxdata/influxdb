@@ -28,6 +28,7 @@ interface Props {
   onChangeInput: (e: ChangeEvent<HTMLInputElement>) => void
   disableRenaming: boolean
   buttonText: string
+  disableSubmitButton?: boolean
 }
 
 export default class BucketOverlayForm extends PureComponent<Props> {
@@ -136,10 +137,10 @@ export default class BucketOverlayForm extends PureComponent<Props> {
   }
 
   private get submitButtonStatus(): ComponentStatus {
-    const {name} = this.props
+    const {name, disableSubmitButton} = this.props
     const nameHasErrors = this.handleNameValidation(name)
 
-    if (nameHasErrors || this.retentionIsTooShort) {
+    if (nameHasErrors || this.retentionIsTooShort || disableSubmitButton) {
       return ComponentStatus.Disabled
     }
 

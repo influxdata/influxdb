@@ -8,9 +8,14 @@ import BucketOverlayForm from 'src/buckets/components/BucketOverlayForm'
 
 // Utils
 import {extractBucketMaxRetentionSeconds} from 'src/cloud/utils/limits'
+import {extractBucketLimits} from 'src/cloud/utils/limits'
 
 // Constants
 import {DEFAULT_SECONDS} from 'src/buckets/components/Retention'
+
+// Actions
+import {createBucket} from 'src/buckets/actions'
+import {LimitStatus} from 'src/cloud/actions/limits'
 
 // Types
 import {Organization, Bucket, AppState} from 'src/types'
@@ -20,16 +25,20 @@ const DEFAULT_RULES = [
 ]
 
 interface StateProps {
+  org: Organization
+  limitStatus: LimitStatus
   isRetentionLimitEnforced: boolean
 }
 
-interface OwnProps {
-  org: Organization
-  onCloseModal: () => void
-  onCreateBucket: (bucket: Partial<Bucket>) => Promise<void>
+interface DispatchProps {
+  createBucket: typeof createBucket
 }
 
-type Props = StateProps & OwnProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = StateProps & DispatchProps & OwnProps
 
 interface State {
   bucket: Bucket
@@ -50,31 +59,39 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onCloseModal} = this.props
+    const {onDismiss} = this.props
     const {bucket, ruleType} = this.state
 
     return (
-      <Overlay.Container maxWidth={400}>
-        <Overlay.Header
-          title="Create Bucket"
-          onDismiss={this.props.onCloseModal}
-        />
-        <Overlay.Body>
-          <BucketOverlayForm
-            name={bucket.name}
-            buttonText="Create"
-            disableRenaming={false}
-            ruleType={ruleType}
-            onCloseModal={onCloseModal}
-            onSubmit={this.handleSubmit}
-            onChangeInput={this.handleChangeInput}
-            retentionSeconds={this.retentionSeconds}
-            onChangeRuleType={this.handleChangeRuleType}
-            onChangeRetentionRule={this.handleChangeRetentionRule}
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={400}>
+          <Overlay.Header
+            title="Create Bucket"
+            onDismiss={onDismiss}
           />
-        </Overlay.Body>
-      </Overlay.Container>
+          <Overlay.Body>
+            <BucketOverlayForm
+              name={bucket.name}
+              buttonText="Create"
+              disableRenaming={false}
+              ruleType={ruleType}
+              onCloseModal={onDismiss}
+              onSubmit={this.handleSubmit}
+              disableSubmitButton={this.limitStatusExceeded}
+              onChangeInput={this.handleChangeInput}
+              retentionSeconds={this.retentionSeconds}
+              onChangeRuleType={this.handleChangeRuleType}
+              onChangeRetentionRule={this.handleChangeRetentionRule}
+            />
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
     )
+  }
+
+  private get limitStatusExceeded(): boolean {
+    const {limitStatus} = this.props
+    return limitStatus === LimitStatus.EXCEEDED
   }
 
   private get retentionSeconds(): number {
@@ -109,14 +126,10 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
       })
     }
   }
-
+  
   private handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-    this.handleCreateBucket()
-  }
-
-  private handleCreateBucket = (): void => {
-    const {onCreateBucket, org} = this.props
+    const {org} = this.props
     const orgID = org.id
     const organization = org.name
 
@@ -126,7 +139,13 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
       organization,
     }
 
-    onCreateBucket(bucket)
+    this.handleCreateBucket(bucket)
+  }
+
+  private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
+    const {onDismiss, createBucket} = this.props
+    await createBucket(bucket)
+    onDismiss()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -138,10 +157,16 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState): StateProps => ({
+const mstp = ({orgs: {org}, cloud: {limits}}: AppState): StateProps => ({
   isRetentionLimitEnforced: !!extractBucketMaxRetentionSeconds(
-    state.cloud.limits
+    limits
   ),
+  org,
+  limitStatus: extractBucketLimits(limits),
 })
 
-export default connect<StateProps, {}, OwnProps>(mstp)(CreateBucketOverlay)
+const mdtp = {
+  createBucket,
+}
+
+export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CreateBucketOverlay)
