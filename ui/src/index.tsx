@@ -163,6 +163,7 @@ class Root extends PureComponent {
                     <Route path="/">
                       <IndexRoute component={RouteToOrg} />
                       <Route path="orgs" component={App}>
+
                         <Route path="new" component={CreateOrgOverlay} />
                         <Route path=":orgID" component={SetOrg}>
                           <IndexRoute component={MePage} />
