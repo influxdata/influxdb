@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -29,7 +28,12 @@ interface DispatchProps {
   onUpdateBucket: typeof updateBucket
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+interface OwnProps {
+  onDismiss: () => void
+  bucketID: string
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 class UpdateBucketOverlay extends PureComponent<Props, State> {
   constructor(props) {
@@ -44,18 +48,19 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {onDismiss} = this.props
     const {bucket, ruleType} = this.state
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={500}>
-          <Overlay.Header title="Edit Bucket" onDismiss={this.handleClose} />
+          <Overlay.Header title="Edit Bucket" onDismiss={onDismiss} />
           <Overlay.Body>
             <BucketOverlayForm
               name={bucket.name}
               buttonText="Save Changes"
               ruleType={ruleType}
-              onCloseModal={this.handleClose}
+              onCloseModal={onDismiss}
               onSubmit={this.handleSubmit}
               disableRenaming={true}
               onChangeInput={this.handleChangeInput}
@@ -104,17 +109,17 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
 
   private handleSubmit = (e): void => {
     e.preventDefault()
-    const {onUpdateBucket} = this.props
+    const {onUpdateBucket, onDismiss} = this.props
     const {ruleType, bucket} = this.state
 
     if (ruleType === null) {
       onUpdateBucket({...bucket, retentionRules: []})
-      this.handleClose()
+      onDismiss()
       return
     }
 
     onUpdateBucket(bucket)
-    this.handleClose()
+    onDismiss()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -124,17 +129,10 @@ class UpdateBucketOverlay extends PureComponent<Props, State> {
 
     this.setState({bucket})
   }
-
-  private handleClose = () => {
-    const {orgID} = this.props.params
-    this.props.router.push(`/orgs/${orgID}/load-data/buckets`)
-  }
 }
 
 const mstp = ({buckets}: AppState, props: Props): StateProps => {
-  const {
-    params: {bucketID},
-  } = props
+  const {bucketID} = props
 
   const bucket = buckets.list.find(b => b.id === bucketID)
 
@@ -150,4 +148,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter(UpdateBucketOverlay))
+)(UpdateBucketOverlay)

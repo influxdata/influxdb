@@ -1,7 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-
 import _ from 'lodash'
 
 // Components
@@ -11,18 +9,25 @@ import RenameBucketForm from 'src/buckets/components/RenameBucketForm'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  onDismiss: () => void
+  bucketID: string
+}
+
 @ErrorHandling
-class RenameBucketOverlay extends PureComponent<WithRouterProps> {
+class RenameBucketOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss, bucketID} = this.props
+
     return (
       <DangerConfirmationOverlay
         title="Rename Bucket"
         message={this.message}
         effectedItems={this.effectedItems}
-        onClose={this.handleClose}
+        onClose={onDismiss}
         confirmButtonText="I understand, let's rename my Bucket"
       >
-        <RenameBucketForm />
+        <RenameBucketForm bucketID={bucketID} onDismiss={onDismiss} />
       </DangerConfirmationOverlay>
     )
   }
@@ -40,15 +45,6 @@ class RenameBucketOverlay extends PureComponent<WithRouterProps> {
       'Templates',
     ]
   }
-
-  private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets`)
-  }
 }
 
-export default withRouter(RenameBucketOverlay)
+export default RenameBucketOverlay

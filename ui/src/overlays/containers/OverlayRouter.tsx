@@ -16,6 +16,8 @@ import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
 import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
 import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
+import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
+import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
@@ -94,7 +96,12 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       )
       break
     case 'delete-data':
-      activeOverlay = <DeleteDataOverlay onDismiss={handleDismissOverlay} />
+      activeOverlay = (
+        <DeleteDataOverlay
+          onDismiss={handleDismissOverlay}
+          bucketID={resourceID}
+        />
+      )
       break
     case 'save-as':
       activeOverlay = <SaveAsOverlay onDismiss={handleDismissOverlay} />
@@ -119,6 +126,22 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       break
     case 'create-bucket':
       activeOverlay = <CreateBucketOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'edit-bucket':
+      activeOverlay = (
+        <UpdateBucketOverlay
+          onDismiss={handleDismissOverlay}
+          bucketID={resourceID}
+        />
+      )
+      break
+    case 'rename-bucket':
+      activeOverlay = (
+        <RenameBucketOverlay
+          onDismiss={handleDismissOverlay}
+          bucketID={resourceID}
+        />
+      )
       break
     case 'import-dashboard':
       activeOverlay = (

@@ -14,6 +14,7 @@ import {
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Constants
 import {isSystemBucket} from 'src/buckets/constants/index'
@@ -29,7 +30,6 @@ export interface PrettyBucket extends Bucket {
 interface Props {
   bucket: PrettyBucket
   onEditBucket: (b: PrettyBucket) => void
-  onDeleteData: (b: PrettyBucket) => void
   onDeleteBucket: (b: PrettyBucket) => void
   onAddData: (b: PrettyBucket, d: DataLoaderType, l: string) => void
   onUpdateBucket: (b: PrettyBucket) => void
@@ -62,11 +62,15 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
     const {bucket} = this.props
     if (bucket.type === 'user') {
       return (
-        <ResourceCard.Name
-          testID={`bucket--card ${bucket.name}`}
-          onClick={this.handleNameClick}
-          name={bucket.name}
-        />
+        <OverlayLink overlayID="edit-bucket" resourceID={bucket.id}>
+          {onClick => (
+            <ResourceCard.Name
+              testID={`bucket--card ${bucket.name}`}
+              onClick={onClick}
+              name={bucket.name}
+            />
+          )}
+        </OverlayLink>
       )
     }
 
@@ -109,49 +113,30 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             onAddLineProtocol={this.handleAddLineProtocol}
             onAddScraper={this.handleAddScraper}
           />
-          <Button
-            text="Rename"
-            testID="bucket-rename"
-            size={ComponentSize.ExtraSmall}
-            onClick={this.handleRenameBucket}
-          />
+          <OverlayLink overlayID="rename-bucket" resourceID={bucket.id}>
+            {onClick => (
+              <Button
+                text="Rename"
+                testID="bucket-rename"
+                size={ComponentSize.ExtraSmall}
+                onClick={onClick}
+              />
+            )}
+          </OverlayLink>
           <FeatureFlag name="deleteWithPredicate">
+            <OverlayLink overlayID="delete-data" resourceID={bucket.id}>
+              {onClick => (
             <Button
               text="Delete Data By Filter"
               testID="bucket-delete-task"
               size={ComponentSize.ExtraSmall}
-              onClick={this.handleDeleteData}
-            />
+                  onClick={onClick}
+            />)}
+            </OverlayLink>
           </FeatureFlag>
         </FlexBox>
       )
     }
-  }
-
-  private handleDeleteData = () => {
-    const {onDeleteData, bucket} = this.props
-
-    onDeleteData(bucket)
-  }
-
-  private handleRenameBucket = () => {
-    const {
-      params: {orgID},
-      bucket: {id},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/rename`)
-  }
-
-  private handleNameClick = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets/${id}/edit`)
   }
 
   private handleAddCollector = (): void => {

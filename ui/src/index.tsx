@@ -62,15 +62,12 @@ import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/Li
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
-import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
-import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
-import BucketsDeleteDataOverlay from 'src/shared/components/DeleteDataOverlay'
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -200,18 +197,6 @@ class Root extends PureComponent {
                                 <Route
                                   path="scrapers/new"
                                   component={CreateScraperOverlay}
-                                />
-                                <Route
-                                  path="edit"
-                                  component={UpdateBucketOverlay}
-                                />
-                                <Route
-                                  path="delete-data"
-                                  component={BucketsDeleteDataOverlay}
-                                />
-                                <Route
-                                  path="rename"
-                                  component={RenameBucketOverlay}
                                 />
                               </Route>
                             </Route>

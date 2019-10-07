@@ -34,6 +34,7 @@ interface StateProps {
 }
 
 interface OwnProps {
+  bucketID?: string
   onDismiss: () => void
 }
 
@@ -58,9 +59,11 @@ const DeleteDataOverlay: FunctionComponent<
   )
 }
 
-const mstp = (state: AppState): StateProps => {
+const mstp = (state: AppState, {bucketID}: OwnProps): StateProps => {
   const activeQuery = getActiveQuery(state)
-  const selectedBucketName = get(activeQuery, 'builderConfig.buckets.0')
+  const selectedBucket = state.buckets.list.find(b => b.id === bucketID)
+
+  const selectedBucketName = get(selectedBucket, 'name') || get(activeQuery, 'builderConfig.buckets.0')
 
   const {timeRange} = getActiveTimeMachine(state)
   const selectedTimeRange = resolveTimeRange(timeRange)

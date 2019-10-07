@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -36,14 +35,18 @@ interface DispatchProps {
   onRenameBucket: typeof renameBucket
 }
 
-type OwnProps = {}
+type OwnProps = {
+  onDismiss: () => void
+  bucketID: string
+}
 
-type Props = StateProps & DispatchProps & WithRouterProps & OwnProps
+type Props = StateProps & DispatchProps & OwnProps
 
 class RenameBucketForm extends PureComponent<Props, State> {
   public state = {bucket: this.props.startBucket}
 
   public render() {
+    const {onDismiss} = this.props
     const {bucket} = this.state
 
     return (
@@ -75,7 +78,7 @@ class RenameBucketForm extends PureComponent<Props, State> {
                 >
                   <Button
                     text="Cancel"
-                    onClick={this.handleClose}
+                    onClick={onDismiss}
                     type={ButtonType.Button}
                   />
                   <Button
@@ -117,11 +120,11 @@ class RenameBucketForm extends PureComponent<Props, State> {
   }
 
   private handleSubmit = (): void => {
-    const {startBucket, onRenameBucket} = this.props
+    const {startBucket, onRenameBucket, onDismiss} = this.props
     const {bucket} = this.state
 
     onRenameBucket(startBucket.name, bucket)
-    this.handleClose()
+    onDismiss()
   }
 
   private handleChangeInput = (e: ChangeEvent<HTMLInputElement>) => {
@@ -130,21 +133,10 @@ class RenameBucketForm extends PureComponent<Props, State> {
 
     this.setState({bucket})
   }
-
-  private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/buckets`)
-  }
 }
 
 const mstp = (state: AppState, props: Props): StateProps => {
-  const {
-    params: {bucketID},
-  } = props
+  const {bucketID} = props
 
   const startBucket = state.buckets.list.find(b => b.id === bucketID)
   const buckets = state.buckets.list.filter(b => b.id !== bucketID)
@@ -160,9 +152,7 @@ const mdtp: DispatchProps = {
 }
 
 // state mapping requires router
-export default withRouter<OwnProps>(
-  connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
     mstp,
     mdtp
   )(RenameBucketForm)
-)
