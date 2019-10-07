@@ -38,7 +38,7 @@ describe('VariableFormContext', () => {
   it('should tell the store to clear on close', () => {
     const {wrapper, actions} = setup()
 
-    wrapper.instance()['handlelHideOverlay']()
+    wrapper.instance()['handleHideOverlay']()
 
     expect(actions.clear.mock.calls.length).toBe(1)
   })
