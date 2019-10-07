@@ -18,7 +18,6 @@ const DeleteDataButton: FunctionComponent<{}> = () => {
           />
         )}
       </OverlayLink>
-      
     </FeatureFlag>
   )
 }

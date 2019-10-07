@@ -79,11 +79,7 @@ class DashboardImportFromTemplateOverlay extends PureComponent<Props, State> {
             <Overlay.Body>{this.overlayBody}</Overlay.Body>
           </GetResources>
           <Overlay.Footer>
-            <Button
-              text="Cancel"
-              onClick={onDismiss}
-              key="cancel-button"
-            />
+            <Button text="Cancel" onClick={onDismiss} key="cancel-button" />
             <Button
               text="Create Dashboard"
               onClick={this.onSubmit}

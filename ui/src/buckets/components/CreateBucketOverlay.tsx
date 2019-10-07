@@ -65,10 +65,7 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={400}>
-          <Overlay.Header
-            title="Create Bucket"
-            onDismiss={onDismiss}
-          />
+          <Overlay.Header title="Create Bucket" onDismiss={onDismiss} />
           <Overlay.Body>
             <BucketOverlayForm
               name={bucket.name}
@@ -126,7 +123,7 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
       })
     }
   }
-  
+
   private handleSubmit = (e: FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
     const {org} = this.props
@@ -158,9 +155,7 @@ class CreateBucketOverlay extends PureComponent<Props, State> {
 }
 
 const mstp = ({orgs: {org}, cloud: {limits}}: AppState): StateProps => ({
-  isRetentionLimitEnforced: !!extractBucketMaxRetentionSeconds(
-    limits
-  ),
+  isRetentionLimitEnforced: !!extractBucketMaxRetentionSeconds(limits),
   org,
   limitStatus: extractBucketLimits(limits),
 })
@@ -169,4 +164,7 @@ const mdtp = {
   createBucket,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(mstp, mdtp)(CreateBucketOverlay)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(CreateBucketOverlay)

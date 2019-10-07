@@ -37,12 +37,9 @@ interface OwnProps {
   onDismiss: () => void
 }
 
-const DeleteDataOverlay: FunctionComponent<OwnProps & StateProps & WithRouterProps> = ({
-  selectedBucketName,
-  selectedTimeRange,
-  params: {orgID},
-  onDismiss,
-}) => {
+const DeleteDataOverlay: FunctionComponent<
+  OwnProps & StateProps & WithRouterProps
+> = ({selectedBucketName, selectedTimeRange, params: {orgID}, onDismiss}) => {
   return (
     <Overlay visible={true}>
       <Overlay.Container maxWidth={600}>

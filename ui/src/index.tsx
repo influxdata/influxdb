@@ -171,7 +171,10 @@ class Root extends PureComponent {
                             path="data-explorer"
                             component={DataExplorerPage}
                           />
-                          <Route path="dashboards" component={DashboardsIndex}/>
+                          <Route
+                            path="dashboards"
+                            component={DashboardsIndex}
+                          />
                           <Route
                             path="dashboards/:dashboardID"
                             component={DashboardPage}

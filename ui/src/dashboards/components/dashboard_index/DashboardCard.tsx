@@ -187,13 +187,14 @@ class DashboardCard extends PureComponent<Props> {
   }
 
   private handleExport = () => {
-    const {
-      location,
-      router,
-      dashboard,
-    } = this.props
+    const {location, router, dashboard} = this.props
 
-    const handleExport = displayOverlay(location.pathname, router, 'export-dashboard', dashboard.id)
+    const handleExport = displayOverlay(
+      location.pathname,
+      router,
+      'export-dashboard',
+      dashboard.id
+    )
 
     handleExport()
   }

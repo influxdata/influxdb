@@ -12,7 +12,11 @@ interface OwnProps {
 
 type Props = OwnProps & WithRouterProps
 
-const generateOverlayURL = (pathname: string, overlayID: string, resourceID?: string): string => {
+const generateOverlayURL = (
+  pathname: string,
+  overlayID: string,
+  resourceID?: string
+): string => {
   let url = `${pathname}?overlay=${overlayID}`
 
   if (resourceID) {
@@ -22,9 +26,19 @@ const generateOverlayURL = (pathname: string, overlayID: string, resourceID?: st
   return url
 }
 
-const OverlayLink: FunctionComponent<Props> = ({children, location, router, overlayID, resourceID}) => {
-  const overlayURL = generateOverlayURL(location.pathname, overlayID, resourceID)
-  
+const OverlayLink: FunctionComponent<Props> = ({
+  children,
+  location,
+  router,
+  overlayID,
+  resourceID,
+}) => {
+  const overlayURL = generateOverlayURL(
+    location.pathname,
+    overlayID,
+    resourceID
+  )
+
   const handleClick = (): void => {
     router.push(overlayURL)
   }
@@ -34,7 +48,12 @@ const OverlayLink: FunctionComponent<Props> = ({children, location, router, over
 
 export default withRouter(OverlayLink)
 
-export const displayOverlay = (pathname: string, router: InjectedRouter, overlayID: string, resourceID?: string): HandleOpenOverlay => {
+export const displayOverlay = (
+  pathname: string,
+  router: InjectedRouter,
+  overlayID: string,
+  resourceID?: string
+): HandleOpenOverlay => {
   const overlayURL = generateOverlayURL(pathname, overlayID, resourceID)
   const displayOverlay = (): void => {
     router.push(overlayURL)

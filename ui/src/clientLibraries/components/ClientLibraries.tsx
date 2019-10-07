@@ -22,10 +22,9 @@ const ClientLibraries: FunctionComponent<Props> = () => {
           <ResponsiveGridSizer columns={clientLibrariesCount}>
             {clientLibraries.map(cl => {
               return (
-                <OverlayLink overlayID={`${cl.id}-client`}>
+                <OverlayLink key={cl.id} overlayID={`${cl.id}-client`}>
                   {onClick => (
                     <SelectableCard
-                      key={cl.id}
                       id={cl.id}
                       formName="client-libraries-cards"
                       label={cl.name}

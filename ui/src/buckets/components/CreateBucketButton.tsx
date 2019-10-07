@@ -32,10 +32,16 @@ interface StateProps {
 
 type Props = OwnProps & StateProps
 
-const CreateBucketButton: FunctionComponent<Props> = ({color = ComponentColor.Primary, size = ComponentSize.Small, limitStatus}) => {
+const CreateBucketButton: FunctionComponent<Props> = ({
+  color = ComponentColor.Primary,
+  size = ComponentSize.Small,
+  limitStatus,
+}) => {
   const disabled = limitStatus === LimitStatus.EXCEEDED
 
-  const titleText = disabled ? 'This account has the maximum number of buckets allowed' : 'Create a bucket'
+  const titleText = disabled
+    ? 'This account has the maximum number of buckets allowed'
+    : 'Create a bucket'
   const status = disabled ? ComponentStatus.Disabled : ComponentStatus.Default
 
   return (
@@ -60,6 +66,4 @@ const mstp = ({cloud: {limits}}: AppState): StateProps => ({
   limitStatus: extractBucketLimits(limits),
 })
 
-export default connect<StateProps, {}, {}>(
-  mstp
-)(CreateBucketButton)
+export default connect<StateProps, {}, {}>(mstp)(CreateBucketButton)

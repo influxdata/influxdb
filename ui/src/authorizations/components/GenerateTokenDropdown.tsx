@@ -12,7 +12,10 @@ import {IconFont, ComponentColor} from '@influxdata/clockface'
 type Props = {}
 
 const GenerateTokenDropdown: FunctionComponent<Props> = () => {
-  const button = (active: boolean, onClick: (e?: MouseEvent<HTMLButtonElement>) => void) => (
+  const button = (
+    active: boolean,
+    onClick: (e?: MouseEvent<HTMLButtonElement>) => void
+  ) => (
     <Dropdown.Button
       active={active}
       onClick={onClick}
@@ -47,7 +50,7 @@ const GenerateTokenDropdown: FunctionComponent<Props> = () => {
             onClick={onClick}
           >
             All Access Token
-        </Dropdown.Item>
+          </Dropdown.Item>
         )}
       </OverlayLink>
     </Dropdown.Menu>

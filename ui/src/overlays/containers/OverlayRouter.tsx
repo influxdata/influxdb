@@ -20,7 +20,10 @@ import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOve
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 
-const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) => {
+const OverlayRouter: FunctionComponent<WithRouterProps> = ({
+  location,
+  router,
+}) => {
   const {overlay, resource} = queryString.parse(location.search)
 
   const handleDismissOverlay = (): void => {
@@ -68,13 +71,22 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
       activeOverlay = <CreateBucketOverlay onDismiss={handleDismissOverlay} />
       break
     case 'import-dashboard':
-      activeOverlay = <DashboardImportOverlay onDismiss={handleDismissOverlay} />
+      activeOverlay = (
+        <DashboardImportOverlay onDismiss={handleDismissOverlay} />
+      )
       break
     case 'create-dashboard-from-template':
-      activeOverlay = <CreateFromTemplateOverlay onDismiss={handleDismissOverlay} />
+      activeOverlay = (
+        <CreateFromTemplateOverlay onDismiss={handleDismissOverlay} />
+      )
       break
     case 'export-dashboard':
-      activeOverlay = <DashboardExportOverlay onDismiss={handleDismissOverlay} dashboardID={resource} />
+      activeOverlay = (
+        <DashboardExportOverlay
+          onDismiss={handleDismissOverlay}
+          dashboardID={resource}
+        />
+      )
       break
     default:
       break
@@ -82,7 +94,5 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
 
   return activeOverlay
 }
-
-
 
 export default withRouter(OverlayRouter)

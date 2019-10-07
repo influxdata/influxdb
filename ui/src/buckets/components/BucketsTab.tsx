@@ -5,11 +5,7 @@ import {connect} from 'react-redux'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  ComponentSize,
-  Sort,
-  EmptyState,
-} from '@influxdata/clockface'
+import {ComponentSize, Sort, EmptyState} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import FilterList from 'src/shared/components/Filter'
@@ -74,12 +70,7 @@ class BucketsTab extends PureComponent<Props, State> {
 
   public render() {
     const {buckets, limitStatus} = this.props
-    const {
-      searchTerm,
-      sortKey,
-      sortDirection,
-      sortType,
-    } = this.state
+    const {searchTerm, sortKey, sortDirection, sortType} = this.state
 
     return (
       <>

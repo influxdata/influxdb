@@ -32,10 +32,7 @@ type Props = OwnProps & StateProps & DispatchProps
 
 class DashboardExportOverlay extends PureComponent<Props> {
   public async componentDidMount() {
-    const {
-      dashboardID,
-      convertToTemplate,
-    } = this.props
+    const {dashboardID, convertToTemplate} = this.props
 
     convertToTemplate(dashboardID)
   }

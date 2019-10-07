@@ -104,10 +104,15 @@ class DashboardsTable extends PureComponent<Props, State> {
     }
 
     this.setState({sortKey, sortDirection: nextSort, sortType})
-  } 
+  }
 
   private get emptyState(): JSX.Element {
-    const {onCreateDashboard, searchTerm, onImportDashboard, onCreateDashboardFromTemplate} = this.props
+    const {
+      onCreateDashboard,
+      searchTerm,
+      onImportDashboard,
+      onCreateDashboardFromTemplate,
+    } = this.props
 
     if (searchTerm) {
       return (

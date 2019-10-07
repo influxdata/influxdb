@@ -42,7 +42,7 @@ interface OwnProps {
   onDismiss: () => void
 }
 
-type Props = OwnProps& WithRouterProps & DispatchProps
+type Props = OwnProps & WithRouterProps & DispatchProps
 
 @ErrorHandling
 class AllAccessTokenOverlay extends PureComponent<Props, State> {

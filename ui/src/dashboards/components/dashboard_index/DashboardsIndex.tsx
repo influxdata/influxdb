@@ -73,8 +73,16 @@ class DashboardIndex extends PureComponent<Props, State> {
     } = this.props
     const {searchTerm} = this.state
 
-    const handleSummonImportOverlay = displayOverlay(location.pathname, router, 'import-dashboard')
-    const handleSummonCreateFromTemplateOverlay = displayOverlay(location.pathname, router, 'create-dashboard-from-template')
+    const handleSummonImportOverlay = displayOverlay(
+      location.pathname,
+      router,
+      'import-dashboard'
+    )
+    const handleSummonCreateFromTemplateOverlay = displayOverlay(
+      location.pathname,
+      router,
+      'create-dashboard-from-template'
+    )
 
     return (
       <>
@@ -117,7 +125,9 @@ class DashboardIndex extends PureComponent<Props, State> {
                     searchTerm={searchTerm}
                     onFilterChange={this.handleFilterDashboards}
                     onImportDashboard={handleSummonImportOverlay}
-                    onCreateDashboardFromTemplate={handleSummonCreateFromTemplateOverlay}
+                    onCreateDashboardFromTemplate={
+                      handleSummonCreateFromTemplateOverlay
+                    }
                   />
                 </GetAssetLimits>
               </GetResources>
