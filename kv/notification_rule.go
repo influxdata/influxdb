@@ -335,7 +335,7 @@ func (s *Service) findNotificationRuleByID(ctx context.Context, tx Tx, id influx
 // Additional options provide pagination & sorting.
 func (s *Service) FindNotificationRules(ctx context.Context, filter influxdb.NotificationRuleFilter, opt ...influxdb.FindOptions) (nrs []influxdb.NotificationRule, n int, err error) {
 	err = s.kv.View(ctx, func(tx Tx) error {
-		nrs, n, err = s.findNotificationRules(ctx, tx, filter)
+		nrs, n, err = s.findNotificationRules(ctx, tx, filter, opt...)
 		return err
 	})
 	return nrs, n, err
