@@ -1,6 +1,6 @@
 // Libraries
 import {FunctionComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
+import {withRouter, WithRouterProps, InjectedRouter} from 'react-router'
 
 type HandleOpenOverlay = () => void
 
@@ -11,8 +11,12 @@ interface OwnProps {
 
 type Props = OwnProps & WithRouterProps
 
+const generateOverlayURL = (pathname: string, overlayID: string): string => {
+  return `${pathname}?overlay=${overlayID}`
+}
+
 const OverlayLink: FunctionComponent<Props> = ({children, location, router, overlayID}) => {
-  const overlayURL = `${location.pathname}?overlay=${overlayID}`
+  const overlayURL = generateOverlayURL(location.pathname, overlayID)
   
   const handleClick = (): void => {
     router.push(overlayURL)
@@ -22,3 +26,12 @@ const OverlayLink: FunctionComponent<Props> = ({children, location, router, over
 }
 
 export default withRouter(OverlayLink)
+
+export const displayOverlay = (pathname: string, router: InjectedRouter, overlayID: string): HandleOpenOverlay => {
+  const overlayURL = generateOverlayURL(pathname, overlayID)
+  const displayOverlay = (): void => {
+    router.push(overlayURL)
+  }
+
+  return displayOverlay
+}
