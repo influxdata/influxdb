@@ -336,7 +336,7 @@ func testMetrics(t *testing.T) {
 
 	mg = promtest.MustGather(t, reg)
 
-	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"status": "success"})
+	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"task_type": "", "status": "success"})
 	if got := *m.Counter.Value; got != 1 {
 		t.Fatalf("expected 1 active runs, got %v", got)
 	}
