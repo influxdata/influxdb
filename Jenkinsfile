@@ -49,6 +49,7 @@ pipeline {
       agent {
         docker {
           image 'golang:1.12'
+          args '-e "GOCACHE=/tmp"'	
         }
       }
 
