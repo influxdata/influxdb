@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -42,6 +41,10 @@ interface DispatchProps {
   createDashboardFromTemplate: typeof createDashboardFromTemplateAction
 }
 
+interface OwnProps {
+  onDismiss: () => void
+}
+
 interface State {
   selectedTemplateSummary: TemplateSummary
   selectedTemplate: Template
@@ -49,12 +52,9 @@ interface State {
   cells: string[]
 }
 
-type Props = DispatchProps & StateProps
+type Props = OwnProps & DispatchProps & StateProps
 
-class DashboardImportFromTemplateOverlay extends PureComponent<
-  Props & WithRouterProps,
-  State
-> {
+class DashboardImportFromTemplateOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -66,33 +66,35 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
   }
 
   render() {
+    const {onDismiss} = this.props
+
     return (
-      <GetResources resource={ResourceType.Templates}>
-        <Overlay visible={true}>
-          <Overlay.Container maxWidth={900}>
-            <Overlay.Header
-              title="Create Dashboard from a Template"
-              onDismiss={this.onDismiss}
-            />
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={900}>
+          <Overlay.Header
+            title="Create Dashboard from a Template"
+            onDismiss={onDismiss}
+          />
+          <GetResources resource={ResourceType.Templates}>
             <Overlay.Body>{this.overlayBody}</Overlay.Body>
-            <Overlay.Footer>
-              <Button
-                text="Cancel"
-                onClick={this.onDismiss}
-                key="cancel-button"
-              />
-              <Button
-                text="Create Dashboard"
-                onClick={this.onSubmit}
-                key="submit-button"
-                testID="create-dashboard-button"
-                color={ComponentColor.Success}
-                status={this.submitStatus}
-              />
-            </Overlay.Footer>
-          </Overlay.Container>
-        </Overlay>
-      </GetResources>
+          </GetResources>
+          <Overlay.Footer>
+            <Button
+              text="Cancel"
+              onClick={onDismiss}
+              key="cancel-button"
+            />
+            <Button
+              text="Create Dashboard"
+              onClick={this.onSubmit}
+              key="submit-button"
+              testID="create-dashboard-button"
+              color={ComponentColor.Success}
+              status={this.submitStatus}
+            />
+          </Overlay.Footer>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
@@ -171,17 +173,12 @@ class DashboardImportFromTemplateOverlay extends PureComponent<
     })
   }
 
-  private onDismiss = () => {
-    const {router} = this.props
-    router.goBack()
-  }
-
   private onSubmit = async (): Promise<void> => {
-    const {createDashboardFromTemplate} = this.props
+    const {createDashboardFromTemplate, onDismiss} = this.props
     const dashboardTemplate = this.state.selectedTemplate as DashboardTemplate
 
     await createDashboardFromTemplate(dashboardTemplate)
-    this.onDismiss()
+    onDismiss()
   }
 }
 
@@ -204,7 +201,7 @@ const mdtp: DispatchProps = {
   createDashboardFromTemplate: createDashboardFromTemplateAction,
 }
 
-export default connect<StateProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter(DashboardImportFromTemplateOverlay))
+)(DashboardImportFromTemplateOverlay)

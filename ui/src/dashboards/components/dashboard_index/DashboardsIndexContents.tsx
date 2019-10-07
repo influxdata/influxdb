@@ -26,6 +26,7 @@ interface OwnProps {
   searchTerm: string
   filterComponent?: JSX.Element
   onImportDashboard: () => void
+  onCreateDashboardFromTemplate: () => void
 }
 
 interface DispatchProps {
@@ -61,6 +62,7 @@ class DashboardsIndexContents extends Component<Props> {
       filterComponent,
       onFilterChange,
       onImportDashboard,
+      onCreateDashboardFromTemplate,
     } = this.props
 
     return (
@@ -81,6 +83,7 @@ class DashboardsIndexContents extends Component<Props> {
             onUpdateDashboard={onUpdateDashboard}
             onFilterChange={onFilterChange}
             onImportDashboard={onImportDashboard}
+            onCreateDashboardFromTemplate={onCreateDashboardFromTemplate}
           />
         )}
       </FilterList>

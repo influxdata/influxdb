@@ -16,6 +16,8 @@ import ClientJavaOverlay from 'src/clientLibraries/components/ClientJavaOverlay'
 import ClientJSOverlay from 'src/clientLibraries/components/ClientJSOverlay'
 import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOverlay'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
+import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
+import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) => {
   const {overlay} = queryString.parse(location.search)
@@ -64,6 +66,12 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
       break
     case 'create-bucket':
       activeOverlay = <CreateBucketOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'import-dashboard':
+      activeOverlay = <DashboardImportOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'create-dashboard-from-template':
+      activeOverlay = <CreateFromTemplateOverlay onDismiss={handleDismissOverlay} />
       break
     default:
       break

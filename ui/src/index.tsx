@@ -27,8 +27,6 @@ import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
-import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
-import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {MePage} from 'src/me'
@@ -175,14 +173,6 @@ class Root extends PureComponent {
                             component={DataExplorerPage}
                           />
                           <Route path="dashboards" component={DashboardsIndex}>
-                            <Route
-                              path="import"
-                              component={DashboardImportOverlay}
-                            />
-                            <Route
-                              path="import/template"
-                              component={CreateFromTemplateOverlay}
-                            />
                             <Route
                               path=":dashboardID/export"
                               component={DashboardExportOverlay}

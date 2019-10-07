@@ -23,6 +23,7 @@ interface OwnProps {
   filterComponent?: JSX.Element
   onImportDashboard: () => void
   dashboards: Dashboard[]
+  onCreateDashboardFromTemplate: () => void
 }
 
 interface State {
@@ -105,16 +106,8 @@ class DashboardsTable extends PureComponent<Props, State> {
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 
-  private summonImportFromTemplateOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import/template`)
-  }
-
   private get emptyState(): JSX.Element {
-    const {onCreateDashboard, searchTerm, onImportDashboard} = this.props
+    const {onCreateDashboard, searchTerm, onImportDashboard, onCreateDashboardFromTemplate} = this.props
 
     if (searchTerm) {
       return (
@@ -133,7 +126,7 @@ class DashboardsTable extends PureComponent<Props, State> {
         <AddResourceDropdown
           onSelectNew={onCreateDashboard}
           onSelectImport={onImportDashboard}
-          onSelectTemplate={this.summonImportFromTemplateOverlay}
+          onSelectTemplate={onCreateDashboardFromTemplate}
           resourceName="Dashboard"
           canImportFromTemplate={true}
         />

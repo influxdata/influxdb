@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {InjectedRouter} from 'react-router'
+import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Decorators
@@ -15,6 +15,7 @@ import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import {displayOverlay} from 'src/overlays/components/OverlayLink'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
@@ -44,12 +45,7 @@ interface StateProps {
   limitStatus: LimitStatus
 }
 
-interface OwnProps {
-  router: InjectedRouter
-  params: {orgID: string}
-}
-
-type Props = DispatchProps & StateProps & OwnProps
+type Props = DispatchProps & StateProps & WithRouterProps
 
 interface State {
   searchTerm: string
@@ -72,8 +68,14 @@ class DashboardIndex extends PureComponent<Props, State> {
       handleUpdateDashboard,
       handleDeleteDashboard,
       limitStatus,
+      location,
+      router,
     } = this.props
     const {searchTerm} = this.state
+
+    const handleSummonImportOverlay = displayOverlay(location.pathname, router, 'import-dashboard')
+    const handleSummonCreateFromTemplateOverlay = displayOverlay(location.pathname, router, 'create-dashboard-from-template')
+
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Dashboards'])}>
@@ -84,8 +86,8 @@ class DashboardIndex extends PureComponent<Props, State> {
             <Page.Header.Right>
               <AddResourceDropdown
                 onSelectNew={createDashboard}
-                onSelectImport={this.summonImportOverlay}
-                onSelectTemplate={this.summonImportFromTemplateOverlay}
+                onSelectImport={handleSummonImportOverlay}
+                onSelectTemplate={handleSummonCreateFromTemplateOverlay}
                 resourceName="Dashboard"
                 canImportFromTemplate={true}
                 status={this.addResourceStatus}
@@ -114,7 +116,8 @@ class DashboardIndex extends PureComponent<Props, State> {
                     onUpdateDashboard={handleUpdateDashboard}
                     searchTerm={searchTerm}
                     onFilterChange={this.handleFilterDashboards}
-                    onImportDashboard={this.summonImportOverlay}
+                    onImportDashboard={handleSummonImportOverlay}
+                    onCreateDashboardFromTemplate={handleSummonCreateFromTemplateOverlay}
                   />
                 </GetAssetLimits>
               </GetResources>
@@ -128,22 +131,6 @@ class DashboardIndex extends PureComponent<Props, State> {
 
   private handleFilterDashboards = (searchTerm: string): void => {
     this.setState({searchTerm})
-  }
-
-  private summonImportOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import`)
-  }
-
-  private summonImportFromTemplateOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/dashboards/import/template`)
   }
 
   private get addResourceStatus(): ComponentStatus {
@@ -172,7 +159,7 @@ const mdtp: DispatchProps = {
   cloneDashboard: cloneDashboardAction,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(DashboardIndex)
+)(withRouter(DashboardIndex))
