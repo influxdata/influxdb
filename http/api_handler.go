@@ -1,10 +1,10 @@
 package http
 
 import (
-	http "net/http"
+	"net/http"
 	"strings"
 
-	influxdb "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/chronograf/server"
 	"github.com/influxdata/influxdb/http/metric"
