@@ -72,14 +72,14 @@ export const getVariableValuesForDropdown = (
       const mapValues = getArgumentValuesForVariable(state, variableID) as {
         [key: string]: string
       }
+
       const list = Object.entries(mapValues).map(([name, value]) => ({
         name,
         value,
       }))
-      const selection = list.find(({value}) => value === selectedValue)
 
       return {
-        selectedKey: get(selection, 'name', ''),
+        selectedKey: selectedValue,
         list,
       }
     }
