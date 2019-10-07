@@ -20,6 +20,7 @@ import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOve
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
+import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -57,6 +58,14 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       break
     case 'create-endpoint':
       activeOverlay = <NewEndpointOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'edit-endpoint':
+      activeOverlay = (
+        <EditEndpointOverlay
+          onDismiss={handleDismissOverlay}
+          endpointID={resourceID}
+        />
+      )
       break
     case 'delete-data':
       activeOverlay = <DeleteDataOverlay onDismiss={handleDismissOverlay} />

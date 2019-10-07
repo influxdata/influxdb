@@ -22,7 +22,12 @@ interface StateProps {
   endpoint: NotificationEndpoint
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+interface OwnProps {
+  onDismiss: () => void
+  endpointID: string
+}
+
+type Props = OwnProps & WithRouterProps & DispatchProps & StateProps
 
 const EditEndpointOverlay: FC<Props> = ({
   params,
@@ -65,8 +70,8 @@ const mdtp = {
   onUpdateEndpoint: updateEndpoint,
 }
 
-const mstp = ({endpoints}: AppState, {params}: Props): StateProps => {
-  const endpoint = endpoints.list.find(ep => ep.id === params.endpointID)
+const mstp = ({endpoints}: AppState, {endpointID}: Props): StateProps => {
+  const endpoint = endpoints.list.find(ep => ep.id === endpointID)
 
   if (!endpoint) {
     throw new Error('Unknown endpoint provided to <EditEndpointOverlay/>')

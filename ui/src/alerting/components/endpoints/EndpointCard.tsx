@@ -20,6 +20,7 @@ import {
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import EndpointCardMenu from 'src/alerting/components/endpoints/EndpointCardMenu'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Constants
 import {
@@ -83,21 +84,22 @@ const EndpointCard: FC<Props> = ({
   const handleUpdateName = (name: string) => {
     onUpdateEndpointProperties(id, {name})
   }
-  const handleClick = () => {
-    router.push(`orgs/${orgID}/alerting/endpoints/${endpoint.id}/edit`)
-  }
 
   const nameComponent = (
-    <ResourceCard.EditableName
-      key={id}
-      name={name}
-      onClick={handleClick}
-      onUpdate={handleUpdateName}
-      testID={`endpoint-card--name ${name}`}
-      inputTestID="endpoint-card--input"
-      buttonTestID="endpoint-card--name-button"
-      noNameString="Name this notification endpoint"
-    />
+    <OverlayLink overlayID="edit-endpoint" resourceID={endpoint.id}>
+      {onClick => (
+        <ResourceCard.EditableName
+          key={id}
+          name={name}
+          onClick={onClick}
+          onUpdate={handleUpdateName}
+          testID={`endpoint-card--name ${name}`}
+          inputTestID="endpoint-card--input"
+          buttonTestID="endpoint-card--name-button"
+          noNameString="Name this notification endpoint"
+        />
+      )}
+    </OverlayLink>
   )
 
   const handleToggle = () => {
