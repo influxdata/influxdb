@@ -19,7 +19,7 @@ import {validateVariableName} from 'src/variables/utils/validation'
 import {variableItemTypes} from 'src/variables/constants'
 
 // Types
-import {IVariable as Variable} from '@influxdata/influx'
+import {Props} from 'src/variables/components/VariableFormContext'
 import {
   ButtonType,
   ComponentColor,
@@ -32,25 +32,6 @@ import {
   MapArguments,
   CSVArguments,
 } from 'src/types'
-
-interface Props {
-  name: string
-  variableType: VariableArgumentType
-  query: VariableArguments | null
-  map: VariableArguments | null
-  constant: VariableArguments | null
-  onNameUpdate: (string) => void
-  onTypeUpdate: (VariableArgumentType) => void
-  onQueryUpdate: (VariableArguments) => void
-  onMapUpdate: (VariableArguments) => void
-  onConstantUpdate: (VariableArguments) => void
-  onCreateVariable: (
-    variable: Pick<Variable, 'name' | 'arguments' | 'selected'>
-  ) => void
-  onHideOverlay?: () => void
-  initialScript?: string
-  variables: Variable[]
-}
 
 interface State {
   isNameValid: boolean
