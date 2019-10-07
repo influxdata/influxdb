@@ -28,11 +28,7 @@ import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
-import {
-  AppState,
-  VariableArguments,
-  VariableArgumentType,
-} from 'src/types'
+import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
 
 interface ComponentProps {
   onHideOverlay?: () => void
@@ -64,18 +60,18 @@ type Props = ComponentProps & DispatchProps & StateProps
 
 class VariableFormContext extends PureComponent<Props> {
   render() {
-    const {onHideOverlay, onEditorClose} = this.props
-    const hideOverlay = () => {
-      onEditorClose()
-      onHideOverlay()
-    }
     const props = {
-      onHideOverlay: hideOverlay,
-      ...this.props
+      onHideOverlay: this.handleHideOverlay,
+      ...this.props,
     }
-    return (
-      <VariableForm {...props}/>
-    )
+    return <VariableForm {...props} />
+  }
+
+  private handleHideOverlay() {
+    const {onHideOverlay, onEditorClose} = this.props
+
+    onEditorClose()
+    onHideOverlay()
   }
 }
 

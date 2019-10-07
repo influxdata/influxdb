@@ -20,9 +20,7 @@ class CreateVariableOverlay extends PureComponent<Props> {
               onDismiss={this.handleHideOverlay}
             />
             <Overlay.Body>
-              <VariableFormContext
-                onHideOverlay={this.handleHideOverlay}
-              />
+              <VariableFormContext onHideOverlay={this.handleHideOverlay} />
             </Overlay.Body>
           </Overlay.Container>
         </Overlay>
@@ -40,5 +38,5 @@ class CreateVariableOverlay extends PureComponent<Props> {
   }
 }
 
-export { CreateVariableOverlay }
+export {CreateVariableOverlay}
 export default withRouter<{}>(CreateVariableOverlay)
