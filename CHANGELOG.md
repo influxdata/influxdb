@@ -10,7 +10,7 @@ v1.7.9 [unreleased]
 
 ### Features
 
--	[#15341](https://github.com/influxdata/influxdb/pull/15341): Update golanf version to 1.12.10
+-	[#15341](https://github.com/influxdata/influxdb/pull/15341): Update golang version to 1.12.10
 
 v1.7.8 [2019-08-20]
 -------------------
