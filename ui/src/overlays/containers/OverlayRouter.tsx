@@ -55,7 +55,7 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
     case 'generate-read-write-token':
       activeOverlay = <BucketsTokenOverlay onDismiss={handleDismissOverlay} />
       break
-    case 'new-endpoint':
+    case 'create-endpoint':
       activeOverlay = <NewEndpointOverlay onDismiss={handleDismissOverlay} />
       break
     case 'delete-data':

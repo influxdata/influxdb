@@ -19,18 +19,19 @@ interface DispatchProps {
   onCreateEndpoint: typeof createEndpoint
 }
 
-type Props = WithRouterProps & DispatchProps
+interface OwnProps {
+  onDismiss: () => void
+}
 
-const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
+type Props = OwnProps & WithRouterProps & DispatchProps
+
+const NewRuleOverlay: FC<Props> = ({params, onCreateEndpoint, onDismiss}) => {
   const {orgID} = params
-  const handleDismiss = () => {
-    router.push(`/orgs/${params.orgID}/alerting`)
-  }
 
   const handleCreateEndpoint = async (endpoint: NotificationEndpoint) => {
     await onCreateEndpoint(endpoint)
 
-    handleDismiss()
+    onDismiss()
   }
 
   const initialState = useMemo(() => ({...NEW_ENDPOINT_DRAFT, orgID}), [orgID])
@@ -41,11 +42,11 @@ const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
         <Overlay.Container maxWidth={666}>
           <Overlay.Header
             title="Create a Notification Endpoint"
-            onDismiss={handleDismiss}
+            onDismiss={onDismiss}
           />
           <EndpointOverlayContents
             onSave={handleCreateEndpoint}
-            onCancel={handleDismiss}
+            onCancel={onDismiss}
             saveButtonText="Create Notification Endpoint"
           />
         </Overlay.Container>
@@ -61,4 +62,4 @@ const mdtp = {
 export default connect<null, DispatchProps>(
   null,
   mdtp
-)(withRouter<Props>(NewRuleOverlay))
+)(withRouter<OwnProps>(NewRuleOverlay))

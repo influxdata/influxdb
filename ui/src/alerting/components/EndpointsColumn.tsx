@@ -1,26 +1,21 @@
 // Libraries
 import React, {FC} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Button, IconFont, ComponentColor} from '@influxdata/clockface'
 import EndpointCards from 'src/alerting/components/endpoints/EndpointCards'
 import AlertsColumn from 'src/alerting/components/AlertsColumn'
+import OverlayLink from 'src/overlays/components/OverlayLink'
+
+// Types
 import {AppState} from 'src/types'
 
 interface StateProps {
   endpoints: AppState['endpoints']['list']
 }
-type OwnProps = {}
-type Props = OwnProps & WithRouterProps & StateProps
 
-const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
-  const handleOpenOverlay = () => {
-    const newRuleRoute = `/orgs/${params.orgID}/alerting/endpoints/new`
-    router.push(newRuleRoute)
-  }
-
+const EndpointsColumn: FC<StateProps> = ({endpoints}) => {
   const tooltipContents = (
     <>
       A <strong>Notification Endpoint</strong> stores the information to connect
@@ -40,13 +35,17 @@ const EndpointsColumn: FC<Props> = ({router, params, endpoints}) => {
   )
 
   const createButton = (
-    <Button
-      color={ComponentColor.Secondary}
-      text="Create"
-      onClick={handleOpenOverlay}
-      testID="create-endpoint"
-      icon={IconFont.Plus}
-    />
+    <OverlayLink overlayID="create-endpoint">
+      {onClick => (
+        <Button
+          color={ComponentColor.Secondary}
+          text="Create"
+          onClick={onClick}
+          testID="create-endpoint"
+          icon={IconFont.Plus}
+        />
+      )}
+    </OverlayLink>
   )
 
   return (
@@ -66,4 +65,4 @@ const mstp = ({endpoints}: AppState) => {
   return {endpoints: endpoints.list}
 }
 
-export default connect<StateProps>(mstp)(withRouter<OwnProps>(EndpointsColumn))
+export default connect<StateProps>(mstp)(EndpointsColumn)
