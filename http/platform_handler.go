@@ -1,9 +1,7 @@
 package http
 
 import (
-	"bytes"
 	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -27,30 +25,11 @@ func setCORSResponseHeaders(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-type bodyEchoer struct {
-	rc    io.ReadCloser
-	teedR io.Reader
-}
-
-func (b *bodyEchoer) Read(p []byte) (int, error) {
-	return b.teedR.Read(p)
-}
-
-func (b *bodyEchoer) Close() error {
-	return b.rc.Close()
-}
-
 func HTTPLoggingMW(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			srw := &statusResponseWriter{
 				ResponseWriter: w,
-			}
-
-			var buf bytes.Buffer
-			r.Body = &bodyEchoer{
-				rc:    r.Body,
-				teedR: io.TeeReader(r.Body, &buf),
 			}
 
 			defer func(start time.Time) {
@@ -77,7 +56,6 @@ func HTTPLoggingMW(logger *zap.Logger) func(http.Handler) http.Handler {
 					zap.String("referrer", r.Referer()),
 					zap.String("remote", r.RemoteAddr),
 					zap.String("user_agent", r.UserAgent()),
-					zap.ByteString("body", buf.Bytes()),
 					zap.Duration("took", time.Since(start)),
 					errField,
 					errReferenceField,
