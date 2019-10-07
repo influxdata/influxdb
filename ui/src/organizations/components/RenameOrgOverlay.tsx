@@ -1,7 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-
 import _ from 'lodash'
 
 // Components
@@ -11,18 +9,24 @@ import RenameOrgForm from 'src/organizations/components/RenameOrgForm'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  onDismiss: () => void
+}
+
 @ErrorHandling
-class RenameOrgOverlay extends PureComponent<WithRouterProps> {
+class RenameOrgOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss} = this.props
+  
     return (
       <DangerConfirmationOverlay
         title="Rename Organization"
         message={this.message}
         effectedItems={this.effectedItems}
-        onClose={this.handleClose}
+        onClose={onDismiss}
         confirmButtonText="I understand, let's rename my Organization"
       >
-        <RenameOrgForm />
+        <RenameOrgForm onDismiss={onDismiss} />
       </DangerConfirmationOverlay>
     )
   }
@@ -40,15 +44,6 @@ class RenameOrgOverlay extends PureComponent<WithRouterProps> {
       'Client Libraries',
     ]
   }
-
-  private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/profile`)
-  }
 }
 
-export default withRouter(RenameOrgOverlay)
+export default RenameOrgOverlay

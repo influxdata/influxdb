@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {WithRouterProps, withRouter} from 'react-router'
 
 import _ from 'lodash'
 
@@ -36,7 +35,11 @@ interface DispatchProps {
   onRenameOrg: typeof renameOrg
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 interface State {
   org: Organization
@@ -52,6 +55,7 @@ class RenameOrgForm extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {onDismiss} = this.props
     const {org} = this.state
 
     return (
@@ -85,7 +89,7 @@ class RenameOrgForm extends PureComponent<Props, State> {
                   <Button
                     text="Cancel"
                     icon={IconFont.Remove}
-                    onClick={this.handleGoBack}
+                    onClick={onDismiss}
                   />
                   <Button
                     text="Change Organization Name"
@@ -116,10 +120,6 @@ class RenameOrgForm extends PureComponent<Props, State> {
     return validationStatus
   }
 
-  private handleGoBack = () => {
-    this.props.router.push(`/orgs/${this.props.startOrg.id}/settings/profile`)
-  }
-
   private handleValidation = (orgName: string): string | null => {
     if (!orgName) {
       return 'Name is required'
@@ -142,12 +142,12 @@ class RenameOrgForm extends PureComponent<Props, State> {
   }
 
   private handleRenameOrg = async () => {
-    const {onRenameOrg, startOrg} = this.props
+    const {onRenameOrg, startOrg, onDismiss} = this.props
     const {org} = this.state
 
     await onRenameOrg(startOrg.name, org)
 
-    this.handleGoBack()
+    onDismiss()
   }
 }
 
@@ -168,4 +168,4 @@ const mdtp = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<{}>(RenameOrgForm))
+)(RenameOrgForm)

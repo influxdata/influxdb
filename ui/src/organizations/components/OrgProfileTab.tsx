@@ -1,12 +1,9 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {WithRouterProps, withRouter} from 'react-router'
-
 import _ from 'lodash'
 
 // Components
 import {
-  Form,
   Button,
   ComponentSize,
   Panel,
@@ -19,11 +16,9 @@ import {
   JustifyContent,
 } from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
-// Types
-import {ButtonType} from 'src/clockface'
-
-type Props = WithRouterProps
+type Props = {}
 
 @ErrorHandling
 class OrgProfileTab extends PureComponent<Props> {
@@ -34,7 +29,6 @@ class OrgProfileTab extends PureComponent<Props> {
           <Panel.Title>Organization Profile</Panel.Title>
         </Panel.Header>
         <Panel.Body>
-          <Form onSubmit={this.handleShowEditOverlay}>
             <Panel
               gradient={Gradients.DocScott}
               size={ComponentSize.ExtraSmall}
@@ -56,28 +50,22 @@ class OrgProfileTab extends PureComponent<Props> {
                       consequences.
                     </p>
                   </div>
-                  <Button
-                    text="Rename"
-                    icon={IconFont.Pencil}
-                    type={ButtonType.Submit}
-                  />
+                  <OverlayLink overlayID="rename-organization">
+                    {onClick => (
+                      <Button
+                        text="Rename"
+                        icon={IconFont.Pencil}
+                        onClick={onClick}
+                      />
+                    )}
+                  </OverlayLink>
                 </FlexBox>
               </Panel.Body>
             </Panel>
-          </Form>
         </Panel.Body>
       </Panel>
     )
   }
-
-  private handleShowEditOverlay = () => {
-    const {
-      params: {orgID},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/profile/rename`)
-  }
 }
 
-export default withRouter<{}>(OrgProfileTab)
+export default OrgProfileTab

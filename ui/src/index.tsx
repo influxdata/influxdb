@@ -62,7 +62,6 @@ import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/Li
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
-import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
@@ -291,12 +290,7 @@ class Root extends PureComponent {
                               />
                             </Route>
                             <Route path="labels" component={LabelsIndex} />
-                            <Route path="profile" component={OrgProfilePage}>
-                              <Route
-                                path="rename"
-                                component={RenameOrgOverlay}
-                              />
-                            </Route>
+                            <Route path="profile" component={OrgProfilePage} />
                           </Route>
                           <Route path="alerting" component={AlertingIndex}>
                             <Route

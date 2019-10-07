@@ -19,6 +19,7 @@ import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
+import RenameOrgOverlay from 'src/organizations/components/RenameOrgOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -101,6 +102,9 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
           dashboardID={resourceID}
         />
       )
+      break
+    case 'rename-organization':
+      activeOverlay = <RenameOrgOverlay onDismiss={handleDismissOverlay} />
       break
     default:
       break
