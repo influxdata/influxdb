@@ -18,11 +18,11 @@ import ClientPythonOverlay from 'src/clientLibraries/components/ClientPythonOver
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
+import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) => {
-  const {overlay} = queryString.parse(location.search)
+  const {overlay, resource} = queryString.parse(location.search)
 
-  
   const handleDismissOverlay = (): void => {
     const newPath = `${location.pathname}`
     router.push(newPath)
@@ -72,6 +72,9 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({location, router}) =
       break
     case 'create-dashboard-from-template':
       activeOverlay = <CreateFromTemplateOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'export-dashboard':
+      activeOverlay = <DashboardExportOverlay onDismiss={handleDismissOverlay} dashboardID={resource} />
       break
     default:
       break

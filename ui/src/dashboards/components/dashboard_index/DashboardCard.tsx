@@ -27,6 +27,7 @@ import {resetViews} from 'src/dashboards/actions/views'
 
 // Utilities
 import {relativeTimestampFormatter} from 'src/shared/utils/relativeTimestampFormatter'
+import {displayOverlay} from 'src/overlays/components/OverlayLink'
 
 interface PassedProps {
   dashboard: Dashboard
@@ -187,12 +188,14 @@ class DashboardCard extends PureComponent<Props> {
 
   private handleExport = () => {
     const {
+      location,
       router,
       dashboard,
-      params: {orgID},
     } = this.props
 
-    router.push(`/orgs/${orgID}/dashboards/${dashboard.id}/export`)
+    const handleExport = displayOverlay(location.pathname, router, 'export-dashboard', dashboard.id)
+
+    handleExport()
   }
 }
 
