@@ -1,3 +1,17 @@
+v1.7.9 [unreleased]
+-------------------
+
+### Bugfixes
+
+-	[#14989](https://github.com/influxdata/influxdb/pull/14989): fix(storage): guard against compaction burst throughput limit.
+-	[#15182](https://github.com/influxdata/influxdb/pull/15182): fix(tsi1): replace TSI compaction wait group with counter.
+-	[#15254](https://github.com/influxdata/influxdb/pull/15254): chore(influxdb): Update InfluxQL dependency.
+-	[#15257](https://github.com/influxdata/influxdb/pull/15257): feat(httpd): Add option to authenticate debug/pprof and ping endpoints.
+
+### Features
+
+-	[#15341](https://github.com/influxdata/influxdb/pull/15341): Update golanf version to 1.12.10
+
 v1.7.8 [2019-08-20]
 -------------------
 
