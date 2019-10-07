@@ -9,6 +9,7 @@ require (
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
 	github.com/apache/arrow/go/arrow v0.0.0-20190809133625-b98a560fc561
 	github.com/aws/aws-sdk-go v1.16.15 // indirect
+	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bouk/httprouter v0.0.0-20160817010721-ee8b3818a7f5

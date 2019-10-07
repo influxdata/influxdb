@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/cespare/xxhash"
 	"github.com/google/btree"
 )
@@ -67,8 +68,8 @@ type TreeScheduler struct {
 	when         time.Time
 	executor     Executor
 	onErr        ErrorFunc
-	time         Time
-	timer        Timer
+	time         clock.Clock
+	timer        *clock.Timer
 	done         chan struct{}
 	workchans    []chan Item
 	wg           sync.WaitGroup
@@ -97,7 +98,7 @@ func WithMaxConcurrentWorkers(n int) treeSchedulerOptFunc {
 	}
 }
 
-func WithTime(t Time) treeSchedulerOptFunc {
+func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	return func(sch *TreeScheduler) error {
 		sch.time = t
 		return nil
@@ -111,7 +112,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 		scheduled:    btree.New(degreeBtreeScheduled),
 		nextTime:     map[ID]ordering{},
 		onErr:        func(_ context.Context, _ ID, _ time.Time, _ error) {},
-		time:         stdTime{},
+		time:         clock.New(),
 		done:         make(chan struct{}, 1),
 		checkpointer: checkpointer,
 	}
@@ -135,7 +136,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 
 	s.sm = NewSchedulerMetrics(s)
 	s.when = s.time.Now().Add(maxWaitTime)
-	s.timer = s.time.NewTimer(maxWaitTime)
+	s.timer = s.time.Timer(maxWaitTime)
 	if executor == nil {
 		return nil, nil, errors.New("Executor must be a non-nil function")
 	}
@@ -154,33 +155,41 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 				}
 				s.Unlock()
 				return
-			case <-s.timer.C():
-				s.Lock()
-				min := s.scheduled.Min()
-				if min == nil { // grab a new item, because there could be a different item at the top of the queue
-					s.when = s.time.Now().Add(maxWaitTime)
-					s.timer.Reset(maxWaitTime) // we can reset without stop, because its fired.
+			case <-s.timer.C:
+			fired:
+				for {
+					s.Lock()
+					min := s.scheduled.Min()
+					if min == nil { // grab a new item, because there could be a different item at the top of the queue
+						s.when = s.time.Now().Add(maxWaitTime)
+						s.timer.Reset(maxWaitTime) // we can reset without stop, because its fired.
+						s.Unlock()
+						continue schedulerLoop
+					}
+					it := min.(Item)
+					if it.when > s.when.UTC().Unix() {
+						s.Unlock()
+						continue schedulerLoop
+					}
+					s.process()
+					min = s.scheduled.Min()
+					if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
+						s.when = s.time.Now().Add(maxWaitTime)
+						s.timer.Reset(maxWaitTime) // we can reset without stop, because its fired.
+						s.Unlock()
+						continue schedulerLoop
+					}
+					it = min.(Item)
+					s.when = time.Unix(it.when, 0)
+					until := s.when.Sub(s.time.Now())
+
+					if until > 0 {
+						s.timer.Reset(until) // we can reset without stop, because its fired.
+						s.Unlock()
+						break fired
+					}
 					s.Unlock()
-					continue schedulerLoop
 				}
-				it := min.(Item)
-				if it.when > s.when.UTC().Unix() {
-					s.Unlock()
-					continue schedulerLoop
-				}
-				s.process()
-				min = s.scheduled.Min()
-				if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
-					s.when = s.time.Now().Add(maxWaitTime)
-					s.timer.Reset(maxWaitTime) // we can reset without stop, because its fired.
-					s.Unlock()
-					continue schedulerLoop
-				}
-				it = min.(Item)
-				s.when = time.Unix(it.when, 0)
-				until := s.time.Until(s.when)
-				s.timer.Reset(until) // we can reset without stop, because its fired.
-				s.Unlock()
 			}
 		}
 	}()
@@ -332,11 +341,11 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	if s.when.After(nt) {
 		s.when = nt
 		s.timer.Stop()
-		until := s.time.Until(s.when)
+		until := s.when.Sub(s.time.Now())
 		if until <= 0 {
 			s.timer.Reset(0)
 		} else {
-			s.timer.Reset(s.time.Until(s.when))
+			s.timer.Reset(s.when.Sub(s.time.Now()))
 		}
 	}
 	nextTime, ok := s.nextTime[it.id]
