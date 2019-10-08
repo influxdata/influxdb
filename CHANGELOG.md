@@ -1,3 +1,12 @@
+
+### Features
+
+### UI Improvements
+
+### Bug Fixes
+
+1. [15348](https://github.com/influxdata/influxdb/pull/15348): Disable saving for threshold check if no threshold selected
+
 ## v2.0.0-alpha.18 [2019-09-26]
 
 ### Features
