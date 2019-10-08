@@ -20,7 +20,7 @@ import orgsReducer from 'src/organizations/reducers/orgs'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
-import {variablesReducer} from 'src/variables/reducers'
+import {variablesReducer, variableEditorReducer} from 'src/variables/reducers'
 import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
@@ -56,6 +56,7 @@ export const rootReducer = combineReducers<ReducerState>({
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
   variables: variablesReducer,
+  variableEditor: variableEditorReducer,
   labels: labelsReducer,
   buckets: bucketsReducer,
   telegrafs: telegrafsReducer,

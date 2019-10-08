@@ -9,7 +9,7 @@ import {MeState} from 'src/shared/reducers/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
-import {VariablesState} from 'src/variables/reducers'
+import {VariablesState, VariableEditorState} from 'src/variables/reducers'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
@@ -50,6 +50,7 @@ export interface AppState {
   noteEditor: NoteEditorState
   dataLoading: DataLoadingState
   variables: VariablesState
+  variableEditor: VariableEditorState
   tokens: AuthorizationsState
   templates: TemplatesState
   scrapers: ScrapersState
