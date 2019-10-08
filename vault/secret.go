@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/hashicorp/vault/api"
 	platform "github.com/influxdata/influxdb"
@@ -17,12 +18,94 @@ type SecretService struct {
 	Client *api.Client
 }
 
+// Config may setup the vault client configuration. If any field is a zero
+// value, it will be ignored and the default used.
+type Config struct {
+	Address       string
+	AgentAddress  string
+	ClientTimeout time.Duration
+	MaxRetries    int
+	TLSConfig
+}
+
+// TLSConfig is the configuration for TLS.
+type TLSConfig struct {
+	CACert             string
+	CAPath             string
+	ClientCert         string
+	ClientKey          string
+	InsecureSkipVerify bool
+	TLSServerName      string
+}
+
+func (c Config) assign(apiCFG *api.Config) error {
+	if c.Address != "" {
+		apiCFG.Address = c.Address
+	}
+
+	if c.AgentAddress != "" {
+		apiCFG.AgentAddress = c.AgentAddress
+	}
+
+	if c.ClientTimeout > 0 {
+		apiCFG.Timeout = c.ClientTimeout
+	}
+
+	if c.MaxRetries > 0 {
+		apiCFG.MaxRetries = c.MaxRetries
+	}
+
+	if c.TLSServerName != "" {
+		err := apiCFG.ConfigureTLS(&api.TLSConfig{
+			CACert:        c.CACert,
+			CAPath:        c.CAPath,
+			ClientCert:    c.ClientCert,
+			ClientKey:     c.ClientKey,
+			TLSServerName: c.TLSServerName,
+			Insecure:      c.InsecureSkipVerify,
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ConfigOptFn is a functional input option to configure a vault service.
+type ConfigOptFn func(Config) Config
+
+// WithConfig provides a configuration to the service constructor.
+func WithConfig(config Config) ConfigOptFn {
+	return func(Config) Config {
+		return config
+	}
+}
+
+// WithTLSConfig allows one to set the TLS config only.
+func WithTLSConfig(tlsCFG TLSConfig) ConfigOptFn {
+	return func(cfg Config) Config {
+		cfg.TLSConfig = tlsCFG
+		return cfg
+	}
+}
+
 // NewSecretService creates an instance of a SecretService.
 // The service is configured using the standard vault environment variables.
 // https://www.vaultproject.io/docs/commands/index.html#environment-variables
-func NewSecretService() (*SecretService, error) {
+func NewSecretService(cfgOpts ...ConfigOptFn) (*SecretService, error) {
+	explicitConfig := Config{}
+	for _, o := range cfgOpts {
+		explicitConfig = o(explicitConfig)
+	}
+
 	cfg := api.DefaultConfig()
-	if err := cfg.ReadEnvironment(); err != nil {
+	if cfg.Error != nil {
+		return nil, cfg.Error
+	}
+
+	err := explicitConfig.assign(cfg)
+	if err != nil {
 		return nil, err
 	}
 
