@@ -31,6 +31,9 @@
     "build",
     "node_modules",
     "cypress",
-    "webpack.tsconfig.json"
+    "webpack.tsconfig.json",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "src/**/mocks.ts"
   ]
 }
