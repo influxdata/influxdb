@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Utils
 import {extractVariablesList} from 'src/variables/selectors'
@@ -26,40 +25,32 @@ interface StateProps {
   variables: Variable[]
 }
 
-type Props = DispatchProps & WithRouterProps & StateProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & DispatchProps & StateProps
 
 class CreateVariableOverlay extends PureComponent<Props> {
   public render() {
-    const {onCreateVariable, variables} = this.props
+    const {onCreateVariable, variables, onDismiss} = this.props
 
     return (
       <GetResources resource={ResourceType.Variables}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={1000}>
-            <Overlay.Header
-              title="Create Variable"
-              onDismiss={this.handleHideOverlay}
-            />
+            <Overlay.Header title="Create Variable" onDismiss={onDismiss} />
             <Overlay.Body>
               <VariableForm
                 variables={variables}
                 onCreateVariable={onCreateVariable}
-                onHideOverlay={this.handleHideOverlay}
+                onHideOverlay={onDismiss}
               />
             </Overlay.Body>
           </Overlay.Container>
         </Overlay>
       </GetResources>
     )
-  }
-
-  private handleHideOverlay = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables`)
   }
 }
 
@@ -76,4 +67,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<{}>(CreateVariableOverlay))
+)(CreateVariableOverlay)

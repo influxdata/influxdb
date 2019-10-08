@@ -2,7 +2,6 @@
 import React, {PureComponent, FormEvent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {
@@ -49,7 +48,12 @@ interface DispatchProps {
   onUpdateVariable: typeof updateVariable
 }
 
-type Props = StateProps & DispatchProps & WithRouterProps
+interface OwnProps {
+  variableID: string
+  onDismiss: () => void
+}
+
+type Props = OwnProps & StateProps & DispatchProps
 
 class UpdateVariableOverlay extends PureComponent<Props, State> {
   public state: State = {
@@ -59,12 +63,13 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
+    const {onDismiss} = this.props
     const {workingVariable, hasValidArgs} = this.state
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={1000}>
-          <Overlay.Header title="Edit Variable" onDismiss={this.handleClose} />
+          <Overlay.Header title="Edit Variable" onDismiss={onDismiss} />
           <Overlay.Body>
             <Form onSubmit={this.handleSubmit}>
               <Grid>
@@ -130,7 +135,7 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
                       <Button
                         text="Cancel"
                         color={ComponentColor.Danger}
-                        onClick={this.handleClose}
+                        onClick={onDismiss}
                       />
                       <Button
                         text="Submit"
@@ -240,24 +245,16 @@ class UpdateVariableOverlay extends PureComponent<Props, State> {
   private handleSubmit = (e: FormEvent): void => {
     e.preventDefault()
     const {workingVariable} = this.state
+    const {onDismiss} = this.props
 
     this.props.onUpdateVariable(workingVariable.id, workingVariable)
-    this.handleClose()
-  }
-
-  private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables`)
+    onDismiss()
   }
 }
 
-const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
+const mstp = (state: AppState, {variableID}: OwnProps): StateProps => {
   const variables = extractVariablesList(state)
-  const startVariable = variables.find(v => v.id === id)
+  const startVariable = variables.find(v => v.id === variableID)
 
   return {variables, startVariable}
 }
@@ -266,9 +263,7 @@ const mdtp: DispatchProps = {
   onUpdateVariable: updateVariable,
 }
 
-export default withRouter(
-  connect<StateProps, DispatchProps>(
-    mstp,
-    mdtp
-  )(UpdateVariableOverlay)
-)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(UpdateVariableOverlay)

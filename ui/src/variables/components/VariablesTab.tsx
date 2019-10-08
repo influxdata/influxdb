@@ -17,6 +17,7 @@ import FilterList from 'src/shared/components/Filter'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import {Sort} from '@influxdata/clockface'
+import {displayOverlay} from 'src/overlays/components/OverlayLink'
 
 // Types
 import {OverlayState} from 'src/types'
@@ -84,7 +85,6 @@ class VariablesTab extends PureComponent<Props, State> {
                 variables={variables}
                 emptyState={this.emptyState}
                 onDeleteVariable={this.handleDeleteVariable}
-                onUpdateVariable={this.handleUpdateVariable}
                 onFilterChange={this.handleFilterUpdate}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
@@ -96,6 +96,22 @@ class VariablesTab extends PureComponent<Props, State> {
         </GetResources>
       </>
     )
+  }
+
+  private handleOpenCreateOverlay = () => {
+    const {router, location} = this.props
+
+    const open = displayOverlay(location.pathname, router, 'create-variable')
+
+    open()
+  }
+
+  private handleOpenImportOverlay = () => {
+    const {router, location} = this.props
+
+    const open = displayOverlay(location.pathname, router, 'import-variable')
+
+    open()
   }
 
   private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
@@ -135,30 +151,6 @@ class VariablesTab extends PureComponent<Props, State> {
 
   private handleFilterUpdate = (searchTerm: string) => {
     this.setState({searchTerm})
-  }
-
-  private handleOpenImportOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables/import`)
-  }
-
-  private handleOpenCreateOverlay = (): void => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables/new`)
-  }
-
-  private handleUpdateVariable = (variable: Partial<Variable>): void => {
-    const {onUpdateVariable} = this.props
-
-    onUpdateVariable(variable.id, variable)
   }
 
   private handleDeleteVariable = (variable: Variable): void => {

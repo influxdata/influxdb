@@ -26,7 +26,6 @@ import TaskRunsPage from 'src/tasks/components/TaskRunsPage'
 import TaskEditPage from 'src/tasks/containers/TaskEditPage'
 import DashboardPage from 'src/dashboards/components/DashboardPage'
 import DashboardsIndex from 'src/dashboards/components/dashboard_index/DashboardsIndex'
-import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
 import DataExplorerPage from 'src/dataExplorer/components/DataExplorerPage'
 import {MePage} from 'src/me'
 import NotFound from 'src/shared/components/NotFound'
@@ -45,8 +44,6 @@ import TelegrafsPage from 'src/telegrafs/containers/TelegrafsPage'
 import ClientLibrariesPage from 'src/clientLibraries/containers/ClientLibrariesPage'
 import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
-import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
-import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
 import SetOrg from 'src/shared/containers/SetOrg'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
 import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
@@ -58,8 +55,6 @@ import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/Li
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
-import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
-import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
@@ -225,28 +220,10 @@ class Root extends PureComponent {
                               path="templates"
                               component={TemplatesIndex}
                             />
-                            <Route path="variables" component={VariablesIndex}>
-                              <Route
-                                path="import"
-                                component={VariableImportOverlay}
-                              />
-                              <Route
-                                path=":id/export"
-                                component={VariableExportOverlay}
-                              />
-                              <Route
-                                path="new"
-                                component={CreateVariableOverlay}
-                              />
-                              <Route
-                                path=":id/rename"
-                                component={RenameVariableOverlay}
-                              />
-                              <Route
-                                path=":id/edit"
-                                component={UpdateVariableOverlay}
-                              />
-                            </Route>
+                            <Route
+                              path="variables"
+                              component={VariablesIndex}
+                            />
                             <Route path="labels" component={LabelsIndex} />
                             <Route path="profile" component={OrgProfilePage} />
                           </Route>

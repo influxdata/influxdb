@@ -33,6 +33,11 @@ import TemplateImportOverlay from 'src/templates/components/TemplateImportOverla
 import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
 import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
+import CreateVariableOverlay from 'src/variables/components/CreateVariableOverlay'
+import VariableImportOverlay from 'src/variables/components/VariableImportOverlay'
+import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
+import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
+import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -196,6 +201,36 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
         <StaticTemplateViewOverlay
           onDismiss={handleDismissOverlay}
           templateID={resourceID}
+        />
+      )
+      break
+    case 'create-variable':
+      activeOverlay = <CreateVariableOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'import-variable':
+      activeOverlay = <VariableImportOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'export-variable':
+      activeOverlay = (
+        <VariableExportOverlay
+          onDismiss={handleDismissOverlay}
+          variableID={resourceID}
+        />
+      )
+      break
+    case 'edit-variable':
+      activeOverlay = (
+        <UpdateVariableOverlay
+          onDismiss={handleDismissOverlay}
+          variableID={resourceID}
+        />
+      )
+      break
+    case 'rename-variable':
+      activeOverlay = (
+        <RenameVariableOverlay
+          onDismiss={handleDismissOverlay}
+          variableID={resourceID}
         />
       )
       break

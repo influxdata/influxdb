@@ -4,26 +4,29 @@ import React, {PureComponent} from 'react'
 // Components
 import {Context} from 'src/clockface'
 import {IconFont, ComponentColor} from '@influxdata/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {Variable} from '@influxdata/influx'
 
 interface Props {
   variable: Variable
-  onExport: () => void
-  onRename: () => void
   onDelete: (variable: Variable) => void
 }
 
 export default class VariableContextMenu extends PureComponent<Props> {
   public render() {
-    const {variable, onExport, onRename, onDelete} = this.props
+    const {variable, onDelete} = this.props
 
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
-          <Context.Item label="Export" action={onExport} />
-          <Context.Item label="Rename" action={onRename} />
+          <OverlayLink overlayID="export-variable" resourceID={variable.id}>
+            {onClick => <Context.Item label="Export" action={onClick} />}
+          </OverlayLink>
+          <OverlayLink overlayID="rename-variable" resourceID={variable.id}>
+            {onClick => <Context.Item label="Rename" action={onClick} />}
+          </OverlayLink>
         </Context.Menu>
         <Context.Menu
           icon={IconFont.Trash}

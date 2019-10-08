@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -16,35 +15,34 @@ interface DispatchProps {
   getVariables: typeof getVariablesAction
 }
 
-type Props = DispatchProps & WithRouterProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & DispatchProps
 
 class VariableImportOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss} = this.props
     return (
       <ImportOverlay
-        onDismissOverlay={this.onDismiss}
+        onDismissOverlay={onDismiss}
         resourceName="Variable"
         onSubmit={this.handleImportVariable}
       />
     )
   }
 
-  private onDismiss = () => {
-    const {router} = this.props
-
-    router.goBack()
-  }
-
   private handleImportVariable = async (
     uploadContent: string
   ): Promise<void> => {
-    const {createVariableFromTemplate, getVariables} = this.props
+    const {createVariableFromTemplate, getVariables, onDismiss} = this.props
 
     const template = JSON.parse(uploadContent)
     await createVariableFromTemplate(template)
     getVariables()
 
-    this.onDismiss()
+    onDismiss()
   }
 }
 
@@ -53,7 +51,7 @@ const mdtp: DispatchProps = {
   getVariables: getVariablesAction,
 }
 
-export default connect<{}, DispatchProps, Props>(
+export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
-)(withRouter(VariableImportOverlay))
+)(VariableImportOverlay)

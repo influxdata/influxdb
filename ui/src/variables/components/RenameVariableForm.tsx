@@ -2,7 +2,6 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Form, Input, Button, Grid, Columns} from '@influxdata/clockface'
@@ -24,7 +23,8 @@ import {
 } from '@influxdata/clockface'
 
 interface OwnProps {
-  onClose: () => void
+  onDismiss: () => void
+  variableID: string
 }
 
 interface State {
@@ -41,7 +41,7 @@ interface DispatchProps {
   onUpdateVariable: typeof updateVariable
 }
 
-type Props = StateProps & OwnProps & DispatchProps & WithRouterProps
+type Props = StateProps & OwnProps & DispatchProps
 
 class RenameVariableOverlayForm extends PureComponent<Props, State> {
   public state: State = {
@@ -50,14 +50,14 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onClose} = this.props
+    const {onDismiss} = this.props
     const {workingVariable, isNameValid} = this.state
 
     return (
       <Form onSubmit={this.handleSubmit}>
         <Grid>
           <Grid.Row>
-            <Grid.Column widthXS={Columns.Six}>
+            <Grid.Column widthXS={Columns.Twelve}>
               <div className="overlay-flux-editor--spacing">
                 <Form.ValidationElement
                   label="Name"
@@ -85,7 +85,7 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
                 <Button
                   text="Cancel"
                   color={ComponentColor.Danger}
-                  onClick={onClose}
+                  onClick={onDismiss}
                 />
                 <Button
                   text="Submit"
@@ -111,7 +111,7 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
     e.preventDefault()
 
     this.props.onUpdateVariable(workingVariable.id, workingVariable)
-    this.props.onClose()
+    this.props.onDismiss()
   }
 
   private handleNameValidation = (name: string) => {
@@ -134,9 +134,9 @@ class RenameVariableOverlayForm extends PureComponent<Props, State> {
   }
 }
 
-const mstp = (state: AppState, {params: {id}}: Props): StateProps => {
+const mstp = (state: AppState, {variableID}: OwnProps): StateProps => {
   const variables = extractVariablesList(state)
-  const startVariable = variables.find(v => v.id === id)
+  const startVariable = variables.find(v => v.id === variableID)
 
   return {variables, startVariable}
 }
@@ -145,9 +145,7 @@ const mdtp: DispatchProps = {
   onUpdateVariable: updateVariable,
 }
 
-export default withRouter<OwnProps>(
-  connect<StateProps, DispatchProps, OwnProps>(
-    mstp,
-    mdtp
-  )(RenameVariableOverlayForm)
-)
+export default connect<StateProps, DispatchProps, OwnProps>(
+  mstp,
+  mdtp
+)(RenameVariableOverlayForm)

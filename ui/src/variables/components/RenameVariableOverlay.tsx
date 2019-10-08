@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 
 import _ from 'lodash'
 
@@ -11,18 +10,25 @@ import RenameVariableForm from 'src/variables/components/RenameVariableForm'
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
+interface Props {
+  variableID: string
+  onDismiss: () => void
+}
+
 @ErrorHandling
-class RenameVariableOverlay extends PureComponent<WithRouterProps> {
+class RenameVariableOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss, variableID} = this.props
+
     return (
       <DangerConfirmationOverlay
         title="Rename Variable"
         message={this.message}
         effectedItems={this.effectedItems}
-        onClose={this.handleClose}
+        onClose={onDismiss}
         confirmButtonText="I understand, let's rename my Variable"
       >
-        <RenameVariableForm onClose={this.handleClose} />
+        <RenameVariableForm onDismiss={onDismiss} variableID={variableID} />
       </DangerConfirmationOverlay>
     )
   }
@@ -34,15 +40,6 @@ class RenameVariableOverlay extends PureComponent<WithRouterProps> {
   private get effectedItems(): string[] {
     return ['Queries', 'Dashboards', 'Telegraf Configurations', 'Templates']
   }
-
-  private handleClose = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables`)
-  }
 }
 
-export default withRouter(RenameVariableOverlay)
+export default RenameVariableOverlay

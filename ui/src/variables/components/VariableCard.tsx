@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {ResourceCard} from '@influxdata/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
 import VariableContextMenu from 'src/variables/components/VariableContextMenu'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {IVariable as Variable, ILabel} from '@influxdata/influx'
@@ -25,8 +26,6 @@ import {createLabel as createLabelAsync} from 'src/labels/actions'
 interface OwnProps {
   variable: Variable
   onDeleteVariable: (variable: Variable) => void
-  onUpdateVariableName: (variable: Partial<Variable>) => void
-  onEditVariable: (variable: Variable) => void
   onFilterChange: (searchTerm: string) => void
 }
 
@@ -53,30 +52,19 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
         contextMenu={
           <VariableContextMenu
             variable={variable}
-            onExport={this.handleExport}
-            onRename={this.handleRenameVariable}
             onDelete={onDeleteVariable}
           />
         }
         name={
-          <ResourceCard.Name
-            onClick={this.handleNameClick}
-            name={variable.name}
-          />
+          <OverlayLink overlayID="edit-variable" resourceID={variable.id}>
+            {onClick => (
+              <ResourceCard.Name onClick={onClick} name={variable.name} />
+            )}
+          </OverlayLink>
         }
         metaData={[<>Type: {variable.arguments.type}</>]}
       />
     )
-  }
-
-  private handleNameClick = (): void => {
-    const {
-      variable,
-      params: {orgID},
-      router,
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/edit`)
   }
 
   private get labels(): JSX.Element {
@@ -114,25 +102,6 @@ class VariableCard extends PureComponent<Props & WithRouterProps> {
     } catch (err) {
       throw err
     }
-  }
-
-  private handleExport = () => {
-    const {
-      router,
-      variable,
-      params: {orgID},
-    } = this.props
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/export`)
-  }
-
-  private handleRenameVariable = async () => {
-    const {
-      router,
-      variable,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/settings/variables/${variable.id}/rename`)
   }
 }
 
