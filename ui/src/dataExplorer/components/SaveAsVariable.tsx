@@ -41,7 +41,7 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps, void, OwnProps>(
+export default connect<StateProps, {}, OwnProps>(
   mstp,
-  () => {}
+  null
 )(withRouter<Props>(SaveAsVariable))
