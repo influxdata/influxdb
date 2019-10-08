@@ -35,9 +35,8 @@ exports[`TasksList rendering renders 1`] = `
     </ResourceListHeader>
     <ResourceListBody
       emptyState={
-        <EmptyTasksLists
+        <withRouter(EmptyTasksList)
           onCreate={[Function]}
-          onImportTask={[Function]}
           searchTerm=""
         />
       }

@@ -28,7 +28,6 @@ exports[`VariableList rendering renders 1`] = `
       <Connect(withRouter(VariableCard))
         key="variable-0"
         onDeleteVariable={[MockFunction]}
-        onEditVariable={[Function]}
         variable={
           Object {
             "arguments": Object {
