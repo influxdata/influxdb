@@ -2,7 +2,6 @@
 import {Dispatch} from 'react'
 import {push} from 'react-router-redux'
 
-
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 
@@ -70,7 +69,8 @@ export const removeLabelFromCheck = (checkID: string, label: Label) => ({
 })
 
 export const getChecks = () => async (
-  dispatch: Dispatch<Action | NotificationAction | ReturnType<typeof checkChecksLimits>
+  dispatch: Dispatch<
+    Action | NotificationAction | ReturnType<typeof checkChecksLimits>
   >,
   getState: GetState
 ) => {
@@ -98,12 +98,13 @@ export const getChecks = () => async (
 }
 
 export const getCheckForTimeMachine = (checkID: string) => async (
-  dispatch: Dispatch<TimeMachineAction | NotificationAction>,   getState: GetState
+  dispatch: Dispatch<TimeMachineAction | NotificationAction>,
+  getState: GetState
 ) => {
   try {
     dispatch(setCheckStatus(RemoteDataState.Loading))
     const {
-      orgs: {org}
+      orgs: {org},
     } = getState()
 
     const resp = await api.getCheck({checkID})

@@ -19,7 +19,7 @@ interface DispatchProps {
 }
 
 interface StateProps {
-  endpoint: NotificationEndpoint,
+  endpoint: NotificationEndpoint
 }
 
 type Props = WithRouterProps & DispatchProps & StateProps
@@ -68,7 +68,7 @@ const mdtp = {
 const mstp = ({endpoints}: AppState, {params, router}: Props): StateProps => {
   const endpoint = endpoints.list.find(ep => ep.id === params.endpointID)
 
-  if(!endpoint){
+  if (!endpoint) {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
