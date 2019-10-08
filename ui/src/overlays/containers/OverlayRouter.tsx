@@ -43,6 +43,7 @@ import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
 import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
+import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -74,6 +75,17 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   let activeOverlay = <></>
 
   switch (overlayID) {
+    case 'create-note':
+      activeOverlay = <NoteEditorOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'edit-note':
+      activeOverlay = (
+        <NoteEditorOverlay
+          onDismiss={handleDismissOverlay}
+          cellID={resourceID}
+        />
+      )
+      break
     case 'write-data-with-line-protocol':
       activeOverlay = <LineProtocolWizard onDismiss={handleDismissOverlay} />
       break
