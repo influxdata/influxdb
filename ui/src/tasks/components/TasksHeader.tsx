@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {
@@ -10,28 +11,40 @@ import {
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
+import {displayOverlay} from 'src/overlays/components/OverlayLink'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
 
-interface Props {
+interface OwnProps {
   onCreateTask: () => void
   setShowInactive: () => void
   showInactive: boolean
-  onImportTask: () => void
   limitStatus: LimitStatus
-  onImportFromTemplate: () => void
 }
 
-export default class TasksHeader extends PureComponent<Props> {
+type Props = OwnProps & WithRouterProps
+
+class TasksHeader extends PureComponent<Props> {
   public render() {
     const {
       onCreateTask,
       setShowInactive,
       showInactive,
-      onImportTask,
-      onImportFromTemplate,
+      router,
+      location,
     } = this.props
+
+    const handleOpenImportOverlay = displayOverlay(
+      location.pathname,
+      router,
+      'import-task'
+    )
+    const handleOpenCreateFromTemplateOverlay = displayOverlay(
+      location.pathname,
+      router,
+      'create-task-from-template'
+    )
 
     return (
       <Page.Header fullWidth={false}>
@@ -48,8 +61,8 @@ export default class TasksHeader extends PureComponent<Props> {
           <AddResourceDropdown
             canImportFromTemplate={true}
             onSelectNew={onCreateTask}
-            onSelectImport={onImportTask}
-            onSelectTemplate={onImportFromTemplate}
+            onSelectImport={handleOpenImportOverlay}
+            onSelectTemplate={handleOpenCreateFromTemplateOverlay}
             resourceName="Task"
             status={this.addResourceStatus}
           />
@@ -66,3 +79,5 @@ export default class TasksHeader extends PureComponent<Props> {
     return ComponentStatus.Default
   }
 }
+
+export default withRouter<OwnProps>(TasksHeader)

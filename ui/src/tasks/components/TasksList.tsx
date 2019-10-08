@@ -38,13 +38,11 @@ interface Props {
   onRunTask: typeof runTask
   onUpdate: (task: Task) => void
   filterComponent?: JSX.Element
-  onImportTask: () => void
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
   onClickColumn: (nextSort: Sort, sortKey: SortKey) => void
   checkTaskLimits: typeof checkTaskLimitsAction
-  onImportFromTemplate: () => void
 }
 
 type SortKey = keyof Task
@@ -77,11 +75,9 @@ export default class TasksList extends PureComponent<Props, State> {
       onCreate,
       totalCount,
       filterComponent,
-      onImportTask,
       sortKey,
       sortDirection,
       onClickColumn,
-      onImportFromTemplate,
     } = this.props
 
     const headerKeys: SortKey[] = ['name', 'status', 'every', 'latestCompleted']
@@ -121,8 +117,6 @@ export default class TasksList extends PureComponent<Props, State> {
                 searchTerm={searchTerm}
                 onCreate={onCreate}
                 totalCount={totalCount}
-                onImportTask={onImportTask}
-                onImportFromTemplate={onImportFromTemplate}
               />
             }
           >

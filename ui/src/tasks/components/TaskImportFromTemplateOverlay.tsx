@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 
@@ -38,17 +37,18 @@ interface DispatchProps {
   createTaskFromTemplate: typeof createTaskFromTemplateAction
 }
 
+interface OwnProps {
+  onDismiss: () => void
+}
+
 interface State {
   selectedTemplateSummary: TemplateSummary
   selectedTemplate: Template
 }
 
-type Props = DispatchProps & StateProps
+type Props = OwnProps & DispatchProps & StateProps
 
-class TaskImportFromTemplateOverlay extends PureComponent<
-  Props & WithRouterProps,
-  State
-> {
+class TaskImportFromTemplateOverlay extends PureComponent<Props, State> {
   constructor(props) {
     super(props)
     this.state = {
@@ -58,33 +58,33 @@ class TaskImportFromTemplateOverlay extends PureComponent<
   }
 
   render() {
+    const {onDismiss} = this.props
+
     return (
-      <GetResources resource={ResourceType.Templates}>
-        <Overlay visible={true}>
-          <Overlay.Container maxWidth={900}>
-            <Overlay.Header
-              title="Create Task from a Template"
-              onDismiss={this.onDismiss}
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={900}>
+          <Overlay.Header
+            title="Create Task from a Template"
+            onDismiss={onDismiss}
+          />
+          <Overlay.Body>
+            <GetResources resource={ResourceType.Templates}>
+              {this.overlayBody}
+            </GetResources>
+          </Overlay.Body>
+          <Overlay.Footer>
+            <Button text="Cancel" onClick={onDismiss} key="cancel-button" />
+            <Button
+              text="Create Task"
+              onClick={this.onSubmit}
+              key="submit-button"
+              testID="create-task-button"
+              color={ComponentColor.Success}
+              status={this.submitStatus}
             />
-            <Overlay.Body>{this.overlayBody}</Overlay.Body>
-            <Overlay.Footer>
-              <Button
-                text="Cancel"
-                onClick={this.onDismiss}
-                key="cancel-button"
-              />
-              <Button
-                text="Create Task"
-                onClick={this.onSubmit}
-                key="submit-button"
-                testID="create-task-button"
-                color={ComponentColor.Success}
-                status={this.submitStatus}
-              />
-            </Overlay.Footer>
-          </Overlay.Container>
-        </Overlay>
-      </GetResources>
+          </Overlay.Footer>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 
@@ -123,17 +123,12 @@ class TaskImportFromTemplateOverlay extends PureComponent<
     })
   }
 
-  private onDismiss = () => {
-    const {router} = this.props
-    router.goBack()
-  }
-
   private onSubmit = async (): Promise<void> => {
-    const {createTaskFromTemplate} = this.props
+    const {createTaskFromTemplate, onDismiss} = this.props
     const taskTemplate = this.state.selectedTemplate as TaskTemplate
 
     await createTaskFromTemplate(taskTemplate)
-    this.onDismiss()
+    onDismiss()
   }
 }
 
@@ -156,7 +151,7 @@ const mdtp: DispatchProps = {
   createTaskFromTemplate: createTaskFromTemplateAction,
 }
 
-export default connect<StateProps>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter(TaskImportFromTemplateOverlay))
+)(TaskImportFromTemplateOverlay)

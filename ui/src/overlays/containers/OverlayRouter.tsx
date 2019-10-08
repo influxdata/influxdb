@@ -38,6 +38,9 @@ import VariableImportOverlay from 'src/variables/components/VariableImportOverla
 import VariableExportOverlay from 'src/variables/components/VariableExportOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
+import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
+import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
+import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -168,6 +171,22 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
         <DashboardExportOverlay
           onDismiss={handleDismissOverlay}
           dashboardID={resourceID}
+        />
+      )
+      break
+    case 'import-task':
+      activeOverlay = <TaskImportOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'create-task-from-template':
+      activeOverlay = (
+        <TaskImportFromTemplateOverlay onDismiss={handleDismissOverlay} />
+      )
+      break
+    case 'export-task':
+      activeOverlay = (
+        <TaskExportOverlay
+          onDismiss={handleDismissOverlay}
+          taskID={resourceID}
         />
       )
       break

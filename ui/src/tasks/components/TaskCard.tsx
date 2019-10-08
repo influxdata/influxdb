@@ -7,6 +7,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {SlideToggle, ComponentSize, ResourceCard} from '@influxdata/clockface'
 import {Context} from 'src/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Actions
 import {addTaskLabelsAsync, removeTaskLabelsAsync} from 'src/tasks/actions'
@@ -90,7 +91,9 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     return (
       <Context>
         <Context.Menu icon={IconFont.CogThick}>
-          <Context.Item label="Export" action={this.handleExport} />
+          <OverlayLink overlayID="export-task" resourceID={task.id}>
+            {onClick => <Context.Item label="Export" action={onClick} />}
+          </OverlayLink>
           <Context.Item label="View Task Runs" action={this.handleViewRuns} />
           <Context.Item label="Run Task" action={onRunTask} value={task.id} />
         </Context.Menu>
@@ -134,15 +137,6 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
   private handleRenameTask = async (name: string) => {
     const {onUpdate, task} = this.props
     await onUpdate({...task, name})
-  }
-
-  private handleExport = () => {
-    const {
-      router,
-      task,
-      location: {pathname},
-    } = this.props
-    router.push(`${pathname}/${task.id}/export`)
   }
 
   private get labels(): JSX.Element {

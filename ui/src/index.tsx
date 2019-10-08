@@ -32,8 +32,6 @@ import NotFound from 'src/shared/components/NotFound'
 import GetLinks from 'src/shared/containers/GetLinks'
 import GetMe from 'src/shared/containers/GetMe'
 import UnauthenticatedApp from 'src/shared/containers/UnauthenticatedApp'
-import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
-import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
@@ -55,7 +53,6 @@ import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/Li
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
-import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
 import AlertHistoryIndex from 'src/alerting/components/AlertHistoryIndex'
 
@@ -125,20 +122,7 @@ class Root extends PureComponent {
                       <Route path="orgs" component={App}>
                         <Route path=":orgID" component={SetOrg}>
                           <IndexRoute component={MePage} />
-                          <Route path="tasks" component={TasksPage}>
-                            <Route
-                              path=":id/export"
-                              component={TaskExportOverlay}
-                            />
-                            <Route
-                              path="import"
-                              component={TaskImportOverlay}
-                            />
-                            <Route
-                              path="import/template"
-                              component={TaskImportFromTemplateOverlay}
-                            />
-                          </Route>
+                          <Route path="tasks" component={TasksPage} />
                           <Route
                             path="tasks/:id/runs"
                             component={TaskRunsPage}

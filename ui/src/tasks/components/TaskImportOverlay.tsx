@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -12,33 +11,33 @@ interface DispatchProps {
   createTaskFromTemplate: typeof createTaskFromTemplateAction
 }
 
-type Props = DispatchProps & WithRouterProps
+interface OwnProps {
+  onDismiss: () => void
+}
+
+type Props = OwnProps & DispatchProps
 
 class TaskImportOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss} = this.props
+
     return (
       <ImportOverlay
-        onDismissOverlay={this.onDismiss}
+        onDismissOverlay={onDismiss}
         resourceName="Task"
         onSubmit={this.handleImportTask}
       />
     )
   }
 
-  private onDismiss = () => {
-    const {router} = this.props
-
-    router.goBack()
-  }
-
   private handleImportTask = async (importString: string): Promise<void> => {
-    const {createTaskFromTemplate} = this.props
+    const {createTaskFromTemplate, onDismiss} = this.props
 
     const template = JSON.parse(importString)
 
     await createTaskFromTemplate(template)
 
-    this.onDismiss()
+    onDismiss()
   }
 }
 
@@ -46,7 +45,7 @@ const mdtp: DispatchProps = {
   createTaskFromTemplate: createTaskFromTemplateAction,
 }
 
-export default connect<{}, DispatchProps, Props>(
+export default connect<{}, DispatchProps, OwnProps>(
   null,
   mdtp
-)(withRouter(TaskImportOverlay))
+)(TaskImportOverlay)

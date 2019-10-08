@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -15,7 +14,8 @@ import {DocumentCreate} from '@influxdata/influx'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string}
+  taskID: string
+  onDismiss: () => void
 }
 
 interface DispatchProps {
@@ -28,16 +28,13 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps
 
 class TaskExportOverlay extends PureComponent<Props> {
   public async componentDidMount() {
-    const {
-      params: {id},
-      convertToTemplate,
-    } = this.props
+    const {taskID, convertToTemplate} = this.props
 
-    convertToTemplate(id)
+    convertToTemplate(taskID)
   }
 
   public render() {
@@ -54,9 +51,9 @@ class TaskExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {onDismiss, clearExportTemplate} = this.props
 
-    router.goBack()
+    onDismiss()
     clearExportTemplate()
   }
 }
@@ -74,4 +71,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(TaskExportOverlay))
+)(TaskExportOverlay)

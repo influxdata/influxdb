@@ -1,30 +1,37 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {EmptyState} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
+import {displayOverlay} from 'src/overlays/components/OverlayLink'
 
 // Types
 import {ComponentSize} from '@influxdata/clockface'
 
-interface Props {
+interface OwnProps {
   searchTerm: string
   onCreate: () => void
   totalCount: number
-  onImportTask: () => void
-  onImportFromTemplate: () => void
 }
 
-export default class EmptyTasksLists extends PureComponent<Props> {
+type Props = OwnProps & WithRouterProps
+
+class EmptyTasksList extends PureComponent<Props> {
   public render() {
-    const {
-      searchTerm,
-      onCreate,
-      totalCount,
-      onImportTask,
-      onImportFromTemplate,
-    } = this.props
+    const {searchTerm, onCreate, totalCount, router, location} = this.props
+
+    const handleOpenImportOverlay = displayOverlay(
+      location.pathname,
+      router,
+      'import-task'
+    )
+    const handleOpenCreateFromTemplateOverlay = displayOverlay(
+      location.pathname,
+      router,
+      'create-task-from-template'
+    )
 
     if (totalCount && searchTerm === '') {
       return (
@@ -46,8 +53,8 @@ export default class EmptyTasksLists extends PureComponent<Props> {
           <AddResourceDropdown
             canImportFromTemplate={true}
             onSelectNew={onCreate}
-            onSelectImport={onImportTask}
-            onSelectTemplate={onImportFromTemplate}
+            onSelectImport={handleOpenImportOverlay}
+            onSelectTemplate={handleOpenCreateFromTemplateOverlay}
             resourceName="Task"
           />
         </EmptyState>
@@ -61,3 +68,5 @@ export default class EmptyTasksLists extends PureComponent<Props> {
     )
   }
 }
+
+export default withRouter<OwnProps>(EmptyTasksList)
