@@ -8,9 +8,9 @@ import {ComponentColor, ComponentSize} from '@influxdata/clockface'
 interface Props {
   text: string
   onClick: (e: MouseEvent) => void
-  color: ComponentColor
-  size: ComponentSize
-  testID: string
+  color?: ComponentColor
+  size?: ComponentSize
+  testID?: string
 }
 
 const DashedButton: FC<Props> = ({
