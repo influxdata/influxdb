@@ -1,3 +1,5 @@
+import {Organization} from '../../src/types'
+
 const measurement = 'my_meas'
 const field = 'my_field'
 describe('Checks', () => {
@@ -36,5 +38,21 @@ describe('Checks', () => {
     cy.getByTestID('add-threshold-condition-WARN').click()
 
     cy.getByTestID('save-cell--button').should('be.enabled')
+  })
+
+  describe('When a check does not exist', () => {
+    for(let i = 0; i < 100; i++){
+      it('should route the user to the alerting index page', () => {
+        const nonexistentID = '046cd86a2030f000'
+  
+        // visitng the check edit overlay
+        cy.get('@org').then(({id}: Organization) => {
+          cy.fixture('routes').then(({orgs, alerting, checks}) => {
+            cy.visit(`${orgs}/${id}${alerting}${checks}/${nonexistentID}/edit`)
+            cy.url().should('eq', `${Cypress.config().baseUrl}${orgs}/${id}${alerting}`) 
+          })
+        })
+      })
+    }
   })
 })
