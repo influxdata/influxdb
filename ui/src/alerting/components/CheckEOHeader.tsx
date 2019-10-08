@@ -101,7 +101,7 @@ const CheckEOHeader: FC<Props> = ({
   const oneOrMoreThresholds =
     check.type === 'threshold'
       ? check.thresholds && !!check.thresholds.length
-      : null
+      : false
 
   return (
     <Page.Header fullWidth={true}>
