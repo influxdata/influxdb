@@ -34,7 +34,6 @@ export interface LineProtocolStepProps {
 }
 
 interface OwnProps {
-  onCompleteSetup: () => void
   startingStep?: number
   onDismiss: () => void
 }
