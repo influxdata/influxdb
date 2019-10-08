@@ -310,7 +310,7 @@ func (w *worker) start(p *promise) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), backend.RunStarted)
 
 	// add to metrics
-	w.te.metrics.StartRun(p.task.ID, time.Since(p.createdAt))
+	w.te.metrics.StartRun(p.task, time.Since(p.createdAt))
 }
 
 func (w *worker) finish(p *promise, rs backend.RunStatus, err *influxdb.Error) {
@@ -326,12 +326,12 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err *influxdb.Error) {
 	// add to metrics
 	s, _ := p.run.StartedAtTime()
 	rd := time.Since(s)
-	w.te.metrics.FinishRun(p.task.ID, rs, rd)
+	w.te.metrics.FinishRun(p.task, rs, rd)
 
 	// log error
 	if err.Err != nil {
 		w.te.logger.Debug("execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
-		w.te.metrics.LogError(err)
+		w.te.metrics.LogError(p.task.Type, err)
 		p.err = err
 	} else {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
