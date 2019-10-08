@@ -5,8 +5,10 @@ import {get} from 'lodash'
 // Types
 import {
   RemoteDataState,
-  VariableArguments,
   VariableArgumentType,
+  QueryArguments,
+  MapArguments,
+  CSVArguments,
 } from 'src/types'
 import {VariableValuesByID} from 'src/variables/types'
 import {Action, EditorAction} from 'src/variables/actions'
@@ -24,9 +26,9 @@ export const initialEditorState = (): VariableEditorState => ({
 export interface VariableEditorState {
   name: string
   selected: VariableArgumentType
-  argsQuery: VariableArguments
-  argsMap: VariableArguments
-  argsConstant: VariableArguments
+  argsQuery: QueryArguments
+  argsMap: MapArguments
+  argsConstant: CSVArguments
 }
 
 export const variableEditorReducer = (

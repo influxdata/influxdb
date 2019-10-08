@@ -30,8 +30,14 @@ import * as copy from 'src/shared/copy/notifications'
 
 // Types
 import {Dispatch} from 'redux-thunk'
-import {RemoteDataState, VariableTemplate} from 'src/types'
-import {GetState, VariableArguments, VariableArgumentType} from 'src/types'
+import {
+  RemoteDataState,
+  VariableTemplate,
+  QueryArguments,
+  MapArguments,
+  CSVArguments,
+} from 'src/types'
+import {GetState, VariableArgumentType} from 'src/types'
 import {IVariable as Variable, ILabel as Label} from '@influxdata/influx'
 import {VariableValuesByID} from 'src/variables/types'
 import {
@@ -77,30 +83,30 @@ export const updateName = (name: string): SetName => ({
 
 interface SetQuery {
   type: 'UPDATE_VARIABLE_EDITOR_QUERY'
-  payload: VariableArguments
+  payload: QueryArguments
 }
 
-export const updateQuery = (arg: VariableArguments): SetQuery => ({
+export const updateQuery = (arg: QueryArguments): SetQuery => ({
   type: 'UPDATE_VARIABLE_EDITOR_QUERY',
   payload: arg,
 })
 
 interface SetMap {
   type: 'UPDATE_VARIABLE_EDITOR_MAP'
-  payload: VariableArguments
+  payload: MapArguments
 }
 
-export const updateMap = (arg: VariableArguments): SetMap => ({
+export const updateMap = (arg: MapArguments): SetMap => ({
   type: 'UPDATE_VARIABLE_EDITOR_MAP',
   payload: arg,
 })
 
 interface SetConstant {
   type: 'UPDATE_VARIABLE_EDITOR_CONSTANT'
-  payload: VariableArguments
+  payload: CSVArguments
 }
 
-export const updateConstant = (arg: VariableArguments): SetConstant => ({
+export const updateConstant = (arg: CSVArguments): SetConstant => ({
   type: 'UPDATE_VARIABLE_EDITOR_CONSTANT',
   payload: arg,
 })

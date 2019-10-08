@@ -6,7 +6,7 @@ import {get} from 'lodash'
 import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, MapArguments, QueryArguments, CSVArguments} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
 import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
 import {
@@ -41,9 +41,7 @@ export const extractVariableEditorType = (
   return state.variableEditor.selected
 }
 
-export const extractVariableEditorQuery = (
-  state: AppState
-): VariableArguments => {
+export const extractVariableEditorQuery = (state: AppState): QueryArguments => {
   return (
     state.variableEditor.argsQuery || {
       type: 'query',
@@ -55,9 +53,7 @@ export const extractVariableEditorQuery = (
   )
 }
 
-export const extractVariableEditorMap = (
-  state: AppState
-): VariableArguments => {
+export const extractVariableEditorMap = (state: AppState): MapArguments => {
   return (
     state.variableEditor.argsMap || {
       type: 'map',
@@ -68,7 +64,7 @@ export const extractVariableEditorMap = (
 
 export const extractVariableEditorConstant = (
   state: AppState
-): VariableArguments => {
+): CSVArguments => {
   return (
     state.variableEditor.argsConstant || {
       type: 'constant',

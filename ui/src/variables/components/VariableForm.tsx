@@ -25,13 +25,7 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {
-  VariableArguments,
-  VariableArgumentType,
-  QueryArguments,
-  MapArguments,
-  CSVArguments,
-} from 'src/types'
+import {VariableArguments, VariableArgumentType} from 'src/types'
 
 interface State {
   isNameValid: boolean
@@ -115,7 +109,6 @@ export default class VariableForm extends PureComponent<Props, State> {
           <Grid.Row>
             <Grid.Column>
               <VariableArgumentsEditor
-                variableType={variableType}
                 onChange={this.handleChangeArgs}
                 onSelectMapDefault={this.handleSelectMapDefault}
                 selected={selected}
@@ -168,7 +161,7 @@ export default class VariableForm extends PureComponent<Props, State> {
 
     switch (variableType) {
       case 'query': {
-        let _query = query as QueryArguments
+        let _query = query
         if (firstRun && !_query.values.query.length) {
           _query.values.query = initialScript || ''
         }
@@ -188,11 +181,11 @@ export default class VariableForm extends PureComponent<Props, State> {
 
     switch (variableType) {
       case 'query':
-        return !!(query as QueryArguments).values.query
+        return !!query.values.query
       case 'constant':
-        return (constant as CSVArguments).values.length !== 0
+        return constant.values.length !== 0
       case 'map':
-        return Object.keys((map as MapArguments).values).length !== 0
+        return Object.keys(map.values).length !== 0
       default:
         return false
     }
