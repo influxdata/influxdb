@@ -50,8 +50,7 @@ export default class VariableForm extends PureComponent<Props, State> {
     const {selected} = this.state
 
     return (
-      <Form onSubmit={this.handleSubmit}
-        testID="variable-form--root">
+      <Form onSubmit={this.handleSubmit} testID="variable-form--root">
         <Grid>
           <Grid.Row>
             <Grid.Column widthXS={Columns.Six}>
@@ -82,7 +81,8 @@ export default class VariableForm extends PureComponent<Props, State> {
                     <Dropdown.Button
                       active={active}
                       onClick={onClick}
-                      testID={'variable-form--dropdown-button'}>
+                      testID="variable-form--dropdown-button"
+                    >
                       {this.typeDropdownLabel}
                     </Dropdown.Button>
                   )}

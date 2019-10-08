@@ -17,7 +17,6 @@ import {IVariable as Variable} from '@influxdata/influx'
 export const initialEditorState = (): VariableEditorState => ({
   name: '',
   selected: 'query',
-
   argsQuery: null,
   argsMap: null,
   argsConstant: null,

@@ -46,170 +46,93 @@ import {
 } from 'src/shared/copy/notifications'
 
 export type EditorAction =
-  | ClearEditor
-  | SetName
-  | SelectType
-  | SetQuery
-  | SetMap
-  | SetConstant
+  | ReturnType<typeof clearEditor>
+  | ReturnType<typeof updateType>
+  | ReturnType<typeof updateName>
+  | ReturnType<typeof updateQuery>
+  | ReturnType<typeof updateMap>
+  | ReturnType<typeof updateConstant>
 
-interface ClearEditor {
-  type: 'CLEAR_VARIABLE_EDITOR'
-}
-
-export const clearEditor = (): ClearEditor => ({
-  type: 'CLEAR_VARIABLE_EDITOR',
+export const clearEditor = () => ({
+  type: 'CLEAR_VARIABLE_EDITOR' as 'CLEAR_VARIABLE_EDITOR',
 })
 
-interface SelectType {
-  type: 'CHANGE_VARIABLE_EDITOR_TYPE'
-  payload: VariableArgumentType
-}
-
-export const updateType = (type: VariableArgumentType): SelectType => ({
-  type: 'CHANGE_VARIABLE_EDITOR_TYPE',
+export const updateType = (type: VariableArgumentType) => ({
+  type: 'CHANGE_VARIABLE_EDITOR_TYPE' as 'CHANGE_VARIABLE_EDITOR_TYPE',
   payload: type,
 })
 
-interface SetName {
-  type: 'UPDATE_VARIABLE_EDITOR_NAME'
-  payload: string
-}
-
-export const updateName = (name: string): SetName => ({
-  type: 'UPDATE_VARIABLE_EDITOR_NAME',
+export const updateName = (name: string) => ({
+  type: 'UPDATE_VARIABLE_EDITOR_NAME' as 'UPDATE_VARIABLE_EDITOR_NAME',
   payload: name,
 })
 
-interface SetQuery {
-  type: 'UPDATE_VARIABLE_EDITOR_QUERY'
-  payload: QueryArguments
-}
-
-export const updateQuery = (arg: QueryArguments): SetQuery => ({
-  type: 'UPDATE_VARIABLE_EDITOR_QUERY',
+export const updateQuery = (arg: QueryArguments) => ({
+  type: 'UPDATE_VARIABLE_EDITOR_QUERY' as 'UPDATE_VARIABLE_EDITOR_QUERY',
   payload: arg,
 })
 
-interface SetMap {
-  type: 'UPDATE_VARIABLE_EDITOR_MAP'
-  payload: MapArguments
-}
-
-export const updateMap = (arg: MapArguments): SetMap => ({
-  type: 'UPDATE_VARIABLE_EDITOR_MAP',
+export const updateMap = (arg: MapArguments) => ({
+  type: 'UPDATE_VARIABLE_EDITOR_MAP' as 'UPDATE_VARIABLE_EDITOR_MAP',
   payload: arg,
 })
 
-interface SetConstant {
-  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT'
-  payload: CSVArguments
-}
-
-export const updateConstant = (arg: CSVArguments): SetConstant => ({
-  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT',
+export const updateConstant = (arg: CSVArguments) => ({
+  type: 'UPDATE_VARIABLE_EDITOR_CONSTANT' as 'UPDATE_VARIABLE_EDITOR_CONSTANT',
   payload: arg,
 })
 
 export type Action =
-  | SetVariables
-  | SetVariable
-  | RemoveVariable
-  | MoveVariable
-  | SetValues
-  | SelectValue
+  | ReturnType<typeof setVariables>
+  | ReturnType<typeof setVariable>
+  | ReturnType<typeof removeVariable>
+  | ReturnType<typeof moveVariable>
+  | ReturnType<typeof setValues>
+  | ReturnType<typeof selectValue>
 
-interface SetVariables {
-  type: 'SET_VARIABLES'
-  payload: {
-    status: RemoteDataState
-    variables?: Variable[]
-  }
-}
-
-const setVariables = (
-  status: RemoteDataState,
-  variables?: Variable[]
-): SetVariables => ({
-  type: 'SET_VARIABLES',
+const setVariables = (status: RemoteDataState, variables?: Variable[]) => ({
+  type: 'SET_VARIABLES' as 'SET_VARIABLES',
   payload: {status, variables},
 })
-
-interface SetVariable {
-  type: 'SET_VARIABLE'
-  payload: {
-    id: string
-    status: RemoteDataState
-    variable?: Variable
-  }
-}
 
 const setVariable = (
   id: string,
   status: RemoteDataState,
   variable?: Variable
-): SetVariable => ({
-  type: 'SET_VARIABLE',
+) => ({
+  type: 'SET_VARIABLE' as 'SET_VARIABLE',
   payload: {id, status, variable},
 })
 
-interface RemoveVariable {
-  type: 'REMOVE_VARIABLE'
-  payload: {id: string}
-}
-
-const removeVariable = (id: string): RemoveVariable => ({
-  type: 'REMOVE_VARIABLE',
+const removeVariable = (id: string) => ({
+  type: 'REMOVE_VARIABLE' as 'REMOVE_VARIABLE',
   payload: {id},
 })
-
-interface MoveVariable {
-  type: 'MOVE_VARIABLE'
-  payload: {originalIndex: number; newIndex: number; contextID: string}
-}
 
 export const moveVariable = (
   originalIndex: number,
   newIndex: number,
   contextID: string
-): MoveVariable => ({
-  type: 'MOVE_VARIABLE',
+) => ({
+  type: 'MOVE_VARIABLE' as 'MOVE_VARIABLE',
   payload: {originalIndex, newIndex, contextID},
 })
-
-interface SetValues {
-  type: 'SET_VARIABLE_VALUES'
-  payload: {
-    contextID: string
-    status: RemoteDataState
-    values?: VariableValuesByID
-  }
-}
 
 const setValues = (
   contextID: string,
   status: RemoteDataState,
   values?: VariableValuesByID
-): SetValues => ({
-  type: 'SET_VARIABLE_VALUES',
+) => ({
+  type: 'SET_VARIABLE_VALUES' as 'SET_VARIABLE_VALUES',
   payload: {contextID, status, values},
 })
-
-interface SelectValue {
-  type: 'SELECT_VARIABLE_VALUE'
-  payload: {
-    contextID: string
-    variableID: string
-    selectedValue: string
-  }
-}
 
 export const selectValue = (
   contextID: string,
   variableID: string,
   selectedValue: string
-): SelectValue => ({
-  type: 'SELECT_VARIABLE_VALUE',
+) => ({
+  type: 'SELECT_VARIABLE_VALUE' as 'SELECT_VARIABLE_VALUE',
   payload: {contextID, variableID, selectedValue},
 })
 

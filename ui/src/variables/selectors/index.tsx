@@ -6,7 +6,12 @@ import {get} from 'lodash'
 import {getVarAssignment} from 'src/variables/utils/getVarAssignment'
 
 // Types
-import {RemoteDataState, MapArguments, QueryArguments, CSVArguments} from 'src/types'
+import {
+  RemoteDataState,
+  MapArguments,
+  QueryArguments,
+  CSVArguments,
+} from 'src/types'
 import {VariableAssignment} from 'src/types/ast'
 import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
 import {
