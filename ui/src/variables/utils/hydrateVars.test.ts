@@ -3,7 +3,7 @@ import {ValueFetcher} from 'src/variables/utils/ValueFetcher'
 import {hydrateVars} from 'src/variables/utils/hydrateVars'
 
 // Mocks
-import {createVariable} from 'src/variables/mocks'
+import {createMapVariable, createVariable} from 'src/variables/mocks'
 
 // Types
 import {CancellationError} from 'src/types/promises'
@@ -277,5 +277,36 @@ describe('hydrate vars', () => {
     })
 
     cancel()
+  })
+
+  test('returns the keys (not the values) of map types', async () => {
+    const firstVariable = createMapVariable('0495e1b2c71fd000', {
+      key1: 'value1',
+      key2: 'value2',
+    })
+    const secondVariable = createMapVariable('04960a2028efe000', {
+      key3: 'value3',
+      key4: 'value4',
+    })
+
+    const expected = {
+      '0495e1b2c71fd000': {
+        valueType: 'string',
+        values: ['key1', 'key2'],
+        selectedValue: 'key2',
+      },
+    }
+
+    const actual = await hydrateVars(
+      [firstVariable],
+      [firstVariable, secondVariable],
+      {
+        url: '',
+        orgID: '',
+        selections: {'0495e1b2c71fd000': 'key2'},
+      }
+    ).promise
+
+    expect(actual).toEqual(expected)
   })
 })
