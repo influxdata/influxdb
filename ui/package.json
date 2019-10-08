@@ -16,14 +16,16 @@
     "src": "./src"
   },
   "scripts": {
-    "start": "yarn install && yarn generate && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && webpack-dev-server --config ./webpack.dev.ts",
+    "start": "yarn install && yarn generate && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && yarn run start:dev",
+    "start:docker": "yarn generate && yarn build:vendor && yarn run start:dev",
+    "start:dev": "webpack-dev-server --config ./webpack.dev.ts",
     "build": "yarn install --silent && yarn generate && webpack --config webpack.prod.ts",
     "build:vendor": "webpack --config webpack.vendor.ts",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
     "test:watch": "jest --watch --verbose false",
     "test:update": "jest --updateSnapshot",
-    "test:debug": "node --inspect-brk node_modules/.bin/jest --runInBand --watch --verbose false",
+    "test:debug": "node --inspect-brk $(npm bin)/jest --runInBand --watch --verbose false",
     "test:junit": "CYPRESS_baseUrl=http://localhost:9999 cypress run --browser chrome --reporter junit --reporter-options 'mochaFile=junit-results/test-output-[hash].xml'",
     "test:ju:report": "junit-viewer --results=junit-results --save-file=cypress/site/junit-report.html",
     "test:ju:clean": "rm junit-results/*.xml",
@@ -36,46 +38,6 @@
     "cy": "CYPRESS_baseUrl=http://localhost:9999 cypress open",
     "cy:dev": "CYPRESS_baseUrl=http://localhost:8080 cypress open",
     "generate": "oats ../http/swagger.yml > src/client/index.ts"
-  },
-  "jest": {
-    "setupFilesAfterEnv": [
-      "./jestSetup.ts"
-    ],
-    "displayName": "test",
-    "testURL": "http://localhost",
-    "testPathIgnorePatterns": [
-      "build",
-      "<rootDir>/node_modules/(?!(jest-test))",
-      "cypress"
-    ],
-    "setupFiles": [
-      "<rootDir>/testSetup.ts"
-    ],
-    "modulePaths": [
-      "<rootDir>",
-      "<rootDir>/node_modules"
-    ],
-    "moduleDirectories": [
-      "src"
-    ],
-    "transform": {
-      "^.+\\.tsx?$": "ts-jest"
-    },
-    "testRegex": "(/__tests__/.*|(\\.|/)(test))\\.(ts?|tsx?)$",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js",
-      "jsx",
-      "json",
-      "node"
-    ],
-    "snapshotSerializers": [
-      "enzyme-to-json/serializer"
-    ],
-    "moduleNameMapper": {
-      "\\.(css|scss)$": "identity-obj-proxy"
-    }
   },
   "author": "",
   "devDependencies": {
