@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"math"
 	"sync"
 	"time"
 
@@ -14,16 +13,16 @@ import (
 )
 
 const (
-	maxWaitTime          = time.Hour
-	degreeBtreeScheduled = 3
-	defaultMaxWorkers    = 32
+	// degreeBtreeScheduled is the btree degree for the btree internal to the tree scheduler.
+	// it is purely a performance tuning parameter, but required by github.com/google/btree
+	degreeBtreeScheduled = 3 // TODO(docmerlin): find the best number for this, its purely a perf optimization
+
+	// defaultMaxWorkers is a constant that sets the default number of maximum workers for a TreeScheduler
+	defaultMaxWorkers = 128
 )
 
 // TreeScheduler is a Scheduler based on a btree.
 // It calls Executor in-order per ID.  That means you are guaranteed that for a specific ID,
-//
-// If a call to an Executorfunc returns an *ErrRetry then all calls to Executor of the entire task will be delayed
-// temporarily by the amount specified in *ErrRetry, but future calls to Executor for that task will proceed normally.
 //
 // - The scheduler should, after creation, automatically call ExecutorFunc, when a task should run as defined by its Schedulable.
 //
@@ -62,7 +61,7 @@ const (
 // btree, then releases the lock.  We do not have to readjust the time on delete, because, if the minimum task isn't
 // ready yet, the main loop just resets the timer and keeps going.
 type TreeScheduler struct {
-	sync.RWMutex
+	mu           sync.RWMutex
 	scheduled    *btree.BTree
 	nextTime     map[ID]ordering // we need this index so we can delete items from the scheduled
 	when         time.Time
@@ -78,12 +77,13 @@ type TreeScheduler struct {
 	sm *SchedulerMetrics
 }
 
-type ExecutorFunc func(ctx context.Context, id ID, scheduledAt time.Time) error
-
+// ErrorFunc is a function for error handling.  It is a good way to inject logging into a TreeScheduler.
 type ErrorFunc func(ctx context.Context, taskID ID, scheduledAt time.Time, err error)
 
 type treeSchedulerOptFunc func(t *TreeScheduler) error
 
+// WithOnErrorFn is an option that sets the error function that gets called when there is an error in a TreeScheduler.
+// its useful for injecting logging or special error handling.
 func WithOnErrorFn(fn ErrorFunc) treeSchedulerOptFunc {
 	return func(t *TreeScheduler) error {
 		t.onErr = fn
@@ -91,6 +91,7 @@ func WithOnErrorFn(fn ErrorFunc) treeSchedulerOptFunc {
 	}
 }
 
+// WithMaxConcurrentWorkers is an option that sets the max number of concurrent workers that a TreeScheduler will use.
 func WithMaxConcurrentWorkers(n int) treeSchedulerOptFunc {
 	return func(t *TreeScheduler) error {
 		t.workchans = make([]chan Item, n)
@@ -98,6 +99,7 @@ func WithMaxConcurrentWorkers(n int) treeSchedulerOptFunc {
 	}
 }
 
+// WithTime is an optiom for NewScheduler that allows you to inject a clock.Clock from ben johnson's github.com/benbjohnson/clock library, for testing purposes.
 func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	return func(sch *TreeScheduler) error {
 		sch.time = t
@@ -105,7 +107,8 @@ func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	}
 }
 
-// Executor is any function that accepts an ID, a time, and a duration.
+// NewScheduler gives us a new TreeScheduler and SchedulerMetrics when given an  Executor, a SchedulableService, and zero or more options.
+// Schedulers should be initialized with this function.
 func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...treeSchedulerOptFunc) (*TreeScheduler, *SchedulerMetrics, error) {
 	s := &TreeScheduler{
 		executor:     executor,
@@ -131,14 +134,17 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 	s.wg.Add(len(s.workchans))
 	for i := 0; i < len(s.workchans); i++ {
 		s.workchans[i] = make(chan Item)
-		go s.work(i)
+		go s.work(context.Background(), s.workchans[i])
 	}
 
 	s.sm = NewSchedulerMetrics(s)
-	s.when = s.time.Now().Add(maxWaitTime)
-	s.timer = s.time.Timer(maxWaitTime)
+	s.when = time.Time{}
+	s.timer = s.time.Timer(0)
+	s.timer.Stop()
+	// because a stopped timer will wait forever, this allows us to wait for items to be added before triggering.
+
 	if executor == nil {
-		return nil, nil, errors.New("Executor must be a non-nil function")
+		return nil, nil, errors.New("executor must be a non-nil function")
 	}
 	s.wg.Add(1)
 	go func() {
@@ -147,48 +153,46 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 		for {
 			select {
 			case <-s.done:
-				s.Lock()
+				s.mu.Lock()
 				s.timer.Stop()
 				// close workchans
 				for i := range s.workchans {
 					close(s.workchans[i])
 				}
-				s.Unlock()
+				s.mu.Unlock()
 				return
 			case <-s.timer.C:
-			fired:
-				for {
-					s.Lock()
+				for { // this for loop is a work around to the way clock's mock works when you reset duration 0 in a different thread than you are calling your clock.Set
+					s.mu.Lock()
 					min := s.scheduled.Min()
 					if min == nil { // grab a new item, because there could be a different item at the top of the queue
-						s.when = s.time.Now().Add(maxWaitTime)
-						s.timer.Reset(maxWaitTime) // we can reset without stop, because its fired.
-						s.Unlock()
+						s.when = time.Time{}
+						s.mu.Unlock()
 						continue schedulerLoop
 					}
 					it := min.(Item)
-					if it.when > s.when.UTC().Unix() {
-						s.Unlock()
+					if ts := s.time.Now().UTC(); it.when().After(ts) {
+						s.timer.Reset(ts.Sub(it.when()))
+						s.mu.Unlock()
 						continue schedulerLoop
 					}
 					s.process()
 					min = s.scheduled.Min()
 					if min == nil { // grab a new item, because there could be a different item at the top of the queue after processing
-						s.when = s.time.Now().Add(maxWaitTime)
-						s.timer.Reset(maxWaitTime) // we can reset without stop, because its fired.
-						s.Unlock()
+						s.when = time.Time{}
+						s.mu.Unlock()
 						continue schedulerLoop
 					}
 					it = min.(Item)
-					s.when = time.Unix(it.when, 0)
+					s.when = it.when()
 					until := s.when.Sub(s.time.Now())
 
 					if until > 0 {
-						s.timer.Reset(until) // we can reset without stop, because its fired.
-						s.Unlock()
-						break fired
+						s.resetTimer(until) // we can reset without a stop because we know it is fired here
+						s.mu.Unlock()
+						continue schedulerLoop
 					}
-					s.Unlock()
+					s.mu.Unlock()
 				}
 			}
 		}
@@ -197,9 +201,9 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 }
 
 func (s *TreeScheduler) Stop() {
-	s.Lock()
+	s.mu.Lock()
 	close(s.done)
-	s.Unlock()
+	s.mu.Unlock()
 	s.wg.Wait()
 }
 
@@ -218,6 +222,11 @@ func (s *TreeScheduler) process() {
 		s.nextTime[toReAdd.items[i].id] = toReAdd.items[i].ordering
 		s.scheduled.ReplaceOrInsert(toReAdd.items[i])
 	}
+}
+
+func (s *TreeScheduler) resetTimer(whenFromNow time.Duration) {
+	s.when = s.time.Now().Add(whenFromNow)
+	s.timer.Reset(whenFromNow)
 }
 
 func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *unsent) {
@@ -239,7 +248,9 @@ func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *unsent) {
 			case s.workchans[wc] <- it:
 				s.scheduled.Delete(it)
 				if err := it.updateNext(); err != nil {
-					s.onErr(context.Background(), it.id, it.Next(), err)
+					// in this error case we can't schedule next, so we have to drop the task
+					s.onErr(context.Background(), it.id, it.Next(), &ErrUnrecoverable{err})
+					return true
 				}
 				itemsToPlace.append(it)
 
@@ -256,18 +267,11 @@ func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *unsent) {
 	}, itemsToPlace
 }
 
-func (s *TreeScheduler) Now() time.Time {
-	s.RLock()
-	now := s.time.Now().UTC()
-	s.RUnlock()
-	return now
-}
-
 // When gives us the next time the scheduler will run a task.
 func (s *TreeScheduler) When() time.Time {
-	s.RLock()
+	s.mu.RLock()
 	w := s.when
-	s.RUnlock()
+	s.mu.RUnlock()
 	return w
 }
 
@@ -282,38 +286,38 @@ func (s *TreeScheduler) release(taskID ID) {
 	delete(s.nextTime, taskID)
 }
 
-// Release releases a task, if it doesn't own the task it just returns.
+// Release releases a task.
 // Release also cancels the running task.
 // Task deletion would be faster if the tree supported deleting ranges.
 func (s *TreeScheduler) Release(taskID ID) {
 	s.sm.release(taskID)
-	s.Lock()
+	s.mu.Lock()
 	s.release(taskID)
-	s.Unlock()
+	s.mu.Unlock()
 }
 
-// work does work and reschedules the work as necessary.
-// it handles the resceduling, because we need to be able to reschedule based on executor error
-func (s *TreeScheduler) work(i int) {
+// work does work from the channel and checkpoints it.
+func (s *TreeScheduler) work(ctx context.Context, ch chan Item) {
 	var it Item
 	defer func() {
 		s.wg.Done()
 	}()
-	for it = range s.workchans[i] {
+	for it = range ch {
 		t := time.Unix(it.next, 0)
 		err := func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
-					err = &ErrUnrecoverable{errors.New("Executor panicked")}
+					err = &ErrUnrecoverable{errors.New("executor panicked")}
 				}
 			}()
-			return s.executor.Execute(context.Background(), it.id, t)
+			return s.executor.Execute(ctx, it.id, t)
 		}()
 		if err != nil {
-			s.onErr(context.Background(), it.id, it.Next(), err)
+			s.onErr(ctx, it.id, it.Next(), err)
 		}
-		if err := s.checkpointer.UpdateLastScheduled(context.TODO(), it.id, t); err != nil {
-			s.onErr(context.Background(), it.id, it.Next(), err)
+		// TODO(docmerlin): we can increase performance by making the call to UpdateLastScheduled async
+		if err := s.checkpointer.UpdateLastScheduled(ctx, it.id, t); err != nil {
+			s.onErr(ctx, it.id, it.Next(), err)
 		}
 	}
 }
@@ -334,11 +338,11 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	it.next = nt.UTC().Unix()
 	it.ordering.when = it.next + it.Offset
 
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	nt = nt.Add(sch.Offset())
-	if s.when.After(nt) {
+	if s.when.IsZero() || s.when.After(nt) {
 		s.when = nt
 		s.timer.Stop()
 		until := s.when.Sub(s.time.Now())
@@ -357,19 +361,11 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 			id:       it.id,
 		})
 	}
-	s.nextTime[it.id] = ordering{when: it.next + it.Offset + it.wait}
+	s.nextTime[it.id] = ordering{when: it.next + it.Offset}
 
 	// insert the new task run time
 	s.scheduled.ReplaceOrInsert(it)
 	return nil
-}
-
-var maxItem = Item{
-	ordering: ordering{
-		when:  math.MaxInt64,
-		nonce: int(^uint(0) >> 1),
-	},
-	id: maxID,
 }
 
 type ordering struct {
@@ -387,7 +383,6 @@ type Item struct {
 	id     ID
 	cron   Schedule
 	next   int64
-	wait   int64
 	Offset int64
 }
 
@@ -395,10 +390,14 @@ func (it Item) Next() time.Time {
 	return time.Unix(it.next, 0)
 }
 
+func (it Item) when() time.Time {
+	return time.Unix(it.ordering.when, 0)
+}
+
 // Less tells us if one Item is less than another
 func (it Item) Less(bItem btree.Item) bool {
 	it2 := bItem.(Item)
-	return it.when < it2.when || (it.when == it2.when && (it.nonce < it2.nonce || it.nonce == it2.nonce && it.id < it2.id))
+	return it.ordering.when < it2.ordering.when || (it.ordering.when == it2.ordering.when && (it.nonce < it2.nonce || it.nonce == it2.nonce && it.id < it2.id))
 }
 
 func (it *Item) updateNext() error {
@@ -407,6 +406,6 @@ func (it *Item) updateNext() error {
 		return err
 	}
 	it.next = newNext.UTC().Unix()
-	it.when = it.next + it.Offset
+	it.ordering.when = it.next + it.Offset
 	return nil
 }
