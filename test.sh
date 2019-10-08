@@ -9,7 +9,6 @@
 #      1: race enabled 64bit tests
 #      2: normal 32bit tests
 #      3: tsi build
-#      4: go 1.12
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
 #
@@ -32,7 +31,7 @@ TIMEOUT=${TIMEOUT-1500s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=5
+ENV_COUNT=4
 
 # Default return code 0
 rc=0
