@@ -2,7 +2,6 @@
 import React, {PureComponent, ChangeEvent, FormEvent} from 'react'
 import {get} from 'lodash'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -16,18 +15,20 @@ import {ScraperTargetRequest} from '@influxdata/influx'
 import {AppState, Bucket} from 'src/types'
 
 interface OwnProps {
-  visible: boolean
+  onDismiss: () => void
+  bucketID?: string
 }
 
 interface StateProps {
   buckets: Bucket[]
+  orgID: string
 }
 
 interface DispatchProps {
   onCreateScraper: typeof createScraper
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps
 
 interface State {
   scraper: ScraperTargetRequest
@@ -37,10 +38,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    const {
-      params: {bucketID, orgID},
-      buckets,
-    } = this.props
+    const {bucketID, orgID, buckets} = this.props
 
     const firstBucketID = get(buckets, '0.id', '')
 
@@ -57,12 +55,12 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
 
   public render() {
     const {scraper} = this.state
-    const {buckets} = this.props
+    const {buckets, onDismiss} = this.props
 
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
-          <Overlay.Header title="Create Scraper" onDismiss={this.onDismiss} />
+          <Overlay.Header title="Create Scraper" onDismiss={onDismiss} />
           <Overlay.Body>
             <h5 className="wizard-step--sub-title">
               Scrapers collect data from multiple targets at regular intervals
@@ -76,7 +74,7 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
               onInputChange={this.handleInputChange}
               onSelectBucket={this.handleSelectBucket}
               onSubmit={this.handleFormSubmit}
-              onDismiss={this.onDismiss}
+              onDismiss={onDismiss}
             />
           </Overlay.Body>
         </Overlay.Container>
@@ -103,24 +101,21 @@ class CreateScraperOverlay extends PureComponent<Props, State> {
   }
 
   private handleFormSubmit = (e: FormEvent<HTMLFormElement>): void => {
-    const {onCreateScraper} = this.props
+    const {onDismiss, onCreateScraper} = this.props
     const {scraper} = this.state
     e.preventDefault()
     onCreateScraper(scraper)
-    this.onDismiss()
+    onDismiss()
   }
 
   private get origin(): string {
     return window.location.origin
   }
-
-  private onDismiss = (): void => {
-    this.props.router.goBack()
-  }
 }
 
-const mstp = ({buckets}: AppState): StateProps => ({
+const mstp = ({buckets, orgs: {org}}: AppState): StateProps => ({
   buckets: buckets.list,
+  orgID: org.id,
 })
 
 const mdtp: DispatchProps = {
@@ -130,4 +125,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<StateProps & DispatchProps & OwnProps>(CreateScraperOverlay))
+)(CreateScraperOverlay)

@@ -12,16 +12,16 @@ import {
   PopoverType,
   PopoverPosition,
 } from '@influxdata/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 interface Props {
   onAddCollector: () => void
-  onAddLineProtocol: () => void
-  onAddScraper: () => void
+  bucketID: string
 }
 
 export default class BucketAddDataButton extends PureComponent<Props> {
   public render() {
-    const {onAddCollector, onAddLineProtocol, onAddScraper} = this.props
+    const {onAddCollector, bucketID} = this.props
 
     return (
       <Popover
@@ -39,26 +39,34 @@ export default class BucketAddDataButton extends PureComponent<Props> {
                 Configure a Telegraf agent to push data into your bucket.
               </div>
             </div>
-            <div
-              className="bucket-add-data--option"
-              onClick={onAddLineProtocol}
-            >
-              <div className="bucket-add-data--option-header">
-                Line Protocol
-              </div>
-              <div className="bucket-add-data--option-desc">
-                Quickly load an existing line protocol file.
-              </div>
-            </div>
+            <OverlayLink overlayID="write-data-with-line-protocol">
+              {onClick => (
+                <div className="bucket-add-data--option" onClick={onClick}>
+                  <div className="bucket-add-data--option-header">
+                    Line Protocol
+                  </div>
+                  <div className="bucket-add-data--option-desc">
+                    Quickly load an existing line protocol file.
+                  </div>
+                </div>
+              )}
+            </OverlayLink>
             <CloudExclude>
-              <div className="bucket-add-data--option" onClick={onAddScraper}>
-                <div className="bucket-add-data--option-header">
-                  Scrape Metrics
-                </div>
-                <div className="bucket-add-data--option-desc">
-                  Add a scrape target to pull data into your bucket.
-                </div>
-              </div>
+              <OverlayLink
+                overlayID="add-scraper-to-bucket"
+                resourceID={bucketID}
+              >
+                {onClick => (
+                  <div className="bucket-add-data--option" onClick={onClick}>
+                    <div className="bucket-add-data--option-header">
+                      Scrape Metrics
+                    </div>
+                    <div className="bucket-add-data--option-desc">
+                      Add a scrape target to pull data into your bucket.
+                    </div>
+                  </div>
+                )}
+              </OverlayLink>
             </CloudExclude>
           </div>
         )}

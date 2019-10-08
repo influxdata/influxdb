@@ -36,6 +36,7 @@ export interface LineProtocolStepProps {
 interface OwnProps {
   onCompleteSetup: () => void
   startingStep?: number
+  onDismiss: () => void
 }
 
 interface DispatchProps {
@@ -97,11 +98,11 @@ class LineProtocolWizard extends PureComponent<Props & WithRouterProps> {
   }
 
   private handleDismiss = () => {
-    const {router, onClearDataLoaders, onClearSteps} = this.props
+    const {onDismiss, onClearDataLoaders, onClearSteps} = this.props
 
     onClearDataLoaders()
     onClearSteps()
-    router.goBack()
+    onDismiss()
   }
 
   private get stepProps(): LineProtocolStepProps {

@@ -110,8 +110,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
         >
           <BucketAddDataButton
             onAddCollector={this.handleAddCollector}
-            onAddLineProtocol={this.handleAddLineProtocol}
-            onAddScraper={this.handleAddScraper}
+            bucketID={bucket.id}
           />
           <OverlayLink overlayID="rename-bucket" resourceID={bucket.id}>
             {onClick => (
@@ -148,26 +147,6 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
 
     const link = `/orgs/${orgID}/load-data/buckets/${id}/telegrafs/new`
     this.props.onAddData(this.props.bucket, DataLoaderType.Streaming, link)
-  }
-
-  private handleAddLineProtocol = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-    } = this.props
-
-    const link = `/orgs/${orgID}/load-data/buckets/${id}/line-protocols/new`
-    this.props.onAddData(this.props.bucket, DataLoaderType.LineProtocol, link)
-  }
-
-  private handleAddScraper = (): void => {
-    const {
-      params: {orgID},
-      bucket: {id},
-    } = this.props
-
-    const link = `/orgs/${orgID}/load-data/buckets/${id}/scrapers/new`
-    this.props.onAddData(this.props.bucket, DataLoaderType.Scraping, link)
   }
 }
 

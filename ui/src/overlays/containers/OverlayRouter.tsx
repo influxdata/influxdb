@@ -41,6 +41,8 @@ import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverla
 import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import TaskImportFromTemplateOverlay from 'src/tasks/components/TaskImportFromTemplateOverlay'
+import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
+import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -72,6 +74,20 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   let activeOverlay = <></>
 
   switch (overlayID) {
+    case 'write-data-with-line-protocol':
+      activeOverlay = <LineProtocolWizard onDismiss={handleDismissOverlay} />
+      break
+    case 'create-scraper':
+      activeOverlay = <CreateScraperOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'add-scraper-to-bucket':
+      activeOverlay = (
+        <CreateScraperOverlay
+          onDismiss={handleDismissOverlay}
+          bucketID={resourceID}
+        />
+      )
+      break
     case 'generate-all-access-token':
       activeOverlay = <AllAccessTokenOverlay onDismiss={handleDismissOverlay} />
       break

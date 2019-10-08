@@ -44,12 +44,10 @@ import VariablesIndex from 'src/variables/containers/VariablesIndex'
 import ScrapersIndex from 'src/scrapers/containers/ScrapersIndex'
 import SetOrg from 'src/shared/containers/SetOrg'
 import RouteToOrg from 'src/shared/containers/RouteToOrg'
-import CreateScraperOverlay from 'src/scrapers/components/CreateScraperOverlay'
 import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
-import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
 import OrgProfilePage from 'src/organizations/containers/OrgProfilePage'
@@ -160,16 +158,8 @@ class Root extends PureComponent {
                             <Route path="buckets" component={BucketsIndex}>
                               <Route path=":bucketID">
                                 <Route
-                                  path="line-protocols/new"
-                                  component={LineProtocolWizard}
-                                />
-                                <Route
                                   path="telegrafs/new"
                                   component={CollectorsWizard}
-                                />
-                                <Route
-                                  path="scrapers/new"
-                                  component={CreateScraperOverlay}
                                 />
                               </Route>
                             </Route>
@@ -184,12 +174,7 @@ class Root extends PureComponent {
                               />
                               <Route path="new" component={CollectorsWizard} />
                             </Route>
-                            <Route path="scrapers" component={ScrapersIndex}>
-                              <Route
-                                path="new"
-                                component={CreateScraperOverlay}
-                              />
-                            </Route>
+                            <Route path="scrapers" component={ScrapersIndex} />
                             <FeatureFlag name="clientLibrariesPage">
                               <Route
                                 path="client-libraries"
