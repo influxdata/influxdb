@@ -12,11 +12,13 @@ func _() {
 	_ = x[CacheStatusSizeExceeded-1]
 	_ = x[CacheStatusAgeExceeded-2]
 	_ = x[CacheStatusColdNoWrites-3]
+	_ = x[CacheStatusRetention-4]
+	_ = x[CacheStatusFullCompaction-5]
 }
 
-const _CacheStatus_name = "CacheStatusOkayCacheStatusSizeExceededCacheStatusAgeExceededCacheStatusColdNoWrites"
+const _CacheStatus_name = "CacheStatusOkayCacheStatusSizeExceededCacheStatusAgeExceededCacheStatusColdNoWritesCacheStatusRetentionCacheStatusFullCompaction"
 
-var _CacheStatus_index = [...]uint8{0, 15, 38, 60, 83}
+var _CacheStatus_index = [...]uint8{0, 15, 38, 60, 83, 103, 128}
 
 func (i CacheStatus) String() string {
 	if i < 0 || i >= CacheStatus(len(_CacheStatus_index)-1) {

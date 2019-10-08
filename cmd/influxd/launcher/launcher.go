@@ -711,6 +711,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
+	if logconf.Level == zap.DebugLevel {
+		h.Handler = http.HTTPLoggingMW(httpLogger)(h.Handler)
+	}
 	h.Logger = httpLogger
 
 	m.httpServer.Handler = h

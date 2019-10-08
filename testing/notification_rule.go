@@ -608,6 +608,7 @@ func FindNotificationRules(
 ) {
 	type args struct {
 		filter influxdb.NotificationRuleFilter
+		opts   influxdb.FindOptions
 	}
 
 	type wants struct {
@@ -1339,6 +1340,207 @@ func FindNotificationRules(
 			},
 		},
 		{
+			name: "find options limit",
+			fields: NotificationRuleFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+					},
+					{
+						ResourceID:   MustIDBase16(fourID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(oneID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr1",
+						},
+						Channel:         "ch1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(fourID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr3",
+						},
+						MessageTemplate: "msg",
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationRuleFilter{
+					OrgID: idPtr(MustIDBase16(oneID)),
+				},
+				opts: influxdb.FindOptions{
+					Limit: 2,
+				},
+			},
+			wants: wants{
+				notificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(oneID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr1",
+						},
+						Channel:         "ch1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+				},
+			},
+		},
+		{
+			name: "find options offset",
+			fields: NotificationRuleFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+					},
+					{
+						ResourceID:   MustIDBase16(fourID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(oneID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr1",
+						},
+						Channel:         "ch1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(fourID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr3",
+						},
+						MessageTemplate: "msg",
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationRuleFilter{
+					OrgID: idPtr(MustIDBase16(oneID)),
+				},
+				opts: influxdb.FindOptions{
+					Offset: 1,
+				},
+			},
+			wants: wants{
+				notificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(fourID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr3",
+						},
+						MessageTemplate: "msg",
+					},
+				},
+			},
+		},
+		{
 			name: "find nothing",
 			fields: NotificationRuleFields{
 				Orgs: []*influxdb.Organization{
@@ -1423,7 +1625,7 @@ func FindNotificationRules(
 			defer done()
 			ctx := context.Background()
 
-			nrs, n, err := s.FindNotificationRules(ctx, tt.args.filter)
+			nrs, n, err := s.FindNotificationRules(ctx, tt.args.filter, tt.args.opts)
 			ErrorsEqual(t, err, tt.wants.err)
 			if n != len(tt.wants.notificationRules) {
 				t.Fatalf("notification rules length is different got %d, want %d", n, len(tt.wants.notificationRules))
