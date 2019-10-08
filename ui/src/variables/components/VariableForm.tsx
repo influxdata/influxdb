@@ -56,7 +56,8 @@ export default class VariableForm extends PureComponent<Props, State> {
     const {selected} = this.state
 
     return (
-      <Form onSubmit={this.handleSubmit}>
+      <Form onSubmit={this.handleSubmit}
+        testID="variable-form--root">
         <Grid>
           <Grid.Row>
             <Grid.Column widthXS={Columns.Six}>
@@ -84,7 +85,10 @@ export default class VariableForm extends PureComponent<Props, State> {
               <Form.Element label="Type" required={true}>
                 <Dropdown
                   button={(active, onClick) => (
-                    <Dropdown.Button active={active} onClick={onClick}>
+                    <Dropdown.Button
+                      active={active}
+                      onClick={onClick}
+                      testID={'variable-form--dropdown-button'}>
                       {this.typeDropdownLabel}
                     </Dropdown.Button>
                   )}
@@ -94,6 +98,7 @@ export default class VariableForm extends PureComponent<Props, State> {
                         <Dropdown.Item
                           key={v.type}
                           id={v.type}
+                          testID={`variable-form--dropdown-${v.type}`}
                           value={v.type}
                           onClick={this.handleChangeType}
                           selected={v.type === variableType}

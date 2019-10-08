@@ -1,6 +1,6 @@
 // Libraries
 import React from 'react'
-import {shallow} from 'enzyme'
+import {render, fireEvent} from 'react-testing-library'
 
 // Components
 import VariableForm from 'src/variables/components/VariableForm'
@@ -45,38 +45,53 @@ const setup = (override?) => {
     ...override,
   }
 
-  const wrapper = shallow<VariableForm>(<VariableForm {...props} />)
+  const wrapper = render(<VariableForm {...props} />)
 
   return {wrapper, actions}
 }
 
-describe('VariableForm', () => {
+    jest.mock(
+      'src/shared/components/FluxEditor'
+    )
+describe('Variables.Components.VariableForm', () => {
   describe('rendering', () => {
     it('renders', () => {
       const {wrapper} = setup()
-      expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
+      const {getByTestId} = wrapper
+      const root = getByTestId('variable-form--root')
+
+      expect(root).toMatchSnapshot()
     })
   })
 
   describe('type selector', () => {
-    it('should not tell the the parrent if the type was not changed', () => {
+    it('should not tell the the parent if the type was not changed', () => {
       const {wrapper, actions} = setup()
+      const {getByTestId} = wrapper
 
-      const defaultType = 'query'
+      const button = getByTestId('variable-form--dropdown-button')
 
-      // this way of accessing the instance function
-      // bypasses typescript's private function check
-      wrapper.instance()['handleChangeType'](defaultType)
+      fireEvent.click(button)
+
+      const item = getByTestId('variable-form--dropdown-query')
+
+      fireEvent.click(item)
+
       expect(actions.type.mock.calls.length).toBe(0)
     })
 
-    it('should update tell the the parrent if type was changed', () => {
+    it('should tell the parent if type was changed', () => {
       const {wrapper, actions} = setup()
+      const {getByTestId} = wrapper
 
-      // this way of accessing the instance function
-      // bypasses typescript's private function check
-      wrapper.instance()['handleChangeType']('map')
+      const button = getByTestId('variable-form--dropdown-button')
+
+      fireEvent.click(button)
+
+      const item = getByTestId('variable-form--dropdown-map')
+
+      fireEvent.click(item)
+
       expect(actions.type.mock.calls.length).toBe(1)
       expect(actions.type.mock.calls[0][0]).toBe('map')
     })
