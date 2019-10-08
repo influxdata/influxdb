@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	//"github.com/influxdata/influxdb/task/backend"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

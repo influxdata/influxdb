@@ -11,8 +11,6 @@ import (
 // import influxdb for the ID.
 type ID uint64
 
-var maxID = ID(int(^uint(0) >> 1))
-
 // Executor is a system used by the scheduler to actually execute the scheduleable item.
 type Executor interface {
 	// Execute is used to execute run's for any schedulable object.
@@ -52,34 +50,26 @@ type SchedulableService interface {
 	UpdateLastScheduled(ctx context.Context, id ID, t time.Time) error
 }
 
+// NewSchedule takes a cron string
 func NewSchedule(c string) (Schedule, error) {
 	sch, err := cron.ParseUTC(c)
-	return Schedule(sch), err
+	return Schedule{cron: sch}, err
 }
 
-type Schedule cron.Parsed
+// Schedule is an object a valid schedule of runs
+type Schedule struct {
+	cron cron.Parsed
+}
 
+// Next returns the next time after from that a schedule should trigger on.
 func (s Schedule) Next(from time.Time) (time.Time, error) {
-	return cron.Parsed(s).Next(from)
+	return cron.Parsed(s.cron).Next(from)
 }
 
-// NewErrRetry returns an ErrRetry, it accepts a duration and an error.
-func NewErrRetry(d time.Duration, err error) *ErrRetry {
-	return &ErrRetry{d: d, err: err}
-}
-
-// ErrRetry is an error that the Executor must send if it wants the scheduler to retry the task later.
-// It also fulfils the stdlib's Unwraper interface.
-type ErrRetry struct {
-	d   time.Duration
-	err error
-}
-
-func (e *ErrRetry) Error() string {
-	if e.err != nil {
-		return "error" + e.err.Error() + "we need to retry in " + e.d.String()
-	}
-	return "error we need to retry in " + e.d.String()
+// ValidSchedule returns an error if the cron string is invalid.
+func ValidateSchedule(c string) error {
+	_, err := cron.ParseUTC(c)
+	return err
 }
 
 // Scheduler is a example interface of a Scheduler.
@@ -93,17 +83,17 @@ type Scheduler interface {
 	Release(taskID ID) error
 }
 
-func (e *ErrRetry) Unwrap() error {
-	return e.err
-}
-
 type ErrUnrecoverable struct {
 	error
 }
 
 func (e *ErrUnrecoverable) Error() string {
 	if e.error != nil {
-		return e.error.Error()
+		return "error unrecoverable error on task run " + e.error.Error()
 	}
-	return "Error unrecoverable error on task run"
+	return "error unrecoverable error on task run"
+}
+
+func (e *ErrUnrecoverable) Unwrap() error {
+	return e.error
 }
