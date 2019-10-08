@@ -28,7 +28,13 @@ import VariableForm from 'src/variables/components/VariableForm'
 
 // Types
 import {IVariable as Variable} from '@influxdata/influx'
-import {AppState, VariableArguments, VariableArgumentType} from 'src/types'
+import {
+  AppState,
+  VariableArgumentType,
+  QueryArguments,
+  CSVArguments,
+  MapArguments,
+} from 'src/types'
 
 interface ComponentProps {
   onHideOverlay?: () => void
@@ -51,9 +57,9 @@ interface StateProps {
   variables: Variable[]
   name: string
   variableType: VariableArgumentType
-  query: VariableArguments
-  map: VariableArguments
-  constant: VariableArguments
+  query: QueryArguments
+  map: MapArguments
+  constant: CSVArguments
 }
 
 type Props = ComponentProps & DispatchProps & StateProps

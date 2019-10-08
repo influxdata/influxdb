@@ -8,35 +8,26 @@ import CSVVariableBuilder from 'src/variables/components/CSVVariableBuilder'
 import {Form, Grid} from '@influxdata/clockface'
 
 // Types
-import {
-  MapArguments,
-  KeyValueMap,
-  QueryArguments,
-  VariableArguments,
-  VariableArgumentType,
-  CSVArguments,
-} from 'src/types'
+import {KeyValueMap, VariableArguments} from 'src/types'
 
 interface Props {
   args: VariableArguments
   onChange: (update: {args: VariableArguments; isValid: boolean}) => void
   onSelectMapDefault: (selectedKey: string) => void
   selected: string[]
-  variableType: VariableArgumentType
 }
 
 class VariableArgumentsEditor extends PureComponent<Props> {
   render() {
-    const {args, onSelectMapDefault, selected, variableType} = this.props
-
-    switch (variableType) {
+    const {args, onSelectMapDefault, selected} = this.props
+    switch (args.type) {
       case 'query':
         return (
           <Form.Element label="Script">
             <Grid.Column>
               <div className="overlay-flux-editor">
                 <FluxEditor
-                  script={(args as QueryArguments).values.query}
+                  script={args.values.query}
                   onChangeScript={this.handleChangeQuery}
                   visibility="visible"
                   suggestions={[]}
@@ -49,7 +40,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
         return (
           <MapVariableBuilder
             onChange={this.handleChangeMap}
-            values={(args as MapArguments).values}
+            values={args.values}
             onSelectDefault={onSelectMapDefault}
             selected={selected}
           />
@@ -58,7 +49,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
         return (
           <CSVVariableBuilder
             onChange={this.handleChangeCSV}
-            values={(args as CSVArguments).values}
+            values={args.values}
             onSelectDefault={onSelectMapDefault}
             selected={selected}
           />
@@ -69,7 +60,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
   private handleChangeCSV = (values: string[]) => {
     const {onChange} = this.props
 
-    const updatedArgs: CSVArguments = {type: 'constant', values}
+    const updatedArgs = {type: 'constant' as 'constant', values}
     const isValid = values.length > 0
 
     onChange({args: updatedArgs, isValid})
@@ -79,7 +70,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
     const {onChange} = this.props
 
     const values = {language: 'flux' as 'flux', query}
-    const updatedArgs: QueryArguments = {type: 'query', values}
+    const updatedArgs = {type: 'query' as 'query', values}
 
     const isValid = !query.match(/^\s*$/)
 
@@ -92,7 +83,7 @@ class VariableArgumentsEditor extends PureComponent<Props> {
   }) => {
     const {onChange} = this.props
 
-    const updatedArgs: MapArguments = {type: 'map', values: update.values}
+    const updatedArgs = {type: 'map' as 'map', values: update.values}
 
     const isValid =
       update.errors.length === 0 && Object.keys(update.values).length > 0
