@@ -11,6 +11,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {TemplateSummary, AppState} from 'src/types'
@@ -38,15 +39,9 @@ const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
   template,
 }))
 
-interface OwnProps {
-  onImport: () => void
-}
-
 interface StateProps {
   templates: TemplateSummary[]
 }
-
-type Props = OwnProps & StateProps
 
 interface State {
   searchTerm: string
@@ -59,7 +54,7 @@ interface State {
 type SortKey = 'meta.name'
 
 @ErrorHandling
-class TemplatesPage extends PureComponent<Props, State> {
+class TemplatesPage extends PureComponent<StateProps, State> {
   constructor(props) {
     super(props)
 
@@ -73,7 +68,6 @@ class TemplatesPage extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onImport} = this.props
     const {activeTab} = this.state
 
     return (
@@ -102,12 +96,16 @@ class TemplatesPage extends PureComponent<Props, State> {
               </Radio.Button>
             </Radio>
           </FlexBox>
-          <Button
-            text="Import Template"
-            icon={IconFont.Plus}
-            color={ComponentColor.Primary}
-            onClick={onImport}
-          />
+          <OverlayLink overlayID="import-template">
+            {onClick => (
+              <Button
+                text="Import Template"
+                icon={IconFont.Plus}
+                color={ComponentColor.Primary}
+                onClick={onClick}
+              />
+            )}
+          </OverlayLink>
         </SettingsTabbedPageHeader>
         {this.templatesList}
       </>
@@ -124,7 +122,7 @@ class TemplatesPage extends PureComponent<Props, State> {
   }
 
   private get templatesList(): JSX.Element {
-    const {templates, onImport} = this.props
+    const {templates} = this.props
     const {searchTerm, sortKey, sortDirection, sortType, activeTab} = this.state
 
     if (activeTab === 'static-templates') {
@@ -140,7 +138,6 @@ class TemplatesPage extends PureComponent<Props, State> {
                 searchTerm={searchTerm}
                 templates={ts}
                 onFilterChange={this.setSearchTerm}
-                onImport={onImport}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 sortType={sortType}
@@ -166,7 +163,6 @@ class TemplatesPage extends PureComponent<Props, State> {
                   searchTerm={searchTerm}
                   templates={ts}
                   onFilterChange={this.setSearchTerm}
-                  onImport={onImport}
                   sortKey={sortKey}
                   sortDirection={sortDirection}
                   sortType={sortType}

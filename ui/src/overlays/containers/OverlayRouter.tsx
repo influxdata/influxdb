@@ -29,6 +29,10 @@ import NewThresholdCheckEO from 'src/alerting/components/NewThresholdCheckEO'
 import NewDeadmanCheckEO from 'src/alerting/components/NewDeadmanCheckEO'
 import EditCheckEO from 'src/alerting/components/EditCheckEO'
 import CreateOrgOverlay from 'src/organizations/components/CreateOrgOverlay'
+import TemplateImportOverlay from 'src/templates/components/TemplateImportOverlay'
+import TemplateExportOverlay from 'src/templates/components/TemplateExportOverlay'
+import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
+import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 
 const OverlayRouter: FunctionComponent<WithRouterProps> = ({
   location,
@@ -167,6 +171,33 @@ const OverlayRouter: FunctionComponent<WithRouterProps> = ({
       break
     case 'create-organization':
       activeOverlay = <CreateOrgOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'import-template':
+      activeOverlay = <TemplateImportOverlay onDismiss={handleDismissOverlay} />
+      break
+    case 'export-template':
+      activeOverlay = (
+        <TemplateExportOverlay
+          onDismiss={handleDismissOverlay}
+          templateID={resourceID}
+        />
+      )
+      break
+    case 'view-user-template':
+      activeOverlay = (
+        <TemplateViewOverlay
+          onDismiss={handleDismissOverlay}
+          templateID={resourceID}
+        />
+      )
+      break
+    case 'view-static-template':
+      activeOverlay = (
+        <StaticTemplateViewOverlay
+          onDismiss={handleDismissOverlay}
+          templateID={resourceID}
+        />
+      )
       break
     default:
       break

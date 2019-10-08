@@ -17,16 +17,16 @@ export const ossMetricsTemplate = (): DashboardTemplate => {
 }
 
 export const staticTemplates: {[k: string]: DashboardTemplate} = {
-  Apache: apache,
-  Docker: docker,
-  'getting-started': gettingStarted,
-  Github: github,
-  JMeter: jmeter,
-  Kubernetes: kubernetes,
-  Nginx: nginx,
-  'oss-metrics': ossMetrics,
-  Redis: redis,
-  System: system,
+  'apache-data': apache,
+  docker: docker,
+  'getting-started-with-flux': gettingStarted,
+  'github-data': github,
+  jmeter: jmeter,
+  kubernetes: kubernetes,
+  nginx: nginx,
+  'influxdb-2.0-oss-metrics': ossMetrics,
+  redis: redis,
+  system: system,
 }
 
 export const influxdbTemplateList: DashboardTemplate[] = [

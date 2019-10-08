@@ -126,12 +126,13 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
           <FeatureFlag name="deleteWithPredicate">
             <OverlayLink overlayID="delete-data" resourceID={bucket.id}>
               {onClick => (
-            <Button
-              text="Delete Data By Filter"
-              testID="bucket-delete-task"
-              size={ComponentSize.ExtraSmall}
+                <Button
+                  text="Delete Data By Filter"
+                  testID="bucket-delete-task"
+                  size={ComponentSize.ExtraSmall}
                   onClick={onClick}
-            />)}
+                />
+              )}
             </OverlayLink>
           </FeatureFlag>
         </FlexBox>

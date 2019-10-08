@@ -22,7 +22,6 @@ interface Props {
   templates: TemplateSummary[]
   searchTerm: string
   onFilterChange: (searchTerm: string) => void
-  onImport: () => void
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
@@ -35,13 +34,7 @@ export default class TemplatesList extends PureComponent<Props> {
   )
 
   public render() {
-    const {
-      searchTerm,
-      onImport,
-      sortKey,
-      sortDirection,
-      onClickColumn,
-    } = this.props
+    const {searchTerm, sortKey, sortDirection, onClickColumn} = this.props
 
     const headerKeys: SortKey[] = ['meta.name']
 
@@ -57,9 +50,7 @@ export default class TemplatesList extends PureComponent<Props> {
             />
           </ResourceList.Header>
           <ResourceList.Body
-            emptyState={
-              <EmptyTemplatesList searchTerm={searchTerm} onImport={onImport} />
-            }
+            emptyState={<EmptyTemplatesList searchTerm={searchTerm} />}
           >
             {this.rows}
           </ResourceList.Body>

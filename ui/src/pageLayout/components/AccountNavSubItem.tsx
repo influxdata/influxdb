@@ -49,10 +49,10 @@ class AccountNavSubItem extends PureComponent<Props> {
             titleLink={className => (
               <OverlayLink overlayID="create-organization">
                 {onClick => (
-                    <div onClick={onClick} className={className}>
-                      Create Organization
-                    </div>
-                  )}
+                  <div onClick={onClick} className={className}>
+                    Create Organization
+                  </div>
+                )}
               </OverlayLink>
             )}
             active={false}

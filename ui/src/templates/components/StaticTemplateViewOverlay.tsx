@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import ViewOverlay from 'src/shared/components/ViewOverlay'
@@ -12,42 +11,39 @@ import {RemoteDataState} from '@influxdata/clockface'
 import {staticTemplates} from 'src/templates/constants/defaultTemplates'
 import {DashboardTemplate} from 'src/types'
 
-interface OwnProps {
-  params: {id: string}
+interface Props {
+  templateID: string
+  onDismiss: () => void
 }
-
-type Props = OwnProps & WithRouterProps
 
 @ErrorHandling
 class TemplateExportOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss} = this.props
+
     return (
       <ViewOverlay
         resource={this.template}
         overlayHeading={this.overlayTitle}
-        onDismissOverlay={this.onDismiss}
+        onDismissOverlay={onDismiss}
         status={RemoteDataState.Done}
       />
     )
   }
 
   private get template(): DashboardTemplate {
-    const {
-      params: {id},
-    } = this.props
+    const {templateID} = this.props
 
-    return staticTemplates[id]
+    return staticTemplates[templateID]
   }
 
-  private get overlayTitle() {
-    return this.template.meta.name
-  }
+  private get overlayTitle(): string {
+    const {templateID} = this.props
 
-  private onDismiss = () => {
-    const {router} = this.props
+    const template: DashboardTemplate = staticTemplates[templateID]
 
-    router.goBack()
+    return get(template, 'meta.name', 'View')
   }
 }
 
-export default withRouter<Props>(TemplateExportOverlay)
+export default TemplateExportOverlay

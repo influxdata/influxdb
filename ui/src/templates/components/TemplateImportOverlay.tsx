@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
@@ -25,49 +24,42 @@ interface StateProps {
   org: Organization
 }
 
-interface OwnProps extends WithRouterProps {
-  params: {orgID: string}
+interface OwnProps {
+  onDismiss: () => void
 }
 
-type Props = DispatchProps & OwnProps & StateProps
+type Props = OwnProps & DispatchProps & StateProps
 
 class TemplateImportOverlay extends PureComponent<Props> {
   public render() {
+    const {onDismiss} = this.props
     return (
       <ImportOverlay
-        onDismissOverlay={this.onDismiss}
+        onDismissOverlay={onDismiss}
         resourceName="Template"
         onSubmit={this.handleImportTemplate}
       />
     )
   }
 
-  private onDismiss = () => {
-    const {router} = this.props
-
-    router.goBack()
-  }
-
   private handleImportTemplate = async (
     importString: string
   ): Promise<void> => {
-    const {createTemplate, getTemplates} = this.props
+    const {createTemplate, getTemplates, onDismiss} = this.props
 
     const template = JSON.parse(importString)
     await createTemplate(template)
 
     getTemplates()
 
-    this.onDismiss()
+    onDismiss()
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState): StateProps => {
   const {
-    orgs: {items},
+    orgs: {org},
   } = state
-
-  const org = items.find(o => o.id === props.params.orgID)
 
   return {org}
 }
@@ -78,7 +70,7 @@ const mdtp: DispatchProps = {
   getTemplates: getTemplatesAction,
 }
 
-export default connect<StateProps, DispatchProps, Props>(
+export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter(TemplateImportOverlay))
+)(TemplateImportOverlay)

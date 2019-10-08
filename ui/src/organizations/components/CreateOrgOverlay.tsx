@@ -65,10 +65,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
     return (
       <Overlay visible={true}>
         <Overlay.Container maxWidth={500}>
-          <Overlay.Header
-            title="Create Organization"
-            onDismiss={onDismiss}
-          />
+          <Overlay.Header title="Create Organization" onDismiss={onDismiss} />
           <Form onSubmit={this.handleCreateOrg}>
             <Overlay.Body>
               <Form.Element

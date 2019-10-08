@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -13,6 +13,7 @@ import {
 
 // Components
 import {ResourceCard} from '@influxdata/clockface'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Actions
 import {createResourceFromStaticTemplate} from 'src/templates/actions'
@@ -47,17 +48,23 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
   public render() {
     const {template} = this.props
 
+    const templateID = template.meta.name.replace(/\s/gi, '-').toLowerCase()
+
     return (
       <ResourceCard
         testID="template-card"
         contextMenu={this.contextMenu}
         description={this.description}
         name={
-          <ResourceCard.Name
-            onClick={this.handleNameClick}
-            name={template.meta.name}
-            testID="template-card--name"
-          />
+          <OverlayLink overlayID="view-static-template" resourceID={templateID}>
+            {onClick => (
+              <ResourceCard.Name
+                onClick={onClick}
+                name={template.meta.name}
+                testID="template-card--name"
+              />
+            )}
+          </OverlayLink>
         }
         metaData={[this.templateType]}
       />
@@ -104,17 +111,6 @@ class StaticTemplateCard extends PureComponent<Props & WithRouterProps> {
     const {onCreateFromTemplate, name} = this.props
 
     onCreateFromTemplate(name)
-  }
-
-  private handleNameClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
-    this.handleViewTemplate()
-  }
-
-  private handleViewTemplate = () => {
-    const {router, org, name} = this.props
-
-    router.push(`/orgs/${org.id}/settings/templates/${name}/static/view`)
   }
 }
 

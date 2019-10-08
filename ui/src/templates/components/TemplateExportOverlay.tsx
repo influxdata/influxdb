@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import ExportOverlay from 'src/shared/components/ExportOverlay'
@@ -17,7 +16,8 @@ import {AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface OwnProps {
-  params: {id: string}
+  templateID: string
+  onDismiss: () => void
 }
 
 interface DispatchProps {
@@ -30,15 +30,12 @@ interface StateProps {
   status: RemoteDataState
 }
 
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = OwnProps & StateProps & DispatchProps
 
 class TemplateExportOverlay extends PureComponent<Props> {
   public componentDidMount() {
-    const {
-      params: {id},
-      convertToTemplate,
-    } = this.props
-    convertToTemplate(id)
+    const {templateID, convertToTemplate} = this.props
+    convertToTemplate(templateID)
   }
 
   public render() {
@@ -55,9 +52,9 @@ class TemplateExportOverlay extends PureComponent<Props> {
   }
 
   private onDismiss = () => {
-    const {router, clearExportTemplate} = this.props
+    const {onDismiss, clearExportTemplate} = this.props
 
-    router.goBack()
+    onDismiss()
     clearExportTemplate()
   }
 }
@@ -75,4 +72,4 @@ const mdtp: DispatchProps = {
 export default connect<StateProps, DispatchProps, OwnProps>(
   mstp,
   mdtp
-)(withRouter<Props>(TemplateExportOverlay))
+)(TemplateExportOverlay)

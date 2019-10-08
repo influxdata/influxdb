@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, MouseEvent} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -15,6 +15,7 @@ import {
 import {Context} from 'src/clockface'
 import {ResourceCard, IconFont} from '@influxdata/clockface'
 import InlineLabels from 'src/shared/components/inlineLabels/InlineLabels'
+import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Actions
 import {
@@ -69,15 +70,19 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
         testID="template-card"
         contextMenu={this.contextMenu}
         name={
-          <ResourceCard.EditableName
-            onClick={this.handleNameClick}
-            onUpdate={this.handleUpdateTemplateName}
-            name={template.meta.name}
-            noNameString={DEFAULT_TEMPLATE_NAME}
-            testID="template-card--name"
-            buttonTestID="template-card--name-button"
-            inputTestID="template-card--input"
-          />
+          <OverlayLink overlayID="view-user-template" resourceID={template.id}>
+            {onClick => (
+              <ResourceCard.EditableName
+                onClick={onClick}
+                onUpdate={this.handleUpdateTemplateName}
+                name={template.meta.name}
+                noNameString={DEFAULT_TEMPLATE_NAME}
+                testID="template-card--name"
+                buttonTestID="template-card--name-button"
+                inputTestID="template-card--input"
+              />
+            )}
+          </OverlayLink>
         }
         description={this.description}
         labels={
@@ -190,17 +195,6 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
       onClone,
     } = this.props
     onClone(id)
-  }
-
-  private handleNameClick = (e: MouseEvent): void => {
-    e.preventDefault()
-
-    this.handleViewTemplate()
-  }
-
-  private handleViewTemplate = () => {
-    const {router, template, org} = this.props
-    router.push(`/orgs/${org.id}/settings/templates/${template.id}/view`)
   }
 
   private handleAddLabel = (label: ILabel): void => {
