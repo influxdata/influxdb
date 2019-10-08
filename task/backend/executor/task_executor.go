@@ -313,7 +313,7 @@ func (w *worker) start(p *promise) {
 	w.te.metrics.StartRun(p.task, time.Since(p.createdAt))
 }
 
-func (w *worker) finish(p *promise, rs backend.RunStatus, err *influxdb.Error) {
+func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
@@ -329,9 +329,19 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err *influxdb.Error) {
 	w.te.metrics.FinishRun(p.task, rs, rd)
 
 	// log error
-	if err.Err != nil {
+	if err != nil {
+		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), err.Error())
 		w.te.logger.Debug("execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
 		w.te.metrics.LogError(p.task.Type, err)
+
+		if backend.IsUnrecoverable(err) {
+			// if we get an error that requires user intervention to fix, deactivate the task and alert the user
+			inactive := string(backend.TaskInactive)
+			w.te.ts.UpdateTask(p.ctx, p.task.ID, influxdb.TaskUpdate{Status: &inactive})
+			// and add to run logs
+			w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Task deactivated after encountering unrecoverable error: %v", err.Error()))
+		}
+
 		p.err = err
 	} else {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
@@ -385,10 +395,6 @@ func (w *worker) executeQuery(p *promise) {
 
 	it.Release()
 
-	if runErr == nil {
-		runErr = it.Err()
-	}
-
 	// log the statistics on the run
 	stats := it.Statistics()
 
@@ -397,7 +403,17 @@ func (w *worker) executeQuery(p *promise) {
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), string(b))
 	}
 
-	w.finish(p, backend.RunSuccess, influxdb.ErrResultIteratorError(runErr))
+	if runErr != nil {
+		w.finish(p, backend.RunFail, influxdb.ErrRunExecutionError(runErr))
+		return
+	}
+
+	if it.Err() != nil {
+		w.finish(p, backend.RunFail, influxdb.ErrResultIteratorError(it.Err()))
+		return
+	}
+
+	w.finish(p, backend.RunSuccess, nil)
 }
 
 // RunsActive returns the current number of workers, which is equivalent to

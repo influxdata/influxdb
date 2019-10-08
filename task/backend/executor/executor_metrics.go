@@ -131,8 +131,13 @@ func (em *ExecutorMetrics) FinishRun(task *influxdb.Task, status backend.RunStat
 }
 
 // LogError increments the count of errors.
-func (em *ExecutorMetrics) LogError(taskType string, err *influxdb.Error) {
-	em.errorsCounter.WithLabelValues(taskType, err.Code).Inc()
+func (em *ExecutorMetrics) LogError(taskType string, err error) {
+	switch e := err.(type) {
+	case *influxdb.Error:
+		em.errorsCounter.WithLabelValues(taskType, e.Code).Inc()
+	default:
+		em.errorsCounter.WithLabelValues(taskType, "unknown").Inc()
+	}
 }
 
 // Describe returns all descriptions associated with the run collector.
