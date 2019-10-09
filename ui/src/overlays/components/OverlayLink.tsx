@@ -1,6 +1,7 @@
 // Libraries
 import {FunctionComponent} from 'react'
 import {withRouter, WithRouterProps, InjectedRouter} from 'react-router'
+// import queryString from 'query-string'
 
 type HandleOpenOverlay = () => void
 
@@ -15,9 +16,16 @@ type Props = OwnProps & WithRouterProps
 const generateOverlayURL = (
   pathname: string,
   overlayID: string,
-  resourceID?: string
+  resourceID?: string,
+  search?: string, 
 ): string => {
-  let url = `${pathname}?overlay=${overlayID}`
+  let url = `${pathname}`
+
+  if (search) {
+    url = `${url}${search}&overlay=${overlayID}`
+  } else {
+    url = `${url}?overlay=${overlayID}`
+  }
 
   if (resourceID) {
     url = `${url}&resource=${resourceID}`
@@ -36,7 +44,8 @@ const OverlayLink: FunctionComponent<Props> = ({
   const overlayURL = generateOverlayURL(
     location.pathname,
     overlayID,
-    resourceID
+    resourceID,
+    location.search,
   )
 
   const handleClick = (): void => {
