@@ -231,6 +231,12 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 	return e
 }
 
+// WithCompactionLimiter sets the compaction limiter, which is used to limit the
+// number of concurrent compactions.
+func (e *Engine) WithCompactionLimiter(limiter limiter.Fixed) {
+	e.compactionLimiter = limiter
+}
+
 func (e *Engine) WithFormatFileNameFunc(formatFileNameFunc FormatFileNameFunc) {
 	e.Compactor.WithFormatFileNameFunc(formatFileNameFunc)
 	e.formatFileName = formatFileNameFunc

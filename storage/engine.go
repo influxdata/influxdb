@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/storage/wal"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/tsi1"
@@ -131,6 +132,15 @@ func WithCompactionPlanner(planner tsm1.CompactionPlanner) Option {
 	}
 }
 
+// WithCompactionLimiter allows the caller to set the limiter that a storage
+// engine uses. A typical use-case for this would be if multiple engines should
+// share the same limiter.
+func WithCompactionLimiter(limiter limiter.Fixed) Option {
+	return func(e *Engine) {
+		e.engine.WithCompactionLimiter(limiter)
+	}
+}
+
 // NewEngine initialises a new storage engine, including a series file, index and
 // TSM engine.
 func NewEngine(path string, c Config, options ...Option) *Engine {
@@ -155,8 +165,7 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 	e.wal.SetEnabled(c.WAL.Enabled)
 
 	// Initialise Engine
-	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine,
-		tsm1.WithSnapshotter(e))
+	e.engine = tsm1.NewEngine(c.GetEnginePath(path), e.index, c.Engine, tsm1.WithSnapshotter(e))
 
 	// Apply options.
 	for _, option := range options {
