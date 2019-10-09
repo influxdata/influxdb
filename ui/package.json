@@ -146,6 +146,7 @@
     "papaparse": "^4.6.3",
     "prop-types": "^15.6.1",
     "qs": "^6.5.2",
+    "query-string": "^6.8.3",
     "react": "^16.8.2",
     "react-codemirror2": "^4.2.1",
     "react-copy-to-clipboard": "^5.0.1",
