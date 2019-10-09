@@ -29,6 +29,13 @@ const OverlayLink: FunctionComponent<Props> = ({
   const handleClick = (): void => {
     router.push(overlayURL)
   }
+  
+  // I opted to handle passing this to the child via render prop so it's
+  // more apparent how it works when using the component.
+  // Alternatively we could have added/removed an event listener to the child
+  // element on mount/unmount, or used cloneElement with the prop.
+  // Render prop seemed simplest even if it means the API for this component
+  // is slightly bulkier
 
   return children(handleClick)
 }

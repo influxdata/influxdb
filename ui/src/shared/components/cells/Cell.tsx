@@ -48,13 +48,7 @@ type Props = StateProps & OwnProps
 @ErrorHandling
 class CellComponent extends Component<Props, State> {
   public render() {
-    const {
-      onEditCell,
-      onDeleteCell,
-      onCloneCell,
-      cell,
-      view,
-    } = this.props
+    const {onEditCell, onDeleteCell, onCloneCell, cell, view} = this.props
 
     return (
       <>
