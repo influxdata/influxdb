@@ -147,6 +147,36 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 `,
 			},
 		},
+		{
+			name: "get secrets when organization has no secret keys",
+			fields: fields{
+				&mock.SecretService{
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "organization has no secret keys",
+						}
+
+					},
+				},
+			},
+			args: args{
+				orgID: 1,
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "org": "/api/v2/orgs/0000000000000001",
+    "self": "/api/v2/orgs/0000000000000001/secrets"
+  },
+  "secrets": []
+}
+`,
+			},
+		},
 	}
 
 	for _, tt := range tests {

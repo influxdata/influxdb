@@ -440,9 +440,12 @@ func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ks, err := h.SecretService.GetSecretKeys(ctx, req.orgID)
-	if err != nil {
+	if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
 		h.HandleHTTPError(ctx, err, w)
 		return
+	}
+	if ks == nil {
+		ks = []string{}
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newSecretsResponse(req.orgID, ks)); err != nil {
