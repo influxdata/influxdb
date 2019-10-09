@@ -41,7 +41,6 @@ import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
-import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
@@ -211,13 +210,6 @@ class Root extends PureComponent {
                             <Route path="cells">
                               <Route path="new" component={NewVEO} />
                               <Route path=":cellID/edit" component={EditVEO} />
-                            </Route>
-                            <Route path="notes">
-                              <Route path="new" component={NoteEditorOverlay} />
-                              <Route
-                                path=":cellID/edit"
-                                component={NoteEditorOverlay}
-                              />
                             </Route>
                           </Route>
                           <Route path="me" component={MePage} />
