@@ -17,7 +17,7 @@ describe('Buckets', () => {
     })
   })
 
-  describe('from the org view', () => {
+  describe('from the buckets index page', () => {
     it('can create a bucket', () => {
       const newBucket = '🅱️ucket'
       cy.getByTestID(`bucket--card ${newBucket}`).should('not.exist')
@@ -66,6 +66,36 @@ describe('Buckets', () => {
       cy.getByTestID(`context-delete-bucket ${bucket1}`).click()
 
       cy.getByTestID(`bucket--card--name ${bucket1}`).should('not.exist')
+    })
+  })
+
+  describe('Routing directly to the edit overlay', () => {
+    it('reroutes to buckets view if bucket does not exist', () => {
+      cy.get<Organization>('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs}) => {
+          const idThatDoesntExist = '261234d1a7f932e4'
+          cy.visit(`${orgs}/${id}/load-data/buckets/${idThatDoesntExist}/edit`)
+          cy.location('pathname').should(
+            'be',
+            `${orgs}/${id}/load-data/buckets/`
+          )
+        })
+      })
+    })
+
+    it('displays overlay if bucket does exist', () => {
+      cy.get<Organization>('@org').then(({id: orgID}: Organization) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get<Bucket>('@bucket').then(({id: bucketID}: Bucket) => {
+            cy.visit(`${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`)
+            cy.location('pathname').should(
+              'be',
+              `${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`
+            )
+          })
+          cy.getByTestID(`overlay`).should('exist')
+        })
+      })
     })
   })
 })
