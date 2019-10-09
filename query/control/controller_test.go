@@ -3,6 +3,7 @@ package control_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -893,6 +894,380 @@ func TestController_DoneWithoutRead(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// This tests what happens when there is memory remaining,
+// but we would go above the maximum amount of available memory.
+func TestController_Error_MaxMemory(t *testing.T) {
+	config := config
+	config.InitialMemoryBytesQuotaPerQuery = config.MemoryBytesQuotaPerQuery / 2
+	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate memory continuously to hit the memory limit.
+					for i := 0; i < 16; i++ {
+						size := config.MemoryBytesQuotaPerQuery / 16
+						if err := alloc.Account(int(size)); err != nil {
+							q.SetErr(err)
+							return
+						}
+					}
+
+					// This final allocation should cause an error even though
+					// we haven't reached the maximum memory usage for the system.
+					if err := alloc.Account(32); err == nil {
+						t.Fatal("expected error")
+					}
+				},
+			}, nil
+		},
+	}
+
+	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+	consumeResults(t, q)
+}
+
+// This tests that we can continuously run queries that do not use
+// more than their initial memory allocation with some noisy neighbors.
+// The noisy neighbors may occasionally fail because they are competing
+// with each other, but they will never cause a small query to fail.
+func TestController_NoisyNeighbor(t *testing.T) {
+	config := config
+	// We are fine using up to 1024 without an additional allocation.
+	config.InitialMemoryBytesQuotaPerQuery = 1024
+	// Effectively no maximum quota per query.
+	config.MemoryBytesQuotaPerQuery = config.InitialMemoryBytesQuotaPerQuery * 100
+	// The maximum number is about double what is needed to run
+	// all of the queries.
+	config.MaxMemoryBytes = config.InitialMemoryBytesQuotaPerQuery * 20
+	// The concurrency is 10 which means at most 10 queries can run
+	// at any given time.
+	config.ConcurrencyQuota = 10
+	// Set the queue length to something that can accommodate the input.
+	config.QueueSize = 1000
+
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	wellBehavedNeighbor := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate memory until we hit our initial memory limit so we should
+					// never request more memory.
+					for amount := int64(0); amount < config.InitialMemoryBytesQuotaPerQuery; amount += 16 {
+						if err := alloc.Account(16); err != nil {
+							q.SetErr(fmt.Errorf("well behaved query affected by noisy neighbor: %s", err))
+							return
+						}
+					}
+				},
+			}, nil
+		},
+	}
+
+	noisyNeighbor := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate memory continuously to use up what we can and be as noisy as possible.
+					// Turn up the stereo and party on.
+					for {
+						if err := alloc.Account(16); err != nil {
+							// Whoops, party shut down.
+							return
+						}
+					}
+				},
+			}, nil
+		},
+	}
+
+	var wg sync.WaitGroup
+
+	// Launch 100 queriers that are well behaved. They should never fail.
+	errCh := make(chan error, 1)
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 1000; i++ {
+				q, err := ctrl.Query(context.Background(), makeRequest(wellBehavedNeighbor))
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+				consumeResults(t, q)
+			}
+		}()
+	}
+
+	// Launch 10 noisy neighbors. They will fail continuously.
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 1000; i++ {
+				q, err := ctrl.Query(context.Background(), makeRequest(noisyNeighbor))
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+				consumeResults(t, q)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+// This tests that a query that should be allowed is killed
+// when it attempts to use more memory available than the
+// system has.
+func TestController_Error_NoRemainingMemory(t *testing.T) {
+	config := config
+	// We are fine using up to 1024 without an additional allocation.
+	config.InitialMemoryBytesQuotaPerQuery = 1024
+	// Effectively no maximum quota per query.
+	config.MemoryBytesQuotaPerQuery = config.InitialMemoryBytesQuotaPerQuery * 100
+	// The maximum memory available on the system is double the initial quota.
+	config.MaxMemoryBytes = config.InitialMemoryBytesQuotaPerQuery * 2
+
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate memory continuously to use up what we can until denied.
+					for size := int64(0); ; size += 16 {
+						if err := alloc.Account(16); err != nil {
+							// We were not allowed to allocate more.
+							// Ensure that the size never exceeded the
+							// MaxMemoryBytes value.
+							if size > config.MaxMemoryBytes {
+								t.Errorf("query was allowed to allocate more than the maximum memory: %d > %d", size, config.MaxMemoryBytes)
+							}
+							return
+						}
+					}
+				},
+			}, nil
+		},
+	}
+
+	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	}
+	consumeResults(t, q)
+}
+
+// This test ensures the memory that the extra memory allocated
+// for a query is properly returned when the query exits.
+func TestController_MemoryRelease(t *testing.T) {
+	config := config
+	config.InitialMemoryBytesQuotaPerQuery = 16
+	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate some amount of memory and never release it.
+					if err := alloc.Account(int(config.MemoryBytesQuotaPerQuery) / 2); err != nil {
+						q.SetErr(err)
+						return
+					}
+				},
+			}, nil
+		},
+	}
+
+	// Run 100 queries. If we do not release the memory properly,
+	// this would fail.
+	for i := 0; i < 100; i++ {
+		q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+			return
+		}
+		consumeResults(t, q)
+
+		if t.Failed() {
+			return
+		}
+	}
+}
+
+// Set an irregular memory quota so that doubling the limit continuously
+// would send us over the memory quota limit and make sure that
+// the quota is still enforced correctly.
+func TestController_IrregularMemoryQuota(t *testing.T) {
+	config := config
+	config.InitialMemoryBytesQuotaPerQuery = 64
+	config.MemoryBytesQuotaPerQuery = 768
+	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate memory continuously to hit the memory limit.
+					for size := 0; size < 768; size += 16 {
+						if err := alloc.Account(16); err != nil {
+							q.SetErr(err)
+							return
+						}
+					}
+
+					// This final allocation should cause an error since we reached the
+					// memory quota. If the code for setting the limit is faulty, this
+					// would end up being allowed since the limit was set incorrectly.
+					if err := alloc.Account(16); err == nil {
+						t.Fatal("expected error")
+					}
+				},
+			}, nil
+		},
+	}
+
+	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+	consumeResults(t, q)
+}
+
+// This tests that if we run a bunch of queries that reserve memory,
+// we don't encounter any race conditions that cause the currently
+// in use memory from the pool to be accounted incorrectly.
+func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
+	config := config
+	// Small initial memory bytes allocation so most of the query
+	// is handled by the memory pool.
+	config.InitialMemoryBytesQuotaPerQuery = 16
+	// We will allocate 1024. This is needed to ensure the queries do not
+	// allocate too much.
+	config.MemoryBytesQuotaPerQuery = 1024
+	// The maximum amount of memory. We will run with a concurrency of
+	// 100 and each of these queries will allocate exactly 1024.
+	config.MaxMemoryBytes = 1024 * 100
+	// The concurrency is 100 which means at most 100 queries can run
+	// at any given time.
+	config.ConcurrencyQuota = 100
+	// Set the queue length to something that can accommodate the input.
+	config.QueueSize = 1000
+
+	ctrl, err := control.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Allocate memory continuously to use up what we can and be as noisy as possible.
+					// Turn up the stereo and party on.
+					for size := 0; size < 1024; size += 16 {
+						if err := alloc.Account(16); err != nil {
+							q.SetErr(err)
+							return
+						}
+					}
+				},
+			}, nil
+		},
+	}
+
+	var wg sync.WaitGroup
+
+	// Launch double the number of running queriers to ensure saturation.
+	errCh := make(chan error, 1)
+	for i := 0; i < 300; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 1000; i++ {
+				q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+				if err != nil {
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+				consumeResults(t, q)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Fatalf("unexpected error: %s", err)
+	}
+}
+
+func consumeResults(tb testing.TB, q flux.Query) {
+	tb.Helper()
+	for res := range q.Results() {
+		if err := res.Tables().Do(func(table flux.Table) error {
+			return nil
+		}); err != nil {
+			tb.Errorf("unexpected error: %s", err)
+		}
+	}
+	q.Done()
+
+	if err := q.Err(); err != nil {
+		tb.Errorf("unexpected error: %s", err)
+	}
 }
 
 func shutdown(t *testing.T, ctrl *control.Controller) {
