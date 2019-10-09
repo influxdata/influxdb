@@ -47,9 +47,7 @@ export default class CellContext extends PureComponent<Props> {
     if (view.properties.type === 'markdown') {
       return (
         <OverlayLink overlayID="edit-note" resourceID={view.id}>
-          {onClick => (
-            <Context.Item label="Edit Note" action={onClick} />
-          )}
+          {onClick => <Context.Item label="Edit Note" action={onClick} />}
         </OverlayLink>
       )
     }
