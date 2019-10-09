@@ -47,13 +47,13 @@ export default class BucketContextMenu extends PureComponent<Props> {
           color={ComponentColor.Danger}
           shape={ButtonShape.Default}
           text="Delete Bucket"
-          testID="context-delete-menu"
+          testID={`context-delete-menu ${bucket.name}`}
         >
           <Context.Item
             label="Confirm"
             action={onDeleteBucket}
             value={bucket}
-            testID="context-delete-task"
+            testID={`context-delete-bucket ${bucket.name}`}
           />
         </Context.Menu>
       )
