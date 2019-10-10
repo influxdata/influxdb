@@ -167,15 +167,6 @@ func ErrRunNotDueYet(dueAt int64) *Error {
 	}
 }
 
-func ErrCouldNotLogError(err error) *Error {
-	return &Error{
-		Code: EInternal,
-		Msg:  fmt.Sprintf("unable to log error; Err: %v", err),
-		Op:   "taskScheduler",
-		Err:  err,
-	}
-}
-
 func ErrJsonMarshalError(err error) *Error {
 	return &Error{
 		Code: EInvalid,
