@@ -101,16 +101,15 @@ export const getCheckForTimeMachine = (checkID: string) => async (
   dispatch: Dispatch<TimeMachineAction | NotificationAction>,
   getState: GetState
 ) => {
+  const {
+    orgs: {org},
+  } = getState()
   try {
     dispatch(setCheckStatus(RemoteDataState.Loading))
-    const {
-      orgs: {org},
-    } = getState()
 
     const resp = await api.getCheck({checkID})
 
     if (resp.status !== 200) {
-      dispatch(push(`/orgs/${org.id}/alerting`))
       throw new Error(resp.data.message)
     }
 
@@ -129,6 +128,7 @@ export const getCheckForTimeMachine = (checkID: string) => async (
     )
   } catch (e) {
     console.error(e)
+    dispatch(push(`/orgs/${org.id}/alerting`))
     dispatch(setCheckStatus(RemoteDataState.Error))
     dispatch(notify(copy.getCheckFailed(e.message)))
   }

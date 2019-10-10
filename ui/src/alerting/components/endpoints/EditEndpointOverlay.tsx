@@ -3,8 +3,14 @@ import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
+// Constants
+import {getEndpointFailed} from 'src/shared/copy/notifications'
+
 // Actions
 import {updateEndpoint} from 'src/alerting/actions/notifications/endpoints'
+import {
+  notify
+} from 'src/shared/actions/notifications'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -15,7 +21,8 @@ import EndpointOverlayContents from 'src/alerting/components/endpoints/EndpointO
 import {NotificationEndpoint, AppState} from 'src/types'
 
 interface DispatchProps {
-  onUpdateEndpoint: typeof updateEndpoint
+  onUpdateEndpoint: typeof updateEndpoint,
+  onNotify: typeof notify
 }
 
 interface StateProps {
@@ -28,9 +35,14 @@ const EditEndpointOverlay: FC<Props> = ({
   params,
   router,
   onUpdateEndpoint,
-  endpoint: initialState,
+  onNotify,
+  endpoint,
 }) => {
-  if (!initialState) {
+
+  console.log(params)
+  if (!endpoint) {
+    onNotify(getEndpointFailed(params.endpointID))
+    router.push(`/orgs/${params.orgID}/alerting`)
     return null
   }
 
@@ -46,7 +58,7 @@ const EditEndpointOverlay: FC<Props> = ({
   }
 
   return (
-    <EndpointOverlayProvider initialState={initialState}>
+    <EndpointOverlayProvider initialState={endpoint}>
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
           <Overlay.Header
@@ -67,14 +79,11 @@ const EditEndpointOverlay: FC<Props> = ({
 
 const mdtp = {
   onUpdateEndpoint: updateEndpoint,
+  onNotify: notify
 }
 
-const mstp = ({endpoints}: AppState, {params, router}: Props): StateProps => {
+const mstp = ({endpoints}: AppState, {params}: Props): StateProps => {
   const endpoint = endpoints.list.find(ep => ep.id === params.endpointID)
-
-  if (!endpoint) {
-    router.push(`/orgs/${params.orgID}/alerting`)
-  }
 
   return {endpoint}
 }
