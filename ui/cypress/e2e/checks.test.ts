@@ -43,8 +43,8 @@ describe('Checks', () => {
   describe('When a check does not exist', () => {
     it('should route the user to the alerting index page', () => {
       const nonexistentID = '046cd86a2030f000'
-  
-       // visitng the check edit overlay
+
+      // visitng the check edit overlay
       cy.get('@org').then(({id}: Organization) => {
         cy.fixture('routes').then(({orgs, alerting, checks}) => {
           cy.visit(`${orgs}/${id}${alerting}${checks}/${nonexistentID}/edit`)

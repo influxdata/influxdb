@@ -66,8 +66,12 @@ const EditRuleOverlay: FC<Props> = ({
   )
 }
 
-const mstp = ({rules}: AppState, {params}: Props): StateProps => {
+const mstp = ({rules}: AppState, {params, router}: Props): StateProps => {
   const stateRule = rules.list.find(r => r.id === params.ruleID)
+
+  if (!stateRule) {
+    router.push(`/orgs/${params.orgID}/alerting`)
+  }
 
   return {
     stateRule,

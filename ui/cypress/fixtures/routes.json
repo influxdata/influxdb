@@ -3,5 +3,7 @@
   "dashboards": "/dashboards",
   "explorer": "/data-explorer",
   "alerting": "/alerting",
-  "checks": "/checks"
+  "checks": "/checks",
+  "endpoints": "/endpoints",
+  "rules": "/rules"
 }

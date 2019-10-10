@@ -30,6 +30,10 @@ const EditEndpointOverlay: FC<Props> = ({
   onUpdateEndpoint,
   endpoint: initialState,
 }) => {
+  if (!initialState) {
+    return null
+  }
+
   const {orgID} = params
   const handleDismiss = () => {
     router.push(`/orgs/${orgID}/alerting`)
