@@ -117,10 +117,6 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskC
 		return nil, influxdb.ErrInvalidOwnerID
 	}
 
-	if t.Type == influxdb.TaskTypeWildcard {
-		return nil, influxdb.ErrInvalidTaskType
-	}
-
 	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.TasksResourceType, t.OrganizationID)
 	if err != nil {
 		return nil, err

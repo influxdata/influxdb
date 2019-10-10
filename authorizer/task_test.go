@@ -213,25 +213,6 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			auth: &influxdb.Authorization{},
 		},
 		{
-			name: "create bad type",
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
-					OrganizationID: r.Org.ID,
-					OwnerID:        r.Auth.GetUserID(),
-					Type:           influxdb.TaskTypeWildcard,
-					Flux: `option task = {
- name: "my_task",
- every: 1s,
-}
-from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
-				})
-				if err != influxdb.ErrInvalidTaskType {
-					return errors.New("failed to error with invalid task type")
-				}
-				return nil
-			},
-			auth: &influxdb.Authorization{},
-		}, {
 			name: "create success",
 			auth: r.Auth,
 			check: func(ctx context.Context, svc influxdb.TaskService) error {

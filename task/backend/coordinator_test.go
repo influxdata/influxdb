@@ -55,10 +55,6 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 		t.Errorf("expected nil, found %q", err)
 	}
 
-	if *tasks.filter.Type != influxdb.TaskTypeWildcard {
-		t.Error("expected wildcard type filter")
-	}
-
 	if diff := cmp.Diff([]update{
 		{two, influxdb.TaskUpdate{LatestCompleted: &aTimeStamp}},
 	}, tasks.updates); diff != "" {

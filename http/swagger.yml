@@ -9261,9 +9261,6 @@ components:
     TaskCreateRequest:
       type: object
       properties:
-        type:
-          description: The type of task, this can be used for filtering tasks on list actions.
-          type: string
         orgID:
           description: The ID of the organization that owns this Task.
           type: string
