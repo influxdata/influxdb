@@ -368,12 +368,12 @@ export const getDashboardAsync = (dashboardID: string) => async (
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(setDashboard(dashboard))
-  } catch {
+  } catch (error){
     const {
       orgs: {org},
     } = getState()
     dispatch(push(`/orgs/${org.id}/dashboards`))
-    dispatch(notify(copy.dashboardGetFailed(dashboardID)))
+    dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
   }
 
