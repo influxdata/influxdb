@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/influxdata/flux/repl"
 	platform "github.com/influxdata/influxdb"
@@ -528,15 +529,21 @@ func taskRunFindF(cmd *cobra.Command, args []string) error {
 		"FinishedAt",
 		"RequestedAt",
 	)
+
 	for _, r := range runs {
+		scheduledFor := r.ScheduledFor.Format(time.RFC3339)
+		startedAt := r.StartedAt.Format(time.RFC3339Nano)
+		finishedAt := r.FinishedAt.Format(time.RFC3339Nano)
+		requestedAt := r.RequestedAt.Format(time.RFC3339Nano)
+
 		w.Write(map[string]interface{}{
 			"ID":           r.ID,
 			"TaskID":       r.TaskID,
 			"Status":       r.Status,
-			"ScheduledFor": r.ScheduledFor,
-			"StartedAt":    r.StartedAt,
-			"FinishedAt":   r.FinishedAt,
-			"RequestedAt":  r.RequestedAt,
+			"ScheduledFor": scheduledFor,
+			"StartedAt":    startedAt,
+			"FinishedAt":   finishedAt,
+			"RequestedAt":  requestedAt,
 		})
 	}
 	w.Flush()

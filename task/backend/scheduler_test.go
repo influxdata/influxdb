@@ -409,22 +409,25 @@ func TestScheduler_Queue(t *testing.T) {
 		LatestCompleted: "1970-01-01T00:50:00Z",
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
+	t1, _ := time.Parse(time.RFC3339, "1970-01-01T00:02:00Z")
+	t2, _ := time.Parse(time.RFC3339, "1970-01-01T00:03:00Z")
+	t3, _ := time.Parse(time.RFC3339, "1970-01-01T00:04:00Z")
 
 	tcs.SetTask(task)
 	tcs.SetManualRuns([]*platform.Run{
 		&platform.Run{
 			ID:           platform.ID(10),
 			TaskID:       task.ID,
-			ScheduledFor: "1970-01-01T00:02:00Z",
+			ScheduledFor: t1,
 		},
 		&platform.Run{
 			ID:           platform.ID(11),
 			TaskID:       task.ID,
-			ScheduledFor: "1970-01-01T00:03:00Z",
+			ScheduledFor: t2,
 		}, &platform.Run{
 			ID:           platform.ID(12),
 			TaskID:       task.ID,
-			ScheduledFor: "1970-01-01T00:04:00Z",
+			ScheduledFor: t3,
 		},
 	})
 	if err := o.ClaimTask(context.Background(), task); err != nil {
