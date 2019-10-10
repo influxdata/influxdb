@@ -95,8 +95,8 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
           <Overlay.Header title="Oh no!" onDismiss={this.handleDismiss} />
           <Overlay.Body>
             <h5>
-              This page does not allow creation or editing of notes, better head
-              {' '}to a dashboard to do that.
+              This page does not allow creation or editing of notes, better head{' '}
+              to a dashboard to do that.
             </h5>
           </Overlay.Body>
         </Overlay.Container>
