@@ -11,12 +11,18 @@ const STATIC_DIRECTORY = (dir => {
     return dir
   }
 
-  return (
-    dir.slice(
-      dir[0] === '/' ? 1 : 0,
-      dir[dir.length - 1] === '/' ? -1 : undefined
-    ) + '/'
-  )
+  // NOTE: slices for sideeffect free editing (alex)
+  let _dir = dir.slice(0)
+
+  if (_dir[0] === '/') {
+    _dir = _dir.slice(1)
+  }
+
+  if (_dir[_dir.length - 1] === '/') {
+    _dir = _dir.slice(0, -1)
+  }
+
+  return _dir
 })(process.env.STATIC_DIRECTORY || '')
 
 const BASE_PATH = (prefix => {
@@ -30,13 +36,18 @@ const BASE_PATH = (prefix => {
     return prefix
   }
 
-  return prefix[0] === '/'
-    ? prefix[prefix.length - 1] === '/'
-      ? prefix
-      : prefix + '/'
-    : prefix[prefix.length - 1] === '/'
-    ? '/' + prefix
-    : '/' + prefix + '/'
+  // NOTE: slices for sideeffect free editing (alex)
+  let _prefix = prefix.slice(0)
+
+  if (_prefix[0] !== '/') {
+    _prefix = '/' + _prefix
+  }
+
+  if (_prefix[prefix.length - 1] !== '/') {
+    _prefix = _prefix + '/'
+  }
+
+  return _prefix
   /* eslint-enable no-unreachable */
 })(process.env.BASE_PATH || '/')
 
