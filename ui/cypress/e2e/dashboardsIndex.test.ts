@@ -49,7 +49,7 @@ describe('Dashboards', () => {
     cy.getByTestID('dashboard-card').should('have.length', 1)
   })
 
-  it.only('can create a dashboard from a Template', () => {
+  it('can create a dashboard from a Template', () => {
     cy.getByTestID('dashboard-card').should('have.length', 0)
     cy.get('@org').then(({id}: Organization) => {
       cy.createDashboardTemplate(id)
@@ -226,6 +226,23 @@ describe('Dashboards', () => {
 
         cy.getByTestID('dashboard-card').should('have.length', 1)
         cy.getByTestID('dashboard-card--name').contains('span', dashboardName)
+      })
+    })
+  })
+
+  describe('When a dashboard does not exist', () => {
+    it('should route the user to the dashboard index page', () => {
+      const nonexistentID = '/0499992503cd3700'
+
+      // visitng the dashboard edit page
+      cy.get('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs, dashboards}) => {
+          cy.visit(`${orgs}/${id}${dashboards}${nonexistentID}`)
+          cy.url().should(
+            'eq',
+            `${Cypress.config().baseUrl}${orgs}/${id}${dashboards}`
+          )
+        })
       })
     })
   })
