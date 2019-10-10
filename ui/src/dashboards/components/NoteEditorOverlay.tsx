@@ -50,13 +50,7 @@ interface DispatchProps {
   onDismiss: typeof dismissOverlay
 }
 
-interface RouterProps extends WithRouterProps {
-  params: {
-    dashboardID: string
-  }
-}
-
-type Props = OwnProps & StateProps & DispatchProps & RouterProps
+type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
 
 interface State {
   savingStatus: RemoteDataState
@@ -93,12 +87,12 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {onDismiss, dashboardID} = this.props
+    const {dashboardID} = this.props
 
     if (!dashboardID) {
       return (
         <Overlay.Container maxWidth={360}>
-          <Overlay.Header title="Oh no!" onDismiss={onDismiss} />
+          <Overlay.Header title="Oh no!" onDismiss={this.handleDismiss} />
           <Overlay.Body>
             <h5>
               This page does not allow creation or editing of notes, better head
@@ -111,7 +105,10 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
 
     return (
       <Overlay.Container maxWidth={900}>
-        <Overlay.Header title={this.overlayTitle} onDismiss={onDismiss} />
+        <Overlay.Header
+          title={this.overlayTitle}
+          onDismiss={this.handleDismiss}
+        />
         <Overlay.Body>
           <SpinnerContainer
             loading={this.props.viewsStatus}
@@ -121,7 +118,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
           </SpinnerContainer>
         </Overlay.Body>
         <Overlay.Footer>
-          <Button text="Cancel" onClick={onDismiss} />
+          <Button text="Cancel" onClick={this.handleDismiss} />
           <Button
             text="Save"
             color={ComponentColor.Success}
@@ -131,6 +128,13 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
         </Overlay.Footer>
       </Overlay.Container>
     )
+  }
+
+  private handleDismiss = (): void => {
+    const {onDismiss, router} = this.props
+
+    onDismiss()
+    router.goBack()
   }
 
   private get overlayTitle(): string {
