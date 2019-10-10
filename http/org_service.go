@@ -444,9 +444,6 @@ func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	if ks == nil {
-		ks = []string{}
-	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newSecretsResponse(req.orgID, ks)); err != nil {
 		logEncodingError(h.Logger, r, err)

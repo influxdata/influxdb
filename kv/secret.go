@@ -119,7 +119,7 @@ func (s *Service) getSecretKeys(ctx context.Context, tx Tx, orgID influxdb.ID) (
 	}
 
 	if id != orgID {
-		return nil, &influxdb.Error{
+		return []string{}, &influxdb.Error{
 			Code: influxdb.ENotFound,
 			Msg:  "organization has no secret keys",
 		}

@@ -152,7 +152,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			fields: fields{
 				&mock.SecretService{
 					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
-						return nil, &platform.Error{
+						return []string{}, &platform.Error{
 							Code: platform.ENotFound,
 							Msg:  "organization has no secret keys",
 						}
