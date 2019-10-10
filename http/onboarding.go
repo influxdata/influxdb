@@ -97,7 +97,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 type onboardingResponse struct {
-	User         *userResponse   `json:"user"`
+	User         *UserResponse   `json:"user"`
 	Bucket       *bucketResponse `json:"bucket"`
 	Organization *orgResponse    `json:"org"`
 	Auth         *authResponse   `json:"auth"`

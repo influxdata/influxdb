@@ -293,7 +293,7 @@ func decodeDeleteUserRequest(ctx context.Context, r *http.Request) (*deleteUserR
 
 type usersResponse struct {
 	Links map[string]string `json:"links"`
-	Users []*userResponse   `json:"users"`
+	Users []*UserResponse   `json:"users"`
 }
 
 func (us usersResponse) ToInfluxdb() []*influxdb.User {
@@ -309,7 +309,7 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 		Links: map[string]string{
 			"self": "/api/v2/users",
 		},
-		Users: []*userResponse{},
+		Users: []*UserResponse{},
 	}
 	for _, user := range users {
 		res.Users = append(res.Users, newUserResponse(user))
@@ -317,13 +317,14 @@ func newUsersResponse(users []*influxdb.User) *usersResponse {
 	return &res
 }
 
-type userResponse struct {
+// UserResponse is the response of user
+type UserResponse struct {
 	Links map[string]string `json:"links"`
 	influxdb.User
 }
 
-func newUserResponse(u *influxdb.User) *userResponse {
-	return &userResponse{
+func newUserResponse(u *influxdb.User) *UserResponse {
+	return &UserResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/users/%s", u.ID),
 			"logs": fmt.Sprintf("/api/v2/users/%s/logs", u.ID),
@@ -468,7 +469,7 @@ func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.Use
 		return nil, err
 	}
 
-	var res userResponse
+	var res UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
@@ -499,7 +500,7 @@ func (s *UserService) FindUserByID(ctx context.Context, id influxdb.ID) (*influx
 		return nil, err
 	}
 
-	var res userResponse
+	var res UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
@@ -651,7 +652,7 @@ func (s *UserService) UpdateUser(ctx context.Context, id influxdb.ID, upd influx
 		return nil, err
 	}
 
-	var res userResponse
+	var res UserResponse
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return nil, err
 	}
