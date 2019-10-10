@@ -92,6 +92,13 @@ import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverl
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
 
+// Overlays
+import OverlayHandler, {
+  RouteOverlay,
+} from 'src/overlays/components/RouteOverlay'
+const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note')
+const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note')
+
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
@@ -210,6 +217,13 @@ class Root extends PureComponent {
                             <Route path="cells">
                               <Route path="new" component={NewVEO} />
                               <Route path=":cellID/edit" component={EditVEO} />
+                              <Route path="notes">
+                                <Route path="new" component={AddNoteOverlay} />
+                                <Route
+                                  path=":cellID/edit"
+                                  component={EditNoteOverlay}
+                                />
+                              </Route>
                             </Route>
                           </Route>
                           <Route path="me" component={MePage} />
