@@ -5,7 +5,6 @@ import {get} from 'lodash'
 // Components
 import {Context} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Types
 import {IconFont, ComponentColor} from '@influxdata/clockface'
@@ -18,6 +17,7 @@ interface Props {
   onCloneCell: (cell: Cell) => void
   onCSVDownload: () => void
   onEditCell: () => void
+  onEditNote: (id: string) => void
 }
 
 @ErrorHandling
@@ -45,25 +45,18 @@ export default class CellContext extends PureComponent<Props> {
     const {view, onEditCell, onCSVDownload} = this.props
 
     if (view.properties.type === 'markdown') {
-      return (
-        <OverlayLink overlayID="edit-note" resourceID={view.id}>
-          {onClick => <Context.Item label="Edit Note" action={onClick} />}
-        </OverlayLink>
-      )
+      return <Context.Item label="Edit Note" action={this.handleEditNote} />
     }
 
     const hasNote = !!get(view, 'properties.note')
 
     return [
       <Context.Item key="configure" label="Configure" action={onEditCell} />,
-      <OverlayLink key="note" overlayID="edit-note" resourceID={view.id}>
-        {onClick => (
-          <Context.Item
-            label={hasNote ? 'Edit Note' : 'Add Note'}
-            action={onClick}
-          />
-        )}
-      </OverlayLink>,
+      <Context.Item
+        key="note"
+        label={hasNote ? 'Edit Note' : 'Add Note'}
+        action={this.handleEditNote}
+      />,
       <Context.Item
         key="download"
         label="Download CSV"
@@ -71,5 +64,14 @@ export default class CellContext extends PureComponent<Props> {
         disabled={true}
       />,
     ]
+  }
+
+  private handleEditNote = () => {
+    const {
+      view: {id},
+      onEditNote,
+    } = this.props
+
+    onEditNote(id)
   }
 }

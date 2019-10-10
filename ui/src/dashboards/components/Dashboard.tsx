@@ -22,6 +22,7 @@ interface Props {
   onPositionChange: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
   onAddCell: () => void
+  onEditNote: () => void
 }
 
 @ErrorHandling
@@ -36,6 +37,7 @@ class DashboardComponent extends PureComponent<Props> {
       onEditView,
       onPositionChange,
       onAddCell,
+      onEditNote,
     } = this.props
 
     return (
@@ -49,6 +51,7 @@ class DashboardComponent extends PureComponent<Props> {
             onDeleteCell={onDeleteCell}
             onPositionChange={onPositionChange}
             onEditView={onEditView}
+            onEditNote={onEditNote}
           />
         ) : (
           <DashboardEmpty onAddCell={onAddCell} />

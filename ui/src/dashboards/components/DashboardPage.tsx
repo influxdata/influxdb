@@ -166,6 +166,7 @@ class DashboardPage extends Component<Props> {
               timeRange={timeRange}
               autoRefresh={autoRefresh}
               onAddCell={this.handleAddCell}
+              onAddNote={this.showNoteOverlay}
               onManualRefresh={onManualRefresh}
               zoomedTimeRange={zoomedTimeRange}
               onRenameDashboard={this.handleRenameDashboard}
@@ -195,6 +196,7 @@ class DashboardPage extends Component<Props> {
                 onDeleteCell={this.handleDeleteDashboardCell}
                 onEditView={this.handleEditView}
                 onAddCell={this.handleAddCell}
+                onEditNote={this.showNoteOverlay}
               />
             )}
             {children}
@@ -255,6 +257,14 @@ class DashboardPage extends Component<Props> {
   private handleAddCell = async (): Promise<void> => {
     const {router, location} = this.props
     router.push(`${location.pathname}/cells/new`)
+  }
+
+  private showNoteOverlay = async (id?: string): Promise<void> => {
+    if (id) {
+      this.props.router.push(`${this.props.location.pathname}/notes/${id}/edit`)
+    } else {
+      this.props.router.push(`${this.props.location.pathname}/notes/new`)
+    }
   }
 
   private handleEditView = (cellID: string): void => {

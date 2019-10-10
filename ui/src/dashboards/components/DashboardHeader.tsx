@@ -17,7 +17,6 @@ import {
   ComponentColor,
   Page,
 } from '@influxdata/clockface'
-import OverlayLink from 'src/overlays/components/OverlayLink'
 
 // Constants
 import {
@@ -46,6 +45,7 @@ interface Props {
   onRenameDashboard: (name: string) => Promise<void>
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean
+  onAddNote: () => void
   zoomedTimeRange: QueriesModels.TimeRange
 }
 
@@ -93,15 +93,11 @@ export default class DashboardHeader extends Component<Props> {
             text="Add Cell"
             titleText="Add cell to dashboard"
           />
-          <OverlayLink overlayID="add-note">
-            {onClick => (
-              <Button
-                icon={IconFont.TextBlock}
-                text="Add Note"
-                onClick={onClick}
-              />
-            )}
-          </OverlayLink>
+          <Button
+            icon={IconFont.TextBlock}
+            text="Add Note"
+            onClick={this.handleAddNote}
+          />
           <TimeZoneDropdown />
           <AutoRefreshDropdown
             onChoose={handleChooseAutoRefresh}
@@ -134,6 +130,10 @@ export default class DashboardHeader extends Component<Props> {
         </Page.Header.Right>
       </Page.Header>
     )
+  }
+
+  private handleAddNote = () => {
+    this.props.onAddNote()
   }
 
   private handleClickPresentationButton = (): void => {
