@@ -217,13 +217,13 @@ class Root extends PureComponent {
                             <Route path="cells">
                               <Route path="new" component={NewVEO} />
                               <Route path=":cellID/edit" component={EditVEO} />
-                              <Route path="notes">
-                                <Route path="new" component={AddNoteOverlay} />
-                                <Route
-                                  path=":cellID/edit"
-                                  component={EditNoteOverlay}
-                                />
-                              </Route>
+                            </Route>
+                            <Route path="notes">
+                              <Route path="new" component={AddNoteOverlay} />
+                              <Route
+                                path=":cellID/edit"
+                                component={EditNoteOverlay}
+                              />
                             </Route>
                           </Route>
                           <Route path="me" component={MePage} />
