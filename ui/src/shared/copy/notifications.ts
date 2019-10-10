@@ -419,6 +419,14 @@ export const getBucketsFailed = (): Notification => ({
   message: 'Failed to fetch buckets',
 })
 
+export const getBucketFailed = (
+  bucketID: string,
+  error: string
+): Notification => ({
+  ...defaultErrorNotification,
+  message: `Failed to fetch bucket with id ${bucketID}: ${error}`,
+})
+
 // Limits
 export const readWriteCardinalityLimitReached = (
   message: string
