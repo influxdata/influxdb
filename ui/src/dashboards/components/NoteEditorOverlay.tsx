@@ -168,7 +168,6 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
       onCreateNoteCell,
       onUpdateViewNote,
       onNotify,
-      onDismiss,
     } = this.props
 
     this.setState({savingStatus: RemoteDataState.Loading})
@@ -179,7 +178,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
       } else {
         await onCreateNoteCell(dashboardID)
       }
-      onDismiss()
+      this.handleDismiss()
     } catch (error) {
       onNotify(savingNoteFailed(error.message))
       console.error(error)
