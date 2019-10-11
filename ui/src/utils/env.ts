@@ -1,12 +1,12 @@
-export {}
-
 const GIT_SHA =
   process.env.INFLUXDB_SHA ||
   require('child_process')
     .execSync('git rev-parse HEAD')
     .toString()
 
-const STATIC_DIRECTORY = (dir => {
+// Webpack has some specific rules about formatting
+// lets protect our developers from that!
+function formatStatic(dir) {
   if (!dir.length) {
     return dir
   }
@@ -23,15 +23,11 @@ const STATIC_DIRECTORY = (dir => {
   }
 
   return _dir
-})(process.env.STATIC_DIRECTORY || '')
+}
 
-const BASE_PATH = (prefix => {
-  // TODO: adding a basePath feature in the @influxdata/oats
-  // project is currently required before turning this on
-  // just remove this return when that is done (alex)
-  return '/'
-
-  /* eslint-disable no-unreachable */
+// Webpack has some specific rules about formatting
+// lets protect our developers from that!
+function formatBase(prefix) {
   if (prefix === '/') {
     return prefix
   }
@@ -43,16 +39,17 @@ const BASE_PATH = (prefix => {
     _prefix = '/' + _prefix
   }
 
-  if (_prefix[prefix.length - 1] !== '/') {
+  if (_prefix[_prefix.length - 1] !== '/') {
     _prefix = _prefix + '/'
   }
 
   return _prefix
-  /* eslint-enable no-unreachable */
-})(process.env.BASE_PATH || '/')
-
-module.exports = {
-  GIT_SHA,
-  STATIC_DIRECTORY,
-  BASE_PATH,
 }
+
+const STATIC_DIRECTORY = formatStatic(process.env.STATIC_DIRECTORY || '')
+const BASE_PATH = '/'
+// TODO: adding a basePath feature in the @influxdata/oats
+// project is currently required before turning this on (alex)
+//const BASE_PATH = formatBase(process.env.BASE_PATH || '/')
+
+export {formatStatic, formatBase, GIT_SHA, STATIC_DIRECTORY, BASE_PATH}
