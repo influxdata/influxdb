@@ -1,4 +1,4 @@
-import {formatStatic, formatBase} from 'src/utils/env'
+const {formatStatic, formatBase} = require('./env')
 
 describe('enviroment normalization', () => {
   describe('static path formatter', () => {
