@@ -135,7 +135,10 @@ export const removeTaskLabelFailed = (): Notification => ({
 
 //  Dashboard Notifications
 
-export const dashboardGetFailed = (dashboardID: string, error: string): Notification => ({
+export const dashboardGetFailed = (
+  dashboardID: string,
+  error: string
+): Notification => ({
   ...defaultErrorNotification,
   icon: 'dash-h',
   message: `Failed to load dashboard with id "${dashboardID}": ${error}`,

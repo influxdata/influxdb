@@ -368,7 +368,7 @@ export const getDashboardAsync = (dashboardID: string) => async (
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(setDashboard(dashboard))
-  } catch (error){
+  } catch (error) {
     const {
       orgs: {org},
     } = getState()
