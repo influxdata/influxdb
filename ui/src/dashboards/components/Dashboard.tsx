@@ -22,7 +22,7 @@ interface Props {
   onPositionChange: (cells: Cell[]) => void
   onEditView: (cellID: string) => void
   onAddCell: () => void
-  onEditNote: (id: string) => void
+  onEditNote: () => void
 }
 
 @ErrorHandling

@@ -21,6 +21,7 @@ import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OrgsState} from 'src/organizations/reducers/orgs'
+import {OverlayState} from 'src/overlays/reducers/overlays'
 import {MembersState} from 'src/members/reducers'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
@@ -45,6 +46,7 @@ export interface AppState {
   tasks: TasksState
   timeRange: TimeRange
   orgs: OrgsState
+  overlays: OverlayState
   me: MeState
   onboarding: OnboardingState
   noteEditor: NoteEditorState

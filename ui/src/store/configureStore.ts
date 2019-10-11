@@ -17,6 +17,7 @@ import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
 import viewsReducer from 'src/dashboards/reducers/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import orgsReducer from 'src/organizations/reducers/orgs'
+import overlaysReducer from 'src/overlays/reducers/overlays'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
@@ -51,6 +52,7 @@ export const rootReducer = combineReducers<ReducerState>({
   views: viewsReducer,
   tasks: tasksReducer,
   orgs: orgsReducer,
+  overlays: overlaysReducer,
   me: meReducer,
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,

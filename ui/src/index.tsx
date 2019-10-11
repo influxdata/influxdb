@@ -41,7 +41,6 @@ import TaskExportOverlay from 'src/tasks/components/TaskExportOverlay'
 import TaskImportOverlay from 'src/tasks/components/TaskImportOverlay'
 import EditVEO from 'src/dashboards/components/EditVEO'
 import NewVEO from 'src/dashboards/components/NewVEO'
-import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import OnboardingWizardPage from 'src/onboarding/containers/OnboardingWizardPage'
 import BucketsIndex from 'src/buckets/containers/BucketsIndex'
 import TemplatesIndex from 'src/templates/containers/TemplatesIndex'
@@ -92,6 +91,13 @@ import NewRuleOverlay from 'src/alerting/components/notifications/NewRuleOverlay
 import EditRuleOverlay from 'src/alerting/components/notifications/EditRuleOverlay'
 import NewEndpointOverlay from 'src/alerting/components/endpoints/NewEndpointOverlay'
 import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointOverlay'
+
+// Overlays
+import OverlayHandler, {
+  RouteOverlay,
+} from 'src/overlays/components/RouteOverlay'
+const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note')
+const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note')
 
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
@@ -213,10 +219,10 @@ class Root extends PureComponent {
                               <Route path=":cellID/edit" component={EditVEO} />
                             </Route>
                             <Route path="notes">
-                              <Route path="new" component={NoteEditorOverlay} />
+                              <Route path="new" component={AddNoteOverlay} />
                               <Route
                                 path=":cellID/edit"
-                                component={NoteEditorOverlay}
+                                component={EditNoteOverlay}
                               />
                             </Route>
                           </Route>
