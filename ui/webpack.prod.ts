@@ -11,11 +11,13 @@ const MiniCssExtractPlugin = require('mini-css-extract-plugin')
 const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin')
 const TerserJSPlugin = require('terser-webpack-plugin')
 
+const {STATIC_DIRECTORY} = require('./src/utils/env')
+
 module.exports = merge(common, {
   mode: 'production',
   devtool: 'source-map',
   output: {
-    filename: '[name].[hash].js',
+    filename: `${STATIC_DIRECTORY}[contenthash:10].js`,
   },
   module: {
     rules: [
@@ -59,8 +61,8 @@ module.exports = merge(common, {
   },
   plugins: [
     new MiniCssExtractPlugin({
-      filename: '[name].[hash].css',
-      chunkFilename: '[id].[hash].css',
+      filename: `${STATIC_DIRECTORY}[contenthash:10].css`,
+      chunkFilename: `${STATIC_DIRECTORY}[id].[contenthash:10].css`,
     }),
     new ForkTsCheckerWebpackPlugin(),
   ],
