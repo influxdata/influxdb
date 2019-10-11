@@ -15,15 +15,17 @@ interface StateProps {
 
 const OverlayController: FunctionComponent<StateProps> = ({overlayID}) => {
   let activeOverlay = <></>
+  let visibility = false
 
   switch (overlayID) {
     case 'add-note':
     case 'edit-note':
+      visibility = true
       activeOverlay = <NoteEditorOverlay />
       break
   }
 
-  return <Overlay visible={!!overlayID}>{activeOverlay}</Overlay>
+  return <Overlay visible={visibility}>{activeOverlay}</Overlay>
 }
 
 const mstp = ({overlays: {id}}: AppState): StateProps => ({overlayID: id})
