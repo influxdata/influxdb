@@ -837,4 +837,3 @@ export const deleteEndpointFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete endpoint: ${message}`,
 })
-

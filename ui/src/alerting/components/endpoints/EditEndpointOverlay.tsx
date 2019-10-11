@@ -8,9 +8,7 @@ import {getEndpointFailed} from 'src/shared/copy/notifications'
 
 // Actions
 import {updateEndpoint} from 'src/alerting/actions/notifications/endpoints'
-import {
-  notify
-} from 'src/shared/actions/notifications'
+import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -21,7 +19,7 @@ import EndpointOverlayContents from 'src/alerting/components/endpoints/EndpointO
 import {NotificationEndpoint, AppState} from 'src/types'
 
 interface DispatchProps {
-  onUpdateEndpoint: typeof updateEndpoint,
+  onUpdateEndpoint: typeof updateEndpoint
   onNotify: typeof notify
 }
 
@@ -38,17 +36,14 @@ const EditEndpointOverlay: FC<Props> = ({
   onNotify,
   endpoint,
 }) => {
-
-  console.log(params)
-  if (!endpoint) {
-    onNotify(getEndpointFailed(params.endpointID))
+  const handleDismiss = () => {
     router.push(`/orgs/${params.orgID}/alerting`)
-    return null
   }
 
-  const {orgID} = params
-  const handleDismiss = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+  if (!endpoint) {
+    onNotify(getEndpointFailed(params.endpointID))
+    handleDismiss()
+    return null
   }
 
   const handleEditEndpoint = async (endpoint: NotificationEndpoint) => {
@@ -79,7 +74,7 @@ const EditEndpointOverlay: FC<Props> = ({
 
 const mdtp = {
   onUpdateEndpoint: updateEndpoint,
-  onNotify: notify
+  onNotify: notify,
 }
 
 const mstp = ({endpoints}: AppState, {params}: Props): StateProps => {
