@@ -166,6 +166,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
+		Type:           influxdb.TaskSystemType,
 	}
 
 	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
@@ -247,6 +248,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Offset:          "5s",
 		Status:          string(backend.DefaultTaskStatus),
 		Flux:            fmt.Sprintf(scriptFmt, 0),
+		Type:            influxdb.TaskSystemType,
 	}
 	for fn, f := range found {
 		if diff := cmp.Diff(f, want); diff != "" {
@@ -1530,15 +1532,15 @@ func testTaskType(t *testing.T, sys *System) {
 		t.Fatal("no task ID set")
 	}
 
-	// get default tasks
-	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
+	// get system tasks (or task's with no type)
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Type: &influxdb.TaskSystemType})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, task := range tasks {
-		if task.Type != "" {
-			t.Fatal("recieved a task with a type when sending no type restriction")
+		if task.Type != "" && task.Type != influxdb.TaskSystemType {
+			t.Fatal("received a task with a type when sending no type restriction")
 		}
 	}
 
@@ -1549,12 +1551,12 @@ func testTaskType(t *testing.T, sys *System) {
 	}
 
 	if len(tasks) != 1 {
+		fmt.Printf("tasks: %+v\n", tasks)
 		t.Fatalf("failed to return tasks by type, expected 1, got %d", len(tasks))
 	}
 
 	// get all tasks
-	wc := influxdb.TaskTypeWildcard
-	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Type: &wc})
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
 	if err != nil {
 		t.Fatal(err)
 	}

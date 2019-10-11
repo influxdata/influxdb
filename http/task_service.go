@@ -356,9 +356,8 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 		req.filter.Limit = influxdb.TaskDefaultPageSize
 	}
 
-	if ttype := qp.Get("type"); ttype != "" {
-		req.filter.Type = &ttype
-	}
+	// the task api can only create or lookup system tasks.
+	req.filter.Type = &influxdb.TaskSystemType
 
 	if name := qp.Get("name"); name != "" {
 		req.filter.Name = &name
@@ -444,6 +443,9 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 		return nil, err
 	}
 	tc.OwnerID = auth.GetUserID()
+
+	// when creating a task we set the type so we can filter later.
+	tc.Type = influxdb.TaskSystemType
 
 	if err := tc.Validate(); err != nil {
 		return nil, err
