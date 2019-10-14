@@ -1,6 +1,6 @@
 // Libraries
 import {Dispatch} from 'redux'
-import {replace, push} from 'react-router-redux'
+import {push} from 'react-router-redux'
 
 // APIs
 import {
@@ -346,7 +346,8 @@ export const refreshDashboardVariableValues = (
 }
 
 export const getDashboardAsync = (dashboardID: string) => async (
-  dispatch
+  dispatch,
+  getState
 ): Promise<void> => {
   try {
     // Fetch the dashboard and all variables a user has access to
@@ -367,10 +368,12 @@ export const getDashboardAsync = (dashboardID: string) => async (
 
     // Now that all the necessary state has been loaded, set the dashboard
     dispatch(setDashboard(dashboard))
-  } catch {
-    dispatch(replace(`/dashboards`))
-    dispatch(notify(copy.dashboardGetFailed(dashboardID)))
-
+  } catch (error) {
+    const {
+      orgs: {org},
+    } = getState()
+    dispatch(push(`/orgs/${org.id}/dashboards`))
+    dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))
     return
   }
 
