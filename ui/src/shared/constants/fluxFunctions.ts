@@ -918,7 +918,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'experimental',
     desc: 'Introduces an extend mode to the existing `group()` function.',
     example:
-      'experimental.group(columns: ["host", "_measurement"], mode:"extend")',
+      'experimental.group(columns: ["host", "_measurement"], mode: "extend")',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/group/',
