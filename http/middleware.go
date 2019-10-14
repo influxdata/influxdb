@@ -153,7 +153,7 @@ func (b *bodyEchoer) Close() error {
 	return b.rc.Close()
 }
 
-func getMembersMiddleware(next http.HandlerFunc, backend MemberBackend) http.HandlerFunc {
+func getMembersPrecheckMiddleware(next http.HandlerFunc, backend MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		req, err := decodeGetMembersRequest(ctx, r)
@@ -168,13 +168,13 @@ func getMembersMiddleware(next http.HandlerFunc, backend MemberBackend) http.Han
 			UserType:     backend.UserType,
 		}
 
-		mappings, _, err := backend.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
+		_, count, err := backend.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
 		if err != nil {
 			backend.HandleHTTPError(ctx, err, w)
 			return
 		}
 
-		if len(mappings) == 0 {
+		if count == 0 {
 			backend.Logger.Debug("No members/owners retrieved")
 			err := &influxdb.Error{
 				Code: influxdb.ENotFound,
