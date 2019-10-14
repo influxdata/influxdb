@@ -2,5 +2,8 @@
   "orgs": "/orgs",
   "dashboards": "/dashboards",
   "explorer": "/data-explorer",
-  "alerting": "/alerting"
+  "alerting": "/alerting",
+  "checks": "/checks",
+  "endpoints": "/endpoints",
+  "rules": "/rules"
 }
