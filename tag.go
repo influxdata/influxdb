@@ -1,20 +1,20 @@
 package influxdb
 
 import (
-	"fmt"
+	"encoding/json"
 	"regexp"
 	"strings"
 )
 
 // Operator is an Enum value of operators.
-type Operator string
+type Operator int
 
 // Valid returns invalid error if the operator is invalid.
 func (op Operator) Valid() error {
-	if good := availableOperator[op]; !good {
+	if op < Equal || op > NotRegexEqual {
 		return &Error{
 			Code: EInvalid,
-			Msg:  fmt.Sprintf(`Operator %q is invalid`, op),
+			Msg:  "Operator is invalid",
 		}
 	}
 	return nil
@@ -22,17 +22,56 @@ func (op Operator) Valid() error {
 
 // operators
 const (
-	Equal         Operator = "equal"
-	NotEqual      Operator = "notequal"
-	RegexEqual    Operator = "equalregex"
-	NotRegexEqual Operator = "notequalregex"
+	Equal Operator = iota
+	NotEqual
+	RegexEqual
+	NotRegexEqual
 )
 
-var availableOperator = map[Operator]bool{
-	Equal:         true,
-	NotEqual:      true,
-	RegexEqual:    true,
-	NotRegexEqual: true,
+var opStr = []string{
+	"equal",
+	"notequal",
+	"equalregex",
+	"notequalregex",
+}
+
+var opStrMap = map[string]Operator{
+	"equal":         Equal,
+	"notequal":      NotEqual,
+	"equalregex":    RegexEqual,
+	"notequalregex": NotRegexEqual,
+}
+
+// String returns the string value of the operator.
+func (op Operator) String() string {
+	if err := op.Valid(); err != nil {
+		return ""
+	}
+	return opStr[op]
+}
+
+// MarshalJSON implements json.Marshal interface.
+func (op Operator) MarshalJSON() ([]byte, error) {
+	return json.Marshal(op.String())
+}
+
+// UnmarshalJSON implements json.Unmarshaler interface.
+func (op *Operator) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return &Error{
+			Code: EInvalid,
+			Err:  err,
+		}
+	}
+	var ok bool
+	if *op, ok = opStrMap[s]; !ok {
+		return &Error{
+			Code: EInvalid,
+			Msg:  "unrecognized operator",
+		}
+	}
+	return nil
 }
 
 // Tag is a tag key-value pair.
@@ -72,14 +111,14 @@ func (t Tag) Valid() error {
 }
 
 // QueryParam converts a Tag to a string query parameter
-func (tp *Tag) QueryParam() string {
-	return strings.Join([]string{tp.Key, tp.Value}, ":")
+func (t *Tag) QueryParam() string {
+	return strings.Join([]string{t.Key, t.Value}, ":")
 }
 
 // TagRule is the struct of tag rule.
 type TagRule struct {
 	Tag
-	Operator `json:"operator"`
+	Operator Operator `json:"operator"`
 }
 
 // Valid returns error for invalid operators.

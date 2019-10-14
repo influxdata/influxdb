@@ -162,15 +162,14 @@ type deleteRequest struct {
 }
 
 type deleteRequestDecode struct {
-	Start     string          `json:"start"`
-	Stop      string          `json:"stop"`
-	Predicate json.RawMessage `json:"predicate"`
+	Start     string `json:"start"`
+	Stop      string `json:"stop"`
+	Predicate string `json:"predicate"`
 }
 
 func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 	var drd deleteRequestDecode
-	err := json.Unmarshal(b, &drd)
-	if err != nil {
+	if err := json.Unmarshal(b, &drd); err != nil {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "Invalid delete predicate node request",
@@ -183,7 +182,7 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Op:   "http/Delete",
-			Msg:  "invalid RFC3339Nano for field start",
+			Msg:  "invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z",
 		}
 	}
 	dr.Start = start.UnixNano()
@@ -193,15 +192,14 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Op:   "http/Delete",
-			Msg:  "invalid RFC3339Nano for field stop",
+			Msg:  "invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z",
 		}
 	}
 	dr.Stop = stop.UnixNano()
-	node, err := predicate.UnmarshalJSON(drd.Predicate)
+	node, err := predicate.Parse(drd.Predicate)
 	if err != nil {
 		return err
 	}
 	dr.Predicate, err = predicate.New(node)
-
 	return err
 }

@@ -6223,9 +6223,7 @@ components:
         path:
           $ref: "#/components/schemas/StringLiteral"
     DeletePredicateRequest:
-      oneOf:
-        - $ref: "#/components/schemas/PredicateNode"
-      description: A set of statements
+      description: the delete predicate request
       type: object
       required: [start, stop]
       properties:
@@ -6235,10 +6233,10 @@ components:
         stop:
           description: RFC3339Nano.
           type: string
-    PredicateNode:
-      oneOf:
-        - $ref: "#/components/schemas/LogicalNode"
-        - $ref: "#/components/schemas/TagRuleNode"
+        predicate:
+          description: sql where like delete statement
+          example: tag1="value1" and (tag2="value2" and tag3="value3")
+          type: string
     Node:
       oneOf:
         - $ref: "#/components/schemas/Expression"
@@ -9704,29 +9702,6 @@ components:
             owners:
               description: URL to retrieve owners for this notification rule.
               $ref: "#/components/schemas/Link"
-    LogicalNode:
-      type: object
-      required: [nodeType,operator,children]
-      properties:
-        nodeType:
-          type: string
-          enum: [logical]
-        operator:
-          type: string
-          enum: ["and"]
-        children:
-          type: array
-          items:
-            $ref: "#/components/schemas/PredicateNode"
-    TagRuleNode:
-      type: object
-      required: [nodeType]
-      allOf:
-        - $ref: "#/components/schemas/TagRule"
-      properties:
-        nodeType:
-          type: string
-          enum: [tagRule]
     TagRule:
       type: object
       properties:

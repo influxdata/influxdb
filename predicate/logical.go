@@ -1,26 +1,23 @@
 package predicate
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 // LogicalOperator is a string type of logical operator.
-type LogicalOperator string
+type LogicalOperator int
 
 // LogicalOperators
 var (
-	LogicalAnd LogicalOperator = "and"
-	LogicalOr  LogicalOperator = "or"
+	LogicalAnd LogicalOperator = 1
+	LogicalOr  LogicalOperator = 2
 )
 
 // Value returns the node logical type.
 func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
-	op = LogicalOperator(strings.ToLower(string(op)))
 	switch op {
 	case LogicalAnd:
 		return datatypes.LogicalAnd, nil
@@ -41,56 +38,6 @@ func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 type LogicalNode struct {
 	Operator LogicalOperator `json:"operator"`
 	Children []Node          `json:"children"`
-}
-
-// NodeType returns value "logical".
-func (n LogicalNode) NodeType() string {
-	return logicalNodeType
-}
-
-type logicalNodeAlias LogicalNode
-
-// MarshalJSON implement json.Marshaler interface.
-func (n LogicalNode) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		struct {
-			logicalNodeAlias
-			NodeType string `json:"nodeType"`
-		}{
-			logicalNodeAlias: logicalNodeAlias(n),
-			NodeType:         n.NodeType(),
-		})
-}
-
-type logicalNodeDecode struct {
-	Operator LogicalOperator   `json:"operator"`
-	Children []json.RawMessage `json:"children"`
-}
-
-// UnmarshalJSON implement json unmarshal interface.
-func (n *LogicalNode) UnmarshalJSON(b []byte) error {
-	nn := new(logicalNodeDecode)
-	err := json.Unmarshal(b, nn)
-	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Err:  err,
-		}
-	}
-	*n = LogicalNode{
-		Operator: nn.Operator,
-		Children: make([]Node, len(nn.Children)),
-	}
-	for k, child := range nn.Children {
-		n.Children[k], err = UnmarshalJSON(child)
-		if err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  fmt.Sprintf("Err in Child %d, err: %s", k, err.Error()),
-			}
-		}
-	}
-	return nil
 }
 
 // ToDataType convert a LogicalNode to datatypes.Node.

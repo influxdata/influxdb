@@ -156,7 +156,7 @@ func TestValidRule(t *testing.T) {
 								Key:   "k1",
 								Value: "v1",
 							},
-							Operator: influxdb.Operator("bad"),
+							Operator: -5,
 						},
 					},
 				},
@@ -164,7 +164,7 @@ func TestValidRule(t *testing.T) {
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  `Operator "bad" is invalid`,
+				Msg:  `Operator is invalid`,
 			},
 		},
 		{

@@ -1,7 +1,6 @@
 package predicate
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/influxdata/influxdb"
@@ -10,25 +9,6 @@ import (
 
 // TagRuleNode is a node type of a single tag rule.
 type TagRuleNode influxdb.TagRule
-
-// NodeType returns value "logical".
-func (n TagRuleNode) NodeType() string {
-	return tagRuleNodeType
-}
-
-type tagRuleNodeAlias TagRuleNode
-
-// MarshalJSON implement json.Marshaler interface.
-func (n TagRuleNode) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		struct {
-			tagRuleNodeAlias
-			NodeType string `json:"nodeType"`
-		}{
-			tagRuleNodeAlias: tagRuleNodeAlias(n),
-			NodeType:         n.NodeType(),
-		})
-}
 
 // NodeTypeLiteral convert a TagRuleNode to a nodeTypeLiteral.
 func NodeTypeLiteral(tr TagRuleNode) *datatypes.Node {

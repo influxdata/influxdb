@@ -65,7 +65,7 @@ func TestDelete(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: fmt.Sprintf(`{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field start"
+					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z"
 				  }`),
 			},
 		},
@@ -82,7 +82,7 @@ func TestDelete(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: fmt.Sprintf(`{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field stop"
+					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z"
 				  }`),
 			},
 		},
@@ -231,6 +231,60 @@ func TestDelete(t *testing.T) {
 			},
 		},
 		{
+			name: "unsupported delete",
+			args: args{
+				queryParams: map[string][]string{
+					"org":    []string{"org1"},
+					"bucket": []string{"buck1"},
+				},
+				body: []byte(`{
+					"start":"2009-01-01T23:00:00Z",
+					"stop":"2019-11-10T01:00:00Z",
+					"predicate": "tag1=\"v1\" and (tag2=\"v2\" or tag3=\"v3\")"
+				}`),
+				authorizer: &influxdb.Authorization{
+					UserID: user1ID,
+					Status: influxdb.Active,
+					Permissions: []influxdb.Permission{
+						{
+							Action: influxdb.WriteAction,
+							Resource: influxdb.Resource{
+								Type:  influxdb.BucketsResourceType,
+								ID:    influxtesting.IDPtr(influxdb.ID(2)),
+								OrgID: influxtesting.IDPtr(influxdb.ID(1)),
+							},
+						},
+					},
+				},
+			},
+			fields: fields{
+				DeleteService: mock.NewDeleteService(),
+				BucketService: &mock.BucketService{
+					FindBucketFn: func(ctx context.Context, f influxdb.BucketFilter) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:   influxdb.ID(2),
+							Name: "bucket1",
+						}, nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{
+							ID:   influxdb.ID(1),
+							Name: "org1",
+						}, nil
+					},
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusBadRequest,
+				body: fmt.Sprintf(`{
+					"code": "invalid",
+					"message": "invalid request; error parsing request json: Err in Child 1, err: the logical operator OR is not supported for delete predicate yet"
+				  }`),
+			},
+		},
+		{
 			name: "complex delete",
 			args: args{
 				queryParams: map[string][]string{
@@ -239,35 +293,8 @@ func TestDelete(t *testing.T) {
 				},
 				body: []byte(`{
 					"start":"2009-01-01T23:00:00Z",
-					"stop":"2019-11-10T01:00:00Z",				
-					"nodeType": "logical",
-					"operator":"and",
-					"children":[
-						{
-							"nodeType":"tagRule",
-							"operator":"equal",
-							"key":"tag1",
-							"value":"v1"
-						},
-						{
-							"nodeType":"logical",
-							"operator":"or",
-							"children":[
-								{
-									"nodeType":"tagRule",
-									"operator":"notequal",
-									"key":"tag2",
-									"value":"v2"
-								},
-								{
-									"nodeType":"tagRule",
-									"operator":"regexequal",
-									"key":"tag3",
-									"value":"/v3/"
-								}
-							]							
-						}
-					]
+					"stop":"2019-11-10T01:00:00Z",
+					"predicate": "tag1=\"v1\" and (tag2=\"v2\" and tag3=\"v3\")"
 				}`),
 				authorizer: &influxdb.Authorization{
 					UserID: user1ID,

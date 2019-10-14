@@ -51,11 +51,12 @@ func TestTagValid(t *testing.T) {
 		{
 			name: "invalid operator",
 			src: influxdb.TagRule{
-				Tag: influxdb.Tag{Key: "k1", Value: "v1"},
+				Tag:      influxdb.Tag{Key: "k1", Value: "v1"},
+				Operator: influxdb.Operator(-1),
 			},
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
-				Msg:  "Operator \"\" is invalid",
+				Msg:  "Operator is invalid",
 			},
 		},
 	}
