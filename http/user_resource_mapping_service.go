@@ -163,6 +163,7 @@ func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 		}
 
 		users := make([]*influxdb.User, 0, len(mappings))
+
 		for _, m := range mappings {
 			if m.MappingType == influxdb.OrgMappingType {
 				continue

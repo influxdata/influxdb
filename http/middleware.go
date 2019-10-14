@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"go.uber.org/zap"
 )
 
@@ -150,4 +151,40 @@ func (b *bodyEchoer) Read(p []byte) (int, error) {
 
 func (b *bodyEchoer) Close() error {
 	return b.rc.Close()
+}
+
+func getMembersMiddleware(next http.HandlerFunc, backend MemberBackend) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		req, err := decodeGetMembersRequest(ctx, r)
+		if err != nil {
+			backend.HandleHTTPError(ctx, err, w)
+			return
+		}
+
+		filter := influxdb.UserResourceMappingFilter{
+			ResourceID:   req.ResourceID,
+			ResourceType: backend.ResourceType,
+			UserType:     backend.UserType,
+		}
+
+		mappings, _, err := backend.UserResourceMappingService.FindUserResourceMappings(ctx, filter)
+		if err != nil {
+			backend.HandleHTTPError(ctx, err, w)
+			return
+		}
+
+		if len(mappings) == 0 {
+			backend.Logger.Debug("No members/owners retrieved")
+			err := &influxdb.Error{
+				Code: influxdb.ENotFound,
+				Op:   influxdb.OpFindOrganization,
+				Msg:  "resource(s) not found",
+			}
+			backend.HandleHTTPError(ctx, err, w)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
 }

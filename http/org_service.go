@@ -104,7 +104,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                b.UserService,
 	}
 	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.HandlerFunc("GET", organizationsIDMembersPath, getMembersMiddleware(newGetMembersHandler(memberBackend), memberBackend))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
@@ -116,7 +116,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                b.UserService,
 	}
 	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.HandlerFunc("GET", organizationsIDOwnersPath, getMembersMiddleware(newGetMembersHandler(ownerBackend), memberBackend))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)
