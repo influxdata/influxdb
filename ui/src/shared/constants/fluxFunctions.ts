@@ -227,8 +227,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'experimental/bigtable',
-    desc:
-      'Retrieves data from a Google Cloud Bigtable data source.',
+    desc: 'Retrieves data from a Google Cloud Bigtable data source.',
     example:
       'bigtable.from(token: "mySuPeRseCretTokEn", project: "exampleProjectID", instance: "exampleInstanceID", table: "example-table")',
     category: 'Inputs',
@@ -917,8 +916,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       },
     ],
     package: 'experimental',
-    desc:
-      'Introduces an extend mode to the existing `group()` function.',
+    desc: 'Introduces an extend mode to the existing `group()` function.',
     example:
       'experimental.group(columns: ["host", "_measurement"], mode:"extend")',
     category: 'Transformations',
