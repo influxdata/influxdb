@@ -361,3 +361,60 @@ func TestSchedule_panic(t *testing.T) {
 		t.Fatal("test timed out", now.UTC().Unix())
 	}
 }
+
+func TestTreeScheduler_Release(t *testing.T) {
+	c := make(chan time.Time, 100)
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+		select {
+		case <-ctx.Done():
+			t.Log("ctx done")
+		case c <- scheduledAt:
+		}
+	}}
+	mockTime := clock.NewMock()
+	mockTime.Set(time.Now())
+	sch, _, err := NewScheduler(
+		exe,
+		&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
+			return nil
+		}},
+		WithTime(mockTime),
+		WithMaxConcurrentWorkers(20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sch.Stop()
+	schedule, err := NewSchedule("* * * * * * *")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: mockTime.Now().UTC()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		sch.mu.Lock()
+		mockTime.Set(mockTime.Now().UTC().Add(2 * time.Second))
+		sch.mu.Unlock()
+	}()
+
+	select {
+	case <-c:
+	case <-time.After(6 * time.Second):
+		t.Fatalf("test timed out, it should have fired but didn't")
+	}
+	sch.Release(1)
+
+	go func() {
+		sch.mu.Lock()
+		mockTime.Set(mockTime.Now().UTC().Add(6 * time.Second))
+		sch.mu.Unlock()
+	}()
+
+	select {
+	case <-c:
+		t.Fatal("expected test not to fire here, because task was released, but it did anyway")
+	case <-time.After(2 * time.Second):
+	}
+}
