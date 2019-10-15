@@ -60,7 +60,7 @@ from(bucket: "${name}")
       .and('contain', taskName)
   })
 
-  it('can delete a task', () => {
+  it.only('can delete a task', () => {
     cy.get<Organization>('@org').then(({id}) => {
       cy.get<string>('@token').then(token => {
         cy.createTask(token, id)

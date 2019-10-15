@@ -13,6 +13,7 @@ import {
   clearTask,
   setNewScript,
 } from 'src/tasks/actions'
+import {refreshTimeMachineVariableValues} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
@@ -43,6 +44,7 @@ interface DispatchProps {
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
   setNewScript: typeof setNewScript
+  refreshTimeMachineVariableValues: typeof refreshTimeMachineVariableValues
 }
 
 interface StateProps {
@@ -57,12 +59,17 @@ type Props = StateProps & OwnProps & DispatchProps
 
 class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   public async componentDidMount() {
-    const {setTaskOption, setNewScript} = this.props
+    const {
+      setTaskOption,
+      setNewScript,
+      refreshTimeMachineVariableValues,
+    } = this.props
 
     setTaskOption({
       key: 'taskScheduleType',
       value: TaskSchedule.interval,
     })
+    refreshTimeMachineVariableValues()
 
     setNewScript(this.activeScript)
   }
@@ -181,6 +188,7 @@ const mdtp: DispatchProps = {
   setTaskOption,
   clearTask,
   setNewScript,
+  refreshTimeMachineVariableValues,
 }
 
 export default connect<StateProps, DispatchProps>(
