@@ -27,7 +27,7 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
   }
 
   return (
-    <Radio shape={ButtonShape.StretchToFit}>
+    <Radio shape={ButtonShape.StretchToFit} style={{width: '300px'}}>
       <Radio.Button
         key="queries"
         id="queries"

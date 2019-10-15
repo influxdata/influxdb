@@ -110,7 +110,7 @@ const CheckEOHeader: FC<Props> = ({
           onClickOutside={handleClickOutsideTitle}
         />
       </Page.HeaderLeft>
-      <Page.HeaderCenter widthPixels={300}>
+      <Page.HeaderCenter>
         <CheckAlertingButton
           activeTab={activeTab}
           draftQueries={draftQueries}
