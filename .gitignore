@@ -35,6 +35,7 @@ ui/package-lock.json
 # e2e test artifacts
 ui/cypress/screenshots
 ui/cypress/videos
+ui/coverage
 
 ui/src/api/.gitignore
 ui/src/api/.openapi-generator-ignore

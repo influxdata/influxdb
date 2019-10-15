@@ -42,14 +42,12 @@ module.exports = {
       tsConfig: 'tsconfig.test.json'
     }
   },
-  collectCoverage: true,
   collectCoverageFrom: [
     './src/**/*.{js,jsx,ts,tsx}',
     '!./src/**/*.test.{js,jsx,ts,tsx}'
   ],
   coverageDirectory: './coverage',
   coverageReporters: [
-    'html',
-    'cobertura'
+    'html'
   ]
 }

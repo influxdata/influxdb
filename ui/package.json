@@ -30,6 +30,7 @@
     "test:ju:report": "junit-viewer --results=junit-results --save-file=cypress/site/junit-report.html",
     "test:ju:clean": "rm junit-results/*.xml",
     "test:ju:all": "yarn test:ju:clean && yarn test:junit; yarn test:ju:report;",
+    "test:ci": "JEST_JUNIT_OUTPUT_DIR=\"./coverage\" jest --ci --coverage --reporters=default --reporters=jest-junit --testResultsProcessor=jest-junit",
     "lint": "yarn tsc && yarn eslint",
     "eslint": "eslint '{src,cypress}/**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
