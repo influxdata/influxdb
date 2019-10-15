@@ -222,20 +222,18 @@ class SideNav extends PureComponent<Props, State> {
             active={getNavItemActivation(['tokens'], location.pathname)}
             key="tokens"
           />
-          <FeatureFlag name="clientLibrariesPage">
-            <NavMenu.SubItem
-              titleLink={className => (
-                <Link to={clientLibrariesLink} className={className}>
-                  Client Libraries
-                </Link>
-              )}
-              active={getNavItemActivation(
-                ['client-libraries'],
-                location.pathname
-              )}
-              key="client-libraries"
-            />
-          </FeatureFlag>
+          <NavMenu.SubItem
+            titleLink={className => (
+              <Link to={clientLibrariesLink} className={className}>
+                Client Libraries
+              </Link>
+            )}
+            active={getNavItemActivation(
+              ['client-libraries'],
+              location.pathname
+            )}
+            key="client-libraries"
+          />
         </NavMenu.Item>
         <NavMenu.Item
           titleLink={className => (

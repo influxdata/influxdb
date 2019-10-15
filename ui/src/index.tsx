@@ -286,30 +286,28 @@ class Root extends PureComponent {
                                 component={CreateScraperOverlay}
                               />
                             </Route>
-                            <FeatureFlag name="clientLibrariesPage">
+                            <Route
+                              path="client-libraries"
+                              component={ClientLibrariesPage}
+                            >
                               <Route
-                                path="client-libraries"
-                                component={ClientLibrariesPage}
-                              >
-                                <Route
-                                  path="csharp"
-                                  component={ClientCSharpOverlay}
-                                />
-                                <Route path="go" component={ClientGoOverlay} />
-                                <Route
-                                  path="java"
-                                  component={ClientJavaOverlay}
-                                />
-                                <Route
-                                  path="javascript-node"
-                                  component={ClientJSOverlay}
-                                />
-                                <Route
-                                  path="python"
-                                  component={ClientPythonOverlay}
-                                />
-                              </Route>
-                            </FeatureFlag>
+                                path="csharp"
+                                component={ClientCSharpOverlay}
+                              />
+                              <Route path="go" component={ClientGoOverlay} />
+                              <Route
+                                path="java"
+                                component={ClientJavaOverlay}
+                              />
+                              <Route
+                                path="javascript-node"
+                                component={ClientJSOverlay}
+                              />
+                              <Route
+                                path="python"
+                                component={ClientPythonOverlay}
+                              />
+                            </Route>
                           </Route>
                           <Route path="settings">
                             <IndexRoute component={MembersIndex} />
