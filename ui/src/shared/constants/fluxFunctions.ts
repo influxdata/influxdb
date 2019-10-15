@@ -200,6 +200,41 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/aggregatewindow/',
   },
   {
+    name: 'bigtable.from',
+    args: [
+      {
+        name: 'token',
+        desc:
+          'The Google Cloud IAM token to use to access the Cloud Bigtable database.',
+        type: 'String',
+      },
+      {
+        name: 'project',
+        desc:
+          'The project ID of the Cloud Bigtable project to retrieve data from.',
+        type: 'String',
+      },
+      {
+        name: 'instance',
+        desc:
+          'The instance ID of the Cloud Bigtable instance to retrieve data from.',
+        type: 'String',
+      },
+      {
+        name: 'table',
+        desc: 'The name of the Cloud Bigtable table to retrieve data from.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/bigtable',
+    desc: 'Retrieves data from a Google Cloud Bigtable data source.',
+    example:
+      'bigtable.from(token: "mySuPeRseCretTokEn", project: "exampleProjectID", instance: "exampleInstanceID", table: "example-table")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/bigtable/from/',
+  },
+  {
     name: 'bool',
     args: [
       {
@@ -841,6 +876,142 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Type Conversions',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/type-conversions/duration/',
+  },
+  {
+    name: 'experimental.addDuration',
+    args: [
+      {
+        name: 'd',
+        desc: 'The duration to add.',
+        type: 'Duration',
+      },
+      {
+        name: 'to',
+        desc: 'The time to add the duration to.',
+        type: 'Time',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Adds a duration to a time value and returns the resulting time value.',
+    example: 'experimental.addDuration(d: 12h, to: now())',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/addduration/',
+  },
+  {
+    name: 'experimental.group',
+    args: [
+      {
+        name: 'columns',
+        desc:
+          'List of columns to use in the grouping operation. Defaults to `[]`.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'mode',
+        desc:
+          'The mode used to group columns. Only the `extend` mode is available with this function.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental',
+    desc: 'Introduces an extend mode to the existing `group()` function.',
+    example:
+      'experimental.group(columns: ["host", "_measurement"], mode: "extend")',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/group/',
+  },
+  {
+    name: 'experimental.objectKeys',
+    args: [
+      {
+        name: 'o',
+        desc: 'The object to return keys from.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental',
+    desc: 'Returns an array of keys in a specified object.',
+    example: 'experimental.objectKeys(o: {key1: "value1", key2: "value2"})',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/objectkeys/',
+  },
+  {
+    name: 'experimental.set',
+    args: [
+      {
+        name: 'o',
+        desc: 'An object that defines the columns and values to set.',
+        type: 'Object',
+      },
+    ],
+    package: 'experimental',
+    desc: 'Sets multiple static column values on all records.',
+    example: 'experimental.set(o: {column1: "value1", column2: "value2"})',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/set/',
+  },
+  {
+    name: 'experimental.subDuration',
+    args: [
+      {
+        name: 'd',
+        desc: 'The duration to subtract.',
+        type: 'Duration',
+      },
+      {
+        name: 'from',
+        desc: 'The time to subtract the duration from.',
+        type: 'Time',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Subtracts a duration from a time value and returns the resulting time value.',
+    example: 'experimental.subDuration(d: 12h, from: now())',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/subduration/',
+  },
+  {
+    name: 'experimental.to',
+    args: [
+      {
+        name: 'bucket',
+        desc:
+          'The bucket to write data to. `bucket` and `bucketID` are mutually exclusive.',
+        type: 'String',
+      },
+      {
+        name: 'bucketID',
+        desc:
+          'The ID of the bucket to write data to. `bucketID` and `bucket` are mutually exclusive.',
+        type: 'String',
+      },
+      {
+        name: 'org',
+        desc:
+          'The organization name of the specified bucket. `org` and `orgID` are mutually exclusive.',
+        type: 'String',
+      },
+      {
+        name: 'orgID',
+        desc:
+          'The organization ID of the specified bucket. `orgID` and `org` are mutually exclusive.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental',
+    desc:
+      'Writes data to an InfluxDB v2.0 bucket, but in a different structure than the built-in `to()` function.',
+    example: 'experimental.to(bucket: "example-bucket", org: "example-org")',
+    category: 'Outputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/to/',
   },
   {
     name: 'elapsed',
@@ -2741,6 +2912,83 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/aggregates/movingaverage/',
   },
   {
+    name: 'mqtt.to',
+    args: [
+      {
+        name: 'broker',
+        desc: 'The MQTT broker connection string.',
+        type: 'String',
+      },
+      {
+        name: 'topic',
+        desc: 'The MQTT topic to send data to.',
+        type: 'String',
+      },
+      {
+        name: 'message',
+        desc:
+          'The message or payload to send to the MQTT broker. The default payload is an output table.',
+        type: 'String',
+      },
+      {
+        name: 'qos',
+        desc:
+          'The MQTT Quality of Service (QoS) level. Values range from 0-2. Default is 0.',
+        type: 'Integer',
+      },
+      {
+        name: 'clientid',
+        desc: 'The MQTT client ID.',
+        type: 'String',
+      },
+      {
+        name: 'username',
+        desc: 'The username to send to the MQTT broker.',
+        type: 'String',
+      },
+      {
+        name: 'password',
+        desc: 'The password to send to the MQTT broker.',
+        type: 'String',
+      },
+      {
+        name: 'name',
+        desc: 'The name for the MQTT message.',
+        type: 'String',
+      },
+      {
+        name: 'timeout',
+        desc: 'The MQTT connection timeout. Default is 1s.',
+        type: 'Duration',
+      },
+      {
+        name: 'timeColumn',
+        desc:
+          'The column to use as time values in the output line protocol. Default is `"_time"`.',
+        type: 'String',
+      },
+      {
+        name: 'tagColumns',
+        desc:
+          'The columns to use as tag sets in the output line protocol. Default is `[]`.',
+        type: 'Array of Strings',
+      },
+      {
+        name: 'valueColumns',
+        desc:
+          'The columns to use as field values in the output line protocol. Default is `["_value"]`.',
+        type: 'Array of Strings',
+      },
+    ],
+    package: 'experimental/mqtt',
+    desc: 'Outputs data to an MQTT broker using MQTT protocol.',
+    example:
+      'mqtt.to(broker: "tcp://localhost:8883", topic: "example-topic", clientid: "exampleID", tagColumns: ["exampleTagKey"], valueColumns: ["_value"])',
+    category: 'Outputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/mqtt/to/',
+  },
+  {
     name: 'pearsonr',
     args: [
       {
@@ -2796,6 +3044,22 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/pivot/',
+  },
+  {
+    name: 'prometheus.scrape',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to scrape Prometheus-formatted metrics from.',
+        type: 'String',
+      },
+    ],
+    package: 'experimental/prometheus',
+    desc: 'Retrieves Prometheus-formatted metrics from a specified URL.',
+    example: 'prometheus.scrape(url: "http://localhost:9999/metrics")',
+    category: 'Inputs',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/prometheus/scrape/',
   },
   {
     name: 'quantile',
