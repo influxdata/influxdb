@@ -33,8 +33,8 @@ class TelegrafInstructions extends PureComponent<Props> {
           >
             InfluxData Downloads&nbsp;
           </a>
-          page . If you already have Telegraf installed on your system, make
-          sure it's up to date. You will need version 1.9.2 or higher.
+          page. If you already have Telegraf installed on your system, make sure
+          it's up to date. You will need version 1.9.2 or higher.
         </p>
         <h6>2. Configure your API Token</h6>
         <p>

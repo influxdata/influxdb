@@ -3,17 +3,17 @@ import React, {FunctionComponent} from 'react'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
+import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 // Constants
 import {clientGoLibrary} from 'src/clientLibraries/constants'
-import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 const ClientGoOverlay: FunctionComponent<{}> = () => {
   const {
     name,
-    url, 
-    initializeClientCodeSnippet, 
-    writeDataCodeSnippet
+    url,
+    initializeClientCodeSnippet,
+    writeDataCodeSnippet,
   } = clientGoLibrary
   return (
     <ClientLibraryOverlay title={`${name} Client Library`}>
@@ -25,9 +25,9 @@ const ClientGoOverlay: FunctionComponent<{}> = () => {
       </p>
       <br />
       <h5>Initializing the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="Code" />
-      <h5>Writing Data</h5>
-      <CodeSnippet copyText={writeDataCodeSnippet} label="Code" />
+      <CodeSnippet copyText={initializeClientCodeSnippet} label="Go Code" />
+      <h5>Example Writing Data</h5>
+      <CodeSnippet copyText={writeDataCodeSnippet} label="Go Code" />
     </ClientLibraryOverlay>
   )
 }

@@ -3,12 +3,22 @@ import React, {FunctionComponent} from 'react'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
+import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 // Constants
 import {clientPythonLibrary} from 'src/clientLibraries/constants'
 
 const ClientPythonOverlay: FunctionComponent<{}> = () => {
-  const {name, url} = clientPythonLibrary
+  const {
+    name,
+    url,
+    initializePackageCodeSnippet,
+    initializeClientCodeSnippet,
+    executeQueryCodeSnippet,
+    writingDataLineProtocolCodeSnippet,
+    writingDataPointCodeSnippet,
+    writingDataBatchCodeSnippet,
+  } = clientPythonLibrary
 
   return (
     <ClientLibraryOverlay title={`${name} Client Library`}>
@@ -20,72 +30,18 @@ const ClientPythonOverlay: FunctionComponent<{}> = () => {
       </p>
       <br />
       <h5>Installing Package</h5>
-      <pre>
-        <code>pip install influxdb-client</code>
-      </pre>
+      <CodeSnippet copyText={initializePackageCodeSnippet} label="Code" />
       <h5>Initializing the Client</h5>
-      <pre>
-        <code>
-          import influxdb_client
-          <br />
-          from influxdb_client import InfluxDBClient
-          <br />
-          <br />
-          client = InfluxDBClient(url="basepath", token="token")
-          <br />
-        </code>
-      </pre>
-      <h5>Using the client to execute a query</h5>
-      <pre>
-        <code>
-          query = 'from(bucket: "my_bucket") |> range(start: -1h)'
-          <br />
-          <br />
-          tables = client.query_api().query(query, org="someorgid")
-        </code>
-      </pre>
+      <CodeSnippet copyText={initializeClientCodeSnippet} label="Code" />
       <h5>Writing Data</h5>
-      <p>
-        Data could be written using InfluxDB Line Protocol,Data Point or
-        Sequence
-      </p>
-      <p>
-        <b>InfluxDB Line Protocol</b>
-      </p>
-      <pre>
-        <code>
-          data = "mem,host=host1 used_percent=23.43234543 1556896326"
-          <br />
-          <br />
-          write_client.write("bucketID", "orgID", data)
-        </code>
-      </pre>
-      <p>
-        <b>Data Point</b>
-      </p>
-      <pre>
-        <code>
-          point = Point("mem").tag("host", "host1").field("used_percent",
-          23.43234543).time(1556896326, WritePrecision.NS)
-          <br />
-          <br />
-          write_client.write("bucketID", "orgID", point)
-        </code>
-      </pre>
-      <p>
-        <b>Sequence</b>
-      </p>
-      <pre>
-        <code>
-          sequence = ["mem,host=host1 used_percent=23.43234543 1556896326",
-          <br />
-          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"mem,host=host1
-          available_percent=15.856523 1556896326"]
-          <br />
-          <br />
-          write_client.write("bucketID", "orgID", sequence)
-        </code>
-      </pre>
+      <p>Option 1: Example for writing data using InfluxDB Line Protocol</p>
+      <CodeSnippet copyText={writingDataLineProtocolCodeSnippet} label="Code" />
+      <p>Option 2: Example for writing data using a Data Point</p>
+      <CodeSnippet copyText={writingDataPointCodeSnippet} label="Code" />
+      <p>Option 3: Example for writing data using a Batch Sequence</p>
+      <CodeSnippet copyText={writingDataBatchCodeSnippet} label="Code" />
+      <h5>Example for executing a Flux query</h5>
+      <CodeSnippet copyText={executeQueryCodeSnippet} label="Code" />
     </ClientLibraryOverlay>
   )
 }

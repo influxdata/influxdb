@@ -2,9 +2,9 @@
 import React, {FunctionComponent} from 'react'
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
+import CodeSnippet from 'src/shared/components/CodeSnippet'
 // Constants
 import {clientCSharpLibrary} from 'src/clientLibraries/constants'
-import CodeSnippet from 'src/shared/components/CodeSnippet'
 
 const ClientCSharpOverlay: FunctionComponent<{}> = () => {
   const {
@@ -15,7 +15,7 @@ const ClientCSharpOverlay: FunctionComponent<{}> = () => {
     packageReferenceCodeSnippet,
     initializeClientCodeSnippet,
     executeQueryCodeSnippet,
-    writingDataDataPointCodeSnippet,
+    writingDataPointCodeSnippet: writingDataDataPointCodeSnippet,
     writingDataLineProtocolCodeSnippet,
     writingDataPocoCodeSnippet,
     pocoClassCodeSnippet,
@@ -29,7 +29,7 @@ const ClientCSharpOverlay: FunctionComponent<{}> = () => {
         </a>
       </p>
       <br />
-      <h5>Installing package</h5>
+      <h5>Installing Package</h5>
       <p>
         <b>Package Manager</b>
       </p>
@@ -49,26 +49,28 @@ const ClientCSharpOverlay: FunctionComponent<{}> = () => {
       </p>
       <CodeSnippet copyText={packageReferenceCodeSnippet} label="Code" />
       <h5>Initializing the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="Code" />
-      <h5>Using the client to execute a query</h5>
-      <CodeSnippet copyText={executeQueryCodeSnippet} label="Code" />
+      <CodeSnippet copyText={initializeClientCodeSnippet} label="C# Code" />
       <h5>Writing Data</h5>
       <p>
-        <b>InfluxDB Line Protocol</b>
+        <b>Option 1: Example for writing using InfluxDB Line Protocol</b>
       </p>
-      <CodeSnippet copyText={writingDataLineProtocolCodeSnippet} label="Code" />
+      <CodeSnippet
+        copyText={writingDataLineProtocolCodeSnippet}
+        label="C# Code"
+      />
       <p>
-        <b>Data Point</b>
+        <b>Option 2: Example for writing using a Data Point</b>
       </p>
-      <CodeSnippet copyText={writingDataDataPointCodeSnippet} label="Code" />
+      <CodeSnippet copyText={writingDataDataPointCodeSnippet} label="C# Code" />
       <p>
-        <b>POCO</b>
+        <b>
+          Option 3: Example for writing using a POCO and corresponding Class
+        </b>
       </p>
-      <CodeSnippet copyText={writingDataPocoCodeSnippet} label="Code" />
-      <p>
-        <b>POCO Class</b>
-      </p>
-      <CodeSnippet copyText={pocoClassCodeSnippet} label="Code" />
+      <CodeSnippet copyText={writingDataPocoCodeSnippet} label="C# Code" />
+      <CodeSnippet copyText={pocoClassCodeSnippet} label="C# Code" />
+      <h5>Example for executing a Flux query</h5>
+      <CodeSnippet copyText={executeQueryCodeSnippet} label="C# Code" />
     </ClientLibraryOverlay>
   )
 }
