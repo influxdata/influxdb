@@ -61,7 +61,7 @@ describe('Collectors', () => {
       const telegrafConfigName = 'New Config'
       const description = 'Config Description'
 
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.createTelegraf(telegrafConfigName, description, id)
       })
 
@@ -84,7 +84,7 @@ describe('Collectors', () => {
       const telegrafConfigName = 'New Config'
       const description = 'Config Description'
 
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.createTelegraf(telegrafConfigName, description, id)
         cy.createTelegraf(telegrafConfigName, description, id)
       })
@@ -106,7 +106,7 @@ describe('Collectors', () => {
       const telegrafConfigName = 'New Config'
       const description = 'Config Description'
 
-      cy.get<Organization>('@org').then(({id}) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.createTelegraf(telegrafConfigName, description, id)
       })
 
@@ -121,6 +121,56 @@ describe('Collectors', () => {
         .click()
 
       cy.getByTestID('setup-instructions').should('not.exist')
+    })
+
+    it('can filter telegraf configs correctly', () => {
+      // fixes issue #15246:
+      // https://github.com/influxdata/influxdb/issues/15246
+      const firstTelegraf = 'test1'
+      const secondTelegraf = 'test2'
+      const thirdTelegraf = 'unicorn'
+      const description = 'Config Description'
+
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createTelegraf(firstTelegraf, description, id)
+        cy.createTelegraf(secondTelegraf, description, id)
+        cy.createTelegraf(thirdTelegraf, description, id)
+      })
+
+      cy.getByTestID('search-widget').type(firstTelegraf)
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('resource-card').should('contain', firstTelegraf)
+
+      cy.getByTestID('search-widget')
+        .clear()
+        .type(secondTelegraf)
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('resource-card').should('contain', secondTelegraf)
+
+      cy.getByTestID('search-widget')
+        .clear()
+        .type(thirdTelegraf)
+
+      cy.getByTestID('resource-card').should('have.length', 1)
+      cy.getByTestID('resource-card').should('contain', thirdTelegraf)
+
+      cy.getByTestID('search-widget')
+        .clear()
+        .type('should have no results')
+
+      cy.getByTestID('resource-card').should('have.length', 0)
+      cy.getByTestID('empty-state').should('exist')
+
+      cy.getByTestID('search-widget')
+        .clear()
+        .type('test')
+
+      cy.getByTestID('resource-card').should('have.length', 2)
+      cy.getByTestID('resource-card').should('contain', firstTelegraf)
+      cy.getByTestID('resource-card').should('contain', secondTelegraf)
+      cy.getByTestID('resource-card').should('not.contain', thirdTelegraf)
     })
   })
 })
