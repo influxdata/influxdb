@@ -141,6 +141,7 @@
     "history": "^3.2",
     "honeybadger-js": "^1.0.2",
     "immer": "^1.9.3",
+    "jest-junit": "^8.0.0",
     "lodash": "^4.3.0",
     "memoize-one": "^4.0.2",
     "moment": "^2.13.0",
