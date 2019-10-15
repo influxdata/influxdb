@@ -135,8 +135,7 @@ describe('Collectors', () => {
         cy.createTelegraf(thirdTelegraf, description, id)
       })
 
-      cy.getByTestID('search-widget')
-        .type(firstTelegraf)
+      cy.getByTestID('search-widget').type(firstTelegraf)
 
       cy.getByTestID('resource-card').should('have.length', 1)
       cy.getByTestID('resource-card').should('contain', firstTelegraf)
