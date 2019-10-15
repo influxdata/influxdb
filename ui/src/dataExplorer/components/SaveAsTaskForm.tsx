@@ -13,6 +13,7 @@ import {
   clearTask,
   setNewScript,
 } from 'src/tasks/actions'
+import {refreshTimeMachineVariableValues} from 'src/timeMachine/actions/queries'
 
 // Utils
 import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
@@ -25,13 +26,14 @@ import {
 } from 'src/utils/taskOptionsToFluxScript'
 
 // Types
-import {AppState, TimeRange} from 'src/types'
+import {AppState, TimeRange, VariableAssignment} from 'src/types'
 import {
   TaskSchedule,
   TaskOptions,
   TaskOptionKeys,
 } from 'src/utils/taskOptionsToFluxScript'
 import {DashboardDraftQuery} from 'src/types/dashboards'
+import {getVariableAssignments} from 'src/variables/selectors'
 
 interface OwnProps {
   dismiss: () => void
@@ -42,6 +44,7 @@ interface DispatchProps {
   setTaskOption: typeof setTaskOption
   clearTask: typeof clearTask
   setNewScript: typeof setNewScript
+  refreshTimeMachineVariableValues: typeof refreshTimeMachineVariableValues
 }
 
 interface StateProps {
@@ -49,18 +52,24 @@ interface StateProps {
   activeQuery: DashboardDraftQuery
   newScript: string
   timeRange: TimeRange
+  userDefinedVars: VariableAssignment[]
 }
 
 type Props = StateProps & OwnProps & DispatchProps
 
 class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
   public async componentDidMount() {
-    const {setTaskOption, setNewScript} = this.props
+    const {
+      setTaskOption,
+      setNewScript,
+      refreshTimeMachineVariableValues,
+    } = this.props
 
     setTaskOption({
       key: 'taskScheduleType',
       value: TaskSchedule.interval,
     })
+    refreshTimeMachineVariableValues()
 
     setNewScript(this.activeScript)
   }
@@ -111,15 +120,16 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     // inject into the script via the front end. So any variables that are used
     // in the script need to be embedded in the script text itself before
     // saving it as a task
-    //
-    // TODO(chnn): Embed user-defined variables in the script as well
+
     const timeRangeVars = getTimeRangeVars(timeRange)
     const windowPeriodVars = await getWindowVars(newScript, timeRangeVars)
 
     // Don't embed variables that are not used in the script
-    const vars = [...timeRangeVars, ...windowPeriodVars].filter(assignment =>
-      newScript.includes(assignment.id.name)
-    )
+    const vars = [
+      ...timeRangeVars,
+      ...windowPeriodVars,
+      ...this.props.userDefinedVars,
+    ].filter(assignment => newScript.includes(assignment.id.name))
 
     const varOption: string = formatVarsOption(vars) // option v = { ... }
     const taskOption: string = taskOptionsToFluxScript(taskOptions) // option task = { ... }
@@ -159,12 +169,17 @@ const mstp = (state: AppState): StateProps => {
 
   const {timeRange} = getActiveTimeMachine(state)
   const activeQuery = getActiveQuery(state)
+  const userDefinedVars = getVariableAssignments(
+    state,
+    state.timeMachines.activeTimeMachineID
+  )
 
   return {
     newScript,
     taskOptions: {...taskOptions, toOrgName: org.name},
     timeRange,
     activeQuery,
+    userDefinedVars,
   }
 }
 
@@ -173,6 +188,7 @@ const mdtp: DispatchProps = {
   setTaskOption,
   clearTask,
   setNewScript,
+  refreshTimeMachineVariableValues,
 }
 
 export default connect<StateProps, DispatchProps>(

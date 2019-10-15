@@ -34,6 +34,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
               }
               value={schedule === TaskSchedule.interval ? interval : cron}
               onChange={this.props.onChangeInput}
+              testID="task-form-schedule-input"
             />
           </Form.Element>
         </Grid.Column>

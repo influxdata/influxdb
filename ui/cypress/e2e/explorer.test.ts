@@ -24,6 +24,7 @@ describe('DataExplorer', () => {
 
     cy.signin().then(({body}) => {
       cy.wrap(body.org).as('org')
+      cy.createMapVariable(body.org.id)
     })
 
     cy.fixture('routes').then(({orgs, explorer}) => {
@@ -143,6 +144,37 @@ describe('DataExplorer', () => {
       })
 
       cy.getByTestID('empty-graph--no-results').should('exist')
+    })
+
+    it('can save query as task even when it has a variable', () => {
+      const taskName = 'tax'
+      // begin flux
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea').type(
+          `from(bucket: "defbuck")
+  |> range(start: -15m, stop: now())
+  |> filter(fn: (r) => r._measurement == `,
+          {force: true}
+        )
+      })
+
+      cy.getByTestID('toolbar-tab').click()
+      //insert variable name by clicking on variable
+      cy.get('.variables-toolbar--label').click()
+      // finish flux
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea').type(`)`, {force: true})
+      })
+
+      cy.getByTestID('save-query-as').click()
+      cy.get('#save-as-task').click()
+      cy.getByTestID('task-form-name').type(taskName)
+      cy.getByTestID('task-form-schedule-input').type('4h')
+      cy.getByTestID('task-form-save').click()
+
+      cy.getByTestID(`task-card`)
+        .should('exist')
+        .should('contain', taskName)
     })
   })
 

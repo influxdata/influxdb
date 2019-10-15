@@ -79,6 +79,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                   placeholder="Name your task"
                   onChange={onChangeInput}
                   value={name}
+                  testID="task-form-name"
                 />
               </Form.Element>
             </Grid.Column>
@@ -158,6 +159,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             status={
               canSubmit ? ComponentStatus.Default : ComponentStatus.Disabled
             }
+            testID="task-form-save"
           />
         </Form.Footer>
       </Grid.Column>

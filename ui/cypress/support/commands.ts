@@ -157,6 +157,25 @@ export const createVariable = (
   })
 }
 
+export const createMapVariable = (
+  orgID?: string
+): Cypress.Chainable<Cypress.Response> => {
+  const argumentsObj = {
+    type: 'map',
+    values: {k1: 'v1', k2: 'v2'},
+  }
+
+  return cy.request({
+    method: 'POST',
+    url: '/api/v2/variables',
+    body: {
+      name: 'mapTypeVar',
+      orgID,
+      arguments: argumentsObj,
+    },
+  })
+}
+
 export const createLabel = (
   name?: string,
   orgID?: string,
@@ -403,6 +422,7 @@ Cypress.Commands.add('createToken', createToken)
 
 // variables
 Cypress.Commands.add('createVariable', createVariable)
+Cypress.Commands.add('createMapVariable', createMapVariable)
 
 // labels
 Cypress.Commands.add('createLabel', createLabel)
