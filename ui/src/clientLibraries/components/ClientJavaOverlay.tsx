@@ -29,29 +29,25 @@ const ClientJavaOverlay: FunctionComponent<{}> = () => {
         </a>
       </p>
       <br />
-      <h5>Adding Dependency</h5>
-      <p>
-        <b>Build with Maven</b>
-      </p>
+      <h5>Add Dependency</h5>
+      <p>Build with Maven</p>
       <CodeSnippet copyText={buildWithMavenCodeSnippet} label="Code" />
-      <p>
-        <b>Build with Gradle</b>
-      </p>
+      <p>Build with Gradle</p>
       <CodeSnippet copyText={buildWithGradleCodeSnippet} label="Code" />
-      <h5>Initializing the Client</h5>
+      <h5>Initialize the Client</h5>
       <CodeSnippet copyText={initializeClientCodeSnippet} label="Java Code" />
-      <h5>Writing Data</h5>
-      <p>Option 1: Example for writing using InfluxDB Line Protocol</p>
+      <h5>Write Data</h5>
+      <p>Option 1: Use InfluxDB Line Protocol to write data</p>
       <CodeSnippet
         copyText={writingDataLineProtocolCodeSnippet}
         label="Java Code"
       />
-      <p>Option 2: Example for writing using a Data Point</p>
+      <p>Option 2: Use a Data Point to write data</p>
       <CodeSnippet copyText={writingDataPointCodeSnippet} label="Java Code" />
-      <p>Option 3: Example for writing using a POJO and corresponding class</p>
+      <p>Option 3: Use POJO and corresponding class to write data</p>
       <CodeSnippet copyText={writingDataPojoCodeSnippet} label="Java Code" />
       <CodeSnippet copyText={pojoClassCodeSnippet} label="Java Code" />
-      <h5>Example for executing a Flux query</h5>
+      <h5>Execute a Flux query</h5>
       <CodeSnippet copyText={executeQueryCodeSnippet} label="Java Code" />
     </ClientLibraryOverlay>
   )

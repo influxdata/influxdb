@@ -29,19 +29,22 @@ const ClientPythonOverlay: FunctionComponent<{}> = () => {
         </a>
       </p>
       <br />
-      <h5>Installing Package</h5>
+      <h5>Install Package</h5>
       <CodeSnippet copyText={initializePackageCodeSnippet} label="Code" />
-      <h5>Initializing the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="Code" />
-      <h5>Writing Data</h5>
-      <p>Option 1: Example for writing data using InfluxDB Line Protocol</p>
-      <CodeSnippet copyText={writingDataLineProtocolCodeSnippet} label="Code" />
-      <p>Option 2: Example for writing data using a Data Point</p>
-      <CodeSnippet copyText={writingDataPointCodeSnippet} label="Code" />
-      <p>Option 3: Example for writing data using a Batch Sequence</p>
-      <CodeSnippet copyText={writingDataBatchCodeSnippet} label="Code" />
-      <h5>Example for executing a Flux query</h5>
-      <CodeSnippet copyText={executeQueryCodeSnippet} label="Code" />
+      <h5>Initialize the Client</h5>
+      <CodeSnippet copyText={initializeClientCodeSnippet} label="Python Code" />
+      <h5>Write Data</h5>
+      <p>Option 1: Use InfluxDB Line Protocol to write data</p>
+      <CodeSnippet
+        copyText={writingDataLineProtocolCodeSnippet}
+        label="Python Code"
+      />
+      <p>Option 2: Use a Data Point to write data</p>
+      <CodeSnippet copyText={writingDataPointCodeSnippet} label="Python Code" />
+      <p>Option 3: Use a Batch Sequence to write data</p>
+      <CodeSnippet copyText={writingDataBatchCodeSnippet} label="Python Code" />
+      <h5>Execute a Flux query</h5>
+      <CodeSnippet copyText={executeQueryCodeSnippet} label="Python Code" />
     </ClientLibraryOverlay>
   )
 }

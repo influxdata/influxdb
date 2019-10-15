@@ -27,11 +27,17 @@ const ClientJSOverlay: FunctionComponent<{}> = () => {
       </p>
       <br />
       <h5>Initializing the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="Code" />
+      <CodeSnippet
+        copyText={initializeClientCodeSnippet}
+        label="JavaScript Code"
+      />
       <h5>Writing Data</h5>
-      <CodeSnippet copyText={writingDataLineProtocolCodeSnippet} label="Code" />
+      <CodeSnippet
+        copyText={writingDataLineProtocolCodeSnippet}
+        label="JavaScript Code"
+      />
       <h5>Example for executing a Flux query</h5>
-      <CodeSnippet copyText={executeQueryCodeSnippet} label="Code" />
+      <CodeSnippet copyText={executeQueryCodeSnippet} label="JavaScript Code" />
     </ClientLibraryOverlay>
   )
 }
