@@ -23,10 +23,9 @@ const ClientGoOverlay: FunctionComponent<{}> = () => {
           GitHub Repository
         </a>
       </p>
-      <br />
-      <h5>Initializing the Client</h5>
+      <h5>Initialize the Client</h5>
       <CodeSnippet copyText={initializeClientCodeSnippet} label="Go Code" />
-      <h5>Example Writing Data</h5>
+      <h5>Write Data</h5>
       <CodeSnippet copyText={writeDataCodeSnippet} label="Go Code" />
     </ClientLibraryOverlay>
   )

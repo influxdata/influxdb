@@ -28,7 +28,6 @@ const ClientJavaOverlay: FunctionComponent<{}> = () => {
           GitHub Repository
         </a>
       </p>
-      <br />
       <h5>Add Dependency</h5>
       <p>Build with Maven</p>
       <CodeSnippet copyText={buildWithMavenCodeSnippet} label="Code" />

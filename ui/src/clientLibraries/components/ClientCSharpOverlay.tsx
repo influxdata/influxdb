@@ -28,48 +28,33 @@ const ClientCSharpOverlay: FunctionComponent<{}> = () => {
           GitHub Repository
         </a>
       </p>
-      <br />
-      <h5>Installing Package</h5>
-      <p>
-        <b>Package Manager</b>
-      </p>
+      <h5>Install Package</h5>
+      <p>Package Manager</p>
       <CodeSnippet
         copyText={installingPackageManagerCodeSnippet}
         label="Code"
       />
-      <p>
-        <b>.NET CLI</b>
-      </p>
+      <p>.NET CLI</p>
       <CodeSnippet
         copyText={installingPackageDotNetCLICodeSnippet}
         label="Code"
       />
-      <p>
-        <b>Package Reference</b>
-      </p>
+      <p>Package Reference</p>
       <CodeSnippet copyText={packageReferenceCodeSnippet} label="Code" />
-      <h5>Initializing the Client</h5>
+      <h5>Initialize the Client</h5>
       <CodeSnippet copyText={initializeClientCodeSnippet} label="C# Code" />
-      <h5>Writing Data</h5>
-      <p>
-        <b>Option 1: Example for writing using InfluxDB Line Protocol</b>
-      </p>
+      <h5>Write Data</h5>
+      <p>Option 1: Use InfluxDB Line Protocol to write data</p>
       <CodeSnippet
         copyText={writingDataLineProtocolCodeSnippet}
         label="C# Code"
       />
-      <p>
-        <b>Option 2: Example for writing using a Data Point</b>
-      </p>
+      <p>Option 2: Use a Data Point to write data</p>
       <CodeSnippet copyText={writingDataDataPointCodeSnippet} label="C# Code" />
-      <p>
-        <b>
-          Option 3: Example for writing using a POCO and corresponding Class
-        </b>
-      </p>
+      <p>Option 3: Use POCO and corresponding Class to write data</p>
       <CodeSnippet copyText={writingDataPocoCodeSnippet} label="C# Code" />
       <CodeSnippet copyText={pocoClassCodeSnippet} label="C# Code" />
-      <h5>Example for executing a Flux query</h5>
+      <h5>Execute a Flux query</h5>
       <CodeSnippet copyText={executeQueryCodeSnippet} label="C# Code" />
     </ClientLibraryOverlay>
   )

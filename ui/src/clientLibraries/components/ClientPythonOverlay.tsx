@@ -28,7 +28,6 @@ const ClientPythonOverlay: FunctionComponent<{}> = () => {
           GitHub Repository
         </a>
       </p>
-      <br />
       <h5>Install Package</h5>
       <CodeSnippet copyText={initializePackageCodeSnippet} label="Code" />
       <h5>Initialize the Client</h5>
