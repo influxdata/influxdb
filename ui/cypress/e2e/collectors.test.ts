@@ -124,6 +124,8 @@ describe('Collectors', () => {
     })
 
     it('can filter telegraf configs correctly', () => {
+      // fixes issue #15246:
+      // https://github.com/influxdata/influxdb/issues/15246
       const firstTelegraf = 'test1'
       const secondTelegraf = 'test2'
       const thirdTelegraf = 'unicorn'
