@@ -35,8 +35,12 @@ func TestAnalyticalStore(t *testing.T) {
 				t.Fatalf("error initializing urm service: %v", err)
 			}
 
-			ab := newAnalyticalBackend(t, svc, svc)
-			svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), svc, svc, ab.PointsWriter(), ab.QueryService())
+			var (
+				ab       = newAnalyticalBackend(t, svc, svc)
+				logger   = zaptest.NewLogger(t)
+				rr       = backend.NewStoragePointsWriterRecorder(ab.PointsWriter(), logger)
+				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, rr, ab.QueryService())
+			)
 
 			go func() {
 				<-ctx.Done()
