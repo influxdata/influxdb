@@ -1,29 +1,22 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`MemberList rendering renders 1`] = `
-<ResourceList
-  testID="resource-list"
->
-  <ResourceListHeader
-    testID="resource-list--header"
-  >
+<ResourceList>
+  <ResourceListHeader>
     <ResourceListSorter
       name="Username"
       sort="none"
       sortKey="name"
-      testID="resource-list--sorter"
     />
     <ResourceListSorter
       name="Role"
       sort="none"
       sortKey="role"
-      testID="resource-list--sorter"
     />
   </ResourceListHeader>
   <ResourceListBody
     data-testid="members-list"
     emptyState={<React.Fragment />}
-    testID="resource-list--body"
   >
     <MemberCard
       key="1"

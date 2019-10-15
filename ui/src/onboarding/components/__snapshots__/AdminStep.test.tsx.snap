@@ -6,8 +6,6 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
 >
   <Form
     onSubmit={[Function]}
-    preventDefault={true}
-    testID="form-container"
   >
     <div
       className="wizard-step--scroll-area"
@@ -27,62 +25,42 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
         >
           You will be able to create additional Users, Buckets and Organizations later
         </h5>
-        <Grid
-          testID="grid"
-        >
-          <GridRow
-            testID="grid--row"
-          >
+        <Grid>
+          <GridRow>
             <GridColumn
               offsetMD={1}
-              testID="grid--column"
               widthMD={10}
               widthXS={12}
             >
               <FormElement
                 label="Username"
-                testID="form--element"
               >
                 <Input
                   autoFocus={true}
-                  autocomplete="off"
                   disabledTitleText="Username has been set"
                   icon={null}
-                  name=""
                   onChange={[Function]}
-                  placeholder=""
-                  required={false}
                   size="md"
-                  spellCheck={false}
                   status="default"
                   testID="input-field--username"
                   titleText="Username"
-                  type="text"
                   value=""
                 />
               </FormElement>
             </GridColumn>
             <GridColumn
               offsetMD={1}
-              testID="grid--column"
               widthMD={5}
               widthXS={6}
             >
               <FormElement
                 label="Password"
-                testID="form--element"
               >
                 <Input
-                  autoFocus={false}
-                  autocomplete="off"
                   disabledTitleText="Password has been set"
                   icon={null}
-                  name=""
                   onChange={[Function]}
-                  placeholder=""
-                  required={false}
                   size="md"
-                  spellCheck={false}
                   status="default"
                   testID="input-field--password"
                   titleText="Password"
@@ -92,26 +70,18 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
               </FormElement>
             </GridColumn>
             <GridColumn
-              testID="grid--column"
               widthMD={5}
               widthXS={6}
             >
               <FormElement
                 errorMessage={false}
                 label="Confirm Password"
-                testID="form--element"
               >
                 <Input
-                  autoFocus={false}
-                  autocomplete="off"
                   disabledTitleText="password has been set"
                   icon={null}
-                  name=""
                   onChange={[Function]}
-                  placeholder=""
-                  required={false}
                   size="md"
-                  spellCheck={false}
                   status="default"
                   testID="input-field--password-chk"
                   titleText="Confirm Password"
@@ -122,7 +92,6 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
             </GridColumn>
             <GridColumn
               offsetMD={1}
-              testID="grid--column"
               widthMD={10}
               widthXS={12}
             >
@@ -132,27 +101,20 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 testID="form-elem--orgname"
               >
                 <Input
-                  autoFocus={false}
-                  autocomplete="off"
                   disabledTitleText="Initial organization name has been set"
                   icon={null}
-                  name=""
                   onChange={[Function]}
                   placeholder="An organization is a workspace for a group of users."
-                  required={false}
                   size="md"
-                  spellCheck={false}
                   status="default"
                   testID="input-field--orgname"
                   titleText="Initial Organization Name"
-                  type="text"
                   value=""
                 />
               </FormElement>
             </GridColumn>
             <GridColumn
               offsetMD={1}
-              testID="grid--column"
               widthMD={10}
               widthXS={12}
             >
@@ -162,20 +124,14 @@ exports[`Onboarding.Components.AdminStep renders 1`] = `
                 testID="form-elem--bucketname"
               >
                 <Input
-                  autoFocus={false}
-                  autocomplete="off"
                   disabledTitleText="Initial bucket name has been set"
                   icon={null}
-                  name=""
                   onChange={[Function]}
                   placeholder="A bucket is where your time series data is stored with a retention policy."
-                  required={false}
                   size="md"
-                  spellCheck={false}
                   status="default"
                   testID="input-field--bucketname"
                   titleText="Initial Bucket Name"
-                  type="text"
                   value=""
                 />
               </FormElement>
