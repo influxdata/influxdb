@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -238,6 +239,18 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Flag:  "vault-tls-server-name",
 			Desc:  "name to use as the SNI host when connecting via TLS.",
 		},
+		{
+			DestP:   &l.httpTlsCert,
+			Flag:    "tls-cert",
+			Default: "",
+			Desc:    "TLS certificate for HTTPs",
+		},
+		{
+			DestP:   &l.httpTlsKey,
+			Flag:    "tls-key",
+			Default: "",
+			Desc:    "TLS key for HTTPs",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -273,8 +286,10 @@ type Launcher struct {
 
 	queryController *control.Controller
 
-	httpPort   int
-	httpServer *nethttp.Server
+	httpPort    int
+	httpServer  *nethttp.Server
+	httpTlsCert string
+	httpTlsKey  string
 
 	natsServer *nats.Server
 	natsPort   int
@@ -776,6 +791,23 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
+	var cer tls.Certificate
+	transport := "http"
+
+	if m.httpTlsCert != "" && m.httpTlsKey != "" {
+		var err error
+		cer, err = tls.LoadX509KeyPair(m.httpTlsCert, m.httpTlsKey)
+
+		if err != nil {
+			httpLogger.Error("failed to load x509 key pair", zap.Error(err))
+			httpLogger.Info("Stopping")
+			return err
+		}
+		transport = "https"
+
+		m.httpServer.TLSConfig = &tls.Config{}
+	}
+
 	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
 		m.httpPort = addr.Port
 	}
@@ -783,10 +815,16 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.wg.Add(1)
 	go func(logger *zap.Logger) {
 		defer m.wg.Done()
-		logger.Info("Listening", zap.String("transport", "http"), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
+		logger.Info("Listening", zap.String("transport", transport), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
 
-		if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
-			logger.Error("failed http service", zap.Error(err))
+		if cer.Certificate != nil {
+			if err := m.httpServer.ServeTLS(ln, m.httpTlsCert, m.httpTlsKey); err != nethttp.ErrServerClosed {
+				logger.Error("failed https service", zap.Error(err))
+			}
+		} else {
+			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
+				logger.Error("failed http service", zap.Error(err))
+			}
 		}
 		logger.Info("Stopping")
 	}(httpLogger)
