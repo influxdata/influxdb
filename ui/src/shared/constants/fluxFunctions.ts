@@ -2450,7 +2450,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/logb/',
   },
   {
-    name: 'math.m_inf',
+    name: 'math.mInf',
     args: [
       {
         name: 'sign',
@@ -2461,13 +2461,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: 'math',
     desc:
       'Returns positive infinity if `sign >= 0`, negative infinity if `sign < 0`.',
-    example: 'math.m_inf(sign: r._value)',
+    example: 'math.mInf(sign: r._value)',
     category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/m_inf/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/minf/',
   },
   {
-    name: 'math.m_max',
+    name: 'math.mMax',
     args: [
       {
         name: 'x',
@@ -2482,13 +2482,13 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'math',
     desc: 'Returns the larger of x or y.',
-    example: 'math.m_max(x: r.x_value, y: r.y_value)',
+    example: 'math.mMax(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/m_max/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/mmax/',
   },
   {
-    name: 'math.m_min',
+    name: 'math.mMin',
     args: [
       {
         name: 'x',
@@ -2503,10 +2503,10 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'math',
     desc: 'Returns the smaller of x or y.',
-    example: 'math.m_min(x: r.x_value, y: r.y_value)',
+    example: 'math.mMin(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
     link:
-      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/m_min/',
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/math/mmin/',
   },
   {
     name: 'math.mod',
