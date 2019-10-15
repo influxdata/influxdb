@@ -1,9 +1,10 @@
 // Libraries
-import React, {FunctionComponent, createRef, RefObject} from 'react'
+import React, {FunctionComponent, useRef, RefObject} from 'react'
 
 // Components
 import {
   SquareButton,
+  ButtonRef,
   ComponentColor,
   ComponentSize,
   ComponentStatus,
@@ -32,9 +33,20 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
   singleField,
   singleAggregateFunc,
 }) => {
-  const triggerRef: RefObject<HTMLButtonElement> = createRef()
+  const triggerRef: RefObject<ButtonRef> = useRef(null)
+
   return (
     <>
+      <SquareButton
+        ref={triggerRef}
+        className={className}
+        icon={IconFont.Checkmark}
+        color={ComponentColor.Success}
+        size={ComponentSize.Small}
+        status={status}
+        onClick={onSave}
+        testID="save-cell--button"
+      />
       <Popover
         visible={status !== ComponentStatus.Default}
         position={PopoverPosition.Below}
@@ -58,16 +70,6 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
             </ul>
           </div>
         )}
-      />
-      <SquareButton
-        ref={triggerRef}
-        className={className}
-        icon={IconFont.Checkmark}
-        color={ComponentColor.Success}
-        size={ComponentSize.Small}
-        status={status}
-        onClick={onSave}
-        testID="save-cell--button"
       />
     </>
   )
