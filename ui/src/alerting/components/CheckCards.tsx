@@ -119,10 +119,13 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
 
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-      <EmptyState.Text
-        text="Looks like you have not created a Check  yet LINEBREAK LINEBREAK You will need one to be notified about LINEBREAK any changes in system status"
-        highlightWords={['Check']}
-      />
+      <EmptyState.Text>
+        Looks like you have not created a <b>Check</b> yet
+        <br />
+        <br />
+        You will need one to be notified about
+        <br /> any changes in system status
+      </EmptyState.Text>
     </EmptyState>
   )
 }
