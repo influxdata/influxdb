@@ -18,7 +18,6 @@ type Props = OwnProps & WithRouterProps
 
 const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
   const clientLibrariesCount = clientLibraries.length
-
   return (
     <Grid>
       <Grid.Row>
