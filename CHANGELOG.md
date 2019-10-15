@@ -9,6 +9,7 @@
 1. [15306](https://github.com/influxdata/influxdb/pull/15306): Added missing string values for CacheStatus type
 1. [15348](https://github.com/influxdata/influxdb/pull/15348): Disable saving for threshold check if no threshold selected
 1. [15354](https://github.com/influxdata/influxdb/pull/15354): Query variable selector shows variable keys, not values
+1. [15246](https://github.com/influxdata/influxdb/pull/15427): UI/Telegraf filter functionality shows results based on input name
 
 ## v2.0.0-alpha.18 [2019-09-26]
 
