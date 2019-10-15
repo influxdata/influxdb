@@ -40,12 +40,6 @@ func (s PagerDuty) Valid() error {
 	if err := s.Base.valid(); err != nil {
 		return err
 	}
-	if s.ClientURL == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "pagerduty endpoint ClientURL is empty",
-		}
-	}
 	if s.RoutingKey.Key != s.ID.String()+routingKeySuffix {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
