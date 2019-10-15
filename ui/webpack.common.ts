@@ -13,8 +13,8 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'build'),
     publicPath: BASE_PATH,
-    webassemblyModuleFilename: `${STATIC_DIRECTORY}[modulehash:10].wasm`,
-    sourceMapFilename: `${STATIC_DIRECTORY}[name].js.map`,
+    webassemblyModuleFilename: `${STATIC_DIRECTORY}/[modulehash:10].wasm`,
+    sourceMapFilename: `${STATIC_DIRECTORY}/[name].js.map`,
   },
   entry: {
     app: './src/bootstrap.ts',
@@ -47,7 +47,7 @@ module.exports = {
         use: [{
           loader: 'file-loader',
           options: {
-            name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`
+            name: `${STATIC_DIRECTORY}/[contenthash:10].[ext]`
           }
         }],
       },
@@ -56,7 +56,7 @@ module.exports = {
         use: [{
           loader: 'file-loader',
           options: {
-            name: `${STATIC_DIRECTORY}[contenthash:10].[ext]`
+            name: `${STATIC_DIRECTORY}/[contenthash:10].[ext]`
           }
         }],
       },
