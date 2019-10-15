@@ -99,8 +99,6 @@ import OverlayHandler, {
 const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note')
 const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note')
 
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
-
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
 
