@@ -43,20 +43,23 @@ const EmptyEndpointList: FC<{searchTerm: string}> = ({searchTerm}) => {
   if (searchTerm) {
     return (
       <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-        <EmptyState.Text
-          text="No endpoints  match your search"
-          highlightWords={['endpoints']}
-        />
+        <EmptyState.Text>
+          "No <b>endpoints</b> match your search
+        </EmptyState.Text>
       </EmptyState>
     )
   }
 
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-      <EmptyState.Text
-        text="Want to send notifications to Slack, LINEBREAK PagerDuty or an HTTP server? LINEBREAK LINEBREAK Try creating a Notification  Endpoint"
-        highlightWords={['Notification', 'Endpoint']}
-      />
+      <EmptyState.Text>
+        Want to send notifications to Slack,
+        <br />
+        PagerDuty or an HTTP server?
+        <br />
+        <br />
+        Try creating a <b>Notification Endpoint</b>
+      </EmptyState.Text>
     </EmptyState>
   )
 }

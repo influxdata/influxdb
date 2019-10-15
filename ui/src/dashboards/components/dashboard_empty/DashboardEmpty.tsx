@@ -22,11 +22,9 @@ class DashboardEmpty extends Component<Props> {
     return (
       <div className="dashboard-empty">
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text="This Dashboard doesn't have any Cells , why not add
-          one?"
-            highlightWords={['Cells']}
-          />
+          <EmptyState.Text>
+            This Dashboard doesn't have any <b>Cells</b>, why not add one?
+          </EmptyState.Text>
           <Button
             text="Add Cell"
             size={ComponentSize.Medium}

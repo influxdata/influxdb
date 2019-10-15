@@ -45,7 +45,7 @@ class TemplateBrowserDetails extends PureComponent<Props> {
     if (!selectedTemplateSummary) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text text="Select a Template from the left" />
+          <EmptyState.Text>Select a Template from the left</EmptyState.Text>
         </EmptyState>
       )
     }

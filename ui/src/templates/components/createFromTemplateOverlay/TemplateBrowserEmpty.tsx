@@ -25,10 +25,10 @@ class TemplateBrowserEmpty extends PureComponent<Props> {
     return (
       <div className="import-template-overlay--empty">
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text="Looks like you don't have any Templates  yet, why not import one?"
-            highlightWords={['Templates']}
-          />
+          <EmptyState.Text>
+            Looks like you don't have any <b>Templates</b> yet, why not import
+            one?
+          </EmptyState.Text>
           <Button
             size={ComponentSize.Medium}
             text="Go to Templates Settings"

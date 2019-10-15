@@ -82,10 +82,9 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
   if (searchTerm) {
     return (
       <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-        <EmptyState.Text
-          text="No checks  match your search"
-          highlightWords={['checks']}
-        />
+        <EmptyState.Text>
+          No <b>checks</b> match your search
+        </EmptyState.Text>
       </EmptyState>
     )
   }

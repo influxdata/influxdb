@@ -137,7 +137,7 @@ class StreamingSelector extends PureComponent<Props, State> {
     if (searchTerm && noMatches) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text text="No plugins match your search" />
+          <EmptyState.Text>No plugins match your search</EmptyState.Text>
         </EmptyState>
       )
     }

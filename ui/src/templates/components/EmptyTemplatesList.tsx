@@ -24,10 +24,9 @@ const EmptyTemplatesList: FunctionComponent<Props> = ({
   if (searchTerm === '') {
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text
-          text={"Looks like you don't have any Templates, why not create one?"}
-          highlightWords={['Templates']}
-        />
+        <EmptyState.Text>
+          Looks like you don't have any <b>Templates</b>, why not create one?
+        </EmptyState.Text>
         <Button
           text="Import Template"
           icon={IconFont.Plus}
@@ -40,7 +39,7 @@ const EmptyTemplatesList: FunctionComponent<Props> = ({
 
   return (
     <EmptyState size={ComponentSize.Large}>
-      <EmptyState.Text text="No Templates match your search term" />
+      <EmptyState.Text>No Templates match your search term</EmptyState.Text>
     </EmptyState>
   )
 }

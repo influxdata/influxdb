@@ -210,10 +210,10 @@ class Collectors extends PureComponent<Props, State> {
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text
-            text={`${orgName} does not own any Telegraf  Configurations, why not create one?`}
-            highlightWords={['Telegraf', 'Configurations']}
-          />
+          <EmptyState.Text>
+            {`${orgName}`} does not own any <b>Telegraf Configurations</b>, why
+            not create one?
+          </EmptyState.Text>
           {this.createButton}
         </EmptyState>
       )
@@ -221,10 +221,9 @@ class Collectors extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text
-          text="No Telegraf  Configurations  match your query"
-          highlightWords={['Telegraf', 'Configurations']}
-        />
+        <EmptyState.Text>
+          No <b>Telegraf Configurations</b> match your query
+        </EmptyState.Text>
       </EmptyState>
     )
   }
