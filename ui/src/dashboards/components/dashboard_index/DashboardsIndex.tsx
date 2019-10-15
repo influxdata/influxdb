@@ -78,10 +78,10 @@ class DashboardIndex extends PureComponent<Props, State> {
       <>
         <Page titleTag={pageTitleSuffixer(['Dashboards'])}>
           <Page.Header fullWidth={false}>
-            <Page.Header.Left>
+            <Page.HeaderLeft>
               <PageTitleWithOrg title="Dashboards" />
-            </Page.Header.Left>
-            <Page.Header.Right>
+            </Page.HeaderLeft>
+            <Page.HeaderRight>
               <AddResourceDropdown
                 onSelectNew={createDashboard}
                 onSelectImport={this.summonImportOverlay}
@@ -90,7 +90,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 canImportFromTemplate={true}
                 status={this.addResourceStatus}
               />
-            </Page.Header.Right>
+            </Page.HeaderRight>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <GetResources resource={ResourceType.Dashboards}>

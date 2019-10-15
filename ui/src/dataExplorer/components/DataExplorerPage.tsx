@@ -21,16 +21,16 @@ const DataExplorerPage: SFC = ({children}) => {
       {children}
       <GetResources resource={ResourceType.Variables}>
         <Page.Header fullWidth={true}>
-          <Page.Header.Left>
+          <Page.HeaderLeft>
             <PageTitleWithOrg title="Data Explorer" />
-          </Page.Header.Left>
-          <Page.Header.Right>
+          </Page.HeaderLeft>
+          <Page.HeaderRight>
             <DeleteDataButton />
             <TimeZoneDropdown />
             <ViewTypeDropdown />
             <VisOptionsButton />
             <SaveAsButton />
-          </Page.Header.Right>
+          </Page.HeaderRight>
         </Page.Header>
         <Page.Contents fullWidth={true} scrollable={false}>
           <DataExplorer />
