@@ -92,8 +92,8 @@ func newMockServices() mockedSvc {
 				c.SetID(id)
 				return c, nil
 			},
-			CreateCheckFn: func(context.Context, influxdb.Check, influxdb.ID) error { return nil },
-			UpdateCheckFn: func(_ context.Context, _ influxdb.ID, c influxdb.Check) (influxdb.Check, error) { return c, nil },
+			CreateCheckFn: func(context.Context, influxdb.CheckCreate, influxdb.ID) error { return nil },
+			UpdateCheckFn: func(_ context.Context, _ influxdb.ID, c influxdb.CheckCreate) (influxdb.Check, error) { return c, nil },
 			PatchCheckFn: func(_ context.Context, id influxdb.ID, _ influxdb.CheckUpdate) (influxdb.Check, error) {
 				c := &check.Deadman{}
 				c.SetID(id)
@@ -107,8 +107,8 @@ func newMockServices() mockedSvc {
 				c.SetID(id)
 				return c, nil
 			},
-			CreateNotificationRuleF: func(context.Context, influxdb.NotificationRule, influxdb.ID) error { return nil },
-			UpdateNotificationRuleF: func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRule, _ influxdb.ID) (influxdb.NotificationRule, error) {
+			CreateNotificationRuleF: func(context.Context, influxdb.NotificationRuleCreate, influxdb.ID) error { return nil },
+			UpdateNotificationRuleF: func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRuleCreate, _ influxdb.ID) (influxdb.NotificationRule, error) {
 				return c, nil
 			},
 			PatchNotificationRuleF: func(_ context.Context, id influxdb.ID, _ influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
@@ -134,7 +134,12 @@ func TestCheckCreate(t *testing.T) {
 	check := &check.Deadman{}
 	check.SetTaskID(4)
 
-	err := checkService.CreateCheck(context.Background(), check, 1)
+	cc := influxdb.CheckCreate{
+		Check:  check,
+		Status: influxdb.Active,
+	}
+
+	err := checkService.CreateCheck(context.Background(), cc, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +156,7 @@ func TestCheckCreate(t *testing.T) {
 	mocks.pipingCoordinator.err = fmt.Errorf("bad")
 	mocks.checkSvc.DeleteCheckFn = func(context.Context, influxdb.ID) error { return fmt.Errorf("AARGH") }
 
-	err = checkService.CreateCheck(context.Background(), check, 1)
+	err = checkService.CreateCheck(context.Background(), cc, 1)
 	if err.Error() != "schedule task failed: bad\n\tcleanup also failed: AARGH" {
 		t.Fatal(err)
 	}
@@ -165,9 +170,8 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 	}
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
 
-	mocks.checkSvc.UpdateCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.Check) (influxdb.Check, error) {
+	mocks.checkSvc.UpdateCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.CheckCreate) (influxdb.Check, error) {
 		c.SetTaskID(10)
-		c.SetStatus(influxdb.Active)
 		c.SetUpdatedAt(latest.Add(-20 * time.Hour))
 		return c, nil
 	}
@@ -175,7 +179,6 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 	mocks.checkSvc.PatchCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.CheckUpdate) (influxdb.Check, error) {
 		ic := &check.Deadman{}
 		ic.SetTaskID(10)
-		ic.SetStatus(influxdb.Active)
 		ic.SetUpdatedAt(latest.Add(-20 * time.Hour))
 		return ic, nil
 	}
@@ -184,7 +187,6 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 		c := &check.Deadman{}
 		c.SetID(id)
 		c.SetTaskID(1)
-		c.SetStatus(influxdb.TaskStatusInactive)
 		return c, nil
 	}
 
@@ -199,9 +201,13 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 
 	deadman := &check.Deadman{}
 	deadman.SetTaskID(10)
-	deadman.SetStatus(influxdb.Active)
 
-	thecheck, err := checkService.UpdateCheck(context.Background(), 1, deadman)
+	cc := influxdb.CheckCreate{
+		Check:  deadman,
+		Status: influxdb.Active,
+	}
+
+	thecheck, err := checkService.UpdateCheck(context.Background(), 1, cc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +246,7 @@ func TestCheckUpdate(t *testing.T) {
 	mocks, checkService := newCheckSvcStack()
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
 
-	mocks.checkSvc.UpdateCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.Check) (influxdb.Check, error) {
+	mocks.checkSvc.UpdateCheckFn = func(_ context.Context, _ influxdb.ID, c influxdb.CheckCreate) (influxdb.Check, error) {
 		c.SetTaskID(10)
 		return c, nil
 	}
@@ -248,7 +254,12 @@ func TestCheckUpdate(t *testing.T) {
 	deadman := &check.Deadman{}
 	deadman.SetTaskID(4)
 
-	check, err := checkService.UpdateCheck(context.Background(), 1, deadman)
+	cc := influxdb.CheckCreate{
+		Check:  deadman,
+		Status: influxdb.Active,
+	}
+
+	check, err := checkService.UpdateCheck(context.Background(), 1, cc)
 	if err != nil {
 		t.Fatal(err)
 	}

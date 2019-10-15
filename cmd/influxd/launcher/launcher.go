@@ -569,7 +569,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 
 		taskSvc = middleware.New(combinedTaskService, coordinator)
-		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc, bucketSvc)
+		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
 		m.taskControlService = combinedTaskService
 	}
 
@@ -711,6 +711,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
+	if logconf.Level == zap.DebugLevel {
+		h.Handler = http.LoggingMW(httpLogger)(h.Handler)
+	}
 	h.Logger = httpLogger
 
 	m.httpServer.Handler = h

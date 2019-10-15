@@ -17,10 +17,11 @@ import {dashboardsReducer} from 'src/dashboards/reducers/dashboards'
 import viewsReducer from 'src/dashboards/reducers/views'
 import {timeMachinesReducer} from 'src/timeMachine/reducers'
 import orgsReducer from 'src/organizations/reducers/orgs'
+import overlaysReducer from 'src/overlays/reducers/overlays'
 import onboardingReducer from 'src/onboarding/reducers'
 import noteEditorReducer from 'src/dashboards/reducers/notes'
 import dataLoadingReducer from 'src/dataLoaders/reducers'
-import {variablesReducer} from 'src/variables/reducers'
+import {variablesReducer, variableEditorReducer} from 'src/variables/reducers'
 import {labelsReducer} from 'src/labels/reducers'
 import {bucketsReducer} from 'src/buckets/reducers'
 import {telegrafsReducer} from 'src/telegrafs/reducers'
@@ -51,11 +52,13 @@ export const rootReducer = combineReducers<ReducerState>({
   views: viewsReducer,
   tasks: tasksReducer,
   orgs: orgsReducer,
+  overlays: overlaysReducer,
   me: meReducer,
   onboarding: onboardingReducer,
   noteEditor: noteEditorReducer,
   dataLoading: dataLoadingReducer,
   variables: variablesReducer,
+  variableEditor: variableEditorReducer,
   labels: labelsReducer,
   buckets: bucketsReducer,
   telegrafs: telegrafsReducer,

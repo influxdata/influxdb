@@ -4,47 +4,30 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
 
 // Components
-import VariableForm from 'src/variables/components/VariableForm'
-
-// Utils
-import {createVariable} from 'src/variables/actions'
-import {extractVariablesList} from 'src/variables/selectors'
+import VariableFormContext from 'src/variables/components/VariableFormContext'
 
 // Types
 import {AppState} from 'src/types'
 import {getActiveQuery} from 'src/timeMachine/selectors'
-import {IVariable as Variable} from '@influxdata/influx'
 
 interface OwnProps {
   onHideOverlay: () => void
 }
 
-interface DispatchProps {
-  onCreateVariable: typeof createVariable
-}
-
 interface StateProps {
   initialScript?: string
-  variables: Variable[]
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+type Props = StateProps & OwnProps
 
 class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
   render() {
-    const {
-      onHideOverlay,
-      onCreateVariable,
-      initialScript,
-      variables,
-    } = this.props
+    const {initialScript, onHideOverlay} = this.props
 
     return (
-      <VariableForm
-        onHideOverlay={onHideOverlay}
-        onCreateVariable={onCreateVariable}
+      <VariableFormContext
         initialScript={initialScript}
-        variables={variables}
+        onHideOverlay={onHideOverlay}
       />
     )
   }
@@ -52,19 +35,13 @@ class SaveAsVariable extends PureComponent<Props & WithRouterProps> {
 
 const mstp = (state: AppState): StateProps => {
   const activeQuery = getActiveQuery(state)
-  const variables = extractVariablesList(state)
 
   return {
     initialScript: activeQuery.text,
-    variables,
   }
 }
 
-const mdtp = {
-  onCreateVariable: createVariable,
-}
-
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, {}, OwnProps>(
   mstp,
-  mdtp
+  null
 )(withRouter<Props>(SaveAsVariable))

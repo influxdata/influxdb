@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	_ "net/http/pprof" // used for debug pprof at the default path.
 	"strings"
@@ -101,7 +100,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func(start time.Time) {
 		duration := time.Since(start)
 		statusClass := statusW.statusCodeClass()
-		statusCode := statusW.code()
 		h.requests.With(prometheus.Labels{
 			"handler":    h.name,
 			"method":     r.Method,
@@ -116,26 +114,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"status":     statusClass,
 			"user_agent": userAgent,
 		}).Observe(duration.Seconds())
-		if h.Logger != nil {
-			errField := zap.Skip()
-			if errStr := w.Header().Get(PlatformErrorCodeHeader); errStr != "" {
-				errField = zap.Error(errors.New(errStr))
-			}
-			errReferenceField := zap.Skip()
-			if errReference := w.Header().Get(PlatformErrorCodeHeader); errReference != "" {
-				errReferenceField = zap.String("error_code", PlatformErrorCodeHeader)
-			}
-
-			h.Logger.Debug("Request",
-				zap.String("handler", h.name),
-				zap.String("method", r.Method),
-				zap.String("path", r.URL.Path),
-				zap.Int("status", statusCode),
-				zap.Int("duration_ns", int(duration)),
-				errField,
-				errReferenceField,
-			)
-		}
 	}(time.Now())
 
 	switch {

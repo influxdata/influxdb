@@ -16,8 +16,8 @@ type CheckService struct {
 	FindCheckByIDFn func(context.Context, influxdb.ID) (influxdb.Check, error)
 	FindCheckFn     func(context.Context, influxdb.CheckFilter) (influxdb.Check, error)
 	FindChecksFn    func(context.Context, influxdb.CheckFilter, ...influxdb.FindOptions) ([]influxdb.Check, int, error)
-	CreateCheckFn   func(context.Context, influxdb.Check, influxdb.ID) error
-	UpdateCheckFn   func(context.Context, influxdb.ID, influxdb.Check) (influxdb.Check, error)
+	CreateCheckFn   func(context.Context, influxdb.CheckCreate, influxdb.ID) error
+	UpdateCheckFn   func(context.Context, influxdb.ID, influxdb.CheckCreate) (influxdb.Check, error)
 	PatchCheckFn    func(context.Context, influxdb.ID, influxdb.CheckUpdate) (influxdb.Check, error)
 	DeleteCheckFn   func(context.Context, influxdb.ID) error
 }
@@ -31,8 +31,8 @@ func NewCheckService() *CheckService {
 		FindChecksFn: func(context.Context, influxdb.CheckFilter, ...influxdb.FindOptions) ([]influxdb.Check, int, error) {
 			return nil, 0, nil
 		},
-		CreateCheckFn: func(context.Context, influxdb.Check, influxdb.ID) error { return nil },
-		UpdateCheckFn: func(context.Context, influxdb.ID, influxdb.Check) (influxdb.Check, error) { return nil, nil },
+		CreateCheckFn: func(context.Context, influxdb.CheckCreate, influxdb.ID) error { return nil },
+		UpdateCheckFn: func(context.Context, influxdb.ID, influxdb.CheckCreate) (influxdb.Check, error) { return nil, nil },
 		PatchCheckFn:  func(context.Context, influxdb.ID, influxdb.CheckUpdate) (influxdb.Check, error) { return nil, nil },
 		DeleteCheckFn: func(context.Context, influxdb.ID) error { return nil },
 	}
@@ -54,12 +54,12 @@ func (s *CheckService) FindChecks(ctx context.Context, filter influxdb.CheckFilt
 }
 
 // CreateCheck creates a new check and sets b.ID with the new identifier.
-func (s *CheckService) CreateCheck(ctx context.Context, check influxdb.Check, userID influxdb.ID) error {
+func (s *CheckService) CreateCheck(ctx context.Context, check influxdb.CheckCreate, userID influxdb.ID) error {
 	return s.CreateCheckFn(ctx, check, userID)
 }
 
 // UpdateCheck updates everything except id orgID.
-func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, chk influxdb.Check) (influxdb.Check, error) {
+func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 	return s.UpdateCheckFn(ctx, id, chk)
 }
 

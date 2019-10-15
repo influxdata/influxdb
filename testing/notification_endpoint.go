@@ -455,6 +455,7 @@ func FindNotificationEndpoints(
 ) {
 	type args struct {
 		filter influxdb.NotificationEndpointFilter
+		opts   influxdb.FindOptions
 	}
 
 	type wants struct {
@@ -694,6 +695,168 @@ func FindNotificationEndpoints(
 			},
 		},
 		{
+			name: "find options limit",
+			fields: NotificationEndpointFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				NotificationEndpoints: []influxdb.NotificationEndpoint{
+					&endpoint.Slack{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(oneID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp1",
+						},
+						URL:   "example-slack.com",
+						Token: influxdb.SecretField{Key: oneID + "-token"},
+					},
+					&endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(twoID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp2",
+						},
+						URL:        "example-webhook.com",
+						Method:     http.MethodGet,
+						AuthMethod: "none",
+					},
+					&endpoint.PagerDuty{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(fourID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp3",
+						},
+						ClientURL:  "example-pagerduty.com",
+						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationEndpointFilter{
+					Org: strPtr("org4"),
+				},
+				opts: influxdb.FindOptions{
+					Limit: 2,
+				},
+			},
+			wants: wants{
+				notificationEndpoints: []influxdb.NotificationEndpoint{
+					&endpoint.Slack{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(oneID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp1",
+						},
+						URL:   "example-slack.com",
+						Token: influxdb.SecretField{Key: oneID + "-token"},
+					},
+					&endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(twoID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp2",
+						},
+						URL:        "example-webhook.com",
+						Method:     http.MethodGet,
+						AuthMethod: "none",
+					},
+				},
+			},
+		},
+		{
+			name: "find options offset",
+			fields: NotificationEndpointFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				NotificationEndpoints: []influxdb.NotificationEndpoint{
+					&endpoint.Slack{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(oneID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp1",
+						},
+						URL:   "example-slack.com",
+						Token: influxdb.SecretField{Key: oneID + "-token"},
+					},
+					&endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(twoID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp2",
+						},
+						URL:        "example-webhook.com",
+						Method:     http.MethodGet,
+						AuthMethod: "none",
+					},
+					&endpoint.PagerDuty{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(fourID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp3",
+						},
+						ClientURL:  "example-pagerduty.com",
+						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationEndpointFilter{
+					Org: strPtr("org4"),
+				},
+				opts: influxdb.FindOptions{
+					Offset: 1,
+				},
+			},
+			wants: wants{
+				notificationEndpoints: []influxdb.NotificationEndpoint{
+					&endpoint.HTTP{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(twoID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp2",
+						},
+						URL:        "example-webhook.com",
+						Method:     http.MethodGet,
+						AuthMethod: "none",
+					},
+					&endpoint.PagerDuty{
+						Base: endpoint.Base{
+							ID:     MustIDBase16(fourID),
+							OrgID:  MustIDBase16(fourID),
+							Status: influxdb.Active,
+							Name:   "edp3",
+						},
+						ClientURL:  "example-pagerduty.com",
+						RoutingKey: influxdb.SecretField{Key: fourID + "-routing-key"},
+					},
+				},
+			},
+		},
+		{
 			name: "find by id",
 			fields: NotificationEndpointFields{
 				Orgs: []*influxdb.Organization{
@@ -876,7 +1039,7 @@ func FindNotificationEndpoints(
 			defer done()
 			ctx := context.Background()
 
-			edps, n, err := s.FindNotificationEndpoints(ctx, tt.args.filter)
+			edps, n, err := s.FindNotificationEndpoints(ctx, tt.args.filter, tt.args.opts)
 			ErrorsEqual(t, err, tt.wants.err)
 			if n != len(tt.wants.notificationEndpoints) {
 				t.Fatalf("notification endpoints length is different got %d, want %d", n, len(tt.wants.notificationEndpoints))

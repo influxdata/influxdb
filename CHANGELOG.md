@@ -1,8 +1,23 @@
-## v2.0.0-alpha.18 [unreleased]
+
+## v2.0.0-alpha.19 [unreleased]
+
+### Features
+1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
+
+### Bug Fixes
+1. [15295](https://github.com/influxdata/influxdb/pull/15295): Ensures users are created with an active status
+1. [15306](https://github.com/influxdata/influxdb/pull/15306): Added missing string values for CacheStatus type
+1. [15348](https://github.com/influxdata/influxdb/pull/15348): Disable saving for threshold check if no threshold selected
+1. [15354](https://github.com/influxdata/influxdb/pull/15354): Query variable selector shows variable keys, not values
+1. [15246](https://github.com/influxdata/influxdb/pull/15427): UI/Telegraf filter functionality shows results based on input name
+
+## v2.0.0-alpha.18 [2019-09-26]
 
 ### Features
 
 1. [15151](https://github.com/influxdata/influxdb/pull/15151): Add jsonweb package for future JWT support
+1. [15168](https://github.com/influxdata/influxdb/pull/15168): Added the JMeter Template dashboard
+1. [15152](https://github.com/influxdata/influxdb/pull/15152): Add JWT support to http auth middleware
 
 ### UI Improvements
 
@@ -15,6 +30,7 @@
 1. [15040](https://github.com/influxdata/influxdb/pull/15040): Redesign check builder UI to fill the screen and make more room for composing message templates
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Move Tokens tab from Settings to Load Data page
 1. [14990](https://github.com/influxdata/influxdb/pull/14990): Expose all Settings tabs in navigation menu
+1. [15289](https://github.com/influxdata/influxdb/pull/15289): Added Stream and table functions to query builder
 
 ### Bug Fixes
 

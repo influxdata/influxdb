@@ -50,8 +50,6 @@ func NewLabelHandler(s influxdb.LabelService, he influxdb.HTTPErrorHandler) *Lab
 // handlePostLabel is the HTTP handler for the POST /api/v2/labels route.
 func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label create request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePostLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -110,8 +108,6 @@ func decodePostLabelRequest(ctx context.Context, r *http.Request) (*postLabelReq
 // handleGetLabels is the HTTP handler for the GET /api/v2/labels route.
 func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("labels retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetLabelsRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -153,8 +149,6 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 // handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
 func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -201,8 +195,6 @@ func decodeGetLabelRequest(ctx context.Context, r *http.Request) (*getLabelReque
 // handleDeleteLabel is the HTTP handler for the DELETE /api/v2/labels/:id route.
 func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label delete request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -245,8 +237,6 @@ func decodeDeleteLabelRequest(ctx context.Context, r *http.Request) (*deleteLabe
 // handlePatchLabel is the HTTP handler for the PATCH /api/v2/labels route.
 func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("label update request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchLabelRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -573,7 +563,10 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 
 // FindResourceLabels returns a list of labels, derived from a label mapping filter.
 func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
-	url, err := NewURL(s.Addr, resourceIDPath(s.BasePath, filter.ResourceID))
+	if err := filter.Valid(); err != nil {
+		return nil, err
+	}
+	url, err := NewURL(s.Addr, resourceIDPath(filter.ResourceType, filter.ResourceID, "labels"))
 	if err != nil {
 		return nil, err
 	}
@@ -646,12 +639,13 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 	return nil
 }
 
+// CreateLabelMapping will create a labbel mapping
 func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
 	if err := m.Validate(); err != nil {
 		return err
 	}
 
-	url, err := NewURL(s.Addr, resourceIDPath(s.BasePath, m.ResourceID))
+	url, err := NewURL(s.Addr, resourceIDPath(m.ResourceType, m.ResourceID, "labels"))
 	if err != nil {
 		return err
 	}

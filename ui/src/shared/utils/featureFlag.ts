@@ -3,11 +3,13 @@ import {CLOUD, CLOUD_BILLING_VISIBLE} from 'src/shared/constants'
 
 const OSS_FLAGS = {
   alerting: false,
+  eventMarkers: false,
   deleteWithPredicate: false,
 }
 
 const CLOUD_FLAGS = {
   alerting: true,
+  eventMarkers: false,
   deleteWithPredicate: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
 }

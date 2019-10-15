@@ -62,8 +62,6 @@ type isOnboardingResponse struct {
 // isOnboarding is the HTTP handler for the GET /api/v2/setup route.
 func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("onboarding eligibility request", zap.String("r", fmt.Sprint(r)))
-
 	result, err := h.OnboardingService.IsOnboarding(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -80,7 +78,6 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 // isOnboarding is the HTTP handler for the POST /api/v2/setup route.
 func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("onboarding setup request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePostSetupRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -100,7 +97,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 }
 
 type onboardingResponse struct {
-	User         *userResponse   `json:"user"`
+	User         *UserResponse   `json:"user"`
 	Bucket       *bucketResponse `json:"bucket"`
 	Organization *orgResponse    `json:"org"`
 	Auth         *authResponse   `json:"auth"`

@@ -69,6 +69,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
                   value={url}
                   onChange={onChange}
                   required={true}
+                  testID="http-url"
                 />
               </FormElement>
             </Grid.Column>
@@ -81,6 +82,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
                     value={token}
                     onChange={onChange}
                     type={InputType.Password}
+                    testID="http-bearer-token"
                   />
                 </FormElement>
               </Grid.Column>
@@ -98,6 +100,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
                           ? InputType.Password
                           : InputType.Text
                       }
+                      testID="http-username"
                     />
                   </FormElement>
                 </Grid.Column>
@@ -108,6 +111,7 @@ const EndpointOptionsHTTP: FC<Props> = ({
                       value={password}
                       type={InputType.Password}
                       onChange={onChange}
+                      testID="http-password"
                     />
                   </FormElement>
                 </Grid.Column>

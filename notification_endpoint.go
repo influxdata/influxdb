@@ -17,8 +17,19 @@ type NotificationEndpoint interface {
 	Valid() error
 	Type() string
 	json.Marshaler
-	Updater
-	Getter
+	CRUDLogSetter
+	SetID(id ID)
+	SetOrgID(id ID)
+	SetName(name string)
+	SetDescription(description string)
+	SetStatus(status Status)
+
+	GetID() ID
+	GetCRUDLog() CRUDLog
+	GetOrgID() ID
+	GetName() string
+	GetDescription() string
+	GetStatus() Status
 	// SecretFields return available secret fields.
 	SecretFields() []SecretField
 	// BackfillSecretKeys fill back fill the secret field key during the unmarshalling

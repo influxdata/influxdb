@@ -20,29 +20,33 @@ const (
 
 	TaskStatusActive   = "active"
 	TaskStatusInactive = "inactive"
+)
 
-	TaskTypeWildcard = "*"
+var (
+	// TaskSystemType is the type set in tasks' for all crud requests
+	TaskSystemType = "system"
 )
 
 // Task is a task. 🎊
 type Task struct {
-	ID              ID             `json:"id"`
-	Type            string         `json:"type,omitempty"`
-	OrganizationID  ID             `json:"orgID"`
-	Organization    string         `json:"org"`
-	AuthorizationID ID             `json:"-"`
-	Authorization   *Authorization `json:"-"`
-	OwnerID         ID             `json:"ownerID"`
-	Name            string         `json:"name"`
-	Description     string         `json:"description,omitempty"`
-	Status          string         `json:"status"`
-	Flux            string         `json:"flux"`
-	Every           string         `json:"every,omitempty"`
-	Cron            string         `json:"cron,omitempty"`
-	Offset          string         `json:"offset,omitempty"`
-	LatestCompleted string         `json:"latestCompleted,omitempty"`
-	CreatedAt       string         `json:"createdAt,omitempty"`
-	UpdatedAt       string         `json:"updatedAt,omitempty"`
+	ID              ID                     `json:"id"`
+	Type            string                 `json:"type,omitempty"`
+	OrganizationID  ID                     `json:"orgID"`
+	Organization    string                 `json:"org"`
+	AuthorizationID ID                     `json:"-"`
+	Authorization   *Authorization         `json:"-"`
+	OwnerID         ID                     `json:"ownerID"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	Status          string                 `json:"status"`
+	Flux            string                 `json:"flux"`
+	Every           string                 `json:"every,omitempty"`
+	Cron            string                 `json:"cron,omitempty"`
+	Offset          string                 `json:"offset,omitempty"`
+	LatestCompleted string                 `json:"latestCompleted,omitempty"`
+	CreatedAt       string                 `json:"createdAt,omitempty"`
+	UpdatedAt       string                 `json:"updatedAt,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // EffectiveCron returns the effective cron string of the options.
@@ -60,7 +64,24 @@ func (t *Task) EffectiveCron() string {
 	return ""
 }
 
-// Run is a record created when a run of a task is scheduled.
+// LatestCompletedTime gives the time.Time that the task was last queued to be run in RFC3339 format.
+func (t *Task) LatestCompletedTime() (time.Time, error) {
+	tm := t.LatestCompleted
+	if tm == "" {
+		tm = t.CreatedAt
+	}
+	return time.Parse(time.RFC3339, tm)
+}
+
+// OffsetDuration gives the time.Duration of the Task's Offset property, which represents a delay before execution
+func (t *Task) OffsetDuration() (time.Duration, error) {
+	if t.Offset == "" {
+		return time.Duration(0), nil
+	}
+	return time.ParseDuration(t.Offset)
+}
+
+// Run is a record createId when a run of a task is scheduled.
 type Run struct {
 	ID           ID     `json:"id,omitempty"`
 	TaskID       ID     `json:"taskID"`
@@ -139,13 +160,14 @@ type TaskService interface {
 
 // TaskCreate is the set of values to create a task.
 type TaskCreate struct {
-	Type           string `json:"type,omitempty"`
-	Flux           string `json:"flux"`
-	Description    string `json:"description,omitempty"`
-	Status         string `json:"status,omitempty"`
-	OrganizationID ID     `json:"orgID,omitempty"`
-	Organization   string `json:"org,omitempty"`
-	OwnerID        ID     `json:"-"`
+	Type           string                 `json:"type,omitempty"`
+	Flux           string                 `json:"flux"`
+	Description    string                 `json:"description,omitempty"`
+	Status         string                 `json:"status,omitempty"`
+	OrganizationID ID                     `json:"orgID,omitempty"`
+	Organization   string                 `json:"org,omitempty"`
+	OwnerID        ID                     `json:"-"`
+	Metadata       map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 }
 
 func (t TaskCreate) Validate() error {
@@ -167,10 +189,12 @@ type TaskUpdate struct {
 	Description *string `json:"description,omitempty"`
 
 	// LatestCompleted us to set latest completed on startup to skip task catchup
-	LatestCompleted *string `json:"-"`
+	LatestCompleted *string                `json:"-"`
+	Metadata        map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.
 	Options options.Options // when we unmarshal this gets unmarshalled from flat key-values
+
 }
 
 func (t *TaskUpdate) UnmarshalJSON(data []byte) error {

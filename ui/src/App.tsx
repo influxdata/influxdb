@@ -9,6 +9,7 @@ import Nav from 'src/pageLayout'
 import TooltipPortal from 'src/portals/TooltipPortal'
 import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
+import OverlayController from 'src/overlays/components/OverlayController'
 
 // Types
 import {AppState} from 'src/types'
@@ -28,6 +29,7 @@ const App: SFC<Props> = ({children, inPresentationMode}) => (
     <RightClickLayer />
     <TooltipPortal />
     <NotesPortal />
+    <OverlayController />
     <Nav />
     {children}
   </AppWrapper>

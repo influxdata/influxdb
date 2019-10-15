@@ -1,6 +1,7 @@
 package query
 
 import (
+	"bufio"
 	"context"
 	"io"
 
@@ -43,7 +44,10 @@ func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.
 	}
 
 	r, w := io.Pipe()
-	asri := &asyncStatsResultIterator{statsReady: make(chan struct{})}
+	asri := &asyncStatsResultIterator{
+		r:          newBufferedReadCloser(r),
+		statsReady: make(chan struct{}),
+	}
 
 	go func() {
 		stats, err := b.ProxyQueryService.Query(ctx, w, preq)
@@ -52,10 +56,7 @@ func (b QueryServiceProxyBridge) Query(ctx context.Context, req *Request) (flux.
 		close(asri.statsReady)
 	}()
 
-	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
-	ri, err := dec.Decode(r)
-	asri.ResultIterator = ri
-	return asri, err
+	return asri, nil
 }
 
 func (b QueryServiceProxyBridge) Check(ctx context.Context) check.Response {
@@ -65,6 +66,11 @@ func (b QueryServiceProxyBridge) Check(ctx context.Context) check.Response {
 type asyncStatsResultIterator struct {
 	flux.ResultIterator
 
+	// The buffered reader and any error that has been
+	// encountered when reading.
+	r   *bufferedReadCloser
+	err error
+
 	// Channel that is closed when stats have been written.
 	statsReady chan struct{}
 
@@ -73,8 +79,44 @@ type asyncStatsResultIterator struct {
 	stats flux.Statistics
 }
 
+func (i *asyncStatsResultIterator) More() bool {
+	if i.ResultIterator == nil {
+		// Peek into the read. If there is an error
+		// before reading any bytes, do not use the
+		// result decoder and use the error that is
+		// returned as the error for this result iterator.
+		if _, err := i.r.Peek(1); err != nil {
+			// Only an error if this is not an EOF.
+			if err != io.EOF {
+				i.err = err
+			}
+			return false
+		}
+
+		// At least one byte could be read so create a result
+		// iterator using the reader.
+		dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+		ri, err := dec.Decode(i.r)
+		if err != nil {
+			i.err = err
+			return false
+		}
+		i.ResultIterator = ri
+	}
+	return i.ResultIterator.More()
+}
+
+func (i *asyncStatsResultIterator) Err() error {
+	if i.err != nil {
+		return i.err
+	}
+	return i.ResultIterator.Err()
+}
+
 func (i *asyncStatsResultIterator) Release() {
-	i.ResultIterator.Release()
+	if i.ResultIterator != nil {
+		i.ResultIterator.Release()
+	}
 }
 
 func (i *asyncStatsResultIterator) Statistics() flux.Statistics {
@@ -134,4 +176,22 @@ func (q *REPLQuerier) Query(ctx context.Context, deps flux.Dependencies, compile
 		Compiler:       compiler,
 	}
 	return q.QueryService.Query(ctx, req)
+}
+
+// bufferedReadCloser is a bufio.Reader that implements io.ReadCloser.
+type bufferedReadCloser struct {
+	*bufio.Reader
+	r io.ReadCloser
+}
+
+// newBufferedReadCloser constructs a new bufferedReadCloser.
+func newBufferedReadCloser(r io.ReadCloser) *bufferedReadCloser {
+	return &bufferedReadCloser{
+		Reader: bufio.NewReader(r),
+		r:      r,
+	}
+}
+
+func (br *bufferedReadCloser) Close() error {
+	return br.r.Close()
 }

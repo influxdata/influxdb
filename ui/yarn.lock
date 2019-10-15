@@ -1088,10 +1088,10 @@
   resolved "https://registry.yarnpkg.com/@influxdata/flux-parser/-/flux-parser-0.3.0.tgz#b63123ac814ad32c65e46a4097ba3d8b959416a5"
   integrity sha512-nsm801l60kXFulcSWA2YH2YRz9oSsMlTK9Evn6Og9BoQnQMcwUsSUEug8mQRIUljnkNYV58JSs0W0mP8h7Y/ZQ==
 
-"@influxdata/giraffe@0.16.3":
-  version "0.16.3"
-  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.3.tgz#0b3e1d4c7894d6234b5001ab9cbcf731dd2e5ce8"
-  integrity sha512-GaAAOmjUvbpJLmg6sHWayTD/wgGcXgLYhaKyW8Hp0UUGC1840HFWrLuSVG/mpXUen+AJBnZMPFrI64cQNNCzYg==
+"@influxdata/giraffe@0.16.4":
+  version "0.16.4"
+  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.4.tgz#679792950bccdcfb64d9530f07aba71985d341b4"
+  integrity sha512-krykV32T2pUq1EwQqHlrgPBlyBm9UZyDOvaCh1D3gVB9ZQJ9+87ftzECYbE0htbxKxBTUlnAKEmyzmIktNfxOQ==
 
 "@influxdata/influx@0.5.5":
   version "0.5.5"
@@ -1100,10 +1100,10 @@
   dependencies:
     axios "^0.19.0"
 
-"@influxdata/influxdb-templates@0.8.0":
-  version "0.8.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.8.0.tgz#16e5f8c157b8c02bb6e5fa657a805b85d97b920b"
-  integrity sha512-e+tx021ZWR/cYb6Q+IpH8zFAyF/HeNEp/3Auu1K3OOaMU6nxJ8AnG4tpAlWbjGoSa/lqUYbZKv65w7nWxboH5Q==
+"@influxdata/influxdb-templates@0.9.0":
+  version "0.9.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.9.0.tgz#d4b1f727c8949147d2ade63f5754425a0d1a0e9d"
+  integrity sha512-R/QhYJz+nNPGT8LkWHXKOLYYUROavDPfIFoGP7sIrxhStjm+hb0TzHYeQ75HLPQqKh54zCB8cv/TINwRgijYBw==
 
 "@influxdata/oats@0.4.0":
   version "0.4.0"

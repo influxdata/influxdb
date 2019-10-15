@@ -110,8 +110,6 @@ func newDocumentsResponse(ns string, docs []*influxdb.Document) *documentsRespon
 // handlePostDocument is the HTTP handler for the POST /api/v2/documents/:ns route.
 func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document create request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePostDocumentRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -193,8 +191,6 @@ func decodePostDocumentRequest(ctx context.Context, r *http.Request) (*postDocum
 // handleGetDocuments is the HTTP handler for the GET /api/v2/documents/:ns route.
 func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("documents retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetDocumentsRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -279,7 +275,6 @@ func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocume
 
 func (h *DocumentHandler) handlePostDocumentLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document label create request", zap.String("r", fmt.Sprint(r)))
 	_, _, err := h.getDocument(w, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -318,7 +313,6 @@ func (h *DocumentHandler) handlePostDocumentLabel(w http.ResponseWriter, r *http
 // then remove that label.
 func (h *DocumentHandler) handleDeleteDocumentLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document label delete request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodeDeleteLabelMappingRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -354,7 +348,6 @@ func (h *DocumentHandler) handleDeleteDocumentLabel(w http.ResponseWriter, r *ht
 
 func (h *DocumentHandler) handleGetDocumentLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document label retrieve request", zap.String("r", fmt.Sprint(r)))
 	d, _, err := h.getDocument(w, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -400,7 +393,6 @@ func (h *DocumentHandler) getDocument(w http.ResponseWriter, r *http.Request) (*
 // handleGetDocument is the HTTP handler for the GET /api/v2/documents/:ns/:id route.
 func (h *DocumentHandler) handleGetDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document retrieve request", zap.String("r", fmt.Sprint(r)))
 
 	d, namspace, err := h.getDocument(w, r)
 	if err != nil {
@@ -455,8 +447,6 @@ func decodeGetDocumentRequest(ctx context.Context, r *http.Request) (*getDocumen
 // handleDeleteDocument is the HTTP handler for the DELETE /api/v2/documents/:ns/:id route.
 func (h *DocumentHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document delete request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteDocumentRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -525,8 +515,6 @@ func decodeDeleteDocumentRequest(ctx context.Context, r *http.Request) (*deleteD
 // handlePutDocument is the HTTP handler for the PUT /api/v2/documents/:ns/:id route.
 func (h *DocumentHandler) handlePutDocument(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("document update request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePutDocumentRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

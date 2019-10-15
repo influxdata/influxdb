@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
-	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"go.uber.org/zap"
 )
@@ -37,16 +35,14 @@ var (
 
 type taskServiceValidator struct {
 	influxdb.TaskService
-	preAuth query.PreAuthorizer
-	logger  *zap.Logger
+	logger *zap.Logger
 }
 
 // TaskService wraps ts and checks appropriate permissions before calling requested methods on ts.
 // Authorization failures are logged to the logger.
-func NewTaskService(logger *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService) influxdb.TaskService {
+func NewTaskService(logger *zap.Logger, ts influxdb.TaskService) influxdb.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
-		preAuth:     query.NewPreAuthorizer(bs),
 		logger:      logger,
 	}
 }
@@ -121,10 +117,6 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskC
 		return nil, influxdb.ErrInvalidOwnerID
 	}
 
-	if t.Type == influxdb.TaskTypeWildcard {
-		return nil, influxdb.ErrInvalidTaskType
-	}
-
 	p, err := influxdb.NewPermission(influxdb.WriteAction, influxdb.TasksResourceType, t.OrganizationID)
 	if err != nil {
 		return nil, err
@@ -132,10 +124,6 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskC
 
 	loggerFields := []zap.Field{zap.String("method", "CreateTask")}
 	if err := ts.validatePermission(ctx, *p, loggerFields...); err != nil {
-		return nil, err
-	}
-
-	if err := ts.validateBucket(ctx, t.Flux, t.OrganizationID, loggerFields...); err != nil {
 		return nil, err
 	}
 
@@ -160,13 +148,6 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id influxdb.ID, 
 	loggerFields := []zap.Field{zap.String("method", "UpdateTask"), zap.Stringer("task_id", id)}
 	if err := ts.validatePermission(ctx, *p, loggerFields...); err != nil {
 		return nil, err
-	}
-
-	// given an update to the task flux definition
-	if upd.Flux != nil {
-		if err := ts.validateBucket(ctx, *upd.Flux, task.OrganizationID, loggerFields...); err != nil {
-			return nil, err
-		}
 	}
 
 	return ts.TaskService.UpdateTask(ctx, id, upd)
@@ -353,43 +334,6 @@ func (ts *taskServiceValidator) validatePermission(ctx context.Context, perm inf
 			zap.String("disallowed_permission", perm.String()),
 		)
 		return authError{error: ErrFailedPermission, perm: perm, auth: auth}
-	}
-
-	return nil
-}
-
-func (ts *taskServiceValidator) validateBucket(ctx context.Context, script string, orgID influxdb.ID, loggerFields ...zap.Field) error {
-	auth, err := platcontext.GetAuthorizer(ctx)
-	if err != nil {
-		ts.logger.With(loggerFields...).Info("Failed to retrieve authorizer from context")
-		return err
-	}
-
-	ast, err := flux.Parse(script)
-	if err != nil {
-		return influxdb.NewError(
-			influxdb.WithErrorErr(err),
-			influxdb.WithErrorMsg("Failed to compile flux script."),
-			influxdb.WithErrorCode(influxdb.EInvalid))
-	}
-
-	if err := ts.preAuth.PreAuthorize(ctx, ast, auth, &orgID); err != nil {
-		ts.logger.With(loggerFields...).Info("Task failed preauthorization check",
-			zap.String("user_id", auth.GetUserID().String()),
-			zap.String("org_id", orgID.String()),
-			zap.String("auth_kind", auth.Kind()),
-			zap.String("auth_id", auth.Identifier().String()),
-		)
-
-		// if error is already a  influxdb.error then return it
-		if perr, ok := err.(*influxdb.Error); ok {
-			return perr
-		}
-
-		return influxdb.NewError(
-			influxdb.WithErrorErr(err),
-			influxdb.WithErrorMsg("Failed to create task."),
-			influxdb.WithErrorCode(influxdb.EUnauthorized))
 	}
 
 	return nil

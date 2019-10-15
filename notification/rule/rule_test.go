@@ -30,7 +30,6 @@ var goodBase = rule.Base{
 	Name:       "name1",
 	OwnerID:    influxTesting.MustIDBase16(id2),
 	OrgID:      influxTesting.MustIDBase16(id3),
-	Status:     influxdb.Inactive,
 	EndpointID: 1,
 }
 
@@ -104,22 +103,6 @@ func TestValidRule(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid status",
-			src: &rule.Slack{
-				Base: rule.Base{
-					ID:         influxTesting.MustIDBase16(id1),
-					Name:       "name1",
-					OwnerID:    influxTesting.MustIDBase16(id2),
-					OrgID:      influxTesting.MustIDBase16(id3),
-					EndpointID: 1,
-				},
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "invalid status",
-			},
-		},
-		{
 			name: "offset greater then interval",
 			src: &rule.Slack{
 				Base: rule.Base{
@@ -128,7 +111,6 @@ func TestValidRule(t *testing.T) {
 					OwnerID:    influxTesting.MustIDBase16(id2),
 					OrgID:      influxTesting.MustIDBase16(id3),
 					EndpointID: 1,
-					Status:     influxdb.Active,
 					Every:      mustDuration("1m"),
 					Offset:     mustDuration("2m"),
 				},
@@ -168,7 +150,6 @@ func TestValidRule(t *testing.T) {
 					Name:       "name1",
 					OrgID:      influxTesting.MustIDBase16(id3),
 					EndpointID: 1,
-					Status:     influxdb.Active,
 					TagRules: []notification.TagRule{
 						{
 							Tag: influxdb.Tag{
@@ -195,7 +176,6 @@ func TestValidRule(t *testing.T) {
 					OrgID:      influxTesting.MustIDBase16(id3),
 					EndpointID: 1,
 					Name:       "name1",
-					Status:     influxdb.Active,
 					TagRules: []notification.TagRule{
 						{
 							Tag: influxdb.Tag{
@@ -242,7 +222,6 @@ func TestJSON(t *testing.T) {
 					OwnerID:     influxTesting.MustIDBase16(id2),
 					Name:        "name1",
 					OrgID:       influxTesting.MustIDBase16(id3),
-					Status:      influxdb.Active,
 					RunbookLink: "runbooklink1",
 					SleepUntil:  &time3,
 					Every:       mustDuration("1h"),
@@ -279,7 +258,6 @@ func TestJSON(t *testing.T) {
 					Name:        "name1",
 					OwnerID:     influxTesting.MustIDBase16(id2),
 					OrgID:       influxTesting.MustIDBase16(id3),
-					Status:      influxdb.Active,
 					RunbookLink: "runbooklink1",
 					SleepUntil:  &time3,
 					Every:       mustDuration("1h"),
@@ -315,7 +293,6 @@ func TestJSON(t *testing.T) {
 					Name:        "name1",
 					OwnerID:     influxTesting.MustIDBase16(id2),
 					OrgID:       influxTesting.MustIDBase16(id3),
-					Status:      influxdb.Active,
 					RunbookLink: "runbooklink1",
 					SleepUntil:  &time3,
 					Every:       mustDuration("1h"),

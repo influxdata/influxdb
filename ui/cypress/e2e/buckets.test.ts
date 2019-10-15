@@ -17,10 +17,10 @@ describe('Buckets', () => {
     })
   })
 
-  describe('from the org view', () => {
+  describe('from the buckets index page', () => {
     it('can create a bucket', () => {
       const newBucket = '🅱️ucket'
-      cy.getByTestID('bucket--card').should('have.length', 1)
+      cy.getByTestID(`bucket--card ${newBucket}`).should('not.exist')
 
       cy.getByTestID('Create Bucket').click()
       cy.getByTestID('overlay--container').within(() => {
@@ -30,14 +30,13 @@ describe('Buckets', () => {
           .click()
       })
 
-      cy.getByTestID('bucket--card')
-        .should('have.length', 2)
-        .and('contain', newBucket)
+      cy.getByTestID(`bucket--card ${newBucket}`).should('exist')
     })
 
-    it.only("can update a bucket's retention rules", () => {
+    it("can update a bucket's retention rules", () => {
       cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
-        cy.getByTestID(`bucket--card ${name}`).click()
+        cy.getByTestID(`bucket--card--name ${name}`).click()
+        cy.getByTestID(`bucket--card ${name}`).should('not.contain', '7 days')
       })
 
       cy.getByTestID('retention-intervals--button').click()
@@ -48,33 +47,55 @@ describe('Buckets', () => {
         cy.contains('Save').click()
       })
 
-      cy.getByTestID('bucket--card').should('contain', '7 days')
-
       cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
-        cy.getByTestID(`bucket--card ${name}`).click()
+        cy.getByTestID(`bucket--card ${name}`).should('contain', '7 days')
       })
-
-      cy.getByTestID('retention-never--button').click()
-      cy.getByTestID('overlay--container').within(() => {
-        cy.contains('Save').click()
-      })
-
-      cy.getByTestID('overlay--container').should('not.be.visible')
     })
 
-    it.skip('can delete a bucket', () => {
+    it('can delete a bucket', () => {
+      const bucket1 = 'newbucket1'
+      const bucket2 = 'newbucket2'
       cy.get<Organization>('@org').then(({id, name}: Organization) => {
-        cy.createBucket(id, name, 'newbucket1')
-        cy.createBucket(id, name, 'newbucket2')
+        cy.createBucket(id, name, bucket1)
+        cy.createBucket(id, name, bucket2)
       })
 
-      cy.getByTestID('bucket--card').should('have.length', 3)
+      cy.getByTestID(`bucket--card--name ${bucket1}`).should('exist')
 
-      cy.getByTestID('confirmation-button')
-        .last()
-        .click({force: true})
+      cy.getByTestID(`context-delete-menu ${bucket1}`).click()
+      cy.getByTestID(`context-delete-bucket ${bucket1}`).click()
 
-      cy.getByTestID('bucket--card').should('have.length', 2)
+      cy.getByTestID(`bucket--card--name ${bucket1}`).should('not.exist')
+    })
+  })
+
+  describe('Routing directly to the edit overlay', () => {
+    it('reroutes to buckets view if bucket does not exist', () => {
+      cy.get<Organization>('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs}) => {
+          const idThatDoesntExist = '261234d1a7f932e4'
+          cy.visit(`${orgs}/${id}/load-data/buckets/${idThatDoesntExist}/edit`)
+          cy.location('pathname').should(
+            'be',
+            `${orgs}/${id}/load-data/buckets/`
+          )
+        })
+      })
+    })
+
+    it('displays overlay if bucket does exist', () => {
+      cy.get<Organization>('@org').then(({id: orgID}: Organization) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get<Bucket>('@bucket').then(({id: bucketID}: Bucket) => {
+            cy.visit(`${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`)
+            cy.location('pathname').should(
+              'be',
+              `${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`
+            )
+          })
+          cy.getByTestID(`overlay`).should('exist')
+        })
+      })
     })
   })
 })

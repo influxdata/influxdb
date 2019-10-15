@@ -10,10 +10,10 @@ import {readQueryParams} from 'src/shared/utils/queryParams'
 
 // Constants
 import {
-  MONITORING_BUCKET,
   HISTORY_TYPE_QUERY_PARAM,
   SEARCH_QUERY_PARAM,
 } from 'src/alerting/constants/history'
+import {MONITORING_BUCKET} from 'src/alerting/constants'
 
 // Types
 import {State as EventViewerState} from 'src/eventViewer/components/EventViewer.reducer'
@@ -143,7 +143,7 @@ const renameTagKeys = (searchExpr: SearchExpr) => {
 /*
   Convert a Flux CSV response into a list of objects.
 */
-const processResponse = ({
+export const processResponse = ({
   promise: queryPromise,
   cancel,
 }: CancelBox<RunQueryResult>): CancelBox<Row[]> => {

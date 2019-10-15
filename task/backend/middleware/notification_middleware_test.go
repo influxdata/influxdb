@@ -25,7 +25,12 @@ func TestNotificationRuleCreate(t *testing.T) {
 	nr := &rule.HTTP{}
 	nr.SetTaskID(4)
 
-	err := nrService.CreateNotificationRule(context.Background(), nr, 1)
+	nrc := influxdb.NotificationRuleCreate{
+		NotificationRule: nr,
+		Status:           influxdb.Active,
+	}
+
+	err := nrService.CreateNotificationRule(context.Background(), nrc, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +47,7 @@ func TestNotificationRuleCreate(t *testing.T) {
 	mocks.pipingCoordinator.err = fmt.Errorf("bad")
 	mocks.notificationSvc.DeleteNotificationRuleF = func(context.Context, influxdb.ID) error { return fmt.Errorf("AARGH") }
 
-	err = nrService.CreateNotificationRule(context.Background(), nr, 1)
+	err = nrService.CreateNotificationRule(context.Background(), nrc, 1)
 	if err.Error() != "schedule task failed: bad\n\tcleanup also failed: AARGH" {
 		t.Fatal(err)
 	}
@@ -56,9 +61,8 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 	}
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
 
-	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRule, _ influxdb.ID) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRuleCreate, _ influxdb.ID) (influxdb.NotificationRule, error) {
 		c.SetTaskID(10)
-		c.SetStatus(influxdb.Active)
 		c.SetUpdatedAt(latest.Add(-20 * time.Hour))
 		return c, nil
 	}
@@ -66,7 +70,6 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 	mocks.notificationSvc.PatchNotificationRuleF = func(_ context.Context, id influxdb.ID, _ influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 		ic := &rule.HTTP{}
 		ic.SetTaskID(10)
-		ic.SetStatus(influxdb.Active)
 		ic.SetUpdatedAt(latest.Add(-20 * time.Hour))
 		return ic, nil
 	}
@@ -75,7 +78,6 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 		c := &rule.HTTP{}
 		c.SetID(id)
 		c.SetTaskID(1)
-		c.SetStatus(influxdb.TaskStatusInactive)
 		return c, nil
 	}
 
@@ -90,9 +92,13 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 
 	deadman := &rule.HTTP{}
 	deadman.SetTaskID(10)
-	deadman.SetStatus(influxdb.Active)
 
-	therule, err := nrService.UpdateNotificationRule(context.Background(), 1, deadman, 11)
+	nrc := influxdb.NotificationRuleCreate{
+		NotificationRule: deadman,
+		Status:           influxdb.Active,
+	}
+
+	therule, err := nrService.UpdateNotificationRule(context.Background(), 1, nrc, 11)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +136,7 @@ func TestNotificationRuleUpdate(t *testing.T) {
 	mocks, nrService := newNotificationRuleSvcStack()
 	ch := mocks.pipingCoordinator.taskUpdatedChan()
 
-	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRule, _ influxdb.ID) (influxdb.NotificationRule, error) {
+	mocks.notificationSvc.UpdateNotificationRuleF = func(_ context.Context, _ influxdb.ID, c influxdb.NotificationRuleCreate, _ influxdb.ID) (influxdb.NotificationRule, error) {
 		c.SetTaskID(10)
 		return c, nil
 	}
@@ -138,7 +144,12 @@ func TestNotificationRuleUpdate(t *testing.T) {
 	deadman := &rule.HTTP{}
 	deadman.SetTaskID(4)
 
-	nr, err := nrService.UpdateNotificationRule(context.Background(), 1, deadman, 2)
+	nrc := influxdb.NotificationRuleCreate{
+		NotificationRule: deadman,
+		Status:           influxdb.Active,
+	}
+
+	nr, err := nrService.UpdateNotificationRule(context.Background(), 1, nrc, 2)
 	if err != nil {
 		t.Fatal(err)
 	}

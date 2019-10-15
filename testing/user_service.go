@@ -104,14 +104,16 @@ func CreateUser(
 			},
 			args: args{
 				user: &platform.User{
-					Name: "name1",
+					Name:   "name1",
+					Status: platform.Active,
 				},
 			},
 			wants: wants{
 				users: []*platform.User{
 					{
-						Name: "name1",
-						ID:   MustIDBase16(userOneID),
+						Name:   "name1",
+						ID:     MustIDBase16(userOneID),
+						Status: platform.Active,
 					},
 				},
 			},
@@ -122,25 +124,29 @@ func CreateUser(
 				IDGenerator: mock.NewIDGenerator(userTwoID, t),
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 				},
 			},
 			args: args{
 				user: &platform.User{
-					Name: "user2",
+					Name:   "user2",
+					Status: platform.Active,
 				},
 			},
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "user2",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -155,8 +161,9 @@ func CreateUser(
 				},
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -168,8 +175,9 @@ func CreateUser(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 				},
 				err: &platform.Error{
@@ -229,12 +237,14 @@ func FindUserByID(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "user2",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -243,8 +253,9 @@ func FindUserByID(
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDBase16(userTwoID),
-					Name: "user2",
+					ID:     MustIDBase16(userTwoID),
+					Name:   "user2",
+					Status: platform.Active,
 				},
 			},
 		},
@@ -253,12 +264,14 @@ func FindUserByID(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "user2",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -316,12 +329,14 @@ func FindUsers(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -329,12 +344,14 @@ func FindUsers(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -344,12 +361,14 @@ func FindUsers(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -359,8 +378,9 @@ func FindUsers(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -370,12 +390,14 @@ func FindUsers(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -385,8 +407,9 @@ func FindUsers(
 			wants: wants{
 				users: []*platform.User{
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -491,12 +514,14 @@ func DeleteUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						Name: "orgA",
-						ID:   MustIDBase16(userOneID),
+						Name:   "orgA",
+						ID:     MustIDBase16(userOneID),
+						Status: platform.Active,
 					},
 					{
-						Name: "orgB",
-						ID:   MustIDBase16(userTwoID),
+						Name:   "orgB",
+						ID:     MustIDBase16(userTwoID),
+						Status: platform.Active,
 					},
 				},
 			},
@@ -506,8 +531,9 @@ func DeleteUser(
 			wants: wants{
 				users: []*platform.User{
 					{
-						Name: "orgB",
-						ID:   MustIDBase16(userTwoID),
+						Name:   "orgB",
+						ID:     MustIDBase16(userTwoID),
+						Status: platform.Active,
 					},
 				},
 			},
@@ -517,12 +543,14 @@ func DeleteUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						Name: "orgA",
-						ID:   MustIDBase16(userOneID),
+						Name:   "orgA",
+						ID:     MustIDBase16(userOneID),
+						Status: platform.Active,
 					},
 					{
-						Name: "orgB",
-						ID:   MustIDBase16(userTwoID),
+						Name:   "orgB",
+						ID:     MustIDBase16(userTwoID),
+						Status: platform.Active,
 					},
 				},
 			},
@@ -537,12 +565,14 @@ func DeleteUser(
 				},
 				users: []*platform.User{
 					{
-						Name: "orgA",
-						ID:   MustIDBase16(userOneID),
+						Name:   "orgA",
+						ID:     MustIDBase16(userOneID),
+						Status: platform.Active,
 					},
 					{
-						Name: "orgB",
-						ID:   MustIDBase16(userTwoID),
+						Name:   "orgB",
+						ID:     MustIDBase16(userTwoID),
+						Status: platform.Active,
 					},
 				},
 			},
@@ -594,12 +624,14 @@ func FindUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -610,8 +642,9 @@ func FindUser(
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDBase16(userOneID),
-					Name: "abc",
+					ID:     MustIDBase16(userOneID),
+					Name:   "abc",
+					Status: platform.Active,
 				},
 			},
 		},
@@ -620,12 +653,14 @@ func FindUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -636,8 +671,9 @@ func FindUser(
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDBase16(userOneID),
-					Name: "abc",
+					ID:     MustIDBase16(userOneID),
+					Name:   "abc",
+					Status: platform.Active,
 				},
 			},
 		},
@@ -682,12 +718,14 @@ func FindUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "abc",
+						ID:     MustIDBase16(userOneID),
+						Name:   "abc",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "xyz",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "xyz",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -699,8 +737,9 @@ func FindUser(
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDBase16(userOneID),
-					Name: "abc",
+					ID:     MustIDBase16(userOneID),
+					Name:   "abc",
+					Status: platform.Active,
 				},
 			},
 		},
@@ -772,8 +811,9 @@ func UpdateUser(
 	t *testing.T,
 ) {
 	type args struct {
-		name string
-		id   platform.ID
+		name   string
+		id     platform.ID
+		status string
 	}
 	type wants struct {
 		err  error
@@ -791,12 +831,14 @@ func UpdateUser(
 			fields: UserFields{
 				Users: []*platform.User{
 					{
-						ID:   MustIDBase16(userOneID),
-						Name: "user1",
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
 					},
 					{
-						ID:   MustIDBase16(userTwoID),
-						Name: "user2",
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
 					},
 				},
 			},
@@ -806,8 +848,37 @@ func UpdateUser(
 			},
 			wants: wants{
 				user: &platform.User{
-					ID:   MustIDBase16(userOneID),
-					Name: "changed",
+					ID:     MustIDBase16(userOneID),
+					Name:   "changed",
+					Status: platform.Active,
+				},
+			},
+		},
+		{
+			name: "update status",
+			fields: UserFields{
+				Users: []*platform.User{
+					{
+						ID:     MustIDBase16(userOneID),
+						Name:   "user1",
+						Status: platform.Active,
+					},
+					{
+						ID:     MustIDBase16(userTwoID),
+						Name:   "user2",
+						Status: platform.Active,
+					},
+				},
+			},
+			args: args{
+				id:     MustIDBase16(userOneID),
+				status: "inactive",
+			},
+			wants: wants{
+				user: &platform.User{
+					ID:     MustIDBase16(userOneID),
+					Name:   "user1",
+					Status: "inactive",
 				},
 			},
 		},
@@ -848,6 +919,15 @@ func UpdateUser(
 			upd := platform.UserUpdate{}
 			if tt.args.name != "" {
 				upd.Name = &tt.args.name
+			}
+
+			switch tt.args.status {
+			case "inactive":
+				status := platform.Inactive
+				upd.Status = &status
+			case "active":
+				status := platform.Inactive
+				upd.Status = &status
 			}
 
 			user, err := s.UpdateUser(ctx, tt.args.id, upd)

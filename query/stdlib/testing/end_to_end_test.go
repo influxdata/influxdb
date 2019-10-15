@@ -43,35 +43,60 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 	l.SetupOrFail(t)
 	defer l.ShutdownOrFail(t, ctx)
 	for _, pkg := range pkgs {
-		pkg := pkg.Copy().(*ast.Package)
-		name := strings.TrimSuffix(pkg.Files[0].Name, "_test.flux")
-		t.Run(name, func(t *testing.T) {
-			if reason, ok := itesting.FluxEndToEndSkipList[name]; ok {
-				t.Skip(reason)
+		test := func(t *testing.T, f func(t *testing.T)) {
+			t.Run(pkg.Path, f)
+		}
+		if pkg.Path == "universe" {
+			test = func(t *testing.T, f func(t *testing.T)) {
+				f(t)
 			}
-			testFlux(t, l, pkg)
+		}
+
+		test(t, func(t *testing.T) {
+			for _, file := range pkg.Files {
+				name := strings.TrimSuffix(file.Name, "_test.flux")
+				t.Run(name, func(t *testing.T) {
+					if reason, ok := itesting.FluxEndToEndSkipList[pkg.Path][name]; ok {
+						t.Skip(reason)
+					}
+					testFlux(t, l, file)
+				})
+			}
 		})
 	}
 }
 
 func benchEndToEnd(b *testing.B, pkgs []*ast.Package) {
-	l := launcher.RunTestLauncherOrFail(b, ctx)
-	l.SetupOrFail(b)
-	defer l.ShutdownOrFail(b, ctx)
-	for _, pkg := range pkgs {
-		pkg := pkg.Copy().(*ast.Package)
-		name := pkg.Files[0].Name
-		b.Run(name, func(b *testing.B) {
-			if reason, ok := itesting.FluxEndToEndSkipList[strings.TrimSuffix(name, ".flux")]; ok {
-				b.Skip(reason)
-			}
-			b.ResetTimer()
-			b.ReportAllocs()
-			for i := 0; i < b.N; i++ {
-				testFlux(b, l, pkg)
-			}
-		})
+	// TODO(jsternberg): These benchmarks don't run properly
+	// and need to be fixed. Commenting out the code for now.
+	b.Skip("https://github.com/influxdata/influxdb/issues/15391")
+	// l := launcher.RunTestLauncherOrFail(b, ctx)
+	// l.SetupOrFail(b)
+	// defer l.ShutdownOrFail(b, ctx)
+	// for _, pkg := range pkgs {
+	// 	pkg := pkg.Copy().(*ast.Package)
+	// 	name := pkg.Files[0].Name
+	// 	b.Run(name, func(b *testing.B) {
+	// 		if reason, ok := itesting.FluxEndToEndSkipList[strings.TrimSuffix(name, ".flux")]; ok {
+	// 			b.Skip(reason)
+	// 		}
+	// 		b.ResetTimer()
+	// 		b.ReportAllocs()
+	// 		for i := 0; i < b.N; i++ {
+	// 			testFlux(b, l, pkg)
+	// 		}
+	// 	})
+	// }
+}
+
+func makeTestPackage(file *ast.File) *ast.Package {
+	file = file.Copy().(*ast.File)
+	file.Package.Name.Name = "main"
+	pkg := &ast.Package{
+		Package: "main",
+		Files:   []*ast.File{file},
 	}
+	return pkg
 }
 
 var optionsSource = `
@@ -95,7 +120,7 @@ func init() {
 	optionsAST = pkg.Files[0]
 }
 
-func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
+func testFlux(t testing.TB, l *launcher.TestLauncher, file *ast.File) {
 
 	// Query server to ensure write persists.
 
@@ -127,6 +152,7 @@ func testFlux(t testing.TB, l *launcher.TestLauncher, pkg *ast.Package) {
 	options.Body = append([]ast.Statement{bucketOpt, orgOpt}, options.Body...)
 
 	// Add options to pkg
+	pkg := makeTestPackage(file)
 	pkg.Files = append(pkg.Files, options)
 
 	// Add testing.inspect call to ensure the data is loaded

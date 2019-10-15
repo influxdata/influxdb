@@ -3,8 +3,12 @@ import React, {FC} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
+// Constants
+import {getEndpointFailed} from 'src/shared/copy/notifications'
+
 // Actions
 import {updateEndpoint} from 'src/alerting/actions/notifications/endpoints'
+import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -16,6 +20,7 @@ import {NotificationEndpoint, AppState} from 'src/types'
 
 interface DispatchProps {
   onUpdateEndpoint: typeof updateEndpoint
+  onNotify: typeof notify
 }
 
 interface StateProps {
@@ -28,11 +33,17 @@ const EditEndpointOverlay: FC<Props> = ({
   params,
   router,
   onUpdateEndpoint,
-  endpoint: initialState,
+  onNotify,
+  endpoint,
 }) => {
-  const {orgID} = params
   const handleDismiss = () => {
-    router.push(`/orgs/${orgID}/alerting`)
+    router.push(`/orgs/${params.orgID}/alerting`)
+  }
+
+  if (!endpoint) {
+    onNotify(getEndpointFailed(params.endpointID))
+    handleDismiss()
+    return null
   }
 
   const handleEditEndpoint = async (endpoint: NotificationEndpoint) => {
@@ -42,7 +53,7 @@ const EditEndpointOverlay: FC<Props> = ({
   }
 
   return (
-    <EndpointOverlayProvider initialState={initialState}>
+    <EndpointOverlayProvider initialState={endpoint}>
       <Overlay visible={true}>
         <Overlay.Container maxWidth={600}>
           <Overlay.Header
@@ -63,14 +74,11 @@ const EditEndpointOverlay: FC<Props> = ({
 
 const mdtp = {
   onUpdateEndpoint: updateEndpoint,
+  onNotify: notify,
 }
 
 const mstp = ({endpoints}: AppState, {params}: Props): StateProps => {
   const endpoint = endpoints.list.find(ep => ep.id === params.endpointID)
-
-  if (!endpoint) {
-    throw new Error('Unknown endpoint provided to <EditEndpointOverlay/>')
-  }
 
   return {endpoint}
 }

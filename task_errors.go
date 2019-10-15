@@ -36,11 +36,6 @@ var (
 		Msg:  "invalid id",
 	}
 
-	// ErrInvalidTaskType error object for bad id's
-	ErrInvalidTaskType = &Error{
-		Code: EInvalid,
-		Msg:  "invalid task type",
-	}
 	// ErrTaskNotFound indicates no task could be found for given parameters.
 	ErrTaskNotFound = &Error{
 		Code: ENotFound,
@@ -96,7 +91,7 @@ func ErrFluxParseError(err error) *Error {
 	return &Error{
 		Code: EInvalid,
 		Msg:  fmt.Sprintf("could not parse Flux script; Err: %v", err),
-		Op:   "kv/taskExecutor",
+		Op:   "taskExecutor",
 		Err:  err,
 	}
 }
@@ -106,7 +101,7 @@ func ErrQueryError(err error) *Error {
 	return &Error{
 		Code: EInternal,
 		Msg:  fmt.Sprintf("unexpected error from queryd; Err: %v", err),
-		Op:   "kv/taskExecutor",
+		Op:   "taskExecutor",
 		Err:  err,
 	}
 }
@@ -116,7 +111,7 @@ func ErrResultIteratorError(err error) *Error {
 	return &Error{
 		Code: EInvalid,
 		Msg:  fmt.Sprintf("Error exhausting result iterator; Err: %v", err),
-		Op:   "kv/taskExecutor",
+		Op:   "taskExecutor",
 		Err:  err,
 	}
 }
@@ -125,7 +120,7 @@ func ErrInternalTaskServiceError(err error) *Error {
 	return &Error{
 		Code: EInternal,
 		Msg:  fmt.Sprintf("unexpected error in tasks; Err: %v", err),
-		Op:   "kv/task",
+		Op:   "task",
 		Err:  err,
 	}
 }
@@ -135,7 +130,7 @@ func ErrUnexpectedTaskBucketErr(err error) *Error {
 	return &Error{
 		Code: EInternal,
 		Msg:  fmt.Sprintf("unexpected error retrieving task bucket; Err: %v", err),
-		Op:   "kv/taskBucket",
+		Op:   "taskBucket",
 		Err:  err,
 	}
 }
@@ -143,9 +138,9 @@ func ErrUnexpectedTaskBucketErr(err error) *Error {
 // ErrTaskTimeParse an error for time parsing errors
 func ErrTaskTimeParse(err error) *Error {
 	return &Error{
-		Code: EInvalid,
+		Code: EInternal,
 		Msg:  fmt.Sprintf("unexpected error parsing time; Err: %v", err),
-		Op:   "kv/taskCron",
+		Op:   "taskCron",
 		Err:  err,
 	}
 }
@@ -154,7 +149,7 @@ func ErrTaskOptionParse(err error) *Error {
 	return &Error{
 		Code: EInvalid,
 		Msg:  fmt.Sprintf("invalid options; Err: %v", err),
-		Op:   "kv/taskOptions",
+		Op:   "taskOptions",
 		Err:  err,
 	}
 }
@@ -167,20 +162,11 @@ func ErrRunNotDueYet(dueAt int64) *Error {
 	}
 }
 
-func ErrCouldNotLogError(err error) *Error {
-	return &Error{
-		Code: EInternal,
-		Msg:  fmt.Sprintf("unable to log error; Err: %v", err),
-		Op:   "kv/taskScheduler",
-		Err:  err,
-	}
-}
-
 func ErrJsonMarshalError(err error) *Error {
 	return &Error{
 		Code: EInvalid,
 		Msg:  fmt.Sprintf("unable to marshal JSON; Err: %v", err),
-		Op:   "kv/taskScheduler",
+		Op:   "taskScheduler",
 		Err:  err,
 	}
 }
@@ -189,7 +175,15 @@ func ErrRunExecutionError(err error) *Error {
 	return &Error{
 		Code: EInternal,
 		Msg:  fmt.Sprintf("could not execute task run; Err: %v", err),
-		Op:   "kv/taskScheduler",
+		Op:   "taskExecutor",
 		Err:  err,
+	}
+}
+
+func ErrTaskConcurrencyLimitReached(runsInFront int) *Error {
+	return &Error{
+		Code: ETooManyRequests,
+		Msg:  fmt.Sprintf("could not execute task, concurrency limit reached, runs in front: %d", runsInFront),
+		Op:   "taskExecutor",
 	}
 }

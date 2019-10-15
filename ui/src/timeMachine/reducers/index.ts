@@ -25,6 +25,7 @@ import {
   Check,
   DeadmanCheck,
   ThresholdCheck,
+  StatusRow,
 } from 'src/types'
 import {
   ViewType,
@@ -61,6 +62,7 @@ interface QueryResultsState {
   isInitialFetch: boolean
   fetchDuration: number
   errorMessage: string
+  statuses: StatusRow[][]
 }
 
 interface AlertingState {
@@ -241,7 +243,13 @@ export const timeMachineReducer = (
 
     case 'SET_QUERY_RESULTS': {
       return produce(state, draftState => {
-        const {status, files, fetchDuration, errorMessage} = action.payload
+        const {
+          status,
+          files,
+          fetchDuration,
+          errorMessage,
+          statuses,
+        } = action.payload
 
         draftState.queryResults.status = status
         draftState.queryResults.errorMessage = errorMessage
@@ -249,6 +257,9 @@ export const timeMachineReducer = (
         if (files) {
           draftState.queryResults.files = files
           draftState.queryResults.isInitialFetch = false
+        }
+        if (statuses) {
+          draftState.queryResults.statuses = statuses
         }
 
         if (isNumber(fetchDuration)) {
@@ -1006,6 +1017,7 @@ const initialQueryResultsState = (): QueryResultsState => ({
   isInitialFetch: true,
   fetchDuration: null,
   errorMessage: null,
+  statuses: null,
 })
 
 const buildActiveQuery = (draftState: TimeMachineState) => {

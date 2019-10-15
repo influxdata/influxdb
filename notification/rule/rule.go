@@ -43,17 +43,15 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationRule, error) {
 
 // Base is the embed struct of every notification rule.
 type Base struct {
-	ID          influxdb.ID     `json:"id,omitempty"`
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	EndpointID  influxdb.ID     `json:"endpointID,omitempty"`
-	OrgID       influxdb.ID     `json:"orgID,omitempty"`
-	OwnerID     influxdb.ID     `json:"ownerID,omitempty"`
-	TaskID      influxdb.ID     `json:"taskID,omitempty"`
-	Status      influxdb.Status `json:"status"`
+	ID          influxdb.ID `json:"id,omitempty"`
+	Name        string      `json:"name"`
+	Description string      `json:"description,omitempty"`
+	EndpointID  influxdb.ID `json:"endpointID,omitempty"`
+	OrgID       influxdb.ID `json:"orgID,omitempty"`
+	OwnerID     influxdb.ID `json:"ownerID,omitempty"`
+	TaskID      influxdb.ID `json:"taskID,omitempty"`
 	// SleepUntil is an optional sleeptime to start a task.
 	SleepUntil *time.Time             `json:"sleepUntil,omitempty"`
-	Cron       string                 `json:"cron,omitempty"`
 	Every      *notification.Duration `json:"every,omitempty"`
 	// Offset represents a delay before execution.
 	// It gets marshalled from a string duration, i.e.: "10s" is 10 seconds
@@ -94,12 +92,6 @@ func (b Base) valid() error {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  "Notification Rule EndpointID is invalid",
-		}
-	}
-	if b.Status != influxdb.Active && b.Status != influxdb.Inactive {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "invalid status",
 		}
 	}
 	if b.Offset != nil && b.Every != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
@@ -252,12 +244,24 @@ func (b *Base) generateStateChanges(r notification.StatusRule) (ast.Statement, *
 	return flux.DefineVariable(name, pipe), flux.Identifier(name)
 }
 
+// increaseDur increases the duration of leading duration in a duration literal.
+// It is used so that we will have overlapping windows. If the unit of the literal
+// is `s`, we double the interval; otherwise we increase the value by 1. The reason
+// for this is to that we query the minimal amount of time that is likely to have data
+// in the time range.
+//
+// This is currently a hack around https://github.com/influxdata/flux/issues/1877
 func increaseDur(d *ast.DurationLiteral) *ast.DurationLiteral {
 	dur := &ast.DurationLiteral{}
 	for i, v := range d.Values {
 		value := v
 		if i == 0 {
-			value.Magnitude += 1
+			switch v.Unit {
+			case "s", "ms", "us", "ns":
+				value.Magnitude *= 2
+			default:
+				value.Magnitude += 1
+			}
 		}
 		dur.Values = append(dur.Values, value)
 	}
@@ -269,10 +273,6 @@ func (b *Base) generateTaskOption() ast.Statement {
 	props := []*ast.Property{}
 
 	props = append(props, flux.Property("name", flux.String(b.Name)))
-
-	if b.Cron != "" {
-		props = append(props, flux.Property("cron", flux.String(b.Cron)))
-	}
 
 	if b.Every != nil {
 		// Make the windows overlap and filter records from previous queries.
@@ -332,7 +332,7 @@ func (b *Base) SetTaskID(id influxdb.ID) {
 	b.TaskID = id
 }
 
-// Clears the task ID from the base.
+// ClearPrivateData clears the task ID from the base.
 func (b *Base) ClearPrivateData() {
 	b.TaskID = 0
 }
@@ -373,11 +373,6 @@ func (b *Base) GetDescription() string {
 	return b.Description
 }
 
-// GetStatus implements influxdb.Getter interface.
-func (b *Base) GetStatus() influxdb.Status {
-	return b.Status
-}
-
 // SetID will set the primary key.
 func (b *Base) SetID(id influxdb.ID) {
 	b.ID = id
@@ -401,9 +396,4 @@ func (b *Base) SetName(name string) {
 // SetDescription implements influxdb.Updator interface.
 func (b *Base) SetDescription(description string) {
 	b.Description = description
-}
-
-// SetStatus implements influxdb.Updator interface.
-func (b *Base) SetStatus(status influxdb.Status) {
-	b.Status = status
 }

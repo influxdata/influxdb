@@ -4,13 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/cron"
 )
 
 // ID duplicates the influxdb ID so users of the scheduler don't have to
-// import influxdb for the id.
-// TODO(lh): maybe make this its own thing sometime in the future.
-type ID influxdb.ID
+// import influxdb for the ID.
+type ID uint64
 
 // Executor is a system used by the scheduler to actually execute the scheduleable item.
 type Executor interface {
@@ -41,13 +40,36 @@ type Schedulable interface {
 	// LastScheduled specifies last time this Schedulable was queued
 	// for execution.
 	LastScheduled() time.Time
+}
+
+// SchedulableService encapsulates the work necessary to schedule a job
+type SchedulableService interface {
 
 	// UpdateLastScheduled notifies the instance that it was scheduled for
 	// execution at the specified time
-	UpdateLastScheduled(time.Time)
+	UpdateLastScheduled(ctx context.Context, id ID, t time.Time) error
 }
 
+// NewSchedule takes a cron string
+func NewSchedule(c string) (Schedule, error) {
+	sch, err := cron.ParseUTC(c)
+	return Schedule{cron: sch}, err
+}
+
+// Schedule is an object a valid schedule of runs
 type Schedule struct {
+	cron cron.Parsed
+}
+
+// Next returns the next time after from that a schedule should trigger on.
+func (s Schedule) Next(from time.Time) (time.Time, error) {
+	return cron.Parsed(s.cron).Next(from)
+}
+
+// ValidSchedule returns an error if the cron string is invalid.
+func ValidateSchedule(c string) error {
+	_, err := cron.ParseUTC(c)
+	return err
 }
 
 // Scheduler is a example interface of a Scheduler.
@@ -59,4 +81,19 @@ type Scheduler interface {
 
 	// Release removes the specified task from the scheduler.
 	Release(taskID ID) error
+}
+
+type ErrUnrecoverable struct {
+	error
+}
+
+func (e *ErrUnrecoverable) Error() string {
+	if e.error != nil {
+		return "error unrecoverable error on task run " + e.error.Error()
+	}
+	return "error unrecoverable error on task run"
+}
+
+func (e *ErrUnrecoverable) Unwrap() error {
+	return e.error
 }

@@ -55,6 +55,7 @@ func TestTaskExecutor(t *testing.T) {
 	t.Run("LimitFunc", testLimitFunc)
 	t.Run("Metrics", testMetrics)
 	t.Run("IteratorFailure", testIteratorFailure)
+	t.Run("ErrorHandling", testErrorHandling)
 }
 
 func testQuerySuccess(t *testing.T) {
@@ -264,7 +265,7 @@ func testLimitFunc(t *testing.T) {
 	tes.svc.FailNextQuery(forcedErr)
 
 	count := 0
-	tes.ex.SetLimitFunc(func(*influxdb.Run) error {
+	tes.ex.SetLimitFunc(func(*influxdb.Task, *influxdb.Run) error {
 		count++
 		if count < 2 {
 			return errors.New("not there yet")
@@ -336,7 +337,7 @@ func testMetrics(t *testing.T) {
 
 	mg = promtest.MustGather(t, reg)
 
-	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"status": "success"})
+	m = promtest.MustFindMetric(t, mg, "task_executor_total_runs_complete", map[string]string{"task_type": "", "status": "success"})
 	if got := *m.Counter.Value; got != 1 {
 		t.Fatalf("expected 1 active runs, got %v", got)
 	}
@@ -413,5 +414,37 @@ func testIteratorFailure(t *testing.T) {
 
 	if got := promise.Error(); got == nil {
 		t.Fatal("got no error when I should have")
+	}
+}
+
+func testErrorHandling(t *testing.T) {
+	t.Parallel()
+	tes := taskExecutorSystem(t)
+
+	script := fmt.Sprintf(fmtTestScript, t.Name())
+	ctx := icontext.SetAuthorizer(context.Background(), tes.tc.Auth)
+	task, err := tes.i.CreateTask(ctx, influxdb.TaskCreate{OrganizationID: tes.tc.OrgID, OwnerID: tes.tc.Auth.GetUserID(), Flux: script, Status: "active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// encountering a bucket not found error should deactivate the task
+	forcedErr := errors.New("could not find bucket")
+	tes.svc.FailNextQuery(forcedErr)
+
+	promise, err := tes.ex.PromisedExecute(ctx, scheduler.ID(task.ID), time.Unix(123, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	<-promise.Done()
+
+	inactive, err := tes.i.FindTaskByID(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inactive.Status != "inactive" {
+		t.Fatal("expected task to be deactivated after permanent error")
 	}
 }

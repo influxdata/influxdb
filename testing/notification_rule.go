@@ -131,7 +131,6 @@ func CreateNotificationRule(
 							Name:        "name1",
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
@@ -183,7 +182,6 @@ func CreateNotificationRule(
 						Name:        "name2",
 						OrgID:       MustIDBase16(fourID),
 						EndpointID:  MustIDBase16(twoID),
-						Status:      influxdb.Inactive,
 						RunbookLink: "runbooklink1",
 						SleepUntil:  &time3,
 						Every:       mustDuration("1h"),
@@ -220,7 +218,6 @@ func CreateNotificationRule(
 							Name:        "name1",
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
@@ -261,7 +258,6 @@ func CreateNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Inactive,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -317,7 +313,11 @@ func CreateNotificationRule(
 			s, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.CreateNotificationRule(ctx, tt.args.notificationRule, tt.args.userID)
+			nrc := influxdb.NotificationRuleCreate{
+				NotificationRule: tt.args.notificationRule,
+				Status:           influxdb.Active,
+			}
+			err := s.CreateNotificationRule(ctx, nrc, tt.args.userID)
 			if (err != nil) != (tt.wants.err != nil) {
 				t.Fatalf("expected error '%v' got '%v'", tt.wants.err, err)
 			}
@@ -402,7 +402,6 @@ func FindNotificationRuleByID(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -421,7 +420,6 @@ func FindNotificationRuleByID(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -469,7 +467,6 @@ func FindNotificationRuleByID(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -488,7 +485,6 @@ func FindNotificationRuleByID(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -536,7 +532,6 @@ func FindNotificationRuleByID(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -555,7 +550,6 @@ func FindNotificationRuleByID(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -579,7 +573,6 @@ func FindNotificationRuleByID(
 						OwnerID:     MustIDBase16(sixID),
 						OrgID:       MustIDBase16(fourID),
 						EndpointID:  MustIDBase16(twoID),
-						Status:      influxdb.Active,
 						RunbookLink: "runbooklink2",
 						SleepUntil:  &time3,
 						Every:       mustDuration("1h"),
@@ -615,6 +608,7 @@ func FindNotificationRules(
 ) {
 	type args struct {
 		filter influxdb.NotificationRuleFilter
+		opts   influxdb.FindOptions
 	}
 
 	type wants struct {
@@ -669,7 +663,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -688,7 +681,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -718,7 +710,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -737,7 +728,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -776,7 +766,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -795,7 +784,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -826,7 +814,6 @@ func FindNotificationRules(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -881,7 +868,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr1",
 						},
 						Channel:         "ch1",
@@ -893,7 +879,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr2",
 						},
 						MessageTemplate: "body2",
@@ -904,7 +889,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(oneID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr3",
 						},
 						MessageTemplate: "msg",
@@ -924,7 +908,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(oneID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr3",
 						},
 						MessageTemplate: "msg",
@@ -972,7 +955,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr1",
 						},
 						Channel:         "ch1",
@@ -984,7 +966,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr2",
 						},
 						MessageTemplate: "body2",
@@ -995,7 +976,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(oneID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr3",
 						},
 						MessageTemplate: "msg",
@@ -1015,7 +995,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr1",
 						},
 						Channel:         "ch1",
@@ -1027,7 +1006,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr2",
 						},
 						MessageTemplate: "body2",
@@ -1233,7 +1211,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr1",
 						},
 						Channel:         "ch1",
@@ -1245,7 +1222,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr2",
 						},
 						MessageTemplate: "body2",
@@ -1256,7 +1232,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(oneID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr3",
 						},
 						MessageTemplate: "msg",
@@ -1281,7 +1256,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(oneID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr3",
 						},
 						MessageTemplate: "msg",
@@ -1329,7 +1303,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							EndpointID: 1,
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							Name:       "nr1",
 						},
 						Channel:         "ch1",
@@ -1340,7 +1313,6 @@ func FindNotificationRules(
 							ID:         MustIDBase16(twoID),
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							EndpointID: 1,
 							Name:       "nr2",
 						},
@@ -1352,7 +1324,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr3",
 						},
 						MessageTemplate: "msg",
@@ -1366,6 +1337,207 @@ func FindNotificationRules(
 			},
 			wants: wants{
 				notificationRules: []influxdb.NotificationRule{},
+			},
+		},
+		{
+			name: "find options limit",
+			fields: NotificationRuleFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+					},
+					{
+						ResourceID:   MustIDBase16(fourID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(oneID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr1",
+						},
+						Channel:         "ch1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(fourID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr3",
+						},
+						MessageTemplate: "msg",
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationRuleFilter{
+					OrgID: idPtr(MustIDBase16(oneID)),
+				},
+				opts: influxdb.FindOptions{
+					Limit: 2,
+				},
+			},
+			wants: wants{
+				notificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(oneID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr1",
+						},
+						Channel:         "ch1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+				},
+			},
+		},
+		{
+			name: "find options offset",
+			fields: NotificationRuleFields{
+				Orgs: []*influxdb.Organization{
+					{
+						ID:   MustIDBase16(oneID),
+						Name: "org1",
+					},
+					{
+						ID:   MustIDBase16(fourID),
+						Name: "org4",
+					},
+				},
+				UserResourceMappings: []*influxdb.UserResourceMapping{
+					{
+						ResourceID:   MustIDBase16(oneID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+					{
+						ResourceID:   MustIDBase16(twoID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Member,
+					},
+					{
+						ResourceID:   MustIDBase16(fourID),
+						ResourceType: influxdb.NotificationRuleResourceType,
+						UserID:       MustIDBase16(sixID),
+						UserType:     influxdb.Owner,
+					},
+				},
+				NotificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(oneID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr1",
+						},
+						Channel:         "ch1",
+						MessageTemplate: "msg1",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(fourID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr3",
+						},
+						MessageTemplate: "msg",
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.NotificationRuleFilter{
+					OrgID: idPtr(MustIDBase16(oneID)),
+				},
+				opts: influxdb.FindOptions{
+					Offset: 1,
+				},
+			},
+			wants: wants{
+				notificationRules: []influxdb.NotificationRule{
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(twoID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr2",
+						},
+						MessageTemplate: "body2",
+					},
+					&rule.Slack{
+						Base: rule.Base{
+							ID:         MustIDBase16(fourID),
+							OrgID:      MustIDBase16(oneID),
+							EndpointID: 1,
+							OwnerID:    MustIDBase16(sixID),
+							Name:       "nr3",
+						},
+						MessageTemplate: "msg",
+					},
+				},
 			},
 		},
 		{
@@ -1408,7 +1580,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr1",
 						},
 						Channel:         "ch1",
@@ -1420,7 +1591,6 @@ func FindNotificationRules(
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: 1,
-							Status:     influxdb.Active,
 							Name:       "nr2",
 						},
 						MessageTemplate: "body2",
@@ -1430,7 +1600,6 @@ func FindNotificationRules(
 							ID:         MustIDBase16(fourID),
 							OrgID:      MustIDBase16(fourID),
 							OwnerID:    MustIDBase16(sixID),
-							Status:     influxdb.Active,
 							EndpointID: 1,
 							Name:       "nr3",
 						},
@@ -1456,7 +1625,7 @@ func FindNotificationRules(
 			defer done()
 			ctx := context.Background()
 
-			nrs, n, err := s.FindNotificationRules(ctx, tt.args.filter)
+			nrs, n, err := s.FindNotificationRules(ctx, tt.args.filter, tt.args.opts)
 			ErrorsEqual(t, err, tt.wants.err)
 			if n != len(tt.wants.notificationRules) {
 				t.Fatalf("notification rules length is different got %d, want %d", n, len(tt.wants.notificationRules))
@@ -1516,7 +1685,6 @@ func UpdateNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -1535,7 +1703,6 @@ func UpdateNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -1558,7 +1725,6 @@ func UpdateNotificationRule(
 						OwnerID:     MustIDBase16(sixID),
 						OrgID:       MustIDBase16(fourID),
 						EndpointID:  MustIDBase16(twoID),
-						Status:      influxdb.Inactive,
 						RunbookLink: "runbooklink3",
 						SleepUntil:  &time3,
 						Every:       mustDuration("2h"),
@@ -1635,7 +1801,6 @@ func UpdateNotificationRule(
 								},
 							},
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							TaskID:      MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
@@ -1661,7 +1826,6 @@ func UpdateNotificationRule(
 							},
 							TaskID:      MustIDBase16(twoID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -1683,7 +1847,6 @@ func UpdateNotificationRule(
 						Name:       "name3",
 						OrgID:      MustIDBase16(fourID),
 						EndpointID: MustIDBase16(twoID),
-						Status:     influxdb.Inactive,
 						StatusRules: []notification.StatusRule{
 							{
 								CurrentLevel: notification.Info,
@@ -1710,7 +1873,6 @@ func UpdateNotificationRule(
 							},
 						},
 						EndpointID:  MustIDBase16(twoID),
-						Status:      influxdb.Inactive,
 						RunbookLink: "runbooklink3",
 						SleepUntil:  &time3,
 						Every:       mustDuration("2h"),
@@ -1730,8 +1892,13 @@ func UpdateNotificationRule(
 			defer done()
 			ctx := context.Background()
 
+			nrc := influxdb.NotificationRuleCreate{
+				NotificationRule: tt.args.notificationRule,
+				Status:           influxdb.Active,
+			}
+
 			tc, err := s.UpdateNotificationRule(ctx, tt.args.id,
-				tt.args.notificationRule, tt.args.userID)
+				nrc, tt.args.userID)
 			ErrorsEqual(t, err, tt.wants.err)
 			if diff := cmp.Diff(tc, tt.wants.notificationRule, notificationRuleCmpOptions...); tt.wants.err == nil && diff != "" {
 				t.Errorf("notificationRules are different -got/+want\ndiff %s", diff)
@@ -1790,7 +1957,6 @@ func PatchNotificationRule(
 							Name:        "name1",
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
@@ -1810,7 +1976,6 @@ func PatchNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -1885,7 +2050,6 @@ func PatchNotificationRule(
 						Base: rule.Base{
 							ID:          MustIDBase16(oneID),
 							Name:        "name1",
-							Status:      influxdb.Active,
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
@@ -1912,7 +2076,6 @@ func PatchNotificationRule(
 						Base: rule.Base{
 							ID:         MustIDBase16(twoID),
 							Name:       "name2",
-							Status:     influxdb.Active,
 							OwnerID:    MustIDBase16(sixID),
 							EndpointID: MustIDBase16(twoID),
 							TaskID:     MustIDBase16(twoID),
@@ -1955,7 +2118,6 @@ func PatchNotificationRule(
 					Base: rule.Base{
 						ID:         MustIDBase16(twoID),
 						Name:       name3,
-						Status:     status3,
 						OwnerID:    MustIDBase16(sixID),
 						OrgID:      MustIDBase16(fourID),
 						EndpointID: MustIDBase16(twoID),
@@ -2041,7 +2203,6 @@ func DeleteNotificationRule(
 							Name:        "name1",
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
@@ -2060,7 +2221,6 @@ func DeleteNotificationRule(
 							Name:        "name2",
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
@@ -2105,7 +2265,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							EndpointID:  MustIDBase16(twoID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -2124,7 +2283,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -2178,7 +2336,6 @@ func DeleteNotificationRule(
 							Name:        "name1",
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
@@ -2198,7 +2355,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							TaskID:      MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
@@ -2243,7 +2399,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -2262,7 +2417,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							EndpointID:  MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -2318,7 +2472,6 @@ func DeleteNotificationRule(
 							EndpointID:  MustIDBase16(twoID),
 							TaskID:      MustIDBase16(twoID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,
 							Every:       mustDuration("1h"),
@@ -2337,7 +2490,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							TaskID:      MustIDBase16(twoID),
 							OrgID:       MustIDBase16(fourID),
-							Status:      influxdb.Active,
 							RunbookLink: "runbooklink2",
 							EndpointID:  MustIDBase16(twoID),
 							SleepUntil:  &time3,
@@ -2372,7 +2524,6 @@ func DeleteNotificationRule(
 							OwnerID:     MustIDBase16(sixID),
 							OrgID:       MustIDBase16(fourID),
 							TaskID:      MustIDBase16(twoID),
-							Status:      influxdb.Active,
 							EndpointID:  MustIDBase16(twoID),
 							RunbookLink: "runbooklink1",
 							SleepUntil:  &time3,

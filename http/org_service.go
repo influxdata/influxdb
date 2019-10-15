@@ -203,7 +203,6 @@ func newSecretsResponse(orgID influxdb.ID, ks []string) *secretsResponse {
 // handlePostOrg is the HTTP handler for the POST /api/v2/orgs route.
 func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("org create request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePostOrgRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -240,8 +239,6 @@ func decodePostOrgRequest(ctx context.Context, r *http.Request) (*postOrgRequest
 // handleGetOrg is the HTTP handler for the GET /api/v2/orgs/:id route.
 func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("org retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetOrgRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -290,8 +287,6 @@ func decodeGetOrgRequest(ctx context.Context, r *http.Request) (*getOrgRequest, 
 // handleGetOrgs is the HTTP handler for the GET /api/v2/orgs route.
 func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("orgs retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetOrgsRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -337,8 +332,6 @@ func decodeGetOrgsRequest(ctx context.Context, r *http.Request) (*getOrgsRequest
 // handleDeleteOrganization is the HTTP handler for the DELETE /api/v2/orgs/:id route.
 func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("org delete request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeDeleteOrganizationRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -386,8 +379,6 @@ func decodeDeleteOrganizationRequest(ctx context.Context, r *http.Request) (*del
 // handlePatchOrg is the HTTP handler for the PATH /api/v2/orgs route.
 func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("org update request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodePatchOrgRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -830,8 +821,6 @@ func organizationIDPath(id influxdb.ID) string {
 // hanldeGetOrganizationLog retrieves a organization log by the organizations ID.
 func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("org log retrieve request", zap.String("r", fmt.Sprint(r)))
-
 	req, err := decodeGetOrganizationLogRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

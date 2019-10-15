@@ -119,7 +119,7 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
-	h.HandlerFunc("GET", notificationEndpointsIDLabelsIDPath, newGetLabelsHandler(labelBackend))
+	h.HandlerFunc("GET", notificationEndpointsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", notificationEndpointsIDLabelsPath, newPostLabelHandler(labelBackend))
 	h.HandlerFunc("DELETE", notificationEndpointsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
@@ -213,7 +213,6 @@ func decodeGetNotificationEndpointRequest(ctx context.Context, r *http.Request) 
 
 func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notificationEndpoints retrieve request", zap.String("r", fmt.Sprint(r)))
 	filter, opts, err := decodeNotificationEndpointFilter(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -235,7 +234,6 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 
 func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notificationEndpoint retrieve request", zap.String("r", fmt.Sprint(r)))
 	id, err := decodeGetNotificationEndpointRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -381,7 +379,6 @@ func decodePatchNotificationEndpointRequest(ctx context.Context, r *http.Request
 // handlePostNotificationEndpoint is the HTTP handler for the POST /api/v2/notificationEndpoints route.
 func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notificationEndpoint create request", zap.String("r", fmt.Sprint(r)))
 	edp, err := decodePostNotificationEndpointRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -423,7 +420,6 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 // handlePutNotificationEndpoint is the HTTP handler for the PUT /api/v2/notificationEndpoints route.
 func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notificationEndpoint replace request", zap.String("r", fmt.Sprint(r)))
 	edp, err := decodePutNotificationEndpointRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -471,7 +467,6 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 // handlePatchNotificationEndpoint is the HTTP handler for the PATCH /api/v2/notificationEndpoints/:id route.
 func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notificationEndpoint patch request", zap.String("r", fmt.Sprint(r)))
 	req, err := decodePatchNotificationEndpointRequest(ctx, r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
@@ -500,7 +495,6 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 
 func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	h.Logger.Debug("notificationEndpoint delete request", zap.String("r", fmt.Sprint(r)))
 	i, err := decodeGetNotificationEndpointRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)

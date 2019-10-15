@@ -9,7 +9,7 @@ import {MeState} from 'src/shared/reducers/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
-import {VariablesState} from 'src/variables/reducers'
+import {VariablesState, VariableEditorState} from 'src/variables/reducers'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
@@ -21,6 +21,7 @@ import {ScrapersState} from 'src/scrapers/reducers'
 import {UserSettingsState} from 'src/userSettings/reducers'
 import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {OrgsState} from 'src/organizations/reducers/orgs'
+import {OverlayState} from 'src/overlays/reducers/overlays'
 import {MembersState} from 'src/members/reducers'
 import {AutoRefreshState} from 'src/shared/reducers/autoRefresh'
 import {LimitsState} from 'src/cloud/reducers/limits'
@@ -45,11 +46,13 @@ export interface AppState {
   tasks: TasksState
   timeRange: TimeRange
   orgs: OrgsState
+  overlays: OverlayState
   me: MeState
   onboarding: OnboardingState
   noteEditor: NoteEditorState
   dataLoading: DataLoadingState
   variables: VariablesState
+  variableEditor: VariableEditorState
   tokens: AuthorizationsState
   templates: TemplatesState
   scrapers: ScrapersState

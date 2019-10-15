@@ -28,6 +28,7 @@ import {
   QueryViewProperties,
   TimeZone,
   Check,
+  StatusRow,
 } from 'src/types'
 
 interface StateProps {
@@ -44,6 +45,7 @@ interface StateProps {
   fillColumns: string[]
   symbolColumns: string[]
   timeZone: TimeZone
+  statuses: StatusRow[][]
 }
 
 type Props = StateProps
@@ -62,6 +64,7 @@ const TimeMachineVis: SFC<Props> = ({
   fillColumns,
   symbolColumns,
   timeZone,
+  statuses,
 }) => {
   // If the current selections for `xColumn`/`yColumn`/ etc. are invalid given
   // the current Flux response, attempt to make a valid selection instead. This
@@ -108,6 +111,7 @@ const TimeMachineVis: SFC<Props> = ({
               properties={resolvedViewProperties}
               check={check}
               timeZone={timeZone}
+              statuses={statuses}
             />
           )}
         </EmptyQueryView>
@@ -120,7 +124,13 @@ const mstp = (state: AppState): StateProps => {
   const {
     isViewingRawData,
     view: {properties: viewProperties},
-    queryResults: {status: loading, errorMessage, isInitialFetch, files},
+    queryResults: {
+      status: loading,
+      errorMessage,
+      isInitialFetch,
+      files,
+      statuses,
+    },
     alerting: {check},
   } = getActiveTimeMachine(state)
 
@@ -146,6 +156,7 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
+    statuses,
   }
 }
 

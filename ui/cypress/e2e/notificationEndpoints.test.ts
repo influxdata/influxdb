@@ -1,4 +1,8 @@
-import {NotificationEndpoint, SlackNotificationEndpoint} from '../../src/types'
+import {
+  NotificationEndpoint,
+  SlackNotificationEndpoint,
+  Organization,
+} from '../../src/types'
 
 describe('Notification Endpoints', () => {
   const endpoint: NotificationEndpoint = {
@@ -76,6 +80,25 @@ describe('Notification Endpoints', () => {
           cy.contains('Pagerduty')
         })
 
+        cy.getByTestID('endpoint--dropdown-item http').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('HTTP')
+        })
+      })
+
+    cy.getByTestID('http-url')
+      .clear()
+      .type('http.url.us')
+      .should('have.value', 'http.url.us')
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('HTTP')
+        })
+
         cy.getByTestID('endpoint--dropdown-item slack').click()
 
         cy.getByTestID('endpoint--dropdown--button').within(() => {
@@ -146,6 +169,23 @@ describe('Notification Endpoints', () => {
 
       cy.getByTestID(`endpoint-card ${newName}`).should('exist')
       cy.getByTestID('endpoint--overlay').should('not.be.visible')
+    })
+  })
+
+  describe('When a endpoint does not exist', () => {
+    it('should route the user to the alerting index page', () => {
+      const nonexistentID = '0495f0d1247ab600'
+
+      // visitng the endpoint edit overlay
+      cy.get('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs, alerting, endpoints}) => {
+          cy.visit(`${orgs}/${id}${alerting}${endpoints}/${nonexistentID}/edit`)
+          cy.url().should(
+            'eq',
+            `${Cypress.config().baseUrl}${orgs}/${id}${alerting}`
+          )
+        })
+      })
     })
   })
 })

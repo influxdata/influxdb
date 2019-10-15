@@ -132,8 +132,13 @@ func (sm *schedulerMetrics) FinishRun(tid string, succeeded bool, executionDelta
 }
 
 // LogError increments the count of errors.
-func (sm *schedulerMetrics) LogError(err *influxdb.Error) {
-	sm.errorsCounter.WithLabelValues(err.Code).Inc()
+func (sm *schedulerMetrics) LogError(err error) {
+	switch e := err.(type) {
+	case *influxdb.Error:
+		sm.errorsCounter.WithLabelValues(e.Code).Inc()
+	default:
+		sm.errorsCounter.WithLabelValues("unknown").Inc()
+	}
 }
 
 // ClaimTask adjusts the metrics to indicate the result of an attempted claim.

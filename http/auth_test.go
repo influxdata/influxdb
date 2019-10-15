@@ -884,10 +884,16 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		token = a.Token
 	}
 
+	mus := &mock.UserService{
+		FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+			return &platform.User{}, nil
+		},
+	}
+
 	authorizationBackend := NewMockAuthorizationBackend()
 	authorizationBackend.HTTPErrorHandler = ErrorHandler(0)
 	authorizationBackend.AuthorizationService = svc
-	authorizationBackend.UserService = svc
+	authorizationBackend.UserService = mus
 	authorizationBackend.OrganizationService = svc
 	authorizationBackend.LookupService = &mock.LookupService{
 		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
@@ -905,6 +911,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	authN := NewAuthenticationHandler(ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ
+	authN.UserService = mus
 
 	server := httptest.NewServer(authN)
 	client := AuthorizationService{

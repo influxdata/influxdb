@@ -115,7 +115,7 @@ class Collectors extends PureComponent<Props, State> {
               <GetResources resource={ResourceType.Labels}>
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}
-                  searchKeys={['plugins.0.config.bucket', 'labels[].name']}
+                  searchKeys={['plugins.0.config.bucket', 'name']}
                   list={collectors}
                 >
                   {cs => (

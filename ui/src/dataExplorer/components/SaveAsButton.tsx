@@ -15,6 +15,7 @@ class SaveAsButton extends PureComponent<WithRouterProps, {}> {
           onClick={this.handleShowOverlay}
           color={ComponentColor.Primary}
           titleText="Save your query as a Dashboard Cell or a Task"
+          testID="save-query-as"
         />
       </>
     )

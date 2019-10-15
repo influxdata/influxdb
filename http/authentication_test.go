@@ -2,21 +2,30 @@ package http_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	influxdb "github.com/influxdata/influxdb"
 	platform "github.com/influxdata/influxdb"
 	platformhttp "github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/jsonweb"
 	"github.com/influxdata/influxdb/mock"
 )
+
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjbG91ZDIuaW5mbHV4ZGF0YS5jb20iLCJhdWQiOiJnYXRld2F5LmluZmx1eGRhdGEuY29tIiwiaWF0IjoxNTY4NjI4OTgwLCJraWQiOiJzb21lLWtleSIsInBlcm1pc3Npb25zIjpbeyJhY3Rpb24iOiJ3cml0ZSIsInJlc291cmNlIjp7InR5cGUiOiJidWNrZXRzIiwiaWQiOiIwMDAwMDAwMDAwMDAwMDAxIiwib3JnSUQiOiIwMDAwMDAwMDAwMDAwMDAyIn19XX0.74vjbExiOd702VSIMmQWaDT_GFvUI0-_P-SfQ_OOHB0"
+
+var one = influxdb.ID(1)
 
 func TestAuthenticationHandler(t *testing.T) {
 	type fields struct {
 		AuthorizationService platform.AuthorizationService
 		SessionService       platform.SessionService
+		UserService          platform.UserService
+		TokenParser          *jsonweb.TokenParser
 	}
 	type args struct {
 		token   string
@@ -104,12 +113,89 @@ func TestAuthenticationHandler(t *testing.T) {
 			},
 		},
 		{
+			name: "associated user is inactive",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+						return &platform.Authorization{UserID: one}, nil
+					},
+				},
+				SessionService: mock.NewSessionService(),
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						if !id.Valid() {
+							panic("user service should only be called with valid user ID")
+						}
+
+						return &platform.User{Status: "inactive"}, nil
+					},
+				},
+			},
+			args: args{
+				token: "abc123",
+			},
+			wants: wants{
+				code: http.StatusForbidden,
+			},
+		},
+		{
 			name: "no auth provided",
 			fields: fields{
 				AuthorizationService: mock.NewAuthorizationService(),
 				SessionService:       mock.NewSessionService(),
 			},
 			args: args{},
+			wants: wants{
+				code: http.StatusUnauthorized,
+			},
+		},
+		{
+			name: "jwt provided",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+						return nil, fmt.Errorf("authorization not found")
+					},
+				},
+				SessionService: mock.NewSessionService(),
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						// ensure that this is not reached as jwt token authorizer produces
+						// invalid user id
+						if !id.Valid() {
+							panic("user service should only be called with valid user ID")
+						}
+
+						return nil, errors.New("user not found")
+					},
+				},
+				TokenParser: jsonweb.NewTokenParser(jsonweb.KeyStoreFunc(func(string) ([]byte, error) {
+					return []byte("correct-key"), nil
+				})),
+			},
+			args: args{
+				token: token,
+			},
+			wants: wants{
+				code: http.StatusOK,
+			},
+		},
+		{
+			name: "jwt provided - bad signature",
+			fields: fields{
+				AuthorizationService: &mock.AuthorizationService{
+					FindAuthorizationByTokenFn: func(ctx context.Context, token string) (*platform.Authorization, error) {
+						panic("token lookup attempted")
+					},
+				},
+				SessionService: mock.NewSessionService(),
+				TokenParser: jsonweb.NewTokenParser(jsonweb.KeyStoreFunc(func(string) ([]byte, error) {
+					return []byte("incorrect-key"), nil
+				})),
+			},
+			args: args{
+				token: token,
+			},
 			wants: wants{
 				code: http.StatusUnauthorized,
 			},
@@ -125,6 +211,20 @@ func TestAuthenticationHandler(t *testing.T) {
 			h := platformhttp.NewAuthenticationHandler(platformhttp.ErrorHandler(0))
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.SessionService = tt.fields.SessionService
+			h.UserService = &mock.UserService{
+				FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					return &platform.User{}, nil
+				},
+			}
+
+			if tt.fields.UserService != nil {
+				h.UserService = tt.fields.UserService
+			}
+
+			if tt.fields.TokenParser != nil {
+				h.TokenParser = tt.fields.TokenParser
+			}
+
 			h.Handler = handler
 
 			w := httptest.NewRecorder()

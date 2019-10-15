@@ -6,7 +6,6 @@ import {Input, FormElement, Panel, Grid, Columns} from '@influxdata/clockface'
 
 interface Props {
   url: string
-  token: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
@@ -20,7 +19,7 @@ const EndpointOptionsSlack: FC<Props> = ({url, onChange}) => {
         <Grid>
           <Grid.Row>
             <Grid.Column widthXS={Columns.Twelve}>
-              <FormElement label="Slack Incoming Webhook URL">
+              <FormElement label="Incoming Webhook URL">
                 <Input
                   name="url"
                   value={url}

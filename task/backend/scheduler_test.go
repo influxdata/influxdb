@@ -240,6 +240,7 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 }
 
 func TestScheduler_LogStatisticsOnSuccess(t *testing.T) {
+	t.Skip("flaky test: https://github.com/influxdata/influxdb/issues/15394")
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()
@@ -625,6 +626,8 @@ func pollForRunStatus(t *testing.T, r *runListener, taskID platform.ID, expCount
 }
 
 func TestScheduler_RunStatus(t *testing.T) {
+	t.Skip("https://github.com/influxdata/influxdb/issues/15273")
+
 	t.Parallel()
 
 	tcs := mock.NewTaskControlService()

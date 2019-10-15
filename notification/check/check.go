@@ -17,7 +17,6 @@ type Base struct {
 	Description           string                  `json:"description,omitempty"`
 	OwnerID               influxdb.ID             `json:"ownerID,omitempty"`
 	OrgID                 influxdb.ID             `json:"orgID,omitempty"`
-	Status                influxdb.Status         `json:"status"`
 	Query                 influxdb.DashboardQuery `json:"query"`
 	StatusMessageTemplate string                  `json:"statusMessageTemplate"`
 
@@ -60,12 +59,6 @@ func (b Base) Valid() error {
 			Msg:  "Check OrgID is invalid",
 		}
 	}
-	if b.Status != influxdb.Active && b.Status != influxdb.Inactive {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "invalid status",
-		}
-	}
 	if b.Offset != nil && b.Every != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,
@@ -90,10 +83,6 @@ func (b Base) generateTaskOption() ast.Statement {
 	props := []*ast.Property{}
 
 	props = append(props, flux.Property("name", flux.String(b.Name)))
-
-	if b.Cron != "" {
-		props = append(props, flux.Property("cron", flux.String(b.Cron)))
-	}
 
 	if b.Every != nil {
 		props = append(props, flux.Property("every", (*ast.DurationLiteral)(b.Every)))
@@ -158,11 +147,6 @@ func (b *Base) GetDescription() string {
 	return b.Description
 }
 
-// GetStatus implements influxdb.Getter interface.
-func (b *Base) GetStatus() influxdb.Status {
-	return b.Status
-}
-
 // SetID will set the primary key.
 func (b *Base) SetID(id influxdb.ID) {
 	b.ID = id
@@ -196,11 +180,6 @@ func (b *Base) SetName(name string) {
 // SetDescription implements influxdb.Updator interface.
 func (b *Base) SetDescription(description string) {
 	b.Description = description
-}
-
-// SetStatus implements influxdb.Updator interface.
-func (b *Base) SetStatus(status influxdb.Status) {
-	b.Status = status
 }
 
 var typeToCheck = map[string](func() influxdb.Check){

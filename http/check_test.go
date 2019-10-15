@@ -71,7 +71,6 @@ func TestService_handleGetChecks(t *testing.T) {
 									ID:     influxTesting.MustIDBase16("0b501e7e557ab1ed"),
 									Name:   "hello",
 									OrgID:  influxTesting.MustIDBase16("50f7ba1150f7ba11"),
-									Status: influxdb.Active,
 									TaskID: 3,
 								},
 								Level: notification.Info,
@@ -81,7 +80,6 @@ func TestService_handleGetChecks(t *testing.T) {
 									ID:     influxTesting.MustIDBase16("c0175f0077a77005"),
 									Name:   "example",
 									OrgID:  influxTesting.MustIDBase16("7e55e118dbabb1ed"),
-									Status: influxdb.Inactive,
 									TaskID: 3,
 								},
 								Thresholds: []check.ThresholdConfig{
@@ -136,30 +134,29 @@ func TestService_handleGetChecks(t *testing.T) {
         "owners": "/api/v2/checks/0b501e7e557ab1ed/owners",
         "members": "/api/v2/checks/0b501e7e557ab1ed/members"
       },
-	  "createdAt": "0001-01-01T00:00:00Z",
-	  "updatedAt": "0001-01-01T00:00:00Z",
+			"createdAt": "0001-01-01T00:00:00Z",
+			"updatedAt": "0001-01-01T00:00:00Z",
       "id": "0b501e7e557ab1ed",
-	  "orgID": "50f7ba1150f7ba11",
-	  "name": "hello",
-	  "level": "INFO",
-	  "query": {
-	    "builderConfig": {
-	      "aggregateWindow": {
-	        "period": ""
-	      },
-	      "buckets": null,
-	      "functions": null,
-	      "tags": null
-	    },
-	    "editMode": "",
-	    "name": "",
-	    "text": ""
-	  },
-	  "reportZero": false,
-	  "status": "active",
-	  "statusMessageTemplate": "",
-	  "tags": null,
-	  "type": "deadman",
+			"orgID": "50f7ba1150f7ba11",
+			"name": "hello",
+			"level": "INFO",
+			"query": {
+				"builderConfig": {
+					"aggregateWindow": {
+						"period": ""
+					},
+					"buckets": null,
+					"functions": null,
+					"tags": null
+				},
+				"editMode": "",
+				"name": "",
+				"text": ""
+			},
+			"reportZero": false,
+			"statusMessageTemplate": "",
+			"tags": null,
+			"type": "deadman",
       "labels": [
         {
           "id": "fc3dc670a4be9b9a",
@@ -168,7 +165,8 @@ func TestService_handleGetChecks(t *testing.T) {
             "color": "fff000"
           }
         }
-      ]
+			],
+			"status": "active"
     },
     {
       "links": {
@@ -177,61 +175,61 @@ func TestService_handleGetChecks(t *testing.T) {
         "members": "/api/v2/checks/c0175f0077a77005/members",
         "owners": "/api/v2/checks/c0175f0077a77005/owners"
       },
-	  "createdAt": "0001-01-01T00:00:00Z",
-	  "updatedAt": "0001-01-01T00:00:00Z",
+			"createdAt": "0001-01-01T00:00:00Z",
+			"updatedAt": "0001-01-01T00:00:00Z",
       "id": "c0175f0077a77005",
       "orgID": "7e55e118dbabb1ed",
       "name": "example",
-	  "query": {
-	  "builderConfig": {
-	    "aggregateWindow": {
-	      "period": ""
-	    },
-	    "buckets": null,
-	    "functions": null,
-	    "tags": null
-	  },
-	  "editMode": "",
-	  "name": "",
-	  "text": ""
-	},
-	"status": "inactive",
-	"statusMessageTemplate": "",
-	"tags": null,
-	"thresholds": [
-	  {
-	    "allValues": false,
-		"level": "CRIT",
-		"type": "greater",
-	    "value": 100.32
-	  },
-	  {
-	    "allValues": false,
-		"level": "INFO",
-		"type": "lesser",
-	    "value": 200.64
-	  },
-	  {
-        "allValues": false,
-        "level": "UNKNOWN",
-        "max": 3023.2,
-        "min": 100.1,
-        "type": "range",
-        "within": true
-      }
-	],
-	"type": "threshold",
-	"labels": [
-        {
-          "id": "fc3dc670a4be9b9a",
-          "name": "label",
-          "properties": {
-            "color": "fff000"
-          }
-        }
-      ]
-    }
-  ]
+			"query": {
+				"builderConfig": {
+					"aggregateWindow": {
+						"period": ""
+					},
+					"buckets": null,
+					"functions": null,
+					"tags": null
+				},
+				"editMode": "",
+				"name": "",
+				"text": ""
+			},
+			"statusMessageTemplate": "",
+			"tags": null,
+			"thresholds": [
+				{
+					"allValues": false,
+				"level": "CRIT",
+				"type": "greater",
+					"value": 100.32
+				},
+				{
+					"allValues": false,
+					"level": "INFO",
+					"type": "lesser",
+					"value": 200.64
+				},
+				{
+					"allValues": false,
+					"level": "UNKNOWN",
+					"max": 3023.2,
+					"min": 100.1,
+					"type": "range",
+					"within": true
+				}
+			],
+			"type": "threshold",
+			"labels": [
+				{
+					"id": "fc3dc670a4be9b9a",
+					"name": "label",
+					"properties": {
+						"color": "fff000"
+					}
+				}
+			],
+			"status": "active"
+		}
+	]
 }
 `,
 			},
@@ -270,6 +268,11 @@ func TestService_handleGetChecks(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.LabelService = tt.fields.LabelService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{Status: "active"}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -297,6 +300,7 @@ func TestService_handleGetChecks(t *testing.T) {
 				t.Errorf("%q. handleGetChecks() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil || tt.wants.body != "" && !eq {
+				t.Errorf("%v", err)
 				t.Errorf("%q. handleGetChecks() = ***%v***", tt.name, diff)
 			}
 		})
@@ -343,7 +347,6 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Name:   "hello",
-									Status: influxdb.Active,
 									TaskID: 3,
 									Tags: []influxdb.Tag{
 										{Key: "aaa", Value: "vaaa"},
@@ -417,6 +420,11 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -482,7 +490,6 @@ func TestService_handleGetCheck(t *testing.T) {
 									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									Name:   "hello",
-									Status: influxdb.Active,
 									Every:  mustDuration("3h"),
 									TaskID: 3,
 								},
@@ -532,7 +539,8 @@ func TestService_handleGetCheck(t *testing.T) {
           "tags": null,
           "type": "deadman",
 		  "orgID": "020f755c3c082000",
-		  "name": "hello"
+			"name": "hello",
+			"status": "active"
 		}
 		`,
 			},
@@ -563,6 +571,11 @@ func TestService_handleGetCheck(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{Status: "active"}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -628,7 +641,7 @@ func TestService_handlePostCheck(t *testing.T) {
 			name: "create a new check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, c influxdb.Check, userID influxdb.ID) error {
+					CreateCheckFn: func(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) error {
 						c.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
 						c.SetOwnerID(userID)
 						return nil
@@ -649,7 +662,6 @@ func TestService_handlePostCheck(t *testing.T) {
 						OwnerID:               influxTesting.MustIDBase16("6f626f7274697321"),
 						Description:           "desc1",
 						StatusMessageTemplate: "msg1",
-						Status:                influxdb.Active,
 						Every:                 mustDuration("5m"),
 						TaskID:                3,
 						Tags: []influxdb.Tag{
@@ -674,7 +686,6 @@ func TestService_handlePostCheck(t *testing.T) {
     "owners": "/api/v2/checks/020f755c3c082000/owners"
   },
   "reportZero": true,
-  "status": "active",
   "statusMessageTemplate": "msg1",
   "tags": [
     {
@@ -710,7 +721,8 @@ func TestService_handlePostCheck(t *testing.T) {
   "description": "desc1",
   "every": "5m",
   "level": "WARN",
-  "labels": []
+	"labels": [],
+	"status": "active"
 }
 `,
 			},
@@ -722,6 +734,11 @@ func TestService_handlePostCheck(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.OrganizationService = tt.fields.OrganizationService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{Status: "active"}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			b, err := json.Marshal(tt.args.check)
@@ -820,6 +837,11 @@ func TestService_handleDeleteCheck(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
@@ -928,24 +950,24 @@ func TestService_handlePatchCheck(t *testing.T) {
 		  "level": "CRIT",
 		  "name": "example",
 		  "query": {
-            "builderConfig": {
-              "aggregateWindow": {
-                "period": ""
-              },
-              "buckets": null,
-              "functions": null,
-              "tags": null
-            },
-            "editMode": "",
-            "name": "",
-            "text": ""
-          },
-          "reportZero": false,
-          "status": "",
-          "statusMessageTemplate": "",
-          "tags": null,
-          "type": "deadman",
-		  "labels": []
+				"builderConfig": {
+					"aggregateWindow": {
+						"period": ""
+					},
+					"buckets": null,
+					"functions": null,
+					"tags": null
+				},
+				"editMode": "",
+				"name": "",
+				"text": ""
+			},
+			"reportZero": false,
+			"status": "active",
+			"statusMessageTemplate": "",
+			"tags": null,
+			"type": "deadman",
+			"labels": []
 		}
 		`,
 			},
@@ -977,6 +999,11 @@ func TestService_handlePatchCheck(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{Status: "active"}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			upd := influxdb.CheckUpdate{}
@@ -1050,19 +1077,18 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			name: "update a check name",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.Check) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &check.Deadman{
 								Base: check.Base{
 									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
 									Name:   "hello",
-									Status: influxdb.Inactive,
 									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
 									TaskID: 3,
 								},
 							}
 
-							d = chk.(*check.Deadman)
+							d = chk.Check.(*check.Deadman)
 							d.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
 							d.SetOrgID(influxTesting.MustIDBase16("020f755c3c082000"))
 
@@ -1078,7 +1104,6 @@ func TestService_handleUpdateCheck(t *testing.T) {
 				chk: &check.Deadman{
 					Base: check.Base{
 						Name:    "example",
-						Status:  influxdb.Active,
 						TaskID:  3,
 						OwnerID: 42,
 						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
@@ -1131,7 +1156,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			name: "check not found",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.Check) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 						return nil, &influxdb.Error{
 							Code: influxdb.ENotFound,
 							Msg:  "check not found",
@@ -1144,7 +1169,6 @@ func TestService_handleUpdateCheck(t *testing.T) {
 				chk: &check.Deadman{
 					Base: check.Base{
 						Name:    "example",
-						Status:  influxdb.Active,
 						OwnerID: 42,
 						OrgID:   influxTesting.MustIDBase16("020f755c3c082000"),
 					},
@@ -1161,6 +1185,11 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{Status: "active"}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			b, err := json.Marshal(tt.args.chk)
@@ -1231,8 +1260,9 @@ func TestService_handlePostCheckMember(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						return &influxdb.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
 						}, nil
 					},
 				},
@@ -1254,7 +1284,8 @@ func TestService_handlePostCheckMember(t *testing.T) {
   },
   "role": "member",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},
@@ -1265,6 +1296,11 @@ func TestService_handlePostCheckMember(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.UserService = tt.fields.UserService
+			checkBackend.TaskService = &mock.TaskService{
+				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+					return &influxdb.Task{}, nil
+				},
+			}
 			h := NewCheckHandler(checkBackend)
 
 			b, err := json.Marshal(tt.args.user)
@@ -1323,8 +1359,9 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 				UserService: &mock.UserService{
 					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 						return &influxdb.User{
-							ID:   id,
-							Name: "name",
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
 						}, nil
 					},
 				},
@@ -1346,7 +1383,8 @@ func TestService_handlePostCheckOwner(t *testing.T) {
   },
   "role": "owner",
   "id": "6f626f7274697320",
-  "name": "name"
+	"name": "name",
+	"status": "active"
 }
 `,
 			},

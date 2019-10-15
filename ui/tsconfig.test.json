@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "assets",
+    "build",
+    "node_modules",
+    "cypress",
+    "webpack.tsconfig.json"
+  ]
+}

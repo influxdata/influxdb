@@ -41,7 +41,6 @@ var deadman1 = &check.Deadman{
 		OwnerID:     MustIDBase16(sixID),
 		Description: "desc1",
 		TaskID:      1,
-		Status:      influxdb.Active,
 		Query: influxdb.DashboardQuery{
 			Text: script,
 			BuilderConfig: influxdb.BuilderConfig{
@@ -81,7 +80,6 @@ var threshold1 = &check.Threshold{
 		OwnerID:               MustIDBase16(sixID),
 		TaskID:                1,
 		Description:           "desc2",
-		Status:                influxdb.Inactive,
 		StatusMessageTemplate: "msg2",
 		Every:                 mustDuration("1m"),
 		Query: influxdb.DashboardQuery{
@@ -274,7 +272,6 @@ func CreateCheck(
 							},
 						},
 						Every:                 mustDuration("1m"),
-						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg1",
 						Tags: []influxdb.Tag{
 							{Key: "k1", Value: "v1"},
@@ -325,7 +322,6 @@ func CreateCheck(
 							},
 							Every:                 mustDuration("1m"),
 							Description:           "desc1",
-							Status:                influxdb.Inactive,
 							StatusMessageTemplate: "msg1",
 							Tags: []influxdb.Tag{
 								{Key: "k1", Value: "v1"},
@@ -375,7 +371,6 @@ func CreateCheck(
 						OrgID:                 MustIDBase16(orgTwoID),
 						OwnerID:               MustIDBase16(twoID),
 						Description:           "desc2",
-						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
 						Every:                 mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
@@ -457,7 +452,6 @@ func CreateCheck(
 						Name:        "name1",
 						OrgID:       MustIDBase16(orgOneID),
 						Description: "desc1",
-						Status:      influxdb.Active,
 						Every:       mustDuration("1m"),
 						Query: influxdb.DashboardQuery{
 							Text: script,
@@ -537,7 +531,6 @@ func CreateCheck(
 								},
 							},
 						},
-						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
 						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
@@ -571,7 +564,6 @@ func CreateCheck(
 							},
 							OwnerID:               MustIDBase16(twoID),
 							Description:           "desc2",
-							Status:                influxdb.Inactive,
 							StatusMessageTemplate: "msg2",
 							Tags: []influxdb.Tag{
 								{Key: "k11", Value: "v11"},
@@ -616,7 +608,6 @@ func CreateCheck(
 							},
 						},
 						Description:           "desc2",
-						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
 						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
@@ -641,7 +632,8 @@ func CreateCheck(
 			s, opPrefix, done := init(tt.fields, t)
 			defer done()
 			ctx := context.Background()
-			err := s.CreateCheck(ctx, tt.args.check, tt.args.userID)
+			createCheck := influxdb.CheckCreate{Check: tt.args.check, Status: influxdb.Active}
+			err := s.CreateCheck(ctx, createCheck, tt.args.userID)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			defer s.DeleteCheck(ctx, tt.args.check.GetID())
@@ -652,16 +644,6 @@ func CreateCheck(
 			}
 			if diff := cmp.Diff(checks, tt.wants.checks, checkCmpOptions...); diff != "" {
 				t.Errorf("checks are different -got/+want\ndiff %s", diff)
-			}
-			urmFilter := influxdb.UserResourceMappingFilter{
-				ResourceType: influxdb.ChecksResourceType,
-			}
-			urms, _, err := s.FindUserResourceMappings(ctx, urmFilter)
-			if err != nil {
-				t.Fatalf("failed to retrieve user resource mappings: %v", err)
-			}
-			if diff := cmp.Diff(urms, tt.wants.urms, userResourceMappingCmpOptions...); diff != "" {
-				t.Errorf("user resource mappings are different -got/+want\ndiff %s", diff)
 			}
 		})
 	}
@@ -1219,8 +1201,6 @@ func UpdateCheck(
 		check influxdb.Check
 	}
 
-	inactive := influxdb.Inactive
-
 	tests := []struct {
 		name   string
 		fields CheckFields
@@ -1274,7 +1254,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						},
 						Name:                  "changed",
 						Description:           "desc changed",
-						Status:                inactive,
 						StatusMessageTemplate: "msg2",
 						TaskID:                1,
 						Tags: []influxdb.Tag{
@@ -1334,7 +1313,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 							},
 						},
 						Description:           "desc changed",
-						Status:                influxdb.Inactive,
 						StatusMessageTemplate: "msg2",
 						Tags: []influxdb.Tag{
 							{Key: "k11", Value: "v11"},
@@ -1406,7 +1384,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 							TaskID:                1,
 							Name:                  "check2",
 							OwnerID:               MustIDBase16(twoID),
-							Status:                influxdb.Inactive,
 							StatusMessageTemplate: "msg1",
 						},
 					},
@@ -1420,7 +1397,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						OwnerID:               MustIDBase16(twoID),
 						Name:                  "check2",
 						Description:           "desc changed",
-						Status:                inactive,
 						TaskID:                1,
 						Every:                 mustDuration("1m"),
 						StatusMessageTemplate: "msg2",
@@ -1455,7 +1431,9 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 			defer done()
 			ctx := context.Background()
 
-			check, err := s.UpdateCheck(ctx, tt.args.id, tt.args.check)
+			checkCreate := influxdb.CheckCreate{Check: tt.args.check, Status: influxdb.Active}
+
+			check, err := s.UpdateCheck(ctx, tt.args.id, checkCreate)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(check, tt.wants.check, checkCmpOptions...); diff != "" {
@@ -1527,7 +1505,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						OwnerID:     MustIDBase16(sixID),
 						Every:       mustDuration("1m"),
 						Description: "desc changed",
-						Status:      influxdb.Inactive,
 						Query: influxdb.DashboardQuery{
 							Text: script,
 							BuilderConfig: influxdb.BuilderConfig{
@@ -1578,7 +1555,6 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 							Every:   mustDuration("1m"),
 							Name:    "check2",
 							OwnerID: MustIDBase16(sixID),
-							Status:  influxdb.Inactive,
 							Query: influxdb.DashboardQuery{
 								Text: script,
 								BuilderConfig: influxdb.BuilderConfig{

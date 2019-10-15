@@ -1,4 +1,4 @@
-import {SlackNotificationEndpoint} from '../../src/types'
+import {SlackNotificationEndpoint, Organization} from '../../src/types'
 
 describe('NotificationRules', () => {
   const name1 = 'Slack 1'
@@ -26,6 +26,23 @@ describe('NotificationRules', () => {
       // visit the alerting index
       cy.fixture('routes').then(({orgs, alerting}) => {
         cy.visit(`${orgs}/${id}${alerting}`)
+      })
+    })
+  })
+
+  describe('When a rule does not exist', () => {
+    it('should route the user to the alerting index page', () => {
+      const nonexistentID = '04984be058066088'
+
+      // visitng the rules edit overlay
+      cy.get('@org').then(({id}: Organization) => {
+        cy.fixture('routes').then(({orgs, alerting, rules}) => {
+          cy.visit(`${orgs}/${id}${alerting}${rules}/${nonexistentID}/edit`)
+          cy.url().should(
+            'eq',
+            `${Cypress.config().baseUrl}${orgs}/${id}${alerting}`
+          )
+        })
       })
     })
   })

@@ -4,11 +4,29 @@ import (
 	"context"
 )
 
+// UserStatus indicates whether a user is active or inactive
+type UserStatus string
+
+// Valid validates user status
+func (u *UserStatus) Valid() error {
+	if *u != "active" && *u != "inactive" {
+		return &Error{Code: EInvalid, Msg: "Invalid user status"}
+	}
+
+	return nil
+}
+
 // User is a user. 🎉
 type User struct {
 	ID      ID     `json:"id,omitempty"`
 	Name    string `json:"name"`
 	OAuthID string `json:"oauthID,omitempty"`
+	Status  Status `json:"status"`
+}
+
+// Valid validates user
+func (u *User) Valid() error {
+	return u.Status.Valid()
 }
 
 // Ops for user errors and op log.
@@ -48,7 +66,17 @@ type UserService interface {
 // UserUpdate represents updates to a user.
 // Only fields which are set are updated.
 type UserUpdate struct {
-	Name *string `json:"name"`
+	Name   *string `json:"name"`
+	Status *Status `json:"status"`
+}
+
+// Valid validates UserUpdate
+func (uu UserUpdate) Valid() error {
+	if uu.Status == nil {
+		return nil
+	}
+
+	return uu.Status.Valid()
 }
 
 // UserFilter represents a set of filter that restrict the returned results.

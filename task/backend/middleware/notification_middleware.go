@@ -34,7 +34,7 @@ func NewNotificationRuleStore(ns influxdb.NotificationRuleStore, ts influxdb.Tas
 }
 
 // CreateNotificationRule Creates a notification and Publishes the change it can be scheduled.
-func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRule, userID influxdb.ID) error {
+func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
 
 	if err := ns.NotificationRuleStore.CreateNotificationRule(ctx, nr, userID); err != nil {
 		return err
@@ -57,7 +57,7 @@ func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.
 }
 
 // UpdateNotificationRule Updates a notification and publishes the change so the task owner can act on the update
-func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRule, uid influxdb.ID) (influxdb.NotificationRule, error) {
+func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, uid influxdb.ID) (influxdb.NotificationRule, error) {
 	from, err := ns.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err

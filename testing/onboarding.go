@@ -151,8 +151,9 @@ func Generate(
 				password: "password1",
 				results: &platform.OnboardingResults{
 					User: &platform.User{
-						ID:   MustIDBase16(oneID),
-						Name: "admin",
+						ID:     MustIDBase16(oneID),
+						Name:   "admin",
+						Status: platform.Active,
 					},
 					Org: &platform.Organization{
 						ID:   MustIDBase16(twoID),

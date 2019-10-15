@@ -8,13 +8,11 @@ import (
 // AuthorizationKind is returned by (*Authorization).Kind().
 const AuthorizationKind = "authorization"
 
-var (
-	// ErrUnableToCreateToken sanitized error message for all errors when a user cannot create a token
-	ErrUnableToCreateToken = &Error{
-		Msg:  "unable to create token",
-		Code: EInvalid,
-	}
-)
+// ErrUnableToCreateToken sanitized error message for all errors when a user cannot create a token
+var ErrUnableToCreateToken = &Error{
+	Msg:  "unable to create token",
+	Code: EInvalid,
+}
 
 // Authorization is an authorization. 🎉
 type Authorization struct {

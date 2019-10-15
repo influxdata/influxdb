@@ -7,28 +7,6 @@ import (
 	"strings"
 )
 
-// Updater is general interface to embed
-// with any domain level interface to do crud related ops.
-type Updater interface {
-	CRUDLogSetter
-	SetID(id ID)
-	SetOrgID(id ID)
-	SetName(name string)
-	SetStatus(status Status)
-	SetDescription(description string)
-}
-
-// Getter is a general getter interface
-// to return id, orgID...
-type Getter interface {
-	GetID() ID
-	GetCRUDLog() CRUDLog
-	GetOrgID() ID
-	GetName() string
-	GetStatus() Status
-	GetDescription() string
-}
-
 // NotificationRule is a *Query* of a *Status Bucket* that returns the *Status*.
 // When warranted by the rules, sends a *Message* to a 3rd Party
 // using the *Notification Endpoint* and stores a receipt in the *Notifications Bucket*.
@@ -36,8 +14,16 @@ type NotificationRule interface {
 	Valid() error
 	Type() string
 	json.Marshaler
-	Updater
-	Getter
+	CRUDLogSetter
+	SetID(id ID)
+	SetOrgID(id ID)
+	SetName(name string)
+	SetDescription(description string)
+	GetID() ID
+	GetCRUDLog() CRUDLog
+	GetOrgID() ID
+	GetName() string
+	GetDescription() string
 	SetOwnerID(id ID)
 	ClearPrivateData()
 	GetOwnerID() ID
@@ -65,11 +51,11 @@ type NotificationRuleStore interface {
 	FindNotificationRules(ctx context.Context, filter NotificationRuleFilter, opt ...FindOptions) ([]NotificationRule, int, error)
 
 	// CreateNotificationRule creates a new notification rule and sets b.ID with the new identifier.
-	CreateNotificationRule(ctx context.Context, nr NotificationRule, userID ID) error
+	CreateNotificationRule(ctx context.Context, nr NotificationRuleCreate, userID ID) error
 
 	// UpdateNotificationRuleUpdateNotificationRule updates a single notification rule.
 	// Returns the new notification rule after update.
-	UpdateNotificationRule(ctx context.Context, id ID, nr NotificationRule, userID ID) (NotificationRule, error)
+	UpdateNotificationRule(ctx context.Context, id ID, nr NotificationRuleCreate, userID ID) (NotificationRule, error)
 
 	// PatchNotificationRule updates a single  notification rule with changeset.
 	// Returns the new notification rule state after update.
@@ -132,8 +118,8 @@ func (t Tag) Valid() error {
 }
 
 // QueryParam converts a Tag to a string query parameter
-func (tp *Tag) QueryParam() string {
-	return strings.Join([]string{tp.Key, tp.Value}, ":")
+func (t *Tag) QueryParam() string {
+	return strings.Join([]string{t.Key, t.Value}, ":")
 }
 
 // QueryParams Converts NotificationRuleFilter fields to url query params.
@@ -154,6 +140,12 @@ func (f NotificationRuleFilter) QueryParams() map[string][]string {
 	}
 
 	return qp
+}
+
+// NotificationRuleCreate is the struct providing data to create a Notification Rule.
+type NotificationRuleCreate struct {
+	NotificationRule
+	Status Status `json:"status"`
 }
 
 // NotificationRuleUpdate is the set of upgrade fields for patch request.

@@ -22,6 +22,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        '403':
+          description: user account is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unsuccessful authentication
           content:
@@ -5087,6 +5093,7 @@ paths:
           - Checks
       summary: Get all checks
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - in: query
@@ -5368,6 +5375,7 @@ paths:
           - NotificationRules
       summary: Get all notification rules
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - in: query
@@ -5739,6 +5747,7 @@ paths:
           - NotificationEndpoints
       summary: Get all notification endpoints
       parameters:
+        - $ref: '#/components/parameters/TraceSpan'
         - $ref: '#/components/parameters/Offset'
         - $ref: '#/components/parameters/Limit'
         - in: query
@@ -6258,6 +6267,7 @@ components:
         - $ref: "#/components/schemas/MemberExpression"
         - $ref: "#/components/schemas/IndexExpression"
         - $ref: "#/components/schemas/ObjectExpression"
+        - $ref: "#/components/schemas/ParenExpression"
         - $ref: "#/components/schemas/PipeExpression"
         - $ref: "#/components/schemas/UnaryExpression"
         - $ref: "#/components/schemas/BooleanLiteral"
@@ -6374,6 +6384,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Property"
+    ParenExpression:
+      description: Represents an expression wrapped in parenthesis
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        expression:
+          $ref: "#/components/schemas/Expression"
     PipeExpression:
       description: Call expression with pipe argument
       type: object
@@ -9243,9 +9261,6 @@ components:
     TaskCreateRequest:
       type: object
       properties:
-        type:
-          description: The type of task, this can be used for filtering tasks on list actions.
-          type: string
         orgID:
           description: The ID of the organization that owns this Task.
           type: string
@@ -9305,6 +9320,11 @@ components:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
+      discriminator:
+        propertyName: type
+        mapping:
+          deadman:  "#/components/schemas/DeadmanCheck"
+          threshold: "#/components/schemas/ThresholdCheck"
     Checks:
       properties:
         checks:
@@ -9345,9 +9365,6 @@ components:
         offset:
           description: Duration to delay after the schedule, before executing check.
           type: string
-        cron:
-          description: The check repetition interval in the form `* * * * * *`.
-          type: string
         tags:
           description: List of tags to write to each status.
           type: array
@@ -9366,6 +9383,27 @@ components:
           type: string
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/checks/1"
+            labels: "/api/v2/checks/1/labels"
+            members: "/api/v2/checks/1/members"
+            owners: "/api/v2/checks/1/owners"
+          properties:
+            self:
+              description: URL for this check
+              $ref: "#/components/schemas/Link"
+            labels:
+              description: URL to retrieve labels for this check
+              $ref: "#/components/schemas/Link"
+            members:
+              description: URL to retrieve members for this check
+              $ref: "#/components/schemas/Link"
+            owners:
+              description: URL to retrieve owners for this check
+              $ref: "#/components/schemas/Link"
       required: [name, type, orgID, query]
     ThresholdCheck:
       allOf:
@@ -9384,6 +9422,12 @@ components:
         - $ref: "#/components/schemas/GreaterThreshold"
         - $ref: "#/components/schemas/LesserThreshold"
         - $ref: "#/components/schemas/RangeThreshold"
+      discriminator:
+        propertyName: type
+        mapping:
+          greater: "#/components/schemas/GreaterThreshold"
+          lesser:  "#/components/schemas/LesserThreshold"
+          range: "#/components/schemas/RangeThreshold"
     DeadmanCheck:
       allOf:
         - $ref: "#/components/schemas/CheckBase"
@@ -9477,6 +9521,13 @@ components:
         - $ref: "#/components/schemas/SMTPNotificationRule"
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
         - $ref: "#/components/schemas/HTTPNotificationRule"
+      discriminator:
+        propertyName: type
+        mapping:
+          slack: "#/components/schemas/SlackNotificationRule"
+          smtp: "#/components/schemas/SMTPNotificationRule"
+          pagerduty: "#/components/schemas/PagerDutyNotificationRule"
+          http: "#/components/schemas/HTTPNotificationRule"
     NotificationRules:
       properties:
         notificationRules:
@@ -9494,13 +9545,13 @@ components:
         - name
         - tagRules
         - statusRules
+        - endpointID
       properties:
         id:
           readOnly: true
           type: string
         endpointID:
           type: string
-          readOnly: true
         orgID:
           description: The ID of the organization that owns this notification rule.
           type: string
@@ -9529,9 +9580,6 @@ components:
         offset:
           description: Duration to delay after the schedule, before executing check.
           type: string
-        cron:
-          description: The notification repetition interval in the form `* * * * * *`.
-          type: string
         runbookLink:
           type: string
         limitEvery:
@@ -9556,6 +9604,27 @@ components:
             $ref: "#/components/schemas/StatusRule"
         labels:
           $ref: "#/components/schemas/Labels"
+        links:
+          type: object
+          readOnly: true
+          example:
+            self: "/api/v2/notificationRules/1"
+            labels: "/api/v2/notificationRules/1/labels"
+            members: "/api/v2/notificationRules/1/members"
+            owners: "/api/v2/notificationRules/1/owners"
+          properties:
+            self:
+              description: URL for this endpoint.
+              $ref: "#/components/schemas/Link"
+            labels:
+              description: URL to retrieve labels for this notification rule.
+              $ref: "#/components/schemas/Link"
+            members:
+              description: URL to retrieve members for this notification rule.
+              $ref: "#/components/schemas/Link"
+            owners:
+              description: URL to retrieve owners for this notification rule.
+              $ref: "#/components/schemas/Link"
     TagRule:
       type: object
       properties:
@@ -9736,7 +9805,7 @@ components:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointBase"
         - type: object
-          required: [clientURL, routingKey]
+          required: [routingKey]
           properties:
             clientURL:
               type: string

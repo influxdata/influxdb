@@ -8,7 +8,7 @@ import {
   DeadmanCheck,
 } from 'src/types'
 import {NotificationEndpoint, CheckStatusLevel} from 'src/client'
-import {ComponentColor} from '@influxdata/clockface'
+import {ComponentColor, InfluxColors} from '@influxdata/clockface'
 import {DurationOption} from 'src/shared/components/DurationSelector'
 
 export const DEFAULT_CHECK_NAME = 'Name this Check'
@@ -40,11 +40,14 @@ export const CHECK_OFFSET_OPTIONS: DurationOption[] = [
   {duration: '30d', displayText: '30 days'},
 ]
 
+export const MONITORING_BUCKET = '_monitoring'
+
 export const LEVEL_COLORS = {
-  OK: '#32B08C',
-  INFO: '#4591ED',
-  WARN: '#FFD255',
-  CRIT: '#DC4E58',
+  OK: InfluxColors.Viridian,
+  INFO: InfluxColors.Ocean,
+  WARN: InfluxColors.Thunder,
+  CRIT: InfluxColors.Fire,
+  UNKNOWN: InfluxColors.Amethyst,
 }
 
 export const LEVEL_COMPONENT_COLORS = {
