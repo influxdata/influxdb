@@ -17,7 +17,7 @@ module.exports = merge(common, {
   mode: 'production',
   devtool: 'source-map',
   output: {
-    filename: `${STATIC_DIRECTORY}/[contenthash:10].js`,
+    filename: `${STATIC_DIRECTORY}[contenthash:10].js`,
   },
   module: {
     rules: [
@@ -61,8 +61,8 @@ module.exports = merge(common, {
   },
   plugins: [
     new MiniCssExtractPlugin({
-      filename: `${STATIC_DIRECTORY}/[contenthash:10].css`,
-      chunkFilename: `${STATIC_DIRECTORY}/[id].[contenthash:10].css`,
+      filename: `${STATIC_DIRECTORY}[contenthash:10].css`,
+      chunkFilename: `${STATIC_DIRECTORY}[id].[contenthash:10].css`,
     }),
     new ForkTsCheckerWebpackPlugin(),
   ],

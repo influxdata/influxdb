@@ -23,7 +23,7 @@ module.exports = (() => {
       _dir = _dir.slice(0, -1)
     }
 
-    return _dir
+    return _dir + '/'
   }
 
   // Webpack has some specific rules about formatting
