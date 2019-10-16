@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/spf13/viper"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
@@ -14,20 +16,15 @@ import (
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-func main() {
-	Execute()
-}
+const maxTCPConnections = 128
 
 var influxCmd = &cobra.Command{
 	Use:   "influx",
 	Short: "Influx Client",
 	Run:   influxF,
 }
-
-var maxTCPConnections = 128
 
 func init() {
 	influxCmd.AddCommand(authorizationCmd)
@@ -40,6 +37,38 @@ func init() {
 	influxCmd.AddCommand(userCmd)
 	influxCmd.AddCommand(writeCmd)
 	influxCmd.AddCommand(pingCmd)
+	influxCmd.AddCommand(manifestCmd())
+}
+
+func init() {
+	viper.SetEnvPrefix("INFLUX")
+
+	influxCmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
+	viper.BindEnv("TOKEN")
+	if h := viper.GetString("TOKEN"); h != "" {
+		flags.token = h
+	} else if tok, err := getTokenFromDefaultPath(); err == nil {
+		flags.token = tok
+	}
+
+	influxCmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
+	viper.BindEnv("HOST")
+	if h := viper.GetString("HOST"); h != "" {
+		flags.host = h
+	}
+
+	influxCmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
+
+	// Override help on all the commands tree
+	walk(influxCmd, func(c *cobra.Command) {
+		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
+	})
+}
+
+func main() {
+	if err := influxCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
 // Flags contains all the CLI flag values for influx.
@@ -76,31 +105,6 @@ func writeTokenToPath(tok, path, dir string) error {
 		return err
 	}
 	return ioutil.WriteFile(path, []byte(tok), 0600)
-}
-
-func init() {
-	viper.SetEnvPrefix("INFLUX")
-
-	influxCmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
-	viper.BindEnv("TOKEN")
-	if h := viper.GetString("TOKEN"); h != "" {
-		flags.token = h
-	} else if tok, err := getTokenFromDefaultPath(); err == nil {
-		flags.token = tok
-	}
-
-	influxCmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
-	viper.BindEnv("HOST")
-	if h := viper.GetString("HOST"); h != "" {
-		flags.host = h
-	}
-
-	influxCmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
-
-	// Override help on all the commands tree
-	walk(influxCmd, func(c *cobra.Command) {
-		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
-	})
 }
 
 func checkSetup(host string) error {
@@ -159,13 +163,6 @@ func walk(c *cobra.Command, f func(*cobra.Command)) {
 	f(c)
 	for _, c := range c.Commands() {
 		walk(c, f)
-	}
-}
-
-// Execute executes the influx command
-func Execute() {
-	if err := influxCmd.Execute(); err != nil {
-		os.Exit(1)
 	}
 }
 

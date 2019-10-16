@@ -16,11 +16,9 @@ import (
 var bucketCmd = &cobra.Command{
 	Use:   "bucket",
 	Short: "Bucket management commands",
-	Run:   bucketF,
-}
-
-func bucketF(cmd *cobra.Command, args []string) {
-	cmd.Usage()
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Usage()
+	},
 }
 
 // BucketCreateFlags define the Create Command
