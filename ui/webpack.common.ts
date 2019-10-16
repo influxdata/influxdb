@@ -7,21 +7,6 @@ const {
   STATIC_DIRECTORY,
   BASE_PATH,
 } = require('./src/utils/env')
-const htmlOptions = {
-  filename: 'index.html',
-  template: './assets/index.html',
-  favicon: './assets/images/favicon.ico',
-  inject: 'body',
-  base: BASE_PATH.slice(0, -1),
-}
-
-if (process.env.INJECT_HEADER) {
-  htmlOptions.header = process.env.INJECT_HEADER
-}
-
-if (process.env.INJECT_BODY) {
-  htmlOptions.body = process.env.INJECT_BODY
-}
 
 module.exports = {
   context: __dirname,
@@ -79,7 +64,15 @@ module.exports = {
   },
   plugins: [
     new CleanWebpackPlugin(),
-    new HtmlWebpackPlugin(htmlOptions),
+    new HtmlWebpackPlugin({
+      filename: 'index.html',
+      template: './assets/index.html',
+      favicon: './assets/images/favicon.ico',
+      inject: 'body',
+      base: BASE_PATH.slice(0, -1),
+      header: process.env.INJECT_HEADER || '',
+      body: process.env.INJECT_BODY || '',
+    }),
     new webpack.ProgressPlugin(),
     new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
   ],
