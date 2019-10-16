@@ -19,7 +19,7 @@ describe('Dashboards', () => {
     })
   })
 
-  it.skip('can create a dashboard from empty state', () => {
+  it('can create a dashboard from empty state', () => {
     cy.getByTestID('empty-dashboards-list').within(() => {
       cy.getByTestID('add-resource-dropdown--button').click()
     })
