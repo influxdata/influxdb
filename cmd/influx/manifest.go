@@ -41,6 +41,11 @@ func manifestCmd() *cobra.Command {
 
 func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
+		svc, err := newManifestSVC(*orgID, flags)
+		if err != nil {
+			return err
+		}
+
 		f, err := os.Open(*path)
 		if err != nil {
 			return err
@@ -52,30 +57,7 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		w := internal.NewTabWriter(os.Stdout)
-		if len(fest.Labels()) > 0 {
-			w.WriteHeaders(strings.ToUpper("Labels"))
-			w.WriteHeaders("Name")
-			for _, label := range fest.Labels() {
-				w.Write(map[string]interface{}{
-					"Name": label.Name,
-				})
-			}
-			w.WriteHeaders()
-		}
-
-		if len(fest.Buckets()) > 0 {
-			w.WriteHeaders(strings.ToUpper("Buckets"))
-			w.WriteHeaders("Name", "Retention")
-			for _, bucket := range fest.Buckets() {
-				w.Write(map[string]interface{}{
-					"Name":      bucket.Name,
-					"Retention": bucket.RetentionPeriod,
-				})
-			}
-			w.WriteHeaders()
-		}
-		w.Flush()
+		printManifestSummary(fest)
 
 		ui := &input.UI{
 			Writer: os.Stdout,
@@ -86,27 +68,6 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 		if strings.ToLower(confirm) != "y" {
 			fmt.Fprintln(os.Stdout, "aborted application of manifest")
 			return nil
-		}
-
-		organizationID, err := platform.IDFromString(*orgID)
-		if err != nil {
-			return err
-		}
-
-		bucketSVC, err := newBucketService(flags)
-		if err != nil {
-			return err
-		}
-
-		labelSVC, err := newLabelService(flags)
-		if err != nil {
-			return err
-		}
-
-		svc := &manifestSVC{
-			orgID:     *organizationID,
-			bucketSVC: bucketSVC,
-			labelSVC:  labelSVC,
 		}
 
 		var newBuckets []influxdb.Bucket
@@ -136,6 +97,17 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
+		var newDashboards []influxdb.Dashboard
+		defer func() {
+			if e != nil {
+				svc.deleteDashboards(newDashboards)
+			}
+		}()
+		newDashboards, err = svc.applyDashboards(fest.Dashboards())
+		if err != nil {
+			return err
+		}
+
 		var newLabelMappings []influxdb.LabelMapping
 		defer func() {
 			if e != nil {
@@ -148,6 +120,14 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
+		dashMappings, err := svc.applyDashboardLabelMappings(fest.Dashboards())
+		// weird append first, is for cleaning up the badies in case of error
+		newLabelMappings = append(newLabelMappings, dashMappings...)
+		if err != nil {
+			return err
+		}
+
+		w := internal.NewTabWriter(os.Stdout)
 		if len(newLabels) > 0 {
 			w.WriteHeaders(strings.ToUpper("Labels"))
 			w.WriteHeaders("ID", "Name")
@@ -175,6 +155,21 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			w.WriteHeaders()
 		}
 
+		if len(newDashboards) > 0 {
+			w.WriteHeaders(strings.ToUpper("Dashboards"))
+			w.WriteHeaders("ID", "Name", "Description", "Cells")
+
+			for _, d := range newDashboards {
+				w.Write(map[string]interface{}{
+					"ID":          d.ID.String(),
+					"Name":        d.Name,
+					"Description": d.Description,
+					"Cells":       len(d.Cells),
+				})
+			}
+			w.WriteHeaders()
+		}
+
 		if len(newLabelMappings) > 0 {
 			w.WriteHeaders(strings.ToUpper("Label Mappings"))
 			w.WriteHeaders("Resource Type", "Label ID", "Resource ID")
@@ -185,7 +180,6 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 					"Resource ID":   mapping.ResourceID.String(),
 				})
 			}
-			w.WriteHeaders()
 		}
 		w.Flush()
 
@@ -194,9 +188,40 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 }
 
 type manifestSVC struct {
-	bucketSVC influxdb.BucketService
-	labelSVC  influxdb.LabelService
-	orgID     platform.ID
+	orgID platform.ID
+
+	bucketSVC    influxdb.BucketService
+	dashboardSVC influxdb.DashboardService
+	labelSVC     influxdb.LabelService
+}
+
+func newManifestSVC(orgID string, f Flags) (*manifestSVC, error) {
+	organizationID, err := platform.IDFromString(orgID)
+	if err != nil {
+		return nil, err
+	}
+
+	bucketSVC, err := newBucketService(f)
+	if err != nil {
+		return nil, err
+	}
+
+	labelSVC, err := newLabelService(f)
+	if err != nil {
+		return nil, err
+	}
+
+	dashSVC, err := newDashboardService(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return &manifestSVC{
+		orgID:        *organizationID,
+		bucketSVC:    bucketSVC,
+		labelSVC:     labelSVC,
+		dashboardSVC: dashSVC,
+	}, nil
 }
 
 func (m *manifestSVC) applyBuckets(buckets []*manifest.Bucket) ([]influxdb.Bucket, error) {
@@ -267,6 +292,75 @@ func (m *manifestSVC) applyLabelMappings(buckets []*manifest.Bucket) ([]influxdb
 	return mappings, nil
 }
 
+func (m *manifestSVC) applyDashboardLabelMappings(dashboards []*manifest.Dashboard) ([]influxdb.LabelMapping, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	var mappings []influxdb.LabelMapping
+	for _, d := range dashboards {
+		for _, l := range d.Labels {
+			mapping := &influxdb.LabelMapping{
+				LabelID:      l.ID,
+				ResourceID:   d.ID,
+				ResourceType: influxdb.DashboardsResourceType,
+			}
+			err := m.labelSVC.CreateLabelMapping(ctx, mapping)
+			if err != nil {
+				return mappings, err
+			}
+			mappings = append(mappings, *mapping)
+		}
+	}
+
+	return mappings, nil
+}
+
+func (m *manifestSVC) applyDashboards(dashboards []*manifest.Dashboard) ([]influxdb.Dashboard, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+
+	cellMap := make(map[*influxdb.Cell]*manifest.Cell)
+
+	getInfluxCells := func(cells []*manifest.Cell) []*influxdb.Cell {
+		icells := make([]*influxdb.Cell, 0, len(cells))
+		for _, cell := range cells {
+			icell := &influxdb.Cell{
+				CellProperty: influxdb.CellProperty{
+					X: int32(cell.X),
+					Y: int32(cell.Y),
+					H: int32(cell.Height),
+					W: int32(cell.Width),
+				},
+			}
+			cellMap[icell] = cell
+			icells = append(icells, icell)
+		}
+		return icells
+	}
+
+	influxDashs := make([]influxdb.Dashboard, 0, len(dashboards))
+	for i, l := range dashboards {
+		influxDash := influxdb.Dashboard{
+			OrganizationID: m.orgID,
+			Name:           l.Name,
+			Description:    l.Description,
+			Cells:          getInfluxCells(l.Cells),
+		}
+		err := m.dashboardSVC.CreateDashboard(ctx, &influxDash)
+		if err != nil {
+			return influxDashs, err
+		}
+		dashboards[i].ID = influxDash.ID
+		influxDashs = append(influxDashs, influxDash)
+	}
+
+	for iCell, cell := range cellMap {
+		cell.ID = iCell.ID
+	}
+
+	return influxDashs, nil
+}
+
 func (m *manifestSVC) deleteBuckets(buckets []influxdb.Bucket) error {
 	var errs []string
 	for _, b := range buckets {
@@ -316,12 +410,87 @@ func (m *manifestSVC) deleteLabelMappings(mappings []influxdb.LabelMapping) erro
 	return nil
 }
 
+func (m *manifestSVC) deleteDashboards(dashs []influxdb.Dashboard) error {
+	var errs []string
+	for _, d := range dashs {
+		err := m.dashboardSVC.DeleteDashboard(context.Background(), d.ID)
+		if err != nil {
+			errs = append(errs, d.ID.String())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(`dashboard_ids=[%s] err="unable to delete dashboard"`, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
 func newLabelService(f Flags) (platform.LabelService, error) {
-	if flags.local {
+	if f.local {
 		return newLocalKVService()
 	}
 	return &http.LabelService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:  f.host,
+		Token: f.token,
 	}, nil
+}
+
+func newDashboardService(f Flags) (platform.DashboardService, error) {
+	if f.local {
+		return newLocalKVService()
+	}
+	return &http.DashboardService{
+		Addr:  f.host,
+		Token: f.token,
+	}, nil
+}
+
+func printManifestSummary(m manifest.Manifest) {
+	w := internal.NewTabWriter(os.Stdout)
+	if labels := m.Labels(); len(labels) > 0 {
+		w.WriteHeaders(strings.ToUpper("Labels"))
+		w.WriteHeaders("Name")
+		for _, label := range labels {
+			w.Write(map[string]interface{}{
+				"Name": label.Name,
+			})
+		}
+		w.WriteHeaders()
+	}
+
+	if buckets := m.Buckets(); len(buckets) > 0 {
+		w.WriteHeaders(strings.ToUpper("Buckets"))
+		w.WriteHeaders("Name", "Retention")
+		for _, bucket := range buckets {
+			w.Write(map[string]interface{}{
+				"Name":      bucket.Name,
+				"Retention": bucket.RetentionPeriod,
+			})
+		}
+		w.WriteHeaders()
+	}
+
+	printManCells := func(cc []*manifest.Cell) string {
+		var sb strings.Builder
+		for _, c := range cc {
+			sb.WriteString(fmt.Sprintf("{X: %d, Y: %d, Height: %d, Width: %d} ", c.X, c.Y, c.Height, c.Width))
+		}
+		return sb.String()
+	}
+
+	if dashboards := m.Dashboards(); len(dashboards) > 0 {
+		w.WriteHeaders(strings.ToUpper("Dashboards"))
+		w.WriteHeaders("Name", "Description", "Cells")
+		for _, d := range dashboards {
+			w.Write(map[string]interface{}{
+				"Name":        d.Name,
+				"Description": d.Description,
+				"Cells":       printManCells(d.Cells),
+			})
+		}
+		w.WriteHeaders()
+	}
+
+	w.Flush()
 }

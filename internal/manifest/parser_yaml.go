@@ -36,8 +36,9 @@ type Manifest struct {
 		Templates []Resource `yaml:"templates"`
 	} `yaml:"spec"`
 
-	buckets map[resourceKey]*Bucket
-	labels  map[resourceKey]*Label
+	labels     map[resourceKey]*Label
+	buckets    map[resourceKey]*Bucket
+	dashboards map[resourceKey]*Dashboard
 }
 
 func (m *Manifest) graphResources() error {
@@ -47,6 +48,7 @@ func (m *Manifest) graphResources() error {
 		// that should be viable labels at the root level of resources.
 		m.graphLabels,
 		m.graphBuckets,
+		m.graphDashboards,
 	}
 
 	for _, fn := range graphFns {
@@ -88,11 +90,9 @@ func (m *Manifest) graphBuckets() error {
 			continue
 		}
 
-		desc, _ := r.string("description")
-
 		b := Bucket{
 			Name:        r.Name(),
-			Description: desc,
+			Description: r.stringShort("description"),
 		}
 		rp, ok := r.duration("retention_period")
 		if ok {
@@ -129,6 +129,75 @@ func (m *Manifest) graphBuckets() error {
 	return nil
 }
 
+func (m *Manifest) graphDashboards() error {
+	m.dashboards = make(map[resourceKey]*Dashboard)
+
+	for i, r := range m.Spec.Resources {
+		k, err := r.kind()
+		if err != nil {
+			return fmt.Errorf("resource_index=%d err=%q", i, err)
+		}
+		if k != kindDashboard {
+			continue
+		}
+
+		d := Dashboard{
+			Name:        r.Name(),
+			Description: r.stringShort("description"),
+		}
+
+		for j, nr := range r.nestedResources() {
+			k, err := nr.kind()
+			if err != nil {
+				return fmt.Errorf("resource_index=%d bucket=%q subresource_index=%d err=%q", i, d.Name, j, err)
+			}
+			if k != kindLabel {
+				continue
+			}
+
+			inherits := nr.bool("inherit")
+
+			key := newResKey(nr.Name(), inherits)
+			lb, found := m.labels[key]
+			if inherits && !found {
+				return fmt.Errorf(`resource_index=%d bucket=%q subresource_index=%d ancestor_label=%q  err="label ancestor does not exist"`, i, d.Name, j, nr.Name())
+			}
+			if !found {
+				lb = &Label{
+					Name:    nr.Name(),
+					inherit: inherits,
+				}
+				m.labels[key] = lb
+			}
+			d.Labels = append(d.Labels, lb)
+		}
+
+		cellifaces, _ := r["cells"].([]interface{})
+		for _, cface := range cellifaces {
+			cellRes, ok := ifaceMapToResource(cface)
+			if !ok {
+				continue
+			}
+
+			positions, ok := ifaceMapToResource(cellRes["positions"])
+			if !ok {
+				continue
+			}
+
+			d.Cells = append(d.Cells, &Cell{
+				X:      positions.int("x_position"),
+				Y:      positions.int("y_position"),
+				Height: positions.int("height"),
+				Width:  positions.int("width"),
+			})
+		}
+
+		m.dashboards[newResKey(d.Name, true)] = &d
+	}
+
+	return nil
+}
+
 type resourceKey struct {
 	name     string
 	ancestor bool
@@ -152,6 +221,19 @@ func (m *Manifest) Buckets() []*Bucket {
 	})
 
 	return buckets
+}
+
+func (m *Manifest) Dashboards() []*Dashboard {
+	dashs := make([]*Dashboard, 0, len(m.dashboards))
+	for _, d := range m.dashboards {
+		dashs = append(dashs, d)
+	}
+
+	sort.Slice(dashs, func(i, j int) bool {
+		return dashs[i].Name < dashs[j].Name
+	})
+
+	return dashs
 }
 
 func (m *Manifest) Labels() []*Label {
@@ -200,13 +282,12 @@ func (r Resource) kind() (kind, error) {
 	case "package":
 		return kindPackage, nil
 	default:
-		return kindUnknown, errors.New("invalid kind: " + kind)
+		return kindUnknown, fmt.Errorf("invalid kind: %q", kind)
 	}
 }
 
 func (r Resource) Name() string {
-	name, _ := r.string("name")
-	return name
+	return r.stringShort("name")
 }
 
 func (r Resource) nestedResources() []Resource {
@@ -215,15 +296,16 @@ func (r Resource) nestedResources() []Resource {
 		return nil
 	}
 
+	ifaces, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+
 	var resources []Resource
-	for _, res := range v.([]interface{}) {
-		newRes := make(Resource)
-		for k, v := range res.(map[interface{}]interface{}) {
-			s, ok := k.(string)
-			if !ok {
-				continue
-			}
-			newRes[s] = v
+	for _, res := range ifaces {
+		newRes, ok := ifaceMapToResource(res)
+		if !ok {
+			continue
 		}
 		resources = append(resources, newRes)
 	}
@@ -236,17 +318,44 @@ func (r Resource) bool(key string) bool {
 	return b
 }
 
+func ifaceMapToResource(i interface{}) (Resource, bool) {
+	m, ok := i.(map[interface{}]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	newRes := make(Resource)
+	for k, v := range m {
+		s, ok := k.(string)
+		if !ok {
+			continue
+		}
+		newRes[s] = v
+	}
+	return newRes, true
+}
+
+func (r Resource) int(key string) int {
+	i, ok := r[key].(int)
+	if !ok {
+		return 0
+	}
+
+	return i
+}
+
 func (r Resource) string(key string) (string, bool) {
 	s, ok := r[key].(string)
 	return s, ok
 }
 
+func (r Resource) stringShort(key string) string {
+	s, _ := r.string(key)
+	return s
+}
+
 func (r Resource) duration(key string) (time.Duration, bool) {
-	v, ok := r.string(key)
-	if !ok {
-		return 0, false
-	}
-	dur, err := time.ParseDuration(v)
+	dur, err := time.ParseDuration(r.stringShort(key))
 	return dur, err == nil
 }
 
@@ -255,11 +364,27 @@ type Bucket struct {
 	Description     string
 	Name            string
 	RetentionPeriod time.Duration
-	Labels          []*Label
+
+	Labels []*Label
 }
 
 type Label struct {
 	ID      influxdb.ID
 	Name    string
 	inherit bool
+}
+
+type Dashboard struct {
+	ID          influxdb.ID
+	Name        string
+	Description string
+	Cells       []*Cell
+
+	Labels []*Label
+}
+
+type Cell struct {
+	ID            influxdb.ID
+	X, Y          int
+	Height, Width int
 }
