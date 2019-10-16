@@ -96,7 +96,6 @@ exports[`Account rendering renders! 1`] = `
                                       <X
                                         icon=""
                                         placeIconAfterText={false}
-                                        shape="none"
                                         text="Edit About Me"
                                       >
                                         <span
@@ -175,13 +174,13 @@ exports[`Account rendering renders! 1`] = `
                                           type="text"
                                           value="groot"
                                         />
-                                        <be
+                                        <ye
                                           status="disabled"
                                         >
                                           <div
                                             className="cf-input-shadow"
                                           />
-                                        </be>
+                                        </ye>
                                       </div>
                                     </Input>
                                   </div>
