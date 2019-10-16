@@ -72,6 +72,7 @@ module.exports = {
       base: BASE_PATH.slice(0, -1),
       header: process.env.INJECT_HEADER || '',
       body: process.env.INJECT_BODY || '',
+      minify: true,
     }),
     new webpack.ProgressPlugin(),
     new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
