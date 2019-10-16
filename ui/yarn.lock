@@ -1087,10 +1087,10 @@
   resolved "https://registry.yarnpkg.com/@iarna/toml/-/toml-2.2.3.tgz#f060bf6eaafae4d56a7dac618980838b0696e2ab"
   integrity sha512-FmuxfCuolpLl0AnQ2NHSzoUKWEJDFl63qXjzdoWBVyFCXzMGm1spBzk7LeHNoVCiWCF7mRVms9e6jEV9+MoPbg==
 
-"@influxdata/clockface@1.0.0":
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-1.0.0.tgz#beeb0c40fa52aa9e38c97a7b54a23eb4e8b16ddc"
-  integrity sha512-iFrq0O2umbaKFvwSdXx6JjvGX3SM9aAxseU9hmtZqmi0LLsxVhcu5KQ/uyCOw6neDthh1UJxxxzG9L+lgMszLA==
+"@influxdata/clockface@1.0.1":
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-1.0.1.tgz#e0d1b1290f120cc4ba80d4696d721c70024642ef"
+  integrity sha512-A9whfmbchEYB5Ac43OdSmUXiTzFWOYjIyoQTHSH19KoP5nVlapIxiTZwgkmshGzUQlxzZtFKV8gZ4O8x/nGOKA==
   dependencies:
     "@types/d3-ease" "^1.0.8"
     d3-ease "^1.0.5"
