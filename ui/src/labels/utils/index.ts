@@ -11,7 +11,7 @@ export const validateLabelUniqueness = (
   labelNames: string[],
   name: string
 ): string | null => {
-  if (!name) {
+  if (typeof name !== 'string') {
     return null
   }
 
