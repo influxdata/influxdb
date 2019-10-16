@@ -49,6 +49,6 @@ module.exports = {
   coverageDirectory: './coverage',
   coverageReporters: [
     'html',
-    'json'
+    'cobertura'
   ]
 }
