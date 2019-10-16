@@ -335,11 +335,15 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 		w.te.metrics.LogError(p.task.Type, err)
 
 		if backend.IsUnrecoverable(err) {
+			// TODO (al): once user notification system is put in place, this code should be uncommented
 			// if we get an error that requires user intervention to fix, deactivate the task and alert the user
-			inactive := string(backend.TaskInactive)
-			w.te.ts.UpdateTask(p.ctx, p.task.ID, influxdb.TaskUpdate{Status: &inactive})
+			// inactive := string(backend.TaskInactive)
+			// w.te.ts.UpdateTask(p.ctx, p.task.ID, influxdb.TaskUpdate{Status: &inactive})
+
 			// and add to run logs
-			w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Task deactivated after encountering unrecoverable error: %v", err.Error()))
+			w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Task encountered unrecoverable error, requires admin action: %v", err.Error()))
+			// add to metrics
+			w.te.metrics.LogUnrecoverableError(p.task.ID, err)
 		}
 
 		p.err = err
