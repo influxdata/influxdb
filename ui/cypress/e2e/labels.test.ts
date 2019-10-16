@@ -63,6 +63,7 @@ describe('labels', () => {
     cy.getByTestID('button-create-initial').click()
 
     // Try to save without name (required field) todo - issue 13940
+    // https://github.com/influxdata/influxdb/issues/13940
     // assert that the button is disabled without any name
     cy.getByTestID('create-label-form--submit').should('be.disabled')
     // check to see if warning-text testid exists when input is blank after they type
