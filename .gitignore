@@ -27,6 +27,7 @@ influxd.bolt
 /staticcheck
 
 ui/node_modules
+ui/coverage
 ui/npm-error.log
 ui/build
 ui/.cache

@@ -62,7 +62,7 @@ class LoadDataNavigation extends PureComponent<Props> {
         text: 'Client Libraries',
         id: 'client-libraries',
         cloudExclude: false,
-        featureFlag: 'clientLibrariesPage',
+        featureFlag: null,
       },
     ]
 

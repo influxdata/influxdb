@@ -18,7 +18,7 @@ exports[`TelegrafInstructions matches snapshot 1`] = `
     >
       InfluxData Downloads 
     </a>
-    page . If you already have Telegraf installed on your system, make sure it's up to date. You will need version 1.9.2 or higher.
+    page. If you already have Telegraf installed on your system, make sure it's up to date. You will need version 1.9.2 or higher.
   </p>
   <h6>
     2. Configure your API Token

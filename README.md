@@ -47,9 +47,16 @@ This project requires Go 1.11 and Go module support.
 
 Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
 
-If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, `brew install bazaar` (on macOS) before continuing.
-This error will also be returned if you have not installed `yarn`.
-On macOS, `brew install yarn` will install `yarn`.  As necessary, also install `brew install protobuf`.
+If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, then you need to ensure you have `bazaar`, `protobuf`, and `yarn` installed.
+
+- OSX: `brew install bazaar yarn`
+- Linux (Arch): `pacman -S bzr protobuf yarn`
+- Linux (Ubuntu): `apt install bzr protobuf-compiler yarnpkg`
+
+**NB:** For RedHat, there are some extra steps:
+
+1. You must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
+2. You must add the `yarn` [repository](https://yarnpkg.com/lang/en/docs/install/#centos-stable)
 
 For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
 
@@ -58,8 +65,8 @@ A successful `make` run results in two binaries, with platform-dependent paths:
 ```
 $ make
 ...
-env GO111MODULE=on go build -tags 'assets ' -o bin/darwin/influx ./cmd/influx
-env GO111MODULE=on go build -tags 'assets ' -o bin/darwin/influxd ./cmd/influxd
+env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx ./cmd/influx
+env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
 ```
 
 `influxd` is the InfluxDB service.
@@ -69,7 +76,7 @@ Start the service.
 Logs to stdout by default:
 
 ```
-$ bin/darwin/influxd
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
 ```
 
 ## Getting Started
@@ -90,7 +97,7 @@ or do it all in one breath with `influx setup`:
 
 
 ```
-$ bin/darwin/influx setup
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup
 Welcome to InfluxDB 2.0!
 Please type your primary username: user
 
@@ -121,7 +128,7 @@ Your token has been stored in /Users/you/.influxdbv2/credentials
 You may get into a development loop where `influx setup` becomes tedious.
 Some added flags can help:
 ```
-$ bin/darwin/influx setup --username user --password hunter2 --org my-org --bucket my-bucket --retention 168 --token my-token --force
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username user --password hunter2 --org my-org --bucket my-bucket --retention 168 --token my-token --force
 ```
 
 `~/.influxdbv2/credentials` contains your auth token.
@@ -144,7 +151,7 @@ ID                      Name            Retention       Organization    Organiza
 Write to measurement `m`, with tag `v=2`, in bucket `my-bucket`, which belongs to organization `my-org`:
 
 ```
-$ bin/darwin/influx write --org my-org --bucket my-bucket --precision s "m v=2 $(date +%s)"
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx write --org my-org --bucket my-bucket --precision s "m v=2 $(date +%s)"
 ```
 
 Write the same point using `curl`:
@@ -156,7 +163,7 @@ curl --header "Authorization: Token $(cat ~/.influxdbv2/credentials)" --data-raw
 Read that back with a simple Flux query (currently, the `query` subcommand does not have a `--org` flag):
 
 ```
-$ bin/darwin/influx query --org-id 033a3f2c708aa000 'from(bucket:"my-bucket") |> range(start:-1h)'
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx query --org-id 033a3f2c708aa000 'from(bucket:"my-bucket") |> range(start:-1h)'
 Result: _result
 Table: keys: [_start, _stop, _field, _measurement]
                    _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
@@ -167,7 +174,7 @@ Table: keys: [_start, _stop, _field, _measurement]
 Use the fancy REPL:
 
 ```
-$ bin/darwin/influx repl --org my-org
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx repl --org my-org
 > from(bucket:"my-bucket") |> range(start:-1h)
 Result: _result
 Table: keys: [_start, _stop, _field, _measurement]
@@ -225,9 +232,9 @@ This is problematic because it will be erased if the file is re-generated.
 Until a better solution comes about, below is the list of generated files that need an ignores comment.
 If you re-generate a file and find that `staticcheck` has failed, please see this list below for what you need to put back:
 
-|          File          |                                 Comment                                  |
-| :--------------------: | :----------------------------------------------------------------------: |
-| query/promql/promql.go |     //lint:file-ignore SA6001 Ignore all unused code, it's generated     |
+|          File          |                             Comment                              |
+| :--------------------: | :--------------------------------------------------------------: |
+| query/promql/promql.go | //lint:file-ignore SA6001 Ignore all unused code, it's generated |
 
 #### End-to-End Tests
 
