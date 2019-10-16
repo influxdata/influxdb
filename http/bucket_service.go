@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -640,6 +641,12 @@ type BucketService struct {
 	// OpPrefix is an additional property for error
 	// find bucket service, when finds nothing.
 	OpPrefix string
+}
+
+// FindBucketByName returns a single bucket by name
+//	 NOTE: Currently not implemented
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
+	return nil, errors.New("not implemented")
 }
 
 // FindBucketByID returns a single bucket by ID.

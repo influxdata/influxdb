@@ -2,15 +2,23 @@ package influxdb
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 )
 
 const (
+	// TasksSystemBucketID is the fixed ID for our tasks system bucket
+	TasksSystemBucketID = ID(10)
+	// MonitoringSystemBucketID is the fixed ID for our monitoring system bucket
+	MonitoringSystemBucketID = ID(11)
+
 	// BucketTypeUser is a user created bucket
 	BucketTypeUser = BucketType(0)
 	// BucketTypeSystem is an internally created bucket that cannot be deleted/renamed.
 	BucketTypeSystem = BucketType(1)
+	// SystemBucketRetention is the time we should retain system bucket information
+	SystemBucketRetention = time.Hour * 24 * 7
 )
 
 // Bucket names constants
@@ -76,6 +84,7 @@ type BucketService interface {
 
 	// DeleteBucket removes a bucket by ID.
 	DeleteBucket(ctx context.Context, id ID) error
+	FindBucketByName(ctx context.Context, orgID ID, name string) (*Bucket, error)
 }
 
 // BucketUpdate represents updates to a bucket.
@@ -134,4 +143,40 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// FindSystemBucket finds the system bucket with a given name
+func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name string) (*Bucket, error) {
+	bucket, err := bs.FindBucketByName(ctx, orgID, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if bucket != nil {
+		return bucket, nil
+	}
+
+	switch name {
+	case TasksSystemBucketName:
+		return &Bucket{
+			ID:              TasksSystemBucketID,
+			Type:            BucketTypeSystem,
+			Name:            TasksSystemBucketName,
+			RetentionPeriod: SystemBucketRetention,
+			Description:     "System bucket for task logs",
+		}, nil
+	case MonitoringSystemBucketName:
+		return &Bucket{
+			ID:              MonitoringSystemBucketID,
+			Type:            BucketTypeSystem,
+			Name:            MonitoringSystemBucketName,
+			RetentionPeriod: SystemBucketRetention,
+			Description:     "System bucket for monitoring logs",
+		}, nil
+	default:
+		return nil, &Error{
+			Code: ENotFound,
+			Msg:  fmt.Sprintf("system bucket %q not found", name),
+		}
+	}
 }

@@ -123,8 +123,7 @@ func (s *Service) FindBucketByName(ctx context.Context, orgID influxdb.ID, n str
 	err := s.kv.View(ctx, func(tx Tx) error {
 		bkt, pe := s.findBucketByName(ctx, tx, orgID, n)
 		if pe != nil {
-			err := pe
-			return err
+			return pe
 		}
 
 		b = bkt
@@ -140,7 +139,7 @@ func (s *Service) createSystemBuckets(ctx context.Context, tx Tx, o *influxdb.Or
 		OrgID:           o.ID,
 		Type:            influxdb.BucketTypeSystem,
 		Name:            influxdb.TasksSystemBucketName,
-		RetentionPeriod: time.Hour * 24 * 3,
+		RetentionPeriod: influxdb.SystemBucketRetention,
 		Description:     "System bucket for task logs",
 	}
 
@@ -152,15 +151,11 @@ func (s *Service) createSystemBuckets(ctx context.Context, tx Tx, o *influxdb.Or
 		OrgID:           o.ID,
 		Type:            influxdb.BucketTypeSystem,
 		Name:            influxdb.MonitoringSystemBucketName,
-		RetentionPeriod: time.Hour * 24 * 7,
+		RetentionPeriod: influxdb.SystemBucketRetention,
 		Description:     "System bucket for monitoring logs",
 	}
 
-	if err := s.createBucket(ctx, tx, mb); err != nil {
-		return err
-	}
-
-	return nil
+	return s.createBucket(ctx, tx, mb)
 }
 
 func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
@@ -323,9 +318,41 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		if err != nil {
 			return err
 		}
+
 		bs = bkts
+
 		return nil
 	})
+
+	needsSystemBuckets := true
+	for _, b := range bs {
+		if b.Type == influxdb.BucketTypeSystem {
+			needsSystemBuckets = false
+			break
+		}
+	}
+
+	if needsSystemBuckets {
+		tb := &influxdb.Bucket{
+			ID:              influxdb.TasksSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            influxdb.TasksSystemBucketName,
+			RetentionPeriod: influxdb.SystemBucketRetention,
+			Description:     "System bucket for task logs",
+		}
+
+		bs = append(bs, tb)
+
+		mb := &influxdb.Bucket{
+			ID:              influxdb.MonitoringSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            influxdb.MonitoringSystemBucketName,
+			RetentionPeriod: influxdb.SystemBucketRetention,
+			Description:     "System bucket for monitoring logs",
+		}
+
+		bs = append(bs, mb)
+	}
 
 	if err != nil {
 		return nil, 0, err

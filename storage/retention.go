@@ -151,9 +151,9 @@ func (s *retentionEnforcer) expireData(ctx context.Context, buckets []*influxdb.
 
 		span, ctx := tracing.StartSpanFromContext(ctx)
 		span.LogKV(
-			"bucket", b.ID,
+			"bucket_id", b.ID,
 			"org_id", b.OrgID,
-			"system", b.Type,
+			"system_type", b.Type,
 			"retention_period", b.RetentionPeriod,
 			"retention_policy", b.RetentionPolicyName,
 			"from", time.Unix(0, min).UTC(),

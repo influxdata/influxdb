@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 
@@ -43,6 +44,12 @@ func (s *Service) FindBucketByID(ctx context.Context, id platform.ID) (*platform
 		err = pe
 	}
 	return b, err
+}
+
+// FindBucketByName returns a single bucket by name
+//	 NOTE: Currently not implemented
+func (s *Service) FindBucketByName(ctx context.Context, orgID platform.ID, n string) (*platform.Bucket, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (s *Service) forEachBucket(ctx context.Context, descending bool, fn func(b *platform.Bucket) bool) error {

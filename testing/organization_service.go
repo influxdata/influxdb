@@ -18,11 +18,7 @@ const (
 	orgTwoID = "020f755c3c083001"
 )
 
-var orgBucketsIDGenerator *mock.MockIDGenerator
-
-func init() {
-	orgBucketsIDGenerator = mock.NewMockIDGenerator()
-}
+var orgBucketsIDGenerator = mock.NewMockIDGenerator()
 
 var organizationCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {

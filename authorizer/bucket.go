@@ -72,6 +72,23 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 	return b, nil
 }
 
+// FindBucketByName returns a bucket by name for a particular organization.
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	b, err := s.s.FindBucketByName(ctx, orgID, n)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := authorizeReadBucket(ctx, b.OrgID, b.ID); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 // FindBucket retrieves the bucket and checks to see if the authorizer on context has read access to the bucket.
 func (s *BucketService) FindBucket(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
@@ -105,6 +122,12 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	buckets := bs[:0]
 	for _, b := range bs {
+		// HACK: remove once system buckets are migrated away from hard coded values
+		if b.Type == influxdb.BucketTypeSystem {
+			buckets = append(buckets, b)
+			continue
+		}
+
 		err := authorizeReadBucket(ctx, b.OrgID, b.ID)
 		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
 			return nil, 0, err
