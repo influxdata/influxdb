@@ -76,7 +76,7 @@ class DashboardIndex extends PureComponent<Props, State> {
     const {searchTerm} = this.state
     return (
       <>
-        <Page titleTag={pageTitleSuffixer(['Dashboards'])}>
+        <Page testID="empty-dashboards-list" titleTag={pageTitleSuffixer(['Dashboards'])}>
           <Page.Header fullWidth={false}>
             <Page.Header.Left>
               <PageTitleWithOrg title="Dashboards" />
