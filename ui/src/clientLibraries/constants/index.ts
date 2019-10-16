@@ -1,5 +1,5 @@
-import {FunctionComponent} from 'react'
-import CSharpLogo from '../graphics/csharpLogo'
+import {SFC} from 'react'
+import CSharpLogo from '../graphics/CSharpLogo'
 import GoLogo from '../graphics/GoLogo'
 import JavaLogo from '../graphics/JavaLogo'
 import JSLogo from '../graphics/JSLogo'
@@ -9,14 +9,14 @@ export interface ClientLibrary {
   id: string
   name: string
   url: string
-  logoUrl: FunctionComponent
+  image: SFC
 }
 
 export const clientCSharpLibrary = {
   id: 'csharp',
   name: 'C#',
   url: 'https://github.com/influxdata/influxdb-client-csharp',
-  logoUrl: CSharpLogo,
+  image: CSharpLogo,
   installingPackageManagerCodeSnippet: `Install-Package InfluxDB.Client`,
   installingPackageDotNetCLICodeSnippet: `dotnet add package InfluxDB.Client`,
   packageReferenceCodeSnippet: `<PackageReference Include="InfluxDB.Client" />`,
@@ -69,7 +69,7 @@ export const clientGoLibrary = {
   id: 'go',
   name: 'GO',
   url: 'https://github.com/influxdata/influxdb-client-go',
-  logoUrl: GoLogo,
+  image: GoLogo,
   initializeClientCodeSnippet: `// You can generate a Token from the "Tokens Tab" in the UI
 influx, err := influxdb.New(myHTTPInfluxAddress, myToken, influxdb.WithHTTPClient(myHTTPClient))
 if err != nil {
@@ -103,7 +103,7 @@ export const clientJavaLibrary = {
   id: 'java',
   name: 'Java',
   url: 'https://github.com/influxdata/influxdb-client-java',
-  logoUrl: JavaLogo,
+  image: JavaLogo,
   buildWithMavenCodeSnippet: `<dependency>
   <groupId>com.influxdb</groupId>
   <artifactId>influxdb-client-java</artifactId>
@@ -161,7 +161,7 @@ export const clientJSLibrary = {
   id: 'javascript-node',
   name: 'JavaScript/Node.js',
   url: 'https://github.com/influxdata/influxdb-client-js',
-  logoUrl: JSLogo,
+  image: JSLogo,
   initializeClientCodeSnippet: `import Client from '@influxdata/influx'
 // You can generate a Token from the "Tokens Tab" in the UI
 const client = new Client('serverUrl', 'token')`,
@@ -176,7 +176,7 @@ export const clientPythonLibrary = {
   id: 'python',
   name: 'Python',
   url: 'https://github.com/influxdata/influxdb-client-python',
-  logoUrl: PythonLogo,
+  image: PythonLogo,
   initializePackageCodeSnippet: `pip install influxdb-client`,
   initializeClientCodeSnippet: `import influxdb_client
 from influxdb_client import InfluxDBClient
