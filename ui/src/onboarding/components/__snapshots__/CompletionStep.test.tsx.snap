@@ -40,14 +40,9 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
         <dl
           className="wizard-completion--options"
         >
-          <Grid
-            testID="grid"
-          >
-            <GridRow
-              testID="grid--row"
-            >
+          <Grid>
+            <GridRow>
               <GridColumn
-                testID="grid--column"
                 widthSM={4}
                 widthXS={12}
               >
@@ -68,7 +63,6 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                 </div>
               </GridColumn>
               <GridColumn
-                testID="grid--column"
                 widthSM={4}
                 widthXS={12}
               >
@@ -89,7 +83,6 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                 </div>
               </GridColumn>
               <GridColumn
-                testID="grid--column"
                 widthSM={4}
                 widthXS={12}
               >
@@ -97,16 +90,11 @@ exports[`Onboarding.Components.CompletionStep renders 1`] = `
                   className="wizard-completion--option"
                 >
                   <Button
-                    active={false}
                     color="success"
                     onClick={[MockFunction]}
-                    placeIconAfterText={false}
-                    shape="none"
                     size="lg"
-                    status="default"
                     testID="button--conf-later"
                     text="Configure Later"
-                    type="button"
                   />
                   <dt>
                     I've got this...

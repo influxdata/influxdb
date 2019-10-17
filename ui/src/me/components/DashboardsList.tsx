@@ -24,7 +24,7 @@ class DashboardList extends PureComponent<Props> {
     if (this.isEmpty) {
       return (
         <EmptyState size={ComponentSize.ExtraSmall}>
-          <EmptyState.Text text="You don't have any Dashboards" />
+          <EmptyState.Text>You don't have any Dashboards</EmptyState.Text>
         </EmptyState>
       )
     }

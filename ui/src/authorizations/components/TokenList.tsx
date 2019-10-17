@@ -124,7 +124,7 @@ export default class TokenList extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text={emptyStateText} />
+        <EmptyState.Text>{emptyStateText}</EmptyState.Text>
       </EmptyState>
     )
   }

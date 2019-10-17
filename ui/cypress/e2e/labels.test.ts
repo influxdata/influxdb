@@ -105,7 +105,7 @@ describe('labels', () => {
     cy.getByTestID('color-picker--input').clear()
     cy.getByTestID('form--element-error').should(
       'contain',
-      'Hexcodes must begin with #, and must be 7 characters'
+      'Please enter a hexcode'
     )
     cy.getByTestID('input-error').should($ie => {
       expect($ie).to.have.class('alert-triangle')
@@ -115,7 +115,7 @@ describe('labels', () => {
     cy.getByTestID('color-picker--input').type('zzzzzz')
     cy.getByTestID('form--element-error').should(
       'contain',
-      'Hexcodes must begin with #, and must be 7 characters'
+      'Please enter a hexcode'
     )
     cy.getByTestID('input-error').should($ie => {
       expect($ie).to.have.class('alert-triangle')

@@ -32,7 +32,7 @@ const TimeZoneDropdown: FunctionComponent<Props> = ({
       selectedOption={selectedTimeZone}
       onSelect={onSetTimeZone}
       buttonIcon={IconFont.Annotate}
-      widthPixels={115}
+      style={{width: '115px'}}
     />
   )
 }

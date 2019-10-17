@@ -10,8 +10,8 @@ const reservedVarNames = [TIME_RANGE_START, TIME_RANGE_STOP, WINDOW_PERIOD]
 export const validateVariableName = (
   varName: string,
   variables: Variable[]
-): {error: string} => {
-  if (varName.match(/^\s*$/)) {
+): {error: string | null} => {
+  if ((varName || '').match(/^\s*$/)) {
     return {error: 'Variable name cannot be empty'}
   }
 

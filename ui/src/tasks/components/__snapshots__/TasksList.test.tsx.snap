@@ -2,35 +2,27 @@
 
 exports[`TasksList rendering renders 1`] = `
 <Fragment>
-  <ResourceList
-    testID="resource-list"
-  >
-    <ResourceListHeader
-      testID="resource-list--header"
-    >
+  <ResourceList>
+    <ResourceListHeader>
       <ResourceListSorter
         name="Name"
         sort="none"
         sortKey="name"
-        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="Active"
         sort="none"
         sortKey="status"
-        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="Schedule"
         sort="none"
         sortKey="every"
-        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="Last Completed"
         sort="none"
         sortKey="latestCompleted"
-        testID="resource-list--sorter"
       />
     </ResourceListHeader>
     <ResourceListBody
@@ -41,7 +33,6 @@ exports[`TasksList rendering renders 1`] = `
           searchTerm=""
         />
       }
-      testID="resource-list--body"
     >
       <Connect(withRouter(TaskCard))
         key="task-id--02ef9deff2141000"

@@ -8,10 +8,10 @@ class SettingsHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.Header.Left>
+        <Page.HeaderLeft>
           <PageTitleWithOrg title="Settings" />
-        </Page.Header.Left>
-        <Page.Header.Right />
+        </Page.HeaderLeft>
+        <Page.HeaderRight />
       </Page.Header>
     )
   }

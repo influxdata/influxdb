@@ -37,11 +37,11 @@ const ColorDropdown: FC<Props> = props => {
   } = props
 
   const status = disabled ? ComponentStatus.Disabled : ComponentStatus.Default
-  const width = stretchToFit ? null : widthPixels
+  const style = stretchToFit ? null : {width: `${widthPixels}px`}
 
   return (
     <Dropdown
-      widthPixels={width}
+      style={style}
       button={(active, onClick) => (
         <Dropdown.Button active={active} onClick={onClick} status={status}>
           <div className="color-dropdown--item">

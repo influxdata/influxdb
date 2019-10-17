@@ -69,10 +69,9 @@ export default class TaskRunsList extends PureComponent<Props> {
         <IndexList.Body
           emptyState={
             <EmptyState size={ComponentSize.Large}>
-              <EmptyState.Text
-                text={"Looks like this Task doesn't have any Runs"}
-                highlightWords={['Runs']}
-              />
+              <EmptyState.Text>
+                Looks like this Task doesn't have any <b>Runs</b>
+              </EmptyState.Text>
             </EmptyState>
           }
           columnCount={5}

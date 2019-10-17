@@ -87,7 +87,6 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
                   </Page.Header>
                   <Page.Contents
                     fullWidth={true}
-                    fullHeight={true}
                     scrollable={false}
                     className="alert-history-page--contents"
                   >

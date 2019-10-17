@@ -10,8 +10,6 @@ exports[`StatusIndicator rendering renders! 1`] = `
     >
       <SparkleSpinner
         loading="NotStarted"
-        sizePixels={100}
-        testID="sparkle-spinner"
       />
     </div>
   </div>

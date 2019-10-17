@@ -49,7 +49,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
     return (
       <div className={this.className}>
         <Dropdown
-          widthPixels={this.dropdownWidthPixels}
+          style={{width: `${this.dropdownWidthPixels}px`}}
           button={(active, onClick) => (
             <Dropdown.Button
               active={active}
@@ -63,7 +63,7 @@ export default class AutoRefreshDropdown extends Component<Props> {
           menu={onCollapse => (
             <Dropdown.Menu
               onCollapse={onCollapse}
-              overrideWidth={DROPDOWN_WIDTH_FULL}
+              style={{width: `${DROPDOWN_WIDTH_FULL}px`}}
             >
               {autoRefreshOptions.map(option => {
                 if (option.type === AutoRefreshOptionType.Header) {

@@ -41,7 +41,7 @@ class TokenRow extends PureComponent<Props> {
     const {description} = this.props.auth
 
     return (
-      <IndexList.Row>
+      <IndexList.Row brighten={true}>
         <IndexList.Cell>
           <EditableName
             name={description}

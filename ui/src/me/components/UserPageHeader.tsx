@@ -16,8 +16,8 @@ export default class UserPageHeader extends PureComponent<Props> {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.Header.Left>{this.title}</Page.Header.Left>
-        <Page.Header.Right />
+        <Page.HeaderLeft>{this.title}</Page.HeaderLeft>
+        <Page.HeaderRight />
       </Page.Header>
     )
   }

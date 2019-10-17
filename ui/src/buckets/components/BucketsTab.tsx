@@ -198,10 +198,9 @@ class BucketsTab extends PureComponent<Props, State> {
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={`Looks like there aren't any Buckets, why not create one?`}
-            highlightWords={['Buckets']}
-          />
+          <EmptyState.Text>
+            Looks like there aren't any <b>Buckets</b>, why not create one?
+          </EmptyState.Text>
           <Button
             text="Create Bucket"
             icon={IconFont.Plus}
@@ -214,7 +213,7 @@ class BucketsTab extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="No Buckets match your query" />
+        <EmptyState.Text>No Buckets match your query</EmptyState.Text>
       </EmptyState>
     )
   }

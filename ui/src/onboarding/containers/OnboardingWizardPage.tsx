@@ -81,10 +81,10 @@ export class OnboardingWizardPage extends PureComponent<Props, State> {
             <div className="wizard-contents">
               <div className="wizard-step--container">
                 <EmptyState size={ComponentSize.Large}>
-                  <EmptyState.Text
-                    text="Initial  User  is already set up, nothing to see here folks!"
-                    highlightWords={['Initial', 'User']}
-                  />
+                  <EmptyState.Text>
+                    <b>Initial User</b> is already set up, nothing to see here
+                    folks!
+                  </EmptyState.Text>
                   <Button
                     text="Return to Home Page"
                     onClick={this.redirectToHome}
