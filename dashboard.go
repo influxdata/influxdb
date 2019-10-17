@@ -802,6 +802,32 @@ type BuilderConfig struct {
 	} `json:"aggregateWindow"`
 }
 
+func NewBuildConfigTags(key string, values []string) struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+} {
+	if values == nil {
+		values = []string{}
+	}
+	return struct {
+		Key    string   `json:"key"`
+		Values []string `json:"values"`
+	}{
+		Key:    key,
+		Values: values,
+	}
+}
+
+func NewBuildConfigFunc(funcName string) struct {
+	Name string `json:"name"`
+} {
+	return struct {
+		Name string `json:"name"`
+	}{
+		Name: funcName,
+	}
+}
+
 // Axis represents the visible extents of a visualization
 type Axis struct {
 	Bounds       []string `json:"bounds"` // bounds are an arbitrary list of client-defined strings that specify the viewport for a View
