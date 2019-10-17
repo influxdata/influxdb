@@ -8,6 +8,7 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// a fixed buffer ring
 type buffer [3]struct {
 	tok influxql.Token // last read token
 	pos influxql.Pos   // last read pos
@@ -75,7 +76,6 @@ func (p *parser) parseLogicalNode() (Node, error) {
 	n := &LogicalNode{
 		Children: make([]Node, 0),
 	}
-	var currentOp LogicalOperator
 	for {
 		tok, pos, _ := p.scanIgnoreWhitespace()
 		switch tok {
@@ -93,40 +93,12 @@ func (p *parser) parseLogicalNode() (Node, error) {
 			}
 			n.Children = append(n.Children, tr)
 		case influxql.AND:
-			if currentOp == 0 || currentOp == LogicalAnd {
-				currentOp = LogicalAnd
-				n.Operator = LogicalAnd
-			} else {
-				lastChild := n.Children[len(n.Children)-1]
-				var n1 Node
-				var err error
-				if tokNext := p.peekTok(); tokNext == influxql.LPAREN {
-					n1, err = p.parseLogicalNode()
-				} else {
-					n1, err = p.parseTagRuleNode()
-				}
-				if err != nil {
-					return *n, err
-				}
-				n.Children = append(n.Children[:len(n.Children)-1], LogicalNode{
-					Children: []Node{lastChild, n1},
-					Operator: LogicalAnd,
-				})
-			}
+			n.Operator = LogicalAnd
 		case influxql.OR:
-			if currentOp == 0 || currentOp == LogicalOr {
-				n.Operator = LogicalOr
-			} else {
-				n1, err := p.parseLogicalNode()
-				if err != nil {
-					return *n, err
-				}
-				n = &LogicalNode{
-					Children: []Node{*n, n1},
-					Operator: LogicalOr,
-				}
+			return *n, &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Msg:  fmt.Sprintf("the logical operator OR is not supported yet at position %d", pos.Char),
 			}
-			currentOp = LogicalOr
 		case influxql.LPAREN:
 			p.openParen++
 			currParen := p.openParen
@@ -186,18 +158,18 @@ func (p *parser) parseTagRuleNode() (TagRuleNode, error) {
 		n.Operator = influxdb.Equal
 		goto scanRegularTagValue
 	case influxql.NEQ:
-		n.Operator = influxdb.NotEqual
-		goto scanRegularTagValue
+		fallthrough
 	case influxql.EQREGEX:
-		n.Operator = influxdb.RegexEqual
-		goto scanRegexTagValue
+		fallthrough
 	case influxql.NEQREGEX:
-		n.Operator = influxdb.NotRegexEqual
-		goto scanRegexTagValue
+		return *n, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  fmt.Sprintf("operator: %q at position: %d is not supported yet", tok.String(), pos.Char),
+		}
 	default:
 		return *n, &influxdb.Error{
 			Code: influxdb.EInvalid,
-			Msg:  fmt.Sprintf("invalid operator %q at position %d", tok.String(), pos),
+			Msg:  fmt.Sprintf("invalid operator %q at position: %d", tok.String(), pos.Char),
 		}
 	}
 	// scan the value
@@ -223,28 +195,4 @@ scanRegularTagValue:
 			Msg:  fmt.Sprintf("bad tag value: %q, at position %d", lit, pos.Char),
 		}
 	}
-scanRegexTagValue:
-	tok, pos, lit = p.sc.ScanRegex()
-	switch tok {
-	case influxql.BADREGEX:
-		fallthrough
-	case influxql.BADESCAPE:
-		return *n, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  fmt.Sprintf("bad regex at position: %d", pos.Char),
-		}
-	default:
-		n.Value = "/" + lit + "/"
-	}
-	return *n, nil
-}
-
-// peekRune returns the next rune that would be read by the scanner.
-func (p *parser) peekTok() influxql.Token {
-	tok, _, _ := p.scanIgnoreWhitespace()
-	if tok != influxql.EOF {
-		p.unscan()
-	}
-
-	return tok
 }

@@ -3,7 +3,6 @@ package http
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -63,10 +62,10 @@ func TestDelete(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json; charset=utf-8",
-				body: fmt.Sprintf(`{
+				body: `{
 					"code": "invalid",
 					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field start, please format your time with RFC3339Nano format, example: 2009-01-02T23:00:00Z"
-				  }`),
+				  }`,
 			},
 		},
 		{
@@ -80,10 +79,10 @@ func TestDelete(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json; charset=utf-8",
-				body: fmt.Sprintf(`{
+				body: `{
 					"code": "invalid",
 					"message": "invalid request; error parsing request json: invalid RFC3339Nano for field stop, please format your time with RFC3339Nano format, example: 2009-01-01T23:00:00Z"
-				  }`),
+				  }`,
 			},
 		},
 		{
@@ -106,10 +105,10 @@ func TestDelete(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json; charset=utf-8",
-				body: fmt.Sprintf(`{
+				body: `{
 					"code": "invalid",
 					"message": "Please provide either orgID or org"
-				  }`),
+				  }`,
 			},
 		},
 		{
@@ -141,10 +140,10 @@ func TestDelete(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusBadRequest,
 				contentType: "application/json; charset=utf-8",
-				body: fmt.Sprintf(`{
+				body: `{
 					"code": "invalid",
 					"message": "Please provide either bucketID or bucket"
-				  }`),
+				  }`,
 			},
 		},
 		{
@@ -177,10 +176,10 @@ func TestDelete(t *testing.T) {
 			wants: wants{
 				statusCode:  http.StatusForbidden,
 				contentType: "application/json; charset=utf-8",
-				body: fmt.Sprintf(`{
+				body: `{
 					"code": "forbidden",
 					"message": "insufficient permissions to delete"
-				  }`),
+				  }`,
 			},
 		},
 		{
@@ -227,7 +226,7 @@ func TestDelete(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: http.StatusNoContent,
-				body:       fmt.Sprintf(``),
+				body:       ``,
 			},
 		},
 		{
@@ -278,10 +277,10 @@ func TestDelete(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: http.StatusBadRequest,
-				body: fmt.Sprintf(`{
+				body: `{
 					"code": "invalid",
-					"message": "invalid request; error parsing request json: Err in Child 1, err: the logical operator OR is not supported for delete predicate yet"
-				  }`),
+					"message": "invalid request; error parsing request json: the logical operator OR is not supported yet at position 25"
+				  }`,
 			},
 		},
 		{
@@ -332,7 +331,7 @@ func TestDelete(t *testing.T) {
 			},
 			wants: wants{
 				statusCode: http.StatusNoContent,
-				body:       fmt.Sprintf(``),
+				body:       ``,
 			},
 		},
 	}

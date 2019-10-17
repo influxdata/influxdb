@@ -13,7 +13,6 @@ type LogicalOperator int
 // LogicalOperators
 var (
 	LogicalAnd LogicalOperator = 1
-	LogicalOr  LogicalOperator = 2
 )
 
 // Value returns the node logical type.
@@ -21,11 +20,6 @@ func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 	switch op {
 	case LogicalAnd:
 		return datatypes.LogicalAnd, nil
-	case LogicalOr:
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "the logical operator OR is not supported for delete predicate yet",
-		}
 	default:
 		return 0, &influxdb.Error{
 			Code: influxdb.EInvalid,
