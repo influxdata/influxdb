@@ -57,29 +57,6 @@ describe('Notification Endpoints', () => {
           cy.contains('Slack')
         })
 
-        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
-
-        cy.getByTestID('endpoint--dropdown--button').within(() => {
-          cy.contains('Pagerduty')
-        })
-      })
-
-    cy.getByTestID('pagerduty-url')
-      .clear()
-      .type('many-faced-god.gov')
-      .should('have.value', 'many-faced-god.gov')
-
-    cy.getByTestID('pagerduty-routing-key')
-      .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
-      .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
-
-    cy.getByTestID('endpoint-change--dropdown')
-      .click()
-      .within(() => {
-        cy.getByTestID('endpoint--dropdown--button').within(() => {
-          cy.contains('Pagerduty')
-        })
-
         cy.getByTestID('endpoint--dropdown-item http').click()
 
         cy.getByTestID('endpoint--dropdown--button').within(() => {
@@ -110,6 +87,81 @@ describe('Notification Endpoints', () => {
       .clear()
       .type('slack.url.us')
       .should('have.value', 'slack.url.us')
+
+    cy.getByTestID('endpoint-save--button').click()
+
+    cy.getByTestID(`endpoint-card ${name}`).should('exist')
+    cy.getByTestID('endpoint--overlay').should('not.be.visible')
+  })
+
+  it('can create a notification endpoint pager duty with client url', () => {
+    const name = 'Pagerduty example'
+
+    cy.getByTestID('create-endpoint').click()
+
+    cy.getByTestID('endpoint-name--input')
+      .clear()
+      .type(name)
+      .should('have.value', name)
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Slack')
+        })
+
+        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Pagerduty')
+        })
+      })
+
+    cy.getByTestID('pagerduty-url')
+      .clear()
+      .type('many-faced-god.gov')
+      .should('have.value', 'many-faced-god.gov')
+
+    cy.getByTestID('pagerduty-routing-key')
+      .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
+      .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
+
+    cy.getByTestID('endpoint-save--button').click()
+
+    cy.getByTestID(`endpoint-card ${name}`).should('exist')
+    cy.getByTestID('endpoint--overlay').should('not.be.visible')
+  })
+
+  it.only('can create a notification endpoint pager duty without client url', () => {
+    const name = 'Pagerduty url none'
+
+    cy.getByTestID('create-endpoint').click()
+
+    cy.getByTestID('endpoint-name--input')
+      .clear()
+      .type(name)
+      .should('have.value', name)
+
+    cy.getByTestID('endpoint-change--dropdown')
+      .click()
+      .within(() => {
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Slack')
+        })
+
+        cy.getByTestID('endpoint--dropdown-item pagerduty').click()
+
+        cy.getByTestID('endpoint--dropdown--button').within(() => {
+          cy.contains('Pagerduty')
+        })
+      })
+
+    cy.getByTestID('pagerduty-url').clear()
+
+    cy.getByTestID('pagerduty-routing-key')
+      .type('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
+      .should('have.value', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9')
 
     cy.getByTestID('endpoint-save--button').click()
 
