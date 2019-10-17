@@ -47,7 +47,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
 }) => {
   useEffect(() => {
     getViewForTimeMachine(dashboardID, cellID, 'veo')
-    onExecuteQueries()
+    onExecuteQueries(dashboardID)
   }, [cellID, dashboardID])
 
   const handleClose = () => {
