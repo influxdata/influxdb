@@ -134,14 +134,14 @@ class ImportOverlay extends PureComponent<Props, State> {
     )
   }
 
-  private submit = async () => {
+  private submit = () => {
     const {importContent} = this.state
     const {
       onSubmit,
       params: {orgID},
     } = this.props
 
-    await onSubmit(importContent, orgID)
+    onSubmit(importContent, orgID)
     this.clearImportContent()
   }
 

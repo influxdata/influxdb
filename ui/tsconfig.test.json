@@ -1,6 +1,12 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["assets", "build", "node_modules", "webpack.tsconfig.json"],
+  "exclude": [
+    "assets",
+    "build",
+    "node_modules",
+    "webpack.tsconfig.json",
+    "webpack.*.ts"
+  ],
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",

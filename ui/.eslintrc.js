@@ -49,6 +49,9 @@ module.exports = {
     '@typescript-eslint/no-var-requires': 'off',
     '@typescript-eslint/prefer-interface': 'off',
     '@typescript-eslint/camelcase': 'off',
+    '@typescript-eslint/member-delimiter-style': 'off',
+    '@typescript-eslint/prefer-regexp-exec': 'off',
+    '@typescript-eslint/prefer-string-starts-ends-with': 'off',
     '@typescript-eslint/no-unused-vars': [
       'error',
       {varsIgnorePattern: '^_', argsIgnorePattern: '^_'},

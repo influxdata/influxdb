@@ -31,7 +31,7 @@ interface Props {
   selectedLabels: Label[]
   labels: Label[]
   onAddLabel: (label: Label) => void
-  onCreateLabel: (label: Label) => Promise<void>
+  onCreateLabel: (label: Label) => void
 }
 
 interface State {
@@ -170,9 +170,7 @@ class InlineLabelsEditor extends Component<Props, State> {
     this.setState({isPopoverVisible: false})
   }
 
-  private handleInputChange = async (
-    e: ChangeEvent<HTMLInputElement>
-  ): Promise<void> => {
+  private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
     const searchTerm = e.target.value
     const filteredLabels = this.filterLabels(searchTerm)
 

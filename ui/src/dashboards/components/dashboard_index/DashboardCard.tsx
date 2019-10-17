@@ -99,8 +99,8 @@ class DashboardCard extends PureComponent<Props> {
     )
   }
 
-  private handleUpdateDashboard = async (name: string) => {
-    await this.props.onUpdateDashboard({...this.props.dashboard, name})
+  private handleUpdateDashboard = (name: string) => {
+    this.props.onUpdateDashboard({...this.props.dashboard, name})
   }
 
   private get contextMenu(): JSX.Element {
@@ -154,35 +154,27 @@ class DashboardCard extends PureComponent<Props> {
     onResetViews()
   }
 
-  private handleUpdateDescription = (description: string): void => {
+  private handleUpdateDescription = (description: string) => {
     const {onUpdateDashboard} = this.props
     const dashboard = {...this.props.dashboard, description}
 
     onUpdateDashboard(dashboard)
   }
 
-  private handleAddLabel = (label: Label): void => {
+  private handleAddLabel = (label: Label) => {
     const {dashboard, onAddDashboardLabels} = this.props
 
     onAddDashboardLabels(dashboard.id, [label as any])
   }
 
-  private handleRemoveLabel = (label: Label): void => {
+  private handleRemoveLabel = (label: Label) => {
     const {dashboard, onRemoveDashboardLabels} = this.props
 
     onRemoveDashboardLabels(dashboard.id, [label as any])
   }
 
-  private handleCreateLabel = async (label: Label): Promise<void> => {
-    try {
-      await this.props.onCreateLabel(label.name, label.properties)
-
-      // notify success
-    } catch (err) {
-      console.error(err)
-      // notify of fail
-      throw err
-    }
+  private handleCreateLabel = (label: Label) => {
+    this.props.onCreateLabel(label.name, label.properties)
   }
 
   private handleExport = () => {

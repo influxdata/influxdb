@@ -17,7 +17,7 @@ import {NotificationEndpoint, RemoteDataState} from 'src/types'
 
 interface Props {
   saveButtonText: string
-  onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onSave: (endpoint: NotificationEndpoint) => void
   onCancel: () => void
   onSetErrorMessage: (error: string) => void
 }

@@ -34,9 +34,7 @@ class DashboardImportOverlay extends PureComponent<Props> {
     )
   }
 
-  private handleImportDashboard = async (
-    uploadContent: string
-  ): Promise<void> => {
+  private handleImportDashboard = (uploadContent: string) => {
     const {createDashboardFromTemplate, populateDashboards} = this.props
     const template = JSON.parse(uploadContent)
 
@@ -44,10 +42,8 @@ class DashboardImportOverlay extends PureComponent<Props> {
       this.onDismiss()
     }
 
-    await createDashboardFromTemplate(template)
-
-    await populateDashboards()
-
+    createDashboardFromTemplate(template)
+    populateDashboards()
     this.onDismiss()
   }
 

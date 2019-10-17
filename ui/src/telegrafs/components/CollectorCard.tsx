@@ -102,10 +102,10 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleUpdateName = async (name: string) => {
+  private handleUpdateName = (name: string) => {
     const {onUpdate, collector} = this.props
 
-    await onUpdate({...collector, name})
+    onUpdate({...collector, name})
   }
 
   private handleUpdateDescription = (description: string) => {
@@ -130,25 +130,21 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel): void => {
+  private handleAddLabel = (label: ILabel) => {
     const {collector, onAddLabels} = this.props
 
     onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
+  private handleRemoveLabel = (label: ILabel) => {
     const {collector, onRemoveLabels} = this.props
 
     onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel): Promise<void> => {
-    try {
-      const {name, properties} = label
-      await this.props.onCreateLabel(name, properties)
-    } catch (err) {
-      throw err
-    }
+  private handleCreateLabel = (label: ILabel) => {
+    const {name, properties} = label
+    this.props.onCreateLabel(name, properties)
   }
 
   private handleNameClick = (e: MouseEvent) => {

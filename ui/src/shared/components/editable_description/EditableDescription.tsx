@@ -85,12 +85,11 @@ class EditableDescription extends Component<Props, State> {
     this.setState({isEditing: true})
   }
 
-  private handleStopEditing = async (): Promise<void> => {
+  private handleStopEditing = () => {
     const {workingDescription} = this.state
     const {onUpdate} = this.props
 
-    await onUpdate(workingDescription)
-
+    onUpdate(workingDescription)
     this.setState({isEditing: false})
   }
 
@@ -98,14 +97,12 @@ class EditableDescription extends Component<Props, State> {
     this.setState({workingDescription: e.target.value})
   }
 
-  private handleKeyDown = async (
-    e: KeyboardEvent<HTMLInputElement>
-  ): Promise<void> => {
+  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const {onUpdate, description} = this.props
     const {workingDescription} = this.state
 
     if (e.key === 'Enter') {
-      await onUpdate(workingDescription)
+      onUpdate(workingDescription)
       this.setState({isEditing: false})
     }
 

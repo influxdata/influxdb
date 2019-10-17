@@ -31,12 +31,12 @@ class TaskImportOverlay extends PureComponent<Props> {
     router.goBack()
   }
 
-  private handleImportTask = async (importString: string): Promise<void> => {
+  private handleImportTask = (importString: string) => {
     const {createTaskFromTemplate} = this.props
 
     const template = JSON.parse(importString)
 
-    await createTaskFromTemplate(template)
+    createTaskFromTemplate(template)
 
     this.onDismiss()
   }

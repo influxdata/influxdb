@@ -42,7 +42,7 @@ interface Props {
   onManualRefresh: () => void
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onAddCell: () => void
-  onRenameDashboard: (name: string) => Promise<void>
+  onRenameDashboard: (name: string) => void
   toggleVariablesControlBar: () => void
   isShowingVariablesControlBar: boolean
   onAddNote: () => void

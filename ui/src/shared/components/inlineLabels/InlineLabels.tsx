@@ -23,7 +23,7 @@ interface Props {
   labels: Label[]
   onRemoveLabel?: (label: Label) => void
   onAddLabel?: (label: Label) => void
-  onCreateLabel?: (label: Label) => Promise<void>
+  onCreateLabel?: (label: Label) => void
   onFilterChange?: (searchTerm: string) => void
 }
 
