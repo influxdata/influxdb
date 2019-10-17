@@ -21,7 +21,7 @@ const setup = (override = {}) => {
 }
 
 describe('FetchAuthToken', () => {
-  it('renders', async () => {
+  it('renders', () => {
     const {wrapper} = setup()
     expect(wrapper.exists()).toBe(true)
   })
