@@ -93,7 +93,7 @@ const getVarChildren = (
 */
 const collectAncestors = (
   node: VariableNode,
-  acc = new Set()
+  acc: Set<VariableNode> = new Set()
 ): VariableNode[] => {
   for (const parent of node.parents) {
     if (!acc.has(parent)) {
@@ -119,7 +119,7 @@ const findSubgraph = (
   graph: VariableNode[],
   variables: Variable[]
 ): VariableNode[] => {
-  const subgraph = new Set()
+  const subgraph: Set<VariableNode> = new Set()
 
   for (const node of graph) {
     const shouldKeep =
@@ -204,7 +204,7 @@ const constVariableValues = (
 */
 export const collectDescendants = (
   node: VariableNode,
-  acc = new Set()
+  acc: Set<VariableNode> = new Set()
 ): VariableNode[] => {
   for (const child of node.children) {
     if (!acc.has(child)) {

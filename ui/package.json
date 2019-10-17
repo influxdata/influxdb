@@ -113,7 +113,7 @@
     "ts-loader": "^5.3.3",
     "ts-node": "^8.3.0",
     "tslib": "^1.9.0",
-    "typescript": "3.4.5",
+    "typescript": "3.5.3",
     "webpack": "^4.37.0",
     "webpack-cli": "^3.3.6",
     "webpack-dev-server": "^3.7.2",
