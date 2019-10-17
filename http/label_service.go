@@ -28,6 +28,33 @@ const (
 	labelsIDPath = "/api/v2/labels/:id"
 )
 
+func (h *LabelHandler) handleGetLabelCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	req, err := decodeGetLabelRequest(ctx, r)
+	if err != nil {
+		err = &influxdb.Error{
+			Err:  err,
+			Code: influxdb.EInvalid,
+			Msg:  "failed to decode request",
+		}
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	lbl, err := h.LabelService.FindLabelByID(ctx, req.LabelID)
+	if err != nil {
+		err = &influxdb.Error{
+			Err:  err,
+			Code: influxdb.ENotFound,
+			Msg:  "failed to find label",
+		}
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	return lbl
+}
+
 // NewLabelHandler returns a new instance of LabelHandler
 func NewLabelHandler(s influxdb.LabelService, he influxdb.HTTPErrorHandler) *LabelHandler {
 	h := &LabelHandler{
@@ -45,6 +72,33 @@ func NewLabelHandler(s influxdb.LabelService, he influxdb.HTTPErrorHandler) *Lab
 	h.HandlerFunc("DELETE", labelsIDPath, h.handleDeleteLabel)
 
 	return h
+}
+
+func (h *TaskHandler) handleGetLabelCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	req, err := decodeGetTaskRequest(ctx, r)
+	if err != nil {
+		err = &influxdb.Error{
+			Err:  err,
+			Code: influxdb.EInvalid,
+			Msg:  "failed to decode request",
+		}
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	task, err := h.TaskService.FindTaskByID(ctx, req.TaskID)
+	if err != nil {
+		err = &influxdb.Error{
+			Err:  err,
+			Code: influxdb.ENotFound,
+			Msg:  "failed to find task",
+		}
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	return task
 }
 
 // handlePostLabel is the HTTP handler for the POST /api/v2/labels route.
@@ -148,19 +202,13 @@ func decodeGetLabelsRequest(ctx context.Context, r *http.Request) (*getLabelsReq
 
 // handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
 func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	req, err := decodeGetLabelRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
+	lbl := h.handleGetLabelCheck(w, r)
+	if lbl == nil {
 		return
 	}
 
-	l, err := h.LabelService.FindLabelByID(ctx, req.LabelID)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	h.Logger.Debug("label retrieved", zap.String("label", fmt.Sprint(l)))
+	l := lbl.(*influxdb.Label)
+	ctx := r.Context()
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return

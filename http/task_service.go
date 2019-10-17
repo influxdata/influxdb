@@ -52,6 +52,33 @@ func NewTaskBackend(b *APIBackend) *TaskBackend {
 	}
 }
 
+func (h *TaskHandler) handleGetTaskCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	req, err := decodeGetTaskRequest(ctx, r)
+	if err != nil {
+		err = &influxdb.Error{
+			Err:  err,
+			Code: influxdb.EInvalid,
+			Msg:  "failed to decode request",
+		}
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	task, err := h.TaskService.FindTaskByID(ctx, req.TaskID)
+	if err != nil {
+		err = &influxdb.Error{
+			Err:  err,
+			Code: influxdb.ENotFound,
+			Msg:  "failed to find task",
+		}
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	return task
+}
+
 // TaskHandler represents an HTTP API handler for tasks.
 type TaskHandler struct {
 	*httprouter.Router
@@ -110,6 +137,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("GET", tasksIDRunsIDLogsPath, h.handleGetLogs)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetTaskCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.TasksResourceType,
@@ -122,6 +150,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetTaskCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.TasksResourceType,
@@ -140,6 +169,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h.HandlerFunc("DELETE", tasksIDRunsIDPath, h.handleCancelRun)
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetTaskCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -457,28 +487,13 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 }
 
 func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	req, err := decodeGetTaskRequest(ctx, r)
-	if err != nil {
-		err = &influxdb.Error{
-			Err:  err,
-			Code: influxdb.EInvalid,
-			Msg:  "failed to decode request",
-		}
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
+	t := h.handleGetTaskCheck(w, r)
 
-	task, err := h.TaskService.FindTaskByID(ctx, req.TaskID)
-	if err != nil {
-		err = &influxdb.Error{
-			Err:  err,
-			Code: influxdb.ENotFound,
-			Msg:  "failed to find task",
-		}
-		h.HandleHTTPError(ctx, err, w)
+	if t == nil {
 		return
 	}
+	task := t.(*influxdb.Task)
+	ctx := r.Context()
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: task.ID})
 	if err != nil {
@@ -743,6 +758,9 @@ func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest
 }
 
 func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
+	if h.handleGetTaskCheck(w, r) == nil {
+		return
+	}
 	ctx := r.Context()
 
 	req, err := decodeGetRunsRequest(ctx, r)
@@ -946,6 +964,9 @@ func decodeForceRunRequest(ctx context.Context, r *http.Request) (forceRunReques
 }
 
 func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
+	if h.handleGetTaskCheck(w, r) == nil {
+		return
+	}
 	ctx := r.Context()
 
 	req, err := decodeGetRunRequest(ctx, r)

@@ -66,6 +66,23 @@ const (
 	targetsIDLabelsIDPath  = targetsPath + "/:id/labels/:lid"
 )
 
+func (h *ScraperHandler) handleGetScraperCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	id, err := decodeScraperTargetIDRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	target, err := h.ScraperStorageService.GetTargetByID(ctx, *id)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	h.Logger.Debug("scraper retrieved", zap.String("scraper", fmt.Sprint(target)))
+
+	return target
+}
+
 // NewScraperHandler returns a new instance of ScraperHandler.
 func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h := &ScraperHandler{
@@ -86,6 +103,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h.HandlerFunc("DELETE", targetsPath+"/:id", h.handleDeleteScraperTarget)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetScraperCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ScraperResourceType,
@@ -98,6 +116,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetScraperCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ScraperResourceType,
@@ -110,6 +129,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetScraperCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -207,18 +227,12 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 }
 
 func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.Request) {
+	scraperTarget := h.handleGetScraperCheck(w, r)
+	if scraperTarget == nil {
+		return
+	}
+	target := scraperTarget.(*influxdb.ScraperTarget)
 	ctx := r.Context()
-	id, err := decodeScraperTargetIDRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	target, err := h.ScraperStorageService.GetTargetByID(ctx, *id)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	h.Logger.Debug("scraper retrieved", zap.String("scraper", fmt.Sprint(target)))
 
 	resp, err := h.newTargetResponse(ctx, *target)
 	if err != nil {
