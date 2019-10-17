@@ -18,11 +18,23 @@ const RuleCardContext: FunctionComponent<Props> = ({
 }) => {
   return (
     <Context>
-      <Context.Menu icon={IconFont.EyeOpen}>
-        <Context.Item label="View History" action={onView} />
+      <Context.Menu icon={IconFont.EyeOpen} testID="context-history-menu">
+        <Context.Item
+          label="View History"
+          action={onView}
+          testID="context-history-task"
+        />
       </Context.Menu>
-      <Context.Menu icon={IconFont.Duplicate} color={ComponentColor.Secondary}>
-        <Context.Item label="Clone" action={onClone} />
+      <Context.Menu
+        icon={IconFont.Duplicate}
+        color={ComponentColor.Secondary}
+        testID="context-clone-menu"
+      >
+        <Context.Item
+          label="Clone"
+          action={onClone}
+          testID="context-clone-task"
+        />
       </Context.Menu>
       <Context.Menu
         icon={IconFont.Trash}
