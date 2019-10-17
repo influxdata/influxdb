@@ -133,7 +133,7 @@ describe('Notification Endpoints', () => {
     cy.getByTestID('endpoint--overlay').should('not.be.visible')
   })
 
-  it.only('can create a notification endpoint pager duty without client url', () => {
+  it('can create a notification endpoint pager duty without client url', () => {
     const name = 'Pagerduty url none'
 
     cy.getByTestID('create-endpoint').click()
