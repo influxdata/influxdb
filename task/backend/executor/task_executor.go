@@ -327,6 +327,8 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	rd := time.Since(p.run.StartedAt)
 	w.te.metrics.FinishRun(p.task, rs, rd)
 
+	w.te.tcs.FinishRun(ctx, p.task.ID, p.run.ID)
+
 	// log error
 	if err != nil {
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), err.Error())

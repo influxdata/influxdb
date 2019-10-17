@@ -62,7 +62,7 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 		{
 			name: "RunCancelled",
 			call: func(t *testing.T, c *TaskCoordinator) {
-				if err := c.RunCancelled(context.Background(), runOne.ID); err != nil {
+				if err := c.RunCancelled(context.Background(), taskOne.ID, runOne.ID); err != nil {
 					t.Errorf("expected nil error found %q", err)
 				}
 			},
