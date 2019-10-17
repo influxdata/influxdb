@@ -147,7 +147,8 @@ func (c *TaskCoordinator) TaskDeleted(ctx context.Context, id influxdb.ID) error
 }
 
 // RunCancelled speaks directly to the executor to cancel a task run
-func (c *TaskCoordinator) RunCancelled(ctx context.Context, runID influxdb.ID) error {
+// TODO(docmerlin): remove the middle variable and refactor the interface when we delete the old scheduler
+func (c *TaskCoordinator) RunCancelled(ctx context.Context, _, runID influxdb.ID) error {
 	err := c.ex.Cancel(ctx, runID)
 
 	return err
