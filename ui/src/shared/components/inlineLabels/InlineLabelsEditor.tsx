@@ -234,13 +234,13 @@ class InlineLabelsEditor extends Component<Props, State> {
     return _.differenceBy(labels, selectedLabels, label => label.name)
   }
 
-  private handleCreateLabel = async (label: Label) => {
+  private handleCreateLabel = (label: Label) => {
     const {onCreateLabel, onAddLabel} = this.props
 
     try {
-      await onCreateLabel(label)
+      onCreateLabel(label)
       const newLabel = this.props.labels.find(l => l.name === label.name)
-      await onAddLabel(newLabel)
+      onAddLabel(newLabel)
     } catch (error) {
       console.error(error)
     }

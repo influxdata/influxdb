@@ -41,7 +41,7 @@ const EndpointOverlayFooter: FC<Props> = ({
       setSaveStatus(RemoteDataState.Loading)
       onSetErrorMessage(null)
 
-      await onSave(endpoint)
+      onSave(endpoint)
     } catch (e) {
       setSaveStatus(RemoteDataState.Error)
       onSetErrorMessage(e.message)

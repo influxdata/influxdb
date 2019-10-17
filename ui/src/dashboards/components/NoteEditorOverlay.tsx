@@ -174,9 +174,9 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
 
     try {
       if (cellID) {
-        await onUpdateViewNote(cellID)
+        onUpdateViewNote(cellID)
       } else {
-        await onCreateNoteCell(dashboardID)
+        onCreateNoteCell(dashboardID)
       }
       this.handleDismiss()
     } catch (error) {
