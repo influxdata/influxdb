@@ -12,6 +12,7 @@ import {
   getByTitle,
   createTask,
   createVariable,
+  createMapVariable,
   createAndAddLabel,
   createLabel,
   createBucket,
@@ -33,6 +34,7 @@ declare global {
       createSource: typeof createSource
       createTask: typeof createTask
       createVariable: typeof createVariable
+      createMapVariable: typeof createMapVariable
       createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard
       createCell: typeof createCell

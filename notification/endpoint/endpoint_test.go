@@ -112,16 +112,6 @@ func TestValidEndpoint(t *testing.T) {
 			},
 		},
 		{
-			name: "empty pagerduty url",
-			src: &endpoint.PagerDuty{
-				Base: goodBase,
-			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Msg:  "pagerduty endpoint ClientURL is empty",
-			},
-		},
-		{
 			name: "invalid routine key",
 			src: &endpoint.PagerDuty{
 				Base:       goodBase,

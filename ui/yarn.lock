@@ -1107,10 +1107,10 @@
   resolved "https://registry.yarnpkg.com/@influxdata/influxdb-templates/-/influxdb-templates-0.9.0.tgz#d4b1f727c8949147d2ade63f5754425a0d1a0e9d"
   integrity sha512-R/QhYJz+nNPGT8LkWHXKOLYYUROavDPfIFoGP7sIrxhStjm+hb0TzHYeQ75HLPQqKh54zCB8cv/TINwRgijYBw==
 
-"@influxdata/oats@0.4.0":
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/@influxdata/oats/-/oats-0.4.0.tgz#709b288232473140802fd1a3871f9b0f7ae49fc2"
-  integrity sha512-VgzO2jU0UguGFmdBEuqMM7jQS9soW0pqj251LmLKQhlFbuL9AKCAIOO6rf6OFqC3sCloduxwgZRc+Y9EprQhmQ==
+"@influxdata/oats@0.5.0":
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/oats/-/oats-0.5.0.tgz#0fdd308524fa407303ffa6a3d60fe959777dcfcb"
+  integrity sha512-oBlSB5ROM6JMqsVBDLlJzkBiMvAom+b4dszH83LPdM9H+pUtj2SeUoMpQhj9/4ioCnUVZx8HFN58/a/pkmADAQ==
   dependencies:
     commander "^2.20.0"
     humps "^2.0.1"
