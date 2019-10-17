@@ -166,8 +166,8 @@ export const clientJSLibrary = {
 // You can generate a Token from the "Tokens Tab" in the UI
 const client = new Client('serverUrl', 'token')`,
   executeQueryCodeSnippet: `const query = 'from(bucket: "my_bucket") |> range(start: -1h)'
-const {promise, cancel} = client.queries.execute('myorgid', query)
-const csv = await promisecancel() // Cancels request`,
+const {promise} = client.queries.execute('myorgid', query)
+const csv = await promise`,
   writingDataLineProtocolCodeSnippet: `const data = 'mem,host=host1 used_percent=23.43234543 1556896326' // Line protocol string
 const response = await client.write.create('orgID', 'bucketID', data)`,
 }
