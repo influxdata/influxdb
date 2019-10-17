@@ -68,6 +68,24 @@ const (
 	notificationEndpointsIDLabelsIDPath  = "/api/v2/notificationEndpoints/:id/labels/:lid"
 )
 
+func (h *NotificationEndpointHandler) handleGetNotificationEndpointCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	id, err := decodeGetNotificationEndpointRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	edp, err := h.NotificationEndpointService.FindNotificationEndpointByID(ctx, id)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	h.Logger.Info("GOTTTTEM")
+	h.Logger.Debug("notificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+
+	return edp
+}
+
 // NewNotificationEndpointHandler returns a new instance of NotificationEndpointHandler.
 func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *NotificationEndpointHandler {
 	h := &NotificationEndpointHandler{
@@ -90,6 +108,7 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 	h.HandlerFunc("PATCH", notificationEndpointsIDPath, h.handlePatchNotificationEndpoint)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetNotificationEndpointCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationEndpointResourceType,
@@ -102,6 +121,7 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 	h.HandlerFunc("DELETE", notificationEndpointsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetNotificationEndpointCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationEndpointResourceType,
@@ -114,6 +134,7 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 	h.HandlerFunc("DELETE", notificationEndpointsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetNotificationEndpointCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,

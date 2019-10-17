@@ -330,11 +330,15 @@ type LabelBackend struct {
 	influxdb.HTTPErrorHandler
 	LabelService influxdb.LabelService
 	ResourceType influxdb.ResourceType
+	Precheck     func(w http.ResponseWriter, r *http.Request) interface{}
 }
 
 // newGetLabelsHandler returns a handler func for a GET to /labels endpoints
 func newGetLabelsHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if b.Precheck(w, r) == nil {
+			return
+		}
 		ctx := r.Context()
 
 		req, err := decodeGetLabelMappingsRequest(ctx, r, b.ResourceType)
@@ -385,6 +389,9 @@ func decodeGetLabelMappingsRequest(ctx context.Context, r *http.Request, rt infl
 // newPostLabelHandler returns a handler func for a POST to /labels endpoints
 func newPostLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if b.Precheck(w, r) == nil {
+			return
+		}
 		ctx := r.Context()
 
 		req, err := decodePostLabelMappingRequest(ctx, r, b.ResourceType)
@@ -460,6 +467,9 @@ func decodePostLabelMappingRequest(ctx context.Context, r *http.Request, rt infl
 // newDeleteLabelHandler returns a handler func for a DELETE to /labels endpoints
 func newDeleteLabelHandler(b *LabelBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if b.Precheck(w, r) == nil {
+			return
+		}
 		ctx := r.Context()
 
 		req, err := decodeDeleteLabelMappingRequest(ctx, r)

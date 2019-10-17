@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/influxdata/influxdb"
@@ -69,6 +68,22 @@ const (
 	checksIDLabelsIDPath  = "/api/v2/checks/:id/labels/:lid"
 )
 
+func (h *CheckHandler) handleGetChecksCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	id, err := decodeGetCheckRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	chk, err := h.CheckService.FindCheckByID(ctx, id)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	h.Logger.Debug("check retrieved", zap.String("check", fmt.Sprint(chk)))
+	return chk
+}
+
 // NewCheckHandler returns a new instance of CheckHandler.
 func NewCheckHandler(b *CheckBackend) *CheckHandler {
 	h := &CheckHandler{
@@ -92,6 +107,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 	h.HandlerFunc("PATCH", checksIDPath, h.handlePatchCheck)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetChecksCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ChecksResourceType,
@@ -104,6 +120,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 	h.HandlerFunc("DELETE", checksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetChecksCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ChecksResourceType,
@@ -116,6 +133,7 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 	h.HandlerFunc("DELETE", checksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetChecksCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -289,18 +307,13 @@ func newFluxResponse(flux string) fluxResp {
 }
 
 func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
+	check := h.handleGetChecksCheck(w, r)
+
+	if check == nil {
+		return
+	}
+	chk := check.(influxdb.Check)
 	ctx := r.Context()
-	id, err := decodeGetCheckRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	chk, err := h.CheckService.FindCheckByID(ctx, id)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	h.Logger.Debug("check retrieved", zap.String("check", fmt.Sprint(chk)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
 	if err != nil {

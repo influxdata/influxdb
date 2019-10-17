@@ -58,6 +58,7 @@ type MemberBackend struct {
 	influxdb.HTTPErrorHandler
 	Logger *zap.Logger
 
+	Precheck     func(w http.ResponseWriter, r *http.Request) interface{}
 	ResourceType influxdb.ResourceType
 	UserType     influxdb.UserType
 
@@ -68,6 +69,9 @@ type MemberBackend struct {
 // newPostMemberHandler returns a handler func for a POST to /members or /owners endpoints
 func newPostMemberHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if b.Precheck(w, r) == nil {
+			return
+		}
 		ctx := r.Context()
 		req, err := decodePostMemberRequest(ctx, r)
 		if err != nil {
@@ -142,6 +146,10 @@ func decodePostMemberRequest(ctx context.Context, r *http.Request) (*postMemberR
 // newGetMembersHandler returns a handler func for a GET to /members or /owners endpoints
 func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if b.Precheck(w, r) == nil {
+			return
+		}
+
 		ctx := r.Context()
 		req, err := decodeGetMembersRequest(ctx, r)
 		if err != nil {
@@ -214,6 +222,9 @@ func decodeGetMembersRequest(ctx context.Context, r *http.Request) (*getMembersR
 // newDeleteMemberHandler returns a handler func for a DELETE to /members or /owners endpoints
 func newDeleteMemberHandler(b MemberBackend) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if b.Precheck(w, r) == nil {
+			return
+		}
 		ctx := r.Context()
 		req, err := decodeDeleteMemberRequest(ctx, r)
 		if err != nil {

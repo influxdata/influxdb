@@ -69,6 +69,23 @@ const (
 	dashboardsIDLabelsIDPath    = "/api/v2/dashboards/:id/labels/:lid"
 )
 
+func (h *DashboardHandler) handleGetDashboardCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	req, err := decodeGetDashboardRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	dashboard, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	return dashboard
+}
+
 // NewDashboardHandler returns a new instance of DashboardHandler.
 func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h := &DashboardHandler{
@@ -99,6 +116,7 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h.HandlerFunc("PATCH", dashboardsIDCellsIDViewPath, h.handlePatchDashboardCellView)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetDashboardCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               platform.DashboardsResourceType,
@@ -111,6 +129,7 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetDashboardCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               platform.DashboardsResourceType,
@@ -123,6 +142,7 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetDashboardCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -464,19 +484,14 @@ func decodePostDashboardRequest(ctx context.Context, r *http.Request) (*postDash
 
 // hanldeGetDashboard retrieves a dashboard by ID.
 func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Request) {
+	d := h.handleGetDashboardCheck(w, r)
+
+	if d == nil {
+		return
+	}
+
+	dashboard := d.(*platform.Dashboard)
 	ctx := r.Context()
-	req, err := decodeGetDashboardRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	dashboard, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
 	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: dashboard.ID})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -517,6 +532,11 @@ func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashbo
 
 // hanldeGetDashboardLog retrieves a dashboard log by the dashboards ID.
 func (h *DashboardHandler) handleGetDashboardLog(w http.ResponseWriter, r *http.Request) {
+	d := h.handleGetDashboardCheck(w, r)
+
+	if d == nil {
+		return
+	}
 	ctx := r.Context()
 	req, err := decodeGetDashboardLogRequest(ctx, r)
 	if err != nil {

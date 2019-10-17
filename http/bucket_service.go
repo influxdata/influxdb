@@ -71,6 +71,24 @@ const (
 	bucketsIDLabelsIDPath  = "/api/v2/buckets/:id/labels/:lid"
 )
 
+func (h *BucketHandler) handleGetBucketCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+
+	req, err := decodeGetBucketRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+
+	return b
+}
+
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h := &BucketHandler{
@@ -94,6 +112,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("DELETE", bucketsIDPath, h.handleDeleteBucket)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetBucketCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.BucketsResourceType,
@@ -106,6 +125,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetBucketCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.BucketsResourceType,
@@ -118,6 +138,7 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetBucketCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -359,20 +380,12 @@ func decodePostBucketRequest(ctx context.Context, r *http.Request) (*postBucketR
 
 // handleGetBucket is the HTTP handler for the GET /api/v2/buckets/:id route.
 func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) {
+	bucket := h.handleGetBucketCheck(w, r)
+	if bucket == nil {
+		return
+	}
+	b := bucket.(*influxdb.Bucket)
 	ctx := r.Context()
-
-	req, err := decodeGetBucketRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	b, err := h.BucketService.FindBucketByID(ctx, req.BucketID)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: b.ID})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -858,6 +871,10 @@ func bucketIDPath(id influxdb.ID) string {
 
 // hanldeGetBucketLog retrieves a bucket log by the buckets ID.
 func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
+	if h.handleGetBucketCheck(w, r) == nil {
+		return
+	}
+
 	ctx := r.Context()
 	req, err := decodeGetBucketLogRequest(ctx, r)
 	if err != nil {

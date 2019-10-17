@@ -66,6 +66,23 @@ const (
 	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
 )
 
+func (h *TelegrafHandler) handleGetTelegrafConfigCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	id, err := decodeGetTelegrafRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	tc, err := h.TelegrafService.FindTelegrafConfigByID(ctx, id)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	h.Logger.Debug("telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
+
+	return tc
+}
+
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
 func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h := &TelegrafHandler{
@@ -86,6 +103,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetTelegrafConfigCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               platform.TelegrafsResourceType,
@@ -98,6 +116,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetTelegrafConfigCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               platform.TelegrafsResourceType,
@@ -110,6 +129,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetTelegrafConfigCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -256,18 +276,13 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Request) {
+	config := h.handleGetTelegrafConfigCheck(w, r)
+	if config == nil {
+		return
+	}
 	ctx := r.Context()
-	id, err := decodeGetTelegrafRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	tc, err := h.TelegrafService.FindTelegrafConfigByID(ctx, id)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	h.Logger.Debug("telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
+
+	tc := config.(*platform.TelegrafConfig)
 
 	offers := []string{"application/toml", "application/json", "application/octet-stream"}
 	defaultOffer := "application/toml"

@@ -96,6 +96,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h.HandlerFunc("DELETE", organizationsIDPath, h.handleDeleteOrg)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetOrgCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
@@ -104,10 +105,11 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                b.UserService,
 	}
 	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", organizationsIDMembersPath, getMembersPrecheckMiddleware(newGetMembersHandler(memberBackend), memberBackend))
+	h.Handler("GET", organizationsIDMembersPath, newGetMembersHandler(memberBackend))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetOrgCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
@@ -116,7 +118,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                b.UserService,
 	}
 	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", organizationsIDOwnersPath, getMembersPrecheckMiddleware(newGetMembersHandler(ownerBackend), ownerBackend))
+	h.Handler("GET", organizationsIDOwnersPath, newGetMembersHandler(ownerBackend))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)
@@ -129,6 +131,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.OrgsResourceType,
+		Precheck:         h.handleGetOrgCheck,
 	}
 	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))
@@ -238,24 +241,37 @@ func decodePostOrgRequest(ctx context.Context, r *http.Request) (*postOrgRequest
 
 // handleGetOrg is the HTTP handler for the GET /api/v2/orgs/:id route.
 func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
+	b := h.handleGetOrgCheck(w, r)
+
+	if b == nil {
+		return
+	}
+
+	ctx := r.Context()
+
+	org := b.(*influxdb.Organization)
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(org)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+func (h *OrgHandler) handleGetOrgCheck(w http.ResponseWriter, r *http.Request) interface{} {
 	ctx := r.Context()
 	req, err := decodeGetOrgRequest(ctx, r)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
-		return
+		return nil
 	}
 
-	b, err := h.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
+	org, err := h.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
-		return
+		return nil
 	}
-	h.Logger.Debug("org retrieved", zap.String("org", fmt.Sprint(b)))
-
-	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(b)); err != nil {
-		logEncodingError(h.Logger, r, err)
-		return
-	}
+	h.Logger.Debug("org retrieved", zap.String("org", fmt.Sprint(org)))
+	return org
 }
 
 type getOrgRequest struct {
@@ -431,6 +447,9 @@ func decodePatchOrgRequest(ctx context.Context, r *http.Request) (*patchOrgReque
 
 // handleGetSecrets is the HTTP handler for the GET /api/v2/orgs/:id/secrets route.
 func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
+	if h.handleGetOrgCheck(w, r) == nil {
+		return
+	}
 	ctx := r.Context()
 
 	req, err := decodeGetSecretsRequest(ctx, r)
@@ -820,6 +839,10 @@ func organizationIDPath(id influxdb.ID) string {
 
 // hanldeGetOrganizationLog retrieves a organization log by the organizations ID.
 func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
+	b := h.handleGetOrgCheck(w, r)
+	if b == nil {
+		return
+	}
 	ctx := r.Context()
 	req, err := decodeGetOrganizationLogRequest(ctx, r)
 	if err != nil {

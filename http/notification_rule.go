@@ -33,6 +33,22 @@ type NotificationRuleBackend struct {
 	TaskService                 influxdb.TaskService
 }
 
+func (h *NotificationRuleHandler) handleGetNotificationRuleCheck(w http.ResponseWriter, r *http.Request) interface{} {
+	ctx := r.Context()
+	id, err := decodeGetNotificationRuleRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	nr, err := h.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return nil
+	}
+	h.Logger.Debug("notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
+	return nr
+}
+
 // NewNotificationRuleBackend returns a new instance of NotificationRuleBackend.
 func NewNotificationRuleBackend(b *APIBackend) *NotificationRuleBackend {
 	return &NotificationRuleBackend{
@@ -100,6 +116,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 	h.HandlerFunc("PATCH", notificationRulesIDPath, h.handlePatchNotificationRule)
 
 	memberBackend := MemberBackend{
+		Precheck:                   h.handleGetNotificationRuleCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationRuleResourceType,
@@ -112,6 +129,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 	h.HandlerFunc("DELETE", notificationRulesIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
+		Precheck:                   h.handleGetNotificationRuleCheck,
 		HTTPErrorHandler:           b.HTTPErrorHandler,
 		Logger:                     b.Logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationRuleResourceType,
@@ -124,6 +142,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 	h.HandlerFunc("DELETE", notificationRulesIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	labelBackend := &LabelBackend{
+		Precheck:         h.handleGetNotificationRuleCheck,
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
@@ -297,19 +316,14 @@ func (h *NotificationRuleHandler) handleGetNotificationRuleQuery(w http.Response
 }
 
 func (h *NotificationRuleHandler) handleGetNotificationRule(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id, err := decodeGetNotificationRuleRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	nr, err := h.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-	h.Logger.Debug("notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
+	rule := h.handleGetNotificationRuleCheck(w, r)
 
+	if rule == nil {
+		return
+	}
+
+	nr := rule.(influxdb.NotificationRule)
+	ctx := r.Context()
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
