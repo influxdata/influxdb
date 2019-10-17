@@ -22,7 +22,7 @@ interface Props {
 const findMaxLevel = (event: StatusRow[]) => {
   const levels: LowercaseCheckStatusLevel[] = ['crit', 'warn', 'info', 'ok']
   const eventLevels = event.map(e => e.level)
-  for (let l of levels) {
+  for (const l of levels) {
     if (eventLevels.includes(l)) {
       return l
     }

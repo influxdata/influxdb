@@ -93,7 +93,7 @@ describe('Onboarding', () => {
     cy.wait('@orgSetup')
 
     cy.get('@orgSetup').then(xhr => {
-      let orgId: string = xhr.responseBody.org.id
+      const orgId: string = xhr.responseBody.org.id
 
       //wait for new page to load
       cy.location('pathname').should('include', 'onboarding/2')
@@ -139,7 +139,7 @@ describe('Onboarding', () => {
     cy.wait('@orgSetup')
 
     cy.get('@orgSetup').then(xhr => {
-      let orgId: string = xhr.responseBody.org.id
+      const orgId: string = xhr.responseBody.org.id
 
       //wait for new page to load
       cy.location('pathname').should('include', 'onboarding/2')
@@ -178,7 +178,7 @@ describe('Onboarding', () => {
     cy.wait('@orgSetup')
 
     cy.get('@orgSetup').then(xhr => {
-      let orgId: string = xhr.responseBody.org.id
+      const orgId: string = xhr.responseBody.org.id
       //wait for new page to load
 
       cy.location('pathname').should('include', 'onboarding/2')

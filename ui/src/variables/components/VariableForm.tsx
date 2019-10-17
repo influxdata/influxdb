@@ -161,7 +161,7 @@ export default class VariableForm extends PureComponent<Props, State> {
 
     switch (variableType) {
       case 'query': {
-        let _query = query
+        const _query = query
         if (firstRun && !_query.values.query.length) {
           _query.values.query = initialScript || ''
         }

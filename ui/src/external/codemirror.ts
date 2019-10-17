@@ -11,7 +11,7 @@ import 'codemirror/addon/hint/show-hint'
 const CodeMirror = require('codemirror')
 
 CodeMirror.defineOption('placeholder', '', function(cm, val, old) {
-  var prev = old && old != CodeMirror.Init
+  const prev = old && old != CodeMirror.Init
   if (val && !prev) {
     cm.on('blur', onBlur)
     cm.on('change', onChange)
@@ -22,7 +22,7 @@ CodeMirror.defineOption('placeholder', '', function(cm, val, old) {
     cm.off('change', onChange)
     cm.off('swapDoc', onChange)
     clearPlaceholder(cm)
-    var wrapper = cm.getWrapperElement()
+    const wrapper = cm.getWrapperElement()
     wrapper.className = wrapper.className.replace(' CodeMirror-empty', '')
   }
 
@@ -350,11 +350,11 @@ function clearPlaceholder(cm) {
 }
 function setPlaceholder(cm) {
   clearPlaceholder(cm)
-  var elt = (cm.state.placeholder = document.createElement('pre'))
+  const elt = (cm.state.placeholder = document.createElement('pre'))
   elt.style.cssText = 'height: 0; overflow: visible'
   elt.style.direction = cm.getOption('direction')
   elt.className = 'CodeMirror-placeholder'
-  var placeHolder = cm.getOption('placeholder')
+  let placeHolder = cm.getOption('placeholder')
   if (typeof placeHolder == 'string')
     placeHolder = document.createTextNode(placeHolder)
   elt.appendChild(placeHolder)
@@ -365,7 +365,7 @@ function onBlur(cm) {
   if (isEmpty(cm)) setPlaceholder(cm)
 }
 function onChange(cm) {
-  var wrapper = cm.getWrapperElement(),
+  const wrapper = cm.getWrapperElement(),
     empty = isEmpty(cm)
   wrapper.className =
     wrapper.className.replace(' CodeMirror-empty', '') +

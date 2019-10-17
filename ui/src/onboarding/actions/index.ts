@@ -93,7 +93,7 @@ export const setupAdmin = (params: ISetupParams) => async (
     return true
   } catch (err) {
     console.error(err)
-    let message = _.get(err, 'response.data.message', '')
+    const message = _.get(err, 'response.data.message', '')
     dispatch(notify(SetupError(message)))
     dispatch(setStepStatus(1, StepStatus.Error))
   }

@@ -18,11 +18,19 @@ describe('labels', () => {
 
   function hex2BgColor(hex: string): string {
     hex = hex.replace('#', '')
+<<<<<<< HEAD
     let subvals = hex.match(/.{1,2}/g) as string[]
     let red: number = parseInt(subvals[0], 16)
     let green: number = parseInt(subvals[1], 16)
     let blue: number = parseInt(subvals[2], 16)
     // background-color: rgb(50, 107, 186);
+=======
+    const subvals = hex.match(/.{1,2}/g) as string[]
+    const red: number = parseInt(subvals[0], 16)
+    const green: number = parseInt(subvals[1], 16)
+    const blue: number = parseInt(subvals[2], 16)
+    //background-color: rgb(50, 107, 186);
+>>>>>>> chore(eslint): upgraded eslint
 
     return `background-color: rgb(${red}, ${green}, ${blue});`
   }
@@ -317,7 +325,7 @@ describe('labels', () => {
 
     // Check initial sort asc
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[i].name)
@@ -328,7 +336,7 @@ describe('labels', () => {
 
     // check sort desc
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[labels.length - (i + 1)].name)
@@ -339,7 +347,7 @@ describe('labels', () => {
     cy.getByTestID('sorter--name').click()
 
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[i].name)
