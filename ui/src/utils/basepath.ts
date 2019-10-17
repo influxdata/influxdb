@@ -1,8 +1,11 @@
-import {getRootNode} from 'src/utils/nodes'
+import {BASE_PATH} from 'src/shared/constants'
 
 export const getBasepath = () => {
-  const rootNode = getRootNode()
-  return rootNode.getAttribute('data-basepath') || ''
+  if (BASE_PATH === '/') {
+    return '';
+  }
+
+  return BASE_PATH.slice(0, -1);
 }
 
 export const stripPrefix = (pathname, basepath = getBasepath()) => {
