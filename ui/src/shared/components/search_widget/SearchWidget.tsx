@@ -57,7 +57,7 @@ class SearchWidget extends Component<Props, State> {
       <Input
         icon={IconFont.Search}
         placeholder={placeholderText}
-        widthPixels={widthPixels}
+        style={{width: `${widthPixels}px`}}
         value={searchTerm}
         onChange={this.handleChange}
         onBlur={this.handleBlur}

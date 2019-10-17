@@ -116,17 +116,16 @@ class Members extends PureComponent<Props & WithRouterProps, State> {
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text
-            text={`Looks like there aren't any Members , why not invite some?`}
-            highlightWords={['Members']}
-          />
+          <EmptyState.Text>
+            Looks like there aren't any <b>Members</b>, why not invite some?
+          </EmptyState.Text>
         </EmptyState>
       )
     }
 
     return (
       <EmptyState size={ComponentSize.Medium}>
-        <EmptyState.Text text="No Members match your query" />
+        <EmptyState.Text>No Members match your query</EmptyState.Text>
       </EmptyState>
     )
   }

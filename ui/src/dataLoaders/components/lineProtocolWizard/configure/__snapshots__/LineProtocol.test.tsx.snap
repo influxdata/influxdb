@@ -6,8 +6,6 @@ exports[`LineProtocol rendering renders! 1`] = `
 >
   <Form
     onSubmit={[Function]}
-    preventDefault={true}
-    testID="form-container"
   >
     <FancyScrollbar
       autoHeight={false}

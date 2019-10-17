@@ -53,7 +53,7 @@ class VariableDropdown extends PureComponent<Props> {
       <div className="variable-dropdown">
         {/* TODO: Add variable description to title attribute when it is ready */}
         <Dropdown
-          widthPixels={140}
+          style={{width: `${140}px`}}
           className="variable-dropdown--dropdown"
           testID="variable-dropdown"
           button={(active, onClick) => (

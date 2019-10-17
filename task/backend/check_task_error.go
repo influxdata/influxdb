@@ -22,5 +22,10 @@ func IsUnrecoverable(err error) bool {
 		return true
 	}
 
+	// Flux script uses an API that attempts to read the filesystem
+	if strings.Contains(errString, "filesystem service uninitialized") {
+		return true
+	}
+
 	return false
 }

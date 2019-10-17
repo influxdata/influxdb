@@ -2,28 +2,21 @@
 
 exports[`VariableList rendering renders 1`] = `
 <Fragment>
-  <ResourceList
-    testID="resource-list"
-  >
-    <ResourceListHeader
-      testID="resource-list--header"
-    >
+  <ResourceList>
+    <ResourceListHeader>
       <ResourceListSorter
         name="Name"
         sort="none"
         sortKey="name"
-        testID="resource-list--sorter"
       />
       <ResourceListSorter
         name="Type"
         sort="none"
         sortKey="arguments"
-        testID="resource-list--sorter"
       />
     </ResourceListHeader>
     <ResourceListBody
       emptyState={<React.Fragment />}
-      testID="resource-list--body"
     >
       <Connect(withRouter(VariableCard))
         key="variable-0"

@@ -34,7 +34,7 @@ class PrecisionDropdown extends PureComponent<Props> {
       <div className="wizard-step--lp-precision">
         <label>Time Precision</label>
         <Dropdown
-          widthPixels={200}
+          style={{width: '200px'}}
           className="wizard-step--lp-precision"
           button={(active, onClick) => (
             <Dropdown.Button active={active} onClick={onClick}>

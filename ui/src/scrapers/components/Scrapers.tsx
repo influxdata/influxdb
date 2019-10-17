@@ -148,10 +148,9 @@ class Scrapers extends PureComponent<Props, State> {
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={`${orgName} does not own any Scrapers , why not create one?`}
-            highlightWords={['Scrapers']}
-          />
+          <EmptyState.Text>
+            {`${orgName}`} does not own any <b>Scrapers</b>, why not create one?
+          </EmptyState.Text>
           {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
       )
@@ -159,7 +158,7 @@ class Scrapers extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="No Scrapers match your query" />
+        <EmptyState.Text>No Scrapers match your query</EmptyState.Text>
       </EmptyState>
     )
   }

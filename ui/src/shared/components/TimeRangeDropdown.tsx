@@ -63,7 +63,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
         )}
         <div ref={this.dropdownRef}>
           <Dropdown
-            widthPixels={this.dropdownWidth}
+            style={{width: `${this.dropdownWidth}px`}}
             button={(active, onClick) => (
               <Dropdown.Button active={active} onClick={onClick}>
                 {this.formattedCustomTimeRange}
@@ -72,7 +72,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             menu={onCollapse => (
               <Dropdown.Menu
                 onCollapse={onCollapse}
-                overrideWidth={this.dropdownWidth + 50}
+                style={{width: `${this.dropdownWidth + 50}px`}}
               >
                 {TIME_RANGES.map(({label}) => {
                   if (label === TIME_RANGE_LABEL) {

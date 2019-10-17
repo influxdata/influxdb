@@ -51,7 +51,7 @@ class ColumnsOptions extends Component<Props> {
     return (
       <Form.Box>
         <EmptyState size={ComponentSize.Small}>
-          <EmptyState.Text text="This query returned no columns" />
+          <EmptyState.Text>This query returned no columns</EmptyState.Text>
         </EmptyState>
       </Form.Box>
     )

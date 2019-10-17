@@ -82,22 +82,17 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
   if (searchTerm) {
     return (
       <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-        <EmptyState.Text
-          text="No checks  match your search"
-          highlightWords={['checks']}
-        />
+        <EmptyState.Text>
+          No <b>checks</b> match your search
+        </EmptyState.Text>
       </EmptyState>
     )
   }
 
   if (showFirstTimeWidget) {
     return (
-      <Panel
-        gradient={Gradients.PolarExpress}
-        size={ComponentSize.Large}
-        className="alerting-first-time"
-      >
-        <Panel.Body>
+      <Panel gradient={Gradients.PolarExpress} className="alerting-first-time">
+        <Panel.Body size={ComponentSize.Large}>
           <h1>Get started monitoring by creating a check</h1>
           <h5>When a value crosses a specific threshold:</h5>
           <Button
@@ -124,10 +119,13 @@ const EmptyChecksList: FunctionComponent<EmptyProps> = ({
 
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-      <EmptyState.Text
-        text="Looks like you have not created a Check  yet LINEBREAK LINEBREAK You will need one to be notified about LINEBREAK any changes in system status"
-        highlightWords={['Check']}
-      />
+      <EmptyState.Text>
+        Looks like you have not created a <b>Check</b> yet
+        <br />
+        <br />
+        You will need one to be notified about
+        <br /> any changes in system status
+      </EmptyState.Text>
     </EmptyState>
   )
 }

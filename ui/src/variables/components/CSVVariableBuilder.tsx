@@ -92,11 +92,11 @@ export default class CSVTemplateBuilder extends PureComponent<Props, State> {
     this.setState({csv})
   }
 
-  private getUniqueValuesFromCSV(csv: string) {
+  private getUniqueValuesFromCSV(csv: string): string[] {
     const parsedTVS = Papa.parse(csv)
     const templateValuesData: string[][] = _.get(parsedTVS, 'data', [[]])
 
-    const valueSet = new Set()
+    const valueSet: Set<string> = new Set()
     for (const row of templateValuesData) {
       for (const value of row) {
         const trimmedValue = trimAndRemoveQuotes(value)

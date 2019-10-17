@@ -2,17 +2,11 @@
 
 exports[`SideBarButton rendering renders! wee! 1`] = `
 <Button
-  active={false}
   className="side-bar--button"
   color="secondary"
   onClick={[MockFunction]}
-  placeIconAfterText={false}
-  shape="none"
   size="sm"
-  status="default"
-  testID="button"
   text="text"
   titleText="titleText"
-  type="button"
 />
 `;

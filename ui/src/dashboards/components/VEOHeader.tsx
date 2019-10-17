@@ -33,7 +33,7 @@ class VEOHeader extends PureComponent<Props> {
     const {name, onSetName, onCancel, onSave} = this.props
     return (
       <Page.Header fullWidth={true}>
-        <Page.Header.Left>
+        <Page.HeaderLeft>
           <RenamablePageTitle
             name={name}
             onRename={onSetName}
@@ -41,8 +41,8 @@ class VEOHeader extends PureComponent<Props> {
             maxLength={CELL_NAME_MAX_LENGTH}
             onClickOutside={this.handleClickOutsideTitle}
           />
-        </Page.Header.Left>
-        <Page.Header.Right>
+        </Page.HeaderLeft>
+        <Page.HeaderRight>
           <ViewTypeDropdown />
           <VisOptionsButton />
           <SquareButton
@@ -58,7 +58,7 @@ class VEOHeader extends PureComponent<Props> {
             onClick={onSave}
             testID="save-cell--button"
           />
-        </Page.Header.Right>
+        </Page.HeaderRight>
       </Page.Header>
     )
   }

@@ -91,7 +91,11 @@ class InlineLabelsList extends Component<Props> {
           size={ComponentSize.Small}
           testID="inline-labels-list--used-all"
         >
-          <EmptyState.Text text="This resource has all available labels, LINEBREAK start typing to create a new label" />
+          <EmptyState.Text>
+            This resource has all available labels,
+            <br />
+            start typing to create a new label
+          </EmptyState.Text>
         </EmptyState>
       )
     }
@@ -102,7 +106,7 @@ class InlineLabelsList extends Component<Props> {
           size={ComponentSize.Small}
           testID="inline-labels-list--none-exist"
         >
-          <EmptyState.Text text="Start typing to create a new label" />
+          <EmptyState.Text>Start typing to create a new label</EmptyState.Text>
         </EmptyState>
       )
     }

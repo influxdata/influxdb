@@ -42,20 +42,20 @@ const EmptyNotificationRulesList: FC<{searchTerm: string}> = ({searchTerm}) => {
   if (searchTerm) {
     return (
       <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-        <EmptyState.Text
-          text="No rules  match your search"
-          highlightWords={['rules']}
-        />
+        <EmptyState.Text>
+          No <b>rules</b> match your search
+        </EmptyState.Text>
       </EmptyState>
     )
   }
 
   return (
     <EmptyState size={ComponentSize.Small} className="alert-column--empty">
-      <EmptyState.Text
-        text="You need at least 1 Notification  Endpoint  before LINEBREAK you can create a Notification  Rule"
-        highlightWords={['Notification', 'Rule', 'Endpoint']}
-      />
+      <EmptyState.Text>
+        You need at least 1 <b>Notification Endpoint</b> before
+        <br />
+        you can create a <b>Notification Rule</b>
+      </EmptyState.Text>
     </EmptyState>
   )
 }

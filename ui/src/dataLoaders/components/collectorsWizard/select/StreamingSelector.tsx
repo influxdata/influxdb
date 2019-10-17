@@ -10,6 +10,7 @@ import {
   FormElement,
   Grid,
   SelectableCard,
+  IconFont,
 } from '@influxdata/clockface'
 import {ResponsiveGridSizer} from 'src/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -24,7 +25,7 @@ import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 // Types
 import {TelegrafPlugin, BundleName} from 'src/types/dataLoaders'
 import {Bucket} from 'src/types'
-import {IconFont, Columns, ComponentSize} from '@influxdata/clockface'
+import {Columns, ComponentSize} from '@influxdata/clockface'
 
 export interface Props {
   buckets: Bucket[]
@@ -106,8 +107,10 @@ class StreamingSelector extends PureComponent<Props, State> {
                 testID={`telegraf-plugins--${b}`}
                 selected={this.isCardChecked(b)}
                 onClick={this.handleToggle}
-                image={createElement(BUNDLE_LOGOS[b])}
-              />
+                icon={IconFont.Checkmark}
+              >
+                {createElement(BUNDLE_LOGOS[b])}
+              </SelectableCard>
             )
           })}
         </ResponsiveGridSizer>
@@ -134,7 +137,7 @@ class StreamingSelector extends PureComponent<Props, State> {
     if (searchTerm && noMatches) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text text="No plugins match your search" />
+          <EmptyState.Text>No plugins match your search</EmptyState.Text>
         </EmptyState>
       )
     }

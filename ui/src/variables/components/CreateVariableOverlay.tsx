@@ -12,19 +12,19 @@ type Props = WithRouterProps
 class CreateVariableOverlay extends PureComponent<Props> {
   public render() {
     return (
-      <GetResources resource={ResourceType.Variables}>
-        <Overlay visible={true}>
-          <Overlay.Container maxWidth={1000}>
-            <Overlay.Header
-              title="Create Variable"
-              onDismiss={this.handleHideOverlay}
-            />
-            <Overlay.Body>
+      <Overlay visible={true}>
+        <Overlay.Container maxWidth={1000}>
+          <Overlay.Header
+            title="Create Variable"
+            onDismiss={this.handleHideOverlay}
+          />
+          <Overlay.Body>
+            <GetResources resource={ResourceType.Variables}>
               <VariableFormContext onHideOverlay={this.handleHideOverlay} />
-            </Overlay.Body>
-          </Overlay.Container>
-        </Overlay>
-      </GetResources>
+            </GetResources>
+          </Overlay.Body>
+        </Overlay.Container>
+      </Overlay>
     )
   }
 

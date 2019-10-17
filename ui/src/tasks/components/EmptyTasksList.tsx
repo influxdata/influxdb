@@ -29,9 +29,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
     if (totalCount && searchTerm === '') {
       return (
         <EmptyState testID="empty-tasks-list" size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={`All ${totalCount} of your Tasks are inactive`}
-          />
+          <EmptyState.Text>{`All ${totalCount} of your Tasks are inactive`}</EmptyState.Text>
         </EmptyState>
       )
     }
@@ -39,10 +37,9 @@ export default class EmptyTasksLists extends PureComponent<Props> {
     if (searchTerm === '') {
       return (
         <EmptyState testID="empty-tasks-list" size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={"Looks like you don't have any Tasks , why not create one?"}
-            highlightWords={['Tasks']}
-          />
+          <EmptyState.Text>
+            Looks like you don't have any <b>Tasks</b>, why not create one?"
+          </EmptyState.Text>
           <AddResourceDropdown
             canImportFromTemplate={true}
             onSelectNew={onCreate}
@@ -56,7 +53,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
 
     return (
       <EmptyState testID="empty-tasks-list" size={ComponentSize.Large}>
-        <EmptyState.Text text="No Tasks match your search term" />
+        <EmptyState.Text>No Tasks match your search term</EmptyState.Text>
       </EmptyState>
     )
   }

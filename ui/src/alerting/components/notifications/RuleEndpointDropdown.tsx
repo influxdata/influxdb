@@ -28,7 +28,7 @@ const RuleEndpointDropdown: FC<Props> = ({
 
     const menu = () => null
 
-    return <Dropdown button={button} widthPixels={160} menu={menu} />
+    return <Dropdown button={button} style={{width: '160px'}} menu={menu} />
   }
 
   const items = endpoints.map(({id, name}) => (
@@ -64,7 +64,7 @@ const RuleEndpointDropdown: FC<Props> = ({
     <Dropdown
       button={button}
       menu={menu}
-      widthPixels={160}
+      style={{width: '160px'}}
       testID="endpoint-change--dropdown"
     />
   )

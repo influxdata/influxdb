@@ -16,6 +16,7 @@
 1. [15354](https://github.com/influxdata/influxdb/pull/15354): Query variable selector shows variable keys, not values
 1. [15246](https://github.com/influxdata/influxdb/pull/15427): UI/Telegraf filter functionality shows results based on input name
 1. [13940](https://github.com/influxdata/influxdb/pull/15443): Create Label Overlay UI will disable the submit button and return a UI error if the name field is empty
+1. [15452](https://github.com/influxdata/influxdb/pull/15452): Log error as info message on unauthorized API call attempts
 
 ## v2.0.0-alpha.18 [2019-09-26]
 

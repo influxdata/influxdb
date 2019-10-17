@@ -62,7 +62,7 @@ class OnboardingButtons extends PureComponent<Props> {
             size={ComponentSize.Medium}
             type={ButtonType.Submit}
             testID="next"
-            refObject={this.submitRef}
+            ref={this.submitRef}
             status={nextButtonStatus}
             tabIndex={0}
           />

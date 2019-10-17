@@ -28,11 +28,12 @@ class TemplateBrowserDetails extends PureComponent<Props> {
         autoSize={false}
       >
         <Panel
-          size={ComponentSize.Medium}
           testID="template-panel"
           className="import-template-overlay--panel"
         >
-          <Panel.Body>{this.panelContents}</Panel.Body>
+          <Panel.Body size={ComponentSize.Medium}>
+            {this.panelContents}
+          </Panel.Body>
         </Panel>
       </DapperScrollbars>
     )
@@ -44,7 +45,7 @@ class TemplateBrowserDetails extends PureComponent<Props> {
     if (!selectedTemplateSummary) {
       return (
         <EmptyState size={ComponentSize.Medium}>
-          <EmptyState.Text text="Select a Template from the left" />
+          <EmptyState.Text>Select a Template from the left</EmptyState.Text>
         </EmptyState>
       )
     }

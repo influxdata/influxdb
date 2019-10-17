@@ -5,15 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
-	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -29,16 +26,34 @@ const (
 	statusTag = "status"
 
 	// Fixed system bucket ID for task and run logs.
+	taskSystemBucket               = "_tasks"
 	taskSystemBucketID influxdb.ID = 10
 )
 
-// NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
+// RunRecorder is a type which records runs into an influxdb
+// backed storage mechanism
+type RunRecorder interface {
+	Record(ctx context.Context, orgID influxdb.ID, org string, bucketID influxdb.ID, bucket string, run *influxdb.Run) error
+}
+
+// NewAnalyticalRunStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
+func NewAnalyticalRunStorage(logger *zap.Logger, ts influxdb.TaskService, tcs TaskControlService, rr RunRecorder, qs query.QueryService) *AnalyticalStorage {
+	return &AnalyticalStorage{
+		logger:             logger,
+		TaskService:        ts,
+		TaskControlService: tcs,
+		rr:                 rr,
+		qs:                 qs,
+	}
+}
+
+// NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware (deprecated)
 func NewAnalyticalStorage(logger *zap.Logger, ts influxdb.TaskService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
 	return &AnalyticalStorage{
 		logger:             logger,
 		TaskService:        ts,
 		TaskControlService: tcs,
-		pw:                 pw,
+		rr:                 NewStoragePointsWriterRecorder(pw, logger),
 		qs:                 qs,
 	}
 }
@@ -47,7 +62,7 @@ type AnalyticalStorage struct {
 	influxdb.TaskService
 	TaskControlService
 
-	pw     storage.PointsWriter
+	rr     RunRecorder
 	qs     query.QueryService
 	logger *zap.Logger
 }
@@ -60,53 +75,9 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 			return run, err
 		}
 
-		tags := models.NewTags(map[string]string{
-			statusTag: run.Status,
-			taskIDTag: run.TaskID.String(),
-		})
-
-		// log an error if we have incomplete data on finish
-		if !run.ID.Valid() ||
-			run.ScheduledFor == "" ||
-			run.StartedAt == "" ||
-			run.FinishedAt == "" ||
-			run.Status == "" {
-			as.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
-		}
-
-		fields := map[string]interface{}{}
-		fields[runIDField] = run.ID.String()
-		fields[startedAtField] = run.StartedAt
-		fields[finishedAtField] = run.FinishedAt
-		fields[scheduledForField] = run.ScheduledFor
-		if run.RequestedAt != "" {
-			fields[requestedAtField] = run.RequestedAt
-		}
-
-		startedAt, err := run.StartedAtTime()
-		if err != nil {
-			startedAt = time.Now()
-		}
-
-		logBytes, err := json.Marshal(run.Log)
-		if err != nil {
-			return run, err
-		}
-		fields[logField] = string(logBytes)
-
-		point, err := models.NewPoint("runs", tags, fields, startedAt)
-		if err != nil {
-			return run, err
-		}
-
-		// use the tsdb explode points to convert to the new style.
-		// We could split this on our own but its quite possible this could change.
-		points, err := tsdb.ExplodePoints(task.OrganizationID, taskSystemBucketID, models.Points{point})
-		if err != nil {
-			return run, err
-		}
-		return run, as.pw.WritePoints(ctx, points)
+		return run, as.rr.Record(ctx, task.OrganizationID, task.Organization, taskSystemBucketID, taskSystemBucket, run)
 	}
+
 	return run, err
 }
 

@@ -100,6 +100,11 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	"http": {
 		"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
 	},
+	"influxdata/influxdb/v1": {
+		"show_measurements": "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
+		"show_tag_values":   "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
+		"show_tag_keys":     "flaky test (https://github.com/influxdata/influxdb/issues/15450)",
+	},
 	"influxdata/influxdb/monitor": {
 		"check": "Cannot see overridden options from inside stdlib functions (https://github.com/influxdata/flux/issues/1720)",
 	},

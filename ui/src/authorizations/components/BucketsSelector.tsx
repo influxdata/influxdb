@@ -69,10 +69,10 @@ class BucketsSelector extends PureComponent<Props> {
         return (
           <>
             <EmptyState size={ComponentSize.Small}>
-              <EmptyState.Text
-                text="This token will be able to write to all existing buckets as well
-                as to any bucket created in the future"
-              />
+              <EmptyState.Text>
+                This token will be able to write to all existing buckets as well
+                as to any bucket created in the future
+              </EmptyState.Text>
             </EmptyState>
           </>
         )

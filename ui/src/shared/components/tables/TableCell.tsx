@@ -202,11 +202,11 @@ class TableCell extends PureComponent<Props> {
     }
 
     if (
-      _.isNumber(data) &&
+      !isNaN(+data) &&
       decimalPlaces.isEnforced &&
       decimalPlaces.digits < 100
     ) {
-      return data.toFixed(decimalPlaces.digits)
+      return (+data).toFixed(decimalPlaces.digits)
     }
 
     return _.defaultTo(data, '').toString()
