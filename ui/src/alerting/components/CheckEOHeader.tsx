@@ -105,7 +105,7 @@ const CheckEOHeader: FC<Props> = ({
 
   return (
     <Page.Header fullWidth={true}>
-      <Page.Header.Left>
+      <Page.HeaderLeft>
         <RenamablePageTitle
           name={name}
           onRename={onSetName}
@@ -113,15 +113,15 @@ const CheckEOHeader: FC<Props> = ({
           maxLength={CHECK_NAME_MAX_LENGTH}
           onClickOutside={handleClickOutsideTitle}
         />
-      </Page.Header.Left>
-      <Page.Header.Center widthPixels={300}>
+      </Page.HeaderLeft>
+      <Page.HeaderCenter>
         <CheckAlertingButton
           activeTab={activeTab}
           draftQueries={draftQueries}
           setActiveTab={setActiveTab}
         />
-      </Page.Header.Center>
-      <Page.Header.Right>
+      </Page.HeaderCenter>
+      <Page.HeaderRight>
         <SquareButton
           icon={IconFont.Remove}
           onClick={onCancel}
@@ -136,7 +136,7 @@ const CheckEOHeader: FC<Props> = ({
           singleAggregateFunc={singleAggregateFunc}
           oneOrMoreThresholds={oneOrMoreThresholds}
         />
-      </Page.Header.Right>
+      </Page.HeaderRight>
     </Page.Header>
   )
 }

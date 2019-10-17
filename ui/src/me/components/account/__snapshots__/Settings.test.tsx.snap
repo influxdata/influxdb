@@ -13,210 +13,192 @@ exports[`Account rendering renders! 1`] = `
     }
   }
 >
-  <Grid
-    testID="grid"
-  >
-    <div
-      className="cf-grid--container"
-      data-testid="grid"
-    >
-      <GridRow
-        testID="grid--row"
+  <Grid>
+    <Grid>
+      <div
+        className="cf-grid--container"
+        data-testid="grid"
       >
-        <div
-          className="cf-grid--row"
-          data-testid="grid--row"
-        >
-          <GridColumn
-            testID="grid--column"
-            widthXS={6}
+        <GridRow>
+          <div
+            className="cf-grid--row"
+            data-testid="grid--row"
           >
-            <div
-              className="cf-grid--column cf-col-xs-6"
-              data-testid="grid--column"
+            <GridColumn
+              widthXS={6}
             >
-              <Panel
-                backgroundColor="#292933"
-                size="sm"
-                testID="panel"
+              <div
+                className="cf-grid--column cf-col-xs-6"
+                data-testid="grid--column"
               >
-                <div
-                  className="cf-panel cf-panel--sm cf-panel__light-text"
-                  data-testid="panel"
-                  style={
-                    Object {
-                      "backgroundColor": "#292933",
-                    }
-                  }
-                >
-                  <PanelHeader
-                    alignItems="center"
-                    flexDirection="row"
-                    justifyContent="space-between"
-                    testID="panel--header"
-                  >
+                <Panel>
+                  <Panel>
                     <div
-                      className="cf-panel--header"
-                      data-testid="panel--header"
+                      className="cf-panel cf-panel__light-text"
+                      data-testid="panel"
+                      style={
+                        Object {
+                          "backgroundColor": "#292933",
+                        }
+                      }
                     >
-                      <FlexBox
-                        alignItems="center"
-                        direction="row"
-                        justifyContent="space-between"
-                        stretchToFitHeight={false}
-                        stretchToFitWidth={true}
-                        testID="flex-box"
-                      >
+                      <PanelHeader>
                         <div
-                          className="cf-flex-box cf-flex-box__row cf-flex-box__justify-space-between cf-flex-box__align-center cf-flex-box__stretch-w"
-                          data-testid="flex-box"
+                          className="cf-panel--header cf-panel--header__sm"
+                          data-testid="panel--header"
                         >
-                          <PanelTitle
-                            testID="panel--title"
+                          <FlexBox
+                            alignItems="center"
+                            direction="row"
+                            justifyContent="space-between"
+                            stretchToFitWidth={true}
                           >
-                            <div
-                              className="cf-panel--title"
-                              data-testid="panel--title"
+                            <FlexBox
+                              alignItems="center"
+                              direction="row"
+                              justifyContent="space-between"
+                              stretchToFitWidth={true}
                             >
-                              About Me
-                            </div>
-                          </PanelTitle>
-                          <Button
-                            active={false}
-                            color="default"
-                            placeIconAfterText={false}
-                            shape="none"
-                            size="sm"
-                            status="default"
-                            testID="button"
-                            text="Edit About Me"
-                            type="button"
-                          >
-                            <ButtonBase
-                              active={false}
-                              color="default"
-                              shape="none"
-                              size="sm"
-                              status="default"
-                              tabIndex={0}
-                              testID="button"
-                              titleText="Edit About Me"
-                              type="button"
-                            >
-                              <button
-                                className="cf-button cf-button-sm cf-button-default"
-                                data-testid="button"
-                                disabled={false}
-                                tabIndex={0}
-                                title="Edit About Me"
-                                type="button"
+                              <div
+                                className="cf-flex-box cf-flex-box__row cf-flex-box__justify-space-between cf-flex-box__align-center cf-flex-box__stretch-w"
+                                data-testid="flex-box"
                               >
-                                <span
-                                  className="cf-button--label"
-                                >
-                                  Edit About Me
-                                </span>
-                              </button>
-                            </ButtonBase>
-                          </Button>
-                        </div>
-                      </FlexBox>
-                    </div>
-                  </PanelHeader>
-                  <PanelBody
-                    testID="panel--body"
-                  >
-                    <div
-                      className="cf-panel--body"
-                      data-testid="panel--body"
-                    >
-                      <Form
-                        preventDefault={true}
-                        testID="form-container"
-                      >
-                        <form
-                          className="cf-form--wrapper"
-                          data-testid="form-container"
-                          onSubmit={[Function]}
-                        >
-                          <FormElement
-                            label="Username"
-                            testID="form--element"
-                          >
-                            <div
-                              className="cf-form--element"
-                              data-testid="form--element"
-                            >
-                              <FormLabel
-                                label="Username"
-                                testID="form--label"
-                              >
-                                <label
-                                  className="cf-form--label"
-                                  data-testid="form--label"
-                                >
-                                  <span>
-                                    Username
-                                  </span>
-                                </label>
-                              </FormLabel>
-                              <Input
-                                autoFocus={false}
-                                autocomplete="off"
-                                disabledTitleText="This input is disabled"
-                                name=""
-                                onChange={[Function]}
-                                placeholder=""
-                                required={false}
-                                size="sm"
-                                spellCheck={false}
-                                status="disabled"
-                                testID="nameInput"
-                                titleText="Username"
-                                type="text"
-                                value="groot"
-                              >
-                                <div
-                                  className="cf-input cf-input-sm cf-input__disabled"
-                                  style={
-                                    Object {
-                                      "width": "100%",
-                                    }
-                                  }
-                                >
-                                  <input
-                                    autoComplete="off"
-                                    autoFocus={false}
-                                    className="cf-input-field"
-                                    data-testid="nameInput"
-                                    disabled={true}
-                                    name=""
-                                    onChange={[Function]}
-                                    placeholder=""
-                                    required={false}
-                                    spellCheck={false}
-                                    title="This input is disabled"
-                                    type="text"
-                                    value="groot"
-                                  />
+                                <PanelTitle>
                                   <div
-                                    className="cf-input-shadow"
-                                  />
-                                </div>
-                              </Input>
-                            </div>
-                          </FormElement>
-                        </form>
-                      </Form>
+                                    className="cf-panel--title cf-panel--title__sm"
+                                    data-testid="panel--title"
+                                  >
+                                    About Me
+                                  </div>
+                                </PanelTitle>
+                                <Button
+                                  text="Edit About Me"
+                                >
+                                  <ButtonBase
+                                    active={false}
+                                    color="default"
+                                    shape="none"
+                                    size="sm"
+                                    status="default"
+                                    tabIndex={0}
+                                    testID="button"
+                                    titleText="Edit About Me"
+                                    type="button"
+                                  >
+                                    <button
+                                      className="cf-button cf-button-sm cf-button-default"
+                                      data-testid="button"
+                                      disabled={false}
+                                      tabIndex={0}
+                                      title="Edit About Me"
+                                      type="button"
+                                    >
+                                      <X
+                                        icon=""
+                                        placeIconAfterText={false}
+                                        text="Edit About Me"
+                                      >
+                                        <span
+                                          className="cf-button--label"
+                                        >
+                                          Edit About Me
+                                        </span>
+                                      </X>
+                                    </button>
+                                  </ButtonBase>
+                                </Button>
+                              </div>
+                            </FlexBox>
+                          </FlexBox>
+                        </div>
+                      </PanelHeader>
+                      <PanelBody>
+                        <div
+                          className="cf-panel--body cf-panel--body__sm"
+                          data-testid="panel--body"
+                        >
+                          <Form>
+                            <Form>
+                              <form
+                                className="cf-form--wrapper"
+                                data-testid="form-container"
+                                onSubmit={[Function]}
+                              >
+                                <FormElement
+                                  label="Username"
+                                >
+                                  <div
+                                    className="cf-form--element"
+                                    data-testid="form--element"
+                                  >
+                                    <FormLabel
+                                      label="Username"
+                                    >
+                                      <label
+                                        className="cf-form--label"
+                                        data-testid="form--label"
+                                      >
+                                        <span>
+                                          Username
+                                        </span>
+                                      </label>
+                                    </FormLabel>
+                                    <Input
+                                      onChange={[Function]}
+                                      size="sm"
+                                      status="disabled"
+                                      testID="nameInput"
+                                      titleText="Username"
+                                      value="groot"
+                                    >
+                                      <div
+                                        className="cf-input cf-input-sm cf-input__disabled"
+                                        style={
+                                          Object {
+                                            "width": "100%",
+                                          }
+                                        }
+                                      >
+                                        <input
+                                          autoComplete="off"
+                                          autoFocus={false}
+                                          className="cf-input-field"
+                                          data-testid="nameInput"
+                                          disabled={true}
+                                          name=""
+                                          onChange={[Function]}
+                                          placeholder=""
+                                          required={false}
+                                          spellCheck={false}
+                                          title="This input is disabled"
+                                          type="text"
+                                          value="groot"
+                                        />
+                                        <ye
+                                          status="disabled"
+                                        >
+                                          <div
+                                            className="cf-input-shadow"
+                                          />
+                                        </ye>
+                                      </div>
+                                    </Input>
+                                  </div>
+                                </FormElement>
+                              </form>
+                            </Form>
+                          </Form>
+                        </div>
+                      </PanelBody>
                     </div>
-                  </PanelBody>
-                </div>
-              </Panel>
-            </div>
-          </GridColumn>
-        </div>
-      </GridRow>
-    </div>
+                  </Panel>
+                </Panel>
+              </div>
+            </GridColumn>
+          </div>
+        </GridRow>
+      </div>
+    </Grid>
   </Grid>
 </Settings>
 `;

@@ -41,7 +41,7 @@ export const isPluginUniqueToBundle = (
   bundle: BundleName,
   bundles: BundleName[]
 ): boolean => {
-  return bundles.reduce((acc, b) => {
+  return bundles.reduce((acc: boolean, b) => {
     if (b === bundle) {
       return acc
     }

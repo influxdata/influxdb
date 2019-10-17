@@ -79,10 +79,10 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
       >
         <Page titleTag={pageTitleSuffixer(['Task Runs'])}>
           <Page.Header fullWidth={false}>
-            <Page.Header.Left>
+            <Page.HeaderLeft>
               <PageTitleWithOrg title={this.title} />
-            </Page.Header.Left>
-            <Page.Header.Right>
+            </Page.HeaderLeft>
+            <Page.HeaderRight>
               <Button
                 onClick={this.handleEditTask}
                 text="Edit Task"
@@ -93,7 +93,7 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
                 text="Run Task"
                 icon={IconFont.Play}
               />
-            </Page.Header.Right>
+            </Page.HeaderRight>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
             <TaskRunsList

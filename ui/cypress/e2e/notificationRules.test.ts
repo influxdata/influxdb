@@ -122,5 +122,21 @@ describe('NotificationRules', () => {
     cy.getByTestID('rule-overlay-save--button').click()
 
     cy.getByTestID(`rule-card--name`).contains(ruleName)
+
+    describe('can edit a notification rule', () => {
+      cy.get<SlackNotificationEndpoint>('@endpoint').then(() => {
+        cy.getByTestID(`context-history-menu`).click()
+        cy.getByTestID(`context-history-task`).click()
+        cy.getByTestID(`alert-history-title`).should('exist')
+      })
+
+      it('can delete endpoint', () => {
+        cy.get<SlackNotificationEndpoint>('@endpoint').then(() => {
+          cy.getByTestID(`context-delete-menu`).click()
+          cy.getByTestID(`context-delete-task`).click()
+          //then finally check to make sure the endpoint is gone
+        })
+      })
+    })
   })
 })

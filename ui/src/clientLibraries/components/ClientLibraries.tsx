@@ -51,8 +51,9 @@ const ClientLibraries: FunctionComponent<Props> = ({orgID, router}) => {
                   testID={`client-libraries-cards--${cl.id}`}
                   selected={false}
                   onClick={handleClick}
-                  image={createElement(cl.image)}
-                />
+                >
+                  {createElement(cl.image)}
+                </SelectableCard>
               )
             })}
           </ResponsiveGridSizer>

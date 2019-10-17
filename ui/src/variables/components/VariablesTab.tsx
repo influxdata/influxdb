@@ -109,10 +109,9 @@ class VariablesTab extends PureComponent<Props, State> {
     if (!searchTerm) {
       return (
         <EmptyState size={ComponentSize.Large}>
-          <EmptyState.Text
-            text={`Looks like there aren't any Variables, why not create one?`}
-            highlightWords={['Variables']}
-          />
+          <EmptyState.Text>
+            Looks like there aren't any <b>Variables</b>, why not create one?
+          </EmptyState.Text>
           <AddResourceDropdown
             resourceName="Variable"
             onSelectImport={this.handleOpenImportOverlay}
@@ -124,7 +123,7 @@ class VariablesTab extends PureComponent<Props, State> {
 
     return (
       <EmptyState size={ComponentSize.Large}>
-        <EmptyState.Text text="No Variables match your query" />
+        <EmptyState.Text>No Variables match your query</EmptyState.Text>
       </EmptyState>
     )
   }

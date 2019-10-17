@@ -83,7 +83,7 @@ describe('QueryBuilder', () => {
 
     fireEvent.click(windowSelectorButton)
 
-    const windowSelector = getByTestId('duration-selector--menu')
+    const windowSelector = getByTestId('duration-selector--menu--contents')
 
     expect(windowSelector.childElementCount).toBe(14)
 

@@ -69,6 +69,11 @@ func ProbeAuthScheme(r *http.Request) (string, error) {
 	return sessionAuthScheme, nil
 }
 
+func (h *AuthenticationHandler) unauthorized(ctx context.Context, w http.ResponseWriter, err error) {
+	h.Logger.Info("unauthorized", zap.Error(err))
+	UnauthorizedError(ctx, h, w)
+}
+
 // ServeHTTP extracts the session or token from the http request and places the resulting authorizer on the request context.
 func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if handler, _, _ := h.noAuthRouter.Lookup(r.Method, r.URL.Path); handler != nil {
@@ -79,7 +84,7 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	scheme, err := ProbeAuthScheme(r)
 	if err != nil {
-		UnauthorizedError(ctx, h, w)
+		h.unauthorized(ctx, w, err)
 		return
 	}
 
@@ -89,17 +94,17 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	case tokenAuthScheme:
 		auth, err = h.extractAuthorization(ctx, r)
 		if err != nil {
-			UnauthorizedError(ctx, h, w)
+			h.unauthorized(ctx, w, err)
 			return
 		}
 	case sessionAuthScheme:
 		auth, err = h.extractSession(ctx, r)
 		if err != nil {
-			UnauthorizedError(ctx, h, w)
+			h.unauthorized(ctx, w, err)
 			return
 		}
 	default:
-		UnauthorizedError(ctx, h, w)
+		h.unauthorized(ctx, w, err)
 		return
 	}
 

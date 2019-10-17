@@ -88,7 +88,7 @@ const VariableTooltipContents: FunctionComponent<Props> = ({
           options={dropdownItems}
           selectedOption={selectedOption}
           buttonStatus={status}
-          widthPixels={200}
+          style={{width: '200px'}}
           onSelect={value => onSelectVariableValue(variableID, value)}
         />
       </Form.Element>

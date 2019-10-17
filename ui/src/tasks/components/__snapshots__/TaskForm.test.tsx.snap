@@ -1,72 +1,40 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`TaskForm rendering renders 1`] = `
-<Form
-  preventDefault={true}
-  testID="form-container"
->
-  <Grid
-    testID="grid"
-  >
-    <GridRow
-      testID="grid--row"
-    >
+<Form>
+  <Grid>
+    <GridRow>
       <GridColumn
-        testID="grid--column"
         widthXS={12}
       >
         <FormElement
           label="Name"
-          testID="form--element"
         >
           <Input
-            autoFocus={false}
-            autocomplete="off"
-            disabledTitleText="This input is disabled"
             name="name"
             onChange={[MockFunction]}
             placeholder="Name your task"
-            required={false}
-            size="sm"
-            spellCheck={false}
-            status="default"
             testID="task-form-name"
-            titleText=""
-            type="text"
             value=""
           />
         </FormElement>
       </GridColumn>
-      <GridColumn
-        testID="grid--column"
-        widthXS={12}
-      >
+      <GridColumn>
         <FormElement
           label="Schedule Task"
-          testID="form--element"
         >
           <FlexBox
             alignItems="flex-start"
             direction="column"
-            justifyContent="flex-start"
             margin="sm"
-            stretchToFitHeight={false}
-            stretchToFitWidth={false}
-            testID="flex-box"
           >
             <Radio
-              color="primary"
               shape="stretch"
-              size="sm"
-              testID="radio-button"
             >
               <RadioButton
                 active={false}
-                disabled={false}
-                disabledTitleText="This option is disabled"
                 id="every"
                 onClick={[Function]}
-                testID="radio--button"
                 titleText="Run task at regular intervals"
                 value="interval"
               >
@@ -74,11 +42,8 @@ exports[`TaskForm rendering renders 1`] = `
               </RadioButton>
               <RadioButton
                 active={false}
-                disabled={false}
-                disabledTitleText="This option is disabled"
                 id="cron"
                 onClick={[Function]}
-                testID="radio--button"
                 titleText="Use cron syntax for more control over scheduling"
                 value="cron"
               >

@@ -65,8 +65,14 @@ const CheckMatchingRulesCard: FunctionComponent<StateProps> = ({
       size={ComponentSize.Small}
       className="alert-builder--card__empty"
     >
-      <EmptyState.Text text="Notification Rules configured to act on tag sets matching this Alert Check will automatically show up here" />
-      <EmptyState.Text text="Looks like no notification rules match the tag set defined in this Alert Check" />
+      <EmptyState.Text>
+        Notification Rules configured to act on tag sets matching this Alert
+        Check will automatically show up here
+      </EmptyState.Text>
+      <EmptyState.Text>
+        Looks like no notification rules match the tag set defined in this Alert
+        Check
+      </EmptyState.Text>
     </EmptyState>
   )
 

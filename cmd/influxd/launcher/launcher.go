@@ -113,6 +113,8 @@ func NewCommand() *cobra.Command {
 	return cmd
 }
 
+var vaultConfig vault.Config
+
 func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
@@ -190,6 +192,51 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Flag:    "session-renew-disabled",
 			Default: false,
 			Desc:    "disables automatically extending session ttl on request",
+		},
+		{
+			DestP: &vaultConfig.Address,
+			Flag:  "vault-address",
+			Desc:  "address of the Vault server expressed as a URL and port, for example: https://127.0.0.1:8200/.",
+		},
+		{
+			DestP: &vaultConfig.ClientTimeout,
+			Flag:  "vault-client-timeout",
+			Desc:  "timeout variable. The default value is 60s.",
+		},
+		{
+			DestP: &vaultConfig.MaxRetries,
+			Flag:  "vault-client-max-retries",
+			Desc:  "maximum number of retries when a 5xx error code is encountered. The default is 2, for three total attempts. Set this to 0 or less to disable retrying.",
+		},
+		{
+			DestP: &vaultConfig.CACert,
+			Flag:  "vault-ca-cert",
+			Desc:  "path to a PEM-encoded CA certificate file on the local disk. This file is used to verify the Vault server's SSL certificate. This environment variable takes precedence over VAULT_CAPATH.",
+		},
+		{
+			DestP: &vaultConfig.CAPath,
+			Flag:  "vault-ca-path",
+			Desc:  "path to a directory of PEM-encoded CA certificate files on the local disk. These certificates are used to verify the Vault server's SSL certificate.",
+		},
+		{
+			DestP: &vaultConfig.ClientCert,
+			Flag:  "vault-client-cert",
+			Desc:  "path to a PEM-encoded client certificate on the local disk. This file is used for TLS communication with the Vault server.",
+		},
+		{
+			DestP: &vaultConfig.ClientKey,
+			Flag:  "vault-client-key",
+			Desc:  "path to an unencrypted, PEM-encoded private key on disk which corresponds to the matching client certificate.",
+		},
+		{
+			DestP: &vaultConfig.InsecureSkipVerify,
+			Flag:  "vault-skip-verify",
+			Desc:  "do not verify Vault's presented certificate before communicating with it. Setting this variable is not recommended and voids Vault's security model.",
+		},
+		{
+			DestP: &vaultConfig.TLSServerName,
+			Flag:  "vault-tls-server-name",
+			Desc:  "name to use as the SNI host when connecting via TLS.",
 		},
 	}
 
@@ -477,7 +524,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	case "vault":
 		// The vault secret service is configured using the standard vault environment variables.
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
-		svc, err := vault.NewSecretService()
+		svc, err := vault.NewSecretService(vault.WithConfig(vaultConfig))
 		if err != nil {
 			m.logger.Error("failed initializing vault secret service", zap.Error(err))
 			return err
