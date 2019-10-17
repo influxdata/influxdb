@@ -7,7 +7,7 @@ import FetchAuthToken from 'src/dataLoaders/components/verifyStep/FetchAuthToken
 
 jest.mock('src/utils/api', () => require('src/onboarding/apis/mocks'))
 
-const setup = async (override = {}) => {
+const setup = (override = {}) => {
   const props = {
     bucket: '',
     username: '',
@@ -15,14 +15,14 @@ const setup = async (override = {}) => {
     ...override,
   }
 
-  const wrapper = await shallow(<FetchAuthToken {...props} />)
+  const wrapper = shallow(<FetchAuthToken {...props} />)
 
   return {wrapper}
 }
 
 describe('FetchAuthToken', () => {
   it('renders', async () => {
-    const {wrapper} = await setup()
+    const {wrapper} = setup()
     expect(wrapper.exists()).toBe(true)
   })
 })

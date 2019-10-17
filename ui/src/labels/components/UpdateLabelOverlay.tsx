@@ -14,7 +14,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   label: Label
   onDismiss: () => void
-  onUpdateLabel: (label: Label) => Promise<void>
+  onUpdateLabel: (label: Label) => void
   onNameValidation: (name: string) => string | null
 }
 

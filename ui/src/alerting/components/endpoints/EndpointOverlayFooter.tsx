@@ -32,7 +32,7 @@ const EndpointOverlayFooter: FC<Props> = ({
 
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (saveStatus === RemoteDataState.Loading) {
       return
     }

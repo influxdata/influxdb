@@ -161,7 +161,7 @@ class NoteEditorOverlay extends PureComponent<Props, State> {
     return ComponentStatus.Default
   }
 
-  private handleSave = async () => {
+  private handleSave = () => {
     const {
       cellID,
       dashboardID,

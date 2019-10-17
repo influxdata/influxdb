@@ -113,8 +113,8 @@ const RuleCard: FC<Props> = ({
     onRemoveRuleLabel(rule.id, label)
   }
 
-  const handleCreateLabel = async (label: Label) => {
-    await onCreateLabel(label.name, label.properties)
+  const handleCreateLabel = (label: Label) => {
+    onCreateLabel(label.name, label.properties)
   }
 
   return (

@@ -6,7 +6,7 @@ import {
 } from 'src/shared/constants/codeMirrorModes'
 import 'codemirror/addon/hint/show-hint'
 
-/* tslint:disable */
+/* eslint-disable */
 
 const CodeMirror = require('codemirror')
 

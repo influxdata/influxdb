@@ -123,11 +123,11 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
     return ComponentStatus.Disabled
   }
 
-  private handleCreateOrg = async () => {
+  private handleCreateOrg = () => {
     const {org, bucket} = this.state
     const {createOrgWithBucket} = this.props
 
-    await createOrgWithBucket(org, bucket as any)
+    createOrgWithBucket(org, bucket as any)
   }
 
   private closeModal = () => {

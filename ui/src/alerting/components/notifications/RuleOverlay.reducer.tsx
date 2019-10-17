@@ -21,11 +21,11 @@ export const reducer = (state: RuleState, action: Action) => {
       let newState: RuleState = state
 
       if (schedule === 'every') {
-        newState = omit(state, 'cron') as RuleState
+        newState = omit(state, 'cron')
       }
 
       if (schedule === 'cron') {
-        newState = omit<RuleState>(state, 'every') as RuleState
+        newState = omit(state, 'every')
       }
 
       return {...newState, [schedule]: ''}

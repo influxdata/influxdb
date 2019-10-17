@@ -141,11 +141,11 @@ class RenameOrgForm extends PureComponent<Props, State> {
     this.setState({org})
   }
 
-  private handleRenameOrg = async () => {
+  private handleRenameOrg = () => {
     const {onRenameOrg, startOrg} = this.props
     const {org} = this.state
 
-    await onRenameOrg(startOrg.name, org)
+    onRenameOrg(startOrg.name, org)
 
     this.handleGoBack()
   }

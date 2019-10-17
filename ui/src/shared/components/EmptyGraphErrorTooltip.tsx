@@ -47,10 +47,7 @@ const EmptyGraphError: FunctionComponent<Props> = ({message, testID}) => {
           className={`icon ${IconFont.AlertTriangle} empty-graph-error--icon`}
         />
         {tooltipVisible && (
-          <BoxTooltip
-            triggerRect={triggerRect as DOMRect}
-            color={ComponentColor.Danger}
-          >
+          <BoxTooltip triggerRect={triggerRect} color={ComponentColor.Danger}>
             <div className="box-tooltip--contents">
               <pre>
                 <CopyToClipboard text={message}>

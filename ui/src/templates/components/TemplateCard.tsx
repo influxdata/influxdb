@@ -215,8 +215,8 @@ class TemplateCard extends PureComponent<Props & WithRouterProps> {
     onRemoveTemplateLabels(template.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel): Promise<void> => {
-    await this.props.onCreateLabel(label.name, label.properties)
+  private handleCreateLabel = (label: ILabel) => {
+    this.props.onCreateLabel(label.name, label.properties)
   }
 }
 
