@@ -36,7 +36,7 @@ export const csvToMap = (csv: string): MapResult => {
   return {values, errors}
 }
 
-export const trimAndRemoveQuotes = elt => {
+export const trimAndRemoveQuotes = (elt: string): string => {
   const trimmed = elt.trim()
   const dequoted = trimmed.replace(/(^")|("$)/g, '')
 
