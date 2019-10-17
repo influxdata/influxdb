@@ -72,19 +72,13 @@ const updateMaxWidths = (
   const maxWidths = fastReduce<string>(
     row,
     (acc: ColumnWidths, col: string, c: number) => {
-      const isLabel =
-        (verticalTimeAxis && isTopRow) || (!verticalTimeAxis && c === 0)
+      const foundField = fieldOptions.find(field => field.internalName === col)
 
-      const foundField =
-        isLabel && _.isString(col)
-          ? fieldOptions.find(field => field.internalName === col)
-          : null
-
-      let colValue = `${col}`
+      let colValue: string | number = `${col}`
       if (foundField && foundField.displayName) {
         colValue = foundField.displayName
-      } else if (_.isNumber(col) && decimalPlaces.isEnforced) {
-        colValue = col.toFixed(decimalPlaces.digits)
+      } else if (!isNaN(+col) && decimalPlaces.isEnforced) {
+        colValue = (+col).toFixed(decimalPlaces.digits)
       }
 
       const columnLabel = topRow[c]
