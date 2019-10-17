@@ -13,6 +13,7 @@
 1. [15348](https://github.com/influxdata/influxdb/pull/15348): Disable saving for threshold check if no threshold selected
 1. [15354](https://github.com/influxdata/influxdb/pull/15354): Query variable selector shows variable keys, not values
 1. [15246](https://github.com/influxdata/influxdb/pull/15427): UI/Telegraf filter functionality shows results based on input name
+1. [15452](https://github.com/influxdata/influxdb/pull/15452): Log error as info message on unauthorized API call attempts
 
 ## v2.0.0-alpha.18 [2019-09-26]
 
