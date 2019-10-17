@@ -43,7 +43,7 @@ ui/src/api/.openapi-generator/VERSION
 ui/src/api/git_push.sh
 
 # UI generated typescript types
-ui/src/client/index.ts
+ui/src/client/generatedRoutes.ts
 
 http/swagger_gen.go
 

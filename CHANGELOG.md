@@ -4,6 +4,9 @@
 ### Features
 1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
 
+### UI Improvements
+1. [15426](https://github.com/influxdata/influxdb/pull/15426): Add 403 handler that redirects back to the sign-in page on oats-generated routes.
+
 ### Bug Fixes
 1. [15295](https://github.com/influxdata/influxdb/pull/15295): Ensures users are created with an active status
 1. [15306](https://github.com/influxdata/influxdb/pull/15306): Added missing string values for CacheStatus type
