@@ -1,62 +1,64 @@
 module.exports = {
-  "parser": "@typescript-eslint/parser",
-  "parserOptions": {
-    "project": "./tsconfig.json",
-    "tsconfigRootDir": __dirname,
-    "ecmaFeatures": {
-      "jsx": true
-    }
+  parser: '@typescript-eslint/parser',
+  parserOptions: {
+    project: './tsconfig.test.json',
+    tsconfigRootDir: __dirname,
+    ecmaFeatures: {
+      jsx: true,
+    },
   },
-  "plugins": [
-    "@typescript-eslint",
-    "react",
-    "prettier"
+  plugins: ['@typescript-eslint', 'react', 'prettier'],
+  env: {
+    browser: true,
+    es6: true,
+    jest: true,
+  },
+  extends: [
+    'eslint:recommended',
+    'plugin:react/recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:prettier/recommended',
+    'prettier/react',
+    'prettier/@typescript-eslint',
   ],
-  "env": {
-    "browser": true,
-    "es6": true,
-    "jest": true
+  settings: {
+    react: {
+      version: 'detect',
+    },
   },
-  "extends": [
-    "eslint:recommended",
-    "plugin:react/recommended",
-    "plugin:@typescript-eslint/recommended",
-    "plugin:prettier/recommended",
-    "prettier/react",
-    "prettier/@typescript-eslint"
-  ],
-  "settings": {
-    "react": {
-      "version": "detect"
-    }
+  rules: {
+    'no-console': ['error', {allow: ['warn', 'error']}],
+    'no-empty': 'off',
+    'getter-return': 'off',
+    'no-extra-boolean-cast': 'off',
+    'no-case-declarations': 'off',
+    'no-useless-escape': 'off',
+    'no-undef': 'off',
+    'no-fallthrough': 'off',
+    '@typescript-eslint/no-explicit-any': 'off',
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/no-namespace': 'off',
+    '@typescript-eslint/no-empty-interface': 'off',
+    '@typescript-eslint/explicit-member-accessibility': 'off',
+    '@typescript-eslint/no-use-before-define': 'off',
+    '@typescript-eslint/no-object-literal-type-assertion': 'off',
+    '@typescript-eslint/array-type': 'off',
+    '@typescript-eslint/no-inferrable-types': 'off',
+    '@typescript-eslint/no-var-requires': 'off',
+    '@typescript-eslint/prefer-interface': 'off',
+    '@typescript-eslint/camelcase': 'off',
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {varsIgnorePattern: '^_', argsIgnorePattern: '^_'},
+    ],
+    'react/jsx-no-target-blank': 'off',
+    'react/jsx-curly-brace-presence': [
+      'error',
+      {props: 'never', children: 'never'},
+    ],
+    'react/display-name': 'off',
+    'react/no-unescaped-entities': 'off',
+    'react/prop-types': 'off',
+    'react/no-find-dom-node': 'off',
   },
-  "rules": {
-    "no-console": ["error", {"allow": ["warn", "error"]}],
-    "no-empty": "off",
-    "getter-return": "off",
-    "no-extra-boolean-cast": "off",
-    "no-case-declarations": "off",
-    "no-useless-escape": "off",
-    "no-undef": "off",
-    "no-fallthrough": "off",
-    "@typescript-eslint/no-explicit-any": "off",
-    "@typescript-eslint/explicit-function-return-type": "off",
-    "@typescript-eslint/no-namespace": "off",
-    "@typescript-eslint/no-empty-interface": "off",
-    "@typescript-eslint/explicit-member-accessibility": "off",
-    "@typescript-eslint/no-use-before-define": "off",
-    "@typescript-eslint/no-object-literal-type-assertion": "off",
-    "@typescript-eslint/array-type": "off",
-    "@typescript-eslint/no-inferrable-types": "off",
-    "@typescript-eslint/no-var-requires": "off",
-    "@typescript-eslint/prefer-interface": "off",
-    "@typescript-eslint/camelcase": "off",
-    "@typescript-eslint/no-unused-vars": ["error", {"varsIgnorePattern": "^_", "argsIgnorePattern": "^_"}],
-    "react/jsx-no-target-blank": "off",
-    "react/jsx-curly-brace-presence": ["error", {"props": "never", "children": "never" }],
-    "react/display-name": "off",
-    "react/no-unescaped-entities": "off",
-    "react/prop-types": "off",
-    "react/no-find-dom-node": "off"
-  }
 }
