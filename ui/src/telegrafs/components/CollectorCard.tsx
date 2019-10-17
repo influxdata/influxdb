@@ -78,7 +78,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
           <>Bucket: {bucket}</>,
           <>
             <Link
-              to={`/orgs/${org.id}/load-data/telegrafs/${collector.id}/instructions`}
+              to={`/orgs/${org.id}/load-data/telegrafs/${
+                collector.id
+              }/instructions`}
               data-testid="setup-instructions-link"
             >
               Setup Instructions
