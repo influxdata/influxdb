@@ -82,7 +82,7 @@ module.exports = {
       body: process.env.INJECT_BODY || '',
     }),
     new webpack.ProgressPlugin(),
-    new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
+    new webpack.EnvironmentPlugin(Object.assign({}, process.env, {GIT_SHA, BASE_PATH})),
   ],
   stats: {
     colors: true,

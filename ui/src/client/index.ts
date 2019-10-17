@@ -1,4 +1,13 @@
-import {setResponseHandler, postSignout} from './generatedRoutes'
+import {setRequestHandler, setResponseHandler, postSignout} from './generatedRoutes'
+import {getBasepath} from 'src/utils/basepath'
+
+setRequestHandler((url, query, init) => {
+  return {
+    url: getBasepath() + url,
+    query,
+    init,
+  }
+})
 
 setResponseHandler((status, headers, data) => {
   if (status === 403) {
