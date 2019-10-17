@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ChangeEvent} from 'react'
+import React, {Component, ChangeEvent, CSSProperties} from 'react'
 
 // Components
 import {
@@ -26,11 +26,11 @@ interface Props {
   buttonColor: ComponentColor
   buttonStatus: ComponentStatus
   buttonTestID: string
-  widthPixels?: number
   menuTheme: DropdownMenuTheme
   menuTestID: string
   options: string[]
   emptyText: string
+  style?: CSSProperties
 }
 
 @ErrorHandling
@@ -56,12 +56,10 @@ export default class SearchableDropdown extends Component<Props> {
       selectedOption,
       testID,
       className,
-      widthPixels,
+      style,
       menuTheme,
       menuTestID,
     } = this.props
-
-    const style = widthPixels ? {width: `${widthPixels}px`} : null
 
     return (
       <Dropdown
