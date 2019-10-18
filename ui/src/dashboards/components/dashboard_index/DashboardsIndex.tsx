@@ -96,7 +96,9 @@ class DashboardIndex extends PureComponent<Props, State> {
             </Page.HeaderRight>
           </Page.Header>
           <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources resources={[ResourceType.Dashboards, ResourceType.Labels]}>
+            <GetResources
+              resources={[ResourceType.Dashboards, ResourceType.Labels]}
+            >
               <GetAssetLimits>
                 <AssetLimitAlert
                   resourceName="dashboards"

@@ -103,67 +103,69 @@ export enum ResourceType {
 class GetResources extends PureComponent<Props, StateProps> {
   public componentDidMount() {
     const {resources} = this.props
-    resources.forEach(async (resource) => {
-      return await this.getResourceDetails(resource);
+    const promises = [];
+    resources.forEach(resource => {
+      promises.push(this.getResourceDetails(resource))
     })
+    Promise.all(promises)
   }
 
-  private async getResourceDetails(resource) {
+  private getResourceDetails(resource) {
     switch (resource) {
       case ResourceType.Dashboards: {
-        return await this.props.getDashboards()
+        return this.props.getDashboards()
       }
 
       case ResourceType.Labels: {
-        return await this.props.getLabels()
+        return this.props.getLabels()
       }
 
       case ResourceType.Buckets: {
-        return await this.props.getBuckets()
+        return this.props.getBuckets()
       }
 
       case ResourceType.Telegrafs: {
-        return await this.props.getTelegrafs()
+        return this.props.getTelegrafs()
       }
 
       case ResourceType.Scrapers: {
-        return await this.props.getScrapers()
+        return this.props.getScrapers()
       }
 
       case ResourceType.Variables: {
-        return await this.props.getVariables()
+        return this.props.getVariables()
       }
 
       case ResourceType.Tasks: {
-        return await this.props.getTasks()
+        return this.props.getTasks()
       }
 
       case ResourceType.Authorizations: {
-        return await this.props.getAuthorizations()
+        return this.props.getAuthorizations()
       }
 
       case ResourceType.Templates: {
-        return await this.props.getTemplates()
+        return this.props.getTemplates()
       }
 
       case ResourceType.Members: {
-        return await this.props.getMembers()
+        return this.props.getMembers()
       }
 
       case ResourceType.Users: {
-        return await this.props.getUsers()
+        return this.props.getUsers()
       }
 
       case ResourceType.Checks: {
-        return await this.props.getChecks()
+        return this.props.getChecks()
       }
 
       case ResourceType.NotificationRules: {
-        return await this.props.getNotificationRules()
+        return this.props.getNotificationRules()
       }
 
       case ResourceType.NotificationEndpoints: {
-        return await this.props.getEndpoints()
+        return this.props.getEndpoints()
       }
 
       default: {
@@ -199,10 +201,7 @@ class GetResources extends PureComponent<Props, StateProps> {
     }
 
     return (
-      <SpinnerContainer
-        loading={status}
-        spinnerComponent={<TechnoSpinner />}
-      >
+      <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
         <>{children}</>
       </SpinnerContainer>
     )

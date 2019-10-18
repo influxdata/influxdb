@@ -57,7 +57,9 @@ class TelegrafsPage extends PureComponent<StateProps> {
               )}
             </FlexBox>
             <LoadDataTabbedPage activeTab="telegrafs" orgID={org.id}>
-              <GetResources resources={[ResourceType.Buckets, ResourceType.Telegrafs]}>
+              <GetResources
+                resources={[ResourceType.Buckets, ResourceType.Telegrafs]}
+              >
                 <Collectors />
               </GetResources>
             </LoadDataTabbedPage>

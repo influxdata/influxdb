@@ -61,7 +61,13 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
 
   return (
-    <GetResources resources={[ResourceType.Checks, ResourceType.NotificationEndpoints, ResourceType.NotificationRules]}>
+    <GetResources
+      resources={[
+        ResourceType.Checks,
+        ResourceType.NotificationEndpoints,
+        ResourceType.NotificationRules,
+      ]}
+    >
       <ResourceIDsContext.Provider value={resourceIDs}>
         <EventViewer loadRows={loadRows} initialState={getInitialState()}>
           {props => (
