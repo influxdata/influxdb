@@ -96,10 +96,9 @@ class CreateLabelOverlay extends Component<Props, State> {
 
     try {
       onCreateLabel(this.state.label)
-      // clear form on successful submit
-      this.resetForm()
     } finally {
       onDismiss()
+      this.resetForm()
     }
   }
 

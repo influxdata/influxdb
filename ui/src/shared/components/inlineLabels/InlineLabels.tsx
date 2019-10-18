@@ -78,7 +78,7 @@ export default class InlineLabels extends Component<Props> {
     return this.props.editMode === LabelsEditMode.Editable
   }
 
-  private handleLabelClick = (labelID: string): void => {
+  private handleLabelClick = (labelID: string) => {
     const {onFilterChange, labels} = this.props
 
     const labelName = labels.find(l => l.id === labelID).name
@@ -86,7 +86,7 @@ export default class InlineLabels extends Component<Props> {
     onFilterChange(labelName)
   }
 
-  private handleDeleteLabel = (labelID: string): void => {
+  private handleDeleteLabel = (labelID: string) => {
     const {onRemoveLabel, selectedLabels} = this.props
     const label = selectedLabels.find(label => label.id === labelID)
 

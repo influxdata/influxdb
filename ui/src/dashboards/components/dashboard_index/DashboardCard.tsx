@@ -164,17 +164,17 @@ class DashboardCard extends PureComponent<Props> {
   private handleAddLabel = (label: Label) => {
     const {dashboard, onAddDashboardLabels} = this.props
 
-    onAddDashboardLabels(dashboard.id, [label as any])
+    onAddDashboardLabels(dashboard.id, [label])
   }
 
   private handleRemoveLabel = (label: Label) => {
     const {dashboard, onRemoveDashboardLabels} = this.props
 
-    onRemoveDashboardLabels(dashboard.id, [label as any])
+    onRemoveDashboardLabels(dashboard.id, [label])
   }
 
-  private handleCreateLabel = (label: Label) => {
-    this.props.onCreateLabel(label.name, label.properties)
+  private handleCreateLabel = async (label: Label) => {
+    await this.props.onCreateLabel(label.name, label.properties) // eslint-disable-line
   }
 
   private handleExport = () => {

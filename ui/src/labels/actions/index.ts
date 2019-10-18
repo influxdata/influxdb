@@ -90,7 +90,7 @@ export const getLabels = () => async (
 export const createLabel = (
   name: string,
   properties: LabelProperties
-) => async (dispatch: Dispatch<Action>, getState: GetState) => {
+) => async (dispatch: Dispatch<Action>, getState: GetState): Promise<void> => {
   const {
     orgs: {org},
   } = getState()
