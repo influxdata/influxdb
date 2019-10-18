@@ -130,21 +130,21 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel) => {
+  private handleAddLabel = async (label: ILabel) => {
     const {collector, onAddLabels} = this.props
 
-    onAddLabels(collector.id, [label])
+    await onAddLabels(collector.id, [label])
   }
 
-  private handleRemoveLabel = (label: ILabel) => {
+  private handleRemoveLabel = async (label: ILabel) => {
     const {collector, onRemoveLabels} = this.props
 
-    onRemoveLabels(collector.id, [label])
+    await onRemoveLabels(collector.id, [label])
   }
 
-  private handleCreateLabel = (label: ILabel) => {
+  private handleCreateLabel = async (label: ILabel) => {
     const {name, properties} = label
-    this.props.onCreateLabel(name, properties)
+    await this.props.onCreateLabel(name, properties)
   }
 
   private handleNameClick = (e: MouseEvent) => {
