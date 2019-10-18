@@ -2,7 +2,13 @@
 import React, {PureComponent} from 'react'
 
 // Components
-import {Page} from '@influxdata/clockface'
+import {
+  Page,
+  FlexBox,
+  FlexDirection,
+  AlignItems,
+  ComponentSize,
+} from '@influxdata/clockface'
 
 // Constants
 import {generateRandomGreeting} from 'src/me/constants'
@@ -16,7 +22,15 @@ export default class UserPageHeader extends PureComponent<Props> {
   public render() {
     return (
       <Page.Header fullWidth={false}>
-        <Page.HeaderLeft>{this.title}</Page.HeaderLeft>
+        <Page.HeaderLeft>
+          <FlexBox
+            direction={FlexDirection.Column}
+            alignItems={AlignItems.FlexStart}
+            margin={ComponentSize.Small}
+          >
+            {this.title}
+          </FlexBox>
+        </Page.HeaderLeft>
         <Page.HeaderRight />
       </Page.Header>
     )
@@ -37,6 +51,11 @@ export default class UserPageHeader extends PureComponent<Props> {
 
     const altText = `That's how you say hello in ${language}`
 
-    return <Page.Title title={title} altText={altText} />
+    return (
+      <>
+        <Page.Title title={title} />
+        <Page.SubTitle title={altText} />
+      </>
+    )
   }
 }
