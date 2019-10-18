@@ -30,7 +30,7 @@ export class TelegrafInstructionsOverlay extends PureComponent<
 > {
   public render() {
     return (
-      <GetResources resource={ResourceType.Authorizations}>
+      <GetResources resources={[ResourceType.Authorizations]}>
         <WizardOverlay
           title="Telegraf Setup Instructions"
           onDismiss={this.handleDismiss}
