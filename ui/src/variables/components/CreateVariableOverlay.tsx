@@ -19,7 +19,7 @@ class CreateVariableOverlay extends PureComponent<Props> {
             onDismiss={this.handleHideOverlay}
           />
           <Overlay.Body>
-            <GetResources resource={ResourceType.Variables}>
+            <GetResources resources={[ResourceType.Variables]}>
               <VariableFormContext onHideOverlay={this.handleHideOverlay} />
             </GetResources>
           </Overlay.Body>
