@@ -320,7 +320,7 @@ class AdminStep extends PureComponent<Props, State> {
     return null
   }
 
-  private handleNext = () => {
+  private handleNext = async () => {
     const {
       onIncrementCurrentStepIndex,
       onSetupAdmin: onSetupAdmin,
@@ -343,7 +343,7 @@ class AdminStep extends PureComponent<Props, State> {
       bucket,
     }
 
-    const isAdminSet = onSetupAdmin(setupParams)
+    const isAdminSet = await onSetupAdmin(setupParams)
     if (isAdminSet) {
       onIncrementCurrentStepIndex()
     }
