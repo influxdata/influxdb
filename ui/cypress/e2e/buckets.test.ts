@@ -65,7 +65,7 @@ describe('Buckets', () => {
       // but we cannot because of the default system buckets
       // since cypress selectors are so fast, that sometimes a bucket
       // that is deleted will be selected before it gets deleted
-      cy.reload()
+      cy.wait(10000)
 
       cy.getByTestID(`bucket--card--name ${bucket1}`).should('not.exist')
     })

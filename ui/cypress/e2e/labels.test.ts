@@ -27,7 +27,7 @@ describe('labels', () => {
     return `background-color: rgb(${red}, ${green}, ${blue});`
   }
 
-  it('Can create a label', () => {
+  it('can create a label', () => {
     const newLabelName = 'Substantia (サブスタンス)'
     const newLabelDescription =
       '(\u03943) quod in se est et per se concipitur hoc est id cujus conceptus non indiget conceptu alterius rei a quo formari debeat. '
@@ -260,7 +260,7 @@ describe('labels', () => {
       .should('contain', hex2BgColor(newLabelColor))
   })
 
-  it('can delete a label', () => {
+  it.only('can delete a label', () => {
     const labelName = 'Modus (目录)'
     const labelDescription =
       '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
@@ -272,13 +272,9 @@ describe('labels', () => {
         description: labelDescription,
         color: labelColor,
       })
-      cy.createLabel(labelName, id, {
-        description: labelDescription,
-        color: '#CCAA88',
-      })
     })
 
-    cy.getByTestID('label-card').should('have.length', 2)
+    cy.getByTestID('label-card').should('have.length', 1)
 
     cy.getByTestID('context-delete-menu')
       .eq(0)
@@ -287,7 +283,7 @@ describe('labels', () => {
       .eq(0)
       .click({force: true})
 
-    cy.getByTestID('label-card').should('have.length', 1)
+    cy.getByTestID('empty-state').should('exist', 1)
   })
 
   it('can sort labels by name', () => {
