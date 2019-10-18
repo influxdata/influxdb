@@ -15,7 +15,7 @@ import {SortTypes, getSortedResources} from 'src/shared/utils/sort'
 //Utils
 import {getDeep} from 'src/utils/wrappers'
 
-type SortKey = keyof Telegraf | 'bucket'
+type SortKey = keyof Telegraf | 'plugins.0.config.bucket'
 
 interface Props {
   collectors: Telegraf[]
@@ -63,7 +63,7 @@ export default class CollectorList extends PureComponent<Props> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'bucket']
+    return ['name', 'plugins.0.config.bucket']
   }
 
   public get collectorsList(): JSX.Element[] {
