@@ -58,7 +58,9 @@ const AlertingIndex: FunctionComponent<StateProps> = ({
                     </GetResources>
                   </GridColumn>
                   <GridColumn widthLG={4} widthMD={4} widthSM={4} widthXS={12}>
-                    <GetResources resources={[ResourceType.NotificationEndpoints]}>
+                    <GetResources
+                      resources={[ResourceType.NotificationEndpoints]}
+                    >
                       <EndpointsColumn />
                     </GetResources>
                   </GridColumn>
