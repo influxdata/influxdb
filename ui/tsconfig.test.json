@@ -5,7 +5,8 @@
     "build",
     "node_modules",
     "webpack.tsconfig.json",
-    "webpack.*.ts"
+    "webpack.*.ts",
+    "coverage"
   ],
   "include": [
     "src/**/*.ts",
