@@ -5,6 +5,7 @@
 1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
 
 ### UI Improvements
+1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
 1. [15426](https://github.com/influxdata/influxdb/pull/15426): Add 403 handler that redirects back to the sign-in page on oats-generated routes.
 
 ### Bug Fixes
