@@ -124,8 +124,8 @@ const CheckCard: FunctionComponent<Props> = ({
     onRemoveCheckLabel(check.id, label)
   }
 
-  const handleCreateLabel = (label: Label) => {
-    onCreateLabel(label.name, label.properties)
+  const handleCreateLabel = async (label: Label) => {
+    await onCreateLabel(label.name, label.properties)
   }
 
   return (
