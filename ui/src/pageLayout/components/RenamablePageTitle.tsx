@@ -8,7 +8,15 @@ import React, {
 import classnames from 'classnames'
 
 // Components
-import {Input, PageTitle, Icon, IconFont} from '@influxdata/clockface'
+import {
+  Input,
+  Icon,
+  IconFont,
+  Page,
+  FlexBox,
+  FlexDirection,
+  AlignItems,
+} from '@influxdata/clockface'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Decorators
@@ -47,34 +55,37 @@ class RenamablePageTitle extends PureComponent<Props, State> {
     const {name, placeholder} = this.props
     const {isEditing} = this.state
 
+    let title = (
+      <div className={this.titleClassName} onClick={this.handleStartEditing}>
+        <Page.Title title={name || placeholder} />
+        <Icon glyph={IconFont.Pencil} />
+      </div>
+    )
+
     if (isEditing) {
-      return (
-        <div className="renamable-page-title">
-          {this.prefix}
-          <ClickOutside onClickOutside={this.handleStopEditing}>
-            {this.input}
-          </ClickOutside>
-        </div>
+      title = (
+        <ClickOutside onClickOutside={this.handleStopEditing}>
+          {this.input}
+        </ClickOutside>
       )
     }
 
     return (
-      <div className="renamable-page-title">
+      <FlexBox
+        direction={FlexDirection.Column}
+        alignItems={AlignItems.FlexStart}
+        className="renamable-page-title"
+      >
+        {title}
         {this.prefix}
-        <div className={this.titleClassName} onClick={this.handleStartEditing}>
-          <PageTitle title={name || placeholder} />
-          <Icon glyph={IconFont.Pencil} />
-        </div>
-      </div>
+      </FlexBox>
     )
   }
 
   private get prefix(): JSX.Element {
     const {prefix} = this.props
     if (prefix) {
-      return (
-        <div className="renamable-page-title--input-prefix">{`${prefix} /`}</div>
-      )
+      return <Page.SubTitle title={prefix} />
     }
   }
 
