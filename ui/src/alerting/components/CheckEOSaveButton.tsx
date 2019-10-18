@@ -17,7 +17,7 @@ import {
 } from '@influxdata/clockface'
 
 interface Props {
-  onSave: () => Promise<void>
+  onSave: () => void
   status: ComponentStatus
   className: string
   checkType: string

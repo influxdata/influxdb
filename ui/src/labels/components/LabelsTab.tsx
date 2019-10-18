@@ -148,7 +148,7 @@ class Labels extends PureComponent<Props, State> {
     this.props.updateLabel(label.id, label as ILabel)
   }
 
-  private handleDelete = async (id: string) => {
+  private handleDelete = (id: string) => {
     this.props.deleteLabel(id)
   }
 

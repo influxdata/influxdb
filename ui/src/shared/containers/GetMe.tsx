@@ -48,8 +48,8 @@ class GetMe extends PureComponent<Props, State> {
     )
   }
 
-  public async componentDidMount() {
-    await this.props.getMe()
+  public componentDidMount() {
+    this.props.getMe()
     this.setState({loading: RemoteDataState.Done})
   }
 }

@@ -194,7 +194,7 @@ class DragAndDrop extends PureComponent<Props, State> {
           uploadContent: reader.result,
           fileName: file.name,
         },
-        this.submitOnUpload
+        () => this.submitOnUpload()
       )
     }
   }
@@ -220,7 +220,7 @@ class DragAndDrop extends PureComponent<Props, State> {
           uploadContent: reader.result,
           fileName: file.name,
         },
-        this.submitOnDrop
+        () => this.submitOnDrop()
       )
     }
   }

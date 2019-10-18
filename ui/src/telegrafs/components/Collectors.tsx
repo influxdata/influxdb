@@ -228,12 +228,12 @@ class Collectors extends PureComponent<Props, State> {
     )
   }
 
-  private handleDeleteTelegraf = async (telegraf: Telegraf) => {
-    await this.props.onDeleteTelegraf(telegraf.id, telegraf.name)
+  private handleDeleteTelegraf = (telegraf: Telegraf) => {
+    this.props.onDeleteTelegraf(telegraf.id, telegraf.name)
   }
 
-  private handleUpdateTelegraf = async (telegraf: Telegraf) => {
-    await this.props.onUpdateTelegraf(telegraf)
+  private handleUpdateTelegraf = (telegraf: Telegraf) => {
+    this.props.onUpdateTelegraf(telegraf)
   }
 
   private handleFilterChange = (searchTerm: string): void => {

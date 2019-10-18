@@ -129,8 +129,8 @@ export default class LabelList extends PureComponent<Props, State> {
     return !!labelID && overlayState === OverlayState.Open
   }
 
-  private handleUpdateLabel = async (updatedLabel: Label) => {
-    await this.props.onUpdateLabel(updatedLabel)
+  private handleUpdateLabel = (updatedLabel: Label) => {
+    this.props.onUpdateLabel(updatedLabel)
     this.setState({overlayState: OverlayState.Closed})
   }
 

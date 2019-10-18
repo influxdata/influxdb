@@ -22,7 +22,7 @@ interface Props {
 const findMaxLevel = (event: StatusRow[]) => {
   const levels: LowercaseCheckStatusLevel[] = ['crit', 'warn', 'info', 'ok']
   const eventLevels = event.map(e => e.level)
-  for (let l of levels) {
+  for (const l of levels) {
     if (eventLevels.includes(l)) {
       return l
     }
@@ -65,7 +65,7 @@ const EventMarker: FC<Props> = ({xScale, xDomain, events, xFormatter}) => {
           />
         </div>
         {tooltipVisible && trigger.current && (
-          <BoxTooltip triggerRect={triggerRect as DOMRect} maxWidth={500}>
+          <BoxTooltip triggerRect={triggerRect} maxWidth={500}>
             <EventMarkerTooltip events={formattedEvents} />
           </BoxTooltip>
         )}

@@ -38,8 +38,8 @@ class GetLinks extends PureComponent<Props, State> {
     }
   }
 
-  public async componentDidMount() {
-    await this.props.getLinks()
+  public componentDidMount() {
+    this.props.getLinks()
     this.setState({loading: RemoteDataState.Done})
   }
 

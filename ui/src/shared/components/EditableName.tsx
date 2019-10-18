@@ -100,12 +100,12 @@ class EditableName extends Component<Props, State> {
     this.setState({isEditing: true})
   }
 
-  private handleStopEditing = async (): Promise<void> => {
+  private handleStopEditing = () => {
     const {workingName} = this.state
     const {onUpdate} = this.props
 
     this.setState({loading: RemoteDataState.Loading})
-    await onUpdate(workingName)
+    onUpdate(workingName)
     this.setState({loading: RemoteDataState.Done, isEditing: false})
   }
 
@@ -113,9 +113,7 @@ class EditableName extends Component<Props, State> {
     this.setState({workingName: e.target.value})
   }
 
-  private handleKeyDown = async (
-    e: KeyboardEvent<HTMLInputElement>
-  ): Promise<void> => {
+  private handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const {onUpdate, name} = this.props
     const {workingName} = this.state
 
@@ -126,7 +124,7 @@ class EditableName extends Component<Props, State> {
         return
       }
       this.setState({loading: RemoteDataState.Loading})
-      await onUpdate(workingName)
+      onUpdate(workingName)
       this.setState({isEditing: false, loading: RemoteDataState.Done})
     }
 

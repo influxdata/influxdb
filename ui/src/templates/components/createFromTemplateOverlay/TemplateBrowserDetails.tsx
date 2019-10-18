@@ -134,8 +134,8 @@ class TemplateBrowserDetails extends PureComponent<Props> {
     const {selectedTemplateSummary} = this.props
     const name = _.get(selectedTemplateSummary, 'meta.name')
 
-    let templateName = name || 'Untitled'
-    let className = name
+    const templateName = name || 'Untitled'
+    const className = name
       ? 'import-template-overlay--name'
       : 'import-template-overlay--name missing'
 

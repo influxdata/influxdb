@@ -264,7 +264,7 @@ export const cloneCheck = (check: Check) => async (
   }
 }
 
-export const selectCheckEvery = (every: string) => async dispatch => {
+export const selectCheckEvery = (every: string) => dispatch => {
   dispatch(updateTimeMachineCheck({every}))
   dispatch(executeQueries())
 }
