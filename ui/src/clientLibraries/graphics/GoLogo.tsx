@@ -82,5 +82,5 @@ const GoLogo: SFC = () => {
     </svg>
   )
 }
-
+/* eslint-enable */
 export default GoLogo

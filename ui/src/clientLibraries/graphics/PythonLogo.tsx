@@ -64,4 +64,5 @@ const PythonLogo: SFC = () => {
   )
 }
 
+/* eslint-enable */
 export default PythonLogo

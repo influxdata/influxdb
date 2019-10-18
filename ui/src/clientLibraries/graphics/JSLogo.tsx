@@ -254,5 +254,5 @@ const JSLogo: SFC = () => {
     </svg>
   )
 }
-
+/* eslint-enable */
 export default JSLogo

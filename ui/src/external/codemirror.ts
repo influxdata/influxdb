@@ -379,6 +379,8 @@ function isEmpty(cm) {
   return cm.lineCount() === 1 && cm.getLine(0) === ''
 }
 
+/* eslint-enable */
+
 // Modes
 CodeMirror.defineSimpleMode('flux', modeFlux)
 CodeMirror.defineSimpleMode('tickscript', modeTickscript)
