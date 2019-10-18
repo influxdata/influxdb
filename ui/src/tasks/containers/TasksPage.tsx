@@ -130,9 +130,7 @@ class TasksPage extends PureComponent<Props, State> {
             limitStatus={limitStatus}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources
-              resources={[ResourceType.Tasks, ResourceType.Labels]}
-            >
+            <GetResources resources={[ResourceType.Tasks, ResourceType.Labels]}>
               <GetAssetLimits>
                 <AssetLimitAlert
                   resourceName="tasks"
