@@ -63,8 +63,8 @@ export const millisecondsToDuration = (value: number): string => {
   let remainder = value
 
   while (unitIndex < unitsAndMs.length) {
-    let [unit, unitAsMs] = unitsAndMs[unitIndex]
-    let valueInUnit = remainder / unitAsMs
+    const [unit, unitAsMs] = unitsAndMs[unitIndex]
+    const valueInUnit = remainder / unitAsMs
 
     durations.push({unit, magnitude: Math.floor(valueInUnit)})
     remainder = remainder - Math.floor(valueInUnit) * unitAsMs

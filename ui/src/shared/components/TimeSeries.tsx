@@ -100,7 +100,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
   private pendingResults: Array<CancelBox<RunQueryResult>> = []
   private pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
-  public async componentDidMount() {
+  public componentDidMount() {
     this.observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         const {isIntersecting} = entry
@@ -115,7 +115,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
     this.observer.observe(this.ref.current)
   }
 
-  public async componentDidUpdate(prevProps: Props) {
+  public componentDidUpdate(prevProps: Props) {
     if (this.shouldReload(prevProps) && this.isIntersecting) {
       this.reload()
     }

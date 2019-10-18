@@ -88,7 +88,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
     router.push(`/orgs/${orgID}/load-data/telegrafs`)
   }
 
-  private handleDownloadConfig = async () => {
+  private handleDownloadConfig = () => {
     const {
       telegrafConfig,
       telegraf: {name},

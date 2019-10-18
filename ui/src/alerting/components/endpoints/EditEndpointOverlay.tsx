@@ -46,8 +46,8 @@ const EditEndpointOverlay: FC<Props> = ({
     return null
   }
 
-  const handleEditEndpoint = async (endpoint: NotificationEndpoint) => {
-    await onUpdateEndpoint(endpoint)
+  const handleEditEndpoint = (endpoint: NotificationEndpoint) => {
+    onUpdateEndpoint(endpoint)
 
     handleDismiss()
   }

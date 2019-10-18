@@ -36,7 +36,7 @@ const VariableItem: FunctionComponent<Props> = ({
     >
       <VariableLabel name={variable.name} onClickVariable={onClickVariable} />
       {tooltipVisible && (
-        <BoxTooltip triggerRect={triggerRect as DOMRect}>
+        <BoxTooltip triggerRect={triggerRect}>
           <VariableTooltipContents variableID={variable.id} />
         </BoxTooltip>
       )}

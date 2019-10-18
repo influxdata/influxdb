@@ -98,7 +98,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
     )
   }
 
-  private handleSave = async () => {
+  private handleSave = () => {
     const {
       params: {orgID},
       onCreateAuthorization,
@@ -110,7 +110,7 @@ class AllAccessTokenOverlay extends PureComponent<Props, State> {
       permissions: allAccessPermissions(orgID),
     }
 
-    await onCreateAuthorization(token)
+    onCreateAuthorization(token)
 
     this.handleDismiss()
   }

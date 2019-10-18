@@ -24,7 +24,7 @@ import {useEndpointReducer} from './EndpointOverlayProvider'
 import {NotificationEndpointType, NotificationEndpoint} from 'src/types'
 
 interface Props {
-  onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onSave: (endpoint: NotificationEndpoint) => void
   onCancel: () => void
   saveButtonText: string
 }

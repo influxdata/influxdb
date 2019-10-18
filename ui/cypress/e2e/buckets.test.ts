@@ -54,16 +54,18 @@ describe('Buckets', () => {
 
     it('can delete a bucket', () => {
       const bucket1 = 'newbucket1'
-      const bucket2 = 'newbucket2'
       cy.get<Organization>('@org').then(({id, name}: Organization) => {
         cy.createBucket(id, name, bucket1)
-        cy.createBucket(id, name, bucket2)
       })
-
-      cy.getByTestID(`bucket--card--name ${bucket1}`).should('exist')
 
       cy.getByTestID(`context-delete-menu ${bucket1}`).click()
       cy.getByTestID(`context-delete-bucket ${bucket1}`).click()
+
+      // normally we would assert for empty state here
+      // but we cannot because of the default system buckets
+      // since cypress selectors are so fast, that sometimes a bucket
+      // that is deleted will be selected before it gets deleted
+      cy.reload()
 
       cy.getByTestID(`bucket--card--name ${bucket1}`).should('not.exist')
     })

@@ -17,7 +17,7 @@ import {NotificationEndpoint, RemoteDataState} from 'src/types'
 
 interface Props {
   saveButtonText: string
-  onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onSave: (endpoint: NotificationEndpoint) => void
   onCancel: () => void
   onSetErrorMessage: (error: string) => void
 }
@@ -32,7 +32,7 @@ const EndpointOverlayFooter: FC<Props> = ({
 
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (saveStatus === RemoteDataState.Loading) {
       return
     }
@@ -41,7 +41,7 @@ const EndpointOverlayFooter: FC<Props> = ({
       setSaveStatus(RemoteDataState.Loading)
       onSetErrorMessage(null)
 
-      await onSave(endpoint)
+      onSave(endpoint)
     } catch (e) {
       setSaveStatus(RemoteDataState.Error)
       onSetErrorMessage(e.message)

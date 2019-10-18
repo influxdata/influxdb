@@ -58,7 +58,7 @@ interface StateProps {
 type Props = StateProps & OwnProps & DispatchProps
 
 class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
-  public async componentDidMount() {
+  public componentDidMount() {
     const {
       setTaskOption,
       setNewScript,
@@ -113,7 +113,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     return activeQuery.text
   }
 
-  private handleSubmit = async () => {
+  private handleSubmit = () => {
     const {saveNewScript, newScript, taskOptions, timeRange} = this.props
 
     // When a task runs, it does not have access to variables that we typically
@@ -122,7 +122,7 @@ class SaveAsTaskForm extends PureComponent<Props & WithRouterProps> {
     // saving it as a task
 
     const timeRangeVars = getTimeRangeVars(timeRange)
-    const windowPeriodVars = await getWindowVars(newScript, timeRangeVars)
+    const windowPeriodVars = getWindowVars(newScript, timeRangeVars)
 
     // Don't embed variables that are not used in the script
     const vars = [

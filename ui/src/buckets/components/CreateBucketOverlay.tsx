@@ -26,7 +26,7 @@ interface StateProps {
 interface OwnProps {
   org: Organization
   onCloseModal: () => void
-  onCreateBucket: (bucket: Partial<Bucket>) => Promise<void>
+  onCreateBucket: (bucket: Partial<Bucket>) => void
 }
 
 type Props = StateProps & OwnProps

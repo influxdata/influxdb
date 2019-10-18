@@ -157,8 +157,8 @@ class BucketsTab extends PureComponent<Props, State> {
     this.props.deleteBucket(id, name)
   }
 
-  private handleCreateBucket = async (bucket: Bucket): Promise<void> => {
-    await this.props.createBucket(bucket)
+  private handleCreateBucket = (bucket: Bucket) => {
+    this.props.createBucket(bucket)
     this.handleCloseModal()
   }
 

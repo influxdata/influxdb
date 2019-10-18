@@ -72,12 +72,12 @@ const NewCheckOverlay: FunctionComponent<Props> = ({
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const handleSave = async () => {
+  const handleSave = () => {
     // todo: when check has own view
     // save view as view
     // put view.id on check.viewID
     try {
-      await saveCheckFromTimeMachine()
+      saveCheckFromTimeMachine()
       handleClose()
     } catch (e) {
       console.error(e)

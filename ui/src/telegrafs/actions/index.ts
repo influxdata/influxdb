@@ -4,7 +4,7 @@ import {client} from 'src/utils/api'
 // Types
 import {RemoteDataState, GetState} from 'src/types'
 import {ITelegraf as Telegraf, ILabel as Label} from '@influxdata/influx'
-import {Dispatch} from 'redux-thunk'
+import {Dispatch, ThunkAction} from 'redux-thunk'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -150,7 +150,7 @@ export const deleteTelegraf = (id: string, name: string) => async (
 export const addTelelgrafLabelsAsync = (
   telegrafID: string,
   labels: Label[]
-) => async (dispatch): Promise<void> => {
+): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
   try {
     await client.telegrafConfigs.addLabels(telegrafID, labels)
     const telegraf = await client.telegrafConfigs.get(telegrafID)
@@ -165,7 +165,7 @@ export const addTelelgrafLabelsAsync = (
 export const removeTelelgrafLabelsAsync = (
   telegrafID: string,
   labels: Label[]
-) => async (dispatch): Promise<void> => {
+): ThunkAction<Promise<void>> => async (dispatch): Promise<void> => {
   try {
     await client.telegrafConfigs.removeLabels(telegrafID, labels)
     const telegraf = await client.telegrafConfigs.get(telegrafID)
