@@ -176,12 +176,17 @@ func (p *parser) parseTagRuleNode() (TagRuleNode, error) {
 scanRegularTagValue:
 	tok, pos, lit = p.scanIgnoreWhitespace()
 	switch tok {
+	case influxql.SUB:
+		n.Value = "-"
+		goto scanRegularTagValue
 	case influxql.IDENT:
+		fallthrough
+	case influxql.DURATIONVAL:
 		fallthrough
 	case influxql.NUMBER:
 		fallthrough
 	case influxql.INTEGER:
-		n.Value = lit
+		n.Value += lit
 		return *n, nil
 	case influxql.TRUE:
 		n.Value = "true"

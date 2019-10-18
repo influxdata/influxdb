@@ -86,6 +86,22 @@ func TestParseTagRule(t *testing.T) {
 			node: TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "opq"}},
 		},
 		{
+			str:  `abc=0x1231`,
+			node: TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "0x1231"}},
+		},
+		{
+			str:  `abc=2d`,
+			node: TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "2d"}},
+		},
+		{
+			str:  `abc=-5i`,
+			node: TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "-5i"}},
+		},
+		{
+			str:  `abc= -1221`,
+			node: TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "-1221"}},
+		},
+		{
 			str: ` abc != "opq"`,
 			err: &influxdb.Error{
 				Code: influxdb.EInvalid,
