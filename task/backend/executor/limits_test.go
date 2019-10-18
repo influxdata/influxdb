@@ -31,7 +31,7 @@ func TestTaskConcurrency(t *testing.T) {
 
 	r4 := &influxdb.Run{
 		ID:           3,
-		ScheduledFor: time.Now().Format(time.RFC3339),
+		ScheduledFor: time.Now(),
 	}
 
 	clFunc := ConcurrencyLimit(te)

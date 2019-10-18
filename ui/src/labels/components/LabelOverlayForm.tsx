@@ -40,6 +40,7 @@ interface Props {
   onSubmit: () => void
   onCloseModal: () => void
   onInputChange: (e: ChangeEvent<HTMLInputElement>) => void
+  onLabelPropertyChange: (e: ChangeEvent<HTMLInputElement>) => void
   onNameValidation: (name: string) => string | null
   buttonText: string
   isFormValid: boolean
@@ -57,6 +58,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
       description,
       onCloseModal,
       onInputChange,
+      onLabelPropertyChange,
       onColorChange,
       isFormValid,
     } = this.props
@@ -107,7 +109,7 @@ export default class LabelOverlayForm extends PureComponent<Props> {
                   placeholder="Add a optional description"
                   name="description"
                   value={description}
-                  onChange={onInputChange}
+                  onChange={onLabelPropertyChange}
                   testID="create-label-form--description"
                 />
               </Form.Element>

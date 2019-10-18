@@ -82,22 +82,19 @@ func (d *TaskControlService) CreateNextRun(ctx context.Context, taskID influxdb.
 		}
 		runs[run.ID] = run
 		d.runs[task.ID] = runs
-		now, err := time.Parse(time.RFC3339, run.ScheduledFor)
 		next, _ := d.nextDueRun(ctx, taskID)
-		if err == nil {
-			rc := backend.RunCreation{
-				Created: backend.QueuedRun{
-					TaskID: task.ID,
-					RunID:  run.ID,
-					Now:    now.Unix(),
-				},
-				NextDue:  next,
-				HasQueue: len(d.manualRuns) != 0,
-			}
-			d.created[tid.String()+rc.Created.RunID.String()] = rc.Created
-			d.totalRunsCreated[taskID]++
-			return rc, nil
+		rc := backend.RunCreation{
+			Created: backend.QueuedRun{
+				TaskID: task.ID,
+				RunID:  run.ID,
+				Now:    run.ScheduledFor.Unix(),
+			},
+			NextDue:  next,
+			HasQueue: len(d.manualRuns) != 0,
 		}
+		d.created[tid.String()+rc.Created.RunID.String()] = rc.Created
+		d.totalRunsCreated[taskID]++
+		return rc, nil
 	}
 
 	rc, err := d.createNextRun(task, now)
@@ -121,12 +118,10 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 		latest = lt.Unix()
 	}
 	for _, r := range t.runs[task.ID] {
-		rt, err := time.Parse(time.RFC3339, r.ScheduledFor)
-		if err == nil {
-			if rt.Unix() > latest {
-				latest = rt.Unix()
-			}
+		if r.ScheduledFor.Unix() > latest {
+			latest = r.ScheduledFor.Unix()
 		}
+
 	}
 
 	nextScheduled := sch.Next(time.Unix(latest, 0))
@@ -149,7 +144,7 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 	}
 	runs[runID] = &influxdb.Run{
 		ID:           runID,
-		ScheduledFor: nextScheduled.Format(time.RFC3339),
+		ScheduledFor: nextScheduled,
 	}
 	t.runs[task.ID] = runs
 
@@ -174,7 +169,7 @@ func (t *TaskControlService) CreateRun(_ context.Context, taskID influxdb.ID, sc
 	}
 	runs[runID] = &influxdb.Run{
 		ID:           runID,
-		ScheduledFor: scheduledFor.Format(time.RFC3339),
+		ScheduledFor: scheduledFor,
 	}
 	t.runs[taskID] = runs
 	return runs[runID], nil
@@ -206,19 +201,18 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 	r := d.runs[tid][rid]
 	delete(d.runs[tid], rid)
 	t := d.tasks[tid]
-	schedFor, err := time.Parse(time.RFC3339, r.ScheduledFor)
-	if err != nil {
-		return nil, err
-	}
-	var latest time.Time
+	schedFor := r.ScheduledFor.Format(time.RFC3339)
+
 	if t.LatestCompleted != "" {
-		latest, err = time.Parse(time.RFC3339, t.LatestCompleted)
+		var latest time.Time
+		latest, err := time.Parse(time.RFC3339, t.LatestCompleted)
 		if err != nil {
 			return nil, err
 		}
-	}
-	if schedFor.After(latest) {
-		t.LatestCompleted = r.ScheduledFor
+
+		if r.ScheduledFor.After(latest) {
+			t.LatestCompleted = schedFor
+		}
 	}
 	d.finishedRuns[rid] = r
 	delete(d.created, tid.String()+rid.String())
@@ -267,11 +261,8 @@ func (d *TaskControlService) nextDueRun(ctx context.Context, taskID influxdb.ID)
 	}
 
 	for _, r := range d.runs[task.ID] {
-		rt, err := time.Parse(time.RFC3339, r.ScheduledFor)
-		if err == nil {
-			if rt.Unix() > latest {
-				latest = rt.Unix()
-			}
+		if r.ScheduledFor.Unix() > latest {
+			latest = r.ScheduledFor.Unix()
 		}
 	}
 
@@ -299,9 +290,9 @@ func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID i
 	}
 	switch state {
 	case backend.RunStarted:
-		run.StartedAt = when.Format(time.RFC3339Nano)
+		run.StartedAt = when
 	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
-		run.FinishedAt = when.Format(time.RFC3339Nano)
+		run.FinishedAt = when
 	case backend.RunScheduled:
 		// nothing
 	default:
@@ -378,6 +369,6 @@ func (d *TaskControlService) FinishedRuns() []*influxdb.Run {
 		rtn = append(rtn, run)
 	}
 
-	sort.Slice(rtn, func(i, j int) bool { return rtn[i].ScheduledFor < rtn[j].ScheduledFor })
+	sort.Slice(rtn, func(i, j int) bool { return rtn[i].ScheduledFor.Before(rtn[j].ScheduledFor) })
 	return rtn
 }
