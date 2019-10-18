@@ -16,12 +16,10 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 		one     = influxdb.ID(1)
 		taskOne = &influxdb.Task{ID: one}
 
-		timeString = time.Now().Format(time.RFC3339)
-
 		runOne = &influxdb.Run{
 			ID:           one,
 			TaskID:       one,
-			ScheduledFor: timeString,
+			ScheduledFor: time.Now(),
 		}
 
 		allowUnexported = cmp.AllowUnexported(executorE{}, schedulerC{})
@@ -122,12 +120,10 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		schedulableTaskTwo   = SchedulableTask{taskTwo}
 		schedulableTaskThree = SchedulableTask{taskThreeNew}
 
-		timeString = time.Now().Format(time.RFC3339)
-
 		runOne = &influxdb.Run{
 			ID:           one,
 			TaskID:       one,
-			ScheduledFor: timeString,
+			ScheduledFor: time.Now().UTC(),
 		}
 
 		allowUnexported = cmp.AllowUnexported(executorE{}, schedulerC{})

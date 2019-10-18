@@ -122,7 +122,7 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		return nil, err
 	}
 	if latestCompletedRun != nil {
-		latestCompleted, err := latestCompletedRun.ScheduledForTime()
+		latestCompleted := latestCompletedRun.ScheduledFor
 		if err != nil {
 			return nil, err
 		}
@@ -1068,9 +1068,9 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 
 	r.ID = s.IDGenerator.ID()
 	r.Status = backend.RunScheduled.String()
-	r.StartedAt = ""
-	r.FinishedAt = ""
-	r.RequestedAt = ""
+	r.StartedAt = time.Time{}
+	r.FinishedAt = time.Time{}
+	r.RequestedAt = time.Time{}
 
 	// add a clean copy of the run to the manual runs
 	bucket, err := tx.Bucket(taskRunBucket)
@@ -1136,8 +1136,8 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 		ID:           s.IDGenerator.ID(),
 		TaskID:       taskID,
 		Status:       backend.RunScheduled.String(),
-		RequestedAt:  time.Now().UTC().Format(time.RFC3339),
-		ScheduledFor: t.Format(time.RFC3339),
+		RequestedAt:  time.Now().UTC(),
+		ScheduledFor: t,
 		Log:          []influxdb.Log{},
 	}
 
@@ -1248,15 +1248,9 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 		}
 
 		// return mRun
-		schedFor, err := mRun.ScheduledForTime()
-		if err != nil {
-			return backend.RunCreation{}, err
-		}
+		schedFor := mRun.ScheduledFor
 
-		reqAt, err := mRun.RequestedAtTime()
-		if err != nil {
-			return backend.RunCreation{}, err
-		}
+		reqAt := mRun.RequestedAt
 
 		rc := backend.RunCreation{
 			Created: backend.QueuedRun{
@@ -1286,7 +1280,7 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 	run := influxdb.Run{
 		ID:           id,
 		TaskID:       task.ID,
-		ScheduledFor: time.Unix(scheduledFor, 0).UTC().Format(time.RFC3339),
+		ScheduledFor: time.Unix(scheduledFor, 0).UTC(),
 		Status:       backend.RunScheduled.String(),
 		Log:          []influxdb.Log{},
 	}
@@ -1356,7 +1350,7 @@ func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, sche
 	run := influxdb.Run{
 		ID:           id,
 		TaskID:       taskID,
-		ScheduledFor: scheduledFor.Format(time.RFC3339),
+		ScheduledFor: scheduledFor,
 		Status:       backend.RunScheduled.String(),
 		Log:          []influxdb.Log{},
 	}
@@ -1576,7 +1570,8 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	}
 
 	// tell task to update latest completed
-	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{LatestCompleted: &r.ScheduledFor})
+	scheduledStr := r.ScheduledFor.Format(time.RFC3339)
+	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{LatestCompleted: &scheduledStr})
 	if err != nil {
 		return nil, err
 	}
@@ -1695,9 +1690,9 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 	run.Status = state.String()
 	switch state {
 	case backend.RunStarted:
-		run.StartedAt = when.UTC().Format(time.RFC3339Nano)
+		run.StartedAt = when
 	case backend.RunSuccess, backend.RunFail, backend.RunCanceled:
-		run.FinishedAt = when.UTC().Format(time.RFC3339Nano)
+		run.FinishedAt = when
 	}
 
 	// save run
@@ -1825,7 +1820,7 @@ func (s *Service) findLatestScheduledTime(ctx context.Context, tx Tx, id influxd
 	}
 
 	if lRun != nil {
-		runTime, err := lRun.ScheduledForTime()
+		runTime := lRun.ScheduledFor
 		if err != nil {
 			return time.Time{}, err
 		}
@@ -1840,7 +1835,7 @@ func (s *Service) findLatestScheduledTime(ctx context.Context, tx Tx, id influxd
 		return time.Time{}, err
 	}
 	for _, cr := range currentRunning {
-		crTime, err := cr.ScheduledForTime()
+		crTime := cr.ScheduledFor
 		if err != nil {
 			return time.Time{}, err
 		}

@@ -83,29 +83,14 @@ func (t *Task) OffsetDuration() (time.Duration, error) {
 
 // Run is a record createId when a run of a task is scheduled.
 type Run struct {
-	ID           ID     `json:"id,omitempty"`
-	TaskID       ID     `json:"taskID"`
-	Status       string `json:"status"`
-	ScheduledFor string `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
-	StartedAt    string `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
-	FinishedAt   string `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
-	RequestedAt  string `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
-	Log          []Log  `json:"log,omitempty"`
-}
-
-// ScheduledForTime gives the time.Time that the run is scheduled for.
-func (r *Run) ScheduledForTime() (time.Time, error) {
-	return time.Parse(time.RFC3339, r.ScheduledFor)
-}
-
-// StartedAtTime gives the time.Time that the run was started.
-func (r *Run) StartedAtTime() (time.Time, error) {
-	return time.Parse(time.RFC3339Nano, r.StartedAt)
-}
-
-// RequestedAtTime gives the time.Time that the run was requested.
-func (r *Run) RequestedAtTime() (time.Time, error) {
-	return time.Parse(time.RFC3339, r.RequestedAt)
+	ID           ID        `json:"id,omitempty"`
+	TaskID       ID        `json:"taskID"`
+	Status       string    `json:"status"`
+	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the time the task is scheduled to run at
+	StartedAt    time.Time `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
+	FinishedAt   time.Time `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
+	RequestedAt  time.Time `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
+	Log          []Log     `json:"log,omitempty"`
 }
 
 // Log represents a link to a log resource

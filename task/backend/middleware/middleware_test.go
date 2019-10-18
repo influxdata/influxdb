@@ -104,7 +104,7 @@ func inmemTaskService() platform.TaskService {
 				return nil, platform.ErrTaskNotFound
 			}
 
-			return &platform.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0).Format(time.RFC3339)}, nil
+			return &platform.Run{ID: id, TaskID: t.ID, ScheduledFor: time.Unix(scheduledFor, 0)}, nil
 		},
 	}
 	return ts

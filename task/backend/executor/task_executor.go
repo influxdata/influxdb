@@ -324,8 +324,7 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
 
 	// add to metrics
-	s, _ := p.run.StartedAtTime()
-	rd := time.Since(s)
+	rd := time.Since(p.run.StartedAt)
 	w.te.metrics.FinishRun(p.task, rs, rd)
 
 	// log error
@@ -365,11 +364,7 @@ func (w *worker) executeQuery(p *promise) {
 		return
 	}
 
-	sf, err := p.run.ScheduledForTime()
-	if err != nil {
-		w.finish(p, backend.RunFail, influxdb.ErrTaskTimeParse(err))
-		return
-	}
+	sf := p.run.ScheduledFor
 
 	req := &query.Request{
 		Authorization:  p.auth,

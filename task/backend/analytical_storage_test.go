@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
@@ -82,7 +83,7 @@ func TestDeduplicateRuns(t *testing.T) {
 	}
 	mockTCS := &mock.TaskControlService{
 		FinishRunFn: func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: "1", StartedAt: "2", FinishedAt: "3"}, nil
+			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
 		},
 	}
 

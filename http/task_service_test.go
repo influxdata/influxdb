@@ -610,14 +610,18 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			fields: fields{
 				taskService: &mock.TaskService{
 					FindRunByIDFn: func(ctx context.Context, taskID platform.ID, runID platform.ID) (*platform.Run, error) {
+						scheduledFor, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
+						startedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:03.155645Z")
+						finishedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:13.155645Z")
+						requestedAt, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
 						run := platform.Run{
 							ID:           runID,
 							TaskID:       taskID,
 							Status:       "success",
-							ScheduledFor: "2018-12-01T17:00:13Z",
-							StartedAt:    "2018-12-01T17:00:03.155645Z",
-							FinishedAt:   "2018-12-01T17:00:13.155645Z",
-							RequestedAt:  "2018-12-01T17:00:13Z",
+							ScheduledFor: scheduledFor,
+							StartedAt:    startedAt,
+							FinishedAt:   finishedAt,
+							RequestedAt:  requestedAt,
 						}
 						return &run, nil
 					},
@@ -719,15 +723,19 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			fields: fields{
 				taskService: &mock.TaskService{
 					FindRunsFn: func(ctx context.Context, f platform.RunFilter) ([]*platform.Run, int, error) {
+						scheduledFor, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
+						startedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:03.155645Z")
+						finishedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:13.155645Z")
+						requestedAt, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
 						runs := []*platform.Run{
 							{
 								ID:           platform.ID(2),
 								TaskID:       f.Task,
 								Status:       "success",
-								ScheduledFor: "2018-12-01T17:00:13Z",
-								StartedAt:    "2018-12-01T17:00:03.155645Z",
-								FinishedAt:   "2018-12-01T17:00:13.155645Z",
-								RequestedAt:  "2018-12-01T17:00:13Z",
+								ScheduledFor: scheduledFor,
+								StartedAt:    startedAt,
+								FinishedAt:   finishedAt,
+								RequestedAt:  requestedAt,
 							},
 						}
 						return runs, len(runs), nil
