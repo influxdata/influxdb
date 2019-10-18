@@ -77,7 +77,7 @@ interface DispatchProps {
 }
 
 interface PassedProps {
-  resource: ResourceType
+  resources: Array<ResourceType>
 }
 
 type Props = StateProps & DispatchProps & PassedProps
@@ -102,7 +102,16 @@ export enum ResourceType {
 @ErrorHandling
 class GetResources extends PureComponent<Props, StateProps> {
   public componentDidMount() {
-    switch (this.props.resource) {
+    const {resources} = this.props
+    const promises = []
+    resources.forEach(resource => {
+      promises.push(this.getResourceDetails(resource))
+    })
+    Promise.all(promises)
+  }
+
+  private getResourceDetails(resource) {
+    switch (resource) {
       case ResourceType.Dashboards: {
         return this.props.getDashboards()
       }
@@ -166,13 +175,33 @@ class GetResources extends PureComponent<Props, StateProps> {
   }
 
   public render() {
-    const {resource, children} = this.props
+    const {resources, children} = this.props
+    let status
+    for (let i = 0; i < resources.length; i++) {
+      const resource = resources[i]
+      // reduce the values of the status to 1 value
+      switch (this.props[resource].status) {
+        case 'NotStarted': {
+          status = 'NotStarted'
+          break
+        }
+        case 'Loading': {
+          status = 'Loading'
+          break
+        }
+        case 'Done': {
+          status = 'Done'
+          break
+        }
+        default: {
+          status = 'Error'
+          break
+        }
+      }
+    }
 
     return (
-      <SpinnerContainer
-        loading={this.props[resource].status}
-        spinnerComponent={<TechnoSpinner />}
-      >
+      <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
         <>{children}</>
       </SpinnerContainer>
     )

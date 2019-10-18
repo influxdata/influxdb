@@ -30,7 +30,7 @@ class TokensIndex extends Component<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Tokens', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="tokens" orgID={org.id}>
-            <GetResources resource={ResourceType.Authorizations}>
+            <GetResources resources={[ResourceType.Authorizations]}>
               <TokensTab />
             </GetResources>
           </LoadDataTabbedPage>

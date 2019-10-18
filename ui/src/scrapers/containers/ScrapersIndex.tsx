@@ -32,10 +32,10 @@ class ScrapersIndex extends Component<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Scrapers', 'Load Data'])}>
           <LoadDataHeader />
           <LoadDataTabbedPage activeTab="scrapers" orgID={org.id}>
-            <GetResources resource={ResourceType.Scrapers}>
-              <GetResources resource={ResourceType.Buckets}>
-                <Scrapers orgName={org.name} />
-              </GetResources>
+            <GetResources
+              resources={[ResourceType.Scrapers, ResourceType.Buckets]}
+            >
+              <Scrapers orgName={org.name} />
             </GetResources>
           </LoadDataTabbedPage>
         </Page>

@@ -30,7 +30,7 @@ class VariablesIndex extends Component<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Variables', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="variables" orgID={org.id}>
-            <GetResources resource={ResourceType.Variables}>
+            <GetResources resources={[ResourceType.Variables]}>
               <VariablesTab />
             </GetResources>
           </SettingsTabbedPage>

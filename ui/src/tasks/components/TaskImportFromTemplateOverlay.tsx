@@ -59,7 +59,7 @@ class TaskImportFromTemplateOverlay extends PureComponent<
 
   render() {
     return (
-      <GetResources resource={ResourceType.Templates}>
+      <GetResources resources={[ResourceType.Templates]}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={900}>
             <Overlay.Header

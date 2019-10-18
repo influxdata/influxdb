@@ -112,7 +112,7 @@ class Collectors extends PureComponent<Props, State> {
               widthSM={Columns.Eight}
               widthMD={Columns.Ten}
             >
-              <GetResources resource={ResourceType.Labels}>
+              <GetResources resources={[ResourceType.Labels]}>
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}
                   searchKeys={['plugins.0.config.bucket', 'name']}

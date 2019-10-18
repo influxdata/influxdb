@@ -36,7 +36,7 @@ class MembersIndex extends Component<Props> {
         <Page titleTag={pageTitleSuffixer(['Members', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="members" orgID={org.id}>
-            <GetResources resource={ResourceType.Members}>
+            <GetResources resources={[ResourceType.Members]}>
               <Members />
             </GetResources>
           </SettingsTabbedPage>

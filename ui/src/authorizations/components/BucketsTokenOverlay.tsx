@@ -99,7 +99,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
                   />
                 </Form.Element>
                 <Form.Element label="">
-                  <GetResources resource={ResourceType.Buckets}>
+                  <GetResources resources={[ResourceType.Buckets]}>
                     <Grid.Row>
                       <Grid.Column
                         widthXS={Columns.Twelve}

@@ -73,7 +73,7 @@ class VariablesTab extends PureComponent<Props, State> {
             onSelectNew={this.handleOpenCreateOverlay}
           />
         </TabbedPageHeader>
-        <GetResources resource={ResourceType.Labels}>
+        <GetResources resources={[ResourceType.Labels]}>
           <FilterList<Variable>
             searchTerm={searchTerm}
             searchKeys={['name', 'labels[].name']}
