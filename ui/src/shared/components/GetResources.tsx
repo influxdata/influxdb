@@ -19,7 +19,7 @@ import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
 import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, RemoteDataState} from 'src/types'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
 import {TelegrafsState} from 'src/telegrafs/reducers'
@@ -36,13 +36,13 @@ import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/en
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {
-  TechnoSpinner,
-  SpinnerContainer,
-  RemoteDataState,
-} from '@influxdata/clockface'
+import {TechnoSpinner, SpinnerContainer} from '@influxdata/clockface'
+
+// Selectors
+import {getResourcesStatus} from 'src/shared/selectors/getResourcesStatus'
 
 interface StateProps {
+  remoteDataState: RemoteDataState
   labels: LabelsState
   buckets: BucketsState
   telegrafs: TelegrafsState
@@ -80,7 +80,7 @@ interface PassedProps {
   resources: Array<ResourceType>
 }
 
-type Props = StateProps & DispatchProps & PassedProps
+export type Props = StateProps & DispatchProps & PassedProps
 
 export enum ResourceType {
   Labels = 'labels',
@@ -175,54 +175,38 @@ class GetResources extends PureComponent<Props, StateProps> {
   }
 
   public render() {
-    const {resources, children} = this.props
-    let status
-    for (let i = 0; i < resources.length; i++) {
-      const resource = resources[i]
-      // reduce the values of the status to 1 value
-      switch (this.props[resource].status) {
-        case 'NotStarted': {
-          status = 'NotStarted'
-          break
-        }
-        case 'Loading': {
-          status = 'Loading'
-          break
-        }
-        case 'Done': {
-          status = 'Done'
-          break
-        }
-        default: {
-          status = 'Error'
-          break
-        }
-      }
-    }
+    const {children, remoteDataState} = this.props
 
     return (
-      <SpinnerContainer loading={status} spinnerComponent={<TechnoSpinner />}>
+      <SpinnerContainer
+        loading={remoteDataState}
+        spinnerComponent={<TechnoSpinner />}
+      >
         <>{children}</>
       </SpinnerContainer>
     )
   }
 }
 
-const mstp = ({
-  labels,
-  buckets,
-  telegrafs,
-  variables,
-  scrapers,
-  tokens,
-  dashboards,
-  tasks,
-  templates,
-  members,
-  checks,
-  rules,
-  endpoints,
-}: AppState): StateProps => {
+const mstp = (state: AppState, props: Props): StateProps => {
+  const {
+    labels,
+    buckets,
+    telegrafs,
+    variables,
+    scrapers,
+    tokens,
+    dashboards,
+    tasks,
+    templates,
+    members,
+    checks,
+    rules,
+    endpoints,
+  } = state
+
+  const remoteDataState = getResourcesStatus(state, props)
+
   return {
     labels,
     buckets,
@@ -238,6 +222,7 @@ const mstp = ({
     checks,
     rules,
     endpoints,
+    remoteDataState,
   }
 }
 
