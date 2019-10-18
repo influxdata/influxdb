@@ -103,7 +103,7 @@ export enum ResourceType {
 class GetResources extends PureComponent<Props, StateProps> {
   public componentDidMount() {
     const {resources} = this.props
-    const promises = [];
+    const promises = []
     resources.forEach(resource => {
       promises.push(this.getResourceDetails(resource))
     })
