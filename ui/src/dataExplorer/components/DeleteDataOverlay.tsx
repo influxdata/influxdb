@@ -46,7 +46,7 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
       <Overlay.Container maxWidth={600}>
         <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
         <Overlay.Body>
-          <GetResources resource={ResourceType.Buckets}>
+          <GetResources resources={[ResourceType.Buckets]}>
             <DeleteDataForm
               initialBucketName={selectedBucketName}
               initialTimeRange={selectedTimeRange}

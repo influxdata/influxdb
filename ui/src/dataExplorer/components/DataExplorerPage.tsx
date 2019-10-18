@@ -19,7 +19,7 @@ const DataExplorerPage: SFC = ({children}) => {
   return (
     <Page titleTag={pageTitleSuffixer(['Data Explorer'])}>
       {children}
-      <GetResources resource={ResourceType.Variables}>
+      <GetResources resources={[ResourceType.Variables]}>
         <Page.Header fullWidth={true}>
           <Page.HeaderLeft>
             <PageTitleWithOrg title="Data Explorer" />
