@@ -3,8 +3,6 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"regexp"
-	"strings"
 )
 
 // NotificationRule is a *Query* of a *Status Bucket* that returns the *Status*.
@@ -79,47 +77,6 @@ type NotificationRuleFilter struct {
 	Organization *string
 	Tags         []Tag
 	UserResourceMappingFilter
-}
-
-// Tag is a tag key-value pair.
-type Tag struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-// NewTag generates a tag pair from a string in the format key:value.
-func NewTag(s string) (Tag, error) {
-	var tagPair Tag
-
-	matched, err := regexp.MatchString(`^[a-zA-Z0-9_]+:[a-zA-Z0-9_]+$`, s)
-	if !matched || err != nil {
-		return tagPair, &Error{
-			Code: EInvalid,
-			Msg:  `tag must be in form key:value`,
-		}
-	}
-
-	slice := strings.Split(s, ":")
-	tagPair.Key = slice[0]
-	tagPair.Value = slice[1]
-
-	return tagPair, nil
-}
-
-// Valid returns an error if the tagpair is missing fields
-func (t Tag) Valid() error {
-	if t.Key == "" || t.Value == "" {
-		return &Error{
-			Code: EInvalid,
-			Msg:  "tag must contain a key and a value",
-		}
-	}
-	return nil
-}
-
-// QueryParam converts a Tag to a string query parameter
-func (t *Tag) QueryParam() string {
-	return strings.Join([]string{t.Key, t.Value}, ":")
 }
 
 // QueryParams Converts NotificationRuleFilter fields to url query params.
