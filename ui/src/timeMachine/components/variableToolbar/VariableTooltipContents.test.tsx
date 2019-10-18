@@ -67,7 +67,7 @@ const setInitialState = (state: AppState) => {
 
 describe("Time Machine's variable dropdown", () => {
   describe('rendering map type variables', () => {
-    it("renders the variables' keys, rather than their values", async () => {
+    it("renders the variables' keys, rather than their values", () => {
       const {getByTestId, getByLabelText, getByText} = renderWithRedux(
         <VariableTooltipContents variableID="04960e76e5afe000" />,
         setInitialState

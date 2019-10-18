@@ -26,10 +26,10 @@ export function findIncludedsFromRelationships<
 export function findIncludedFromRelationship<
   T extends {id: string; type: TemplateType}
 >(
-  includeds: {id: string; type: TemplateType}[],
+  included: {id: string; type: TemplateType}[],
   r: {id: string; type: TemplateType}
 ): T {
-  return includeds.find((i): i is T => i.id === r.id && i.type === r.type) as T
+  return included.find((i): i is T => i.id === r.id && i.type === r.type)
 }
 
 export const findLabelsToCreate = (

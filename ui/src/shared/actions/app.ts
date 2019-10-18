@@ -27,9 +27,9 @@ export const disablePresentationMode = (): DisablePresentationModeAction => ({
   type: ActionTypes.DisablePresentationMode,
 })
 
-export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => async (
+export const delayEnablePresentationMode: DelayEnablePresentationModeDispatcher = () => (
   dispatch: Dispatch<EnablePresentationModeAction>
-): Promise<NodeJS.Timer> =>
+): NodeJS.Timer =>
   setTimeout(() => {
     dispatch(enablePresentationMode())
     notify(presentationMode())

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
@@ -317,10 +318,7 @@ func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID influxd
 		return run, err
 	}
 
-	sf, err := run.ScheduledForTime()
-	if err != nil {
-		return run, err
-	}
+	sf := run.ScheduledFor
 
 	return as.ForceRun(ctx, taskID, sf.Unix())
 }
@@ -358,15 +356,35 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 					r.TaskID = *id
 				}
 			case startedAtField:
-				r.StartedAt = cr.Strings(j).ValueString(i)
+				started, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
+				if err != nil {
+					re.logger.Info("failed to parse startedAt time", zap.Error(err))
+					continue
+				}
+				r.StartedAt = started.UTC()
 			case requestedAtField:
-				r.RequestedAt = cr.Strings(j).ValueString(i)
+				requested, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
+				if err != nil {
+					re.logger.Info("failed to parse requestedAt time", zap.Error(err))
+					continue
+				}
+				r.RequestedAt = requested.UTC()
 			case scheduledForField:
-				r.ScheduledFor = cr.Strings(j).ValueString(i)
+				scheduled, err := time.Parse(time.RFC3339, cr.Strings(j).ValueString(i))
+				if err != nil {
+					re.logger.Info("failed to parse scheduledAt time", zap.Error(err))
+					continue
+				}
+				r.ScheduledFor = scheduled.UTC()
 			case statusTag:
 				r.Status = cr.Strings(j).ValueString(i)
 			case finishedAtField:
-				r.FinishedAt = cr.Strings(j).ValueString(i)
+				finished, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
+				if err != nil {
+					re.logger.Info("failed to parse finishedAt time", zap.Error(err))
+					continue
+				}
+				r.FinishedAt = finished.UTC()
 			case logField:
 				logBytes := bytes.TrimSpace(cr.Strings(j).Value(i))
 				if len(logBytes) != 0 {

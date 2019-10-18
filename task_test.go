@@ -3,7 +3,6 @@ package influxdb_test
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
@@ -138,27 +137,4 @@ from(bucket: "x")
 		}
 	})
 
-}
-
-func TestRun(t *testing.T) {
-	t.Run("ScheduledForTime", func(t *testing.T) {
-		now := time.Now().Truncate(time.Second)
-		r := platform.Run{
-			ScheduledFor: now.Format(time.RFC3339),
-		}
-		schedFor, err := r.ScheduledForTime()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !now.Equal(schedFor) {
-			t.Fatalf("expected scheduled for to match now time: exp: %s, got: %s", now.String(), schedFor.String())
-		}
-		r = platform.Run{
-			ScheduledFor: "ugly time",
-		}
-		schedFor, err = r.ScheduledForTime()
-		if err == nil {
-			t.Fatal("failed to error with a bad time")
-		}
-	})
 }

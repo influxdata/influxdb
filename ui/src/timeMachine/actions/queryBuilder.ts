@@ -268,7 +268,7 @@ export const loadBuckets = () => async (
 export const selectBucket = (
   bucket: string,
   resetSelections: boolean = false
-) => async (dispatch: Dispatch<Action>) => {
+) => (dispatch: Dispatch<Action>) => {
   dispatch(setBuilderBucket(bucket, resetSelections))
   dispatch(loadTagSelector(0))
 }
@@ -383,7 +383,7 @@ const loadTagSelectorValues = (index: number) => async (
   }
 }
 
-export const selectTagValue = (index: number, value: string) => async (
+export const selectTagValue = (index: number, value: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -416,7 +416,7 @@ export const selectTagValue = (index: number, value: string) => async (
   }
 }
 
-export const selectBuilderFunction = (name: string) => async (
+export const selectBuilderFunction = (name: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -440,26 +440,26 @@ export const selectBuilderFunction = (name: string) => async (
   dispatch(setFunctions(newFunctions))
 }
 
-export const selectTagKey = (index: number, key: string) => async (
+export const selectTagKey = (index: number, key: string) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(setBuilderTagKeySelection(index, key))
   dispatch(loadTagSelectorValues(index))
 }
 
-export const searchTagValues = (index: number) => async (
+export const searchTagValues = (index: number) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(loadTagSelectorValues(index))
 }
 
-export const searchTagKeys = (index: number) => async (
+export const searchTagKeys = (index: number) => (
   dispatch: Dispatch<Action>
 ) => {
   dispatch(loadTagSelector(index))
 }
 
-export const addTagSelector = () => async (
+export const addTagSelector = () => (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -470,7 +470,7 @@ export const addTagSelector = () => async (
   dispatch(loadTagSelector(newIndex))
 }
 
-export const removeTagSelector = (index: number) => async (
+export const removeTagSelector = (index: number) => (
   dispatch: Dispatch<Action>
 ) => {
   queryBuilderFetcher.cancelFindValues(index)
@@ -480,7 +480,7 @@ export const removeTagSelector = (index: number) => async (
   dispatch(loadTagSelector(index))
 }
 
-export const reloadTagSelectors = () => async (dispatch: Dispatch<Action>) => {
+export const reloadTagSelectors = () => (dispatch: Dispatch<Action>) => {
   dispatch(setBuilderTagsStatus(RemoteDataState.Loading))
   dispatch(loadTagSelector(0))
 }

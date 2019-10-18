@@ -65,7 +65,7 @@ export function fastConcat<T = any>(...args: T[][]): T[] {
   let childLength = 0
 
   for (let i = 0; i < length; i++) {
-    item = arguments[i]
+    item = args[i]
     if (Array.isArray(item)) {
       childLength = item.length
       for (let j = 0; j < childLength; j++) {

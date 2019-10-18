@@ -14,7 +14,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface Props {
   label: Label
   onDismiss: () => void
-  onUpdateLabel: (label: Label) => Promise<void>
+  onUpdateLabel: (label: Label) => void
   onNameValidation: (name: string) => string | null
 }
 
@@ -51,6 +51,7 @@ class UpdateLabelOverlay extends Component<Props, State> {
             onSubmit={this.handleSubmit}
             onCloseModal={onDismiss}
             onInputChange={this.handleInputChange}
+            onLabelPropertyChange={this.handleLabelPropertyChange}
             buttonText="Save Changes"
             isFormValid={this.isFormValid}
             onNameValidation={onNameValidation}
@@ -79,23 +80,24 @@ class UpdateLabelOverlay extends Component<Props, State> {
   }
 
   private handleInputChange = (e: ChangeEvent<HTMLInputElement>): void => {
-    const value = e.target.value
-    const key = e.target.name
+    const {value, name} = e.target
 
-    if (key === 'description' || key === 'color') {
-      const properties = {...this.state.label.properties, [key]: value}
-      const label = {...this.state.label, properties}
+    this.setState(prevState => ({
+      label: {...prevState.label, [name]: value},
+    }))
+  }
 
-      this.setState({
-        label,
-      })
-    } else {
-      const label = {...this.state.label, [key]: value}
+  private handleLabelPropertyChange = (
+    e: ChangeEvent<HTMLInputElement>
+  ): void => {
+    const {value, name} = e.target
 
-      this.setState({
-        label,
-      })
-    }
+    this.setState(prevState => ({
+      label: {
+        ...prevState.label,
+        properties: {...prevState.label.properties, [name]: value},
+      },
+    }))
   }
 
   private handleColorHexChange = (

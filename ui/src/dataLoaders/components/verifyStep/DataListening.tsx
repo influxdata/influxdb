@@ -145,7 +145,9 @@ class DataListening extends PureComponent<OwnProps & WithRouterProps, State> {
       return
     }
 
-    this.intervalID = setTimeout(this.checkForData, FETCH_WAIT)
+    this.intervalID = setTimeout(() => {
+      this.checkForData()
+    }, FETCH_WAIT)
   }
 
   private startTimer() {

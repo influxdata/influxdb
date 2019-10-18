@@ -36,25 +36,23 @@ func (s *StoragePointsWriterRecorder) Record(ctx context.Context, orgID influxdb
 
 	// log an error if we have incomplete data on finish
 	if !run.ID.Valid() ||
-		run.ScheduledFor == "" ||
-		run.StartedAt == "" ||
-		run.FinishedAt == "" ||
+		run.ScheduledFor.IsZero() ||
+		run.StartedAt.IsZero() ||
+		run.FinishedAt.IsZero() ||
 		run.Status == "" {
 		s.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
 	}
 
 	fields := map[string]interface{}{}
 	fields[runIDField] = run.ID.String()
-	fields[startedAtField] = run.StartedAt
-	fields[finishedAtField] = run.FinishedAt
-	fields[scheduledForField] = run.ScheduledFor
-	if run.RequestedAt != "" {
-		fields[requestedAtField] = run.RequestedAt
-	}
+	fields[startedAtField] = run.StartedAt.Format(time.RFC3339Nano)
+	fields[finishedAtField] = run.FinishedAt.Format(time.RFC3339Nano)
+	fields[scheduledForField] = run.ScheduledFor.Format(time.RFC3339)
+	fields[requestedAtField] = run.RequestedAt.Format(time.RFC3339)
 
-	startedAt, err := run.StartedAtTime()
-	if err != nil {
-		startedAt = time.Now()
+	startedAt := run.StartedAt
+	if startedAt.IsZero() {
+		startedAt = time.Now().UTC()
 	}
 
 	logBytes, err := json.Marshal(run.Log)

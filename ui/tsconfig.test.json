@@ -4,7 +4,16 @@
     "assets",
     "build",
     "node_modules",
-    "cypress",
-    "webpack.tsconfig.json"
+    "webpack.tsconfig.json",
+    "webpack.*.ts",
+    "coverage"
+  ],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "cypress/**/*.ts",
+    "cypress/**/*.js",
+    "mocks/**/*.ts",
+    "mocks/**/*.tsx"
   ]
 }

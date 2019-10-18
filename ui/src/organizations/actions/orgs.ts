@@ -1,5 +1,6 @@
 // Libraries
 import {Dispatch} from 'redux'
+import {ThunkAction} from 'redux-thunk'
 import {push, RouterAction} from 'react-router-redux'
 
 // APIs
@@ -156,7 +157,7 @@ export const getOrganizations = () => async (
 export const createOrgWithBucket = (
   org: Organization,
   bucket: Bucket
-) => async (
+): ThunkAction<Promise<void>> => async (
   dispatch: Dispatch<Actions | RouterAction | NotificationAction>
 ) => {
   let createdOrg: Organization
@@ -252,7 +253,10 @@ export const updateOrg = (org: Organization) => async (
   }
 }
 
-export const renameOrg = (originalName: string, org: Organization) => async (
+export const renameOrg = (
+  originalName: string,
+  org: Organization
+): ThunkAction<Promise<void>> => async (
   dispatch: Dispatch<EditOrg | NotificationAction>
 ) => {
   try {

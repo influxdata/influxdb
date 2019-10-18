@@ -251,7 +251,7 @@ interface PendingValueRequests {
   [contextID: string]: CancelBox<VariableValuesByID>
 }
 
-let pendingValueRequests: PendingValueRequests = {}
+const pendingValueRequests: PendingValueRequests = {}
 
 export const refreshVariableValues = (
   contextID: string,

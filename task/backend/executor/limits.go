@@ -28,14 +28,10 @@ func ConcurrencyLimit(exec *TaskExecutor) LimitFunc {
 		// sort by scheduledFor time because we want to make sure older scheduled for times
 		// are higher priority
 		sort.SliceStable(runs, func(i, j int) bool {
-			runi, err := runs[i].ScheduledForTime()
-			if err != nil {
-				return false
-			}
-			runj, err := runs[j].ScheduledForTime()
-			if err != nil {
-				return false
-			}
+			runi := runs[i].ScheduledFor
+
+			runj := runs[j].ScheduledFor
+
 			return runi.Before(runj)
 		})
 

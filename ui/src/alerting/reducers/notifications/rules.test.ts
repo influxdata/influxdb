@@ -50,7 +50,7 @@ describe('rulesReducer', () => {
     })
 
     it('updates rule in list if it exists', () => {
-      let initialState = defaultNotificationRulesState
+      const initialState = defaultNotificationRulesState
       initialState.list = [NEW_RULE_DRAFT]
 
       const actual = rulesReducer(

@@ -3,6 +3,7 @@ package authorizer_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
@@ -68,9 +69,9 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		ID:           runID,
 		TaskID:       taskID,
 		Status:       "completed",
-		ScheduledFor: "a while ago",
-		StartedAt:    "not so long ago",
-		FinishedAt:   "more recently",
+		ScheduledFor: time.Now().UTC(),
+		StartedAt:    time.Now().UTC().Add(time.Second * 3),
+		FinishedAt:   time.Now().UTC().Add(time.Second * 10),
 		Log:          []influxdb.Log{log},
 	}
 

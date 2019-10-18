@@ -112,7 +112,6 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 
 	// Poll for the task to have started and finished.
 	deadline := time.Now().Add(10 * time.Second) // Arbitrary deadline; 10s seems safe for -race on a resource-constrained system.
-	ndrString := time.Unix(ndr, 0).UTC().Format(time.RFC3339)
 	var targetRun influxdb.Run
 	i := 0
 	for {
@@ -133,20 +132,20 @@ from(bucket:"my_bucket_in") |> range(start:-5m) |> to(bucket:"%s", org:"%s")`, b
 		}
 		i++
 		for _, r := range runs {
-			if r.ScheduledFor == ndrString {
+			if r.ScheduledFor.IsZero() {
 				targetRun = *r
 				break
 			} else {
-				t.Logf("Found run matching target schedule %s, but looking for %s", r.ScheduledFor, ndrString)
+				t.Logf("Found run matching target schedule %s, but expected empty", r.ScheduledFor)
 			}
 		}
 
-		if targetRun.ScheduledFor != ndrString {
+		if !targetRun.ScheduledFor.IsZero() {
 			t.Logf("Didn't find scheduled run yet")
 			continue
 		}
 
-		if targetRun.FinishedAt == "" {
+		if targetRun.FinishedAt.IsZero() {
 			// Run exists but hasn't completed yet.
 			t.Logf("Found target run, but not finished yet: %#v", targetRun)
 			continue

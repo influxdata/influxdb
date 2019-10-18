@@ -50,7 +50,9 @@ export class Signin extends PureComponent<Props, State> {
 
     if (this.hasMounted) {
       this.setState({loading: RemoteDataState.Done})
-      this.intervalID = setInterval(this.checkForLogin, FETCH_WAIT)
+      this.intervalID = setInterval(() => {
+        this.checkForLogin()
+      }, FETCH_WAIT)
     }
   }
 
