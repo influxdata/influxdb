@@ -60,11 +60,11 @@ class TaskEditPage extends PureComponent<Props> {
     super(props)
   }
 
-  public async componentDidMount() {
+  public componentDidMount() {
     const {
       params: {id},
     } = this.props
-    await this.props.selectTaskByID(id)
+    this.props.selectTaskByID(id)
 
     const {currentTask} = this.props
 

@@ -124,10 +124,10 @@ export class TelegrafPluginInstructions extends PureComponent<Props> {
     )
   }
 
-  private handleFormSubmit = async () => {
+  private handleFormSubmit = () => {
     const {onSaveTelegrafConfig, telegrafConfigID} = this.props
 
-    await onSaveTelegrafConfig()
+    onSaveTelegrafConfig()
 
     if (!telegrafConfigID) {
       this.handleCreateDashboardsForPlugins()

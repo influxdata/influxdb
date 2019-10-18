@@ -80,7 +80,7 @@ export const extractVariableEditorConstant = (
 
 const getVariablesForDashboardMemoized = memoizeOne(
   (variables: VariablesState, variableIDs: string[]): Variable[] => {
-    let variablesForDash = []
+    const variablesForDash = []
 
     variableIDs.forEach(variableID => {
       const variable = get(variables, `${variableID}.variable`)

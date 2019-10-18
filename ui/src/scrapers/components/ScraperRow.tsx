@@ -57,8 +57,8 @@ export default class ScraperRow extends PureComponent<Props> {
     onDeleteScraper(scraper)
   }
 
-  private handleUpdateScraperName = async (name: string) => {
+  private handleUpdateScraperName = (name: string) => {
     const {onUpdateScraper, scraper} = this.props
-    await onUpdateScraper({...scraper, name})
+    onUpdateScraper({...scraper, name})
   }
 }

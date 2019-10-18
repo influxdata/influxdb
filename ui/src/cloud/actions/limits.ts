@@ -281,10 +281,7 @@ export const checkDashboardLimits = () => (
   }
 }
 
-export const checkBucketLimits = () => async (
-  dispatch,
-  getState: () => AppState
-) => {
+export const checkBucketLimits = () => (dispatch, getState: () => AppState) => {
   try {
     const {
       buckets: {list},
@@ -307,10 +304,7 @@ export const checkBucketLimits = () => async (
   }
 }
 
-export const checkTaskLimits = () => async (
-  dispatch,
-  getState: () => AppState
-) => {
+export const checkTaskLimits = () => (dispatch, getState: () => AppState) => {
   try {
     const {
       tasks: {list},

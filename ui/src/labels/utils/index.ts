@@ -11,8 +11,8 @@ export const validateLabelUniqueness = (
   labelNames: string[],
   name: string
 ): string | null => {
-  if (!name) {
-    return 'Label name is required'
+  if (typeof name !== 'string') {
+    return null
   }
 
   if (name.trim() === '') {

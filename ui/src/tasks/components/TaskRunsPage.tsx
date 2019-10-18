@@ -133,9 +133,9 @@ class TaskRunsPage extends PureComponent<Props & WithRouterProps, State> {
     return 'Runs'
   }
 
-  private handleRunTask = async () => {
+  private handleRunTask = () => {
     const {onRunTask, params, getRuns} = this.props
-    await onRunTask(params.id)
+    onRunTask(params.id)
     getRuns(params.id)
   }
 

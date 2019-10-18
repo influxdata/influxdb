@@ -131,9 +131,9 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     router.push(`/orgs/${orgID}/tasks/${task.id}/runs`)
   }
 
-  private handleRenameTask = async (name: string) => {
+  private handleRenameTask = (name: string) => {
     const {onUpdate, task} = this.props
-    await onUpdate({...task, name})
+    onUpdate({...task, name})
   }
 
   private handleExport = () => {
@@ -160,24 +160,20 @@ export class TaskCard extends PureComponent<Props & WithRouterProps> {
     )
   }
 
-  private handleAddLabel = (label: ILabel): void => {
+  private handleAddLabel = (label: ILabel) => {
     const {task, onAddTaskLabels} = this.props
 
     onAddTaskLabels(task.id, [label])
   }
 
-  private handleRemoveLabel = (label: ILabel): void => {
+  private handleRemoveLabel = (label: ILabel) => {
     const {task, onRemoveTaskLabels} = this.props
 
     onRemoveTaskLabels(task.id, [label])
   }
 
-  private handleCreateLabel = async (label: ILabel): Promise<void> => {
-    try {
-      await this.props.onCreateLabel(label.name, label.properties)
-    } catch (err) {
-      throw err
-    }
+  private handleCreateLabel = (label: ILabel) => {
+    this.props.onCreateLabel(label.name, label.properties)
   }
 
   private get isTaskActive(): boolean {

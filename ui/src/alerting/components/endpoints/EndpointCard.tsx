@@ -137,8 +137,8 @@ const EndpointCard: FC<Props> = ({
     />
   )
 
-  const handleCreateLabel = async (label: Label) => {
-    await onCreateLabel(label.name, label.properties)
+  const handleCreateLabel = (label: Label) => {
+    onCreateLabel(label.name, label.properties)
   }
   const handleAddEndpointLabel = (label: Label) => {
     onAddEndpointLabel(id, label)

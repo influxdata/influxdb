@@ -73,7 +73,7 @@ class VariableFormContext extends PureComponent<Props> {
     return <VariableForm {...props} />
   }
 
-  private handleHideOverlay() {
+  private handleHideOverlay = () => {
     const {onHideOverlay, onEditorClose} = this.props
 
     onEditorClose()

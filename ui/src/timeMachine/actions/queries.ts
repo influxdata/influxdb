@@ -176,7 +176,7 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
   type: 'SAVE_DRAFT_QUERIES',
 })
 
-export const saveAndExecuteQueries = () => async dispatch => {
+export const saveAndExecuteQueries = () => dispatch => {
   dispatch(saveDraftQueries())
   dispatch(executeQueries())
 }
@@ -200,7 +200,7 @@ export const addVariableToTimeMachine = (variableID: string) => async (
 export const selectVariableValue = (
   variableID: string,
   selectedValue: string
-) => async (dispatch, getState: GetState) => {
+) => (dispatch, getState: GetState) => {
   const contextID = getState().timeMachines.activeTimeMachineID
 
   dispatch(selectValue(contextID, variableID, selectedValue))

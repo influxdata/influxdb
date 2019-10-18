@@ -37,7 +37,7 @@ export type DelayEnablePresentationModeDispatcher = () => DelayEnablePresentatio
 
 export type DelayEnablePresentationModeThunk = (
   dispatch: Dispatch<EnablePresentationModeAction>
-) => Promise<NodeJS.Timer>
+) => NodeJS.Timer
 
 export type SetAutoRefreshActionCreator = (
   milliseconds: number

@@ -127,7 +127,7 @@ class CreateOrgOverlay extends PureComponent<Props, State> {
     const {org, bucket} = this.state
     const {createOrgWithBucket} = this.props
 
-    await createOrgWithBucket(org, bucket as any)
+    await createOrgWithBucket(org, bucket)
   }
 
   private closeModal = () => {

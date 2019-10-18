@@ -116,9 +116,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
     this.cursorPosition = position
   }
 
-  private handleInsertVariable = async (
-    variableName: string
-  ): Promise<void> => {
+  private handleInsertVariable = (variableName: string): void => {
     const {activeQueryText} = this.props
     const {line, ch} = this.cursorPosition
 
@@ -129,15 +127,13 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
       variableName
     )
 
-    await this.props.onSetActiveQueryText(updatedScript)
+    this.props.onSetActiveQueryText(updatedScript)
 
     this.handleCursorPosition(cursorPosition)
   }
 
-  private handleInsertFluxFunction = async (
-    func: FluxToolbarFunction
-  ): Promise<void> => {
-    const {activeQueryText} = this.props
+  private handleInsertFluxFunction = (func: FluxToolbarFunction): void => {
+    const {activeQueryText, onSetActiveQueryText} = this.props
     const {line} = this.cursorPosition
 
     const {updatedScript, cursorPosition} = insertFluxFunction(
@@ -145,8 +141,8 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
       activeQueryText,
       func
     )
-    await this.props.onSetActiveQueryText(updatedScript)
 
+    onSetActiveQueryText(updatedScript)
     this.handleCursorPosition(cursorPosition)
   }
 

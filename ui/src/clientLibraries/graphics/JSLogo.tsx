@@ -1,6 +1,7 @@
 // Libraries
 import React, {SFC} from 'react'
 
+/* eslint-disable no-mixed-spaces-and-tabs */
 const JSLogo: SFC = () => {
   return (
     <svg
@@ -253,5 +254,5 @@ const JSLogo: SFC = () => {
     </svg>
   )
 }
-
+/* eslint-enable */
 export default JSLogo
