@@ -37,6 +37,8 @@ module.exports = {
     'no-useless-escape': 'off',
     'no-undef': 'off',
     'no-fallthrough': 'off',
+    'require-atomic-updates': 'off',
+    'no-prototype-builtins': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-namespace': 'off',
