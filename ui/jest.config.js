@@ -3,9 +3,9 @@ module.exports = {
   displayName: 'test',
   testURL: 'http://localhost',
   testPathIgnorePatterns: [
-    '<rootDir>/build',
+    'build',
     '<rootDir>/node_modules/(?!(jest-test))',
-    '<rootDir>/cypress',
+    'cypress',
   ],
   setupFiles: ['<rootDir>/testSetup.ts'],
   modulePaths: ['<rootDir>', '<rootDir>/node_modules'],
@@ -13,11 +13,7 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': 'ts-jest',
   },
-  // https://github.com/facebook/jest/issues/7842
-  testMatch: [
-    '<rootDir>/src/**/*.test.(ts|tsx)'
-  ],
-  //testRegex: '<rootDir>/**/*\.test\.{tsx,ts}$',
+  testRegex: '(/__tests__/.*|(\\.|/)(test))\\.(ts?|tsx?)$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   snapshotSerializers: ['enzyme-to-json/serializer'],
   moduleNameMapper: {
