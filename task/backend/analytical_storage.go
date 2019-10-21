@@ -247,7 +247,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 		return run, err
 	}
 
-	sb, err := influxdb.FindSystemBucket(ctx, as.BucketService, task.OrganizationID, "_tasks")
+	sb, err := influxdb.FindSystemBucket(ctx, as.BucketService, task.OrganizationID, influxdb.TasksSystemBucketName)
 	if err != nil {
 		return run, err
 	}
@@ -266,8 +266,9 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	// so we are faking a read only permission to the org's system bucket
 	runSystemBucketID := sb.ID
 	runAuth := &influxdb.Authorization{
-		ID:    sb.ID,
-		OrgID: task.OrganizationID,
+		ID:     sb.ID,
+		Status: influxdb.Active,
+		OrgID:  task.OrganizationID,
 		Permissions: []influxdb.Permission{
 			influxdb.Permission{
 				Action: influxdb.ReadAction,

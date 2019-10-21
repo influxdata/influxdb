@@ -139,7 +139,7 @@ func (s *Service) createSystemBuckets(ctx context.Context, tx Tx, o *influxdb.Or
 		OrgID:           o.ID,
 		Type:            influxdb.BucketTypeSystem,
 		Name:            influxdb.TasksSystemBucketName,
-		RetentionPeriod: influxdb.SystemBucketRetention,
+		RetentionPeriod: influxdb.TasksSystemBucketRetention,
 		Description:     "System bucket for task logs",
 	}
 
@@ -151,7 +151,7 @@ func (s *Service) createSystemBuckets(ctx context.Context, tx Tx, o *influxdb.Or
 		OrgID:           o.ID,
 		Type:            influxdb.BucketTypeSystem,
 		Name:            influxdb.MonitoringSystemBucketName,
-		RetentionPeriod: influxdb.SystemBucketRetention,
+		RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
 		Description:     "System bucket for monitoring logs",
 	}
 
@@ -337,7 +337,7 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 			ID:              influxdb.TasksSystemBucketID,
 			Type:            influxdb.BucketTypeSystem,
 			Name:            influxdb.TasksSystemBucketName,
-			RetentionPeriod: influxdb.SystemBucketRetention,
+			RetentionPeriod: influxdb.TasksSystemBucketRetention,
 			Description:     "System bucket for task logs",
 		}
 
@@ -347,7 +347,7 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 			ID:              influxdb.MonitoringSystemBucketID,
 			Type:            influxdb.BucketTypeSystem,
 			Name:            influxdb.MonitoringSystemBucketName,
-			RetentionPeriod: influxdb.SystemBucketRetention,
+			RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
 			Description:     "System bucket for monitoring logs",
 		}
 

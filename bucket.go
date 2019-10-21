@@ -17,8 +17,10 @@ const (
 	BucketTypeUser = BucketType(0)
 	// BucketTypeSystem is an internally created bucket that cannot be deleted/renamed.
 	BucketTypeSystem = BucketType(1)
-	// SystemBucketRetention is the time we should retain system bucket information
-	SystemBucketRetention = time.Hour * 24 * 7
+	// MonitoringSystemBucketRetention is the time we should retain monitoring system bucket information
+	MonitoringSystemBucketRetention = time.Hour * 24 * 7
+	// TasksSystemBucketRetention is the time we should retain task system bucket information
+	TasksSystemBucketRetention = time.Hour * 24 * 3
 )
 
 // Bucket names constants
@@ -162,7 +164,7 @@ func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name stri
 			ID:              TasksSystemBucketID,
 			Type:            BucketTypeSystem,
 			Name:            TasksSystemBucketName,
-			RetentionPeriod: SystemBucketRetention,
+			RetentionPeriod: TasksSystemBucketRetention,
 			Description:     "System bucket for task logs",
 		}, nil
 	case MonitoringSystemBucketName:
@@ -170,7 +172,7 @@ func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name stri
 			ID:              MonitoringSystemBucketID,
 			Type:            BucketTypeSystem,
 			Name:            MonitoringSystemBucketName,
-			RetentionPeriod: SystemBucketRetention,
+			RetentionPeriod: MonitoringSystemBucketRetention,
 			Description:     "System bucket for monitoring logs",
 		}, nil
 	default:
