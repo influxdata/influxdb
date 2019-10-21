@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
@@ -108,7 +109,6 @@ func (e *TaskExecutor) Execute(ctx context.Context, id scheduler.ID, scheduledAt
 // We then start a worker to work the newly queued jobs.
 func (e *TaskExecutor) PromisedExecute(ctx context.Context, id scheduler.ID, scheduledAt time.Time) (Promise, error) {
 	iid := influxdb.ID(id)
-
 	// create a run
 	p, err := e.createRun(ctx, iid, scheduledAt)
 	if err != nil {
@@ -128,7 +128,7 @@ func (e *TaskExecutor) ManualRun(ctx context.Context, id influxdb.ID, runID infl
 	p, err := e.createPromise(ctx, r)
 
 	e.startWorker()
-	e.metrics.manualRunsCounter.WithLabelValues(string(id)).Inc()
+	e.metrics.manualRunsCounter.WithLabelValues(id.String()).Inc()
 	return p, err
 }
 
@@ -147,7 +147,7 @@ func (e *TaskExecutor) ResumeCurrentRun(ctx context.Context, id influxdb.ID, run
 			p, err := e.createPromise(ctx, run)
 
 			e.startWorker()
-			e.metrics.resumeRunsCounter.WithLabelValues(string(id)).Inc()
+			e.metrics.resumeRunsCounter.WithLabelValues(id.String()).Inc()
 			return p, err
 		}
 	}
@@ -314,6 +314,7 @@ func (w *worker) start(p *promise) {
 }
 
 func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
+
 	// trace
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
@@ -326,8 +327,6 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	// add to metrics
 	rd := time.Since(p.run.StartedAt)
 	w.te.metrics.FinishRun(p.task, rs, rd)
-
-	w.te.tcs.FinishRun(ctx, p.task.ID, p.run.ID)
 
 	// log error
 	if err != nil {
@@ -351,6 +350,8 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	} else {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
 	}
+	w.te.tcs.FinishRun(p.ctx, p.task.ID, p.run.ID)
+
 }
 
 func (w *worker) executeQuery(p *promise) {
@@ -376,7 +377,7 @@ func (w *worker) executeQuery(p *promise) {
 			Now: sf,
 		},
 	}
-
+	ctx = icontext.SetAuthorizer(ctx, p.task.Authorization)
 	it, err := w.te.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.

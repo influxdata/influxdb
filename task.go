@@ -64,6 +64,61 @@ func (t *Task) EffectiveCron() string {
 	return ""
 }
 
+// TaskEffectiveCron returns the effective cron string of the options
+// If the cron option was specified, it is returned.
+// If the every option was specified, it is converted into a cron string using by taking the largest duration and setting it to run at that interval
+// Otherwise, the empty string is returned.
+// The value of the offset option is not considered.
+// TODO(docmerlin): when we switch completely to the new scheduler, rename this as EffectiveCron and delete the current
+//  EffectiveCron method
+func (t *Task) TaskEffectiveCron() (string, error) {
+	if t.Cron != "" {
+		return t.Cron, nil
+	}
+
+	if t.Every != "" {
+		dur := &options.Duration{}
+		err := dur.Parse(t.Every)
+		if err != nil {
+			return "", err
+		}
+		ts := struct {
+			hours   int64
+			minutes int64
+			seconds int64
+		}{1, 1, 1}
+
+		for _, x := range dur.Node.Values {
+			if x.Magnitude < 0 {
+				return "", errors.New("we do not support negative durations")
+			}
+			switch x.Unit {
+			case "h":
+				if x.Magnitude > 24 {
+					return "", errors.New("we do not support everys with hours units over 24 ")
+				}
+				ts.hours = x.Magnitude
+				return fmt.Sprintf("0 0 */%d * * * *", ts.hours), nil
+			case "m":
+				if x.Magnitude > 60 {
+					return "", errors.New("we do not support everys with seconds units over 60 ")
+				}
+				ts.minutes = x.Magnitude
+				return fmt.Sprintf("0 */%d */%d * * * *", ts.minutes, ts.hours), nil
+
+			case "s":
+				if x.Magnitude > 60 {
+					return "", errors.New("we do not support everys with seconds units over 60 ")
+				}
+				ts.seconds = x.Magnitude
+				return fmt.Sprintf("*/%d */%d */%d * * * *", ts.seconds, ts.minutes, ts.hours), nil
+			}
+		}
+		return fmt.Sprintf("*/%d */%d */%d * * * *", ts.seconds, ts.minutes, ts.hours), nil
+	}
+	return "", errors.New("either every or cron must be set")
+}
+
 // LatestCompletedTime gives the time.Time that the task was last queued to be run in RFC3339 format.
 func (t *Task) LatestCompletedTime() (time.Time, error) {
 	tm := t.LatestCompleted

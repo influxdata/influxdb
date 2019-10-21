@@ -334,6 +334,8 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	}
 	nt, err := it.cron.Next(sch.LastScheduled())
 	if err != nil {
+		s.sm.scheduleFail(it.id)
+		s.onErr(context.Background(), it.id, time.Time{}, err)
 		return err
 	}
 	it.next = nt.UTC().Unix()

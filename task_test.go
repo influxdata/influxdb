@@ -138,3 +138,78 @@ from(bucket: "x")
 	})
 
 }
+
+func TestTask_EffectiveCron(t *testing.T) {
+	tests := []struct {
+		name         string
+		every        string
+		cron         string
+		expectedCron string
+		wanterr      bool
+	}{
+
+		{
+			name:         "1h",
+			every:        "1h",
+			cron:         "",
+			expectedCron: "0 0 */1 * * * *",
+		},
+		{
+			name:         "1m",
+			every:        "1m",
+			cron:         "",
+			expectedCron: "0 */1 */1 * * * *",
+		},
+		{
+			name:         "1s",
+			every:        "1s",
+			cron:         "",
+			expectedCron: "*/1 */1 */1 * * * *",
+		},
+		{
+			name:         "3m",
+			every:        "3m",
+			cron:         "",
+			expectedCron: "0 */3 */1 * * * *",
+		},
+		{
+			name:         "2h",
+			every:        "2h",
+			cron:         "",
+			expectedCron: "0 0 */2 * * * *",
+		},
+		{
+			name:         "prefer cron",
+			every:        "7h",
+			cron:         "* * * * *",
+			expectedCron: "* * * * *",
+		},
+		{
+			name:    "negative dur",
+			every:   "-7d",
+			cron:    "",
+			wanterr: true,
+		},
+		{
+			name:    "negative dur",
+			every:   "-7d",
+			cron:    "",
+			wanterr: true,
+		},
+	}
+	for _, x := range tests {
+		t.Run(x.name, func(t *testing.T) {
+			got, err := (&platform.Task{
+				Every: x.every,
+				Cron:  x.cron,
+			}).TaskEffectiveCron()
+			if (err != nil) && !x.wanterr {
+				t.Errorf("expected no error but got %s\n", err)
+			} else {
+				if got != x.expectedCron {
+					t.Errorf("expected \"%s\" got \"%s\"\n", x.expectedCron, got)
+				}
+			}
+		})
+	}
+}
