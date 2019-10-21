@@ -73,6 +73,28 @@ const (
 	organizationsIDLabelsIDPath      = "/api/v2/orgs/:id/labels/:lid"
 )
 
+func checkOrganziationExists(handler *OrgHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			req, err := decodeGetOrgRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.OrganizationService.FindOrganizationByID(ctx, req.OrgID)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewOrgHandler returns a new instance of OrgHandler.
 func NewOrgHandler(b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
@@ -104,7 +126,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                b.UserService,
 	}
 	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", organizationsIDMembersPath, newGetMembersHandler(memberBackend))
+	h.Handler("GET", organizationsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkOrganziationExists(h)))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
 	ownerBackend := MemberBackend{
@@ -116,7 +138,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserService:                b.UserService,
 	}
 	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", organizationsIDOwnersPath, newGetMembersHandler(ownerBackend))
+	h.Handler("GET", organizationsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkOrganziationExists(h)))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
 	h.HandlerFunc("GET", organizationsIDSecretsPath, h.handleGetSecrets)
