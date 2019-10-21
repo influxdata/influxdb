@@ -43,6 +43,17 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*pl
 	return s.inner.FindBucketByID(ctx, id)
 }
 
+// FindBucketByName returns a single bucket by name.
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*platform.Bucket, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if s.inner == nil || s.engine == nil {
+		return nil, errors.New("nil inner BucketService or Engine")
+	}
+	return s.inner.FindBucketByName(ctx, orgID, name)
+}
+
 // FindBucket returns the first bucket that matches filter.
 func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
