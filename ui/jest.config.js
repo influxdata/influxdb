@@ -15,8 +15,7 @@ module.exports = {
   },
   // https://github.com/facebook/jest/issues/7842
   testMatch: [
-    '<rootDir>/**/*.test.ts',
-    '<rootDir>/**/*.test.tsx'
+    '<rootDir>/src/**/*.test.(ts|tsx)'
   ],
   //testRegex: '<rootDir>/**/*\.test\.{tsx,ts}$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
