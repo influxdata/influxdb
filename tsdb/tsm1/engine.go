@@ -1124,15 +1124,17 @@ func (e *Engine) compactFull(ctx context.Context, grp CompactionGroup, wg *sync.
 			ttl = lastCompaction // If the last full compaction took > default ttl then set a new TTL
 		}
 
-		lease, err := e.fullCompactionSemaphore.TryAcquireTTL(ctx, ttl)
-		if err != nil {
-			e.logger.Warn("Failed to execute full compaction", zap.Error(err), zap.Duration("semaphore_requested_ttl", ttl))
-			e.compactionLimiter.Release()
-			return false
-		} else if lease == nil {
+		lease, err := e.fullCompactionSemaphore.TryAcquire(ctx, ttl)
+		if err == influxdb.ErrNoAcquire {
 			e.logger.Info("Cannot acquire semaphore ownership to carry out full compaction", zap.Duration("semaphore_requested_ttl", ttl))
 			e.compactionLimiter.Release()
 			return false
+		} else if err != nil {
+			e.logger.Warn("Failed to execute full compaction", zap.Error(err), zap.Duration("semaphore_requested_ttl", ttl))
+			e.compactionLimiter.Release()
+			return false
+		} else if e.fullCompactionSemaphore != influxdb.NopSemaphore {
+			e.logger.Info("Acquired semaphore ownership for full compaction", zap.Duration("semaphore_requested_ttl", ttl))
 		}
 
 		ctx, cancel := context.WithCancel(ctx)
