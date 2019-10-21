@@ -14,7 +14,10 @@ module.exports = {
     '^.+\\.tsx?$': 'ts-jest',
   },
   // https://github.com/facebook/jest/issues/7842
-  testMatch: ['<rootDir>/**/*.test.(ts|tsx)'],
+  testMatch: [
+    '<rootDir>/**/*.test.ts',
+    '<rootDir>/**/*.test.tsx'
+  ],
   //testRegex: '<rootDir>/**/*\.test\.{tsx,ts}$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   snapshotSerializers: ['enzyme-to-json/serializer'],
