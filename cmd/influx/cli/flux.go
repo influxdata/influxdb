@@ -22,7 +22,7 @@ type replQuerier struct {
 	client fluxClient
 }
 
-func (q *replQuerier) Query(ctx context.Context, compiler flux.Compiler) (flux.ResultIterator, error) {
+func (q *replQuerier) Query(ctx context.Context, deps flux.Dependencies, compiler flux.Compiler) (flux.ResultIterator, error) {
 	req := &client.ProxyRequest{
 		Compiler: compiler,
 		Dialect:  csv.DefaultDialect(),
@@ -37,5 +37,5 @@ func getFluxREPL(host string, port int, ssl bool, username, password string) (*r
 	}
 	c.Username = username
 	c.Password = password
-	return repl.New(&replQuerier{client: c}), nil
+	return repl.New(context.Background(), flux.NewDefaultDependencies(), &replQuerier{client: c}), nil
 }

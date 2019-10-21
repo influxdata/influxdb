@@ -81,7 +81,7 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 	return ns
 }
 
-func (s *ReadRangePhysSpec) LookupDatabase(ctx context.Context, deps Dependencies, a execute.Administration) (string, string, error) {
+func (s *ReadRangePhysSpec) LookupDatabase(ctx context.Context, deps StorageDependencies, a execute.Administration) (string, string, error) {
 	if len(s.BucketID) != 0 {
 		return "", "", errors.New("cannot refer to buckets by their id in 1.x")
 	}

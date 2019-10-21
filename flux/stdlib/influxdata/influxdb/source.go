@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
@@ -102,11 +103,11 @@ type readFilterSource struct {
 	readSpec ReadFilterSpec
 }
 
-func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, alloc *memory.Allocator) execute.Source {
+func ReadFilterSource(id execute.DatasetID, r Reader, readSpec ReadFilterSpec, a execute.Administration) execute.Source {
 	src := new(readFilterSource)
 
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
 
 	src.reader = r
 	src.readSpec = readSpec
@@ -135,10 +136,13 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 
 	bounds := a.StreamContext().Bounds()
 	if bounds == nil {
-		return nil, errors.New("nil bounds passed to from")
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "nil bounds passed to from",
+		}
 	}
 
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context())
 
 	db, rp, err := spec.LookupDatabase(ctx, deps, a)
 	if err != nil {
@@ -158,7 +162,7 @@ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execut
 			Bounds:          *bounds,
 			Predicate:       filter,
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -168,11 +172,11 @@ type readGroupSource struct {
 	readSpec ReadGroupSpec
 }
 
-func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, alloc *memory.Allocator) execute.Source {
+func ReadGroupSource(id execute.DatasetID, r Reader, readSpec ReadGroupSpec, a execute.Administration) execute.Source {
 	src := new(readGroupSource)
 
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
 
 	src.reader = r
 	src.readSpec = readSpec
@@ -204,7 +208,7 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 		return nil, errors.New("nil bounds passed to from")
 	}
 
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context())
 
 	db, rp, err := spec.LookupDatabase(ctx, deps, a)
 	if err != nil {
@@ -229,7 +233,7 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -237,7 +241,7 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 	ctx := a.Context()
 
 	spec := prSpec.(*ReadTagKeysPhysSpec)
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context())
 
 	db, rp, err := spec.LookupDatabase(ctx, deps, a)
 	if err != nil {
@@ -261,7 +265,7 @@ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, 
 				Predicate:       filter,
 			},
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -272,13 +276,14 @@ type readTagKeysSource struct {
 	readSpec ReadTagKeysSpec
 }
 
-func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, alloc *memory.Allocator) execute.Source {
+func ReadTagKeysSource(id execute.DatasetID, r Reader, readSpec ReadTagKeysSpec, a execute.Administration) execute.Source {
 	src := &readTagKeysSource{
 		reader:   r,
 		readSpec: readSpec,
 	}
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
+
 	src.runner = src
 	return src
 }
@@ -295,7 +300,7 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 	ctx := a.Context()
 
 	spec := prSpec.(*ReadTagValuesPhysSpec)
-	deps := a.Dependencies()[FromKind].(Dependencies)
+	deps := GetStorageDependencies(a.Context())
 
 	db, rp, err := spec.LookupDatabase(ctx, deps, a)
 	if err != nil {
@@ -320,7 +325,7 @@ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID
 			},
 			TagKey: spec.TagKey,
 		},
-		a.Allocator(),
+		a,
 	), nil
 }
 
@@ -331,13 +336,14 @@ type readTagValuesSource struct {
 	readSpec ReadTagValuesSpec
 }
 
-func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesSpec, alloc *memory.Allocator) execute.Source {
+func ReadTagValuesSource(id execute.DatasetID, r Reader, readSpec ReadTagValuesSpec, a execute.Administration) execute.Source {
 	src := &readTagValuesSource{
 		reader:   r,
 		readSpec: readSpec,
 	}
 	src.id = id
-	src.alloc = alloc
+	src.alloc = a.Allocator()
+
 	src.runner = src
 	return src
 }
