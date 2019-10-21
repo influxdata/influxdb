@@ -3,9 +3,9 @@ module.exports = {
   displayName: 'test',
   testURL: 'http://localhost',
   testPathIgnorePatterns: [
-    'build',
+    '<rootDir>/build',
     '<rootDir>/node_modules/(?!(jest-test))',
-    'cypress',
+    '<rootDir>/cypress',
   ],
   setupFiles: ['<rootDir>/testSetup.ts'],
   modulePaths: ['<rootDir>', '<rootDir>/node_modules'],
