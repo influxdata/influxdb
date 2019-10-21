@@ -1640,6 +1640,68 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /delete:
+    post:
+      summary: delete Time series data from InfluxDB
+      requestBody:
+          description: predicate delete request
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletePredicateRequest"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: query
+          name: org
+          description: specifies the destination organization for writes
+          schema:
+            type: string
+            description: all points within batch are written to this organization.
+        - in: query
+          name: bucket
+          description: specifies the destination bucket for writes
+          schema:
+            type: string
+            description: all points within batch are written to this bucket.
+        - in: query
+          name: orgID
+          description: specifies the organization ID of the resource
+          schema:
+            type: string
+        - in: query
+          name: bucketID
+          description: specifies the destination bucket ID for writes
+          schema:
+            type: string
+            description: all points within batch are written to this bucket.
+      responses:
+        '204':
+          description: delete has been accepted
+        '400':
+          description: invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '404':
+          description: the bucket or organization is not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        '403':
+          description: no token was sent or does not have sufficient permissions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /ready:
     servers:
         - url: /
@@ -3975,6 +4037,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceMembers"
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unexpected error
           content:
@@ -4067,6 +4135,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceOwners"
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unexpected error
           content:
@@ -6160,6 +6234,21 @@ components:
           $ref: "#/components/schemas/Identifier"
         path:
           $ref: "#/components/schemas/StringLiteral"
+    DeletePredicateRequest:
+      description: the delete predicate request
+      type: object
+      required: [start, stop]
+      properties:
+        start:
+          description: RFC3339Nano.
+          type: string
+        stop:
+          description: RFC3339Nano.
+          type: string
+        predicate:
+          description: sql where like delete statement
+          example: tag1="value1" and (tag2="value2" and tag3="value3")
+          type: string
     Node:
       oneOf:
         - $ref: "#/components/schemas/Expression"

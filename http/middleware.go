@@ -12,7 +12,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func LoggingMW(logger *zap.Logger) func(http.Handler) http.Handler {
+// Middleware constructor.
+type Middleware func(http.Handler) http.Handler
+
+// LoggingMW middleware for logging inflight http requests.
+func LoggingMW(logger *zap.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			srw := &statusResponseWriter{
@@ -150,4 +154,16 @@ func (b *bodyEchoer) Read(p []byte) (int, error) {
 
 func (b *bodyEchoer) Close() error {
 	return b.rc.Close()
+}
+
+func applyMW(h http.Handler, m ...Middleware) http.Handler {
+	if len(m) < 1 {
+		return h
+	}
+	wrapped := h
+
+	for i := len(m) - 1; i >= 0; i-- {
+		wrapped = m[i](wrapped)
+	}
+	return wrapped
 }

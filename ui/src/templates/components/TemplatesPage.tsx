@@ -154,7 +154,7 @@ class TemplatesPage extends PureComponent<Props, State> {
 
     if (activeTab === 'user-templates') {
       return (
-        <GetResources resource={ResourceType.Labels}>
+        <GetResources resources={[ResourceType.Labels]}>
           <FilterList<TemplateSummary>
             searchTerm={searchTerm}
             searchKeys={['meta.name', 'labels[].name']}

@@ -124,7 +124,7 @@ export default class TaskForm extends PureComponent<Props, State> {
             {isInOverlay && (
               <Grid.Column widthXS={Columns.Twelve}>
                 <Form.Element label="Output Bucket">
-                  <GetResources resource={ResourceType.Buckets}>
+                  <GetResources resources={[ResourceType.Buckets]}>
                     <TaskOptionsBucketDropdown
                       selectedBucketName={toBucketName}
                       onChangeBucketName={onChangeToBucketName}

@@ -614,7 +614,7 @@ func (e *Engine) DeleteBucketRange(ctx context.Context, orgID, bucketID platform
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred tsm1.Predicate) error {
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred platform.Predicate) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -624,10 +624,14 @@ func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID
 		return ErrEngineClosed
 	}
 
-	// Marshal the predicate to add it to the WAL.
-	predData, err := pred.Marshal()
-	if err != nil {
-		return err
+	var predData []byte
+	var err error
+	if pred != nil {
+		// Marshal the predicate to add it to the WAL.
+		predData, err = pred.Marshal()
+		if err != nil {
+			return err
+		}
 	}
 
 	// Add the delete to the WAL to be replayed if there is a crash or shutdown.

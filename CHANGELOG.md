@@ -5,7 +5,7 @@
 1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
 
 ### UI Improvements
-
+1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
 1. [15426](https://github.com/influxdata/influxdb/pull/15426): Add 403 handler that redirects back to the sign-in page on oats-generated routes.
 
 ### Bug Fixes
@@ -17,6 +17,7 @@
 1. [15246](https://github.com/influxdata/influxdb/pull/15427): UI/Telegraf filter functionality shows results based on input name
 1. [13940](https://github.com/influxdata/influxdb/pull/15443): Create Label Overlay UI will disable the submit button and return a UI error if the name field is empty
 1. [15452](https://github.com/influxdata/influxdb/pull/15452): Log error as info message on unauthorized API call attempts
+1. [15504](https://github.com/influxdata/influxdb/pull/15504): Ensure members&owners eps 404 when /org resource does not exist
 
 ## v2.0.0-alpha.18 [2019-09-26]
 

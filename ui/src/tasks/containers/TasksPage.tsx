@@ -130,49 +130,47 @@ class TasksPage extends PureComponent<Props, State> {
             limitStatus={limitStatus}
           />
           <Page.Contents fullWidth={false} scrollable={true}>
-            <GetResources resource={ResourceType.Tasks}>
-              <GetResources resource={ResourceType.Labels}>
-                <GetAssetLimits>
-                  <AssetLimitAlert
-                    resourceName="tasks"
-                    limitStatus={limitStatus}
-                  />
-                  <FilterList<Task>
-                    list={this.filteredTasks}
-                    searchTerm={searchTerm}
-                    searchKeys={['name', 'labels[].name']}
-                  >
-                    {ts => (
-                      <TasksList
-                        searchTerm={searchTerm}
-                        tasks={ts}
-                        totalCount={this.totalTaskCount}
-                        onActivate={this.handleActivate}
-                        onDelete={this.handleDelete}
-                        onCreate={this.handleCreateTask}
-                        onClone={this.handleClone}
-                        onSelect={this.props.selectTask}
-                        onAddTaskLabels={onAddTaskLabels}
-                        onRemoveTaskLabels={onRemoveTaskLabels}
-                        onRunTask={onRunTask}
-                        onFilterChange={setSearchTerm}
-                        filterComponent={this.search}
-                        onUpdate={updateTaskName}
-                        onImportTask={this.summonImportOverlay}
-                        onImportFromTemplate={
-                          this.summonImportFromTemplateOverlay
-                        }
-                        sortKey={sortKey}
-                        sortDirection={sortDirection}
-                        sortType={sortType}
-                        onClickColumn={this.handleClickColumn}
-                        checkTaskLimits={checkTaskLimits}
-                      />
-                    )}
-                  </FilterList>
-                  {this.hiddenTaskAlert}
-                </GetAssetLimits>
-              </GetResources>
+            <GetResources resources={[ResourceType.Tasks, ResourceType.Labels]}>
+              <GetAssetLimits>
+                <AssetLimitAlert
+                  resourceName="tasks"
+                  limitStatus={limitStatus}
+                />
+                <FilterList<Task>
+                  list={this.filteredTasks}
+                  searchTerm={searchTerm}
+                  searchKeys={['name', 'labels[].name']}
+                >
+                  {ts => (
+                    <TasksList
+                      searchTerm={searchTerm}
+                      tasks={ts}
+                      totalCount={this.totalTaskCount}
+                      onActivate={this.handleActivate}
+                      onDelete={this.handleDelete}
+                      onCreate={this.handleCreateTask}
+                      onClone={this.handleClone}
+                      onSelect={this.props.selectTask}
+                      onAddTaskLabels={onAddTaskLabels}
+                      onRemoveTaskLabels={onRemoveTaskLabels}
+                      onRunTask={onRunTask}
+                      onFilterChange={setSearchTerm}
+                      filterComponent={this.search}
+                      onUpdate={updateTaskName}
+                      onImportTask={this.summonImportOverlay}
+                      onImportFromTemplate={
+                        this.summonImportFromTemplateOverlay
+                      }
+                      sortKey={sortKey}
+                      sortDirection={sortDirection}
+                      sortType={sortType}
+                      onClickColumn={this.handleClickColumn}
+                      checkTaskLimits={checkTaskLimits}
+                    />
+                  )}
+                </FilterList>
+                {this.hiddenTaskAlert}
+              </GetAssetLimits>
             </GetResources>
           </Page.Contents>
         </Page>
