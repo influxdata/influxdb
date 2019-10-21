@@ -29,7 +29,7 @@ interface Props {
   sortKey: string
   sortDirection: Sort
   sortType: SortTypes
-  onClickColumn: (mextSort: Sort, sortKey: SortKey) => void
+  onClickColumn: (mextSort: Sort, sortKey: string) => void
 }
 
 interface State {
