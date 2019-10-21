@@ -21,8 +21,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Selectors
 import {getSortedResources} from 'src/shared/utils/sort'
 
-type SortKey = keyof Label
-
 interface Props {
   labels: Label[]
   emptyState: JSX.Element
@@ -52,21 +50,22 @@ export default class LabelList extends PureComponent<Props, State> {
 
   public render() {
     const {sortKey, sortDirection, onClickColumn} = this.props
+    const headerKeys = ['name', 'properties.description']
     return (
       <>
         <ResourceList>
           <ResourceList.Header>
             <ResourceList.Sorter
-              name={this.headerKeys[0]}
-              sortKey={this.headerKeys[0]}
-              sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
+              name={headerKeys[0]}
+              sortKey={headerKeys[0]}
+              sort={sortKey === headerKeys[0] ? sortDirection : Sort.None}
               onClick={onClickColumn}
               testID="sorter--name"
             />
             <ResourceList.Sorter
               name="Description"
-              sortKey={this.headerKeys[1]}
-              sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
+              sortKey={headerKeys[1]}
+              sort={sortKey === headerKeys[1] ? sortDirection : Sort.None}
               onClick={onClickColumn}
               testID="sorter--desc"
             />
@@ -85,10 +84,6 @@ export default class LabelList extends PureComponent<Props, State> {
         </Overlay>
       </>
     )
-  }
-
-  private get headerKeys(): SortKey[] {
-    return ['name', 'properties.description']
   }
 
   private get rows(): JSX.Element[] {

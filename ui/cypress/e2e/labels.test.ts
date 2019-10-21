@@ -18,10 +18,10 @@ describe('labels', () => {
 
   function hex2BgColor(hex: string): string {
     hex = hex.replace('#', '')
-    let subvals = hex.match(/.{1,2}/g) as string[]
-    let red: number = parseInt(subvals[0], 16)
-    let green: number = parseInt(subvals[1], 16)
-    let blue: number = parseInt(subvals[2], 16)
+    const subvals = hex.match(/.{1,2}/g) as string[]
+    const red: number = parseInt(subvals[0], 16)
+    const green: number = parseInt(subvals[1], 16)
+    const blue: number = parseInt(subvals[2], 16)
     //background-color: rgb(50, 107, 186);
 
     return `background-color: rgb(${red}, ${green}, ${blue});`
@@ -319,7 +319,7 @@ describe('labels', () => {
 
     //Check initial sort asc
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[i].name)
@@ -330,7 +330,7 @@ describe('labels', () => {
 
     //check sort desc
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[labels.length - (i + 1)].name)
@@ -341,7 +341,7 @@ describe('labels', () => {
     cy.getByTestID('sorter--name').click()
 
     cy.getByTestIDSubStr('label--pill').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
           .eq(i)
           .should('have.text', names[i].name)
@@ -377,7 +377,7 @@ describe('labels', () => {
     cy.getByTestID('sorter--desc').click()
 
     cy.getByTestIDSubStr('resource-card').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('resource-card')
           .eq(i)
           .should('have.text', 'Description: ' + names[i].description)
@@ -388,7 +388,7 @@ describe('labels', () => {
     cy.getByTestID('sorter--desc').click()
 
     cy.getByTestIDSubStr('resource-card').then(labels => {
-      for (var i = 0; i < labels.length; i++) {
+      for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('resource-card')
           .eq(i)
           .should(
@@ -401,7 +401,7 @@ describe('labels', () => {
 
   it('can filter labels', () => {
     //Create labels
-    let names: {name: string; description: string; color: string}[] = [
+    const names: {name: string; description: string; color: string}[] = [
       {
         name: 'Chocolate bread',
         description: 'chocolate filled flour product',
