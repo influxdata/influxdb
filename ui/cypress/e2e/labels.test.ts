@@ -22,7 +22,7 @@ describe('labels', () => {
     const red: number = parseInt(subvals[0], 16)
     const green: number = parseInt(subvals[1], 16)
     const blue: number = parseInt(subvals[2], 16)
-    //background-color: rgb(50, 107, 186);
+    // background-color: rgb(50, 107, 186);
 
     return `background-color: rgb(${red}, ${green}, ${blue});`
   }
@@ -35,14 +35,14 @@ describe('labels', () => {
 
     cy.getByTestID('table-row').should('have.length', 0)
 
-    //open create - first button
+    // open create - first button
     cy.getByTestID('button-create-initial').click()
 
     cy.getByTestID('overlay--container').within(() => {
       cy.getByTestID('overlay--header')
         .contains('Create Label')
         .should('be.visible')
-      //dismiss
+      // dismiss
       cy.getByTestID('overlay--header')
         .children('button')
         .click()
@@ -50,26 +50,26 @@ describe('labels', () => {
 
     cy.getByTestID('overlay--container').should('not.be.visible')
 
-    //open create 2 - by standard button
+    // open create 2 - by standard button
     cy.getByTestID('button-create').click()
     cy.getByTestID('overlay--container').should('be.visible')
 
-    //cancel
+    // cancel
     cy.getByTestID('create-label-form--cancel').click()
     cy.getByTestID('overlay--container').should('not.be.visible')
     cy.getByTestID('label-card').should('have.length', 0)
 
-    //open create - and proceed with overlay
+    // open create - and proceed with overlay
     cy.getByTestID('button-create-initial').click()
 
-    //Try to save without name (required field) todo - issue 13940
-    //cy.getByTestID('create-label-form--submit').click()
+    // Try to save without name (required field) todo - issue 13940
+    // cy.getByTestID('create-label-form--submit').click()
 
-    //enter name
+    // enter name
     cy.getByTestID('create-label-form--name').type(newLabelName)
-    //enter description
+    // enter description
     cy.getByTestID('create-label-form--description').type(newLabelDescription)
-    //select color
+    // select color
     cy.getByTestID('color-picker--input')
       .invoke('attr', 'value')
       .should('contain', '#326BBA')
@@ -101,7 +101,7 @@ describe('labels', () => {
       .invoke('attr', 'style')
       .should('equal', 'background-color: rgb(255, 210, 85);')
 
-    //clear color select
+    // clear color select
     cy.getByTestID('color-picker--input').clear()
     cy.getByTestID('form--element-error').should(
       'contain',
@@ -111,7 +111,7 @@ describe('labels', () => {
       expect($ie).to.have.class('alert-triangle')
     })
 
-    //Type nonsense string - color input
+    // Type nonsense string - color input
     cy.getByTestID('color-picker--input').type('zzzzzz')
     cy.getByTestID('form--element-error').should(
       'contain',
@@ -121,7 +121,7 @@ describe('labels', () => {
       expect($ie).to.have.class('alert-triangle')
     })
 
-    //feel lucky
+    // feel lucky
     cy.getByTestID('color-picker--randomize').click()
     cy.getByTestID('color-picker--input')
       .invoke('val')
@@ -133,7 +133,7 @@ describe('labels', () => {
           .invoke('attr', 'style')
           .should('equal', hex2BgColor(hex))
       })
-    //enter color
+    // enter color
     cy.getByTestID('color-picker--input').clear()
     cy.getByTestID('color-picker--input').type(newLabelColor)
     cy.getByTestID('color-picker--input')
@@ -147,10 +147,10 @@ describe('labels', () => {
           .should('equal', hex2BgColor(newLabelColor))
       })
 
-    //save
+    // save
     cy.getByTestID('create-label-form--submit').click()
 
-    //verify name, descr, color
+    // verify name, descr, color
     cy.getByTestID('label-card').should('have.length', 1)
     cy.getByTestID('label-card')
       .contains(newLabelName)
@@ -250,7 +250,7 @@ describe('labels', () => {
   })
 
   it('can sort labels by name', () => {
-    //Create labels
+    // Create labels
     let names: {name: string; description: string; color: string}[] = [
       {name: 'Baboon', description: 'Savanah primate', color: '#FFAA88'},
       {name: 'Chimpanzee', description: 'Pan the forest ape', color: '#445511'},
@@ -268,13 +268,13 @@ describe('labels', () => {
 
     cy.reload()
 
-    //set sort of local names
+    // set sort of local names
     names = names.sort((a, b) =>
       // eslint-disable-next-line
       a.name < b.name ? -1 : a.name > b.name ? 1 : 0
     )
 
-    //Check initial sort asc
+    // check initial sort asc
     cy.getByTestIDSubStr('label--pill').then(labels => {
       for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
@@ -285,7 +285,7 @@ describe('labels', () => {
 
     cy.getByTestID('sorter--name').click()
 
-    //check sort desc
+    // check sort desc
     cy.getByTestIDSubStr('label--pill').then(labels => {
       for (let i = 0; i < labels.length; i++) {
         cy.getByTestIDSubStr('label--pill')
@@ -294,7 +294,7 @@ describe('labels', () => {
       }
     })
 
-    //reset to asc
+    // reset to asc
     cy.getByTestID('sorter--name').click()
 
     cy.getByTestIDSubStr('label--pill').then(labels => {
@@ -307,7 +307,7 @@ describe('labels', () => {
   })
 
   it('can sort labels by description', () => {
-    //Create labels
+    // Create labels
     let names: {name: string; description: string; color: string}[] = [
       {name: 'Baboon', description: 'Savanah primate', color: '#FFAA88'},
       {name: 'Chimpanzee', description: 'Pan the forest ape', color: '#445511'},
@@ -325,12 +325,12 @@ describe('labels', () => {
 
     cy.reload()
 
-    //set sort of local descriptions
+    // set sort of local descriptions
     names = names.sort((a, b) =>
       // eslint-disable-next-line
-          a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+      a.description < b.description ? -1 : a.description > b.description ? 1 : 0
     )
-    //check sort asc
+    // check sort asc
     cy.getByTestID('sorter--desc').click()
 
     cy.getByTestIDSubStr('resource-card').then(labels => {
@@ -341,7 +341,7 @@ describe('labels', () => {
       }
     })
 
-    //check sort desc
+    // check sort desc
     cy.getByTestID('sorter--desc').click()
 
     cy.getByTestIDSubStr('resource-card').then(labels => {
@@ -357,7 +357,7 @@ describe('labels', () => {
   })
 
   it('can filter labels', () => {
-    //Create labels
+    // Create labels
     const names: {name: string; description: string; color: string}[] = [
       {
         name: 'Chocolate bread',
@@ -387,21 +387,21 @@ describe('labels', () => {
 
     cy.reload()
 
-    //input the search for titles check
+    // input the search for titles check
     cy.getByTestID('search-widget')
       .clear()
       .type('Apfel')
 
     cy.getByTestID('label-card').should('have.length', 2)
 
-    //input the search for description check
+    // input the search for description check
     cy.getByTestID('search-widget')
       .clear()
       .type('sandwich')
 
     cy.getByTestID('label-card').should('have.length', 2)
 
-    //input the search for checking both name and description
+    // input the search for checking both name and description
     cy.getByTestID('search-widget')
       .clear()
       .type('bread')
