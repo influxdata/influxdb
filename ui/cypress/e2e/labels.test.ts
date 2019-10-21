@@ -27,7 +27,7 @@ describe('labels', () => {
     return `background-color: rgb(${red}, ${green}, ${blue});`
   }
 
-  it('Can create a label', () => {
+  it('can create a label', () => {
     const newLabelName = 'Substantia (サブスタンス)'
     const newLabelDescription =
       '(\u03943) quod in se est et per se concipitur hoc est id cujus conceptus non indiget conceptu alterius rei a quo formari debeat. '
