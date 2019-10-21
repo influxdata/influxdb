@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
@@ -22,7 +24,7 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 			ScheduledFor: time.Now(),
 		}
 
-		allowUnexported = cmp.AllowUnexported(executorE{}, schedulerC{})
+		allowUnexported = cmp.AllowUnexported(executorE{}, schedulerC{}, SchedulableTask{})
 	)
 
 	for _, test := range []struct {
@@ -100,34 +102,44 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		three = influxdb.ID(3)
 		now   = time.Now().Format(time.RFC3339Nano)
 
-		taskOne           = &influxdb.Task{ID: one, CreatedAt: now}
-		taskTwo           = &influxdb.Task{ID: two, Status: "active", CreatedAt: now}
-		taskTwoInactive   = &influxdb.Task{ID: two, Status: "inactive", CreatedAt: now}
+		taskOne           = &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *"}
+		taskTwo           = &influxdb.Task{ID: two, Status: "active", CreatedAt: now, Cron: "* * * * *"}
+		taskTwoInactive   = &influxdb.Task{ID: two, Status: "inactive", CreatedAt: now, Cron: "* * * * *"}
 		taskThreeOriginal = &influxdb.Task{
 			ID:        three,
 			Status:    "active",
 			Name:      "Previous",
 			CreatedAt: now,
+			Cron:      "* * * * *",
 		}
 		taskThreeNew = &influxdb.Task{
 			ID:        three,
 			Status:    "active",
 			Name:      "Renamed",
 			CreatedAt: now,
+			Cron:      "* * * * *",
 		}
-
-		schedulableT         = SchedulableTask{taskOne}
-		schedulableTaskTwo   = SchedulableTask{taskTwo}
-		schedulableTaskThree = SchedulableTask{taskThreeNew}
-
-		runOne = &influxdb.Run{
-			ID:           one,
-			TaskID:       one,
-			ScheduledFor: time.Now().UTC(),
-		}
-
-		allowUnexported = cmp.AllowUnexported(executorE{}, schedulerC{})
 	)
+
+	schedulableT, err := NewSchedulableTask(taskOne)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schedulableTaskTwo, err := NewSchedulableTask(taskTwo)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	schedulableTaskThree, err := NewSchedulableTask(taskThreeNew)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	runOne = &influxdb.Run{
+		ID:           one,
+		TaskID:       one,
+		ScheduledFor: time.Now().UTC(),
+	}
 
 	for _, test := range []struct {
 		name       string
@@ -205,17 +217,19 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var (
-				executor  = &executorE{}
-				scheduler = &schedulerC{}
-				coord     = NewCoordinator(zap.NewNop(), scheduler, executor)
+				executor = &executorE{}
+				sch      = &schedulerC{}
+				coord    = NewCoordinator(zap.NewNop(), sch, executor)
 			)
 
 			test.call(t, coord)
 
 			if diff := cmp.Diff(
 				test.scheduler.calls,
-				scheduler.calls,
-				allowUnexported); diff != "" {
+				sch.calls,
+				cmp.AllowUnexported(executorE{}, schedulerC{}, SchedulableTask{}, *coord),
+				cmpopts.IgnoreUnexported(scheduler.Schedule{}),
+			); diff != "" {
 				t.Errorf("unexpected scheduler contents %s", diff)
 			}
 		})

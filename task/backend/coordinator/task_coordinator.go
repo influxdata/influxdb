@@ -39,6 +39,7 @@ type CoordinatorOption func(*TaskCoordinator)
 // SchedulableTask is a wrapper around the Task struct, giving it methods to make it compatible with the Scheduler
 type SchedulableTask struct {
 	*influxdb.Task
+	sch scheduler.Schedule
 }
 
 func (t SchedulableTask) ID() scheduler.ID {
@@ -47,8 +48,7 @@ func (t SchedulableTask) ID() scheduler.ID {
 
 // Schedule takes the time a Task is scheduled for and returns a Schedule object
 func (t SchedulableTask) Schedule() scheduler.Schedule {
-	// TODO (al): use new scheduler's NewSchedule method
-	return scheduler.Schedule{}
+	return t.sch
 }
 
 // Offset returns a time.Duration for the Task's offset property
@@ -78,8 +78,19 @@ func NewSchedulableTask(task *influxdb.Task) (SchedulableTask, error) {
 	if _, err := task.LatestCompletedTime(); err != nil {
 		return SchedulableTask{}, errors.New("could not create schedulable task: latest completed time could not be parsed")
 	}
-	t := SchedulableTask{task}
+	if task.Cron == "" && task.Every == "" {
+		return SchedulableTask{}, errors.New("invalid cron or every")
+	}
+	effCron, err := task.TaskEffectiveCron()
+	if err != nil {
+		return SchedulableTask{}, err
+	}
+	sch, err := scheduler.NewSchedule(effCron)
+	if err != nil {
+		return SchedulableTask{}, err
+	}
 
+	t := SchedulableTask{Task: task, sch: sch}
 	return t, nil
 }
 
