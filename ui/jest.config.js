@@ -13,7 +13,8 @@ module.exports = {
   transform: {
     '^.+\\.tsx?$': 'ts-jest',
   },
-  testRegex: '(/__tests__/.*|(\\.|/)(test))\\.(ts?|tsx?)$',
+  // https://github.com/facebook/jest/issues/7842
+  // testRegex: '(/__tests__/.*|(\\.|/)(test))\\.(ts?|tsx?)$',
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   snapshotSerializers: ['enzyme-to-json/serializer'],
   moduleNameMapper: {
