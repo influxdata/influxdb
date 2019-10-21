@@ -260,30 +260,43 @@ describe('labels', () => {
       .should('contain', hex2BgColor(newLabelColor))
   })
 
-  it.only('can delete a label', () => {
+  describe('label destruction', () => {
     const labelName = 'Modus (目录)'
     const labelDescription =
       '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
     const labelColor = '#88AACC'
 
-    // Create labels
-    cy.get('@org').then(({id}: Organization) => {
-      cy.createLabel(labelName, id, {
-        description: labelDescription,
-        color: labelColor,
+    beforeEach(() => {
+      // Create labels
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createLabel(labelName, id, {
+          description: labelDescription,
+          color: labelColor,
+        })
+        cy.createLabel(labelName, id, {
+          description: labelDescription,
+          color: '#CCAA88',
+        })
       })
     })
 
-    cy.getByTestID('label-card').should('have.length', 1)
+    it('can delete a label', () => {
+      cy.server()
+      cy.route('DELETE', 'api/v2/labels/*').as('deleteLabels')
 
-    cy.getByTestID('context-delete-menu')
-      .eq(0)
-      .click({force: true})
-    cy.getByTestID('context-delete-label')
-      .eq(0)
-      .click({force: true})
+      cy.getByTestID('label-card').should('have.length', 2)
 
-    cy.getByTestID('empty-state').should('exist', 1)
+      cy.getByTestID('context-delete-menu')
+        .eq(0)
+        .click({force: true})
+      cy.getByTestID('context-delete-label')
+        .eq(0)
+        .click({force: true})
+
+      cy.wait('@deleteLabels')
+
+      cy.getByTestID('label-card').should('have.length', 1)
+    })
   })
 
   it('can sort labels by name', () => {
