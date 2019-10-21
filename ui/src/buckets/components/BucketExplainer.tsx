@@ -11,7 +11,9 @@ const TelegrafExplainer: FunctionComponent = () => (
     </Panel.Header>
     <Panel.Body>
       <p>
-        A bucket is a named location where time series data is stored. All buckets have a <b>Retention Policy</b>, a duration of time that each data point persists.
+        A bucket is a named location where time series data is stored. All
+        buckets have a <b>Retention Policy</b>, a duration of time that each
+        data point persists.
         <br />
         <br />
         Here's{' '}
@@ -20,7 +22,8 @@ const TelegrafExplainer: FunctionComponent = () => (
           target="_blank"
         >
           how to write data
-        </a> into your bucket.
+        </a>{' '}
+        into your bucket.
       </p>
     </Panel.Body>
   </Panel>
