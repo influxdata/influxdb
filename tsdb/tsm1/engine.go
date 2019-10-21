@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -160,6 +161,10 @@ type Engine struct {
 
 	// Limiter for concurrent compactions.
 	compactionLimiter limiter.Fixed
+	// A semaphore for limiting full compactions across multiple engines.
+	fullCompactionSemaphore influxdb.Semaphore
+	// Tracks how long the last full compaction took. Should be accessed atomically.
+	lastFullCompactionDuration int64
 
 	scheduler   *scheduler
 	snapshotter Snapshotter
@@ -220,6 +225,7 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 		enableCompactionsOnOpen:        true,
 		formatFileName:                 DefaultFormatFileName,
 		compactionLimiter:              limiter.NewFixed(maxCompactions),
+		fullCompactionSemaphore:        influxdb.NopSemaphore,
 		scheduler:                      newScheduler(maxCompactions),
 		snapshotter:                    new(noSnapshotter),
 	}
@@ -229,6 +235,12 @@ func NewEngine(path string, idx *tsi1.Index, config Config, options ...EngineOpt
 	}
 
 	return e
+}
+
+// SetSemaphore sets the semaphore used to coordinate full compactions across
+// multiple engines.
+func (e *Engine) SetSemaphore(s influxdb.Semaphore) {
+	e.fullCompactionSemaphore = s
 }
 
 // WithCompactionLimiter sets the compaction limiter, which is used to limit the
@@ -1104,15 +1116,66 @@ func (e *Engine) compactFull(ctx context.Context, grp CompactionGroup, wg *sync.
 
 	// Try the lo priority limiter, otherwise steal a little from the high priority if we can.
 	if e.compactionLimiter.TryTake() {
+		// Attempt to get ownership of the semaphore for this engine. If the
+		// default semaphore is in use then ownership will always be granted.
+		ttl := influxdb.DefaultLeaseTTL
+		lastCompaction := time.Duration(atomic.LoadInt64(&e.lastFullCompactionDuration))
+		if lastCompaction > ttl {
+			ttl = lastCompaction // If the last full compaction took > default ttl then set a new TTL
+		}
+
+		lease, err := e.fullCompactionSemaphore.TryAcquireTTL(ctx, ttl)
+		if err != nil {
+			e.logger.Warn("Failed to execute full compaction", zap.Error(err), zap.Duration("semaphore_requested_ttl", ttl))
+			e.compactionLimiter.Release()
+			return false
+		} else if lease == nil {
+			e.logger.Info("Cannot acquire semaphore ownership to carry out full compaction", zap.Duration("semaphore_requested_ttl", ttl))
+			e.compactionLimiter.Release()
+			return false
+		}
+
+		done := make(chan struct{}) // Closed when compaction finished.
+		go func(lease influxdb.Lease) {
+			ttl, err := lease.TTL(ctx)
+			if err != nil {
+				e.logger.Warn("unable to get TTL for lease on semaphore", zap.Error(err))
+				ttl = influxdb.DefaultLeaseTTL // This is probably a reasonable fallback.
+			}
+
+			// Renew the lease when ttl is halved
+			ticker := time.NewTicker(ttl / 2)
+			for {
+				select {
+				case <-done:
+					if err := lease.Release(ctx); err != nil {
+						e.logger.Warn("Lease on sempahore was not released", zap.Error(err))
+					}
+					return
+				case <-ticker.C:
+					if err := lease.KeepAlive(ctx); err != nil {
+						e.logger.Warn("Unable to extend lease", zap.Error(err))
+					} else {
+						e.logger.Info("Extended lease on semaphore")
+					}
+				}
+			}
+		}(lease)
+
 		e.compactionTracker.IncFullActive()
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer e.compactionTracker.DecFullActive()
 			defer e.compactionLimiter.Release()
+
+			now := time.Now() // Track how long compaction takes
 			s.Apply(ctx)
+			atomic.StoreInt64(&e.lastFullCompactionDuration, int64(time.Since(now)))
+
 			// Release the files in the compaction plan
 			e.CompactionPlan.Release([]CompactionGroup{s.group})
+			close(done)
 		}()
 		return true
 	}
