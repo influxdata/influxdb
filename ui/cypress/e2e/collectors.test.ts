@@ -1,4 +1,5 @@
 import {Organization} from '../../src/types'
+import {bucket} from '../fixtures/user.json'
 
 describe('Collectors', () => {
   beforeEach(() => {
@@ -49,6 +50,7 @@ describe('Collectors', () => {
       cy.getByTestID('resource-card')
         .should('have.length', 1)
         .and('contain', newConfig)
+        .and('contain', bucket)
     })
 
     it('can update configuration name', () => {
@@ -58,7 +60,7 @@ describe('Collectors', () => {
       const description = 'Config Description'
 
       cy.get('@org').then(({id}: Organization) => {
-        cy.createTelegraf(telegrafConfigName, description, id)
+        cy.createTelegraf(telegrafConfigName, description, id, bucket)
       })
 
       cy.getByTestID('collector-card--name')
@@ -121,11 +123,12 @@ describe('Collectors', () => {
       const secondTelegraf = 'test2'
       const thirdTelegraf = 'unicorn'
       const description = 'Config Description'
+      const secondBucket = 'bucket2'
 
       cy.get('@org').then(({id}: Organization) => {
-        cy.createTelegraf(firstTelegraf, description, id)
-        cy.createTelegraf(secondTelegraf, description, id)
-        cy.createTelegraf(thirdTelegraf, description, id)
+        cy.createTelegraf(firstTelegraf, description, id, bucket)
+        cy.createTelegraf(secondTelegraf, description, id, bucket)
+        cy.createTelegraf(thirdTelegraf, description, id, secondBucket)
       })
 
       cy.reload()
@@ -147,7 +150,9 @@ describe('Collectors', () => {
         .type(thirdTelegraf)
 
       cy.getByTestID('resource-card').should('have.length', 1)
-      cy.getByTestID('resource-card').should('contain', thirdTelegraf)
+      cy.getByTestID('resource-card')
+        .should('contain', thirdTelegraf)
+        .and('contain', secondBucket)
 
       cy.getByTestID('search-widget')
         .clear()
@@ -164,6 +169,100 @@ describe('Collectors', () => {
       cy.getByTestID('resource-card').should('contain', firstTelegraf)
       cy.getByTestID('resource-card').should('contain', secondTelegraf)
       cy.getByTestID('resource-card').should('not.contain', thirdTelegraf)
+    })
+
+    it('can sort telegraf configs by name', () => {
+      const telegrafs = ['b', 'a', 'c']
+      const [firstTelegraf, secondTelegraf, thirdTelegraf] = telegrafs
+      const description = 'Config Description'
+
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createTelegraf(firstTelegraf, description, id, bucket)
+        cy.createTelegraf(secondTelegraf, description, id, bucket)
+        cy.createTelegraf(thirdTelegraf, description, id, bucket)
+      })
+
+      cy.reload()
+
+      // test the order
+      // cy.getByTestID('resource-card').should('have.length', 3)
+      cy.getByTestID('collector-card--name')
+        .not('a')
+        .should('have.length', 3)
+
+      // test to see if telegrafs are initially sorted by name
+      telegrafs.sort()
+
+      cy.getByTestID('collector-card--name')
+        .each((val, index) => {
+          expect(val.text()).to.equal(telegrafs[index])
+        })
+        .then(() => {
+          cy.getByTestID('resource-list--sorter')
+            .contains('Name')
+            .click()
+          telegrafs.reverse()
+        })
+        .then(() => {
+          cy.getByTestID('collector-card--name').each((val, index) => {
+            expect(val.text()).to.equal(telegrafs[index])
+          })
+        })
+    })
+
+    it.only('can sort telegraf configs by bucket', () => {
+      const telegrafs = ['telegraf_a', 'telegraf_b', 'telegraf_c']
+      const [firstTelegraf, secondTelegraf, thirdTelegraf] = telegrafs
+      const description = 'Config Description'
+      const bucketz = ['MO_buckets', 'EZ_buckets', 'Bucky']
+      const [firstBucket, secondBucket, thirdBucket] = bucketz
+
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createTelegraf(firstTelegraf, description, id, firstBucket)
+        cy.createTelegraf(secondTelegraf, description, id, secondBucket)
+        cy.createTelegraf(thirdTelegraf, description, id, thirdBucket)
+      })
+
+      cy.reload()
+
+      // test the order
+      // find all the cf-resource-card--meta-item without children
+      cy.getByTestID('cf-resource-card--meta-item').should('have.length', 6)
+
+      cy.getByTestID('cf-resource-card--meta-item')
+        .each((val, index) => {
+          const text = val.text()
+          const i = Math.floor(index / 2)
+          if (text.includes('Bucket: ')) {
+            expect(text).to.equal(`Bucket: ${bucketz[i]}`)
+          }
+        })
+        .then(() => {
+          cy.getByTestID('resource-list--sorter')
+            .contains('Bucket')
+            .click()
+          bucketz.sort()
+          cy.getByTestID('cf-resource-card--meta-item').each((val, index) => {
+            const text = val.text()
+            const i = Math.floor(index / 2)
+            if (text.includes('Bucket: ')) {
+              expect(text).to.equal(`Bucket: ${bucketz[i]}`)
+            }
+          })
+        })
+        .then(() => {
+          cy.getByTestID('resource-list--sorter')
+            .contains('Bucket')
+            .click()
+          bucketz.reverse()
+          cy.getByTestID('cf-resource-card--meta-item').each((val, index) => {
+            const text = val.text()
+            const i = Math.floor(index / 2)
+            if (text.includes('Bucket: ')) {
+              expect(text).to.equal(`Bucket: ${bucketz[i]}`)
+            }
+          })
+        })
     })
   })
 })
