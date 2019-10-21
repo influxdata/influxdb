@@ -4037,6 +4037,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceMembers"
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unexpected error
           content:
@@ -4129,6 +4135,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ResourceOwners"
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         default:
           description: Unexpected error
           content:
