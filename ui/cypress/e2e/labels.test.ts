@@ -356,11 +356,106 @@ describe('labels', () => {
     })
   })
 
-  it.skip('can sort labels by description', () => {
-    // waiting on issue 13950
+  it('can sort labels by description', () => {
+    //Create labels
+    let names: {name: string; description: string; color: string}[] = [
+      {name: 'Baboon', description: 'Savanah primate', color: '#FFAA88'},
+      {name: 'Chimpanzee', description: 'Pan the forest ape', color: '#445511'},
+      {name: 'Gorilla', description: 'Greatest ape', color: '#114455'},
+      {name: 'Orangutan', description: 'Asian ape', color: '#F96A2D'},
+      {name: 'Macaque', description: 'Universal monkey', color: '#AA8888'},
+      {name: 'Lemur', description: 'Madagascar primate', color: '#BBBBBB'},
+    ]
+
+    cy.get<Organization>('@org').then(({id}) => {
+      names.forEach(n => {
+        cy.createLabel(n.name, id, {description: n.description, color: n.color})
+      })
+    })
+
+    cy.reload()
+
+    //set sort of local descriptions
+    names = names.sort((a, b) =>
+      // eslint-disable-next-line
+          a.description < b.description ? -1 : a.description > b.description ? 1 : 0
+    )
+    //check sort asc
+    cy.getByTestID('sorter--desc').click()
+
+    cy.getByTestIDSubStr('resource-card').then(labels => {
+      for (var i = 0; i < labels.length; i++) {
+        cy.getByTestIDSubStr('resource-card')
+          .eq(i)
+          .should('have.text', 'Description: ' + names[i].description)
+      }
+    })
+
+    //check sort desc
+    cy.getByTestID('sorter--desc').click()
+
+    cy.getByTestIDSubStr('resource-card').then(labels => {
+      for (var i = 0; i < labels.length; i++) {
+        cy.getByTestIDSubStr('resource-card')
+          .eq(i)
+          .should(
+            'have.text',
+            'Description: ' + names[labels.length - (i + 1)].description
+          )
+      }
+    })
   })
 
-  it.skip('can filter labels', () => {
-    // waiting on issue 13930
+  it('can filter labels', () => {
+    //Create labels
+    let names: {name: string; description: string; color: string}[] = [
+      {
+        name: 'Chocolate bread',
+        description: 'chocolate filled flour product',
+        color: '#FFAA88',
+      },
+      {name: 'Pannini', description: 'Italian hot sandwich', color: '#445511'},
+      {
+        name: 'Crissonti',
+        description: 'French breakfast bread',
+        color: '#114455',
+      },
+      {name: 'ApfelKuchen', description: 'German apple cake', color: '#F96A2D'},
+      {name: 'Torta', description: 'Mexican sandwich', color: '#AA8888'},
+      {
+        name: 'Apfelstrudel',
+        description: 'German apple flaky pastry',
+        color: '#BBBBBB',
+      },
+    ]
+
+    cy.get<Organization>('@org').then(({id}) => {
+      names.forEach(n => {
+        cy.createLabel(n.name, id, {description: n.description, color: n.color})
+      })
+    })
+
+    cy.reload()
+
+    //input the search for titles check
+    cy.getByTestID('search-widget')
+      .clear()
+      .type('Apfel')
+
+    cy.getByTestID('label-card').should('have.length', 2)
+
+    //input the search for description check
+    cy.getByTestID('search-widget')
+      .clear()
+      .type('sandwich')
+
+    cy.getByTestID('label-card').should('have.length', 2)
+
+    //input the search for checking both name and description
+    cy.getByTestID('search-widget')
+      .clear()
+      .type('bread')
+
+    cy.getByTestID('label-card').should('have.length', 2)
   })
 })

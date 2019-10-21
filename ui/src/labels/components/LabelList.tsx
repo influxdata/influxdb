@@ -88,7 +88,7 @@ export default class LabelList extends PureComponent<Props, State> {
   }
 
   private get headerKeys(): SortKey[] {
-    return ['name', 'properties']
+    return ['name', 'properties.description']
   }
 
   private get rows(): JSX.Element[] {
