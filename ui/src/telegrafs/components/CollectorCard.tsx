@@ -75,7 +75,9 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         }
         labels={this.labels}
         metaData={[
-          <>Bucket: {bucket}</>,
+          <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
+            Bucket: {bucket}
+          </span>,
           <>
             <Link
               to={`/orgs/${org.id}/load-data/telegrafs/${

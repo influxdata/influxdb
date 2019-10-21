@@ -46,12 +46,14 @@ export default class CollectorList extends PureComponent<Props> {
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
               name="Name"
               onClick={onClickColumn}
+              testID="name-sorter"
             />
             <ResourceList.Sorter
               name="Bucket"
               sortKey={this.headerKeys[1]}
               sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
               onClick={onClickColumn}
+              testID="bucket-sorter"
             />
           </ResourceList.Header>
           <ResourceList.Body emptyState={emptyState}>
