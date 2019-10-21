@@ -284,6 +284,7 @@ func TestService_handleGetChecks(t *testing.T) {
 				}
 			}
 			r.URL.RawQuery = qp.Encode()
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Session{UserID: influxTesting.MustIDBase16("6f626f7274697321")}))
 
 			w := httptest.NewRecorder()
 
