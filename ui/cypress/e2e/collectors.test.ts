@@ -90,6 +90,8 @@ describe('Collectors', () => {
             cy.createTelegraf(telegrafConfigName, description, id, bucket)
           })
         })
+
+        cy.reload()
       })
 
       it('can delete a telegraf config', () => {
