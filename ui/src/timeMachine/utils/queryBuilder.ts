@@ -16,10 +16,18 @@ export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const isConfigValid =
     buckets.length >= 1 &&
     tags.length >= 1 &&
-    tags[0].key !== undefined &&
     tags.some(({key, values}) => key && values.length > 0)
 
   return isConfigValid
+}
+
+export const isConfigEmpty = (builderConfig: BuilderConfig): boolean => {
+  const {buckets, tags} = builderConfig
+  const isConfigEmpty =
+    buckets.length <= 1 &&
+    !tags.some(({key, values}) => key && values.length > 0)
+
+  return isConfigEmpty
 }
 
 export interface CheckQueryValidity {
@@ -142,16 +150,35 @@ function formatTagFilterCall(tagsSelections: BuilderConfig['tags']) {
   return `\n  ${calls}`
 }
 
+export enum ConfirmationState {
+  NotRequired = 'no confirmation required',
+  Required = 'confirmation required',
+  Unknown = 'unknown confirmation state',
+}
+
+export const confirmationState = (
+  query: string,
+  builderConfig: BuilderConfig
+) => {
+  if (
+    !isConfigValid(builderConfig) ||
+    !hasQueryBeenEdited(query, builderConfig)
+  ) {
+    ConfirmationState.NotRequired
+  }
+
+  if (hasQueryBeenEdited(query, builderConfig) || isEmpty(query)) {
+    return ConfirmationState.Required
+  }
+
+  return ConfirmationState.NotRequired
+}
+
 export function hasQueryBeenEdited(
   query: string,
   builderConfig: BuilderConfig
 ): boolean {
-  if (isEmpty(query)) {
-    return true
-  }
+  const _isQueryDifferent = query !== buildQuery(builderConfig)
 
-  const emptyQueryChanged = !isConfigValid(builderConfig)
-  const existingQueryChanged = query !== buildQuery(builderConfig)
-
-  return emptyQueryChanged || existingQueryChanged
+  return _isQueryDifferent
 }

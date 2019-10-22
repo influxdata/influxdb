@@ -9,6 +9,7 @@ import {
   STRINGS_TITLE,
   STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
+import {CheckType} from '@influxdata/influx'
 
 interface HTMLElementCM extends HTMLElement {
   CodeMirror: {
@@ -35,38 +36,32 @@ describe('DataExplorer', () => {
   })
 
   describe('editing mode switching', () => {
-    it('can switch to script editor mode', () => {
-      const toggle = cy.getByTestID('switch-to-script-editor')
+    const measurement = 'my_meas'
+    const field = 'my_field'
 
-      toggle.click()
-
-      const fluxEditor = cy.getByTestID('flux-editor')
-
-      fluxEditor.should('have.length', 1)
+    beforeEach(() => {
+      cy.writeData([`${measurement} ${field}=0`, `${measurement} ${field}=1`])
     })
 
-    it('can revert back to query builder mode (without confirmation)', () => {
+    it('can switch to and from script editor mode', () => {
+      cy.getByTestID('selector-list my_meas').click()
+      cy.getByTestID('selector-list my_field').click()
+
       cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('flux-editor').should('exist')
 
-      const toggle = cy.getByTestID('switch-to-query-builder')
+      // revert back to query builder mode (without confirmation)
+      cy.getByTestID('switch-to-query-builder').click()
+      cy.getByTestID('query-builder').should('exist')
 
-      toggle.click()
-
-      const builder = cy.getByTestID('query-builder')
-
-      builder.should('have.length', 1)
-    })
-
-    it('can revert back to query builder mode (with confirmation)', () => {
+      // can revert back to query builder mode (with confirmation)
       cy.getByTestID('switch-to-script-editor').click()
-
+      cy.getByTestID('flux-editor').should('exist')
       cy.getByTestID('flux-editor').within(() => {
         cy.get('textarea').type('yoyoyoyoyo', {force: true})
       })
 
-      const toggle = cy.getByTestID('switch-query-builder-confirm--button')
-
-      toggle.click()
+      cy.getByTestID('switch-query-builder-confirm--button').click()
 
       cy.getByTestID('switch-query-builder-confirm--popover--contents').within(
         () => {
@@ -74,9 +69,7 @@ describe('DataExplorer', () => {
         }
       )
 
-      const builder = cy.getByTestID('query-builder')
-
-      builder.should('have.length', 1)
+      cy.getByTestID('query-builder').should('exist')
     })
   })
 

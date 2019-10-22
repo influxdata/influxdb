@@ -18,7 +18,10 @@ import {
 
 // Utils
 import {getActiveQuery} from 'src/timeMachine/selectors'
-import {hasQueryBeenEdited} from 'src/timeMachine/utils/queryBuilder'
+import {
+  confirmationState,
+  ConfirmationState,
+} from 'src/timeMachine/utils/queryBuilder'
 
 // Types
 import {AppState, DashboardQuery} from 'src/types'
@@ -38,6 +41,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
   public render() {
     const {onEditAsFlux, onEditWithBuilder} = this.props
     const {editMode, text, builderConfig} = this.props.activeQuery
+    const scriptMode = editMode !== 'builder'
 
     let button = (
       <Button
@@ -47,19 +51,22 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
         testID="switch-to-script-editor"
       />
     )
-    
-    if (editMode !== 'builder') {
+
+    if (scriptMode) {
       button = (
         <Button
-        text="Query Builder"
-        titleText="Switch to Query Builder"
-        onClick={onEditWithBuilder}
-        testID="switch-to-query-builder"
+          text="Query Builder"
+          titleText="Switch to Query Builder"
+          onClick={onEditWithBuilder}
+          testID="switch-to-query-builder"
         />
       )
     }
 
-    if (editMode !== 'builder' && hasQueryBeenEdited(text, builderConfig)) {
+    if (
+      scriptMode &&
+      confirmationState(text, builderConfig) === ConfirmationState.Required
+    ) {
       button = (
         <ConfirmationButton
           popoverColor={ComponentColor.Danger}
