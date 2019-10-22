@@ -650,10 +650,10 @@ export const removeCheckThreshold = (level: CheckStatusLevel) => ({
   payload: {level},
 })
 
-export const loadNewVEO = (fromContextID: string) => async (
+export const loadNewVEO = (fromContextID: string) => (
   dispatch: Dispatch<Action>,
   getState: GetState
-): Promise<void> => {
+): void => {
   dispatch(
     setActiveTimeMachine('veo', {view: createView<XYViewProperties>('xy')})
   )
