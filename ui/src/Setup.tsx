@@ -5,8 +5,6 @@ import {InjectedRouter} from 'react-router'
 // APIs
 import {client} from 'src/utils/api'
 
-// foo
-
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -62,6 +60,7 @@ export class Setup extends PureComponent<Props, State> {
 
   public render() {
     const {loading} = this.state
+    return false
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
