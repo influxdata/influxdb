@@ -14,7 +14,7 @@ describe('enviroment normalization', () => {
       expect(formatStatic('n/ea/teo')).toBe('n/ea/teo/')
     })
 
-    it('should pass through no slashes', () => {
+    it('should add a final slash here', () => {
       expect(formatStatic('neateo')).toBe('neateo/')
     })
   })

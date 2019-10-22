@@ -9,8 +9,6 @@ const {
   API_BASE_PATH,
 } = require('./src/utils/env')
 
-// throw new Error(BASE_PATH);
-
 module.exports = {
   context: __dirname,
   output: {

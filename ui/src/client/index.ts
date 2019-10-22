@@ -3,7 +3,7 @@ import {getAPIBasepath} from 'src/utils/basepath'
 
 setRequestHandler((url, query, init) => {
   return {
-    url: getAPIBasepath() + url,
+    url: `${getAPIBasepath()}${url}`,
     query,
     init,
   }

@@ -3,7 +3,7 @@ import {Client} from '@influxdata/influx'
 import {get} from 'lodash'
 import {getAPIBasepath} from 'src/utils/basepath'
 
-const basePath = getAPIBasepath() + '/api/v2'
+const basePath = `${getAPIBasepath()}/api/v2`
 
 export const getErrorMessage = (e: any) => {
   let message = get(e, 'response.data.error.message', '')
