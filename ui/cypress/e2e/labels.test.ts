@@ -415,21 +415,21 @@ describe('labels', () => {
       '(\u03945) Per modum intelligo substantiae affectiones sive id quod in alio est, per quod etiam concipitur.'
     const labelColor = '#88AACC'
 
-    for (let i = 0; i <= 100; i++) {
-      beforeEach(() => {
-        // Create labels
-        cy.get('@org').then(({id}: Organization) => {
-          cy.createLabel(labelName, id, {
-            description: labelDescription,
-            color: labelColor,
-          })
-          cy.createLabel(labelName, id, {
-            description: labelDescription,
-            color: '#CCAA88',
-          })
+    beforeEach(() => {
+      // Create labels
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createLabel(labelName, id, {
+          description: labelDescription,
+          color: labelColor,
+        })
+        cy.createLabel(labelName, id, {
+          description: labelDescription,
+          color: '#CCAA88',
         })
       })
+    })
 
+    for (let i = 0; i <= 50; i++) {
       it('can delete a label', () => {
         cy.server()
         cy.route('DELETE', 'api/v2/labels/*').as('deleteLabels')
