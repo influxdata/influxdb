@@ -181,9 +181,28 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 
 	buf, err := idx.Get(key)
 	if IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("bucket %q not found", n),
+		switch n {
+		case influxdb.TasksSystemBucketName:
+			return &influxdb.Bucket{
+				ID:              influxdb.TasksSystemBucketID,
+				Type:            influxdb.BucketTypeSystem,
+				Name:            influxdb.TasksSystemBucketName,
+				RetentionPeriod: influxdb.TasksSystemBucketRetention,
+				Description:     "System bucket for task logs",
+			}, nil
+		case influxdb.MonitoringSystemBucketName:
+			return &influxdb.Bucket{
+				ID:              influxdb.MonitoringSystemBucketID,
+				Type:            influxdb.BucketTypeSystem,
+				Name:            influxdb.MonitoringSystemBucketName,
+				RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
+				Description:     "System bucket for monitoring logs",
+			}, nil
+		default:
+			return nil, &influxdb.Error{
+				Code: influxdb.ENotFound,
+				Msg:  fmt.Sprintf("bucket %q not found", n),
+			}
 		}
 	}
 
