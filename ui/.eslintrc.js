@@ -1,7 +1,7 @@
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: './tsconfig.test.json',
+    project: './tsconfig.test.json', // causing slowness
     tsconfigRootDir: __dirname,
     ecmaFeatures: {
       jsx: true,
