@@ -2,7 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -147,44 +146,7 @@ func (f BucketFilter) String() string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-func isNotFound(e error) bool {
-	err, _ := e.(*Error)
-
-	return err.Code == ENotFound
-}
-
 // FindSystemBucket finds the system bucket with a given name
 func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name string) (*Bucket, error) {
-	bucket, err := bs.FindBucketByName(ctx, orgID, name)
-	if err != nil && !isNotFound(err) {
-		return nil, err
-	}
-
-	if bucket != nil {
-		return bucket, nil
-	}
-
-	switch name {
-	case TasksSystemBucketName:
-		return &Bucket{
-			ID:              TasksSystemBucketID,
-			Type:            BucketTypeSystem,
-			Name:            TasksSystemBucketName,
-			RetentionPeriod: TasksSystemBucketRetention,
-			Description:     "System bucket for task logs",
-		}, nil
-	case MonitoringSystemBucketName:
-		return &Bucket{
-			ID:              MonitoringSystemBucketID,
-			Type:            BucketTypeSystem,
-			Name:            MonitoringSystemBucketName,
-			RetentionPeriod: MonitoringSystemBucketRetention,
-			Description:     "System bucket for monitoring logs",
-		}, nil
-	default:
-		return nil, &Error{
-			Code: ENotFound,
-			Msg:  fmt.Sprintf("system bucket %q not found", name),
-		}
-	}
+	return bs.FindBucketByName(ctx, orgID, name)
 }
