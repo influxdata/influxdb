@@ -147,10 +147,16 @@ func (f BucketFilter) String() string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
+func isNotFound(e error) bool {
+	err, _ := e.(*Error)
+
+	return err.Code == ENotFound
+}
+
 // FindSystemBucket finds the system bucket with a given name
 func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name string) (*Bucket, error) {
 	bucket, err := bs.FindBucketByName(ctx, orgID, name)
-	if err != nil {
+	if err != nil && !isNotFound(err) {
 		return nil, err
 	}
 
