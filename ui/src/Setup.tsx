@@ -60,7 +60,6 @@ export class Setup extends PureComponent<Props, State> {
 
   public render() {
     const {loading} = this.state
-    return false
 
     return (
       <SpinnerContainer loading={loading} spinnerComponent={<TechnoSpinner />}>
