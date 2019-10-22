@@ -166,6 +166,7 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 		OrgID: orgID,
 		Name:  n,
 	}
+
 	key, err := bucketIndexKey(b)
 	if err != nil {
 		return nil, &influxdb.Error{
@@ -181,9 +182,17 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 
 	buf, err := idx.Get(key)
 	if IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
-			Msg:  fmt.Sprintf("bucket %q not found", n),
+		switch n {
+		case "_tasks", "_monitoring":
+			// if the system buckets _tasks or _monitoring can not
+			// be found then direct the bucket lookup to the legacy
+			// bucket IDs
+			return s.findLegacySystemBucket(n)
+		default:
+			return nil, &influxdb.Error{
+				Code: influxdb.ENotFound,
+				Msg:  fmt.Sprintf("bucket %q not found", n),
+			}
 		}
 	}
 
@@ -198,6 +207,32 @@ func (s *Service) findBucketByName(ctx context.Context, tx Tx, orgID influxdb.ID
 		}
 	}
 	return s.findBucketByID(ctx, tx, id)
+}
+
+func (s *Service) findLegacySystemBucket(n string) (*influxdb.Bucket, error) {
+	switch n {
+	case "_tasks":
+		return &influxdb.Bucket{
+			ID:              influxdb.TasksSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            "_tasks",
+			RetentionPeriod: time.Hour * 24 * 3,
+			Description:     "System bucket for task logs",
+		}, nil
+	case "_monitoring":
+		return &influxdb.Bucket{
+			ID:              influxdb.MonitoringSystemBucketID,
+			Type:            influxdb.BucketTypeSystem,
+			Name:            "_monitoring",
+			RetentionPeriod: time.Hour * 24 * 7,
+			Description:     "System bucket for monitoring logs",
+		}, nil
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Msg:  fmt.Sprintf("system bucket %q not found", n),
+		}
+	}
 }
 
 // FindBucket retrives a bucket using an arbitrary bucket filter.

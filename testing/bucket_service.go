@@ -86,6 +86,10 @@ func BucketService(
 			fn:   FindBucket,
 		},
 		{
+			name: "FindBucketByName",
+			fn:   FindBucketByName,
+		},
+		{
 			name: "UpdateBucket",
 			fn:   UpdateBucket,
 		},
@@ -1110,6 +1114,102 @@ func FindBucket(
 			}
 
 			bucket, err := s.FindBucket(ctx, filter)
+			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
+
+			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
+				t.Errorf("buckets are different -got/+want\ndiff %s", diff)
+			}
+		})
+	}
+}
+
+// FindBucketByName testing
+func FindBucketByName(
+	init func(BucketFields, *testing.T) (influxdb.BucketService, string, func()),
+	t *testing.T,
+) {
+	type args struct {
+		name           string
+		organizationID influxdb.ID
+	}
+
+	type wants struct {
+		bucket *influxdb.Bucket
+		err    error
+	}
+
+	tests := []struct {
+		name   string
+		fields BucketFields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "find bucket by name",
+			fields: BucketFields{
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "abc",
+					},
+					{
+						ID:    MustIDBase16(bucketTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "xyz",
+					},
+				},
+			},
+			args: args{
+				name:           "abc",
+				organizationID: MustIDBase16(orgOneID),
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:    MustIDBase16(bucketOneID),
+					OrgID: MustIDBase16(orgOneID),
+					Name:  "abc",
+				},
+			},
+		},
+		{
+			name: "missing bucket returns error",
+			fields: BucketFields{
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{},
+			},
+			args: args{
+				name:           "xyz",
+				organizationID: MustIDBase16(orgOneID),
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.ENotFound,
+					Op:   influxdb.OpFindBucket,
+					Msg:  "bucket \"xyz\" not found",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, opPrefix, done := init(tt.fields, t)
+			defer done()
+			ctx := context.Background()
+
+			bucket, err := s.FindBucketByName(ctx, tt.args.organizationID, tt.args.name)
 			diffPlatformErrors(tt.name, err, tt.wants.err, opPrefix, t)
 
 			if diff := cmp.Diff(bucket, tt.wants.bucket, bucketCmpOptions...); diff != "" {
