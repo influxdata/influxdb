@@ -20,6 +20,7 @@ module.exports = merge(common, {
       '/api/v2': 'http://localhost:9999',
       '/debug/flush': 'http://localhost:9999',
     },
+    host: '0.0.0.0',
     port: PORT,
   },
   module: {

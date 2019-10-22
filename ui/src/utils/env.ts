@@ -49,6 +49,7 @@ module.exports = (() => {
 
   const STATIC_DIRECTORY = formatStatic(process.env.STATIC_DIRECTORY || '')
   const BASE_PATH = formatBase(process.env.BASE_PATH || '/')
+  const API_BASE_PATH = formatBase(process.env.API_BASE_PATH || '/')
 
-  return {formatStatic, formatBase, GIT_SHA, STATIC_DIRECTORY, BASE_PATH}
+  return {formatStatic, formatBase, GIT_SHA, STATIC_DIRECTORY, BASE_PATH, API_BASE_PATH}
 })()

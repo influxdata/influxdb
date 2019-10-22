@@ -6,7 +6,10 @@ const {
   GIT_SHA,
   STATIC_DIRECTORY,
   BASE_PATH,
+  API_BASE_PATH,
 } = require('./src/utils/env')
+
+// throw new Error(BASE_PATH);
 
 module.exports = {
   context: __dirname,
@@ -82,7 +85,7 @@ module.exports = {
       body: process.env.INJECT_BODY || '',
     }),
     new webpack.ProgressPlugin(),
-    new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: BASE_PATH}),
+    new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: API_BASE_PATH, STATIC_PREFIX: BASE_PATH}),
   ],
   stats: {
     colors: true,

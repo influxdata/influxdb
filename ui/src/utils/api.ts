@@ -1,9 +1,9 @@
 // Libraries
 import {Client} from '@influxdata/influx'
 import {get} from 'lodash'
-import {getBasepath} from 'src/utils/basepath'
+import {getAPIBasepath} from 'src/utils/basepath'
 
-const basePath = getBasepath() + '/api/v2'
+const basePath = getAPIBasepath() + '/api/v2'
 
 export const getErrorMessage = (e: any) => {
   let message = get(e, 'response.data.error.message', '')

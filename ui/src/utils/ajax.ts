@@ -1,10 +1,9 @@
 import axios, {AxiosResponse, Method} from 'axios'
+import {getAPIBasepath} from 'src/utils/basepath'
 
 // do not prefix route with basepath, ex. for external links
 const addBasepath = (url, excludeBasepath): string => {
-  const basepath = window.basepath || ''
-
-  return excludeBasepath ? url : `${basepath}${url}`
+  return excludeBasepath ? url : `${getAPIBasepath()}${url}`
 }
 
 interface RequestParams {

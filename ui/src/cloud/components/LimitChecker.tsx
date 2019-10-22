@@ -12,7 +12,7 @@ interface DispatchProps {
 
 class LimitChecker extends PureComponent<DispatchProps, {}> {
   public componentDidMount() {
-    if (CLOUD === 'true') {
+    if (CLOUD) {
       this.props.getReadWriteCardinalityLimits()
     }
   }
