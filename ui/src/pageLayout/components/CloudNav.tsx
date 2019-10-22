@@ -4,7 +4,11 @@ import React, {PureComponent} from 'react'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 import {NavMenu, Icon} from '@influxdata/clockface'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
-import {CLOUD_URL, CLOUD_USAGE_PATH, CLOUD_BILLING_PATH} from 'src/shared/constants'
+import {
+  CLOUD_URL,
+  CLOUD_USAGE_PATH,
+  CLOUD_BILLING_PATH,
+} from 'src/shared/constants'
 
 // Types
 import {IconFont} from '@influxdata/clockface'
