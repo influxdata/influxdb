@@ -528,9 +528,6 @@ func (s *Service) putBucket(ctx context.Context, tx Tx, b *influxdb.Bucket) erro
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// TODO(jade): remove this after we support storing system buckets
-	b.Type = influxdb.BucketTypeUser
-
 	v, err := json.Marshal(b)
 	if err != nil {
 		return &influxdb.Error{
