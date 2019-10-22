@@ -107,12 +107,12 @@ export const getViewForTimeMachine = (
   dispatch: Dispatch<Action | TimeMachineAction | NotificationAction>,
   getState: GetState
 ): Promise<void> => {
-  const state = getState()
-  dispatch(setView(cellID, null, RemoteDataState.Loading))
   try {
+    const state = getState()
     let view = getViewFromState(state, cellID) as QueryView
 
     if (!view) {
+      dispatch(setView(cellID, null, RemoteDataState.Loading))
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
