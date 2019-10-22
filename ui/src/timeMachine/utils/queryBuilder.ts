@@ -12,9 +12,11 @@ import {BuilderTagsType} from '@influxdata/influx'
 
 export function isConfigValid(builderConfig: BuilderConfig): boolean {
   const {buckets, tags} = builderConfig
+
   const isConfigValid =
     buckets.length >= 1 &&
     tags.length >= 1 &&
+    tags[0].key !== undefined &&
     tags.some(({key, values}) => key && values.length > 0)
 
   return isConfigValid

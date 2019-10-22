@@ -39,8 +39,28 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
     const {onEditAsFlux, onEditWithBuilder} = this.props
     const {editMode, text, builderConfig} = this.props.activeQuery
 
+    let button = (
+      <Button
+        text="Script Editor"
+        titleText="Switch to Script Editor"
+        onClick={onEditAsFlux}
+        testID="switch-to-script-editor"
+      />
+    )
+    
+    if (editMode !== 'builder') {
+      button = (
+        <Button
+        text="Query Builder"
+        titleText="Switch to Query Builder"
+        onClick={onEditWithBuilder}
+        testID="switch-to-query-builder"
+        />
+      )
+    }
+
     if (editMode !== 'builder' && hasQueryBeenEdited(text, builderConfig)) {
-      return (
+      button = (
         <ConfirmationButton
           popoverColor={ComponentColor.Danger}
           popoverType={PopoverType.Outline}
@@ -55,25 +75,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
       )
     }
 
-    if (editMode !== 'builder') {
-      return (
-        <Button
-          text="Query Builder"
-          titleText="Switch to Query Builder"
-          onClick={onEditWithBuilder}
-          testID="switch-to-query-builder"
-        />
-      )
-    }
-
-    return (
-      <Button
-        text="Script Editor"
-        titleText="Switch to Script Editor"
-        onClick={onEditAsFlux}
-        testID="switch-to-script-editor"
-      />
-    )
+    return button
   }
 }
 

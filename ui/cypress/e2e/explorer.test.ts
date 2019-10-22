@@ -33,6 +33,50 @@ describe('DataExplorer', () => {
       })
     })
   })
+  
+  describe('editing mode switching', () => {
+    it('can switch to script editor mode', () => {
+      const toggle = cy.getByTestID('switch-to-script-editor')
+  
+      toggle.click()
+  
+      const fluxEditor = cy.getByTestID('flux-editor')
+  
+      fluxEditor.should('have.length', 1)
+    })
+
+    it('can revert back to query builder mode (without confirmation)', () => {
+      cy.getByTestID('switch-to-script-editor').click()
+
+      const toggle = cy.getByTestID('switch-to-query-builder')
+  
+      toggle.click()
+  
+      const builder = cy.getByTestID('query-builder')
+  
+      builder.should('have.length', 1)
+    })
+  
+    it('can revert back to query builder mode (with confirmation)', () => {
+      cy.getByTestID('switch-to-script-editor').click()
+
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea').type('yoyoyoyoyo', {force: true})
+      })
+  
+      const toggle = cy.getByTestID('switch-query-builder-confirm--button')
+  
+      toggle.click()
+  
+      cy.getByTestID('switch-query-builder-confirm--popover--contents').within(() => {
+        cy.getByTestID('button').click()
+      })
+  
+      const builder = cy.getByTestID('query-builder')
+  
+      builder.should('have.length', 1)
+    })
+  })
 
   describe('raw script editing', () => {
     beforeEach(() => {
