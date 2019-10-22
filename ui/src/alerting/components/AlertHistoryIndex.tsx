@@ -61,48 +61,50 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
     historyType === 'statuses' ? STATUS_FIELDS : NOTIFICATION_FIELDS
 
   return (
-    <GetResources resource={ResourceType.Checks}>
-      <GetResources resource={ResourceType.NotificationEndpoints}>
-        <GetResources resource={ResourceType.NotificationRules}>
-          <ResourceIDsContext.Provider value={resourceIDs}>
-            <EventViewer loadRows={loadRows} initialState={getInitialState()}>
-              {props => (
-                <Page
-                  titleTag="Check Statuses | InfluxDB 2.0"
-                  className="alert-history-page"
-                >
-                  <Page.Header fullWidth={true}>
-                    <div className="alert-history-page--header">
-                      <Page.Title
-                        title="Check Statuses"
-                        testID="alert-history-title"
-                      />
-                      <AlertHistoryQueryParams
-                        searchInput={props.state.searchInput}
-                        historyType={historyType}
-                      />
-                      <AlertHistoryControls
-                        historyType={historyType}
-                        onSetHistoryType={setHistoryType}
-                        eventViewerProps={props}
-                      />
-                    </div>
-                  </Page.Header>
-                  <Page.Contents
-                    fullWidth={true}
-                    scrollable={false}
-                    className="alert-history-page--contents"
-                  >
-                    <div className="alert-history">
-                      <EventTable {...props} fields={fields} />
-                    </div>
-                  </Page.Contents>
-                </Page>
-              )}
-            </EventViewer>
-          </ResourceIDsContext.Provider>
-        </GetResources>
-      </GetResources>
+    <GetResources
+      resources={[
+        ResourceType.Checks,
+        ResourceType.NotificationEndpoints,
+        ResourceType.NotificationRules,
+      ]}
+    >
+      <ResourceIDsContext.Provider value={resourceIDs}>
+        <EventViewer loadRows={loadRows} initialState={getInitialState()}>
+          {props => (
+            <Page
+              titleTag="Check Statuses | InfluxDB 2.0"
+              className="alert-history-page"
+            >
+              <Page.Header fullWidth={true}>
+                <div className="alert-history-page--header">
+                  <Page.Title
+                    title="Check Statuses"
+                    testID="alert-history-title"
+                  />
+                  <AlertHistoryQueryParams
+                    searchInput={props.state.searchInput}
+                    historyType={historyType}
+                  />
+                  <AlertHistoryControls
+                    historyType={historyType}
+                    onSetHistoryType={setHistoryType}
+                    eventViewerProps={props}
+                  />
+                </div>
+              </Page.Header>
+              <Page.Contents
+                fullWidth={true}
+                scrollable={false}
+                className="alert-history-page--contents"
+              >
+                <div className="alert-history">
+                  <EventTable {...props} fields={fields} />
+                </div>
+              </Page.Contents>
+            </Page>
+          )}
+        </EventViewer>
+      </ResourceIDsContext.Provider>
     </GetResources>
   )
 }

@@ -31,7 +31,7 @@ class TemplatesIndex extends Component<Props> {
         <Page titleTag={pageTitleSuffixer(['Templates', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
-            <GetResources resource={ResourceType.Templates}>
+            <GetResources resources={[ResourceType.Templates]}>
               <TemplatesPage onImport={this.handleImport} />
             </GetResources>
           </SettingsTabbedPage>

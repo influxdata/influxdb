@@ -6,15 +6,14 @@
 $rename-dash-title-padding: 4px;
 
 .renamable-page-title {
-  height: $form-sm-height;
   width: 100%;
   min-width: 29vw;
   max-width: 42vw;
   display: flex;
+  margin-bottom: 4px !important;
 }
 
 .renamable-page-title--title,
-.renamable-page-title--input-prefix,
 .cf-input.renamable-page-title--input > input {
   font-size: $page-title-size;
   font-weight: $page-title-weight;
@@ -26,12 +25,11 @@ $rename-dash-title-padding: 4px;
 .renamable-page-title--input {
   position: relative;
   width: calc(100% + #{$rename-dash-title-padding}) !important;
-  left: -$rename-dash-title-padding;
+  left: -($rename-dash-title-padding + $ix-border);
 }
 
 .renamable-page-title--title {
   border-radius: $radius;
-  position: relative;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

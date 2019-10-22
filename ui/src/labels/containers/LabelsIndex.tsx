@@ -30,7 +30,7 @@ class LabelsIndex extends PureComponent<StateProps> {
         <Page titleTag={pageTitleSuffixer(['Labels', 'Settings'])}>
           <SettingsHeader />
           <SettingsTabbedPage activeTab="labels" orgID={org.id}>
-            <GetResources resource={ResourceType.Labels}>
+            <GetResources resources={[ResourceType.Labels]}>
               <LabelsTab />
             </GetResources>
           </SettingsTabbedPage>

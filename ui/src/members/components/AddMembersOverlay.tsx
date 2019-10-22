@@ -51,7 +51,7 @@ class AddMembersOverlay extends PureComponent<Props, State> {
     const {selectedUserIDs, searchTerm, selectedMembers} = this.state
 
     return (
-      <GetResources resource={ResourceType.Users}>
+      <GetResources resources={[ResourceType.Users]}>
         <Overlay visible={true}>
           <Overlay.Container maxWidth={720}>
             <Overlay.Header title="Add Member" onDismiss={this.handleDismiss} />
