@@ -269,7 +269,8 @@ export const createScraper = (
 export const createTelegraf = (
   name?: string,
   description?: string,
-  orgID?: string
+  orgID?: string,
+  bucket?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -278,7 +279,19 @@ export const createTelegraf = (
       name,
       description,
       agent: {collectionInterval: 10000},
-      plugins: [],
+      plugins: [
+        {
+          name: 'influxdb_v2',
+          type: 'output',
+          comment: 'string',
+          config: {
+            urls: ['string'],
+            token: 'string',
+            organization: 'string',
+            bucket,
+          },
+        },
+      ],
       orgID,
     },
   })

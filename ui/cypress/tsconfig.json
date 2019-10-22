@@ -6,7 +6,8 @@
     "lib": ["es2017", "dom"],
     "types": ["cypress", "mocha", "node"],
     "jsx": "react",
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true
   },
   "include": ["**/*.ts"]
 }

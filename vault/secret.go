@@ -25,6 +25,7 @@ type Config struct {
 	AgentAddress  string
 	ClientTimeout time.Duration
 	MaxRetries    int
+	Token         string
 	TLSConfig
 }
 
@@ -112,6 +113,10 @@ func NewSecretService(cfgOpts ...ConfigOptFn) (*SecretService, error) {
 	c, err := api.NewClient(cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	if explicitConfig.Token != "" {
+		c.SetToken(explicitConfig.Token)
 	}
 
 	return &SecretService{

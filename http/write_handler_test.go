@@ -223,23 +223,6 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 		},
 		{
-			name: "forbidden to write to system buckets",
-			request: request{
-				org:    "043e0780ee2b1000",
-				bucket: "000000000000000a",
-				auth:   bucketWritePermission("043e0780ee2b1000", "000000000000000a"),
-				body:   "invalid",
-			},
-			state: state{
-				org:    testOrg("043e0780ee2b1000"),
-				bucket: testBucket("043e0780ee2b1000", "000000000000000a"),
-			},
-			wants: wants{
-				code: 403,
-				body: `{"code":"forbidden","message":"cannot write to internal bucket "}`,
-			},
-		},
-		{
 			name: "forbidden to write with insufficient permission",
 			request: request{
 				org:    "043e0780ee2b1000",

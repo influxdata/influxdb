@@ -30,6 +30,28 @@ func NewIDGenerator(s string, t *testing.T) IDGenerator {
 	}
 }
 
+type MockIDGenerator struct {
+	Last  *platform.ID
+	Count int
+}
+
+const FirstMockID int = 65536
+
+func NewMockIDGenerator() *MockIDGenerator {
+	return &MockIDGenerator{
+		Count: FirstMockID,
+	}
+}
+
+func (g *MockIDGenerator) ID() platform.ID {
+	id := platform.ID(g.Count)
+	g.Count++
+
+	g.Last = &id
+
+	return id
+}
+
 // NewTokenGenerator is a simple way to create immutable token generator.
 func NewTokenGenerator(s string, err error) TokenGenerator {
 	return TokenGenerator{
