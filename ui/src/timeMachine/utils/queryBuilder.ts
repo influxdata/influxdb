@@ -146,7 +146,11 @@ export function hasQueryBeenEdited(
   query: string,
   builderConfig: BuilderConfig
 ): boolean {
-  const emptyQueryChanged = !isConfigValid(builderConfig) && !isEmpty(query)
+  if (isEmpty(query)) {
+    return true
+  }
+
+  const emptyQueryChanged = !isConfigValid(builderConfig)
   const existingQueryChanged = query !== buildQuery(builderConfig)
 
   return emptyQueryChanged || existingQueryChanged
