@@ -15,9 +15,7 @@ import {
   removeCheckThreshold,
 } from 'src/timeMachine/actions'
 import {useCheckYDomain} from 'src/alerting/utils/vis'
-import {
-  getVisTable,
-} from 'src/timeMachine/selectors'
+import {getVisTable} from 'src/timeMachine/selectors'
 
 // Types
 import {
@@ -72,15 +70,16 @@ const ThresholdCondition: FC<Props> = ({
     ])
   }, [threshold])
 
-  const [yDomain] = useCheckYDomain(
-    table.getColumn('_value', 'number'),
-    []
-  )
+  const [yDomain] = useCheckYDomain(table.getColumn('_value', 'number'), [])
 
   const addLevel = () => {
     const low = yDomain[0] || 0
     const high = yDomain[1] || 40
-    const newThreshold = {...defaultThreshold, value: ((high - low) / 2) + low, level}
+    const newThreshold = {
+      ...defaultThreshold,
+      value: (high - low) / 2 + low,
+      level,
+    }
     onUpdateCheckThreshold(newThreshold)
   }
 
@@ -153,7 +152,7 @@ const mstp = (state: AppState): StateProps => {
   const giraffeResult = getVisTable(state)
 
   return {
-    table: giraffeResult.table
+    table: giraffeResult.table,
   }
 }
 
