@@ -9,7 +9,6 @@ import {
   STRINGS_TITLE,
   STRINGS_TRIM,
 } from '../../src/shared/constants/fluxFunctions'
-import {CheckType} from '@influxdata/influx'
 
 interface HTMLElementCM extends HTMLElement {
   CodeMirror: {
