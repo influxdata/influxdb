@@ -658,8 +658,7 @@ export const loadNewVEO = (fromContextID: string) => (
     setActiveTimeMachine('veo', {view: createView<XYViewProperties>('xy')})
   )
 
-  const values =
-    get(getState(), `variables.values.${fromContextID}.values`, {})
+  const values = get(getState(), `variables.values.${fromContextID}.values`, {})
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))

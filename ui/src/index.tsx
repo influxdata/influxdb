@@ -125,8 +125,8 @@ const history: History = useRouterHistory(createHistory)({
 export const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
 
-if ((window as any).Cypress) {
-  window.store = store
+if (window['Cypress']) {
+  window['store'] = store
 }
 
 history.listen(() => {
