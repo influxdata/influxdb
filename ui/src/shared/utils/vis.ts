@@ -120,6 +120,10 @@ export const parseBounds = (
 }
 
 export const extent = (xs: number[]): [number, number] | null => {
+  if (!xs || !xs.length) {
+    return null
+  }
+
   let low = Infinity
   let high = -Infinity
 
@@ -172,7 +176,7 @@ export const getGroupableColumns = (table: Table): string[] => {
   `XYView` based on the current Flux response.  We then added support for an
   explicit x and y column setting by adding `xColumn` and `yColumn` fields to
   the `XYView`.
-  
+
   We did not migrate existing views when adding the fields, so the fields are
   considered optional. Thus to resolve the correct x and y column selections
   for an `XYView`, we need to:
