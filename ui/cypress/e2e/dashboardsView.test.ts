@@ -60,17 +60,14 @@ describe('Dashboard', () => {
     cy.getByTestID('cell--view-empty').should('have.length', 1)
   })
 
-  it('can add variables', () => {
-    const getSelectedVariable = (contextID, variableID) => win =>
-      win.store.getState().variables.values[contextID].values[variableID]
-        .selectedValue
+  const getSelectedVariable = (contextID: string, variableID: string) => win =>
+    win.store.getState().variables.values[contextID].values[variableID]
+      .selectedValue
 
+  it('can manage variable state with a lot of pointing and clicking', () => {
     cy.get<Organization>('@org').then(({id: orgID}) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createMapVariable(orgID).then(({body: variable}) => {
-          // create cell
-          // create view
-
           cy.fixture('routes').then(({orgs}) => {
             cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
           })
@@ -136,10 +133,14 @@ describe('Dashboard', () => {
     })
   })
 
-  it('instantiates dashboard with view', () => {
+  it('can create a view through the API', () => {
     cy.get<Organization>('@org').then(({id: orgID}) => {
       cy.createDashWithView(orgID).then(view => {
-        console.log(view)
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${orgID}/dashboards`)
+          cy.getByTestID('dashboard-card--name').click()
+          cy.get('.cell--view').should('have.length', 1)
+        })
       })
     })
   })
