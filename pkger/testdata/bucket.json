@@ -1,0 +1,19 @@
+{
+  "apiVersion": "0.1.0",
+  "kind": "Package",
+  "meta": {
+    "pkgName": "pkg_name",
+    "pkgVersion": "1",
+    "description": "pack description"
+  },
+  "spec": {
+    "resources": [
+      {
+        "kind": "Bucket",
+        "name": "rucket_11",
+        "retention_period": "1h",
+        "description": "bucket 1 description"
+      }
+    ]
+  }
+}
