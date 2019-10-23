@@ -21,6 +21,7 @@ import {
   GetState,
   Label,
   NotificationEndpointUpdate,
+  PostNotificationEndpoint,
 } from 'src/types'
 import {RemoteDataState} from '@influxdata/clockface'
 
@@ -78,11 +79,18 @@ export const getEndpoints = () => async (
   }
 }
 
-export const createEndpoint = (data: NotificationEndpoint) => async (
+export const createEndpoint = (endpoint: NotificationEndpoint) => async (
   dispatch: Dispatch<
     Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
   >
 ) => {
+  const labels = endpoint.labels || []
+
+  const data = {
+    ...endpoint,
+    labels: labels.map(l => l.id),
+  } as PostNotificationEndpoint
+
   const resp = await api.postNotificationEndpoint({data})
 
   if (resp.status !== 201) {
@@ -220,8 +228,14 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
 
     const clonedName = incrementCloneName(allEndpointNames, endpoint.name)
 
+    const labels = endpoint.labels || []
+
     const resp = await api.postNotificationEndpoint({
-      data: {...endpoint, name: clonedName},
+      data: {
+        ...endpoint,
+        name: clonedName,
+        labels: labels.map(l => l.id),
+      } as PostNotificationEndpoint,
     })
 
     if (resp.status !== 201) {
@@ -230,8 +244,6 @@ export const cloneEndpoint = (endpoint: NotificationEndpoint) => async (
 
     dispatch({type: 'SET_ENDPOINT', endpoint: resp.data})
     dispatch(checkEndpointsLimits())
-
-    // add labels?
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.createEndpointFailed(error.message)))
