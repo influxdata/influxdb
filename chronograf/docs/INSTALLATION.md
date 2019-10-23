@@ -1,1 +1,0 @@
-**We've moved our documentation!** Check out the latest [installation guide](https://docs.influxdata.com/chronograf/latest/introduction/installation/) on InfluxData's [main docs site](https://docs.influxdata.com/chronograf/latest/).

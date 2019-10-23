@@ -1,9 +1,0 @@
-# EditorConfig helps us maintain consistent formatting on non-source files.
-# Visit https://editorconfig.org/ for details on how to configure your editor to respect these settings.
-
-# This is the terminal .editorconfig in this repository.
-root = true
-
-[*.yml]
-insert_final_newline = true
-trim_trailing_whitespace = true
