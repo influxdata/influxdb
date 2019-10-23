@@ -581,6 +581,73 @@ func TestPushDownFilterRule(t *testing.T) {
 			},
 			NoChange: true,
 		},
+		{
+			Name:  `r._measurement == "cpu" and exists r.host`,
+			Rules: []plan.Rule{influxdb.PushDownFilterRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
+						Bounds: bounds,
+					}),
+					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
+						Fn: makeResolvedFilterFn(&semantic.LogicalExpression{
+							Operator: ast.AndOperator,
+							Left: &semantic.BinaryExpression{
+								Operator: ast.EqualOperator,
+								Left: &semantic.MemberExpression{
+									Object:   &semantic.IdentifierExpression{Name: "r"},
+									Property: "host",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "cpu",
+								},
+							},
+							Right: &semantic.UnaryExpression{
+								Operator: ast.ExistsOperator,
+								Argument: &semantic.MemberExpression{
+									Object:   &semantic.IdentifierExpression{Name: "r"},
+									Property: "host",
+								},
+							},
+						}),
+					}),
+				},
+				Edges: [][2]int{
+					{0, 1},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
+						Bounds:    bounds,
+						FilterSet: true,
+						Filter: makeFilterFn(&semantic.LogicalExpression{
+							Operator: ast.AndOperator,
+							Left: &semantic.BinaryExpression{
+								Operator: ast.EqualOperator,
+								Left: &semantic.MemberExpression{
+									Object:   &semantic.IdentifierExpression{Name: "r"},
+									Property: "host",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "cpu",
+								},
+							},
+							Right: &semantic.BinaryExpression{
+								Operator: ast.NotEqualOperator,
+								Left: &semantic.MemberExpression{
+									Object:   &semantic.IdentifierExpression{Name: "r"},
+									Property: "host",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "",
+								},
+							},
+						}),
+					}),
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
