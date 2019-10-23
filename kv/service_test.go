@@ -2,6 +2,7 @@ package kv_test
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -18,6 +19,10 @@ func (s mockStore) View(context.Context, func(kv.Tx) error) error {
 }
 
 func (s mockStore) Update(context.Context, func(kv.Tx) error) error {
+	return nil
+}
+
+func (s mockStore) Backup(ctx context.Context, w io.Writer) error {
 	return nil
 }
 

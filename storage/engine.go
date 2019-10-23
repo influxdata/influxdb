@@ -3,9 +3,12 @@ package storage
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"math"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -21,7 +24,9 @@ import (
 	"github.com/influxdata/influxdb/tsdb/tsm1"
 	"github.com/influxdata/influxdb/tsdb/value"
 	"github.com/influxdata/influxql"
+	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -660,6 +665,93 @@ func (e *Engine) deleteBucketRangeLocked(ctx context.Context, orgID, bucketID pl
 	name := models.EscapeMeasurement(encoded[:])
 
 	return e.engine.DeletePrefixRange(ctx, name, min, max, pred)
+}
+
+// CreateBackup creates a "snapshot" of all TSM data in the Engine.
+//   1) Snapshot the cache to ensure the backup includes all data written before now.
+//   2) Create hard links to all TSM files, in a new directory within the engine root directory.
+//   3) Return a unique backup ID (invalid after the process terminates) and list of files.
+func (e *Engine) CreateBackup(ctx context.Context) (int, []string, error) {
+	span, ctx := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if e.closing == nil {
+		return 0, nil, ErrEngineClosed
+	}
+
+	if err := e.engine.WriteSnapshot(ctx, tsm1.CacheStatusBackup); err != nil {
+		return 0, nil, err
+	}
+
+	id, snapshotPath, err := e.engine.FileStore.CreateSnapshot(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	fileInfos, err := ioutil.ReadDir(snapshotPath)
+	if err != nil {
+		return 0, nil, err
+	}
+	filenames := make([]string, len(fileInfos))
+	for i, fi := range fileInfos {
+		filenames[i] = fi.Name()
+	}
+
+	return id, filenames, nil
+}
+
+// FetchBackupFile writes a given backup file to the provided writer.
+// After a successful write, the internal copy is removed.
+func (e *Engine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closing == nil {
+		return ErrEngineClosed
+	}
+
+	backupPath := e.engine.FileStore.InternalBackupPath(backupID)
+	if fi, err := os.Stat(backupPath); err != nil {
+		if os.IsNotExist(err) {
+			return errors.Errorf("backup %d not found", backupID)
+		}
+		return errors.WithMessagef(err, "failed to locate backup %d", backupID)
+	} else if !fi.IsDir() {
+		return errors.Errorf("error in filesystem path of backup %d", backupID)
+	}
+
+	backupFileFullPath := filepath.Join(backupPath, backupFile)
+	file, err := os.Open(backupFileFullPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return errors.Errorf("backup file %d/%s not found", backupID, backupFile)
+		}
+		return errors.WithMessagef(err, "failed to open backup file %d/%s", backupID, backupFile)
+	}
+	defer file.Close()
+
+	if _, err = io.Copy(w, file); err != nil {
+		err = multierr.Append(err, file.Close())
+		return errors.WithMessagef(err, "failed to copy backup file %d/%s to writer", backupID, backupFile)
+	}
+
+	if err = file.Close(); err != nil {
+		return errors.WithMessagef(err, "failed to close backup file %d/%s", backupID, backupFile)
+	}
+
+	if err = os.Remove(backupFileFullPath); err != nil {
+		e.logger.Info("Failed to remove backup file after fetch", zap.Error(err), zap.Int("backup_id", backupID), zap.String("backup_file", backupFile))
+	}
+
+	return nil
+}
+
+// InternalBackupPath provides the internal, full path directory name of the backup.
+// This should not be exposed via API.
+func (e *Engine) InternalBackupPath(backupID int) string {
+	return e.engine.FileStore.InternalBackupPath(backupID)
 }
 
 // SeriesCardinality returns the number of series in the engine.
