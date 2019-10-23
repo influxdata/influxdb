@@ -264,6 +264,12 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: false,
 			Desc:    "feature flag that enables using the new treescheduler",
 		},
+		{
+			DestP:   &l.taskPollingPeriod,
+			Flag:    "polling-period",
+			Default: "30s",
+			Desc:    "The interval at which the Task Health Service should poll for active tasks",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -292,6 +298,8 @@ type Launcher struct {
 	enginePath      string
 	secretStore     string
 
+	taskPollingPeriod string
+
 	boltClient    *bolt.Client
 	kvService     *kv.Service
 	engine        *storage.Engine
@@ -311,6 +319,7 @@ type Launcher struct {
 	scheduler          *taskbackend.TickScheduler
 	treeScheduler      *scheduler.TreeScheduler
 	taskControlService taskbackend.TaskControlService
+	taskHealthService  *platform.TaskHealthService
 
 	jaegerTracerCloser io.Closer
 	logger             *zap.Logger
@@ -373,11 +382,14 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.httpServer.Shutdown(ctx)
 
 	m.logger.Info("Stopping", zap.String("service", "task"))
+
 	if m.EnableNewScheduler {
 		m.treeScheduler.Stop()
 	} else {
 		m.scheduler.Stop()
 	}
+
+	m.taskHealthService.Close()
 
 	m.logger.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
@@ -702,6 +714,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
 			m.taskControlService = combinedTaskService
 		}
+
+		defaultPollingPeriod, err := time.ParseDuration(m.taskPollingPeriod)
+		if err != nil {
+			m.logger.Error("invalid task health polling period format")
+			defaultPollingPeriod = 30 * time.Second
+		}
+		m.taskHealthService = platform.NewTaskHealthService(ctx, taskSvc, defaultPollingPeriod)
+		m.taskHealthService.Open()
 
 	}
 

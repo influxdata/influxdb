@@ -11,6 +11,7 @@ import (
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
 )
 
@@ -223,6 +224,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
 		OwnerID:        u.ID,
+		Status:         string(backend.TaskActive),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -271,5 +273,15 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 	if len(tasks) != 1 {
 		t.Fatal("failed to return task")
+	}
+
+	// test status filter
+	active := true
+	tasksWithActiveFilter, _, err := service.FindTasks(ctx, influxdb.TaskFilter{Active: &active})
+	if err != nil {
+		t.Fatal("could not find tasks")
+	}
+	if len(tasksWithActiveFilter) != 1 {
+		t.Fatal("failed to find active task with filter")
 	}
 }
