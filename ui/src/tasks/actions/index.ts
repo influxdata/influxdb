@@ -352,11 +352,11 @@ export const selectTaskByID = (id: string) => async (
   }
 }
 
-export const setAllTaskOptionsByID = (id: string) => async (
+export const setAllTaskOptionsByID = (taskID: string) => async (
   dispatch
 ): Promise<void> => {
   try {
-    const task = await client.tasks.get(id)
+    const task = await client.tasks.get(taskID)
     dispatch(setAllTaskOptions(task))
   } catch (e) {
     console.error(e)
