@@ -34,6 +34,44 @@ describe('DataExplorer', () => {
     })
   })
 
+  describe('editing mode switching', () => {
+    const measurement = 'my_meas'
+    const field = 'my_field'
+
+    beforeEach(() => {
+      cy.writeData([`${measurement} ${field}=0`, `${measurement} ${field}=1`])
+    })
+
+    it('can switch to and from script editor mode', () => {
+      cy.getByTestID('selector-list my_meas').click()
+      cy.getByTestID('selector-list my_field').click()
+
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('flux-editor').should('exist')
+
+      // revert back to query builder mode (without confirmation)
+      cy.getByTestID('switch-to-query-builder').click()
+      cy.getByTestID('query-builder').should('exist')
+
+      // can revert back to query builder mode (with confirmation)
+      cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('flux-editor').should('exist')
+      cy.getByTestID('flux-editor').within(() => {
+        cy.get('textarea').type('yoyoyoyoyo', {force: true})
+      })
+
+      cy.getByTestID('switch-query-builder-confirm--button').click()
+
+      cy.getByTestID('switch-query-builder-confirm--popover--contents').within(
+        () => {
+          cy.getByTestID('button').click()
+        }
+      )
+
+      cy.getByTestID('query-builder').should('exist')
+    })
+  })
+
   describe('raw script editing', () => {
     beforeEach(() => {
       cy.getByTestID('switch-to-script-editor').click()
