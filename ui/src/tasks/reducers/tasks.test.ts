@@ -11,7 +11,7 @@ describe('tasksReducer', () => {
     it('should not clear the cron property from the task options when interval is selected', () => {
       const initialState = defaultState
       const cron = '0 2 * * *'
-      initialState.taskOptions = {...defaultTaskOptions, cron }
+      initialState.taskOptions = {...defaultTaskOptions, cron}
 
       const actual = tasksReducer(
         initialState,
@@ -33,7 +33,7 @@ describe('tasksReducer', () => {
     it('should not clear the interval property from the task options when cron is selected', () => {
       const initialState = defaultState
       const interval = '24h'
-      initialState.taskOptions = {...defaultTaskOptions, interval } // todo(docmerlin): allow for time units larger than 1d, right now h is the longest unit our s
+      initialState.taskOptions = {...defaultTaskOptions, interval} // todo(docmerlin): allow for time units larger than 1d, right now h is the longest unit our s
 
       const actual = tasksReducer(
         initialState,
