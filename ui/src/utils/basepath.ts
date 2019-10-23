@@ -1,4 +1,10 @@
+import {getRootNode} from 'src/utils/nodes'
 import {BASE_PATH, API_BASE_PATH} from 'src/shared/constants'
+
+export const getBrowserBasepath = () => {
+  const rootNode = getRootNode()
+  return rootNode.getAttribute('data-basepath') || ''
+}
 
 export const getBasepath = () => {
   if (BASE_PATH === '/') {

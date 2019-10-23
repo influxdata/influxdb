@@ -11,7 +11,7 @@ import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
 import {getRootNode} from 'src/utils/nodes'
-import {getBasepath} from 'src/utils/basepath'
+import {getBrowserBasepath} from 'src/utils/basepath'
 
 // Components
 import App from 'src/App'
@@ -107,7 +107,7 @@ import 'src/style/chronograf.scss'
 import '@influxdata/clockface/dist/index.css'
 
 const rootNode = getRootNode()
-const basepath = getBasepath()
+const basepath = getBrowserBasepath()
 
 declare global {
   interface Window {
