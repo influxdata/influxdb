@@ -5,7 +5,6 @@ import tasksReducer, {
 import {setTaskOption} from 'src/tasks/actions'
 import {TaskSchedule} from 'src/utils/taskOptionsToFluxScript'
 
-// skipping this test since the cron and interval values should not be reset when toggling between schedule tasks
 describe('tasksReducer', () => {
   describe('setTaskOption', () => {
     it('should not clear the cron property from the task options when interval is selected', () => {
