@@ -126,7 +126,7 @@ export const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
 
 if ((window as any).Cypress) {
-  (window as any).store = store
+  window.store = store
 }
 
 history.listen(() => {

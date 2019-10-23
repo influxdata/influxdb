@@ -1,12 +1,5 @@
 import {NotificationEndpoint} from '../../src/types'
 
-// const defaultViewQuery = {
-//   text: 'from(bucket: v.mapTypeVar)|> range(start: -15m, stop: now())',
-//   editMode: 'advanced',
-//   builderConfig: {},
-//   name: '',
-// }
-
 export const signin = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password}) => {
     return cy.setupUser().then(body => {

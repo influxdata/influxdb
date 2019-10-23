@@ -135,7 +135,7 @@ describe('Dashboard', () => {
 
   it('can create a view through the API', () => {
     cy.get<Organization>('@org').then(({id: orgID}) => {
-      cy.createDashWithView(orgID).then(view => {
+      cy.createDashWithView(orgID).then(() => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${orgID}/dashboards`)
           cy.getByTestID('dashboard-card--name').click()
