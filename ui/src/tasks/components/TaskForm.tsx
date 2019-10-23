@@ -97,6 +97,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                       value={TaskSchedule.interval}
                       titleText="Run task at regular intervals"
                       onClick={this.handleChangeScheduleType}
+                      testID="task-card-every-btn"
                     >
                       Every
                     </Radio.Button>
@@ -106,6 +107,7 @@ export default class TaskForm extends PureComponent<Props, State> {
                       value={TaskSchedule.cron}
                       titleText="Use cron syntax for more control over scheduling"
                       onClick={this.handleChangeScheduleType}
+                      testID="task-card-cron-btn"
                     >
                       Cron
                     </Radio.Button>

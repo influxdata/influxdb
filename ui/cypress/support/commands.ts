@@ -361,6 +361,10 @@ export const getByInputName = (name: string): Cypress.Chainable => {
   return cy.get(`input[name=${name}]`)
 }
 
+export const getByInputValue = (value: string): Cypress.Chainable => {
+  return cy.get(`input[value='${value}']`)
+}
+
 export const getByTitle = (name: string): Cypress.Chainable => {
   return cy.get(`[title="${name}"]`)
 }
@@ -398,6 +402,7 @@ Cypress.Commands.add('fluxEqual', fluxEqual)
 // getters
 Cypress.Commands.add('getByTestID', getByTestID)
 Cypress.Commands.add('getByInputName', getByInputName)
+Cypress.Commands.add('getByInputValue', getByInputValue)
 Cypress.Commands.add('getByTitle', getByTitle)
 Cypress.Commands.add('getByTestIDSubStr', getByTestIDSubStr)
 

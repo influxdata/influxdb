@@ -9,6 +9,7 @@ import {
   flush,
   getByTestID,
   getByInputName,
+  getByInputValue,
   getByTitle,
   createTask,
   createVariable,
@@ -42,6 +43,7 @@ declare global {
       flush: typeof flush
       getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
+      getByInputValue: typeof getByInputValue
       getByTitle: typeof getByTitle
       getByTestIDSubStr: typeof getByTestIDSubStr
       createAndAddLabel: typeof createAndAddLabel
