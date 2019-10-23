@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"errors"
+	"io"
 )
 
 var (
@@ -26,6 +27,8 @@ type Store interface {
 	View(context.Context, func(Tx) error) error
 	// Update opens up a transaction that will mutate data.
 	Update(context.Context, func(Tx) error) error
+	// Backup copies all K:Vs to a writer, file format determined by implementation.
+	Backup(ctx context.Context, w io.Writer) error
 }
 
 // Tx is a transaction in the store.

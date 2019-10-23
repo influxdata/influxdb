@@ -3,6 +3,7 @@ package bolt
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -117,6 +118,17 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 			tx:  tx,
 			ctx: ctx,
 		})
+	})
+}
+
+// Backup copies all K:Vs to a writer, in BoltDB format.
+func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	return s.db.View(func(tx *bolt.Tx) error {
+		_, err := tx.WriteTo(w)
+		return err
 	})
 }
 

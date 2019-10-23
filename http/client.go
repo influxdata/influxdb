@@ -40,6 +40,7 @@ type Service struct {
 	InsecureSkipVerify bool
 
 	*AuthorizationService
+	*BackupService
 	*BucketService
 	*DashboardService
 	*OrganizationService
@@ -62,6 +63,10 @@ func NewService(addr, token string) (*Service, error) {
 		AuthorizationService: &AuthorizationService{
 			Addr:  addr,
 			Token: token,
+		},
+		BackupService: &BackupService{
+			Addr:addr,
+			Token:token,
 		},
 		BucketService:       &BucketService{Client: httpClient},
 		DashboardService:    &DashboardService{Client: httpClient},

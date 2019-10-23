@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/kv"
@@ -79,7 +80,7 @@ func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, args ...string) *
 
 // Run executes the program with additional arguments to set paths and ports.
 func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
-	args = append(args, "--bolt-path", filepath.Join(tl.Path, "influxd.bolt"))
+	args = append(args, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
 	args = append(args, "--engine-path", filepath.Join(tl.Path, "engine"))
 	args = append(args, "--http-bind-address", "127.0.0.1:0")
 	args = append(args, "--log-level", "debug")

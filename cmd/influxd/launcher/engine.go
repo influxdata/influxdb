@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"context"
+	"io"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -29,6 +30,7 @@ type Engine interface {
 	storage.PointsWriter
 	storage.BucketDeleter
 	prom.PrometheusCollector
+	influxdb.BackupService
 
 	SeriesCardinality() int64
 
@@ -164,4 +166,16 @@ func (t *TemporaryEngine) Flush(ctx context.Context) {
 	if err := t.Open(ctx); err != nil {
 		t.log.Fatal("unable to open engine", zap.Error(err))
 	}
+}
+
+func (t *TemporaryEngine) CreateBackup(ctx context.Context) (int, []string, error) {
+	return t.engine.CreateBackup(ctx)
+}
+
+func (t *TemporaryEngine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
+	return t.engine.FetchBackupFile(ctx, backupID, backupFile, w)
+}
+
+func (t *TemporaryEngine) InternalBackupPath(backupID int) string {
+	return t.engine.InternalBackupPath(backupID)
 }

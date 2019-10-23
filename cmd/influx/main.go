@@ -85,6 +85,7 @@ func influxCmd() *cobra.Command {
 	}
 	cmd.AddCommand(
 		authCmd(),
+		backupCmd,
 		bucketCmd,
 		deleteCmd,
 		organizationCmd(),

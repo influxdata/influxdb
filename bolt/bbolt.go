@@ -14,8 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// OpPrefix is the prefix for bolt ops
-const OpPrefix = "bolt/"
+const (
+	// OpPrefix is the prefix for bolt ops
+	OpPrefix = "bolt/"
+
+	DefaultFilename = "influxd.bolt"
+)
 
 func getOp(op string) string {
 	return OpPrefix + op

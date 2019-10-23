@@ -2724,7 +2724,7 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 		t.Fatalf("unexpected error delete range: %v", err)
 	}
 
-	s, e := fs.CreateSnapshot(context.Background())
+	_, s, e := fs.CreateSnapshot(context.Background())
 	if e != nil {
 		t.Fatal(e)
 	}
