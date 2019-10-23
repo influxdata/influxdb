@@ -25,6 +25,8 @@ import {
   writeData,
   getByTestIDSubStr,
   createEndpoint,
+  createDashWithCell,
+  createDashWithView,
 } from './support/commands'
 
 declare global {
@@ -39,6 +41,8 @@ declare global {
       createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard
       createCell: typeof createCell
+      createDashWithCell: typeof createDashWithCell
+      createDashWithView: typeof createDashWithView
       createOrg: typeof createOrg
       flush: typeof flush
       getByTestID: typeof getByTestID

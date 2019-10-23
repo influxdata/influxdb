@@ -60,7 +60,7 @@ describe('Dashboard', () => {
     cy.getByTestID('cell--view-empty').should('have.length', 1)
   })
 
-  it.only('can add variables', () => {
+  it('can add variables', () => {
     const getSelectedVariable = (contextID, variableID) => win =>
       win.store.getState().variables.values[contextID].values[variableID]
         .selectedValue
@@ -68,6 +68,9 @@ describe('Dashboard', () => {
     cy.get<Organization>('@org').then(({id: orgID}) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createMapVariable(orgID).then(({body: variable}) => {
+          // create cell
+          // create view
+
           cy.fixture('routes').then(({orgs}) => {
             cy.visit(`${orgs}/${orgID}/dashboards/${dashboard.id}`)
           })
@@ -129,6 +132,14 @@ describe('Dashboard', () => {
             .pipe(getSelectedVariable(dashboard.id, variable.id))
             .should('equal', secondKey)
         })
+      })
+    })
+  })
+
+  it('instantiates dashboard with view', () => {
+    cy.get<Organization>('@org').then(({id: orgID}) => {
+      cy.createDashWithView(orgID).then(view => {
+        console.log(view)
       })
     })
   })

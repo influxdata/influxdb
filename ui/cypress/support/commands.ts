@@ -1,5 +1,12 @@
 import {NotificationEndpoint} from '../../src/types'
 
+// const defaultViewQuery = {
+//   text: 'from(bucket: v.mapTypeVar)|> range(start: -15m, stop: now())',
+//   editMode: 'advanced',
+//   builderConfig: {},
+//   name: '',
+// }
+
 export const signin = (): Cypress.Chainable<Cypress.Response> => {
   return cy.fixture('user').then(({username, password}) => {
     return cy.setupUser().then(body => {
@@ -51,6 +58,35 @@ export const createCell = (
       name: name,
     },
   })
+}
+
+export const createView = (
+  dbID: string,
+  cellID: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.fixture('view').then(view => {
+    return cy.request({
+      method: 'PATCH',
+      url: `/api/v2/dashboards/${dbID}/cells/${cellID}/view`,
+      body: view,
+    })
+  })
+}
+
+export const createDashWithCell = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> =>
+  createDashboard(orgID).then(({body: dashboard}) => createCell(dashboard.id))
+
+export const createDashWithView = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> => {
+  createMapVariable(orgID)
+  return createDashboard(orgID).then(({body: dashboard}) =>
+    createCell(dashboard.id).then(({body: cell}) =>
+      createView(dashboard.id, cell.id)
+    )
+  )
 }
 
 export const createDashboardTemplate = (
@@ -416,6 +452,8 @@ Cypress.Commands.add('setupUser', setupUser)
 Cypress.Commands.add('createDashboard', createDashboard)
 Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
+Cypress.Commands.add('createDashWithCell', createDashWithCell)
+Cypress.Commands.add('createDashWithView', createDashWithView)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)
