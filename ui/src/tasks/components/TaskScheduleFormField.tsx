@@ -47,6 +47,7 @@ export default class TaskScheduleFormFields extends PureComponent<Props> {
               value={offset}
               placeholder="20m"
               onChange={onChangeInput}
+              testID="task-form-offset-input"
             />
           </Form.Element>
         </Grid.Column>

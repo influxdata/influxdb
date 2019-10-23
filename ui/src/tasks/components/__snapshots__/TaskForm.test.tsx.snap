@@ -35,6 +35,7 @@ exports[`TaskForm rendering renders 1`] = `
                 active={false}
                 id="every"
                 onClick={[Function]}
+                testID="task-card-every-btn"
                 titleText="Run task at regular intervals"
                 value="interval"
               >
@@ -44,6 +45,7 @@ exports[`TaskForm rendering renders 1`] = `
                 active={false}
                 id="cron"
                 onClick={[Function]}
+                testID="task-card-cron-btn"
                 titleText="Use cron syntax for more control over scheduling"
                 value="cron"
               >

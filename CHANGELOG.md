@@ -19,6 +19,7 @@
 1. [15452](https://github.com/influxdata/influxdb/pull/15452): Log error as info message on unauthorized API call attempts
 1. [15504](https://github.com/influxdata/influxdb/pull/15504): Ensure members&owners eps 404 when /org resource does not exist
 1. [15510](https://github.com/influxdata/influxdb/pull/15510): UI/Telegraf sort functionality fixed
+1. [15549](https://github.com/influxdata/influxdb/pull/15549): UI/Task edit functionality fixed
 
 ## v2.0.0-alpha.18 [2019-09-26]
 
