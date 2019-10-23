@@ -161,6 +161,8 @@ const mdtp: DispatchProps = {
   onRemoveCheckThreshold: removeCheckThreshold,
 }
 
+export {ThresholdCondition}
+
 export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
