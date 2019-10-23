@@ -659,7 +659,7 @@ export const loadNewVEO = (fromContextID: string) => (
   )
 
   const values =
-    get(getState(), `variables.values.${fromContextID}.values`) || {}
+    get(getState(), `variables.values.${fromContextID}.values`, {})
 
   if (!isEmpty(values)) {
     dispatch(setValues('veo', RemoteDataState.Done, values))
