@@ -1,0 +1,16 @@
+apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_2
+      color: "#000000"
+      description: label 2 description
+    - kind: Label
+      name: label_1
+      color: "#FFFFFF"
+      description: label 1 description

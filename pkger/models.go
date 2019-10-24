@@ -40,12 +40,26 @@ type Summary struct {
 		influxdb.Bucket
 		Associations []influxdb.Label
 	}
+
+	Labels []struct {
+		influxdb.Label
+	}
 }
 
-type bucket struct {
-	ID              influxdb.ID
-	OrgID           influxdb.ID
-	Description     string
-	Name            string
-	RetentionPeriod time.Duration
-}
+type (
+	bucket struct {
+		ID              influxdb.ID
+		OrgID           influxdb.ID
+		Description     string
+		Name            string
+		RetentionPeriod time.Duration
+	}
+
+	label struct {
+		ID          influxdb.ID
+		OrgID       influxdb.ID
+		Name        string
+		Color       string
+		Description string
+	}
+)
