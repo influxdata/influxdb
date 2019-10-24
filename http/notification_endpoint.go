@@ -264,7 +264,16 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 }
 
 func decodeNotificationEndpointFilter(ctx context.Context, r *http.Request) (*influxdb.NotificationEndpointFilter, *influxdb.FindOptions, error) {
-	f := &influxdb.NotificationEndpointFilter{}
+	auth, err := pctx.GetAuthorizer(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	f := &influxdb.NotificationEndpointFilter{
+		UserResourceMappingFilter: influxdb.UserResourceMappingFilter{
+			UserID:       auth.GetUserID(),
+			ResourceType: influxdb.NotificationEndpointResourceType,
+		},
+	}
 
 	opts, err := decodeFindOptions(ctx, r)
 	if err != nil {

@@ -231,6 +231,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 				}
 			}
 			r.URL.RawQuery = qp.Encode()
+			r = r.WithContext(pcontext.SetAuthorizer(r.Context(), &influxdb.Session{UserID: user1ID}))
 
 			w := httptest.NewRecorder()
 

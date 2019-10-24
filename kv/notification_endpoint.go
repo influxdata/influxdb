@@ -392,6 +392,19 @@ func (s *Service) FindNotificationEndpoints(ctx context.Context, filter influxdb
 
 func (s *Service) findNotificationEndpoints(ctx context.Context, tx Tx, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
 	edps := make([]influxdb.NotificationEndpoint, 0)
+	m, err := s.findUserResourceMappings(ctx, tx, filter.UserResourceMappingFilter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(m) == 0 {
+		return edps, 0, nil
+	}
+
+	idMap := make(map[influxdb.ID]bool)
+	for _, item := range m {
+		idMap[item.ResourceID] = true
+	}
 
 	if filter.Org != nil {
 		o, err := s.findOrganizationByName(ctx, tx, *filter.Org)
@@ -410,8 +423,8 @@ func (s *Service) findNotificationEndpoints(ctx context.Context, tx Tx, filter i
 		limit = opt[0].Limit
 		descending = opt[0].Descending
 	}
-	filterFn := filterNotificationEndpointsFn(filter)
-	err := s.forEachNotificationEndpoint(ctx, tx, descending, func(edp influxdb.NotificationEndpoint) bool {
+	filterFn := filterNotificationEndpointsFn(idMap, filter)
+	err = s.forEachNotificationEndpoint(ctx, tx, descending, func(edp influxdb.NotificationEndpoint) bool {
 		if filterFn(edp) {
 			if count >= offset {
 				edps = append(edps, edp)
@@ -468,7 +481,7 @@ func (s *Service) forEachNotificationEndpoint(ctx context.Context, tx Tx, descen
 	return nil
 }
 
-func filterNotificationEndpointsFn(filter influxdb.NotificationEndpointFilter) func(edp influxdb.NotificationEndpoint) bool {
+func filterNotificationEndpointsFn(idMap map[influxdb.ID]bool, filter influxdb.NotificationEndpointFilter) func(edp influxdb.NotificationEndpoint) bool {
 	return func(edp influxdb.NotificationEndpoint) bool {
 		if filter.ID != nil {
 			if edp.GetID() != *filter.ID {
@@ -481,7 +494,10 @@ func filterNotificationEndpointsFn(filter influxdb.NotificationEndpointFilter) f
 				return false
 			}
 		}
-		return true
+		if idMap == nil {
+			return true
+		}
+		return idMap[edp.GetID()]
 	}
 }
 
