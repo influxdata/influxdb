@@ -541,6 +541,7 @@ func pack120(src []uint64) uint64 {
 
 // pack60 packs 60 values from in using 1 bit each
 func pack60(src []uint64) uint64 {
+	_ = src[59] // eliminate multiple bounds checks
 	return 2<<60 |
 		src[0] |
 		src[1]<<1 |
@@ -607,6 +608,7 @@ func pack60(src []uint64) uint64 {
 
 // pack30 packs 30 values from in using 2 bits each
 func pack30(src []uint64) uint64 {
+	_ = src[29] // eliminate multiple bounds checks
 	return 3<<60 |
 		src[0] |
 		src[1]<<2 |
@@ -642,6 +644,7 @@ func pack30(src []uint64) uint64 {
 
 // pack20 packs 20 values from in using 3 bits each
 func pack20(src []uint64) uint64 {
+	_ = src[19] // eliminate multiple bounds checks
 	return 4<<60 |
 		src[0] |
 		src[1]<<3 |
@@ -667,6 +670,7 @@ func pack20(src []uint64) uint64 {
 
 // pack15 packs 15 values from in using 3 bits each
 func pack15(src []uint64) uint64 {
+	_ = src[14] // eliminate multiple bounds checks
 	return 5<<60 |
 		src[0] |
 		src[1]<<4 |
@@ -687,6 +691,7 @@ func pack15(src []uint64) uint64 {
 
 // pack12 packs 12 values from in using 5 bits each
 func pack12(src []uint64) uint64 {
+	_ = src[11] // eliminate multiple bounds checks
 	return 6<<60 |
 		src[0] |
 		src[1]<<5 |
@@ -704,6 +709,7 @@ func pack12(src []uint64) uint64 {
 
 // pack10 packs 10 values from in using 6 bits each
 func pack10(src []uint64) uint64 {
+	_ = src[9] // eliminate multiple bounds checks
 	return 7<<60 |
 		src[0] |
 		src[1]<<6 |
@@ -719,6 +725,7 @@ func pack10(src []uint64) uint64 {
 
 // pack8 packs 8 values from in using 7 bits each
 func pack8(src []uint64) uint64 {
+	_ = src[7] // eliminate multiple bounds checks
 	return 8<<60 |
 		src[0] |
 		src[1]<<7 |
@@ -732,6 +739,7 @@ func pack8(src []uint64) uint64 {
 
 // pack7 packs 7 values from in using 8 bits each
 func pack7(src []uint64) uint64 {
+	_ = src[6] // eliminate multiple bounds checks
 	return 9<<60 |
 		src[0] |
 		src[1]<<8 |
@@ -744,6 +752,7 @@ func pack7(src []uint64) uint64 {
 
 // pack6 packs 6 values from in using 10 bits each
 func pack6(src []uint64) uint64 {
+	_ = src[5] // eliminate multiple bounds checks
 	return 10<<60 |
 		src[0] |
 		src[1]<<10 |
@@ -755,6 +764,7 @@ func pack6(src []uint64) uint64 {
 
 // pack5 packs 5 values from in using 12 bits each
 func pack5(src []uint64) uint64 {
+	_ = src[4] // eliminate multiple bounds checks
 	return 11<<60 |
 		src[0] |
 		src[1]<<12 |
@@ -765,6 +775,7 @@ func pack5(src []uint64) uint64 {
 
 // pack4 packs 4 values from in using 15 bits each
 func pack4(src []uint64) uint64 {
+	_ = src[3] // eliminate multiple bounds checks
 	return 12<<60 |
 		src[0] |
 		src[1]<<15 |
@@ -774,6 +785,7 @@ func pack4(src []uint64) uint64 {
 
 // pack3 packs 3 values from in using 20 bits each
 func pack3(src []uint64) uint64 {
+	_ = src[2] // eliminate multiple bounds checks
 	return 13<<60 |
 		src[0] |
 		src[1]<<20 |
@@ -782,6 +794,7 @@ func pack3(src []uint64) uint64 {
 
 // pack2 packs 2 values from in using 30 bits each
 func pack2(src []uint64) uint64 {
+	_ = src[1] // eliminate multiple bounds checks
 	return 14<<60 |
 		src[0] |
 		src[1]<<30
