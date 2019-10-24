@@ -422,6 +422,7 @@ export const createEndpoint = (
   return cy.request('POST', 'api/v2/notificationEndpoints', endpoint)
 }
 
+/* eslint-disable */
 // notification endpoints
 Cypress.Commands.add('createEndpoint', createEndpoint)
 
@@ -479,3 +480,4 @@ Cypress.Commands.add('createAndAddLabel', createAndAddLabel)
 
 // test
 Cypress.Commands.add('writeData', writeData)
+/* eslint-enable */
