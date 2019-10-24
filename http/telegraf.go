@@ -66,6 +66,28 @@ const (
 	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
 )
 
+func checkTelegrafCfgExists(handler *TelegrafHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			id, err := decodeGetTelegrafRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.TelegrafService.FindTelegrafConfigByID(ctx, id)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
 func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h := &TelegrafHandler{
@@ -93,9 +115,9 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", telegrafsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", telegrafsIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", telegrafsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", telegrafsIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkTelegrafCfgExists(h)))
+	h.Handler("GET", telegrafsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkTelegrafCfgExists(h)))
+	h.Handler("DELETE", telegrafsIDMembersIDPath, applyMW(newDeleteMemberHandler(memberBackend), checkTelegrafCfgExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -105,9 +127,9 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", telegrafsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", telegrafsIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", telegrafsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+	h.Handler("POST", telegrafsIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkTelegrafCfgExists(h)))
+	h.Handler("GET", telegrafsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkTelegrafCfgExists(h)))
+	h.Handler("DELETE", telegrafsIDOwnersIDPath, applyMW(newDeleteMemberHandler(ownerBackend), checkTelegrafCfgExists(h)))
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -115,9 +137,9 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     platform.TelegrafsResourceType,
 	}
-	h.HandlerFunc("GET", telegrafsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", telegrafsIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", telegrafsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("GET", telegrafsIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkTelegrafCfgExists(h)))
+	h.Handler("POST", telegrafsIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkTelegrafCfgExists(h)))
+	h.Handler("DELETE", telegrafsIDLabelsIDPath, applyMW(newDeleteLabelHandler(labelBackend), checkTelegrafCfgExists(h)))
 
 	return h
 }

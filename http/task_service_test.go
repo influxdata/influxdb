@@ -1108,6 +1108,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 func TestService_handlePostTaskLabel(t *testing.T) {
 	type fields struct {
 		LabelService platform.LabelService
+		TaskService  platform.TaskService
 	}
 	type args struct {
 		labelMapping *platform.LabelMapping
@@ -1118,6 +1119,11 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 		contentType string
 		body        string
 	}
+
+	const taskID = platform.ID(100)
+	o := &platform.Organization{Name: "o"}
+	u := &platform.User{Name: "u"}
+	taskAuth := &platform.Authorization{OrgID: o.ID, UserID: u.ID}
 
 	tests := []struct {
 		name   string
@@ -1139,6 +1145,19 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 						}, nil
 					},
 					CreateLabelMappingFn: func(ctx context.Context, m *platform.LabelMapping) error { return nil },
+				},
+				TaskService: &mock.TaskService{
+					FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*platform.Task, error) {
+						if id != taskID {
+							return nil, platform.ErrTaskNotFound
+						}
+
+						return &platform.Task{
+							ID:              taskID,
+							OrganizationID:  o.ID,
+							AuthorizationID: taskAuth.ID,
+						}, nil
+					},
 				},
 			},
 			args: args{
@@ -1173,6 +1192,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			taskBE := NewMockTaskBackend(t)
 			taskBE.LabelService = tt.fields.LabelService
+			taskBE.TaskService = tt.fields.TaskService
 			h := NewTaskHandler(taskBE)
 
 			b, err := json.Marshal(tt.args.labelMapping)

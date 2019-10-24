@@ -125,7 +125,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", organizationsIDMembersPath, newPostMemberHandler(memberBackend))
+	h.Handler("POST", organizationsIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkOrganziationExists(h)))
 	h.Handler("GET", organizationsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkOrganziationExists(h)))
 	h.HandlerFunc("DELETE", organizationsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
 
@@ -137,7 +137,7 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", organizationsIDOwnersPath, newPostMemberHandler(ownerBackend))
+	h.Handler("POST", organizationsIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkOrganziationExists(h)))
 	h.Handler("GET", organizationsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkOrganziationExists(h)))
 	h.HandlerFunc("DELETE", organizationsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
 
@@ -152,8 +152,8 @@ func NewOrgHandler(b *OrgBackend) *OrgHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.OrgsResourceType,
 	}
-	h.HandlerFunc("GET", organizationsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", organizationsIDLabelsPath, newPostLabelHandler(labelBackend))
+	h.Handler("GET", organizationsIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkOrganziationExists(h)))
+	h.Handler("POST", organizationsIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkOrganziationExists(h)))
 	h.HandlerFunc("DELETE", organizationsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
 
 	return h

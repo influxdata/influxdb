@@ -23,8 +23,8 @@ import (
 // NewMockBucketBackend returns a BucketBackend with mock services.
 func NewMockBucketBackend() *BucketBackend {
 	return &BucketBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "bucket")),
-
+		Logger:                     zap.NewNop().With(zap.String("handler", "bucket")),
+		HTTPErrorHandler:           ErrorHandler(0),
 		BucketService:              mock.NewBucketService(),
 		BucketOperationLogService:  mock.NewBucketOperationLogService(),
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
@@ -985,9 +985,108 @@ func TestService_handlePostBucketMember(t *testing.T) {
 	}
 }
 
+func TestService_handlePostBucketMember404(t *testing.T) {
+	type fields struct {
+		UserService   platform.UserService
+		BucketService platform.BucketService
+	}
+	type args struct {
+		bucketID string
+		user     *platform.User
+	}
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "adding a bucket member, raises a status 404 when bucket does not exist",
+			fields: fields{
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						return &platform.User{
+							ID:     id,
+							Name:   "name",
+							Status: platform.Active,
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+				},
+			},
+			args: args{
+				bucketID: "020f755c3c082000",
+				user: &platform.User{
+					ID: platformtesting.MustIDBase16("6f626f7274697320"),
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+	"code": "not found",
+	"message": "bucket not found" 
+}
+`,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bucketBackend := NewMockBucketBackend()
+			bucketBackend.UserService = tt.fields.UserService
+			bucketBackend.BucketService = tt.fields.BucketService
+			h := NewBucketHandler(bucketBackend)
+
+			b, err := json.Marshal(tt.args.user)
+			if err != nil {
+				t.Fatalf("failed to marshal user: %v", err)
+			}
+
+			path := fmt.Sprintf("/api/v2/buckets/%s/members", tt.args.bucketID)
+			r := httptest.NewRequest("POST", path, bytes.NewReader(b))
+			w := httptest.NewRecorder()
+
+			h.ServeHTTP(w, r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handlePostBucketMember() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handlePostBucketMember() = %v, want %v", tt.name, content, tt.wants.contentType)
+			}
+			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
+				t.Errorf("%q, handlePostBucketMember(). error unmarshaling json %v", tt.name, err)
+			} else if tt.wants.body != "" && !eq {
+				t.Errorf("%q. handlePostBucketMember() = ***%s***", tt.name, diff)
+			}
+		})
+	}
+}
+
 func TestService_handlePostBucketOwner(t *testing.T) {
 	type fields struct {
-		UserService platform.UserService
+		UserService   platform.UserService
+		BucketService platform.BucketService
 	}
 	type args struct {
 		bucketID string
@@ -1017,6 +1116,7 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 						}, nil
 					},
 				},
+				BucketService: mock.NewBucketService(),
 			},
 			args: args{
 				bucketID: "020f755c3c082000",
@@ -1029,14 +1129,52 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 				contentType: "application/json; charset=utf-8",
 				body: `
 {
-  "links": {
-    "logs": "/api/v2/users/6f626f7274697320/logs",
-    "self": "/api/v2/users/6f626f7274697320"
-  },
-  "role": "owner",
-  "id": "6f626f7274697320",
+"links": {
+	"logs": "/api/v2/users/6f626f7274697320/logs",
+	"self": "/api/v2/users/6f626f7274697320"
+},
+"role": "owner",
+"id": "6f626f7274697320",
 	"name": "name",
 	"status": "active"
+}
+`,
+			},
+		},
+		{
+			name: "adding a bucket owner, raises a status 404 when bucket does not exist",
+			fields: fields{
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+						return &platform.User{
+							ID:     id,
+							Name:   "name",
+							Status: platform.Active,
+						}, nil
+					},
+				},
+				BucketService: &mock.BucketService{
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+						return nil, &platform.Error{
+							Code: platform.ENotFound,
+							Msg:  "bucket not found",
+						}
+					},
+				},
+			},
+			args: args{
+				bucketID: "020f755c3c082000",
+				user: &platform.User{
+					ID: platformtesting.MustIDBase16("6f626f7274697320"),
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+	"code": "not found",
+	"message": "bucket not found" 
 }
 `,
 			},
@@ -1047,6 +1185,7 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bucketBackend := NewMockBucketBackend()
 			bucketBackend.UserService = tt.fields.UserService
+			bucketBackend.BucketService = tt.fields.BucketService
 			h := NewBucketHandler(bucketBackend)
 
 			b, err := json.Marshal(tt.args.user)

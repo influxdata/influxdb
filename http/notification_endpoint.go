@@ -68,6 +68,28 @@ const (
 	notificationEndpointsIDLabelsIDPath  = "/api/v2/notificationEndpoints/:id/labels/:lid"
 )
 
+func checkNotificationEndpointExists(handler *NotificationEndpointHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			id, err := decodeGetNotificationEndpointRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.NotificationEndpointService.FindNotificationEndpointByID(ctx, id)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewNotificationEndpointHandler returns a new instance of NotificationEndpointHandler.
 func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *NotificationEndpointHandler {
 	h := &NotificationEndpointHandler{
@@ -97,9 +119,9 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", notificationEndpointsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", notificationEndpointsIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", notificationEndpointsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", notificationEndpointsIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkNotificationEndpointExists(h)))
+	h.Handler("GET", notificationEndpointsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkNotificationEndpointExists(h)))
+	h.Handler("DELETE", notificationEndpointsIDMembersIDPath, applyMW(newDeleteMemberHandler(memberBackend), checkNotificationEndpointExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -109,9 +131,9 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", notificationEndpointsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", notificationEndpointsIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", notificationEndpointsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+	h.Handler("POST", notificationEndpointsIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkNotificationEndpointExists(h)))
+	h.Handler("GET", notificationEndpointsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkNotificationEndpointExists(h)))
+	h.Handler("DELETE", notificationEndpointsIDOwnersPath, applyMW(newDeleteMemberHandler(ownerBackend), checkNotificationEndpointExists(h)))
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -119,9 +141,9 @@ func NewNotificationEndpointHandler(b *NotificationEndpointBackend) *Notificatio
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
-	h.HandlerFunc("GET", notificationEndpointsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", notificationEndpointsIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", notificationEndpointsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("GET", notificationEndpointsIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkNotificationEndpointExists(h)))
+	h.Handler("POST", notificationEndpointsIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkNotificationEndpointExists(h)))
+	h.Handler("DELETE", notificationEndpointsIDLabelsPath, applyMW(newDeleteLabelHandler(labelBackend), checkNotificationEndpointExists(h)))
 
 	return h
 }

@@ -916,6 +916,12 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 							Msg:  "notification endpoint not found",
 						}
 					},
+					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+						return nil, &influxdb.Error{
+							Code: influxdb.ENotFound,
+							Msg:  "notification endpoint not found",
+						}
+					},
 				},
 			},
 			args: args{
@@ -987,7 +993,8 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 
 func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		UserService                 influxdb.UserService
+		NotificationEndpointService influxdb.NotificationEndpointService
 	}
 	type args struct {
 		notificationEndpointID string
@@ -1015,6 +1022,27 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 							Name:   "name",
 							Status: influxdb.Active,
 						}, nil
+					},
+				},
+				NotificationEndpointService: &mock.NotificationEndpointService{
+					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+						if id == influxTesting.MustIDBase16("020f755c3c082000") {
+							return &endpoint.HTTP{
+								Base: endpoint.Base{
+									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
+									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
+									Name:   "hello",
+									Status: influxdb.Active,
+								},
+								URL:             "example.com",
+								Username:        influxdb.SecretField{Key: "http-user-key"},
+								Password:        influxdb.SecretField{Key: "http-password-key"},
+								AuthMethod:      "basic",
+								Method:          "POST",
+								ContentTemplate: "template",
+							}, nil
+						}
+						return nil, fmt.Errorf("not found")
 					},
 				},
 			},
@@ -1047,6 +1075,7 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.UserService = tt.fields.UserService
+			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			h := NewNotificationEndpointHandler(notificationEndpointBackend)
 
 			b, err := json.Marshal(tt.args.user)
@@ -1082,7 +1111,8 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 
 func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		UserService                 influxdb.UserService
+		NotificationEndpointService influxdb.NotificationEndpointService
 	}
 	type args struct {
 		notificationEndpointID string
@@ -1110,6 +1140,27 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 							Name:   "name",
 							Status: influxdb.Active,
 						}, nil
+					},
+				},
+				NotificationEndpointService: &mock.NotificationEndpointService{
+					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+						if id == influxTesting.MustIDBase16("020f755c3c082000") {
+							return &endpoint.HTTP{
+								Base: endpoint.Base{
+									ID:     influxTesting.MustIDBase16("020f755c3c082000"),
+									OrgID:  influxTesting.MustIDBase16("020f755c3c082000"),
+									Name:   "hello",
+									Status: influxdb.Active,
+								},
+								URL:             "example.com",
+								Username:        influxdb.SecretField{Key: "http-user-key"},
+								Password:        influxdb.SecretField{Key: "http-password-key"},
+								AuthMethod:      "basic",
+								Method:          "POST",
+								ContentTemplate: "template",
+							}, nil
+						}
+						return nil, fmt.Errorf("not found")
 					},
 				},
 			},
@@ -1142,6 +1193,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.UserService = tt.fields.UserService
+			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			h := NewNotificationEndpointHandler(notificationEndpointBackend)
 
 			b, err := json.Marshal(tt.args.user)

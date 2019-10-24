@@ -69,6 +69,28 @@ const (
 	dashboardsIDLabelsIDPath    = "/api/v2/dashboards/:id/labels/:lid"
 )
 
+func checkDashboardExists(handler *DashboardHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			req, err := decodeGetDashboardRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.DashboardService.FindDashboardByID(ctx, req.DashboardID)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewDashboardHandler returns a new instance of DashboardHandler.
 func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 	h := &DashboardHandler{
@@ -106,9 +128,9 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", dashboardsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", dashboardsIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", dashboardsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", dashboardsIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkDashboardExists(h)))
+	h.Handler("GET", dashboardsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkDashboardExists(h)))
+	h.Handler("DELETE", dashboardsIDMembersPath, applyMW(newDeleteMemberHandler(memberBackend), checkDashboardExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -118,9 +140,9 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", dashboardsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", dashboardsIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", dashboardsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+	h.Handler("POST", dashboardsIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkDashboardExists(h)))
+	h.Handler("GET", dashboardsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkDashboardExists(h)))
+	h.Handler("DELETE", dashboardsIDOwnersPath, applyMW(newDeleteMemberHandler(ownerBackend), checkDashboardExists(h)))
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -128,9 +150,9 @@ func NewDashboardHandler(b *DashboardBackend) *DashboardHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     platform.DashboardsResourceType,
 	}
-	h.HandlerFunc("GET", dashboardsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", dashboardsIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", dashboardsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("GET", dashboardsIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkDashboardExists(h)))
+	h.Handler("POST", dashboardsIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkDashboardExists(h)))
+	h.Handler("DELETE", dashboardsIDLabelsPath, applyMW(newDeleteLabelHandler(labelBackend), checkDashboardExists(h)))
 
 	return h
 }

@@ -83,6 +83,28 @@ const (
 	tasksIDLabelsIDPath    = "/api/v2/tasks/:id/labels/:lid"
 )
 
+func checkTaskExists(handler *TaskHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			req, err := decodeGetTaskRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.TaskService.FindTaskByID(ctx, req.TaskID)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewTaskHandler returns a new instance of TaskHandler.
 func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	h := &TaskHandler{
@@ -117,9 +139,9 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", tasksIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", tasksIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", tasksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", tasksIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkTaskExists(h)))
+	h.Handler("GET", tasksIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkTaskExists(h)))
+	h.Handler("DELETE", tasksIDMembersPath, applyMW(newDeleteMemberHandler(memberBackend), checkTaskExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -129,9 +151,10 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", tasksIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", tasksIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", tasksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+
+	h.Handler("POST", tasksIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkTaskExists(h)))
+	h.Handler("GET", tasksIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkTaskExists(h)))
+	h.Handler("DELETE", tasksIDOwnersPath, applyMW(newDeleteMemberHandler(ownerBackend), checkTaskExists(h)))
 
 	h.HandlerFunc("GET", tasksIDRunsPath, h.handleGetRuns)
 	h.HandlerFunc("POST", tasksIDRunsPath, h.handleForceRun)
@@ -145,9 +168,9 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TasksResourceType,
 	}
-	h.HandlerFunc("GET", tasksIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", tasksIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", tasksIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("GET", tasksIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkTaskExists(h)))
+	h.Handler("POST", tasksIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkTaskExists(h)))
+	h.Handler("DELETE", tasksIDLabelsPath, applyMW(newDeleteLabelHandler(labelBackend), checkTaskExists(h)))
 
 	return h
 }

@@ -935,3 +935,136 @@ func Test_newTelegrafResponse(t *testing.T) {
 		})
 	}
 }
+
+func TestTelegrafHandler_handleGetTelegrafMembers(t *testing.T) {
+	type wants struct {
+		statusCode  int
+		contentType string
+		body        string
+	}
+	tests := []struct {
+		name         string
+		svc          *mock.TelegrafConfigStore
+		r            *http.Request
+		acceptHeader string
+		wants        wants
+	}{
+		{
+			name:         "return status 404 for /members when telegraf config does not exist",
+			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001/members", nil),
+			acceptHeader: "application/json",
+			svc: &mock.TelegrafConfigStore{
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+					return nil, &platform.Error{
+						Code: platform.ENotFound,
+						Msg:  "bucket not found",
+					}
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"code": "not found",
+					"message": "bucket not found"
+				}`,
+			},
+		},
+		{
+			name:         "return status 404 for /owners when telegraf config does not exist",
+			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001/owners", nil),
+			acceptHeader: "application/json",
+			svc: &mock.TelegrafConfigStore{
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+					return nil, &platform.Error{
+						Code: platform.ENotFound,
+						Msg:  "bucket not found",
+					}
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"code": "not found",
+					"message": "bucket not found"
+				}`,
+			},
+		},
+		{
+			name:         "return status 404 for /owners when telegraf config does not exist",
+			r:            httptest.NewRequest("GET", "http://any.url/api/v2/telegrafs/0000000000000001/labels", nil),
+			acceptHeader: "application/json",
+			svc: &mock.TelegrafConfigStore{
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+					return nil, &platform.Error{
+						Code: platform.ENotFound,
+						Msg:  "bucket not found",
+					}
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"code": "not found",
+					"message": "bucket not found"
+				}`,
+			},
+		},
+		{
+			name:         "return status 404 for /owners when telegraf config does not exist",
+			r:            httptest.NewRequest("POST", "http://any.url/api/v2/telegrafs/0000000000000001/labels", nil),
+			acceptHeader: "application/json",
+			svc: &mock.TelegrafConfigStore{
+				FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+					return nil, &platform.Error{
+						Code: platform.ENotFound,
+						Msg:  "bucket not found",
+					}
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusNotFound,
+				contentType: "application/json; charset=utf-8",
+				body: `{
+					"code": "not found",
+					"message": "bucket not found"
+				}`,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.r.Header.Set("Accept", tt.acceptHeader)
+			w := httptest.NewRecorder()
+			telegrafBackend := NewMockTelegrafBackend()
+			telegrafBackend.HTTPErrorHandler = ErrorHandler(0)
+			telegrafBackend.TelegrafService = tt.svc
+			h := NewTelegrafHandler(telegrafBackend)
+
+			h.ServeHTTP(w, tt.r)
+
+			res := w.Result()
+			content := res.Header.Get("Content-Type")
+			body, _ := ioutil.ReadAll(res.Body)
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handleGetTelegraf() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
+				t.Logf("headers: %v", res.Header)
+			}
+			if tt.wants.contentType != "" && content != tt.wants.contentType {
+				t.Errorf("%q. handleGetTelegraf() = %v, want %v", tt.name, content, tt.wants.contentType)
+				return
+			}
+
+			if strings.Contains(tt.wants.contentType, "application/json") {
+				if eq, diff, _ := jsonEqual(string(body), tt.wants.body); tt.wants.body != "" && !eq {
+					t.Errorf("%q. handleGetTelegraf() = ***%s***", tt.name, diff)
+				}
+			} else if string(body) != tt.wants.body {
+				t.Errorf("%q. handleGetTelegraf() = \n***%v***\n,\nwant\n***%v***", tt.name, string(body), tt.wants.body)
+			}
+		})
+	}
+}

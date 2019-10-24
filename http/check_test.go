@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/flux/parser"
+	platform "github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification"
 
@@ -1236,7 +1237,8 @@ func TestService_handleUpdateCheck(t *testing.T) {
 
 func TestService_handlePostCheckMember(t *testing.T) {
 	type fields struct {
-		UserService influxdb.UserService
+		UserService  influxdb.UserService
+		CheckService influxdb.CheckService
 	}
 	type args struct {
 		checkID string
@@ -1264,6 +1266,59 @@ func TestService_handlePostCheckMember(t *testing.T) {
 							Name:   "name",
 							Status: influxdb.Active,
 						}, nil
+					},
+				},
+				CheckService: &mock.CheckService{
+					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+						return influxdb.Check{ID: ""}, nil
+
+						// .Check{
+						// 	ID: "",
+						// }, nil
+					},
+				},
+			},
+			args: args{
+				checkID: "020f755c3c082000",
+				user: &influxdb.User{
+					ID: influxTesting.MustIDBase16("6f626f7274697320"),
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "links": {
+    "logs": "/api/v2/users/6f626f7274697320/logs",
+    "self": "/api/v2/users/6f626f7274697320"
+  },
+  "role": "member",
+  "id": "6f626f7274697320",
+	"name": "name",
+	"status": "active"
+}
+`,
+			},
+		},
+		{
+			name: "adding a check member fails when the check does not exist",
+			fields: fields{
+				UserService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+						return &influxdb.User{
+							ID:     id,
+							Name:   "name",
+							Status: influxdb.Active,
+						}, nil
+					},
+				},
+				CheckService: &mock.CheckService{
+					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+						return nil, &influxdb.Error{
+							Code: platform.ENotFound,
+							Msg:  "check not found",
+						}
 					},
 				},
 			},
@@ -1296,11 +1351,8 @@ func TestService_handlePostCheckMember(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.UserService = tt.fields.UserService
-			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{}, nil
-				},
-			}
+			checkBackend.CheckService = tt.fields.CheckService
+
 			h := NewCheckHandler(checkBackend)
 
 			b, err := json.Marshal(tt.args.user)

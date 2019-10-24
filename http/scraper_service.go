@@ -66,6 +66,28 @@ const (
 	targetsIDLabelsIDPath  = targetsPath + "/:id/labels/:lid"
 )
 
+func checkScraperTargetExists(handler *ScraperHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			id, err := decodeScraperTargetIDRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.ScraperStorageService.GetTargetByID(ctx, *id)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewScraperHandler returns a new instance of ScraperHandler.
 func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 	h := &ScraperHandler{
@@ -93,9 +115,9 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", targetsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", targetsIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", targetsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", targetsIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkScraperTargetExists(h)))
+	h.Handler("GET", targetsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkScraperTargetExists(h)))
+	h.Handler("DELETE", targetsIDMembersPath, applyMW(newDeleteMemberHandler(memberBackend), checkScraperTargetExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -105,9 +127,9 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", targetsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", targetsIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", targetsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+	h.Handler("POST", targetsIDOwnersIDPath, applyMW(newPostMemberHandler(ownerBackend), checkScraperTargetExists(h)))
+	h.Handler("GET", targetsIDOwnersIDPath, applyMW(newGetMembersHandler(ownerBackend), checkScraperTargetExists(h)))
+	h.Handler("DELETE", targetsIDOwnersIDPath, applyMW(newDeleteMemberHandler(ownerBackend), checkScraperTargetExists(h)))
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -115,9 +137,9 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.ScraperResourceType,
 	}
-	h.HandlerFunc("GET", targetsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", targetsIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", targetsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("POST", targetsIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkScraperTargetExists(h)))
+	h.Handler("GET", targetsIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkScraperTargetExists(h)))
+	h.Handler("DELETE", targetsIDLabelsPath, applyMW(newDeleteLabelHandler(labelBackend), checkScraperTargetExists(h)))
 
 	return h
 }

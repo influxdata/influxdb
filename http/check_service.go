@@ -69,6 +69,28 @@ const (
 	checksIDLabelsIDPath  = "/api/v2/checks/:id/labels/:lid"
 )
 
+func checkExists(handler *CheckHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			id, err := decodeGetCheckRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.CheckService.FindCheckByID(ctx, id)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewCheckHandler returns a new instance of CheckHandler.
 func NewCheckHandler(b *CheckBackend) *CheckHandler {
 	h := &CheckHandler{
@@ -99,9 +121,9 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", checksIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", checksIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", checksIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", checksIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkExists(h)))
+	h.Handler("GET", checksIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkExists(h)))
+	h.Handler("DELETE", checksIDMembersIDPath, applyMW(newDeleteMemberHandler(memberBackend), checkExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -111,9 +133,9 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", checksIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", checksIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", checksIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+	h.Handler("POST", checksIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkExists(h)))
+	h.Handler("GET", checksIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkExists(h)))
+	h.Handler("DELETE", checksIDOwnersIDPath, applyMW(newDeleteMemberHandler(ownerBackend), checkExists(h)))
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -121,9 +143,9 @@ func NewCheckHandler(b *CheckBackend) *CheckHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
-	h.HandlerFunc("GET", checksIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", checksIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", checksIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("GET", checksIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkExists(h)))
+	h.Handler("POST", checksIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkExists(h)))
+	h.Handler("DELETE", checksIDLabelsIDPath, applyMW(newDeleteLabelHandler(labelBackend), checkExists(h)))
 
 	return h
 }

@@ -72,6 +72,28 @@ const (
 	bucketsIDLabelsIDPath  = "/api/v2/buckets/:id/labels/:lid"
 )
 
+func checkBucketExists(handler *BucketHandler) Middleware {
+	fn := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			req, err := decodeGetBucketRequest(ctx, r)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			_, err = handler.BucketService.FindBucketByID(ctx, req.BucketID)
+			if err != nil {
+				handler.HandleHTTPError(ctx, err, w)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	return fn
+}
+
 // NewBucketHandler returns a new instance of BucketHandler.
 func NewBucketHandler(b *BucketBackend) *BucketHandler {
 	h := &BucketHandler{
@@ -102,9 +124,9 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", bucketsIDMembersPath, newPostMemberHandler(memberBackend))
-	h.HandlerFunc("GET", bucketsIDMembersPath, newGetMembersHandler(memberBackend))
-	h.HandlerFunc("DELETE", bucketsIDMembersIDPath, newDeleteMemberHandler(memberBackend))
+	h.Handler("POST", bucketsIDMembersPath, applyMW(newPostMemberHandler(memberBackend), checkBucketExists(h)))
+	h.Handler("GET", bucketsIDMembersPath, applyMW(newGetMembersHandler(memberBackend), checkBucketExists(h)))
+	h.Handler("DELETE", bucketsIDMembersIDPath, applyMW(newDeleteMemberHandler(memberBackend), checkBucketExists(h)))
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -114,9 +136,9 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 		UserResourceMappingService: b.UserResourceMappingService,
 		UserService:                b.UserService,
 	}
-	h.HandlerFunc("POST", bucketsIDOwnersPath, newPostMemberHandler(ownerBackend))
-	h.HandlerFunc("GET", bucketsIDOwnersPath, newGetMembersHandler(ownerBackend))
-	h.HandlerFunc("DELETE", bucketsIDOwnersIDPath, newDeleteMemberHandler(ownerBackend))
+	h.Handler("POST", bucketsIDOwnersPath, applyMW(newPostMemberHandler(ownerBackend), checkBucketExists(h)))
+	h.Handler("GET", bucketsIDOwnersPath, applyMW(newGetMembersHandler(ownerBackend), checkBucketExists(h)))
+	h.Handler("DELETE", bucketsIDOwnersIDPath, applyMW(newDeleteMemberHandler(memberBackend), checkBucketExists(h)))
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
@@ -124,9 +146,9 @@ func NewBucketHandler(b *BucketBackend) *BucketHandler {
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.BucketsResourceType,
 	}
-	h.HandlerFunc("GET", bucketsIDLabelsPath, newGetLabelsHandler(labelBackend))
-	h.HandlerFunc("POST", bucketsIDLabelsPath, newPostLabelHandler(labelBackend))
-	h.HandlerFunc("DELETE", bucketsIDLabelsIDPath, newDeleteLabelHandler(labelBackend))
+	h.Handler("GET", bucketsIDLabelsPath, applyMW(newGetLabelsHandler(labelBackend), checkBucketExists(h)))
+	h.Handler("POST", bucketsIDLabelsPath, applyMW(newPostLabelHandler(labelBackend), checkBucketExists(h)))
+	h.Handler("DELETE", bucketsIDLabelsIDPath, applyMW(newDeleteLabelHandler(labelBackend), checkBucketExists(h)))
 
 	return h
 }
