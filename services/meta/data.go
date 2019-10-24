@@ -890,6 +890,12 @@ func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPN
 		}
 	}
 
+	// import all CQs
+	dbImport.ContinuousQueries = []ContinuousQueryInfo{}
+	for _, cqPtr := range dbPtr.ContinuousQueries {
+		dbImport.ContinuousQueries = append(dbImport.ContinuousQueries, cqPtr.clone())
+	}
+
 	return restoreDBName, nil
 }
 
