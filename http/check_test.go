@@ -1270,11 +1270,7 @@ func TestService_handlePostCheckMember(t *testing.T) {
 				},
 				CheckService: &mock.CheckService{
 					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
-						return influxdb.Check{ID: ""}, nil
-
-						// .Check{
-						// 	ID: "",
-						// }, nil
+						return &check.Deadman{}, nil
 					},
 				},
 			},
@@ -1329,18 +1325,11 @@ func TestService_handlePostCheckMember(t *testing.T) {
 				},
 			},
 			wants: wants{
-				statusCode:  http.StatusCreated,
+				statusCode:  http.StatusNotFound,
 				contentType: "application/json; charset=utf-8",
-				body: `
-{
-  "links": {
-    "logs": "/api/v2/users/6f626f7274697320/logs",
-    "self": "/api/v2/users/6f626f7274697320"
-  },
-  "role": "member",
-  "id": "6f626f7274697320",
-	"name": "name",
-	"status": "active"
+				body: `{
+	"code": "not found",
+	"message": "check not found"
 }
 `,
 			},
@@ -1352,6 +1341,7 @@ func TestService_handlePostCheckMember(t *testing.T) {
 			checkBackend := NewMockCheckBackend()
 			checkBackend.UserService = tt.fields.UserService
 			checkBackend.CheckService = tt.fields.CheckService
+			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 
 			h := NewCheckHandler(checkBackend)
 
