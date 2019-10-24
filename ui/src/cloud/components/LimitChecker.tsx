@@ -1,6 +1,7 @@
 // Libraries
 import {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {CLOUD} from 'src/shared/constants'
 
 // Actions
 import {getReadWriteCardinalityLimits as getReadWriteCardinalityLimitsAction} from 'src/cloud/actions/limits'
@@ -11,7 +12,7 @@ interface DispatchProps {
 
 class LimitChecker extends PureComponent<DispatchProps, {}> {
   public componentDidMount() {
-    if (process.env.CLOUD === 'true') {
+    if (CLOUD) {
       this.props.getReadWriteCardinalityLimits()
     }
   }

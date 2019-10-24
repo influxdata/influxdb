@@ -19,7 +19,8 @@
     "start": "yarn install && yarn generate && cross-env TS_NODE_PROJECT=\"webpack.tsconfig.json\" && yarn run build:vendor && yarn run start:dev",
     "start:docker": "yarn generate && yarn build:vendor && yarn run start:dev",
     "start:dev": "webpack-dev-server --config ./webpack.dev.ts",
-    "build": "yarn install --silent && yarn generate && webpack --config webpack.prod.ts",
+    "build": "yarn install --silent && yarn build:ci",
+    "build:ci": "yarn generate && webpack --config webpack.prod.ts",
     "build:vendor": "webpack --config webpack.vendor.ts",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
@@ -30,6 +31,7 @@
     "test:ju:report": "junit-viewer --results=junit-results --save-file=cypress/site/junit-report.html",
     "test:ju:clean": "rm junit-results/*.xml",
     "test:ju:all": "yarn test:ju:clean && yarn test:junit; yarn test:ju:report;",
+    "test:ci": "JEST_JUNIT_OUTPUT_DIR=\"./coverage\" jest --ci --coverage --reporters=default --reporters=jest-junit",
     "lint": "yarn tsc && yarn eslint",
     "eslint": "eslint '{src,cypress}/**/*.{ts,tsx}'",
     "eslint:fix": "eslint --fix '{src,cypress}/**/*.{ts,tsx}'",
@@ -37,7 +39,7 @@
     "tsc:cypress": "tsc -p ./cypress/tsconfig.json --noEmit --pretty --skipLibCheck",
     "cy": "CYPRESS_baseUrl=http://localhost:9999 cypress open",
     "cy:dev": "CYPRESS_baseUrl=http://localhost:8080 cypress open",
-    "generate": "oats ../http/swagger.yml > src/client/generatedRoutes.ts"
+    "generate": "oats ../http/swagger.yml > ./src/client/generatedRoutes.ts"
   },
   "author": "",
   "devDependencies": {
@@ -96,6 +98,7 @@
     "http-proxy-middleware": "^0.18.0",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^24.8.0",
+    "jest-junit": "^8.0.0",
     "jsdom": "^9.0.0",
     "junit-viewer": "^4.11.1",
     "mini-css-extract-plugin": "^0.8.0",

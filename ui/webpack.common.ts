@@ -6,6 +6,7 @@ const {
   GIT_SHA,
   STATIC_DIRECTORY,
   BASE_PATH,
+  API_BASE_PATH,
 } = require('./src/utils/env')
 
 module.exports = {
@@ -69,10 +70,20 @@ module.exports = {
       template: './assets/index.html',
       favicon: './assets/images/favicon.ico',
       inject: 'body',
+      minify: {
+        collapseWhitespace: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        removeScriptTypeAttributes: true,
+        removeStyleLinkTypeAttributes: true,
+        useShortDoctype: true,
+      },
       base: BASE_PATH.slice(0, -1),
+      header: process.env.INJECT_HEADER || '',
+      body: process.env.INJECT_BODY || '',
     }),
     new webpack.ProgressPlugin(),
-    new webpack.EnvironmentPlugin({...process.env, GIT_SHA}),
+    new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: API_BASE_PATH, STATIC_PREFIX: BASE_PATH}),
   ],
   stats: {
     colors: true,
