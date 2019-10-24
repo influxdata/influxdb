@@ -95,7 +95,7 @@ func (s *Service) createNotificationRule(ctx context.Context, tx Tx, nr influxdb
 		return err
 	}
 
-	if err := s.putNotificationRule(ctx, tx, nr); err != nil {
+	if err := s.putNotificationRule(ctx, tx, nr.NotificationRule); err != nil {
 		return err
 	}
 

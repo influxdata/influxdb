@@ -4,6 +4,7 @@ const merge = require('webpack-merge')
 const webpack = require('webpack')
 const common = require('./webpack.common.ts')
 const path = require('path')
+const PORT = parseInt(process.env.PORT, 10) || 8080
 
 module.exports = merge(common, {
   mode: 'development',
@@ -19,6 +20,8 @@ module.exports = merge(common, {
       '/api/v2': 'http://localhost:9999',
       '/debug/flush': 'http://localhost:9999',
     },
+    host: '0.0.0.0',
+    port: PORT,
   },
   module: {
     rules: [

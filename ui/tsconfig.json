@@ -31,6 +31,7 @@
     "build",
     "node_modules",
     "cypress",
+    "coverage",
     "jest.config.js",
     "webpack.tsconfig.json",
     "webpack.star.ts",

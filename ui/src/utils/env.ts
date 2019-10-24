@@ -23,7 +23,7 @@ module.exports = (() => {
       _dir = _dir.slice(0, -1)
     }
 
-    return _dir
+    return _dir + '/'
   }
 
   // Webpack has some specific rules about formatting
@@ -48,10 +48,15 @@ module.exports = (() => {
   }
 
   const STATIC_DIRECTORY = formatStatic(process.env.STATIC_DIRECTORY || '')
-  const BASE_PATH = '/'
-  // TODO: adding a basePath feature in the @influxdata/oats
-  // project is currently required before turning this on (alex)
-  //const BASE_PATH = formatBase(process.env.BASE_PATH || '/')
+  const BASE_PATH = formatBase(process.env.BASE_PATH || '/')
+  const API_BASE_PATH = formatBase(process.env.API_BASE_PATH || '/')
 
-  return {formatStatic, formatBase, GIT_SHA, STATIC_DIRECTORY, BASE_PATH}
+  return {
+    formatStatic,
+    formatBase,
+    GIT_SHA,
+    STATIC_DIRECTORY,
+    BASE_PATH,
+    API_BASE_PATH,
+  }
 })()

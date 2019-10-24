@@ -1,10 +1,11 @@
 import {PureComponent} from 'react'
+import {CLOUD} from 'src/shared/constants'
 
 export default class extends PureComponent {
   render() {
     const {children} = this.props
 
-    if (process.env.CLOUD !== 'true') {
+    if (CLOUD) {
       return children
     }
 

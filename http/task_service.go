@@ -231,10 +231,42 @@ func newTasksResponse(ctx context.Context, ts []*influxdb.Task, f influxdb.TaskF
 
 type runResponse struct {
 	Links map[string]string `json:"links,omitempty"`
-	influxdb.Run
+	httpRun
+}
+
+// httpRun is a version of the Run object used to communicate over the API
+// it uses a pointer to a time.Time instead of a time.Time so that we can pass a nil
+// value for empty time values
+type httpRun struct {
+	ID           influxdb.ID    `json:"id,omitempty"`
+	TaskID       influxdb.ID    `json:"taskID"`
+	Status       string         `json:"status"`
+	ScheduledFor *time.Time     `json:"scheduledFor"`
+	StartedAt    *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt   *time.Time     `json:"finishedAt,omitempty"`
+	RequestedAt  *time.Time     `json:"requestedAt,omitempty"`
+	Log          []influxdb.Log `json:"log,omitempty"`
 }
 
 func newRunResponse(r influxdb.Run) runResponse {
+	run := httpRun{
+		ID:           r.ID,
+		TaskID:       r.TaskID,
+		Status:       r.Status,
+		Log:          r.Log,
+		ScheduledFor: &r.ScheduledFor,
+	}
+
+	if !r.StartedAt.IsZero() {
+		run.StartedAt = &r.StartedAt
+	}
+	if !r.FinishedAt.IsZero() {
+		run.FinishedAt = &r.FinishedAt
+	}
+	if !r.RequestedAt.IsZero() {
+		run.RequestedAt = &r.RequestedAt
+	}
+
 	return runResponse{
 		Links: map[string]string{
 			"self":  fmt.Sprintf("/api/v2/tasks/%s/runs/%s", r.TaskID, r.ID),
@@ -242,8 +274,35 @@ func newRunResponse(r influxdb.Run) runResponse {
 			"logs":  fmt.Sprintf("/api/v2/tasks/%s/runs/%s/logs", r.TaskID, r.ID),
 			"retry": fmt.Sprintf("/api/v2/tasks/%s/runs/%s/retry", r.TaskID, r.ID),
 		},
-		Run: r,
+		httpRun: run,
 	}
+}
+
+func convertRun(r httpRun) *influxdb.Run {
+	run := &influxdb.Run{
+		ID:     r.ID,
+		TaskID: r.TaskID,
+		Status: r.Status,
+		Log:    r.Log,
+	}
+
+	if r.StartedAt != nil {
+		run.StartedAt = *r.StartedAt
+	}
+
+	if r.FinishedAt != nil {
+		run.FinishedAt = *r.FinishedAt
+	}
+
+	if r.RequestedAt != nil {
+		run.RequestedAt = *r.RequestedAt
+	}
+
+	if r.ScheduledFor != nil {
+		run.ScheduledFor = *r.ScheduledFor
+	}
+
+	return run
 }
 
 type runsResponse struct {
@@ -1567,7 +1626,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 
 	runs := make([]*influxdb.Run, len(rs.Runs))
 	for i := range rs.Runs {
-		runs[i] = &rs.Runs[i].Run
+		runs[i] = convertRun(rs.Runs[i].httpRun)
 	}
 
 	return runs, len(runs), nil
@@ -1612,7 +1671,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID influxdb.ID)
 	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
 		return nil, err
 	}
-	return &rs.Run, nil
+	return convertRun(rs.httpRun), nil
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
@@ -1660,7 +1719,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*
 	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
 		return nil, err
 	}
-	return &rs.Run, nil
+	return convertRun(rs.httpRun), nil
 }
 
 // ForceRun starts a run manually right now.
@@ -1708,7 +1767,7 @@ func (t TaskService) ForceRun(ctx context.Context, taskID influxdb.ID, scheduled
 	if err := json.NewDecoder(resp.Body).Decode(rs); err != nil {
 		return nil, err
 	}
-	return &rs.Run, nil
+	return convertRun(rs.httpRun), nil
 }
 
 func cancelPath(taskID, runID influxdb.ID) string {

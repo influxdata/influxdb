@@ -1,3 +1,4 @@
+import {ViewProperties} from 'src/client'
 import {
   SourceLinks,
   Cell,
@@ -922,4 +923,90 @@ export const auth: Authorization = {
     self: '/api/v2/authorizations/03c03a8a64728000',
     user: '/api/v2/users/039edab303789000',
   },
+}
+
+export const viewProperties: ViewProperties = {
+  shape: 'chronograf-v2',
+  queries: [
+    {
+      text:
+        'from(bucket: v.bucket)\n  |> range(start: v.timeRangeStart)\n  |> filter(fn: (r) => r._measurement == "mem")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: "mean")',
+      editMode: 'advanced',
+      name: '',
+      builderConfig: {
+        buckets: [],
+        tags: [
+          {
+            key: '_measurement',
+            values: [],
+          },
+        ],
+        functions: [],
+        aggregateWindow: {
+          period: '',
+        },
+      },
+    },
+  ],
+  axes: {
+    x: {
+      bounds: ['', ''],
+      label: '',
+      prefix: '',
+      suffix: '',
+      base: '10',
+      scale: 'linear',
+    },
+    y: {
+      bounds: ['', ''],
+      label: '',
+      prefix: '',
+      suffix: '%',
+      base: '10',
+      scale: 'linear',
+    },
+  },
+  type: 'line-plus-single-stat',
+  legend: {},
+  colors: [
+    {
+      id: 'base',
+      type: 'text',
+      hex: '#00C9FF',
+      name: 'laser',
+      value: 0,
+    },
+    {
+      id: '1ce2dd3d-ece9-4305-b938-5b1538063119',
+      type: 'scale',
+      hex: '#8F8AF4',
+      name: 'Do Androids Dream of Electric Sheep?',
+      value: 0,
+    },
+    {
+      id: '2e1d1dbf-6ed3-4978-9622-2a90548363a9',
+      type: 'scale',
+      hex: '#A51414',
+      name: 'Do Androids Dream of Electric Sheep?',
+      value: 0,
+    },
+    {
+      id: 'edda21a2-1c61-40df-9c2f-c85e16978548',
+      type: 'scale',
+      hex: '#F4CF31',
+      name: 'Do Androids Dream of Electric Sheep?',
+      value: 0,
+    },
+  ],
+  prefix: '',
+  suffix: '%',
+  decimalPlaces: {
+    isEnforced: true,
+    digits: 1,
+  },
+  note: '',
+  showNoteWhenEmpty: false,
+  xColumn: '_time',
+  yColumn: '_value',
+  shadeBelow: true,
 }

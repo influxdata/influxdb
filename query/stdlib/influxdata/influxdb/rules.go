@@ -437,6 +437,15 @@ func rewritePushableExpr(e semantic.Expression) (semantic.Expression, bool) {
 			e.Left, e.Right = left, right
 			return e, true
 		}
+
+	case *semantic.LogicalExpression:
+		left, lok := rewritePushableExpr(e.Left)
+		right, rok := rewritePushableExpr(e.Right)
+		if lok || rok {
+			e = e.Copy().(*semantic.LogicalExpression)
+			e.Left, e.Right = left, right
+			return e, true
+		}
 	}
 	return e, false
 }

@@ -3,19 +3,19 @@ const {formatStatic, formatBase} = require('./env')
 describe('enviroment normalization', () => {
   describe('static path formatter', () => {
     it('should strip the first slash', () => {
-      expect(formatStatic('/neateo')).toBe('neateo')
+      expect(formatStatic('/neateo/')).toBe('neateo/')
     })
 
-    it('should strip the last slash', () => {
-      expect(formatStatic('neateo/')).toBe('neateo')
+    it('should not strip the last slash', () => {
+      expect(formatStatic('neateo/')).toBe('neateo/')
     })
 
     it('should ignore middle slashes', () => {
-      expect(formatStatic('n/ea/teo')).toBe('n/ea/teo')
+      expect(formatStatic('n/ea/teo')).toBe('n/ea/teo/')
     })
 
-    it('should pass through no slashes', () => {
-      expect(formatStatic('neateo')).toBe('neateo')
+    it('should add a final slash here', () => {
+      expect(formatStatic('neateo')).toBe('neateo/')
     })
   })
 

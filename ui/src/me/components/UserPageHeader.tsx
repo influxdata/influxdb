@@ -1,5 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import {CLOUD} from 'src/shared/constants'
 
 // Components
 import {
@@ -43,7 +44,7 @@ export default class UserPageHeader extends PureComponent<Props> {
 
     let title = ''
 
-    if (process.env.CLOUD === 'true') {
+    if (CLOUD) {
       title = `${text}, ${userName}! Welcome to InfluxDB Cloud!`
     } else {
       title = `${text}, ${userName}! Welcome to ${orgName}!`

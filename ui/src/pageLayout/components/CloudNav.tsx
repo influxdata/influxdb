@@ -4,6 +4,11 @@ import React, {PureComponent} from 'react'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 import {NavMenu, Icon} from '@influxdata/clockface'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
+import {
+  CLOUD_URL,
+  CLOUD_USAGE_PATH,
+  CLOUD_BILLING_PATH,
+} from 'src/shared/constants'
 
 // Types
 import {IconFont} from '@influxdata/clockface'
@@ -49,10 +54,10 @@ export default class CloudNav extends PureComponent {
   }
 
   private get usageURL(): string {
-    return `${process.env.CLOUD_URL}${process.env.CLOUD_USAGE_PATH}`
+    return `${CLOUD_URL}${CLOUD_USAGE_PATH}`
   }
 
   private get billingURL(): string {
-    return `${process.env.CLOUD_URL}${process.env.CLOUD_BILLING_PATH}`
+    return `${CLOUD_URL}${CLOUD_BILLING_PATH}`
   }
 }

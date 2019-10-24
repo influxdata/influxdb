@@ -1,3 +1,6 @@
+// Libraries
+import {get, isEmpty} from 'lodash'
+
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
@@ -25,10 +28,14 @@ import {
   CheckType,
   Threshold,
   CheckStatusLevel,
+  XYViewProperties,
+  GetState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition} from '@influxdata/giraffe'
 import {RemoteDataState} from '@influxdata/clockface'
+import {createView} from 'src/shared/utils/view'
+import {setValues} from 'src/variables/actions'
 
 export type Action =
   | QueryBuilderAction
@@ -642,3 +649,19 @@ export const removeCheckThreshold = (level: CheckStatusLevel) => ({
   type: 'REMOVE_CHECK_THRESHOLD' as 'REMOVE_CHECK_THRESHOLD',
   payload: {level},
 })
+
+export const loadNewVEO = (fromContextID: string) => (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+): void => {
+  dispatch(
+    setActiveTimeMachine('veo', {view: createView<XYViewProperties>('xy')})
+  )
+
+  const values = get(getState(), `variables.values.${fromContextID}.values`, {})
+
+  if (!isEmpty(values)) {
+    dispatch(setValues('veo', RemoteDataState.Done, values))
+  }
+  // no need to refresh variable values since there is no query in a new view
+}

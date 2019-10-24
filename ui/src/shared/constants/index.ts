@@ -48,15 +48,17 @@ export const MIN_SIZE = 0
 
 export const VERSION = process.env.npm_package_version
 export const GIT_SHA = process.env.GIT_SHA
+export const BASE_PATH = process.env.STATIC_PREFIX
+export const API_BASE_PATH = process.env.API_PREFIX
 
 export const CLOUD = process.env.CLOUD && process.env.CLOUD === 'true'
 export const CLOUD_SIGNIN_PATHNAME = '/api/v2/signin'
 export const CLOUD_SIGNOUT_URL = process.env.CLOUD_LOGOUT_URL
-export const CLOUD_BILLING_VISIBLE =
-  CLOUD && process.env.CLOUD_BILLING_VISIBLE === 'true'
+export const CLOUD_BILLING_VISIBLE = CLOUD
 export const CLOUD_URL = process.env.CLOUD_URL
-export const CLOUD_CHECKOUT_PATH = process.env.CLOUD_CHECKOUT_PATH
-export const CLOUD_BILLING_PATH = process.env.CLOUD_BILLING_PATH
+export const CLOUD_CHECKOUT_PATH = '/checkout'
+export const CLOUD_BILLING_PATH = '/billing'
+export const CLOUD_USAGE_PATH = '/usage'
 
 export const FLUX_RESPONSE_BYTES_LIMIT = CLOUD
   ? 10 * 1024 * 1024 // 10 MiB

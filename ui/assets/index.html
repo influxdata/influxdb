@@ -8,8 +8,10 @@
     />
     <title>InfluxDB 2.0</title>
     <base href="/" />
+    <%= htmlWebpackPlugin.options.header  %>
   </head>
   <body>
     <div id="react-root" data-basepath="<%= htmlWebpackPlugin.options.base %>"></div>
+    <%= htmlWebpackPlugin.options.body  %>
   </body>
 </html>
