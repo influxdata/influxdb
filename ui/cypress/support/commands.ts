@@ -71,7 +71,7 @@ export const createDashWithCell = (
 ): Cypress.Chainable<Cypress.Response> =>
   createDashboard(orgID).then(({body: dashboard}) => createCell(dashboard.id))
 
-export const createDashWithView = (
+export const createDashWithViewAndVar = (
   orgID: string
 ): Cypress.Chainable<Cypress.Response> => {
   createMapVariable(orgID)
@@ -447,7 +447,7 @@ Cypress.Commands.add('createDashboard', createDashboard)
 Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
 Cypress.Commands.add('createDashWithCell', createDashWithCell)
-Cypress.Commands.add('createDashWithView', createDashWithView)
+Cypress.Commands.add('createDashWithViewAndVar', createDashWithViewAndVar)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)

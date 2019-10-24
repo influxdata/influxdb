@@ -15,17 +15,17 @@ describe('Dashboard', () => {
     })
 
     cy.fixture('routes').then(({orgs}) => {
-      cy.get<Organization>('@org').then(({id}) => {
-        cy.visit(`${orgs}/${id}/dashboards`)
+      cy.get('@org').then(({id: orgID}: Organization) => {
+        cy.visit(`${orgs}/${orgID}/dashboards`)
       })
     })
   })
 
   it('can edit a dashboards name', () => {
-    cy.get<Organization>('@org').then(({id}) => {
-      cy.createDashboard(id).then(({body}) => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${id}/dashboards/${body.id}`)
+          cy.visit(`${orgs}/${orgID}/dashboards/${body.id}`)
         })
       })
     })
@@ -38,8 +38,8 @@ describe('Dashboard', () => {
       .type('{enter}')
 
     cy.fixture('routes').then(({orgs}) => {
-      cy.get<Organization>('@org').then(({id}) => {
-        cy.visit(`${orgs}/${id}/dashboards`)
+      cy.get('@org').then(({id: orgID}: Organization) => {
+        cy.visit(`${orgs}/${orgID}/dashboards`)
       })
     })
 
@@ -47,10 +47,10 @@ describe('Dashboard', () => {
   })
 
   it('can create a cell', () => {
-    cy.get<Organization>('@org').then(({id}) => {
-      cy.createDashboard(id).then(({body}) => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${id}/dashboards/${body.id}`)
+          cy.visit(`${orgs}/${orgID}/dashboards/${body.id}`)
         })
       })
     })
@@ -65,7 +65,7 @@ describe('Dashboard', () => {
       .selectedValue
 
   it('can manage variable state with a lot of pointing and clicking', () => {
-    cy.get<Organization>('@org').then(({id: orgID}) => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body: dashboard}) => {
         cy.createMapVariable(orgID).then(({body: variable}) => {
           cy.fixture('routes').then(({orgs}) => {
@@ -134,8 +134,8 @@ describe('Dashboard', () => {
   })
 
   it('can create a view through the API', () => {
-    cy.get<Organization>('@org').then(({id: orgID}) => {
-      cy.createDashWithView(orgID).then(() => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashWithViewAndVar(orgID).then(() => {
         cy.fixture('routes').then(({orgs}) => {
           cy.visit(`${orgs}/${orgID}/dashboards`)
           cy.getByTestID('dashboard-card--name').click()

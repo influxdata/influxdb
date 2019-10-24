@@ -28,7 +28,7 @@ import {
   getByTestIDSubStr,
   createEndpoint,
   createDashWithCell,
-  createDashWithView,
+  createDashWithViewAndVar,
 } from './support/commands'
 
 declare global {
@@ -44,7 +44,7 @@ declare global {
       createDashboard: typeof createDashboard
       createCell: typeof createCell
       createDashWithCell: typeof createDashWithCell
-      createDashWithView: typeof createDashWithView
+      createDashWithViewAndVar: typeof createDashWithViewAndVar
       createOrg: typeof createOrg
       flush: typeof flush
       getByTestID: typeof getByTestID
