@@ -26,7 +26,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"unsafe"
 )
 
 const MaxValue = (1 << 60) - 1
@@ -183,13 +182,13 @@ func (d *Decoder) read() {
 
 	v := binary.BigEndian.Uint64(d.bytes[:8])
 	d.bytes = d.bytes[8:]
-	d.n, _ = Decode(&d.buf, v)
+	d.n, _ = Decode(d.buf[:], v)
 	d.i = 0
 }
 
 type packing struct {
 	n, bit int
-	unpack func(uint64, *[240]uint64)
+	unpack func(uint64, []uint64)
 	pack   func([]uint64) uint64
 }
 
@@ -457,7 +456,7 @@ NEXTVALUE:
 	return dst[:j], nil
 }
 
-func Decode(dst *[240]uint64, v uint64) (n int, err error) {
+func Decode(dst []uint64, v uint64) (n int, err error) {
 	sel := v >> 60
 	if sel >= 16 {
 		return 0, fmt.Errorf("invalid selector value: %b", sel)
@@ -472,7 +471,7 @@ func DecodeAll(dst, src []uint64) (value int, err error) {
 	j := 0
 	for _, v := range src {
 		sel := (v >> 60) & 0xf
-		selector[sel].unpack(v, (*[240]uint64)(unsafe.Pointer(&dst[j])))
+		selector[sel].unpack(v, dst[j:])
 		j += selector[sel].n
 	}
 	return j, nil
@@ -490,14 +489,14 @@ func DecodeBytesBigEndian(dst []uint64, src []byte) (value int, err error) {
 	for i < len(src) {
 		v := binary.BigEndian.Uint64(src[i:])
 		sel := (v >> 60) & 0xf
-		selector[sel].unpack(v, (*[240]uint64)(unsafe.Pointer(&dst[j])))
+		selector[sel].unpack(v, dst[j:])
 		j += selector[sel].n
 		i += 8
 	}
 	return j, nil
 }
 
-// canPack returs true if n elements from in can be stored using bits per element
+// canPack returns true if n elements from in can be stored using bits per element
 func canPack(src []uint64, n, bits int) bool {
 	if len(src) < n {
 		return false
@@ -793,19 +792,21 @@ func pack1(src []uint64) uint64 {
 		src[0]
 }
 
-func unpack240(v uint64, dst *[240]uint64) {
+func unpack240(v uint64, dst []uint64) {
 	for i := range dst {
 		dst[i] = 1
 	}
 }
 
-func unpack120(v uint64, dst *[240]uint64) {
+func unpack120(v uint64, dst []uint64) {
+	_ = dst[119] // eliminate multiple bounds checks
 	for i := range dst[:120] {
 		dst[i] = 1
 	}
 }
 
-func unpack60(v uint64, dst *[240]uint64) {
+func unpack60(v uint64, dst []uint64) {
+	_ = dst[59] // eliminate multiple bounds checks
 	dst[0] = v & 1
 	dst[1] = (v >> 1) & 1
 	dst[2] = (v >> 2) & 1
@@ -868,7 +869,8 @@ func unpack60(v uint64, dst *[240]uint64) {
 	dst[59] = (v >> 59) & 1
 }
 
-func unpack30(v uint64, dst *[240]uint64) {
+func unpack30(v uint64, dst []uint64) {
+	_ = dst[29] // eliminate multiple bounds checks
 	dst[0] = v & 3
 	dst[1] = (v >> 2) & 3
 	dst[2] = (v >> 4) & 3
@@ -901,7 +903,8 @@ func unpack30(v uint64, dst *[240]uint64) {
 	dst[29] = (v >> 58) & 3
 }
 
-func unpack20(v uint64, dst *[240]uint64) {
+func unpack20(v uint64, dst []uint64) {
+	_ = dst[19] // eliminate multiple bounds checks
 	dst[0] = v & 7
 	dst[1] = (v >> 3) & 7
 	dst[2] = (v >> 6) & 7
@@ -924,7 +927,8 @@ func unpack20(v uint64, dst *[240]uint64) {
 	dst[19] = (v >> 57) & 7
 }
 
-func unpack15(v uint64, dst *[240]uint64) {
+func unpack15(v uint64, dst []uint64) {
+	_ = dst[14] // eliminate multiple bounds checks
 	dst[0] = v & 15
 	dst[1] = (v >> 4) & 15
 	dst[2] = (v >> 8) & 15
@@ -942,7 +946,8 @@ func unpack15(v uint64, dst *[240]uint64) {
 	dst[14] = (v >> 56) & 15
 }
 
-func unpack12(v uint64, dst *[240]uint64) {
+func unpack12(v uint64, dst []uint64) {
+	_ = dst[11] // eliminate multiple bounds checks
 	dst[0] = v & 31
 	dst[1] = (v >> 5) & 31
 	dst[2] = (v >> 10) & 31
@@ -957,7 +962,8 @@ func unpack12(v uint64, dst *[240]uint64) {
 	dst[11] = (v >> 55) & 31
 }
 
-func unpack10(v uint64, dst *[240]uint64) {
+func unpack10(v uint64, dst []uint64) {
+	_ = dst[9] // eliminate multiple bounds checks
 	dst[0] = v & 63
 	dst[1] = (v >> 6) & 63
 	dst[2] = (v >> 12) & 63
@@ -970,7 +976,8 @@ func unpack10(v uint64, dst *[240]uint64) {
 	dst[9] = (v >> 54) & 63
 }
 
-func unpack8(v uint64, dst *[240]uint64) {
+func unpack8(v uint64, dst []uint64) {
+	_ = dst[7] // eliminate multiple bounds checks
 	dst[0] = v & 127
 	dst[1] = (v >> 7) & 127
 	dst[2] = (v >> 14) & 127
@@ -981,7 +988,8 @@ func unpack8(v uint64, dst *[240]uint64) {
 	dst[7] = (v >> 49) & 127
 }
 
-func unpack7(v uint64, dst *[240]uint64) {
+func unpack7(v uint64, dst []uint64) {
+	_ = dst[6] // eliminate multiple bounds checks
 	dst[0] = v & 255
 	dst[1] = (v >> 8) & 255
 	dst[2] = (v >> 16) & 255
@@ -991,7 +999,8 @@ func unpack7(v uint64, dst *[240]uint64) {
 	dst[6] = (v >> 48) & 255
 }
 
-func unpack6(v uint64, dst *[240]uint64) {
+func unpack6(v uint64, dst []uint64) {
+	_ = dst[5] // eliminate multiple bounds checks
 	dst[0] = v & 1023
 	dst[1] = (v >> 10) & 1023
 	dst[2] = (v >> 20) & 1023
@@ -1000,7 +1009,8 @@ func unpack6(v uint64, dst *[240]uint64) {
 	dst[5] = (v >> 50) & 1023
 }
 
-func unpack5(v uint64, dst *[240]uint64) {
+func unpack5(v uint64, dst []uint64) {
+	_ = dst[4] // eliminate multiple bounds checks
 	dst[0] = v & 4095
 	dst[1] = (v >> 12) & 4095
 	dst[2] = (v >> 24) & 4095
@@ -1008,24 +1018,27 @@ func unpack5(v uint64, dst *[240]uint64) {
 	dst[4] = (v >> 48) & 4095
 }
 
-func unpack4(v uint64, dst *[240]uint64) {
+func unpack4(v uint64, dst []uint64) {
+	_ = dst[3] // eliminate multiple bounds checks
 	dst[0] = v & 32767
 	dst[1] = (v >> 15) & 32767
 	dst[2] = (v >> 30) & 32767
 	dst[3] = (v >> 45) & 32767
 }
 
-func unpack3(v uint64, dst *[240]uint64) {
+func unpack3(v uint64, dst []uint64) {
+	_ = dst[2] // eliminate multiple bounds checks
 	dst[0] = v & 1048575
 	dst[1] = (v >> 20) & 1048575
 	dst[2] = (v >> 40) & 1048575
 }
 
-func unpack2(v uint64, dst *[240]uint64) {
+func unpack2(v uint64, dst []uint64) {
+	_ = dst[1] // eliminate multiple bounds checks
 	dst[0] = v & 1073741823
 	dst[1] = (v >> 30) & 1073741823
 }
 
-func unpack1(v uint64, dst *[240]uint64) {
+func unpack1(v uint64, dst []uint64) {
 	dst[0] = v & 1152921504606846975
 }
