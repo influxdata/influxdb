@@ -118,7 +118,7 @@ export const moveVariable = (
   payload: {originalIndex, newIndex, contextID},
 })
 
-const setValues = (
+export const setValues = (
   contextID: string,
   status: RemoteDataState,
   values?: VariableValuesByID

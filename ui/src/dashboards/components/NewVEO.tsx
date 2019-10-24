@@ -10,27 +10,20 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import VEOHeader from 'src/dashboards/components/VEOHeader'
 
 // Actions
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
+import {loadNewVEO} from 'src/timeMachine/actions'
 import {setName} from 'src/timeMachine/actions'
 import {saveVEOView} from 'src/dashboards/actions'
 
 // Utils
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
-import {createView} from 'src/shared/utils/view'
 
 // Types
-import {
-  AppState,
-  XYViewProperties,
-  RemoteDataState,
-  View,
-  TimeMachineID,
-} from 'src/types'
+import {AppState, RemoteDataState, View, TimeMachineID} from 'src/types'
 
 interface DispatchProps {
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
   onSetName: typeof setName
   onSaveView: typeof saveVEOView
+  onLoadNewVEO: typeof loadNewVEO
 }
 
 interface StateProps {
@@ -41,8 +34,8 @@ interface StateProps {
 type Props = DispatchProps & StateProps & WithRouterProps
 
 const NewViewVEO: FunctionComponent<Props> = ({
-  onSetActiveTimeMachine,
   activeTimeMachineID,
+  onLoadNewVEO,
   onSaveView,
   onSetName,
   params: {orgID, dashboardID},
@@ -50,9 +43,8 @@ const NewViewVEO: FunctionComponent<Props> = ({
   view,
 }) => {
   useEffect(() => {
-    const view = createView<XYViewProperties>('xy')
-    onSetActiveTimeMachine('veo', {view})
-  }, [])
+    onLoadNewVEO(dashboardID)
+  }, [dashboardID])
 
   const handleClose = () => {
     router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
@@ -104,7 +96,7 @@ const mstp = (state: AppState): StateProps => {
 const mdtp: DispatchProps = {
   onSetName: setName,
   onSaveView: saveVEOView,
-  onSetActiveTimeMachine: setActiveTimeMachine,
+  onLoadNewVEO: loadNewVEO,
 }
 
 export default connect<StateProps, DispatchProps, {}>(

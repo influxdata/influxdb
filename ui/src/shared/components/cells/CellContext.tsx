@@ -27,14 +27,21 @@ export default class CellContext extends PureComponent<Props> {
 
     return (
       <Context className="cell--context">
-        <Context.Menu icon={IconFont.Pencil}>{this.editMenuItems}</Context.Menu>
+        <Context.Menu testID="cell-context-menu--edit" icon={IconFont.Pencil}>
+          {this.editMenuItems}
+        </Context.Menu>
         <Context.Menu
           icon={IconFont.Duplicate}
           color={ComponentColor.Secondary}
+          testID="cell-context-menu--clone"
         >
           <Context.Item label="Clone" action={onCloneCell} value={cell} />
         </Context.Menu>
-        <Context.Menu icon={IconFont.Trash} color={ComponentColor.Danger}>
+        <Context.Menu
+          icon={IconFont.Trash}
+          color={ComponentColor.Danger}
+          testID="cell-context-menu--delete"
+        >
           <Context.Item label="Delete" action={onDeleteCell} value={cell} />
         </Context.Menu>
       </Context>
@@ -51,17 +58,24 @@ export default class CellContext extends PureComponent<Props> {
     const hasNote = !!get(view, 'properties.note')
 
     return [
-      <Context.Item key="configure" label="Configure" action={onEditCell} />,
+      <Context.Item
+        key="configure"
+        label="Configure"
+        action={onEditCell}
+        testID="cell-context-menu-item--configure"
+      />,
       <Context.Item
         key="note"
         label={hasNote ? 'Edit Note' : 'Add Note'}
         action={this.handleEditNote}
+        testID="cell-context-menu-item--note"
       />,
       <Context.Item
         key="download"
         label="Download CSV"
         action={onCSVDownload}
         disabled={true}
+        testID="cell-context-menu-item--dl"
       />,
     ]
   }

@@ -53,6 +53,35 @@ export const createCell = (
   })
 }
 
+export const createView = (
+  dbID: string,
+  cellID: string
+): Cypress.Chainable<Cypress.Response> => {
+  return cy.fixture('view').then(view => {
+    return cy.request({
+      method: 'PATCH',
+      url: `/api/v2/dashboards/${dbID}/cells/${cellID}/view`,
+      body: view,
+    })
+  })
+}
+
+export const createDashWithCell = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> =>
+  createDashboard(orgID).then(({body: dashboard}) => createCell(dashboard.id))
+
+export const createDashWithViewAndVar = (
+  orgID: string
+): Cypress.Chainable<Cypress.Response> => {
+  createMapVariable(orgID)
+  return createDashboard(orgID).then(({body: dashboard}) =>
+    createCell(dashboard.id).then(({body: cell}) =>
+      createView(dashboard.id, cell.id)
+    )
+  )
+}
+
 export const createDashboardTemplate = (
   orgID?: string,
   name: string = 'Bashboard'
@@ -393,6 +422,7 @@ export const createEndpoint = (
   return cy.request('POST', 'api/v2/notificationEndpoints', endpoint)
 }
 
+/* eslint-disable */
 // notification endpoints
 Cypress.Commands.add('createEndpoint', createEndpoint)
 
@@ -416,6 +446,8 @@ Cypress.Commands.add('setupUser', setupUser)
 Cypress.Commands.add('createDashboard', createDashboard)
 Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
+Cypress.Commands.add('createDashWithCell', createDashWithCell)
+Cypress.Commands.add('createDashWithViewAndVar', createDashWithViewAndVar)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)
@@ -448,3 +480,4 @@ Cypress.Commands.add('createAndAddLabel', createAndAddLabel)
 
 // test
 Cypress.Commands.add('writeData', writeData)
+/* eslint-enable */
