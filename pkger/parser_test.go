@@ -140,7 +140,7 @@ spec:
 	})
 
 	t.Run("file with just a bucket", func(t *testing.T) {
-		t.Run("with valid bucket data should be valid", func(t *testing.T) {
+		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 				buckets := pkg.buckets()
 				require.Len(t, buckets, 1)
@@ -248,6 +248,91 @@ spec:
 			fields := pErr.Resources[0].ValidationFailures
 			require.Len(t, fields, 1)
 			assert.Equal(t, "name", fields[0].Field)
+		})
+	})
+
+	t.Run("file with just a label", func(t *testing.T) {
+		t.Run("with valid label pkg should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+				labels := pkg.labels()
+				require.Len(t, labels, 2)
+
+				expectedLabel1 := label{
+					Name:        "label_1",
+					Description: "label 1 description",
+					Color:       "#FFFFFF",
+				}
+				assert.Equal(t, expectedLabel1, *labels[0])
+
+				expectedLabel2 := label{
+					Name:        "label_2",
+					Description: "label 2 description",
+					Color:       "#000000",
+				}
+				assert.Equal(t, expectedLabel2, *labels[1])
+			})
+		})
+
+		t.Run("with missing label name should error", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				numErrs int
+				in      string
+			}{
+				{
+					name:    "missing name",
+					numErrs: 1,
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: first_label_pkg 
+  pkgVersion:   1
+spec:
+  resources:
+    - kind: Label 
+`,
+				},
+				{
+					name:    "mixed valid and missing name",
+					numErrs: 1,
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: valid name
+    - kind: Label
+`,
+				},
+				{
+					name:    "multiple labels with missing name",
+					numErrs: 2,
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+    - kind: Label
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					_, err := Parse(EncodingYAML, FromString(tt.in))
+					pErr, ok := IsParseErr(err)
+					require.True(t, ok)
+					assert.Len(t, pErr.Resources, tt.numErrs)
+				}
+
+				t.Run(tt.name, fn)
+			}
 		})
 	})
 }

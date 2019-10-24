@@ -636,6 +636,8 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 		return err
 	}
 
+	// this is super dirty >_<
+	*l = lr.Label
 	return nil
 }
 

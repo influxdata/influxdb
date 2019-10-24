@@ -125,6 +125,7 @@ type Pkg struct {
 		Resources []Resource `yaml:"resources" json:"resources"`
 	} `yaml:"spec" json:"spec"`
 
+	mLabels  map[string]*label
 	mBuckets map[string]*bucket
 }
 
@@ -134,10 +135,32 @@ type Pkg struct {
 func (m *Pkg) Summary() Summary {
 	var sum Summary
 
+	type lbl struct {
+		influxdb.Label
+	}
+	for _, l := range m.mLabels {
+		sum.Labels = append(sum.Labels, lbl{
+			Label: influxdb.Label{
+				ID:    l.ID,
+				OrgID: l.OrgID,
+				Name:  l.Name,
+				Properties: map[string]string{
+					"color":       l.Color,
+					"description": l.Description,
+				},
+			},
+		})
+	}
+
+	sort.Slice(sum.Labels, func(i, j int) bool {
+		return sum.Labels[i].Name < sum.Labels[j].Name
+	})
+
 	type bkt struct {
 		influxdb.Bucket
 		Associations []influxdb.Label
 	}
+
 	for _, b := range m.mBuckets {
 		sum.Buckets = append(sum.Buckets, bkt{
 			Bucket: influxdb.Bucket{
@@ -167,6 +190,19 @@ func (m *Pkg) buckets() []*bucket {
 	})
 
 	return buckets
+}
+
+func (m *Pkg) labels() []*label {
+	labels := make([]*label, 0, len(m.mLabels))
+	for _, b := range m.mLabels {
+		labels = append(labels, b)
+	}
+
+	sort.Slice(labels, func(i, j int) bool {
+		return labels[i].Name < labels[j].Name
+	})
+
+	return labels
 }
 
 func (m *Pkg) validMetadata() error {
@@ -224,6 +260,7 @@ func (m *Pkg) validMetadata() error {
 
 func (m *Pkg) graphResources() error {
 	graphFns := []func() error{
+		m.graphLabels,
 		m.graphBuckets,
 	}
 
@@ -232,6 +269,8 @@ func (m *Pkg) graphResources() error {
 			return err
 		}
 	}
+
+	//todo: make sure a resource was created....
 
 	return nil
 }
@@ -256,6 +295,32 @@ func (m *Pkg) graphBuckets() error {
 			Name:            r.Name(),
 			Description:     r.stringShort("description"),
 			RetentionPeriod: r.duration("retention_period"),
+		}
+
+		return nil
+	})
+}
+
+func (m *Pkg) graphLabels() error {
+	m.mLabels = make(map[string]*label)
+	return m.eachResource(kindLabel, func(r Resource) *failure {
+		if r.Name() == "" {
+			return &failure{
+				field: "name",
+				msg:   "must be a string of at least 2 chars in length",
+			}
+		}
+
+		if _, ok := m.mLabels[r.Name()]; ok {
+			return &failure{
+				field: "name",
+				msg:   "duplicate name: " + r.Name(),
+			}
+		}
+		m.mLabels[r.Name()] = &label{
+			Name:        r.Name(),
+			Color:       r.stringShort("color"),
+			Description: r.stringShort("description"),
 		}
 
 		return nil
