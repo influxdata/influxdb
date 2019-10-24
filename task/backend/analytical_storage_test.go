@@ -40,7 +40,7 @@ func TestAnalyticalStore(t *testing.T) {
 				ab       = newAnalyticalBackend(t, svc, svc)
 				logger   = zaptest.NewLogger(t)
 				rr       = backend.NewStoragePointsWriterRecorder(ab.PointsWriter(), logger)
-				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, rr, ab.QueryService())
+				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, svc, rr, ab.QueryService())
 			)
 
 			go func() {
@@ -86,8 +86,9 @@ func TestDeduplicateRuns(t *testing.T) {
 			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
 		},
 	}
+	mockBS := mock.NewBucketService()
 
-	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockTCS, ab.PointsWriter(), ab.QueryService())
+	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockBS, mockTCS, ab.PointsWriter(), ab.QueryService())
 
 	_, err := svcStack.FinishRun(context.Background(), 1, 2)
 	if err != nil {
@@ -122,14 +123,14 @@ func (ab *analyticalBackend) QueryService() query.QueryService {
 	return query.QueryServiceBridge{AsyncQueryService: ab.queryController}
 }
 
-func (lrw *analyticalBackend) Close(t *testing.T) {
-	if err := lrw.queryController.Shutdown(context.Background()); err != nil {
+func (ab *analyticalBackend) Close(t *testing.T) {
+	if err := ab.queryController.Shutdown(context.Background()); err != nil {
 		t.Error(err)
 	}
-	if err := lrw.storageEngine.Close(); err != nil {
+	if err := ab.storageEngine.Close(); err != nil {
 		t.Error(err)
 	}
-	if err := os.RemoveAll(lrw.rootDir); err != nil {
+	if err := os.RemoveAll(ab.rootDir); err != nil {
 		t.Error(err)
 	}
 }

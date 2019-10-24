@@ -142,6 +142,15 @@ type checkResponse struct {
 	Links  checkLinks       `json:"links"`
 }
 
+type postCheckRequest struct {
+	influxdb.CheckCreate
+	Labels []string `json:"labels"`
+}
+
+type decodeLabels struct {
+	Labels []string `json:"labels"`
+}
+
 func (resp checkResponse) MarshalJSON() ([]byte, error) {
 	b1, err := json.Marshal(resp.Check)
 	if err != nil {
@@ -349,13 +358,13 @@ type decodeStatus struct {
 	Status influxdb.Status `json:"status"`
 }
 
-func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.CheckCreate, error) {
-	var cc influxdb.CheckCreate
+func decodePostCheckRequest(ctx context.Context, r *http.Request) (postCheckRequest, error) {
+	var req postCheckRequest
 
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		return cc, &influxdb.Error{
+		return req, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
@@ -363,7 +372,7 @@ func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.Chec
 	defer r.Body.Close()
 	chk, err := check.UnmarshalJSON(buf.Bytes())
 	if err != nil {
-		return cc, &influxdb.Error{
+		return req, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
@@ -372,15 +381,24 @@ func decodePostCheckRequest(ctx context.Context, r *http.Request) (influxdb.Chec
 	var ds decodeStatus
 	err = json.Unmarshal(buf.Bytes(), &ds)
 	if err != nil {
-		return cc, &influxdb.Error{
+		return req, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Err:  err,
 		}
 	}
 
-	cc = influxdb.CheckCreate{Check: chk, Status: ds.Status}
+	var dl decodeLabels
+	err = json.Unmarshal(buf.Bytes(), &dl)
+	if err != nil {
+		return req, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
 
-	return cc, nil
+	req = postCheckRequest{CheckCreate: influxdb.CheckCreate{Check: chk, Status: ds.Status}, Labels: dl.Labels}
+
+	return req, nil
 }
 
 func decodePutCheckRequest(ctx context.Context, r *http.Request) (influxdb.CheckCreate, error) {
@@ -498,13 +516,15 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.CheckService.CreateCheck(ctx, chk, auth.GetUserID()); err != nil {
+	if err := h.CheckService.CreateCheck(ctx, chk.CheckCreate, auth.GetUserID()); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 	h.Logger.Debug("check created", zap.String("check", fmt.Sprint(chk)))
 
-	cr, err := h.newCheckResponse(ctx, chk, []*influxdb.Label{})
+	labels := h.mapNewCheckLabels(ctx, chk.CheckCreate, chk.Labels)
+
+	cr, err := h.newCheckResponse(ctx, chk, labels)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -514,6 +534,38 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
+}
+
+// mapNewCheckLabels takes label ids from create check and maps them to the newly created check
+func (h *CheckHandler) mapNewCheckLabels(ctx context.Context, chk influxdb.CheckCreate, labels []string) []*influxdb.Label {
+	var ls []*influxdb.Label
+	for _, sid := range labels {
+		var lid influxdb.ID
+		err := lid.DecodeFromString(sid)
+
+		if err != nil {
+			continue
+		}
+
+		label, err := h.LabelService.FindLabelByID(ctx, lid)
+		if err != nil {
+			continue
+		}
+
+		mapping := influxdb.LabelMapping{
+			LabelID:      label.ID,
+			ResourceID:   chk.GetID(),
+			ResourceType: influxdb.ChecksResourceType,
+		}
+
+		err = h.LabelService.CreateLabelMapping(ctx, &mapping)
+		if err != nil {
+			continue
+		}
+
+		ls = append(ls, label)
+	}
+	return ls
 }
 
 // handlePutCheck is the HTTP handler for the PUT /api/v2/checks route.

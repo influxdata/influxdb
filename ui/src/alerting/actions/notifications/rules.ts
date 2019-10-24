@@ -17,15 +17,13 @@ import {checkRulesLimits} from 'src/cloud/actions/limits'
 // Utils
 import {
   ruleToDraftRule,
-  draftRuleToNewRule,
-  draftRuleToRule,
+  draftRuleToPostRule,
 } from 'src/alerting/components/notifications/utils'
 
 // Types
 import {RemoteDataState} from '@influxdata/clockface'
 import {
   NotificationRuleUpdate,
-  NotificationRule,
   GetState,
   NotificationRuleDraft,
   Label,
@@ -130,7 +128,7 @@ export const createRule = (rule: NotificationRuleDraft) => async (
     Action | NotificationAction | ReturnType<typeof checkRulesLimits>
   >
 ) => {
-  const data = draftRuleToNewRule(rule) as NotificationRule
+  const data = draftRuleToPostRule(rule)
 
   const resp = await api.postNotificationRule({data})
 
@@ -147,7 +145,7 @@ export const updateRule = (rule: NotificationRuleDraft) => async (
 ) => {
   const resp = await api.putNotificationRule({
     ruleID: rule.id,
-    data: draftRuleToRule(rule),
+    data: draftRuleToPostRule(rule),
   })
 
   if (resp.status !== 200) {
@@ -237,7 +235,7 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
       rules: {list},
     } = getState()
 
-    const rule = draftRuleToRule(draftRule)
+    const rule = draftRuleToPostRule(draftRule)
 
     const allRuleNames = list.map(r => r.name)
 
@@ -253,8 +251,6 @@ export const cloneRule = (draftRule: NotificationRuleDraft) => async (
 
     dispatch(setRule(ruleToDraftRule(resp.data)))
     dispatch(checkRulesLimits())
-
-    // add labels?
   } catch (error) {
     console.error(error)
     dispatch(notify(copy.createRuleFailed(error.message)))

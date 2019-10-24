@@ -1,3 +1,6 @@
+// Libraries
+import {get, isEmpty} from 'lodash'
+
 // API
 import {
   runQuery,
@@ -7,7 +10,11 @@ import {
 import {runStatusesQuery} from 'src/alerting/utils/statusEvents'
 
 // Actions
-import {refreshVariableValues, selectValue} from 'src/variables/actions'
+import {
+  refreshVariableValues,
+  selectValue,
+  setValues,
+} from 'src/variables/actions'
 import {notify} from 'src/shared/actions/notifications'
 
 // Constants
@@ -64,12 +71,19 @@ const setQueryResults = (
   },
 })
 
-export const refreshTimeMachineVariableValues = () => async (
-  dispatch,
-  getState: GetState
-) => {
-  const contextID = getState().timeMachines.activeTimeMachineID
+export const refreshTimeMachineVariableValues = (
+  prevContextID?: string
+) => async (dispatch, getState: GetState) => {
+  const state = getState()
+  const contextID = state.timeMachines.activeTimeMachineID
 
+  if (prevContextID) {
+    const values = get(state, `variables.values.${prevContextID}.values`) || {}
+    if (!isEmpty(values)) {
+      dispatch(setValues(contextID, RemoteDataState.Done, values))
+      return
+    }
+  }
   // Find variables currently used by queries in the TimeMachine
   const {view, draftQueries} = getActiveTimeMachine(getState())
   const draftView = {
@@ -94,7 +108,10 @@ export const refreshTimeMachineVariableValues = () => async (
 let pendingResults: Array<CancelBox<RunQueryResult>> = []
 let pendingCheckStatuses: CancelBox<StatusRow[][]> = null
 
-export const executeQueries = () => async (dispatch, getState: GetState) => {
+export const executeQueries = (dashboardID?: string) => async (
+  dispatch,
+  getState: GetState
+) => {
   const {
     view,
     alerting: {check},
@@ -108,7 +125,7 @@ export const executeQueries = () => async (dispatch, getState: GetState) => {
   try {
     dispatch(setQueryResults(RemoteDataState.Loading, null, null, null))
 
-    await dispatch(refreshTimeMachineVariableValues())
+    await dispatch(refreshTimeMachineVariableValues(dashboardID))
 
     const orgID = getState().orgs.org.id
 

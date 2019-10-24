@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-// TasksSystemBucketID and MonitoringSystemBucketID are IDs that are reserved for system buckets.
-// If any system bucket IDs are added, Bucket.IsSystem must be updated to include them.
 const (
 	// TasksSystemBucketID is the fixed ID for our tasks system bucket
 	TasksSystemBucketID = ID(10)
@@ -18,6 +16,16 @@ const (
 	BucketTypeUser = BucketType(0)
 	// BucketTypeSystem is an internally created bucket that cannot be deleted/renamed.
 	BucketTypeSystem = BucketType(1)
+	// MonitoringSystemBucketRetention is the time we should retain monitoring system bucket information
+	MonitoringSystemBucketRetention = time.Hour * 24 * 7
+	// TasksSystemBucketRetention is the time we should retain task system bucket information
+	TasksSystemBucketRetention = time.Hour * 24 * 3
+)
+
+// Bucket names constants
+const (
+	TasksSystemBucketName      = "_tasks"
+	MonitoringSystemBucketName = "_monitoring"
 )
 
 // InfiniteRetention is default infinite retention period.
@@ -44,12 +52,6 @@ func (bt BucketType) String() string {
 		return "system"
 	}
 	return "user"
-}
-
-// TODO(jade): move this logic to a type set directly on Bucket.
-// IsSystem returns true if a bucket is a known system bucket
-func (b *Bucket) IsSystem() bool {
-	return b.ID == TasksSystemBucketID || b.ID == MonitoringSystemBucketID
 }
 
 // ops for buckets error and buckets op logs.
@@ -83,6 +85,7 @@ type BucketService interface {
 
 	// DeleteBucket removes a bucket by ID.
 	DeleteBucket(ctx context.Context, id ID) error
+	FindBucketByName(ctx context.Context, orgID ID, name string) (*Bucket, error)
 }
 
 // BucketUpdate represents updates to a bucket.
@@ -141,4 +144,9 @@ func (f BucketFilter) String() string {
 		parts = append(parts, "Org Name: "+*f.Org)
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// FindSystemBucket finds the system bucket with a given name
+func FindSystemBucket(ctx context.Context, bs BucketService, orgID ID, name string) (*Bucket, error) {
+	return bs.FindBucketByName(ctx, orgID, name)
 }

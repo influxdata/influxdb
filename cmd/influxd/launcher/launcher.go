@@ -196,7 +196,7 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		},
 		{
 			DestP: &vaultConfig.Address,
-			Flag:  "vault-address",
+			Flag:  "vault-addr",
 			Desc:  "address of the Vault server expressed as a URL and port, for example: https://127.0.0.1:8200/.",
 		},
 		{
@@ -206,17 +206,17 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 		},
 		{
 			DestP: &vaultConfig.MaxRetries,
-			Flag:  "vault-client-max-retries",
+			Flag:  "vault-max-retries",
 			Desc:  "maximum number of retries when a 5xx error code is encountered. The default is 2, for three total attempts. Set this to 0 or less to disable retrying.",
 		},
 		{
 			DestP: &vaultConfig.CACert,
-			Flag:  "vault-ca-cert",
+			Flag:  "vault-cacert",
 			Desc:  "path to a PEM-encoded CA certificate file on the local disk. This file is used to verify the Vault server's SSL certificate. This environment variable takes precedence over VAULT_CAPATH.",
 		},
 		{
 			DestP: &vaultConfig.CAPath,
-			Flag:  "vault-ca-path",
+			Flag:  "vault-capath",
 			Desc:  "path to a directory of PEM-encoded CA certificate files on the local disk. These certificates are used to verify the Vault server's SSL certificate.",
 		},
 		{
@@ -238,6 +238,11 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			DestP: &vaultConfig.TLSServerName,
 			Flag:  "vault-tls-server-name",
 			Desc:  "name to use as the SNI host when connecting via TLS.",
+		},
+		{
+			DestP: &vaultConfig.Token,
+			Flag:  "vault-token",
+			Desc:  "vault authentication token",
 		},
 		{
 			DestP:   &l.httpTlsCert,
@@ -616,7 +621,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// validation(coordinator(analyticalstore(kv.Service)))
 
 		// define the executor and build analytical storage middleware
-		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		combinedTaskService := taskbackend.NewAnalyticalStorage(
+			m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
 		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
 		// create the scheduler

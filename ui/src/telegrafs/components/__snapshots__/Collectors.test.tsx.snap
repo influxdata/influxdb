@@ -8,11 +8,13 @@ exports[`CollectorList rendering renders 1`] = `
         name="Name"
         sort="none"
         sortKey="name"
+        testID="name-sorter"
       />
       <ResourceListSorter
         name="Bucket"
         sort="none"
-        sortKey="bucket"
+        sortKey="plugins.0.config.bucket"
+        testID="bucket-sorter"
       />
     </ResourceListHeader>
     <ResourceListBody

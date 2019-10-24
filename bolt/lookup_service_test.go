@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	testID    = platform.ID(1)
-	testIDStr = testID.String()
+	testID           = platform.ID(70000)
+	existingBucketID = platform.ID(mock.FirstMockID + 1)
+	firstMockID      = platform.ID(mock.FirstMockID)
 )
 
 func TestClient_Name(t *testing.T) {
@@ -71,15 +72,21 @@ func TestClient_Name(t *testing.T) {
 			args: args{
 				resource: platform.Resource{
 					Type: platform.BucketsResourceType,
-					ID:   platformtesting.IDPtr(testID),
+					ID:   &existingBucketID,
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
-					_ = s.CreateOrganization(ctx, &platform.Organization{
+					o := platform.Organization{
 						Name: "o1",
-					})
+					}
+
+					err := s.CreateOrganization(ctx, &o)
+					if err != nil {
+						return err
+					}
+
 					return s.CreateBucket(ctx, &platform.Bucket{
 						Name:  "b1",
-						OrgID: testID,
+						OrgID: platform.ID(mock.FirstMockID),
 					})
 				},
 			},
@@ -100,7 +107,7 @@ func TestClient_Name(t *testing.T) {
 			args: args{
 				resource: platform.Resource{
 					Type: platform.DashboardsResourceType,
-					ID:   platformtesting.IDPtr(testID),
+					ID:   &firstMockID,
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateDashboard(ctx, &platform.Dashboard{
@@ -126,7 +133,7 @@ func TestClient_Name(t *testing.T) {
 			args: args{
 				resource: platform.Resource{
 					Type: platform.OrgsResourceType,
-					ID:   platformtesting.IDPtr(testID),
+					ID:   &firstMockID,
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateOrganization(ctx, &platform.Organization{
@@ -151,7 +158,7 @@ func TestClient_Name(t *testing.T) {
 			args: args{
 				resource: platform.Resource{
 					Type: platform.SourcesResourceType,
-					ID:   platformtesting.IDPtr(testID),
+					ID:   &firstMockID,
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateSource(ctx, &platform.Source{
@@ -176,7 +183,7 @@ func TestClient_Name(t *testing.T) {
 			args: args{
 				resource: platform.Resource{
 					Type: platform.TelegrafsResourceType,
-					ID:   platformtesting.IDPtr(testID),
+					ID:   &firstMockID,
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateTelegrafConfig(ctx, &platform.TelegrafConfig{
@@ -202,7 +209,7 @@ func TestClient_Name(t *testing.T) {
 			args: args{
 				resource: platform.Resource{
 					Type: platform.UsersResourceType,
-					ID:   platformtesting.IDPtr(testID),
+					ID:   &firstMockID,
 				},
 				init: func(ctx context.Context, s *bolt.Client) error {
 					return s.CreateUser(ctx, &platform.User{
@@ -230,8 +237,8 @@ func TestClient_Name(t *testing.T) {
 				t.Fatalf("unable to create bolt test client: %v", err)
 			}
 			defer done()
-
-			c.IDGenerator = mock.NewIDGenerator(testIDStr, t)
+			mockIDGen := mock.NewMockIDGenerator()
+			c.IDGenerator = mockIDGen
 			ctx := context.Background()
 			if tt.args.init != nil {
 				if err := tt.args.init(ctx, c); err != nil {
@@ -242,6 +249,7 @@ func TestClient_Name(t *testing.T) {
 			if tt.args.resource.ID != nil {
 				id = *tt.args.resource.ID
 			}
+
 			got, err := c.Name(ctx, tt.args.resource.Type, id)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Service.Name() error = %v, wantErr %v", err, tt.wantErr)

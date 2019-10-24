@@ -125,6 +125,10 @@ const history: History = useRouterHistory(createHistory)({
 export const store = configureStore(loadLocalStorage(), history)
 const {dispatch} = store
 
+if (window['Cypress']) {
+  window['store'] = store
+}
+
 history.listen(() => {
   dispatch(disablePresentationMode())
 })

@@ -1,4 +1,6 @@
 /* eslint @typescript-eslint/no-unused-vars: "off" */
+import 'jest'
+
 import {
   signin,
   setupUser,
@@ -9,6 +11,7 @@ import {
   flush,
   getByTestID,
   getByInputName,
+  getByInputValue,
   getByTitle,
   createTask,
   createVariable,
@@ -24,6 +27,8 @@ import {
   writeData,
   getByTestIDSubStr,
   createEndpoint,
+  createDashWithCell,
+  createDashWithViewAndVar,
 } from './support/commands'
 
 declare global {
@@ -38,10 +43,13 @@ declare global {
       createDashboardTemplate: typeof createDashboardTemplate
       createDashboard: typeof createDashboard
       createCell: typeof createCell
+      createDashWithCell: typeof createDashWithCell
+      createDashWithViewAndVar: typeof createDashWithViewAndVar
       createOrg: typeof createOrg
       flush: typeof flush
       getByTestID: typeof getByTestID
       getByInputName: typeof getByInputName
+      getByInputValue: typeof getByInputValue
       getByTitle: typeof getByTitle
       getByTestIDSubStr: typeof getByTestIDSubStr
       createAndAddLabel: typeof createAndAddLabel

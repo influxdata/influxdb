@@ -18,7 +18,7 @@ import {
   cancel,
   setTaskOption,
   clearTask,
-  setAllTaskOptions,
+  setAllTaskOptionsByID,
 } from 'src/tasks/actions'
 
 // Utils
@@ -50,7 +50,7 @@ interface DispatchProps {
   cancel: typeof cancel
   selectTaskByID: typeof selectTaskByID
   clearTask: typeof clearTask
-  setAllTaskOptions: typeof setAllTaskOptions
+  setAllTaskOptionsByID: typeof setAllTaskOptionsByID
 }
 
 type Props = OwnProps & StateProps & DispatchProps
@@ -65,10 +65,7 @@ class TaskEditPage extends PureComponent<Props> {
       params: {id},
     } = this.props
     this.props.selectTaskByID(id)
-
-    const {currentTask} = this.props
-
-    this.props.setAllTaskOptions(currentTask)
+    this.props.setAllTaskOptionsByID(id)
   }
 
   public componentWillUnmount() {
@@ -158,7 +155,7 @@ const mdtp: DispatchProps = {
   updateScript,
   cancel,
   selectTaskByID,
-  setAllTaskOptions,
+  setAllTaskOptionsByID,
   clearTask,
 }
 

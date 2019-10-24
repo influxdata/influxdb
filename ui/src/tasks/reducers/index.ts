@@ -90,22 +90,6 @@ export default (
       }
     case 'SET_TASK_OPTION':
       const {key, value} = action.payload
-
-      if (key === 'taskScheduleType') {
-        if (value === TaskSchedule.cron) {
-          return {
-            ...state,
-            taskOptions: {...state.taskOptions, interval: '', [key]: value},
-          }
-        }
-        if (value === TaskSchedule.interval) {
-          return {
-            ...state,
-            taskOptions: {...state.taskOptions, cron: '', [key]: value},
-          }
-        }
-      }
-
       return {
         ...state,
         taskOptions: {...state.taskOptions, [key]: value},

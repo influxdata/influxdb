@@ -14,7 +14,7 @@ func TestID(t *testing.T) {
 	}
 	defer closeFn()
 
-	c.IDGenerator = mock.NewIDGenerator(testIDStr, t)
+	c.IDGenerator = mock.NewIDGenerator(testID.String(), t)
 
 	if err := c.Open(context.Background()); err != nil {
 		t.Fatalf("failed to open bolt client: %v", err)
