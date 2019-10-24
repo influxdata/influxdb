@@ -7,7 +7,7 @@ require (
 	github.com/NYTimes/gziphandler v1.0.1
 	github.com/RoaringBitmap/roaring v0.4.16
 	github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883
-	github.com/apache/arrow/go/arrow v0.0.0-20190809133625-b98a560fc561
+	github.com/apache/arrow/go/arrow v0.0.0-20191024131854-af6fa24be0db
 	github.com/aws/aws-sdk-go v1.16.15 // indirect
 	github.com/benbjohnson/clock v0.0.0-20161215174838-7dc76406b6d3
 	github.com/benbjohnson/tmpl v1.0.0
@@ -38,7 +38,7 @@ require (
 	github.com/hashicorp/raft v1.0.0 // indirect
 	github.com/hashicorp/vault/api v1.0.2
 	github.com/influxdata/cron v0.0.0-20190812233253-38faece03642
-	github.com/influxdata/flux v0.50.0
+	github.com/influxdata/flux v0.50.2
 	github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jessevdk/go-flags v1.4.0
