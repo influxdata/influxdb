@@ -21,6 +21,7 @@
 1. [15510](https://github.com/influxdata/influxdb/pull/15510): UI/Telegraf sort functionality fixed
 1. [15549](https://github.com/influxdata/influxdb/pull/15549): UI/Task edit functionality fixed
 1. [15559](https://github.com/influxdata/influxdb/pull/15559): Exiting a configuration of a dashboard cell now properly renders the cell content
+1. [15556](https://github.com/influxdata/influxdb/pull/15556): Creating a check now displays on the checklist
 
 ## v2.0.0-alpha.18 [2019-09-26]
 

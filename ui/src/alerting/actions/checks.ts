@@ -1,6 +1,7 @@
 // Libraries
 import {Dispatch} from 'react'
 import {push} from 'react-router-redux'
+import {get} from 'lodash'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -151,11 +152,12 @@ export const saveCheckFromTimeMachine = () => async (
     alerting: {check},
   } = getActiveTimeMachine(state)
 
+  const labels = get(check, 'labels', []) as Label[]
   const checkWithOrg = {
     ...check,
     query: draftQueries[0],
     orgID,
-    labels: check.labels.map(l => l.id),
+    labels: labels.map(l => l.id),
   } as PostCheck
 
   const resp = check.id
@@ -253,10 +255,11 @@ export const cloneCheck = (check: Check) => async (
     const allCheckNames = list.map(c => c.name)
 
     const clonedName = incrementCloneName(allCheckNames, check.name)
+    const labels = get(check, 'labels', []) as Label[]
     const data = {
       ...check,
       name: clonedName,
-      labels: check.labels.map(l => l.id),
+      labels: labels.map(l => l.id),
     } as PostCheck
     const resp = await api.postCheck({data})
 
