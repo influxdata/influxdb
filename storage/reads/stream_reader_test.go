@@ -308,6 +308,10 @@ series: _m=cpu,tag0=val1
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rs := reads.NewResultSetStreamReader(tt.stream)
+
+			// ensure a peek doesn't effect the end result
+			rs.Peek()
+
 			sb := new(strings.Builder)
 			ResultSetToString(sb, rs)
 
@@ -582,6 +586,10 @@ group:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rs := reads.NewGroupResultSetStreamReader(tt.stream)
+
+			// ensure a peek doesn't effect the end result
+			rs.Peek()
+
 			sb := new(strings.Builder)
 			GroupResultSetToString(sb, rs)
 

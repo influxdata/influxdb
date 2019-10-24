@@ -26,10 +26,6 @@ func (a *FloatArray) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
 }
 
-func (a *FloatArray) Size() int {
-	panic("not implemented")
-}
-
 func (a *FloatArray) Len() int {
 	return len(a.Timestamps)
 }
@@ -225,10 +221,6 @@ func (a *IntegerArray) MinTime() int64 {
 
 func (a *IntegerArray) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
-}
-
-func (a *IntegerArray) Size() int {
-	panic("not implemented")
 }
 
 func (a *IntegerArray) Len() int {
@@ -428,10 +420,6 @@ func (a *UnsignedArray) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
 }
 
-func (a *UnsignedArray) Size() int {
-	panic("not implemented")
-}
-
 func (a *UnsignedArray) Len() int {
 	return len(a.Timestamps)
 }
@@ -627,10 +615,6 @@ func (a *StringArray) MinTime() int64 {
 
 func (a *StringArray) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
-}
-
-func (a *StringArray) Size() int {
-	panic("not implemented")
 }
 
 func (a *StringArray) Len() int {
@@ -830,10 +814,6 @@ func (a *BooleanArray) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
 }
 
-func (a *BooleanArray) Size() int {
-	panic("not implemented")
-}
-
 func (a *BooleanArray) Len() int {
 	return len(a.Timestamps)
 }
@@ -1027,10 +1007,6 @@ func (a *TimestampArray) MinTime() int64 {
 
 func (a *TimestampArray) MaxTime() int64 {
 	return a.Timestamps[len(a.Timestamps)-1]
-}
-
-func (a *TimestampArray) Size() int {
-	panic("not implemented")
 }
 
 func (a *TimestampArray) Len() int {

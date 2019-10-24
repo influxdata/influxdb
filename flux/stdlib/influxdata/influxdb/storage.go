@@ -18,14 +18,14 @@ type Authorizer interface {
 	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
 }
 
-type Dependencies struct {
+type FromDependencies struct {
 	Reader      Reader
 	MetaClient  MetaClient
 	Authorizer  Authorizer
 	AuthEnabled bool
 }
 
-func (d Dependencies) Validate() error {
+func (d FromDependencies) Validate() error {
 	if d.Reader == nil {
 		return errors.New("missing reader dependency")
 	}
@@ -33,7 +33,7 @@ func (d Dependencies) Validate() error {
 		return errors.New("missing meta client dependency")
 	}
 	if d.AuthEnabled && d.Authorizer == nil {
-		return errors.New("validate Dependencies: missing Authorizer")
+		return errors.New("missing authorizer dependency")
 	}
 	return nil
 }

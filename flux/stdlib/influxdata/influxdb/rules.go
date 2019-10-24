@@ -100,17 +100,17 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	fromNode := pn.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
-	bodyExpr, ok := filterSpec.Fn.Block.Body.(semantic.Expression)
+	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
 	if !ok {
 		return pn, false, nil
 	}
 
-	if len(filterSpec.Fn.Block.Parameters.List) != 1 {
+	if len(filterSpec.Fn.Fn.Block.Parameters.List) != 1 {
 		// I would expect that type checking would catch this, but just to be safe...
 		return pn, false, nil
 	}
 
-	paramName := filterSpec.Fn.Block.Parameters.List[0].Key.Name
+	paramName := filterSpec.Fn.Fn.Block.Parameters.List[0].Key.Name
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
 		return isPushableExpr(paramName, e)
@@ -123,6 +123,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		// Nothing could be pushed down, no rewrite can happen
 		return pn, false, nil
 	}
+	pushable, _ = rewritePushableExpr(pushable)
 
 	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
 	if newFromSpec.FilterSet {
@@ -130,7 +131,8 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 		newFromSpec.Filter.Block.Body = newBody
 	} else {
 		newFromSpec.FilterSet = true
-		newFromSpec.Filter = filterSpec.Fn.Copy().(*semantic.FunctionExpression)
+		// NOTE: We loose the scope here, but that is ok because we can't push down the scope to storage.
+		newFromSpec.Filter = filterSpec.Fn.Fn.Copy().(*semantic.FunctionExpression)
 		newFromSpec.Filter.Block.Body = pushable
 	}
 
@@ -149,7 +151,7 @@ func (PushDownFilterRule) Rewrite(pn plan.Node) (plan.Node, bool, error) {
 	}
 
 	newFilterSpec := filterSpec.Copy().(*universe.FilterProcedureSpec)
-	newFilterSpec.Fn.Block.Body = notPushable
+	newFilterSpec.Fn.Fn.Block.Body = notPushable
 	if err := pn.ReplaceSpec(newFilterSpec); err != nil {
 		return nil, false, err
 	}
@@ -202,7 +204,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(pn plan.Node) (plan.Node, bool, erro
 		return pn, false, nil
 	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
 		return pn, false, nil
-	} else if m.Predicate != nil || len(m.Columns) != 1 {
+	} else if m.Predicate.Fn != nil || len(m.Columns) != 1 {
 		// We have a keep mutator, but it uses a function or
 		// it retains more than one column so it does not match
 		// what we want.
@@ -292,7 +294,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(pn plan.Node) (plan.Node, bool, er
 		return pn, false, nil
 	} else if m, ok := keepSpec.Mutations[0].(*universe.KeepOpSpec); !ok {
 		return pn, false, nil
-	} else if m.Predicate != nil || len(m.Columns) != 1 {
+	} else if m.Predicate.Fn != nil || len(m.Columns) != 1 {
 		// We have a keep mutator, but it uses a function or
 		// it retains more than one column so it does not match
 		// what we want.
@@ -347,21 +349,60 @@ func isPushableExpr(paramName string, expr semantic.Expression) (bool, error) {
 
 		return isPushableExpr(paramName, e.Right)
 
+	case *semantic.UnaryExpression:
+		if isPushableUnaryPredicate(paramName, e) {
+			return true, nil
+		}
+
 	case *semantic.BinaryExpression:
-		if isPushablePredicate(paramName, e) {
+		if isPushableBinaryPredicate(paramName, e) {
 			return true, nil
 		}
 	}
 
 	return false, nil
 }
-func isPushablePredicate(paramName string, be *semantic.BinaryExpression) bool {
+
+func isPushableUnaryPredicate(paramName string, ue *semantic.UnaryExpression) bool {
+	switch ue.Operator {
+	case ast.NotOperator:
+		// TODO(jsternberg): We should be able to rewrite `not r.host == "tag"` to `r.host != "tag"`
+		// but that is beyond what we do right now.
+		arg, ok := ue.Argument.(*semantic.UnaryExpression)
+		if !ok {
+			return false
+		}
+		return isPushableUnaryPredicate(paramName, arg)
+	case ast.ExistsOperator:
+		return isTag(paramName, ue.Argument)
+	default:
+		return false
+	}
+}
+
+func isPushableBinaryPredicate(paramName string, be *semantic.BinaryExpression) bool {
 	// Manual testing seems to indicate that (at least right now) we can
 	// only handle predicates of the form <fn param>.<property> <op> <literal>
 	// and the literal must be on the RHS.
 
 	if !isLiteral(be.Right) {
 		return false
+	}
+
+	// If the predicate is a string literal, we are comparing for equality,
+	// it is a tag, and it is empty, then it is not pushable.
+	//
+	// This is because the storage engine does not consider there a difference
+	// between a tag with an empty value and a non-existant tag. We have made
+	// the decision that a missing tag is null and not an empty string, so empty
+	// string isn't something that can be returned from the storage layer.
+	if lit, ok := be.Right.(*semantic.StringLiteral); ok {
+		if be.Operator == ast.EqualOperator && isTag(paramName, be.Left) && lit.Value == "" {
+			// The string literal is pushable if the operator is != because
+			// != "" will evaluate to true with everything that has a tag value
+			// and false when the tag value is null.
+			return false
+		}
 	}
 
 	if isField(paramName, be.Left) && isPushableFieldOperator(be.Operator) {
@@ -373,6 +414,54 @@ func isPushablePredicate(paramName string, be *semantic.BinaryExpression) bool {
 	}
 
 	return false
+}
+
+// rewritePushableExpr will rewrite the expression for the storage layer.
+func rewritePushableExpr(e semantic.Expression) (semantic.Expression, bool) {
+	switch e := e.(type) {
+	case *semantic.UnaryExpression:
+		var changed bool
+		if arg, ok := rewritePushableExpr(e.Argument); ok {
+			e = e.Copy().(*semantic.UnaryExpression)
+			e.Argument = arg
+			changed = true
+		}
+
+		switch e.Operator {
+		case ast.NotOperator:
+			if be, ok := e.Argument.(*semantic.BinaryExpression); ok {
+				switch be.Operator {
+				case ast.EqualOperator:
+					be = be.Copy().(*semantic.BinaryExpression)
+					be.Operator = ast.NotEqualOperator
+					return be, true
+				case ast.NotEqualOperator:
+					be = be.Copy().(*semantic.BinaryExpression)
+					be.Operator = ast.EqualOperator
+					return be, true
+				}
+			}
+		case ast.ExistsOperator:
+			return &semantic.BinaryExpression{
+				Operator: ast.NotEqualOperator,
+				Left:     e.Argument,
+				Right: &semantic.StringLiteral{
+					Value: "",
+				},
+			}, true
+		}
+		return e, changed
+
+	case *semantic.BinaryExpression:
+		left, lok := rewritePushableExpr(e.Left)
+		right, rok := rewritePushableExpr(e.Right)
+		if lok || rok {
+			e = e.Copy().(*semantic.BinaryExpression)
+			e.Left, e.Right = left, right
+			return e, true
+		}
+	}
+	return e, false
 }
 
 func isLiteral(e semantic.Expression) bool {
