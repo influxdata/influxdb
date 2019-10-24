@@ -1,0 +1,905 @@
+diff -ur a/flux/stdlib/influxdata/influxdb/buckets.go b/flux/stdlib/influxdata/influxdb/buckets.go
+--- a/flux/stdlib/influxdata/influxdb/buckets.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/buckets.go	2019-06-25 10:03:53.000000000 -0500
+@@ -1,6 +1,7 @@
+ package influxdb
+ 
+ import (
++	"errors"
+ 	"fmt"
+ 
+ 	"github.com/influxdata/flux"
+@@ -9,9 +10,8 @@
+ 	"github.com/influxdata/flux/plan"
+ 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+ 	"github.com/influxdata/flux/values"
+-	platform "github.com/influxdata/influxdb"
+-	"github.com/influxdata/influxdb/query"
+-	"github.com/pkg/errors"
++	"github.com/influxdata/influxdb/services/meta"
++	"github.com/influxdata/influxql"
+ )
+ 
+ func init() {
+@@ -19,10 +19,9 @@
+ }
+ 
+ type BucketsDecoder struct {
+-	orgID   platform.ID
+-	deps    BucketDependencies
+-	buckets []*platform.Bucket
+-	alloc   *memory.Allocator
++	deps  BucketDependencies
++	alloc *memory.Allocator
++	user  meta.User
+ }
+ 
+ func (bd *BucketsDecoder) Connect() error {
+@@ -30,17 +29,12 @@
+ }
+ 
+ func (bd *BucketsDecoder) Fetch() (bool, error) {
+-	b, count := bd.deps.FindAllBuckets(bd.orgID)
+-	if count <= 0 {
+-		return false, fmt.Errorf("no buckets found in organization %v", bd.orgID)
+-	}
+-	bd.buckets = b
+ 	return false, nil
+ }
+ 
+ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
+ 	kb := execute.NewGroupKeyBuilder(nil)
+-	kb.AddKeyValue("organizationID", values.NewString(bd.buckets[0].OrgID.String()))
++	kb.AddKeyValue("organizationID", values.NewString(""))
+ 	gk, err := kb.Build()
+ 	if err != nil {
+ 		return nil, err
+@@ -48,43 +42,54 @@
+ 
+ 	b := execute.NewColListTableBuilder(gk, bd.alloc)
+ 
+-	if _, err := b.AddCol(flux.ColMeta{
++	_, _ = b.AddCol(flux.ColMeta{
+ 		Label: "name",
+ 		Type:  flux.TString,
+-	}); err != nil {
+-		return nil, err
+-	}
+-	if _, err := b.AddCol(flux.ColMeta{
++	})
++	_, _ = b.AddCol(flux.ColMeta{
+ 		Label: "id",
+ 		Type:  flux.TString,
+-	}); err != nil {
+-		return nil, err
+-	}
+-	if _, err := b.AddCol(flux.ColMeta{
++	})
++	_, _ = b.AddCol(flux.ColMeta{
++		Label: "organization",
++		Type:  flux.TString,
++	})
++	_, _ = b.AddCol(flux.ColMeta{
+ 		Label: "organizationID",
+ 		Type:  flux.TString,
+-	}); err != nil {
+-		return nil, err
+-	}
+-	if _, err := b.AddCol(flux.ColMeta{
++	})
++	_, _ = b.AddCol(flux.ColMeta{
+ 		Label: "retentionPolicy",
+ 		Type:  flux.TString,
+-	}); err != nil {
+-		return nil, err
+-	}
+-	if _, err := b.AddCol(flux.ColMeta{
++	})
++	_, _ = b.AddCol(flux.ColMeta{
+ 		Label: "retentionPeriod",
+ 		Type:  flux.TInt,
+-	}); err != nil {
+-		return nil, err
+-	}
++	})
+ 
+-	for _, bucket := range bd.buckets {
+-		_ = b.AppendString(0, bucket.Name)
+-		_ = b.AppendString(1, bucket.ID.String())
+-		_ = b.AppendString(2, bucket.OrgID.String())
+-		_ = b.AppendString(3, bucket.RetentionPolicyName)
+-		_ = b.AppendInt(4, bucket.RetentionPeriod.Nanoseconds())
++	var hasAccess func(db string) bool
++	if bd.user == nil {
++		hasAccess = func(db string) bool {
++			return true
++		}
++	} else {
++		hasAccess = func(db string) bool {
++			return bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.ReadPrivilege, db) == nil ||
++				bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.WritePrivilege, db) == nil
++		}
++	}
++
++	for _, db := range bd.deps.MetaClient.Databases() {
++		if hasAccess(db.Name) {
++			for _, rp := range db.RetentionPolicies {
++				_ = b.AppendString(0, db.Name+"/"+rp.Name)
++				_ = b.AppendString(1, "")
++				_ = b.AppendString(2, "influxdb")
++				_ = b.AppendString(3, "")
++				_ = b.AppendString(4, rp.Name)
++				_ = b.AppendInt(5, rp.Duration.Nanoseconds())
++			}
++		}
+ 	}
+ 
+ 	return b.Table()
+@@ -103,25 +108,45 @@
+ 	// the dependencies used for FromKind are adequate for what we need here
+ 	// so there's no need to inject custom dependencies for buckets()
+ 	deps := a.Dependencies()[influxdb.BucketsKind].(BucketDependencies)
+-	req := query.RequestFromContext(a.Context())
+-	if req == nil {
+-		return nil, errors.New("missing request on context")
++
++	var user meta.User
++	if deps.AuthEnabled {
++		user = meta.UserFromContext(a.Context())
++		if user == nil {
++			return nil, errors.New("createBucketsSource: no user")
++		}
+ 	}
+-	orgID := req.OrganizationID
+ 
+-	bd := &BucketsDecoder{orgID: orgID, deps: deps, alloc: a.Allocator()}
++	bd := &BucketsDecoder{deps: deps, alloc: a.Allocator(), user: user}
+ 
+ 	return execute.CreateSourceFromDecoder(bd, dsid, a)
++
++}
++
++type MetaClient interface {
++	Databases() []meta.DatabaseInfo
++	Database(name string) *meta.DatabaseInfo
+ }
+ 
+-type AllBucketLookup interface {
+-	FindAllBuckets(orgID platform.ID) ([]*platform.Bucket, int)
++type BucketDependencies struct {
++	MetaClient  MetaClient
++	Authorizer  Authorizer
++	AuthEnabled bool
++}
++
++func (d BucketDependencies) Validate() error {
++	if d.MetaClient == nil {
++		return errors.New("validate BucketDependencies: missing MetaClient")
++	}
++	if d.AuthEnabled && d.Authorizer == nil {
++		return errors.New("validate BucketDependencies: missing Authorizer")
++	}
++	return nil
+ }
+-type BucketDependencies AllBucketLookup
+ 
+ func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependencies) error {
+-	if deps == nil {
+-		return errors.New("missing all bucket lookup dependency")
++	if err := deps.Validate(); err != nil {
++		return err
+ 	}
+ 	depsMap[influxdb.BucketsKind] = deps
+ 	return nil
+diff -ur a/flux/stdlib/influxdata/influxdb/from.go b/flux/stdlib/influxdata/influxdb/from.go
+--- a/flux/stdlib/influxdata/influxdb/from.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/from.go	2019-06-25 13:49:49.000000000 -0500
+@@ -8,7 +8,6 @@
+ 	"github.com/influxdata/flux/plan"
+ 	"github.com/influxdata/flux/semantic"
+ 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
+-	platform "github.com/influxdata/influxdb"
+ 	"github.com/pkg/errors"
+ )
+ 
+@@ -66,31 +65,6 @@
+ 	return FromKind
+ }
+ 
+-// BucketsAccessed makes FromOpSpec a query.BucketAwareOperationSpec
+-func (s *FromOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
+-	bf := platform.BucketFilter{}
+-	if s.Bucket != "" {
+-		bf.Name = &s.Bucket
+-	}
+-	if orgID != nil {
+-		bf.OrganizationID = orgID
+-	}
+-
+-	if len(s.BucketID) > 0 {
+-		if id, err := platform.IDFromString(s.BucketID); err != nil {
+-			invalidID := platform.InvalidID()
+-			bf.ID = &invalidID
+-		} else {
+-			bf.ID = id
+-		}
+-	}
+-
+-	if bf.ID != nil || bf.Name != nil {
+-		readBuckets = append(readBuckets, bf)
+-	}
+-	return readBuckets, writeBuckets
+-}
+-
+ type FromProcedureSpec struct {
+ 	Bucket   string
+ 	BucketID string
+diff -ur a/flux/stdlib/influxdata/influxdb/operators.go b/flux/stdlib/influxdata/influxdb/operators.go
+--- a/flux/stdlib/influxdata/influxdb/operators.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/operators.go	2019-06-25 13:49:49.000000000 -0500
+@@ -3,13 +3,15 @@
+ import (
+ 	"context"
+ 	"errors"
+-	"fmt"
++	"strings"
+ 
+ 	"github.com/influxdata/flux"
++	"github.com/influxdata/flux/execute"
+ 	"github.com/influxdata/flux/plan"
+ 	"github.com/influxdata/flux/semantic"
+ 	"github.com/influxdata/flux/values"
+-	"github.com/influxdata/influxdb"
++	"github.com/influxdata/influxdb/services/meta"
++	"github.com/influxdata/influxql"
+ )
+ 
+ const (
+@@ -79,24 +81,43 @@
+ 	return ns
+ }
+ 
+-func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.ID, buckets BucketLookup) (influxdb.ID, error) {
+-	// Determine bucketID
+-	switch {
+-	case s.Bucket != "":
+-		b, ok := buckets.Lookup(ctx, orgID, s.Bucket)
+-		if !ok {
+-			return 0, fmt.Errorf("could not find bucket %q", s.Bucket)
++func (s *ReadRangePhysSpec) LookupDatabase(ctx context.Context, deps Dependencies, a execute.Administration) (string, string, error) {
++	if len(s.BucketID) != 0 {
++		return "", "", errors.New("cannot refer to buckets by their id in 1.x")
++	}
++
++	var db, rp string
++	if i := strings.IndexByte(s.Bucket, '/'); i == -1 {
++		db = s.Bucket
++	} else {
++		rp = s.Bucket[i+1:]
++		db = s.Bucket[:i]
++	}
++
++	// validate and resolve db/rp
++	di := deps.MetaClient.Database(db)
++	if di == nil {
++		return "", "", errors.New("no database")
++	}
++
++	if deps.AuthEnabled {
++		user := meta.UserFromContext(a.Context())
++		if user == nil {
++			return "", "", errors.New("createFromSource: no user")
+ 		}
+-		return b, nil
+-	case len(s.BucketID) != 0:
+-		var b influxdb.ID
+-		if err := b.DecodeFromString(s.BucketID); err != nil {
+-			return 0, err
++		if err := deps.Authorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, db); err != nil {
++			return "", "", err
+ 		}
+-		return b, nil
+-	default:
+-		return 0, errors.New("no bucket name or id have been specified")
+ 	}
++
++	if rp == "" {
++		rp = di.DefaultRetentionPolicy
++	}
++
++	if rpi := di.RetentionPolicy(rp); rpi == nil {
++		return "", "", errors.New("invalid retention policy")
++	}
++	return db, rp, nil
+ }
+ 
+ // TimeBounds implements plan.BoundsAwareProcedureSpec.
+diff -ur a/flux/stdlib/influxdata/influxdb/rules.go b/flux/stdlib/influxdata/influxdb/rules.go
+--- a/flux/stdlib/influxdata/influxdb/rules.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/rules.go	2019-06-25 13:49:50.000000000 -0500
+@@ -190,6 +190,12 @@
+ 	// constructing our own replacement. We do not care about it
+ 	// at the moment though which is why it is not in the pattern.
+ 
++	// The tag keys mechanism doesn't know about fields so we cannot
++	// push down _field comparisons in 1.x.
++	if hasFieldExpr(fromSpec.Filter) {
++		return pn, false, nil
++	}
++
+ 	// The schema mutator needs to correspond to a keep call
+ 	// on the column specified by the keys procedure.
+ 	if len(keepSpec.Mutations) != 1 {
+@@ -219,6 +225,20 @@
+ 	}), true, nil
+ }
+ 
++func hasFieldExpr(expr semantic.Expression) bool {
++	hasField := false
++	v := semantic.CreateVisitor(func(node semantic.Node) {
++		switch n := node.(type) {
++		case *semantic.MemberExpression:
++			if n.Property == "_field" {
++				hasField = true
++			}
++		}
++	})
++	semantic.Walk(v, expr)
++	return hasField
++}
++
+ // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
+ // The 'from()' must have already been merged with 'range' and, optionally,
+ // may have been merged with 'filter'.
+@@ -296,6 +316,9 @@
+ 	execute.DefaultValueColLabel,
+ 	execute.DefaultStartColLabel,
+ 	execute.DefaultStopColLabel,
++	// TODO(jsternberg): There just doesn't seem to be a good way to do this
++	// in the 1.x line of the release.
++	"_field",
+ }
+ 
+ // isValidTagKeyForTagValues returns true if the given key can
+diff -ur a/flux/stdlib/influxdata/influxdb/rules_test.go b/flux/stdlib/influxdata/influxdb/rules_test.go
+--- a/flux/stdlib/influxdata/influxdb/rules_test.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/rules_test.go	2019-06-25 13:49:49.000000000 -0500
+@@ -11,7 +11,7 @@
+ 	"github.com/influxdata/flux/plan/plantest"
+ 	"github.com/influxdata/flux/semantic"
+ 	"github.com/influxdata/flux/stdlib/universe"
+-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
++	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+ )
+ 
+ func fluxTime(t int64) flux.Time {
+diff -ur a/flux/stdlib/influxdata/influxdb/source.go b/flux/stdlib/influxdata/influxdb/source.go
+--- a/flux/stdlib/influxdata/influxdb/source.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/source.go	2019-06-25 13:49:49.000000000 -0500
+@@ -9,8 +9,6 @@
+ 	"github.com/influxdata/flux/memory"
+ 	"github.com/influxdata/flux/plan"
+ 	"github.com/influxdata/flux/semantic"
+-	"github.com/influxdata/influxdb/kit/tracing"
+-	"github.com/influxdata/influxdb/query"
+ 	"github.com/influxdata/influxdb/tsdb/cursors"
+ )
+ 
+@@ -131,8 +129,7 @@
+ }
+ 
+ func createReadFilterSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+-	span, ctx := tracing.StartSpanFromContext(a.Context())
+-	defer span.Finish()
++	ctx := a.Context()
+ 
+ 	spec := s.(*ReadRangePhysSpec)
+ 
+@@ -143,13 +140,7 @@
+ 
+ 	deps := a.Dependencies()[FromKind].(Dependencies)
+ 
+-	req := query.RequestFromContext(a.Context())
+-	if req == nil {
+-		return nil, errors.New("missing request on context")
+-	}
+-
+-	orgID := req.OrganizationID
+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -162,10 +153,10 @@
+ 		id,
+ 		deps.Reader,
+ 		ReadFilterSpec{
+-			OrganizationID: orgID,
+-			BucketID:       bucketID,
+-			Bounds:         *bounds,
+-			Predicate:      filter,
++			Database:        db,
++			RetentionPolicy: rp,
++			Bounds:          *bounds,
++			Predicate:       filter,
+ 		},
+ 		a.Allocator(),
+ 	), nil
+@@ -204,8 +195,7 @@
+ }
+ 
+ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+-	span, ctx := tracing.StartSpanFromContext(a.Context())
+-	defer span.Finish()
++	ctx := a.Context()
+ 
+ 	spec := s.(*ReadGroupPhysSpec)
+ 
+@@ -216,13 +206,7 @@
+ 
+ 	deps := a.Dependencies()[FromKind].(Dependencies)
+ 
+-	req := query.RequestFromContext(a.Context())
+-	if req == nil {
+-		return nil, errors.New("missing request on context")
+-	}
+-
+-	orgID := req.OrganizationID
+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -236,10 +220,10 @@
+ 		deps.Reader,
+ 		ReadGroupSpec{
+ 			ReadFilterSpec: ReadFilterSpec{
+-				OrganizationID: orgID,
+-				BucketID:       bucketID,
+-				Bounds:         *bounds,
+-				Predicate:      filter,
++				Database:        db,
++				RetentionPolicy: rp,
++				Bounds:          *bounds,
++				Predicate:       filter,
+ 			},
+ 			GroupMode:       ToGroupMode(spec.GroupMode),
+ 			GroupKeys:       spec.GroupKeys,
+@@ -250,18 +234,12 @@
+ }
+ 
+ func createReadTagKeysSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
+-	span, ctx := tracing.StartSpanFromContext(a.Context())
+-	defer span.Finish()
++	ctx := a.Context()
+ 
+ 	spec := prSpec.(*ReadTagKeysPhysSpec)
+ 	deps := a.Dependencies()[FromKind].(Dependencies)
+-	req := query.RequestFromContext(a.Context())
+-	if req == nil {
+-		return nil, errors.New("missing request on context")
+-	}
+-	orgID := req.OrganizationID
+ 
+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -277,10 +255,10 @@
+ 		deps.Reader,
+ 		ReadTagKeysSpec{
+ 			ReadFilterSpec: ReadFilterSpec{
+-				OrganizationID: orgID,
+-				BucketID:       bucketID,
+-				Bounds:         *bounds,
+-				Predicate:      filter,
++				Database:        db,
++				RetentionPolicy: rp,
++				Bounds:          *bounds,
++				Predicate:       filter,
+ 			},
+ 		},
+ 		a.Allocator(),
+@@ -314,18 +292,12 @@
+ }
+ 
+ func createReadTagValuesSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
+-	span, ctx := tracing.StartSpanFromContext(a.Context())
+-	defer span.Finish()
++	ctx := a.Context()
+ 
+ 	spec := prSpec.(*ReadTagValuesPhysSpec)
+ 	deps := a.Dependencies()[FromKind].(Dependencies)
+-	req := query.RequestFromContext(a.Context())
+-	if req == nil {
+-		return nil, errors.New("missing request on context")
+-	}
+-	orgID := req.OrganizationID
+ 
+-	bucketID, err := spec.LookupBucketID(ctx, orgID, deps.BucketLookup)
++	db, rp, err := spec.LookupDatabase(ctx, deps, a)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+@@ -341,10 +313,10 @@
+ 		deps.Reader,
+ 		ReadTagValuesSpec{
+ 			ReadFilterSpec: ReadFilterSpec{
+-				OrganizationID: orgID,
+-				BucketID:       bucketID,
+-				Bounds:         *bounds,
+-				Predicate:      filter,
++				Database:        db,
++				RetentionPolicy: rp,
++				Bounds:          *bounds,
++				Predicate:       filter,
+ 			},
+ 			TagKey: spec.TagKey,
+ 		},
+diff -ur a/flux/stdlib/influxdata/influxdb/storage.go b/flux/stdlib/influxdata/influxdb/storage.go
+--- a/flux/stdlib/influxdata/influxdb/storage.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/storage.go	2019-06-25 13:49:49.000000000 -0500
+@@ -8,61 +8,36 @@
+ 	"github.com/influxdata/flux/execute"
+ 	"github.com/influxdata/flux/memory"
+ 	"github.com/influxdata/flux/semantic"
+-	platform "github.com/influxdata/influxdb"
++	"github.com/influxdata/influxdb/services/meta"
+ 	"github.com/influxdata/influxdb/tsdb/cursors"
++	"github.com/influxdata/influxql"
+ 	"github.com/pkg/errors"
+ )
+ 
+-type HostLookup interface {
+-	Hosts() []string
+-	Watch() <-chan struct{}
+-}
+-
+-type BucketLookup interface {
+-	Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool)
+-}
+-
+-type OrganizationLookup interface {
+-	Lookup(ctx context.Context, name string) (platform.ID, bool)
++type Authorizer interface {
++	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
+ }
+ 
+ type Dependencies struct {
+-	Reader             Reader
+-	BucketLookup       BucketLookup
+-	OrganizationLookup OrganizationLookup
++	Reader      Reader
++	MetaClient  MetaClient
++	Authorizer  Authorizer
++	AuthEnabled bool
+ }
+ 
+ func (d Dependencies) Validate() error {
+ 	if d.Reader == nil {
+ 		return errors.New("missing reader dependency")
+ 	}
+-	if d.BucketLookup == nil {
+-		return errors.New("missing bucket lookup dependency")
++	if d.MetaClient == nil {
++		return errors.New("missing meta client dependency")
+ 	}
+-	if d.OrganizationLookup == nil {
+-		return errors.New("missing organization lookup dependency")
++	if d.AuthEnabled && d.Authorizer == nil {
++		return errors.New("validate Dependencies: missing Authorizer")
+ 	}
+ 	return nil
+ }
+ 
+-type StaticLookup struct {
+-	hosts []string
+-}
+-
+-func NewStaticLookup(hosts []string) StaticLookup {
+-	return StaticLookup{
+-		hosts: hosts,
+-	}
+-}
+-
+-func (l StaticLookup) Hosts() []string {
+-	return l.hosts
+-}
+-func (l StaticLookup) Watch() <-chan struct{} {
+-	// A nil channel always blocks, since hosts never change this is appropriate.
+-	return nil
+-}
+-
+ type GroupMode int
+ 
+ const (
+@@ -85,8 +60,8 @@
+ }
+ 
+ type ReadFilterSpec struct {
+-	OrganizationID platform.ID
+-	BucketID       platform.ID
++	Database        string
++	RetentionPolicy string
+ 
+ 	Bounds execute.Bounds
+ 
+diff -ur a/flux/stdlib/influxdata/influxdb/v1/databases.go b/flux/stdlib/influxdata/influxdb/v1/databases.go
+--- a/flux/stdlib/influxdata/influxdb/v1/databases.go	2019-06-20 14:35:12.000000000 -0500
++++ b/flux/stdlib/influxdata/influxdb/v1/databases.go	2019-06-25 10:03:53.000000000 -0500
+@@ -2,17 +2,19 @@
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 
+ 	"github.com/influxdata/flux"
+ 	"github.com/influxdata/flux/execute"
+ 	"github.com/influxdata/flux/memory"
+ 	"github.com/influxdata/flux/plan"
+-	"github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
++	v1 "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
+ 	"github.com/influxdata/flux/values"
+-	platform "github.com/influxdata/influxdb"
+-	"github.com/influxdata/influxdb/query"
+-	"github.com/pkg/errors"
++	"github.com/influxdata/influxdb/coordinator"
++	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
++	"github.com/influxdata/influxdb/services/meta"
++	"github.com/influxdata/influxql"
+ )
+ 
+ const DatabasesKind = v1.DatabasesKind
+@@ -66,9 +68,9 @@
+ }
+ 
+ type DatabasesDecoder struct {
+-	orgID     platform.ID
+-	deps      *DatabasesDependencies
+-	databases []*platform.DBRPMapping
++	deps      *DatabaseDependencies
++	databases []meta.DatabaseInfo
++	user      meta.User
+ 	alloc     *memory.Allocator
+ 	ctx       context.Context
+ }
+@@ -78,20 +80,13 @@
+ }
+ 
+ func (bd *DatabasesDecoder) Fetch() (bool, error) {
+-	b, _, err := bd.deps.DBRP.FindMany(bd.ctx, platform.DBRPMappingFilter{})
+-	if err != nil {
+-		return false, err
+-	}
+-	bd.databases = b
++	bd.databases = bd.deps.MetaClient.Databases()
+ 	return false, nil
+ }
+ 
+ func (bd *DatabasesDecoder) Decode() (flux.Table, error) {
+ 	kb := execute.NewGroupKeyBuilder(nil)
+-	if len(bd.databases) == 0 {
+-		return nil, errors.New("no 1.x databases found")
+-	}
+-	kb.AddKeyValue("organizationID", values.NewString(bd.databases[0].OrganizationID.String()))
++	kb.AddKeyValue("organizationID", values.NewString(""))
+ 	gk, err := kb.Build()
+ 	if err != nil {
+ 		return nil, err
+@@ -136,16 +131,28 @@
+ 		return nil, err
+ 	}
+ 
++	var hasAccess func(db string) bool
++	if bd.user == nil {
++		hasAccess = func(db string) bool {
++			return true
++		}
++	} else {
++		hasAccess = func(db string) bool {
++			return bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.ReadPrivilege, db) == nil ||
++				bd.deps.Authorizer.AuthorizeDatabase(bd.user, influxql.WritePrivilege, db) == nil
++		}
++	}
++
+ 	for _, db := range bd.databases {
+-		if bucket, err := bd.deps.BucketLookup.FindBucketByID(bd.ctx, db.BucketID); err != nil {
+-			return nil, err
+-		} else {
+-			_ = b.AppendString(0, db.OrganizationID.String())
+-			_ = b.AppendString(1, db.Database)
+-			_ = b.AppendString(2, db.RetentionPolicy)
+-			_ = b.AppendInt(3, bucket.RetentionPeriod.Nanoseconds())
+-			_ = b.AppendBool(4, db.Default)
+-			_ = b.AppendString(5, db.BucketID.String())
++		if hasAccess(db.Name) {
++			for _, rp := range db.RetentionPolicies {
++				_ = b.AppendString(0, "")
++				_ = b.AppendString(1, db.Name)
++				_ = b.AppendString(2, rp.Name)
++				_ = b.AppendInt(3, rp.Duration.Nanoseconds())
++				_ = b.AppendBool(4, db.DefaultRetentionPolicy == rp.Name)
++				_ = b.AppendString(5, "")
++			}
+ 		}
+ 	}
+ 
+@@ -162,34 +169,31 @@
+ 		return nil, fmt.Errorf("invalid spec type %T", prSpec)
+ 	}
+ 
+-	// the dependencies used for FromKind are adequate for what we need here
+-	// so there's no need to inject custom dependencies for databases()
+-	deps := a.Dependencies()[DatabasesKind].(DatabasesDependencies)
+-	req := query.RequestFromContext(a.Context())
+-	if req == nil {
+-		return nil, errors.New("missing request on context")
++	deps := a.Dependencies()[DatabasesKind].(DatabaseDependencies)
++	var user meta.User
++	if deps.AuthEnabled {
++		user = meta.UserFromContext(a.Context())
++		if user == nil {
++			return nil, errors.New("createDatabasesSource: no user")
++		}
+ 	}
+-	orgID := req.OrganizationID
+-
+-	bd := &DatabasesDecoder{orgID: orgID, deps: &deps, alloc: a.Allocator(), ctx: a.Context()}
+-
++	bd := &DatabasesDecoder{deps: &deps, alloc: a.Allocator(), ctx: a.Context(), user: user}
+ 	return execute.CreateSourceFromDecoder(bd, dsid, a)
+ }
+ 
+-type DatabasesDependencies struct {
+-	DBRP         platform.DBRPMappingService
+-	BucketLookup platform.BucketService
++type DatabaseDependencies struct {
++	MetaClient  coordinator.MetaClient
++	Authorizer  influxdb.Authorizer
++	AuthEnabled bool
+ }
+ 
+-func InjectDatabasesDependencies(depsMap execute.Dependencies, deps DatabasesDependencies) error {
+-	if deps.DBRP == nil {
+-		return errors.New("missing all databases lookup dependency")
++func InjectDatabaseDependencies(depsMap execute.Dependencies, deps DatabaseDependencies) error {
++	if deps.MetaClient == nil {
++		return errors.New("missing meta client dependency")
+ 	}
+-
+-	if deps.BucketLookup == nil {
+-		return errors.New("missing buckets lookup dependency")
++	if deps.AuthEnabled && deps.Authorizer == nil {
++		return errors.New("missing authorizer with auth enabled")
+ 	}
+-
+ 	depsMap[DatabasesKind] = deps
+ 	return nil
+ }
+diff -ur a/storage/reads/group_resultset.go b/storage/reads/group_resultset.go
+--- a/storage/reads/group_resultset.go	2019-06-20 14:35:12.000000000 -0500
++++ b/storage/reads/group_resultset.go	2019-06-25 13:49:49.000000000 -0500
+@@ -7,7 +7,6 @@
+ 	"math"
+ 	"sort"
+ 
+-	"github.com/influxdata/influxdb/kit/tracing"
+ 	"github.com/influxdata/influxdb/models"
+ 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+ 	"github.com/influxdata/influxdb/tsdb/cursors"
+@@ -112,16 +111,7 @@
+ }
+ 
+ func (g *groupResultSet) sort() (int, error) {
+-	span, _ := tracing.StartSpanFromContext(g.ctx)
+-	defer span.Finish()
+-	span.LogKV("group_type", g.req.Group.String())
+-
+ 	n, err := g.sortFn(g)
+-
+-	if err != nil {
+-		span.LogKV("rows", n)
+-	}
+-
+ 	return n, err
+ }
+ 
+diff -ur a/storage/reads/group_resultset_test.go b/storage/reads/group_resultset_test.go
+--- a/storage/reads/group_resultset_test.go	2019-06-20 14:35:12.000000000 -0500
++++ b/storage/reads/group_resultset_test.go	2019-06-25 13:49:49.000000000 -0500
+@@ -394,7 +394,7 @@
+ 		vals[i] = gen.NewCounterByteSequenceCount(card[i])
+ 	}
+ 
+-	tags := gen.NewTagsValuesSequenceValues("m0", "f0", "tag", vals)
++	tags := gen.NewTagsValuesSequenceValues("tag", vals)
+ 	rows := make([]reads.SeriesRow, tags.Count())
+ 	for i := range rows {
+ 		tags.Next()
+diff -ur a/storage/reads/reader.go b/storage/reads/reader.go
+--- a/storage/reads/reader.go	2019-06-20 14:35:12.000000000 -0500
++++ b/storage/reads/reader.go	2019-06-25 13:49:49.000000000 -0500
+@@ -10,8 +10,8 @@
+ 	"github.com/influxdata/flux/execute"
+ 	"github.com/influxdata/flux/memory"
+ 	"github.com/influxdata/flux/values"
++	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+ 	"github.com/influxdata/influxdb/models"
+-	"github.com/influxdata/influxdb/query/stdlib/influxdata/influxdb"
+ 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+ 	"github.com/influxdata/influxdb/tsdb/cursors"
+ )
+@@ -103,8 +103,8 @@
+ 
+ func (fi *filterIterator) Do(f func(flux.Table) error) error {
+ 	src := fi.s.GetSource(
+-		uint64(fi.spec.OrganizationID),
+-		uint64(fi.spec.BucketID),
++		fi.spec.Database,
++		fi.spec.RetentionPolicy,
+ 	)
+ 
+ 	// Setup read request
+@@ -225,8 +225,8 @@
+ 
+ func (gi *groupIterator) Do(f func(flux.Table) error) error {
+ 	src := gi.s.GetSource(
+-		uint64(gi.spec.OrganizationID),
+-		uint64(gi.spec.BucketID),
++		gi.spec.Database,
++		gi.spec.RetentionPolicy,
+ 	)
+ 
+ 	// Setup read request
+@@ -504,8 +504,8 @@
+ 
+ func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
+ 	src := ti.s.GetSource(
+-		uint64(ti.readSpec.OrganizationID),
+-		uint64(ti.readSpec.BucketID),
++		ti.readSpec.Database,
++		ti.readSpec.RetentionPolicy,
+ 	)
+ 
+ 	var req datatypes.TagKeysRequest
+@@ -586,8 +586,8 @@
+ 
+ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
+ 	src := ti.s.GetSource(
+-		uint64(ti.readSpec.OrganizationID),
+-		uint64(ti.readSpec.BucketID),
++		ti.readSpec.Database,
++		ti.readSpec.RetentionPolicy,
+ 	)
+ 
+ 	var req datatypes.TagValuesRequest
+diff -ur a/storage/reads/store.go b/storage/reads/store.go
+--- a/storage/reads/store.go	2019-06-20 14:35:12.000000000 -0500
++++ b/storage/reads/store.go	2019-06-25 13:49:49.000000000 -0500
+@@ -80,5 +80,5 @@
+ 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
+ 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
+ 
+-	GetSource(orgID, bucketID uint64) proto.Message
++	GetSource(db, rp string) proto.Message
+ }
+diff -ur a/storage/reads/table.go b/storage/reads/table.go
+--- a/storage/reads/table.go	2019-06-20 14:35:12.000000000 -0500
++++ b/storage/reads/table.go	2019-06-25 13:49:49.000000000 -0500
+@@ -1,7 +1,5 @@
+ package reads
+ 
+-//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata table.gen.go.tmpl
+-
+ import (
+ 	"sync/atomic"
+ 
+diff -ur a/tsdb/cursors/gen.go b/tsdb/cursors/gen.go
+--- a/tsdb/cursors/gen.go	2019-06-20 14:35:12.000000000 -0500
++++ b/tsdb/cursors/gen.go	2019-06-25 14:00:51.000000000 -0500
+@@ -1,3 +1 @@
+ package cursors
+-
+-//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@arrayvalues.gen.go.tmpldata arrayvalues.gen.go.tmpl

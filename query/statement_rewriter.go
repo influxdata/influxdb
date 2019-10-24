@@ -202,7 +202,16 @@ func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityS
 
 	return &influxql.SelectStatement{
 		Fields: []*influxql.Field{
-			{Expr: &influxql.Call{Name: "count", Args: []influxql.Expr{&influxql.VarRef{Val: "_seriesKey"}}}, Alias: "count"},
+			{
+				Expr: &influxql.Call{
+					Name: "count",
+					Args: []influxql.Expr{&influxql.Call{
+						Name: "distinct",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "_seriesKey"}},
+					}},
+				},
+				Alias: "count",
+			},
 		},
 		Sources:    rewriteSources2(stmt.Sources, stmt.Database),
 		Condition:  stmt.Condition,

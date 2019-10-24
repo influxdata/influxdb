@@ -2,8 +2,11 @@ package inmem
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/query"
@@ -142,6 +145,52 @@ func TestMeasurement_TagsSet_Deadlock(t *testing.T) {
 	if got, exp := len(m.SeriesIDs()), 1; got != exp {
 		t.Fatalf("series count mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+// Ensures the tagKeyValue API contains no deadlocks or sync issues.
+func TestTagKeyValue_Concurrent(t *testing.T) {
+	var wg sync.WaitGroup
+	done := make(chan struct{})
+	time.AfterFunc(2*time.Second, func() { close(done) })
+
+	v := newTagKeyValue()
+	for i := 0; i < 4; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			rand := rand.New(rand.NewSource(int64(i)))
+			for {
+				// Continue running until time limit.
+				select {
+				case <-done:
+					return
+				default:
+				}
+
+				// Randomly choose next API.
+				switch rand.Intn(7) {
+				case 0:
+					v.bytes()
+				case 1:
+					v.Cardinality()
+				case 2:
+					v.Contains(string(rand.Intn(52) + 65))
+				case 3:
+					v.InsertSeriesIDByte([]byte(string(rand.Intn(52)+65)), rand.Uint64()%1000)
+				case 4:
+					v.Load(string(rand.Intn(52) + 65))
+				case 5:
+					v.Range(func(tagValue string, a seriesIDs) bool {
+						return rand.Intn(10) == 0
+					})
+				case 6:
+					v.RangeAll(func(k string, a seriesIDs) {})
+				}
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {

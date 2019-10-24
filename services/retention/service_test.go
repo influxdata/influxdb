@@ -71,6 +71,7 @@ func TestService_CheckShards(t *testing.T) {
 	data := []meta.DatabaseInfo{
 		{
 			Name: "db0",
+
 			DefaultRetentionPolicy: "rp0",
 			RetentionPolicies: []meta.RetentionPolicyInfo{
 				{

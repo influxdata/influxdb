@@ -5,7 +5,7 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/RoaringBitmap/roaring"
+	"github.com/influxdata/roaring"
 )
 
 // SeriesIDSet represents a lockable bitmap of series ids.
@@ -15,10 +15,16 @@ type SeriesIDSet struct {
 }
 
 // NewSeriesIDSet returns a new instance of SeriesIDSet.
-func NewSeriesIDSet() *SeriesIDSet {
-	return &SeriesIDSet{
-		bitmap: roaring.NewBitmap(),
+func NewSeriesIDSet(a ...uint64) *SeriesIDSet {
+	ss := &SeriesIDSet{bitmap: roaring.NewBitmap()}
+	if len(a) > 0 {
+		a32 := make([]uint32, len(a))
+		for i := range a {
+			a32[i] = uint32(a[i])
+		}
+		ss.bitmap.AddMany(a32)
 	}
+	return ss
 }
 
 // Bytes estimates the memory footprint of this SeriesIDSet, in bytes.
@@ -42,6 +48,23 @@ func (s *SeriesIDSet) Add(id uint64) {
 // goroutines. Callers must manage synchronization.
 func (s *SeriesIDSet) AddNoLock(id uint64) {
 	s.bitmap.Add(uint32(id))
+}
+
+// AddMany adds multiple ids to the SeriesIDSet. AddMany takes a lock, so may not be
+// optimal to call many times with few ids.
+func (s *SeriesIDSet) AddMany(ids ...uint64) {
+	if len(ids) == 0 {
+		return
+	}
+
+	a32 := make([]uint32, len(ids))
+	for i := range ids {
+		a32[i] = uint32(ids[i])
+	}
+
+	s.Lock()
+	defer s.Unlock()
+	s.bitmap.AddMany(a32)
 }
 
 // Contains returns true if the id exists in the set.
@@ -100,6 +123,19 @@ func (s *SeriesIDSet) Merge(others ...*SeriesIDSet) {
 	s.Lock()
 	s.bitmap = result
 	s.Unlock()
+}
+
+// MergeInPlace merges other into s, modifying s in the process.
+func (s *SeriesIDSet) MergeInPlace(other *SeriesIDSet) {
+	if s == other {
+		return
+	}
+
+	other.RLock()
+	s.Lock()
+	s.bitmap.Or(other.bitmap)
+	s.Unlock()
+	other.RUnlock()
 }
 
 // Equals returns true if other and s are the same set of ids.
@@ -197,11 +233,44 @@ func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 	return s.bitmap.UnmarshalBinary(data)
 }
 
+// UnmarshalBinaryUnsafe unmarshals data into the set.
+// References to the underlying data are used so data should not be reused by caller.
+func (s *SeriesIDSet) UnmarshalBinaryUnsafe(data []byte) error {
+	s.Lock()
+	defer s.Unlock()
+	_, err := s.bitmap.FromBuffer(data)
+	return err
+}
+
 // WriteTo writes the set to w.
 func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+// Clear clears the underlying bitmap for re-use. Clear is safe for use by multiple goroutines.
+func (s *SeriesIDSet) Clear() {
+	s.Lock()
+	defer s.Unlock()
+	s.ClearNoLock()
+}
+
+// ClearNoLock clears the underlying bitmap for re-use without taking a lock.
+func (s *SeriesIDSet) ClearNoLock() {
+	s.bitmap.Clear()
+}
+
+// Slice returns a slice of series ids.
+func (s *SeriesIDSet) Slice() []uint64 {
+	s.RLock()
+	defer s.RUnlock()
+
+	a := make([]uint64, 0, s.bitmap.GetCardinality())
+	for _, seriesID := range s.bitmap.ToArray() {
+		a = append(a, uint64(seriesID))
+	}
+	return a
 }
 
 type SeriesIDSetIterable interface {

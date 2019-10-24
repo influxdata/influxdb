@@ -127,6 +127,8 @@ elif [ "$OS" == "linux" ] || [ "$OS" == "darwin" ]; then
         --maintainer "support@influxdb.com" \
         --directories /var/log/influxdb \
         --directories /var/lib/influxdb \
+        --rpm-attr 755,influxdb,influxdb:/var/log/influxdb \
+        --rpm-attr 755,influxdb,influxdb:/var/lib/influxdb \
         --description 'Distributed time-series database.' \
         --config-files /etc/influxdb/influxdb.conf \
         --config-files /etc/logrotate.d/influxdb \

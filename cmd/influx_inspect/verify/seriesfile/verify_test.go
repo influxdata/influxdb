@@ -12,13 +12,18 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
+	"go.uber.org/zap"
 )
 
 func TestVerifies_Valid(t *testing.T) {
 	test := NewTest(t)
 	defer test.Close()
 
-	passed, err := seriesfile.NewVerify().VerifySeriesFile(test.Path)
+	verify := seriesfile.NewVerify()
+	if testing.Verbose() {
+		verify.Logger, _ = zap.NewDevelopment()
+	}
+	passed, err := verify.VerifySeriesFile(test.Path)
 	test.AssertNoError(err)
 	test.Assert(passed)
 }
@@ -97,8 +102,13 @@ func NewTest(t *testing.T) *Test {
 			tagsSlice = append(tagsSlice, nil)
 		}
 
-		_, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
+		ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
 		if err != nil {
+			return err
+		}
+
+		// delete one series
+		if err := seriesFile.DeleteSeriesID(ids[0]); err != nil {
 			return err
 		}
 

@@ -174,7 +174,6 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 }
 
 func TestFloatEncoder_Roundtrip_NaN(t *testing.T) {
-
 	s := tsm1.NewFloatEncoder()
 	s.Write(1.0)
 	s.Write(math.NaN())
@@ -182,9 +181,32 @@ func TestFloatEncoder_Roundtrip_NaN(t *testing.T) {
 	s.Flush()
 
 	_, err := s.Bytes()
-
 	if err == nil {
 		t.Fatalf("expected error. got nil")
+	}
+}
+
+func TestFloatEncoder_Empty(t *testing.T) {
+	s := tsm1.NewFloatEncoder()
+	s.Flush()
+
+	b, err := s.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var dec tsm1.FloatDecoder
+	if err := dec.SetBytes(b); err != nil {
+		t.Fatal(err)
+	}
+
+	var got []float64
+	for dec.Next() {
+		got = append(got, dec.Values())
+	}
+
+	if len(got) != 0 {
+		t.Fatalf("got len %d, expected 0", len(got))
 	}
 }
 

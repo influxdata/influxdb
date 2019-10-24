@@ -32,7 +32,11 @@ func (b *subqueryBuilder) buildAuxIterator(ctx context.Context, opt IteratorOpti
 	}
 
 	// Construct the iterators for the subquery.
-	return NewIteratorMapper(cur, nil, indexes, subOpt), nil
+	itr := NewIteratorMapper(cur, nil, indexes, subOpt)
+	if len(opt.GetDimensions()) != len(subOpt.GetDimensions()) {
+		itr = NewTagSubsetIterator(itr, opt)
+	}
+	return itr, nil
 }
 
 func (b *subqueryBuilder) mapAuxFields(auxFields []influxql.VarRef) []IteratorMap {
@@ -114,5 +118,9 @@ func (b *subqueryBuilder) buildVarRefIterator(ctx context.Context, expr *influxq
 	}
 
 	// Construct the iterators for the subquery.
-	return NewIteratorMapper(cur, driver, indexes, subOpt), nil
+	itr := NewIteratorMapper(cur, driver, indexes, subOpt)
+	if len(opt.GetDimensions()) != len(subOpt.GetDimensions()) {
+		itr = NewTagSubsetIterator(itr, opt)
+	}
+	return itr, nil
 }

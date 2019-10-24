@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"sync/atomic"
 	"testing"
 
 	"github.com/influxdata/influxdb/pkg/testing/assert"
@@ -52,12 +53,56 @@ func TestSorting(t *testing.T) {
 	assert.Equal(t, vals, exp)
 }
 
+func TestMachineID(t *testing.T) {
+	for i := 0; i < serverMax; i++ {
+		assert.Equal(t, New(i).MachineID(), i)
+	}
+}
+
+func TestNextMonotonic(t *testing.T) {
+	g := New(10)
+	out := make([]string, 10000)
+
+	for i := range out {
+		out[i] = g.NextString()
+	}
+
+	// ensure they are all distinct and increasing
+	for i := range out[1:] {
+		if out[i] >= out[i+1] {
+			t.Fatal("bad entries:", out[i], out[i+1])
+		}
+	}
+}
+
 func BenchmarkEncode(b *testing.B) {
 	b.ReportAllocs()
 	var s [11]byte
 	for i := 0; i < b.N; i++ {
 		encode(&s, 100)
 	}
+}
+
+var blackhole uint64 // to make sure the g.Next calls are not removed
+
+func BenchmarkNext(b *testing.B) {
+	g := New(10)
+
+	for i := 0; i < b.N; i++ {
+		blackhole += g.Next()
+	}
+}
+
+func BenchmarkNextParallel(b *testing.B) {
+	g := New(1)
+
+	b.RunParallel(func(pb *testing.PB) {
+		var lblackhole uint64
+		for pb.Next() {
+			lblackhole += g.Next()
+		}
+		atomic.AddUint64(&blackhole, lblackhole)
+	})
 }
 
 func shuffle(n int, swap func(i, j int)) {

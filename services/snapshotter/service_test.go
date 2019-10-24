@@ -25,6 +25,7 @@ var data = meta.Data{
 	Databases: []meta.DatabaseInfo{
 		{
 			Name: "db0",
+
 			DefaultRetentionPolicy: "autogen",
 			RetentionPolicies: []meta.RetentionPolicyInfo{
 				{

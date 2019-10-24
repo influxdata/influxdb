@@ -144,7 +144,7 @@ func TestMathValuer_Call(t *testing.T) {
 		{s: `abs(f)`, values: values{"f": float64(2)}, exp: float64(2)},
 		{s: `abs(f)`, values: values{"f": float64(-2)}, exp: float64(2)},
 		{s: `abs(i)`, values: values{"i": int64(2)}, exp: int64(2)},
-		{s: `abs(i)`, values: values{"i": int64(-2)}, exp: int64(-2)},
+		{s: `abs(i)`, values: values{"i": int64(-2)}, exp: int64(2)},
 		{s: `abs(u)`, values: values{"u": uint64(2)}, exp: uint64(2)},
 		{s: `sin(f)`, values: values{"f": math.Pi / 2}, exp: math.Sin(math.Pi / 2)},
 		{s: `sin(i)`, values: values{"i": int64(2)}, exp: math.Sin(2)},

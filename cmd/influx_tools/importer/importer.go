@@ -96,7 +96,7 @@ func (i *importer) createDatabaseWithRetentionPolicy(rp *meta.RetentionPolicySpe
 }
 
 func (i *importer) StartShardGroup(start int64, end int64) error {
-	existingSg, err := i.MetaClient.ShardGroupsByTimeRange(i.db, i.rpi.Name, time.Unix(0, start), time.Unix(0, end))
+	existingSg, err := i.MetaClient.NodeShardGroupsByTimeRange(i.db, i.rpi.Name, time.Unix(0, start), time.Unix(0, end))
 	if err != nil {
 		return err
 	}

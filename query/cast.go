@@ -18,7 +18,7 @@ func castToType(v interface{}, typ influxql.DataType) interface{} {
 		if val, ok := castToUnsigned(v); ok {
 			v = val
 		}
-	case influxql.String:
+	case influxql.String, influxql.Tag:
 		if val, ok := castToString(v); ok {
 			v = val
 		}

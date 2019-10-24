@@ -153,6 +153,15 @@ func TestConfig_Encode(t *testing.T) {
 	}
 }
 
+type stringUnmarshaler struct {
+	Text string
+}
+
+func (s *stringUnmarshaler) UnmarshalText(data []byte) error {
+	s.Text = string(data)
+	return nil
+}
+
 func TestEnvOverride_Builtins(t *testing.T) {
 	envMap := map[string]string{
 		"X_STRING":        "a string",
@@ -174,6 +183,7 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		"X_NESTED_INT":    "13",
 		"X_ES":            "an embedded string",
 		"X__":             "-1", // This value should not be applied to the "ignored" field with toml tag -.
+		"X_STRINGS_1":     "c",
 	}
 
 	env := func(s string) string {
@@ -188,22 +198,23 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		ES string `toml:"es"`
 	}
 	type all struct {
-		Str     string         `toml:"string"`
-		Dur     itoml.Duration `toml:"duration"`
-		Int     int            `toml:"int"`
-		Int8    int8           `toml:"int8"`
-		Int16   int16          `toml:"int16"`
-		Int32   int32          `toml:"int32"`
-		Int64   int64          `toml:"int64"`
-		Uint    uint           `toml:"uint"`
-		Uint8   uint8          `toml:"uint8"`
-		Uint16  uint16         `toml:"uint16"`
-		Uint32  uint32         `toml:"uint32"`
-		Uint64  uint64         `toml:"uint64"`
-		Bool    bool           `toml:"bool"`
-		Float32 float32        `toml:"float32"`
-		Float64 float64        `toml:"float64"`
-		Nested  nested         `toml:"nested"`
+		Str            string              `toml:"string"`
+		Dur            itoml.Duration      `toml:"duration"`
+		Int            int                 `toml:"int"`
+		Int8           int8                `toml:"int8"`
+		Int16          int16               `toml:"int16"`
+		Int32          int32               `toml:"int32"`
+		Int64          int64               `toml:"int64"`
+		Uint           uint                `toml:"uint"`
+		Uint8          uint8               `toml:"uint8"`
+		Uint16         uint16              `toml:"uint16"`
+		Uint32         uint32              `toml:"uint32"`
+		Uint64         uint64              `toml:"uint64"`
+		Bool           bool                `toml:"bool"`
+		Float32        float32             `toml:"float32"`
+		Float64        float64             `toml:"float64"`
+		Nested         nested              `toml:"nested"`
+		UnmarshalSlice []stringUnmarshaler `toml:"strings"`
 
 		Embedded
 
@@ -211,6 +222,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 	}
 
 	var got all
+	got.UnmarshalSlice = []stringUnmarshaler{
+		{Text: "a"},
+		{Text: "b"},
+	}
 	if err := itoml.ApplyEnvOverrides(env, "X", &got); err != nil {
 		t.Fatal(err)
 	}
@@ -237,6 +252,10 @@ func TestEnvOverride_Builtins(t *testing.T) {
 		},
 		Embedded: Embedded{
 			ES: "an embedded string",
+		},
+		UnmarshalSlice: []stringUnmarshaler{
+			{Text: "a"},
+			{Text: "c"},
 		},
 		Ignored: 0,
 	}

@@ -74,13 +74,13 @@ func Test_typeArr(t *testing.T) {
 
 	ts := typeArr(arr)
 
-	re = regexp.MustCompile(`[1-9]\d*`)
+	re = regexp.MustCompile(`\d+`)
 	b = re.MatchString(ts[0].(string))
 	if !b {
 		t.Errorf("Expected line protocol float64 got %v", ts[0])
 	}
 
-	re = regexp.MustCompile(`[1-9]\d*i`)
+	re = regexp.MustCompile(`\d+i`)
 	b = re.MatchString(ts[1].(string))
 	if !b {
 		t.Errorf("Expected line protocol int got %v", ts[1])
@@ -104,7 +104,7 @@ func Test_typeArrBadTypes(t *testing.T) {
 	ts := typeArr(arr)
 
 	for _, x := range ts {
-		re := regexp.MustCompile(`[1-9]\d*`)
+		re := regexp.MustCompile(`\d+`)
 		b := re.MatchString(x.(string))
 		if !b {
 			t.Errorf("Expected line protocol float64 got %v", x)

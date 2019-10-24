@@ -58,10 +58,11 @@ type Partition struct {
 	// Close management.
 	once    sync.Once
 	closing chan struct{} // closing is used to inform iterators the partition is closing.
-	wg      sync.WaitGroup
 
 	// Fieldset shared with engine.
 	fieldset *tsdb.MeasurementFieldSet
+
+	currentCompactionN int // counter of in-progress compactions
 
 	// Directory of the Partition's index files.
 	path string
@@ -123,7 +124,7 @@ func (p *Partition) bytes() int {
 	}
 	b += 12 // once sync.Once is 12 bytes
 	b += int(unsafe.Sizeof(p.closing))
-	b += 16 // wg sync.WaitGroup is 16 bytes
+	b += int(unsafe.Sizeof(p.currentCompactionN))
 	b += int(unsafe.Sizeof(p.fieldset)) + p.fieldset.Bytes()
 	b += int(unsafe.Sizeof(p.path)) + len(p.path)
 	b += int(unsafe.Sizeof(p.id)) + len(p.id)
@@ -322,9 +323,24 @@ func (p *Partition) buildSeriesSet() error {
 	return nil
 }
 
-// Wait returns once outstanding compactions have finished.
+// CurrentCompactionN returns the number of compactions currently running.
+func (p *Partition) CurrentCompactionN() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.currentCompactionN
+}
+
+// Wait will block until all compactions are finished.
+// Must only be called while they are disabled.
 func (p *Partition) Wait() {
-	p.wg.Wait()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if p.CurrentCompactionN() == 0 {
+			return
+		}
+		<-ticker.C
+	}
 }
 
 // Close closes the index.
@@ -334,7 +350,7 @@ func (p *Partition) Close() error {
 		close(p.closing)
 		close(p.compactionInterrupt)
 	})
-	p.wg.Wait()
+	p.Wait()
 
 	// Lock index and close remaining
 	p.mu.Lock()
@@ -427,7 +443,7 @@ func (p *Partition) FieldSet() *tsdb.MeasurementFieldSet {
 func (p *Partition) RetainFileSet() (*FileSet, error) {
 	select {
 	case <-p.closing:
-		return nil, errors.New("index is closing")
+		return nil, tsdb.ErrIndexClosing
 	default:
 		p.mu.RLock()
 		defer p.mu.RUnlock()
@@ -638,31 +654,35 @@ func (p *Partition) DropMeasurement(name []byte) error {
 
 // createSeriesListIfNotExists creates a list of series if they doesn't exist in
 // bulk.
-func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) error {
+func (p *Partition) createSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
 	// Is there anything to do? The partition may have been sent an empty batch.
 	if len(names) == 0 {
-		return nil
+		return nil, nil
 	} else if len(names) != len(tagsSlice) {
-		return fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(names), len(tagsSlice))
+		return nil, fmt.Errorf("uneven batch, partition %s sent %d names and %d tags", p.id, len(names), len(tagsSlice))
 	}
 
 	// Maintain reference count on files in file set.
 	fs, err := p.RetainFileSet()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer fs.Release()
 
 	// Ensure fileset cannot change during insert.
 	p.mu.RLock()
 	// Insert series into log file.
-	if err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice); err != nil {
+	ids, err := p.activeLogFile.AddSeriesList(p.seriesIDSet, names, tagsSlice)
+	if err != nil {
 		p.mu.RUnlock()
-		return err
+		return nil, err
 	}
 	p.mu.RUnlock()
 
-	return p.CheckLogFile()
+	if err := p.CheckLogFile(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (p *Partition) DropSeries(seriesID uint64) error {
@@ -765,18 +785,20 @@ func (p *Partition) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterat
 }
 
 // TagValueSeriesIDIterator returns a series iterator for a single key value.
-func (p *Partition) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
+func (p *Partition) TagValueSeriesIDIterator(name, key, value []byte) (tsdb.SeriesIDIterator, error) {
 	fs, err := p.RetainFileSet()
 	if err != nil {
-		return nil // TODO(edd): this should probably return an error.
+		return nil, err
 	}
 
-	itr := fs.TagValueSeriesIDIterator(name, key, value)
-	if itr == nil {
+	itr, err := fs.TagValueSeriesIDIterator(name, key, value)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
 		fs.Release()
-		return nil
+		return nil, nil
 	}
-	return newFileSetSeriesIDIterator(fs, itr)
+	return newFileSetSeriesIDIterator(fs, itr), nil
 }
 
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
@@ -900,7 +922,7 @@ func (p *Partition) compact() {
 		// Execute in closure to save reference to the group within the loop.
 		func(files []*IndexFile, level int) {
 			// Start compacting in a separate goroutine.
-			p.wg.Add(1)
+			p.currentCompactionN++
 			go func() {
 
 				// Compact to a new level.
@@ -909,8 +931,8 @@ func (p *Partition) compact() {
 				// Ensure compaction lock for the level is released.
 				p.mu.Lock()
 				p.levelCompacting[level] = false
+				p.currentCompactionN--
 				p.mu.Unlock()
-				p.wg.Done()
 
 				// Check for new compactions
 				p.Compact()
@@ -1059,10 +1081,14 @@ func (p *Partition) checkLogFile() error {
 	}
 
 	// Begin compacting in a background goroutine.
-	p.wg.Add(1)
+	p.currentCompactionN++
 	go func() {
-		defer p.wg.Done()
 		p.compactLogFile(logFile)
+
+		p.mu.Lock()
+		p.currentCompactionN-- // compaction is now complete
+		p.mu.Unlock()
+
 		p.Compact() // check for new compactions
 	}()
 
@@ -1222,7 +1248,7 @@ func NewManifest(path string) *Manifest {
 		Version: Version,
 		path:    path,
 	}
-	copy(m.Levels, DefaultCompactionLevels[:])
+	copy(m.Levels, DefaultCompactionLevels)
 	return m
 }
 

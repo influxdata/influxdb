@@ -24,7 +24,7 @@ in InfluxQL. Call iterators are separated into two groups:
 There are helpers to aid in building aggregate iterators. For simple map/reduce
 iterators, you can use the reduceIterator types and pass a reduce function. This
 reduce function is passed a previous and current value and the new timestamp,
-value, and auxilary fields are returned from it.
+value, and auxiliary fields are returned from it.
 
 For raw aggregate iterators, you can use the reduceSliceIterators which pass
 in a slice of all points to the function and return a point. For more complex

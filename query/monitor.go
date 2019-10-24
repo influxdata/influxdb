@@ -23,7 +23,7 @@ type Monitor interface {
 // MonitorFromContext returns a Monitor embedded within the Context
 // if one exists.
 func MonitorFromContext(ctx context.Context) Monitor {
-	v, _ := ctx.Value(monitorContextKey).(Monitor)
+	v, _ := ctx.Value(monitorContextKey{}).(Monitor)
 	return v
 }
 

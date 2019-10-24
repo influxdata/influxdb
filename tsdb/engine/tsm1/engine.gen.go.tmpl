@@ -1,0 +1,19 @@
+package tsm1
+
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/query"
+)
+
+{{range .}}
+
+// build{{.Name}}Cursor creates a cursor for a {{.name}} field.
+func (e *Engine) build{{.Name}}Cursor(ctx context.Context, measurement, seriesKey, field string, opt query.IteratorOptions) {{.name}}Cursor {
+	key := SeriesFieldKeyBytes(seriesKey, field)
+	cacheValues := e.Cache.Values(key)
+	keyCursor := e.KeyCursor(ctx, key, opt.SeekTime(), opt.Ascending)
+	return new{{.Name}}Cursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+{{end}}

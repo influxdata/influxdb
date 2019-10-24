@@ -5,20 +5,23 @@ import (
 	"io"
 	"time"
 
-	"github.com/jsternberg/zap-logfmt"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	isatty "github.com/mattn/go-isatty"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
+// TimeFormat represents the logger time format.
 const TimeFormat = "2006-01-02T15:04:05.000000Z07:00"
 
+// New creates a new zap.Logger.
 func New(w io.Writer) *zap.Logger {
 	config := NewConfig()
 	l, _ := config.New(w)
 	return l
 }
 
+// New creates a new zap.Logger from config settings.
 func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 	w := defaultOutput
 	format := c.Format
@@ -91,6 +94,7 @@ const (
 	day  = 24 * time.Hour
 )
 
+// DurationLiteral represents a duration literal from a key  and time duration.
 func DurationLiteral(key string, val time.Duration) zapcore.Field {
 	if val == 0 {
 		return zap.String(key, "0s")

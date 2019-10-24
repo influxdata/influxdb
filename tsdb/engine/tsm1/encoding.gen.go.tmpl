@@ -238,6 +238,29 @@ func (a {{.Name}}Values) Encode(buf []byte) ([]byte, error) {
 	return encode{{.Name}}ValuesBlock(buf, a)
 }
 
+func Encode{{ .Name }}ArrayBlock(a *tsdb.{{ .Name }}Array, b []byte) ([]byte, error) {
+	if a.Len() == 0 {
+		return nil, nil
+	}
+
+	// TODO(edd): These need to be pooled.
+	var vb []byte
+	var tb []byte
+	var err error
+
+	if vb, err = {{ .Name }}ArrayEncodeAll(a.Values, vb); err != nil {
+		return nil, err
+	}
+
+	if tb, err = TimeArrayEncodeAll(a.Timestamps, tb); err != nil {
+		return nil, err
+	}
+
+	// Prepend the first timestamp of the block in the first 8 bytes and the block
+	// in the next byte, followed by the block
+	return packBlock(b, {{ .Type }}, tb, vb), nil
+}
+
 func encode{{ .Name }}ValuesBlock(buf []byte, values []{{.Name}}Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil

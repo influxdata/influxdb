@@ -30,7 +30,8 @@ type TSMReader struct {
 	refs   int64
 	refsWG sync.WaitGroup
 
-	mu sync.RWMutex
+	madviseWillNeed bool // Hint to the kernel with MADV_WILLNEED.
+	mu              sync.RWMutex
 
 	// accessor provides access and decoding of blocks for the reader.
 	accessor blockAccessor
@@ -207,9 +208,21 @@ func (b *BlockIterator) Err() error {
 	return b.err
 }
 
+type tsmReaderOption func(*TSMReader)
+
+// WithMadviseWillNeed is an option for specifying whether to provide a MADV_WILL need hint to the kernel.
+var WithMadviseWillNeed = func(willNeed bool) tsmReaderOption {
+	return func(r *TSMReader) {
+		r.madviseWillNeed = willNeed
+	}
+}
+
 // NewTSMReader returns a new TSMReader from the given file.
-func NewTSMReader(f *os.File) (*TSMReader, error) {
+func NewTSMReader(f *os.File, options ...tsmReaderOption) (*TSMReader, error) {
 	t := &TSMReader{}
+	for _, option := range options {
+		option(t)
+	}
 
 	stat, err := f.Stat()
 	if err != nil {
@@ -218,7 +231,8 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 	t.size = stat.Size()
 	t.lastModified = stat.ModTime().UnixNano()
 	t.accessor = &mmapAccessor{
-		f: f,
+		f:            f,
+		mmapWillNeed: t.madviseWillNeed,
 	}
 
 	index, err := t.accessor.init()
@@ -699,7 +713,7 @@ type indirectIndex struct {
 	// Using this offset slice we can find `Key 2` by doing a binary search
 	// over the offsets slice.  Instead of comparing the value in the offsets
 	// (e.g. `62`), we use that as an index into the underlying index to
-	// retrieve the key at postion `62` and perform our comparisons with that.
+	// retrieve the key at position `62` and perform our comparisons with that.
 
 	// When we have identified the correct position in the index for a given
 	// key, we could perform another binary search or a linear scan.  This
@@ -811,7 +825,7 @@ func (d *indirectIndex) search(key []byte) int {
 		_, k := readKey(d.b[ofs:])
 
 		// The search may have returned an i == 0 which could indicated that the value
-		// searched should be inserted at postion 0.  Make sure the key in the index
+		// searched should be inserted at position 0.  Make sure the key in the index
 		// matches the search value.
 		if !bytes.Equal(key, k) {
 			return len(d.b)
@@ -963,7 +977,7 @@ func (d *indirectIndex) Delete(keys [][]byte) {
 
 		if len(keys) > 0 && bytes.Equal(keys[0], indexKey) {
 			keys = keys[1:]
-			copy(d.offsets[i:i+4], nilOffset[:])
+			copy(d.offsets[i:i+4], nilOffset)
 		}
 	}
 	d.offsets = bytesutil.Pack(d.offsets, 4, 255)
@@ -1286,15 +1300,15 @@ func (d *indirectIndex) Close() error {
 // mmapAccess is mmap based block accessor.  It access blocks through an
 // MMAP file interface.
 type mmapAccessor struct {
-	// Counter incremented everytime the mmapAccessor is accessed
-	accessCount uint64
-	// Counter to determine whether the accessor can free its resources
-	freeCount uint64
+	accessCount uint64 // Counter incremented everytime the mmapAccessor is accessed
+	freeCount   uint64 // Counter to determine whether the accessor can free its resources
+
+	mmapWillNeed bool // If true then mmap advise value MADV_WILLNEED will be provided the kernel for b.
 
 	mu sync.RWMutex
+	b  []byte
+	f  *os.File
 
-	f     *os.File
-	b     []byte
 	index *indirectIndex
 }
 
@@ -1323,6 +1337,15 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 	}
 	if len(m.b) < 8 {
 		return nil, fmt.Errorf("mmapAccessor: byte slice too small for indirectIndex")
+	}
+
+	// Hint to the kernel that we will be reading the file.  It would be better to hint
+	// that we will be reading the index section, but that's not been
+	// implemented as yet.
+	if m.mmapWillNeed {
+		if err := madviseWillNeed(m.b); err != nil {
+			return nil, err
+		}
 	}
 
 	indexOfsPos := len(m.b) - 8
@@ -1408,7 +1431,14 @@ func (m *mmapAccessor) rename(path string) error {
 	}
 
 	m.b, err = mmap(m.f, 0, int(stat.Size()))
-	return err
+	if err != nil {
+		return err
+	}
+
+	if m.mmapWillNeed {
+		return madviseWillNeed(m.b)
+	}
+	return nil
 }
 
 func (m *mmapAccessor) read(key []byte, timestamp int64) ([]Value, error) {

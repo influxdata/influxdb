@@ -1114,13 +1114,19 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1144,12 +1150,14 @@ func (itr *floatReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -1200,10 +1208,17 @@ func (itr *floatStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -1228,8 +1243,6 @@ func (itr *floatStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -1389,13 +1402,19 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1419,12 +1438,14 @@ func (itr *floatReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -1475,10 +1496,17 @@ func (itr *floatStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -1503,8 +1531,6 @@ func (itr *floatStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -1664,13 +1690,19 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1694,12 +1726,14 @@ func (itr *floatReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -1750,10 +1784,17 @@ func (itr *floatStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -1778,8 +1819,6 @@ func (itr *floatStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -1939,13 +1978,19 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -1969,12 +2014,14 @@ func (itr *floatReduceStringIterator) reduce() ([]StringPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -2025,10 +2072,17 @@ func (itr *floatStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -2053,8 +2107,6 @@ func (itr *floatStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -2214,13 +2266,19 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateFloat(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -2244,12 +2302,14 @@ func (itr *floatReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -2300,10 +2360,17 @@ func (itr *floatStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *floatStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -2328,8 +2395,6 @@ func (itr *floatStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -2493,6 +2558,49 @@ func (itr *floatFilterIterator) Next() (*FloatPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type floatTagSubsetIterator struct {
+	input      FloatIterator
+	point      FloatPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newFloatTagSubsetIterator(input FloatIterator, opt IteratorOptions) *floatTagSubsetIterator {
+	return &floatTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *floatTagSubsetIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *floatTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *floatTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newFloatDedupeIterator returns a new instance of floatDedupeIterator.
@@ -3670,13 +3778,19 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -3700,12 +3814,14 @@ func (itr *integerReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -3756,10 +3872,17 @@ func (itr *integerStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -3784,8 +3907,6 @@ func (itr *integerStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -3945,13 +4066,19 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -3975,12 +4102,14 @@ func (itr *integerReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -4031,10 +4160,17 @@ func (itr *integerStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -4059,8 +4195,6 @@ func (itr *integerStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4220,13 +4354,19 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4250,12 +4390,14 @@ func (itr *integerReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -4306,10 +4448,17 @@ func (itr *integerStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -4334,8 +4483,6 @@ func (itr *integerStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4495,13 +4642,19 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4525,12 +4678,14 @@ func (itr *integerReduceStringIterator) reduce() ([]StringPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -4581,10 +4736,17 @@ func (itr *integerStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -4609,8 +4771,6 @@ func (itr *integerStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -4770,13 +4930,19 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateInteger(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -4800,12 +4966,14 @@ func (itr *integerReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -4856,10 +5024,17 @@ func (itr *integerStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *integerStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -4884,8 +5059,6 @@ func (itr *integerStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -5049,6 +5222,49 @@ func (itr *integerFilterIterator) Next() (*IntegerPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type integerTagSubsetIterator struct {
+	input      IntegerIterator
+	point      IntegerPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newIntegerTagSubsetIterator(input IntegerIterator, opt IteratorOptions) *integerTagSubsetIterator {
+	return &integerTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *integerTagSubsetIterator) Next() (*IntegerPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *integerTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *integerTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newIntegerDedupeIterator returns a new instance of integerDedupeIterator.
@@ -6226,13 +6442,19 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -6256,12 +6478,14 @@ func (itr *unsignedReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -6312,10 +6536,17 @@ func (itr *unsignedStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -6340,8 +6571,6 @@ func (itr *unsignedStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -6501,13 +6730,19 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -6531,12 +6766,14 @@ func (itr *unsignedReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -6587,10 +6824,17 @@ func (itr *unsignedStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -6615,8 +6859,6 @@ func (itr *unsignedStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -6776,13 +7018,19 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -6806,12 +7054,14 @@ func (itr *unsignedReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -6862,10 +7112,17 @@ func (itr *unsignedStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -6890,8 +7147,6 @@ func (itr *unsignedStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7051,13 +7306,19 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -7081,12 +7342,14 @@ func (itr *unsignedReduceStringIterator) reduce() ([]StringPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -7137,10 +7400,17 @@ func (itr *unsignedStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -7165,8 +7435,6 @@ func (itr *unsignedStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7326,13 +7594,19 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateUnsigned(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -7356,12 +7630,14 @@ func (itr *unsignedReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -7412,10 +7688,17 @@ func (itr *unsignedStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *unsignedStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -7440,8 +7723,6 @@ func (itr *unsignedStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -7605,6 +7886,49 @@ func (itr *unsignedFilterIterator) Next() (*UnsignedPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type unsignedTagSubsetIterator struct {
+	input      UnsignedIterator
+	point      UnsignedPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newUnsignedTagSubsetIterator(input UnsignedIterator, opt IteratorOptions) *unsignedTagSubsetIterator {
+	return &unsignedTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *unsignedTagSubsetIterator) Next() (*UnsignedPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *unsignedTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *unsignedTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newUnsignedDedupeIterator returns a new instance of unsignedDedupeIterator.
@@ -8768,13 +9092,19 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -8798,12 +9128,14 @@ func (itr *stringReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -8854,10 +9186,17 @@ func (itr *stringStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -8882,8 +9221,6 @@ func (itr *stringStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9043,13 +9380,19 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9073,12 +9416,14 @@ func (itr *stringReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -9129,10 +9474,17 @@ func (itr *stringStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -9157,8 +9509,6 @@ func (itr *stringStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9318,13 +9668,19 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9348,12 +9704,14 @@ func (itr *stringReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -9404,10 +9762,17 @@ func (itr *stringStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -9432,8 +9797,6 @@ func (itr *stringStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9593,13 +9956,19 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9623,12 +9992,14 @@ func (itr *stringReduceStringIterator) reduce() ([]StringPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -9679,10 +10050,17 @@ func (itr *stringStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -9707,8 +10085,6 @@ func (itr *stringStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -9868,13 +10244,19 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateString(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -9898,12 +10280,14 @@ func (itr *stringReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -9954,10 +10338,17 @@ func (itr *stringStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *stringStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -9982,8 +10373,6 @@ func (itr *stringStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -10147,6 +10536,49 @@ func (itr *stringFilterIterator) Next() (*StringPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type stringTagSubsetIterator struct {
+	input      StringIterator
+	point      StringPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newStringTagSubsetIterator(input StringIterator, opt IteratorOptions) *stringTagSubsetIterator {
+	return &stringTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *stringTagSubsetIterator) Next() (*StringPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *stringTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *stringTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newStringDedupeIterator returns a new instance of stringDedupeIterator.
@@ -11310,13 +11742,19 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11340,12 +11778,14 @@ func (itr *booleanReduceFloatIterator) reduce() ([]FloatPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(floatPointsByTime(a)))
+		var sorted sort.Interface = floatPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -11396,10 +11836,17 @@ func (itr *booleanStreamFloatIterator) Next() (*FloatPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamFloatIterator) reduce() ([]FloatPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []FloatPoint
 			for _, rp := range itr.m {
@@ -11424,8 +11871,6 @@ func (itr *booleanStreamFloatIterator) reduce() ([]FloatPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -11585,13 +12030,19 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11615,12 +12066,14 @@ func (itr *booleanReduceIntegerIterator) reduce() ([]IntegerPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(integerPointsByTime(a)))
+		var sorted sort.Interface = integerPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -11671,10 +12124,17 @@ func (itr *booleanStreamIntegerIterator) Next() (*IntegerPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []IntegerPoint
 			for _, rp := range itr.m {
@@ -11699,8 +12159,6 @@ func (itr *booleanStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -11860,13 +12318,19 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -11890,12 +12354,14 @@ func (itr *booleanReduceUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(unsignedPointsByTime(a)))
+		var sorted sort.Interface = unsignedPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -11946,10 +12412,17 @@ func (itr *booleanStreamUnsignedIterator) Next() (*UnsignedPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []UnsignedPoint
 			for _, rp := range itr.m {
@@ -11974,8 +12447,6 @@ func (itr *booleanStreamUnsignedIterator) reduce() ([]UnsignedPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12135,13 +12606,19 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -12165,12 +12642,14 @@ func (itr *booleanReduceStringIterator) reduce() ([]StringPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(stringPointsByTime(a)))
+		var sorted sort.Interface = stringPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -12221,10 +12700,17 @@ func (itr *booleanStreamStringIterator) Next() (*StringPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamStringIterator) reduce() ([]StringPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []StringPoint
 			for _, rp := range itr.m {
@@ -12249,8 +12735,6 @@ func (itr *booleanStreamStringIterator) reduce() ([]StringPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12410,13 +12894,19 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 		rp.Aggregator.AggregateBoolean(curr)
 	}
 
-	// Reverse sort points by name & tag if our output is supposed to be ordered.
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	if len(keys) > 1 && itr.opt.Ordered {
-		sort.Sort(reverseStringSlice(keys))
+
+	// Reverse sort points by name & tag.
+	// This ensures a consistent order of output.
+	if len(keys) > 0 {
+		var sorted sort.Interface = sort.StringSlice(keys)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Sort(sorted)
 	}
 
 	// Assume the points are already sorted until proven otherwise.
@@ -12440,12 +12930,14 @@ func (itr *booleanReduceBooleanIterator) reduce() ([]BooleanPoint, error) {
 			a = append(a, points[i])
 		}
 	}
-
 	// Points may be out of order. Perform a stable sort by time if requested.
 	if !sortedByTime && itr.opt.Ordered {
-		sort.Stable(sort.Reverse(booleanPointsByTime(a)))
+		var sorted sort.Interface = booleanPointsByTime(a)
+		if itr.opt.Ascending {
+			sorted = sort.Reverse(sorted)
+		}
+		sort.Stable(sorted)
 	}
-
 	return a, nil
 }
 
@@ -12496,10 +12988,17 @@ func (itr *booleanStreamBooleanIterator) Next() (*BooleanPoint, error) {
 // reduce creates and manages aggregators for every point from the input.
 // After aggregating a point, it always tries to emit a value using the emitter.
 func (itr *booleanStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
+	// We have already read all of the input points.
+	if itr.m == nil {
+		return nil, nil
+	}
+
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil {
+		if err != nil {
+			return nil, err
+		} else if curr == nil {
 			// Close all of the aggregators to flush any remaining points to emit.
 			var points []BooleanPoint
 			for _, rp := range itr.m {
@@ -12524,8 +13023,6 @@ func (itr *booleanStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 			// Eliminate the aggregators and emitters.
 			itr.m = nil
 			return points, nil
-		} else if err != nil {
-			return nil, err
 		} else if curr.Nil {
 			continue
 		}
@@ -12689,6 +13186,49 @@ func (itr *booleanFilterIterator) Next() (*BooleanPoint, error) {
 		}
 		return p, nil
 	}
+}
+
+type booleanTagSubsetIterator struct {
+	input      BooleanIterator
+	point      BooleanPoint
+	lastTags   Tags
+	dimensions []string
+}
+
+func newBooleanTagSubsetIterator(input BooleanIterator, opt IteratorOptions) *booleanTagSubsetIterator {
+	return &booleanTagSubsetIterator{
+		input:      input,
+		dimensions: opt.GetDimensions(),
+	}
+}
+
+func (itr *booleanTagSubsetIterator) Next() (*BooleanPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p == nil {
+		return nil, nil
+	}
+
+	itr.point.Name = p.Name
+	if !p.Tags.Equal(itr.lastTags) {
+		itr.point.Tags = p.Tags.Subset(itr.dimensions)
+		itr.lastTags = p.Tags
+	}
+	itr.point.Time = p.Time
+	itr.point.Value = p.Value
+	itr.point.Aux = p.Aux
+	itr.point.Aggregated = p.Aggregated
+	itr.point.Nil = p.Nil
+	return &itr.point, nil
+}
+
+func (itr *booleanTagSubsetIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *booleanTagSubsetIterator) Close() error {
+	return itr.input.Close()
 }
 
 // newBooleanDedupeIterator returns a new instance of booleanDedupeIterator.

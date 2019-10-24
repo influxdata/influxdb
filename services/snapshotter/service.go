@@ -246,7 +246,7 @@ func (s *Service) respondIDMap(conn net.Conn, IDMap map[uint64]uint64) error {
 		next += 16
 	}
 
-	_, err := conn.Write(numBytes[:])
+	_, err := conn.Write(numBytes)
 	return err
 }
 

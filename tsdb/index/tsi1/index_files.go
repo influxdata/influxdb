@@ -138,17 +138,17 @@ func (p IndexFiles) MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterat
 	return tsdb.MergeSeriesIDIterators(a...)
 }
 
-// TagValueSeriesIDIterator returns an iterator that merges series across all files.
-func (p IndexFiles) TagValueSeriesIDIterator(name, key, value []byte) tsdb.SeriesIDIterator {
-	a := make([]tsdb.SeriesIDIterator, 0, len(p))
-
+// TagValueSeriesIDSet returns an iterator that merges series across all files.
+func (p IndexFiles) TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error) {
+	ss := tsdb.NewSeriesIDSet()
 	for i := range p {
-		itr := p[i].TagValueSeriesIDIterator(name, key, value)
-		if itr != nil {
-			a = append(a, itr)
+		if fss, err := p[i].TagValueSeriesIDSet(name, key, value); err != nil {
+			return nil, err
+		} else if fss != nil {
+			ss.Merge(fss)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...)
+	return ss, nil
 }
 
 // CompactTo merges all index files and writes them to w.
@@ -184,6 +184,13 @@ func (p IndexFiles) CompactTo(w io.Writer, sfile *tsdb.SeriesFile, m, k uint64, 
 	if err := p.writeTagsetsTo(bw, &info, &n); err != nil {
 		return n, err
 	}
+
+	// Ensure block is word aligned.
+	// if offset := n % 8; offset != 0 {
+	// 	if err := writeTo(bw, make([]byte, 8-offset), &n); err != nil {
+	// 		return n, err
+	// 	}
+	// }
 
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
@@ -289,12 +296,18 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 	default:
 	}
 
+	// Ensure block is word aligned.
+	// if offset := (*n) % 8; offset != 0 {
+	// 	if err := writeTo(w, make([]byte, 8-offset), n); err != nil {
+	// 		return err
+	// 	}
+	// }
+
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
 	}
 
-	var seriesN int
 	enc := NewTagBlockEncoder(w)
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
 		// Encode key.
@@ -309,31 +322,11 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 
 			// Merge all series together.
 			if err := func() error {
-				sitr := p.TagValueSeriesIDIterator(name, ke.Key(), ve.Value())
-				if sitr != nil {
-					defer sitr.Close()
-					for {
-						se, err := sitr.Next()
-						if err != nil {
-							return err
-						} else if se.SeriesID == 0 {
-							break
-						}
-						seriesIDs = append(seriesIDs, se.SeriesID)
-
-						// Check for cancellation periodically.
-						if seriesN++; seriesN%1000 == 0 {
-							select {
-							case <-info.cancel:
-								return ErrCompactionInterrupted
-							default:
-							}
-						}
-					}
+				ss, err := p.TagValueSeriesIDSet(name, ke.Key(), ve.Value())
+				if err != nil {
+					return err
 				}
-
-				// Encode value.
-				return enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs)
+				return enc.EncodeValue(ve.Value(), ve.Deleted(), ss)
 			}(); err != nil {
 				return nil
 			}

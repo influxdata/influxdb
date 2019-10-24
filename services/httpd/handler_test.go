@@ -2,6 +2,8 @@ package httpd_test
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,6 +24,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/mock"
+	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -29,6 +36,8 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
 )
@@ -187,7 +196,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
-	// Test handler with valid JWT token carrying non-existant user.
+	// Test handler with valid JWT token carrying non-existent user.
 	_, signedToken = MustJWTToken("bad_user", h.Config.SharedSecret, false)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
 
@@ -226,6 +235,24 @@ func TestHandler_Query_Auth(t *testing.T) {
 	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"token expiration required"}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
+
+	// Test that auth fails if shared secret is blank.
+	origSecret := h.Config.SharedSecret
+	h.Config.SharedSecret = ""
+	token, _ = MustJWTToken("user1", h.Config.SharedSecret, false)
+	signedToken, err = token.SignedString([]byte(h.Config.SharedSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"bearer auth disabled"}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+	h.Config.SharedSecret = origSecret
 
 	// Test the handler with valid user and password in the url and invalid in
 	// basic auth (prioritize url).
@@ -289,6 +316,39 @@ func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+// Ensure the handler merges series from the same result.
+func TestHandler_Query_MergeSeries(t *testing.T) {
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{
+			{
+				Name: "series0",
+				Values: [][]interface{}{
+					{float64(2.0)},
+				},
+				Partial: true,
+			},
+		})}
+		ctx.Results <- &query.Result{StatementID: 1, Series: models.Rows([]*models.Row{
+			{
+				Name: "series0",
+				Values: [][]interface{}{
+					{float64(3.0)},
+				},
+			},
+		})}
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series0","values":[[2],[3]]}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }
@@ -534,7 +594,159 @@ func TestHandler_Query_CloseNotify(t *testing.T) {
 	}
 }
 
-// Ensure the prometheus remote write works
+// Ensure the handler returns an appropriate 401 status when authentication
+// fails on ping endpoints.
+func TestHandler_Ping_ErrAuthorize(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPingAuthEnabled()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		users := []meta.UserInfo{
+			{
+				Name:  "admin",
+				Hash:  "admin",
+				Admin: true,
+			},
+			{
+				Name: "user1",
+				Hash: "abcd",
+				Privileges: map[string]influxql.Privilege{
+					"db0": influxql.ReadPrivilege,
+				},
+			},
+		}
+
+		for _, user := range users {
+			if u == user.Name {
+				if p == user.Hash {
+					return &user, nil
+				}
+				return nil, meta.ErrAuthenticate
+			}
+		}
+		return nil, meta.ErrUserNotFound
+	}
+
+	for i, tt := range []struct {
+		user     string
+		password string
+		query    string
+		code     int
+	}{
+		{
+			query: "/ping",
+			code:  http.StatusUnauthorized,
+		},
+		{
+			user:     "user1",
+			password: "abcd",
+			query:    "/ping",
+			code:     http.StatusNoContent,
+		},
+		{
+			user:     "user2",
+			password: "abcd",
+			query:    "/ping",
+			code:     http.StatusUnauthorized,
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := MustNewJSONRequest("GET", tt.query, nil)
+		params := r.URL.Query()
+		if tt.user != "" {
+			params.Set("u", tt.user)
+		}
+		if tt.password != "" {
+			params.Set("p", tt.password)
+		}
+		r.URL.RawQuery = params.Encode()
+
+		h.ServeHTTP(w, r)
+		if w.Code != tt.code {
+			t.Errorf("%d. unexpected status: got=%d exp=%d\noutput: %s", i, w.Code, tt.code, w.Body.String())
+		}
+	}
+}
+
+// Ensure the handler returns an appropriate 403 status when authentication or
+// authorization fails on debug endpoints.
+func TestHandler_Debug_ErrAuthorize(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithAuthentication(), WithPprofAuthEnabled()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		users := []meta.UserInfo{
+			{
+				Name:  "admin",
+				Hash:  "admin",
+				Admin: true,
+			},
+			{
+				Name: "user1",
+				Hash: "abcd",
+				Privileges: map[string]influxql.Privilege{
+					"db0": influxql.ReadPrivilege,
+				},
+			},
+		}
+
+		for _, user := range users {
+			if u == user.Name {
+				if p == user.Hash {
+					return &user, nil
+				}
+				return nil, meta.ErrAuthenticate
+			}
+		}
+		return nil, meta.ErrUserNotFound
+	}
+
+	for i, tt := range []struct {
+		user     string
+		password string
+		query    string
+		code     int
+	}{
+		{
+			query: "/debug/vars",
+			code:  http.StatusUnauthorized,
+		},
+		{
+			user:     "user1",
+			password: "abcd",
+			query:    "/debug/vars",
+			code:     http.StatusForbidden,
+		},
+		{
+			user:     "user2",
+			password: "abcd",
+			query:    "/debug/vars",
+			code:     http.StatusUnauthorized,
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := MustNewJSONRequest("GET", tt.query, nil)
+		params := r.URL.Query()
+		if tt.user != "" {
+			params.Set("u", tt.user)
+		}
+		if tt.password != "" {
+			params.Set("p", tt.password)
+		}
+		r.URL.RawQuery = params.Encode()
+
+		h.ServeHTTP(w, r)
+		if w.Code != tt.code {
+			t.Errorf("%d. unexpected status: got=%d exp=%d\noutput: %s", i, w.Code, tt.code, w.Body.String())
+		}
+	}
+}
+
+// Ensure the prometheus remote write works with valid values.
 func TestHandler_PromWrite(t *testing.T) {
 	req := &remote.WriteRequest{
 		Timeseries: []*remote.TimeSeries{
@@ -545,7 +757,8 @@ func TestHandler_PromWrite(t *testing.T) {
 				},
 				Samples: []*remote.Sample{
 					{TimestampMs: 1, Value: 1.2},
-					{TimestampMs: 2, Value: math.NaN()},
+					{TimestampMs: 3, Value: 14.5},
+					{TimestampMs: 6, Value: 222.99},
 				},
 			},
 		},
@@ -562,26 +775,45 @@ func TestHandler_PromWrite(t *testing.T) {
 	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
 		return &meta.DatabaseInfo{}
 	}
-	called := false
+
+	var called bool
 	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
 		called = true
-		point := points[0]
-		if point.UnixNano() != int64(time.Millisecond) {
-			t.Fatalf("Exp point time %d but got %d", int64(time.Millisecond), point.UnixNano())
-		}
-		tags := point.Tags()
-		expectedTags := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
-		if !reflect.DeepEqual(tags, expectedTags) {
-			t.Fatalf("tags don't match\n\texp: %v\n\tgot: %v", expectedTags, tags)
+
+		if got, exp := len(points), 3; got != exp {
+			t.Fatalf("got %d points, expected %d\n\npoints:\n%v", got, exp, points)
 		}
 
-		fields, err := point.Fields()
-		if err != nil {
-			t.Fatal(err.Error())
+		expFields := []models.Fields{
+			models.Fields{"value": req.Timeseries[0].Samples[0].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[1].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[2].Value},
 		}
-		expFields := models.Fields{"value": 1.2}
-		if !reflect.DeepEqual(fields, expFields) {
-			t.Fatalf("fields don't match\n\texp: %v\n\tgot: %v", expFields, fields)
+
+		expTS := []int64{
+			req.Timeseries[0].Samples[0].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[1].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[2].TimestampMs * int64(time.Millisecond),
+		}
+
+		for i, point := range points {
+			if got, exp := point.UnixNano(), expTS[i]; got != exp {
+				t.Fatalf("got time %d, expected %d\npoint:\n%v", got, exp, point)
+			}
+
+			exp := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
+			if got := point.Tags(); !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got tags: %v, expected: %v\npoint:\n%v", got, exp, point)
+			}
+
+			gotFields, err := point.Fields()
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			if got, exp := gotFields, expFields[i]; !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got fields %v, expected %v\npoint:\n%v", got, exp, point)
+			}
 		}
 		return nil
 	}
@@ -591,8 +823,150 @@ func TestHandler_PromWrite(t *testing.T) {
 	if !called {
 		t.Fatal("WritePoints: expected call")
 	}
+
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure the prometheus remote write works with invalid values.
+func TestHandler_PromWrite_Dropped(t *testing.T) {
+	req := &remote.WriteRequest{
+		Timeseries: []*remote.TimeSeries{
+			{
+				Labels: []*remote.LabelPair{
+					{Name: "host", Value: "a"},
+					{Name: "region", Value: "west"},
+				},
+				Samples: []*remote.Sample{
+					{TimestampMs: 1, Value: 1.2},
+					{TimestampMs: 2, Value: math.NaN()},
+					{TimestampMs: 3, Value: 14.5},
+					{TimestampMs: 4, Value: math.Inf(-1)},
+					{TimestampMs: 5, Value: math.Inf(1)},
+					{TimestampMs: 6, Value: 222.99},
+					{TimestampMs: 7, Value: math.Inf(-1)},
+					{TimestampMs: 8, Value: math.Inf(1)},
+					{TimestampMs: 9, Value: math.Inf(1)},
+				},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+
+	b := bytes.NewReader(compressed)
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	var called bool
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+		called = true
+
+		if got, exp := len(points), 3; got != exp {
+			t.Fatalf("got %d points, expected %d\n\npoints:\n%v", got, exp, points)
+		}
+
+		expFields := []models.Fields{
+			models.Fields{"value": req.Timeseries[0].Samples[0].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[2].Value},
+			models.Fields{"value": req.Timeseries[0].Samples[5].Value},
+		}
+
+		expTS := []int64{
+			req.Timeseries[0].Samples[0].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[2].TimestampMs * int64(time.Millisecond),
+			req.Timeseries[0].Samples[5].TimestampMs * int64(time.Millisecond),
+		}
+
+		for i, point := range points {
+			if got, exp := point.UnixNano(), expTS[i]; got != exp {
+				t.Fatalf("got time %d, expected %d\npoint:\n%v", got, exp, point)
+			}
+
+			exp := models.Tags{models.Tag{Key: []byte("host"), Value: []byte("a")}, models.Tag{Key: []byte("region"), Value: []byte("west")}}
+			if got := point.Tags(); !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got tags: %v, expected: %v\npoint:\n%v", got, exp, point)
+			}
+
+			gotFields, err := point.Fields()
+			if err != nil {
+				t.Fatal(err.Error())
+			}
+
+			if got, exp := gotFields, expFields[i]; !reflect.DeepEqual(got, exp) {
+				t.Fatalf("got fields %v, expected %v\npoint:\n%v", got, exp, point)
+			}
+		}
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo", b))
+	if !called {
+		t.Fatal("WritePoints: expected call")
+	}
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+func mustMakeBigString(sz int) string {
+	a := make([]byte, 0, sz)
+	for i := 0; i < cap(a); i++ {
+		a = append(a, 'a')
+	}
+	return string(a)
+}
+
+func TestHandler_PromWrite_Error(t *testing.T) {
+	req := &remote.WriteRequest{
+		Timeseries: []*remote.TimeSeries{
+			{
+				// Invalid tag key
+				Labels:  []*remote.LabelPair{{Name: mustMakeBigString(models.MaxKeyLength), Value: "a"}},
+				Samples: []*remote.Sample{{TimestampMs: 1, Value: 1.2}},
+			},
+		},
+	}
+
+	data, err := proto.Marshal(req)
+	if err != nil {
+		t.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+
+	b := bytes.NewReader(compressed)
+	h := NewHandler(false)
+	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
+		return &meta.DatabaseInfo{}
+	}
+
+	var called bool
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+		called = true
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/write?db=foo", b))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+
+	if got, exp := strings.TrimSpace(w.Body.String()), `{"error":"max key length exceeded: 65572 \u003e 65535"}`; got != exp {
+		t.Fatalf("got error %q, expected %q", got, exp)
+	}
+
+	if called {
+		t.Fatal("WritePoints called but should not be")
 	}
 }
 
@@ -800,8 +1174,292 @@ func TestHandler_PromRead_UnsupportedCursors(t *testing.T) {
 	}
 }
 
+func TestHandler_Flux_DisabledByDefault(t *testing.T) {
+	h := NewHandler(false)
+	w := httptest.NewRecorder()
+
+	body := bytes.NewBufferString(`from(bucket:"db/rp") |> range(start:-1h) |> last()`)
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v2/query", body))
+	if got := w.Code; !cmp.Equal(got, http.StatusForbidden) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	exp := "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.\n"
+	if got := string(w.Body.Bytes()); !cmp.Equal(got, exp) {
+		t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, exp))
+	}
+}
+
+func TestHandler_PromRead_NilResultSet(t *testing.T) {
+	req := &remote.ReadRequest{
+		Queries: []*remote.Query{{
+			Matchers: []*remote.LabelMatcher{
+				{
+					Type:  remote.MatchType_EQUAL,
+					Name:  "__name__",
+					Value: "value",
+				},
+			},
+			StartTimestampMs: 1,
+			EndTimestampMs:   2,
+		}},
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		log.Fatal("couldn't marshal prometheus request")
+	}
+	compressed := snappy.Encode(nil, data)
+	b := bytes.NewReader(compressed)
+
+	h := NewHandler(false)
+
+	// Mocks the case when Store.Read() returns nil, nil
+	h.Handler.Store.(*internal.StorageStoreMock).ReadFilterFn = func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error) {
+		return nil, nil
+	}
+
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, MustNewRequest("POST", "/api/v1/prom/read?db=foo&rp=bar", b))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+
+	if w.Header().Get("Content-Type") != "application/x-protobuf" {
+		t.Fatalf("Got unexpected \"Content-Type\" header value:\n%v", cmp.Diff("application/x-protobuf", w.Header().Get("Content-Type")))
+	}
+	if w.Header().Get("Content-Encoding") != "snappy" {
+		t.Fatalf("Got unexpected \"Content-Encoding\" header value:\n%v", cmp.Diff("snappy", w.Header().Get("Content-Encoding")))
+	}
+
+	decompressed, err := snappy.Decode(nil, w.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := new(remote.ReadResponse)
+	err = proto.Unmarshal(decompressed, resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := &remote.ReadResponse{
+		Results: []*remote.QueryResult{{}},
+	}
+	if !reflect.DeepEqual(resp, expected) {
+		t.Fatalf("Results differ:\n%v", cmp.Diff(expected, resp))
+	}
+}
+
+func TestHandler_Flux_QueryJSON(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	qry := "foo"
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.FluxCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		if c, ok := compiler.(lang.FluxCompiler); !ok {
+			t.Fatal("expected lang.FluxCompiler")
+		} else if exp := qry; c.Query != exp {
+			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
+		}
+		called = true
+
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
+	}
+
+	q := client.QueryRequest{Query: qry}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(q); err != nil {
+		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", &body)
+	req.Header.Add("content-type", "application/json")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux_REPL(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(repl.CompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		called = true
+
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
+	}
+
+	q := client.QueryRequest{Spec: &flux.Spec{}}
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(q); err != nil {
+		t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", &body)
+	req.Header.Add("content-type", "application/json")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux_QueryText(t *testing.T) {
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+	called := false
+	qry := "bar"
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		if exp := flux.CompilerType(lang.FluxCompilerType); compiler.CompilerType() != exp {
+			t.Fatalf("unexpected compiler type -got/+exp\n%s", cmp.Diff(compiler.CompilerType(), exp))
+		}
+		if c, ok := compiler.(lang.FluxCompiler); !ok {
+			t.Fatal("expected lang.FluxCompiler")
+		} else if exp := qry; c.Query != exp {
+			t.Fatalf("unexpected query -got/+exp\n%s", cmp.Diff(c.Query, exp))
+		}
+		called = true
+
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString(qry))
+	req.Header.Add("content-type", "application/vnd.flux")
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	if !called {
+		t.Fatalf("expected QueryFn to be called")
+	}
+}
+
+func TestHandler_Flux(t *testing.T) {
+
+	queryBytes := func(qs string) io.Reader {
+		var b bytes.Buffer
+		q := &client.QueryRequest{Query: qs}
+		if err := json.NewEncoder(&b).Encode(q); err != nil {
+			t.Fatalf("unexpected JSON encoding error: %q", err.Error())
+		}
+		return &b
+	}
+
+	tests := []struct {
+		name    string
+		reqFn   func() *http.Request
+		expCode int
+		expBody string
+	}{
+		{
+			name: "no media type",
+			reqFn: func() *http.Request {
+				return MustNewRequest("POST", "/api/v2/query", nil)
+			},
+			expCode: http.StatusBadRequest,
+			expBody: "{\"error\":\"mime: no media type\"}\n",
+		},
+		{
+			name: "200 OK",
+			reqFn: func() *http.Request {
+				req := MustNewRequest("POST", "/api/v2/query", queryBytes("foo"))
+				req.Header.Add("content-type", "application/json")
+				return req
+			},
+			expCode: http.StatusOK,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog()))
+			h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+				p := &mock.Program{}
+				return p.Start(ctx, nil)
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, test.reqFn())
+			if got := w.Code; !cmp.Equal(got, test.expCode) {
+				t.Fatalf("unexpected status: %d", got)
+			}
+
+			if test.expBody != "" {
+				if got := string(w.Body.Bytes()); !cmp.Equal(got, test.expBody) {
+					t.Fatalf("unexpected body -got/+exp\n%s", cmp.Diff(got, test.expBody))
+				}
+			}
+		})
+	}
+}
+
+func TestHandler_Flux_Auth(t *testing.T) {
+	// Create the handler to be tested.
+	h := NewHandlerWithConfig(NewHandlerConfig(WithFlux(), WithNoLog(), WithAuthentication()))
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.UserFn = func(username string) (meta.User, error) {
+		if username != "user1" {
+			return nil, meta.ErrUserNotFound
+		}
+		return &meta.UserInfo{
+			Name:  "user1",
+			Hash:  "abcd",
+			Admin: true,
+		}, nil
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (meta.User, error) {
+		if u != "user1" {
+			return nil, fmt.Errorf("unexpected user: exp: user1, got: %s", u)
+		} else if p != "abcd" {
+			return nil, fmt.Errorf("unexpected password: exp: abcd, got: %s", p)
+		}
+		return h.MetaClient.User(u)
+	}
+
+	h.Controller.QueryFn = func(ctx context.Context, compiler flux.Compiler) (i flux.Query, e error) {
+		p := &mock.Program{}
+		return p.Start(ctx, nil)
+	}
+
+	req := MustNewRequest("POST", "/api/v2/query", bytes.NewBufferString("bar"))
+	req.Header.Set("content-type", "application/vnd.flux")
+	req.Header.Set("Authorization", "Token user1:abcd")
+	// Test the handler with valid user and password in the URL parameters.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusOK) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+
+	req.Header.Set("Authorization", "Token user1:efgh")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if got := w.Code; !cmp.Equal(got, http.StatusUnauthorized) {
+		t.Fatalf("unexpected status: %d", got)
+	}
+}
+
 // Ensure the handler handles ping requests correctly.
-// TODO: This should be expanded to verify the MetaClient check in servePing is working correctly
 func TestHandler_Ping(t *testing.T) {
 	h := NewHandler(false)
 	w := httptest.NewRecorder()
@@ -1169,14 +1827,61 @@ type Handler struct {
 	QueryAuthorizer   HandlerQueryAuthorizer
 	PointsWriter      HandlerPointsWriter
 	Store             *internal.StorageStoreMock
+	Controller        *internal.FluxControllerMock
+}
+
+type configOption func(c *httpd.Config)
+
+func WithAuthentication() configOption {
+	return func(c *httpd.Config) {
+		c.AuthEnabled = true
+		c.SharedSecret = "super secret key"
+	}
+}
+
+func WithPprofAuthEnabled() configOption {
+	return func(c *httpd.Config) {
+		c.PprofEnabled = true
+		c.PprofAuthEnabled = true
+	}
+}
+
+func WithPingAuthEnabled() configOption {
+	return func(c *httpd.Config) {
+		c.PingAuthEnabled = true
+	}
+}
+
+func WithFlux() configOption {
+	return func(c *httpd.Config) {
+		c.FluxEnabled = true
+	}
+}
+
+func WithNoLog() configOption {
+	return func(c *httpd.Config) {
+		c.LogEnabled = false
+	}
+}
+
+// NewHandlerConfig returns a new instance of httpd.Config with
+// authentication configured.
+func NewHandlerConfig(opts ...configOption) httpd.Config {
+	config := httpd.NewConfig()
+	for _, opt := range opts {
+		opt(&config)
+	}
+	return config
 }
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
-	config := httpd.NewConfig()
-	config.AuthEnabled = requireAuthentication
-	config.SharedSecret = "super secret key"
-	return NewHandlerWithConfig(config)
+	var opts []configOption
+	if requireAuthentication {
+		opts = append(opts, WithAuthentication())
+	}
+
+	return NewHandlerWithConfig(NewHandlerConfig(opts...))
 }
 
 func NewHandlerWithConfig(config httpd.Config) *Handler {
@@ -1186,6 +1891,7 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 
 	h.MetaClient = &internal.MetaClientMock{}
 	h.Store = internal.NewStorageStoreMock()
+	h.Controller = internal.NewFluxControllerMock()
 
 	h.Handler.MetaClient = h.MetaClient
 	h.Handler.Store = h.Store
@@ -1195,11 +1901,11 @@ func NewHandlerWithConfig(config httpd.Config) *Handler {
 	h.Handler.PointsWriter = &h.PointsWriter
 	h.Handler.Version = "0.0.0"
 	h.Handler.BuildType = "OSS"
+	h.Handler.Controller = h.Controller
 
 	if testing.Verbose() {
 		l := logger.New(os.Stdout)
 		h.Handler.Logger = l
-		h.Handler.Store.WithLogger(l)
 	}
 
 	return h

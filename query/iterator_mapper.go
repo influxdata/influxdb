@@ -45,7 +45,7 @@ func NewIteratorMapper(cur Cursor, driver IteratorMap, fields []IteratorMap, opt
 				return newIntegerIteratorMapper(cur, driver, fields, opt)
 			case influxql.Unsigned:
 				return newUnsignedIteratorMapper(cur, driver, fields, opt)
-			case influxql.String:
+			case influxql.String, influxql.Tag:
 				return newStringIteratorMapper(cur, driver, fields, opt)
 			case influxql.Boolean:
 				return newBooleanIteratorMapper(cur, driver, fields, opt)

@@ -33,6 +33,9 @@ var (
 	ErrStoreClosed = fmt.Errorf("store is closed")
 	// ErrShardDeletion is returned when trying to create a shard that is being deleted
 	ErrShardDeletion = errors.New("shard is being deleted")
+	// ErrMultipleIndexTypes is returned when trying to do deletes on a database with
+	// multiple index types.
+	ErrMultipleIndexTypes = errors.New("cannot delete data. DB contains shards using both inmem and tsi1 indexes. Please convert all shards to use the same index type to delete data.")
 )
 
 // Statistics gathered by the store.
@@ -45,11 +48,35 @@ const (
 // a database.
 const SeriesFileDirectory = "_series"
 
+// databaseState keeps track of the state of a database.
+type databaseState struct{ indexTypes map[string]int }
+
+// addIndexType records that the database has a shard with the given index type.
+func (d *databaseState) addIndexType(indexType string) {
+	if d.indexTypes == nil {
+		d.indexTypes = make(map[string]int)
+	}
+	d.indexTypes[indexType]++
+}
+
+// addIndexType records that the database no longer has a shard with the given index type.
+func (d *databaseState) removeIndexType(indexType string) {
+	if d.indexTypes != nil {
+		d.indexTypes[indexType]--
+		if d.indexTypes[indexType] <= 0 {
+			delete(d.indexTypes, indexType)
+		}
+	}
+}
+
+// hasMultipleIndexTypes returns true if the database has multiple index types.
+func (d *databaseState) hasMultipleIndexTypes() bool { return d != nil && len(d.indexTypes) > 1 }
+
 // Store manages shards and indexes for databases.
 type Store struct {
 	mu                sync.RWMutex
 	shards            map[uint64]*Shard
-	databases         map[string]struct{}
+	databases         map[string]*databaseState
 	sfiles            map[string]*SeriesFile
 	SeriesFileMaxSize int64 // Determines size of series file mmap. Can be altered in tests.
 	path              string
@@ -60,6 +87,10 @@ type Store struct {
 	// Maintains a set of shards that are in the process of deletion.
 	// This prevents new shards from being created while old ones are being deleted.
 	pendingShardDeletes map[uint64]struct{}
+
+	// Epoch tracker helps serialize writes and deletes that may conflict. It
+	// is stored by shard.
+	epochs map[uint64]*epochTracker
 
 	EngineOptions EngineOptions
 
@@ -76,11 +107,12 @@ type Store struct {
 func NewStore(path string) *Store {
 	logger := zap.NewNop()
 	return &Store{
-		databases:           make(map[string]struct{}),
+		databases:           make(map[string]*databaseState),
 		path:                path,
 		sfiles:              make(map[string]*SeriesFile),
 		indexes:             make(map[string]interface{}),
 		pendingShardDeletes: make(map[uint64]struct{}),
+		epochs:              make(map[uint64]*epochTracker),
 		EngineOptions:       NewEngineOptions(),
 		Logger:              logger,
 		baseLogger:          logger,
@@ -230,15 +262,28 @@ func (s *Store) loadShards() error {
 
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
-	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
 	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
-	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
-		rate, burst := 48*1024*1024, 48*1024*1024
-		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
-		compactionSettings = append(compactionSettings, zap.Int("throughput_bytes_per_second", rate), zap.Int("throughput_burst_bytes", burst))
+	throughput := int(s.EngineOptions.Config.CompactThroughput)
+	throughputBurst := int(s.EngineOptions.Config.CompactThroughputBurst)
+	if throughput > 0 {
+		if throughputBurst < throughput {
+			throughputBurst = throughput
+		}
+
+		compactionSettings = append(
+			compactionSettings,
+			zap.Int("throughput_bytes_per_second", throughput),
+			zap.Int("throughput_bytes_per_second_burst", throughputBurst),
+		)
+		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(throughput, throughputBurst)
 	} else {
-		compactionSettings = append(compactionSettings, zap.String("throughput_bytes_per_second", "unlimited"), zap.String("throughput_burst", "unlimited"))
+		compactionSettings = append(
+			compactionSettings,
+			zap.String("throughput_bytes_per_second", "unlimited"),
+			zap.String("throughput_bytes_per_second_burst", "unlimited"),
+		)
 	}
+
 	s.Logger.Info("Compaction settings", compactionSettings...)
 
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
@@ -307,6 +352,12 @@ func (s *Store) loadShards() error {
 			}
 
 			for _, sh := range shardDirs {
+				// Series file should not be in a retention policy but skip just in case.
+				if sh.Name() == SeriesFileDirectory {
+					log.Warn("Skipping series file in retention policy dir", zap.String("path", filepath.Join(s.path, db.Name(), rp.Name())))
+					continue
+				}
+
 				n++
 				go func(db, rp, sh string) {
 					t.Take()
@@ -339,7 +390,7 @@ func (s *Store) loadShards() error {
 
 					// Existing shards should continue to use inmem index.
 					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
-						opt.IndexVersion = "inmem"
+						opt.IndexVersion = InmemIndexName
 					}
 
 					// Open engine.
@@ -364,10 +415,6 @@ func (s *Store) loadShards() error {
 		}
 	}
 
-	// indexVersions tracks counts of the number of different types of index
-	// being used within each database.
-	indexVersions := make(map[string]map[string]int)
-
 	// Gather results of opening shards concurrently, keeping track of how
 	// many databases we are managing.
 	for i := 0; i < n; i++ {
@@ -376,20 +423,19 @@ func (s *Store) loadShards() error {
 			continue
 		}
 		s.shards[res.s.id] = res.s
-		s.databases[res.s.database] = struct{}{}
-
-		if _, ok := indexVersions[res.s.database]; !ok {
-			indexVersions[res.s.database] = make(map[string]int, 2)
+		s.epochs[res.s.id] = newEpochTracker()
+		if _, ok := s.databases[res.s.database]; !ok {
+			s.databases[res.s.database] = new(databaseState)
 		}
-		indexVersions[res.s.database][res.s.IndexType()]++
+		s.databases[res.s.database].addIndexType(res.s.IndexType())
 	}
 	close(resC)
 
 	// Check if any databases are running multiple index types.
-	for db, idxVersions := range indexVersions {
-		if len(idxVersions) > 1 {
+	for db, state := range s.databases {
+		if state.hasMultipleIndexTypes() {
 			var fields []zapcore.Field
-			for idx, cnt := range idxVersions {
+			for idx, cnt := range state.indexTypes {
 				fields = append(fields, zap.Int(fmt.Sprintf("%s_count", idx), cnt))
 			}
 			s.Logger.Warn("Mixed shard index types", append(fields, logger.Database(db))...)
@@ -437,7 +483,7 @@ func (s *Store) Close() error {
 		}
 	}
 
-	s.databases = make(map[string]struct{})
+	s.databases = make(map[string]*databaseState)
 	s.sfiles = map[string]*SeriesFile{}
 	s.indexes = make(map[string]interface{})
 	s.pendingShardDeletes = make(map[uint64]struct{})
@@ -445,6 +491,16 @@ func (s *Store) Close() error {
 	s.opened = false // Store may now be opened again.
 	s.mu.Unlock()
 	return nil
+}
+
+// epochsForShards returns a copy of the epoch trackers only including what is necessary
+// for the provided shards. Must be called under the lock.
+func (s *Store) epochsForShards(shards []*Shard) map[uint64]*epochTracker {
+	out := make(map[uint64]*epochTracker)
+	for _, sh := range shards {
+		out[sh.id] = s.epochs[sh.id]
+	}
+	return out
 }
 
 // openSeriesFile either returns or creates a series file for the provided
@@ -455,6 +511,7 @@ func (s *Store) openSeriesFile(database string) (*SeriesFile, error) {
 	}
 
 	sfile := NewSeriesFile(filepath.Join(s.path, database, SeriesFileDirectory))
+	sfile.WithMaxCompactionConcurrency(s.EngineOptions.Config.SeriesFileMaxConcurrentSnapshotCompactions)
 	sfile.Logger = s.baseLogger
 	if err := sfile.Open(); err != nil {
 		return nil, err
@@ -599,7 +656,18 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	}
 
 	s.shards[shardID] = shard
-	s.databases[database] = struct{}{} // Ensure we are tracking any new db.
+	s.epochs[shardID] = newEpochTracker()
+	if _, ok := s.databases[database]; !ok {
+		s.databases[database] = new(databaseState)
+	}
+	s.databases[database].addIndexType(shard.IndexType())
+	if state := s.databases[database]; state.hasMultipleIndexTypes() {
+		var fields []zapcore.Field
+		for idx, cnt := range state.indexTypes {
+			fields = append(fields, zap.Int(fmt.Sprintf("%s_count", idx), cnt))
+		}
+		s.Logger.Warn("Mixed shard index types", append(fields, logger.Database(database))...)
+	}
 
 	return nil
 }
@@ -646,7 +714,13 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 	delete(s.shards, shardID)
+	delete(s.epochs, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
+
+	db := sh.Database()
+	// Determine if the shard contained any series that are not present in any
+	// other shards in the database.
+	shards := s.filterShards(byDatabase(db))
 	s.mu.Unlock()
 
 	// Ensure the pending deletion flag is cleared on exit.
@@ -654,6 +728,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		delete(s.pendingShardDeletes, shardID)
+		s.databases[db].removeIndexType(sh.IndexType())
 	}()
 
 	// Get the shard's local bitset of series IDs.
@@ -663,15 +738,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	}
 
 	ss := index.SeriesIDSet()
-
-	db := sh.Database()
-	if err := sh.Close(); err != nil {
-		return err
-	}
-
-	// Determine if the shard contained any series that are not present in any
-	// other shards in the database.
-	shards := s.filterShards(byDatabase(db))
 
 	s.walkShards(shards, func(sh *Shard) error {
 		index, err := sh.Index()
@@ -688,10 +754,42 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	if ss.Cardinality() > 0 {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
+			// If the inmem index is in use, then the series being removed from the
+			// series file will also need to be removed from the index.
+			if index.Type() == InmemIndexName {
+				var keyBuf []byte // Series key buffer.
+				var name []byte
+				var tagsBuf models.Tags // Buffer for tags container.
+				var err error
+
+				ss.ForEach(func(id uint64) {
+					skey := sfile.SeriesKey(id) // Series File series key
+					if skey == nil {
+						return
+					}
+
+					name, tagsBuf = ParseSeriesKeyInto(skey, tagsBuf)
+					keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
+					if err = index.DropSeriesGlobal(keyBuf); err != nil {
+						return
+					}
+				})
+
+				if err != nil {
+					return err
+				}
+			}
+
 			ss.ForEach(func(id uint64) {
 				sfile.DeleteSeriesID(id)
 			})
 		}
+
+	}
+
+	// Close the shard.
+	if err := sh.Close(); err != nil {
+		return err
 	}
 
 	// Remove the on-disk shard data.
@@ -755,6 +853,7 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	for _, sh := range shards {
 		delete(s.shards, sh.id)
+		delete(s.epochs, sh.id)
 	}
 
 	// Remove database from store list of databases
@@ -812,8 +911,10 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	}
 
 	s.mu.Lock()
+	state := s.databases[database]
 	for _, sh := range shards {
 		delete(s.shards, sh.id)
+		state.removeIndexType(sh.IndexType())
 	}
 	s.mu.Unlock()
 	return nil
@@ -822,7 +923,12 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 // DeleteMeasurement removes a measurement and all associated series from a database.
 func (s *Store) DeleteMeasurement(database, name string) error {
 	s.mu.RLock()
+	if s.databases[database].hasMultipleIndexTypes() {
+		s.mu.RUnlock()
+		return ErrMultipleIndexTypes
+	}
 	shards := s.filterShards(byDatabase(database))
+	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
 
 	// Limit to 1 delete for each shard since expanding the measurement into the list
@@ -832,12 +938,20 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 		limit.Take()
 		defer limit.Release()
 
+		// install our guard and wait for any prior deletes to finish. the
+		// guard ensures future deletes that could conflict wait for us.
+		guard := newGuard(influxql.MinTime, influxql.MaxTime, []string{name}, nil)
+		waiter := epochs[sh.id].WaitDelete(guard)
+		waiter.Wait()
+		defer waiter.Done()
+
 		return sh.DeleteMeasurement([]byte(name))
 	})
 }
 
 // filterShards returns a slice of shards where fn returns true
 // for the shard. If the provided predicate is nil then all shards are returned.
+// filterShards should be called under a lock.
 func (s *Store) filterShards(fn func(sh *Shard) bool) []*Shard {
 	var shards []*Shard
 	if fn == nil {
@@ -930,7 +1044,7 @@ func (s *Store) Databases() []string {
 	defer s.mu.RUnlock()
 
 	databases := make([]string, 0, len(s.databases))
-	for k, _ := range s.databases {
+	for k := range s.databases {
 		databases = append(databases, k)
 	}
 	return databases
@@ -1176,6 +1290,10 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	}
 
 	s.mu.RLock()
+	if s.databases[database].hasMultipleIndexTypes() {
+		s.mu.RUnlock()
+		return ErrMultipleIndexTypes
+	}
 	sfile := s.sfiles[database]
 	if sfile == nil {
 		s.mu.RUnlock()
@@ -1183,6 +1301,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		return nil
 	}
 	shards := s.filterShards(byDatabase(database))
+	epochs := s.epochsForShards(shards)
 	s.mu.RUnlock()
 
 	// Limit to 1 delete for each shard since expanding the measurement into the list
@@ -1209,6 +1328,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 
 		limit.Take()
 		defer limit.Release()
+
+		// install our guard and wait for any prior deletes to finish. the
+		// guard ensures future deletes that could conflict wait for us.
+		waiter := epochs[sh.id].WaitDelete(newGuard(min, max, names, condition))
+		waiter.Wait()
+		defer waiter.Done()
 
 		index, err := sh.Index()
 		if err != nil {
@@ -1261,7 +1386,21 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		s.mu.RUnlock()
 		return ErrShardNotFound
 	}
+
+	epoch := s.epochs[shardID]
+
 	s.mu.RUnlock()
+
+	// enter the epoch tracker
+	guards, gen := epoch.StartWrite()
+	defer epoch.EndWrite(gen)
+
+	// wait for any guards before writing the points.
+	for _, guard := range guards {
+		if guard.Matches(points) {
+			guard.Wait()
+		}
+	}
 
 	// Ensure snapshot compactions are enabled since the shard might have been cold
 	// and disabled by the monitor.
@@ -1362,10 +1501,20 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 		}
 
 		if is.SeriesFile == nil {
-			is.SeriesFile = shard.sfile
+			sfile, err := shard.SeriesFile()
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, err
+			}
+			is.SeriesFile = sfile
 		}
 
-		is.Indexes = append(is.Indexes, shard.index)
+		index, err := shard.Index()
+		if err != nil {
+			s.mu.RUnlock()
+			return nil, err
+		}
+		is.Indexes = append(is.Indexes, index)
 	}
 	s.mu.RUnlock()
 
@@ -1518,9 +1667,21 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 		}
 
 		if is.SeriesFile == nil {
-			is.SeriesFile = shard.sfile
+			sfile, err := shard.SeriesFile()
+			if err != nil {
+				s.mu.RUnlock()
+				return nil, err
+			}
+			is.SeriesFile = sfile
 		}
-		is.Indexes = append(is.Indexes, shard.index)
+
+		index, err := shard.Index()
+		if err != nil {
+			s.mu.RUnlock()
+			return nil, err
+		}
+
+		is.Indexes = append(is.Indexes, index)
 	}
 	s.mu.RUnlock()
 	is = is.DedupeInmemIndexes()
@@ -1771,7 +1932,7 @@ func (s *Store) monitorShards() {
 
 			s.mu.RLock()
 			shards := s.filterShards(func(sh *Shard) bool {
-				return sh.IndexType() == "inmem"
+				return sh.IndexType() == InmemIndexName
 			})
 			s.mu.RUnlock()
 

@@ -67,7 +67,7 @@ func OperationEventStart() zapcore.Field {
 	return zap.String(OperationEventKey, eventStart)
 }
 
-// OperationEventFinish returns a field for tracking the end of an operation.
+// OperationEventEnd returns a field for tracking the end of an operation.
 func OperationEventEnd() zapcore.Field {
 	return zap.String(OperationEventKey, eventEnd)
 }
@@ -77,7 +77,7 @@ func Database(name string) zapcore.Field {
 	return zap.String(DBInstanceKey, name)
 }
 
-// Database returns a field for tracking the name of a database.
+// RetentionPolicy returns the retention policy.
 func RetentionPolicy(name string) zapcore.Field {
 	return zap.String(DBRetentionKey, name)
 }

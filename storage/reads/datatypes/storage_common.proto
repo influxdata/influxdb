@@ -1,0 +1,198 @@
+syntax = "proto3";
+package influxdata.platform.storage;
+option go_package = "datatypes";
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/any.proto";
+import "predicate.proto";
+
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.sizer_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+option (gogoproto.goproto_getters_all) = false;
+
+service Storage {
+  // ReadFilter performs a filter operation at storage
+  rpc ReadFilter (ReadFilterRequest) returns (stream ReadResponse);
+
+  // ReadGroup performs a group operation at storage
+  rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
+
+  // TagKeys performs a read operation for tag keys
+  rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
+
+  // TagValues performs a read operation for tag values
+  rpc TagValues (TagValuesRequest) returns (stream StringValuesResponse);
+
+  // Capabilities returns a map of keys and values identifying the capabilities supported by the storage engine
+  rpc Capabilities (google.protobuf.Empty) returns (CapabilitiesResponse);
+}
+
+message ReadFilterRequest {
+  google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+message ReadGroupRequest {
+  google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+
+  enum Group {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    // GroupNone returns all series as a single group.
+    // The single GroupFrame.TagKeys will be the union of all tag keys.
+    GROUP_NONE = 0 [(gogoproto.enumvalue_customname) = "GroupNone"];
+
+    // GroupBy returns a group for each unique value of the specified GroupKeys.
+    GROUP_BY = 2 [(gogoproto.enumvalue_customname) = "GroupBy"];
+  }
+
+  // GroupKeys specifies a list of tag keys used to order the data.
+  // It is dependent on the Group property to determine its behavior.
+  repeated string group_keys = 4 [(gogoproto.customname) = "GroupKeys"];
+
+  Group group = 5;
+  Aggregate aggregate = 6;
+
+  // TODO(jlapacik): This field is only used in unit tests.
+  // Specifically the two tests in group_resultset_test.go.
+  // This field should be removed and the tests that depend
+  // on it refactored.
+  enum HintFlags {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    HINT_NONE      = 0x00 [(gogoproto.enumvalue_customname) = "HintNone"];
+    HINT_NO_POINTS = 0x01 [(gogoproto.enumvalue_customname) = "HintNoPoints"];
+    HINT_NO_SERIES = 0x02 [(gogoproto.enumvalue_customname) = "HintNoSeries"];
+    // HintSchemaAllTime performs schema queries without using time ranges
+    HINT_SCHEMA_ALL_TIME = 0x04 [(gogoproto.enumvalue_customname) = "HintSchemaAllTime"];
+  }
+  fixed32 hints = 7 [(gogoproto.customname) = "Hints", (gogoproto.casttype) = "HintFlags"];
+}
+
+message Aggregate {
+  enum AggregateType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    NONE = 0 [(gogoproto.enumvalue_customname) = "AggregateTypeNone"];
+    SUM = 1 [(gogoproto.enumvalue_customname) = "AggregateTypeSum"];
+    COUNT = 2 [(gogoproto.enumvalue_customname) = "AggregateTypeCount"];
+  }
+
+  AggregateType type = 1;
+
+  // additional arguments?
+}
+
+message Tag {
+  bytes key = 1;
+  bytes value = 2;
+}
+
+// Response message for ReadFilter and ReadGroup
+message ReadResponse {
+  enum FrameType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    SERIES = 0 [(gogoproto.enumvalue_customname) = "FrameTypeSeries"];
+    POINTS = 1 [(gogoproto.enumvalue_customname) = "FrameTypePoints"];
+  }
+
+  enum DataType {
+    option (gogoproto.goproto_enum_prefix) = false;
+
+    FLOAT = 0 [(gogoproto.enumvalue_customname) = "DataTypeFloat"];
+    INTEGER = 1 [(gogoproto.enumvalue_customname) = "DataTypeInteger"];
+    UNSIGNED = 2 [(gogoproto.enumvalue_customname) = "DataTypeUnsigned"];
+    BOOLEAN = 3 [(gogoproto.enumvalue_customname) = "DataTypeBoolean"];
+    STRING = 4 [(gogoproto.enumvalue_customname) = "DataTypeString"];
+  }
+
+  message Frame {
+    oneof data {
+      GroupFrame group = 7;
+      SeriesFrame series = 1;
+      FloatPointsFrame float_points = 2 [(gogoproto.customname) = "FloatPoints"];
+      IntegerPointsFrame integer_points = 3 [(gogoproto.customname) = "IntegerPoints"];
+      UnsignedPointsFrame unsigned_points = 4 [(gogoproto.customname) = "UnsignedPoints"];
+      BooleanPointsFrame boolean_points = 5 [(gogoproto.customname) = "BooleanPoints"];
+      StringPointsFrame string_points = 6 [(gogoproto.customname) = "StringPoints"];
+    }
+  }
+
+  message GroupFrame {
+    // TagKeys
+    repeated bytes tag_keys = 1 [(gogoproto.customname) = "TagKeys"];
+    // PartitionKeyVals is the values of the partition key for this group, order matching ReadGroupRequest.GroupKeys
+    repeated bytes partition_key_vals = 2 [(gogoproto.customname) = "PartitionKeyVals"];
+  }
+
+  message SeriesFrame {
+    repeated Tag tags = 1 [(gogoproto.nullable) = false];
+    DataType data_type = 2;
+  }
+
+  message FloatPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated double values = 2;
+  }
+
+  message IntegerPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated int64 values = 2;
+  }
+
+  message UnsignedPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated uint64 values = 2;
+  }
+
+  message BooleanPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated bool values = 2;
+  }
+
+  message StringPointsFrame {
+    repeated sfixed64 timestamps = 1;
+    repeated string values = 2;
+  }
+
+  repeated Frame frames = 1 [(gogoproto.nullable) = false];
+}
+
+message CapabilitiesResponse {
+  map<string, string> caps = 1;
+}
+
+// Specifies a continuous range of nanosecond timestamps.
+message TimestampRange {
+  // Start defines the inclusive lower bound.
+  int64 start = 1;
+
+  // End defines the inclusive upper bound.
+  int64 end = 2;
+}
+
+// TagKeysRequest is the request message for Storage.TagKeys.
+message TagKeysRequest {
+  google.protobuf.Any tags_source = 1 [(gogoproto.customname) = "TagsSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+}
+
+// TagValuesRequest is the request message for Storage.TagValues.
+message TagValuesRequest {
+  google.protobuf.Any tags_source = 1 [(gogoproto.customname) = "TagsSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  string tag_key = 4;
+}
+
+// Response message for Storage.TagKeys and Storage.TagValues.
+message StringValuesResponse {
+  repeated bytes values = 1;
+}

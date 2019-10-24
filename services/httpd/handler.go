@@ -20,10 +20,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	httppprof "net/http/pprof"
+
 	"github.com/bmizerany/pat"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -34,9 +38,12 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/storage"
+	"github.com/influxdata/influxdb/storage/reads"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 )
@@ -112,11 +119,17 @@ type Handler struct {
 
 	Store Store
 
-	Config    *Config
-	Logger    *zap.Logger
-	CLFLogger *log.Logger
-	accessLog *os.File
-	stats     *Statistics
+	// Flux services
+	Controller       Controller
+	CompilerMappings flux.CompilerMappings
+	registered       bool
+
+	Config           *Config
+	Logger           *zap.Logger
+	CLFLogger        *log.Logger
+	accessLog        *os.File
+	accessLogFilters StatusFilters
+	stats            *Statistics
 
 	requestTracker *RequestTracker
 	writeThrottler *Throttler
@@ -129,7 +142,6 @@ func NewHandler(c Config) *Handler {
 		Config:         &c,
 		Logger:         zap.NewNop(),
 		CLFLogger:      log.New(os.Stderr, "[httpd] ", 0),
-		Store:          storage.NewStore(),
 		stats:          &Statistics{},
 		requestTracker: NewRequestTracker(),
 	}
@@ -142,6 +154,19 @@ func NewHandler(c Config) *Handler {
 	writeLogEnabled := c.LogEnabled
 	if c.SuppressWriteLog {
 		writeLogEnabled = false
+	}
+
+	var authWrapper func(handler func(http.ResponseWriter, *http.Request)) interface{}
+	if h.Config.AuthEnabled && h.Config.PingAuthEnabled {
+		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
+			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				handler(w, r)
+			}
+		}
+	} else {
+		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
+			return handler
+		}
 	}
 
 	h.AddRoutes([]Route{
@@ -175,25 +200,80 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{ // Ping
 			"ping",
-			"GET", "/ping", false, true, h.servePing,
+			"GET", "/ping", false, true, authWrapper(h.servePing),
 		},
 		Route{ // Ping
 			"ping-head",
-			"HEAD", "/ping", false, true, h.servePing,
+			"HEAD", "/ping", false, true, authWrapper(h.servePing),
 		},
 		Route{ // Ping w/ status
 			"status",
-			"GET", "/status", false, true, h.serveStatus,
+			"GET", "/status", false, true, authWrapper(h.serveStatus),
 		},
 		Route{ // Ping w/ status
 			"status-head",
-			"HEAD", "/status", false, true, h.serveStatus,
+			"HEAD", "/status", false, true, authWrapper(h.serveStatus),
 		},
 		Route{
 			"prometheus-metrics",
-			"GET", "/metrics", false, true, promhttp.Handler().ServeHTTP,
+			"GET", "/metrics", false, true, authWrapper(promhttp.Handler().ServeHTTP),
 		},
 	}...)
+
+	// When PprofAuthEnabled is enabled, create debug/pprof endpoints with the
+	// same authentication handlers as other endpoints.
+	if h.Config.AuthEnabled && h.Config.PprofEnabled && h.Config.PprofAuthEnabled {
+		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
+			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				if user == nil || !user.AuthorizeUnrestricted() {
+					h.Logger.Info("Unauthorized request", zap.String("user", user.ID()), zap.String("path", r.URL.Path))
+					h.httpError(w, "error authorizing admin access", http.StatusForbidden)
+					return
+				}
+				handler(w, r)
+			}
+		}
+		h.AddRoutes([]Route{
+			Route{
+				"pprof-cmdline",
+				"GET", "/debug/pprof/cmdline", true, true, authWrapper(httppprof.Cmdline),
+			},
+			Route{
+				"pprof-profile",
+				"GET", "/debug/pprof/profile", true, true, authWrapper(httppprof.Profile),
+			},
+			Route{
+				"pprof-symbol",
+				"GET", "/debug/pprof/symbol", true, true, authWrapper(httppprof.Symbol),
+			},
+			Route{
+				"pprof-all",
+				"GET", "/debug/pprof/all", true, true, authWrapper(h.archiveProfilesAndQueries),
+			},
+			Route{
+				"debug-expvar",
+				"GET", "/debug/vars", true, true, authWrapper(h.serveExpvar),
+			},
+			Route{
+				"debug-requests",
+				"GET", "/debug/requests", true, true, authWrapper(h.serveDebugRequests),
+			},
+		}...)
+	}
+
+	fluxRoute := Route{
+		"flux-read",
+		"POST", "/api/v2/query", true, true, nil,
+	}
+
+	if !c.FluxEnabled {
+		fluxRoute.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Flux query service disabled. Verify flux-enabled=true in the [http] section of the InfluxDB config.", http.StatusForbidden)
+		}
+	} else {
+		fluxRoute.HandlerFunc = h.serveFluxQuery
+	}
+	h.AddRoutes(fluxRoute)
 
 	return h
 }
@@ -214,12 +294,30 @@ func (h *Handler) Open() {
 		}
 		h.Logger.Info("opened HTTP access log", zap.String("path", path))
 	}
+	h.accessLogFilters = StatusFilters(h.Config.AccessLogStatusFilters)
+
+	if h.Config.AuthEnabled && h.Config.SharedSecret == "" {
+		h.Logger.Info("Auth is enabled but shared-secret is blank. BearerAuthentication is disabled.")
+	}
+
+	if h.Config.FluxEnabled {
+		h.registered = true
+		prom.MustRegister(h.Controller.PrometheusCollectors()...)
+	}
 }
 
 func (h *Handler) Close() {
 	if h.accessLog != nil {
 		h.accessLog.Close()
 		h.accessLog = nil
+		h.accessLogFilters = nil
+	}
+
+	if h.registered {
+		for _, col := range h.Controller.PrometheusCollectors() {
+			prom.Unregister(col)
+		}
+		h.registered = false
 	}
 }
 
@@ -247,6 +345,8 @@ type Statistics struct {
 	RecoveredPanics              int64
 	PromWriteRequests            int64
 	PromReadRequests             int64
+	FluxQueryRequests            int64
+	FluxQueryRequestDuration     int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -276,6 +376,8 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statRecoveredPanics:              atomic.LoadInt64(&h.stats.RecoveredPanics),
 			statPromWriteRequest:             atomic.LoadInt64(&h.stats.PromWriteRequests),
 			statPromReadRequest:              atomic.LoadInt64(&h.stats.PromReadRequests),
+			statFluxQueryRequests:            atomic.LoadInt64(&h.stats.FluxQueryRequests),
+			statFluxQueryRequestDuration:     atomic.LoadInt64(&h.stats.FluxQueryRequestDuration),
 		},
 	}}
 }
@@ -330,7 +432,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-Influxdb-Version", h.Version)
 	w.Header().Add("X-Influxdb-Build", h.BuildType)
 
-	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
+	// Maintain backwards compatibility by using unwrapped pprof/debug handlers
+	// when PprofAuthEnabled is false.
+	if h.Config.AuthEnabled && h.Config.PprofEnabled && h.Config.PprofAuthEnabled {
+		h.mux.ServeHTTP(w, r)
+	} else if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
 		h.handleProfiles(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)
@@ -475,8 +581,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 	}
 
 	if h.Config.AuthEnabled {
-		// The current user determines the authorized actions.
-		opts.Authorizer = user
+		if user != nil && user.AuthorizeUnrestricted() {
+			opts.Authorizer = query.OpenAuthorizer
+		} else {
+			// The current user determines the authorized actions.
+			opts.Authorizer = user
+		}
 	} else {
 		// Auth is disabled, so allow everything.
 		opts.Authorizer = query.OpenAuthorizer
@@ -608,6 +718,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 					}
 					// Values are for the same series, so append them.
 					lastSeries.Values = append(lastSeries.Values, row.Values...)
+					lastSeries.Partial = row.Partial
 					rowsMerged++
 				}
 			}
@@ -803,8 +914,16 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
+	verbose := r.URL.Query().Get("verbose")
 	atomic.AddInt64(&h.stats.PingRequests, 1)
-	h.writeHeader(w, http.StatusNoContent)
+
+	if verbose != "" && verbose != "0" && verbose != "false" {
+		h.writeHeader(w, http.StatusOK)
+		b, _ := json.Marshal(map[string]string{"version": h.Version})
+		w.Write(b)
+	} else {
+		h.writeHeader(w, http.StatusNoContent)
+	}
 }
 
 // serveStatus has been deprecated.
@@ -931,7 +1050,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 			h.Logger.Info("Prom write handler", zap.Error(err))
 		}
 
-		if err != prometheus.ErrNaNDropped {
+		// Check if the error was from something other than dropping invalid values.
+		if _, ok := err.(prometheus.DroppedValuesError); !ok {
 			h.httpError(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -1003,17 +1123,42 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
+	respond := func(resp *remote.ReadResponse) {
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/x-protobuf")
+		w.Header().Set("Content-Encoding", "snappy")
+
+		compressed = snappy.Encode(nil, data)
+		if _, err := w.Write(compressed); err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+	}
+
 	ctx := context.Background()
-	rs, err := h.Store.Read(ctx, readRequest)
+	rs, err := h.Store.ReadFilter(ctx, readRequest)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer rs.Close()
 
 	resp := &remote.ReadResponse{
 		Results: []*remote.QueryResult{{}},
 	}
+
+	if rs == nil {
+		respond(resp)
+		return
+	}
+	defer rs.Close()
+
 	for rs.Next() {
 		cur := rs.Cursor()
 		if cur == nil {
@@ -1071,22 +1216,115 @@ func (h *Handler) servePromRead(w http.ResponseWriter, r *http.Request, user met
 			)
 		}
 	}
-	data, err := proto.Marshal(resp)
+
+	respond(resp)
+}
+
+func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user meta.User) {
+	atomic.AddInt64(&h.stats.FluxQueryRequests, 1)
+	defer func(start time.Time) {
+		atomic.AddInt64(&h.stats.FluxQueryRequestDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
+
+	req, err := decodeQueryRequest(r)
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+	if val := r.FormValue("node_id"); val != "" {
+		if nodeID, err := strconv.ParseUint(val, 10, 64); err == nil {
+			ctx = storage.NewContextWithReadOptions(ctx, &storage.ReadOptions{NodeID: nodeID})
+		}
+	}
+
+	if h.Config.AuthEnabled {
+		ctx = meta.NewContextWithUser(ctx, user)
+	}
+
+	pr := req.ProxyRequest()
+
+	// Logging
+	var (
+		stats flux.Statistics
+		n     int64
+	)
+	if h.Config.FluxLogEnabled {
+		defer func() {
+			h.logFluxQuery(n, stats, pr.Compiler, err)
+		}()
+	}
+
+	q, err := h.Controller.Query(ctx, pr.Compiler)
 	if err != nil {
 		h.httpError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer func() {
+		q.Cancel()
+		q.Done()
+	}()
 
-	w.Header().Set("Content-Type", "application/x-protobuf")
-	w.Header().Set("Content-Encoding", "snappy")
+	// NOTE: We do not write out the headers here.
+	// It is possible that if the encoding step fails
+	// that we can write an error header so long as
+	// the encoder did not write anything.
+	// As such we rely on the http.ResponseWriter behavior
+	// to write an StatusOK header with the first write.
 
-	compressed = snappy.Encode(nil, data)
-	if _, err := w.Write(compressed); err != nil {
-		h.httpError(w, err.Error(), http.StatusInternalServerError)
-		return
+	switch r.Header.Get("Accept") {
+	case "text/csv":
+		fallthrough
+	default:
+		if hd, ok := pr.Dialect.(httpDialect); !ok {
+			h.httpError(w, fmt.Sprintf("unsupported dialect over HTTP %T", req.Dialect), http.StatusBadRequest)
+			return
+		} else {
+			hd.SetHeaders(w)
+		}
+		encoder := pr.Dialect.Encoder()
+		results := flux.NewResultIteratorFromQuery(q)
+		if h.Config.FluxLogEnabled {
+			defer func() {
+				stats = results.Statistics()
+			}()
+		}
+		defer results.Release()
+
+		n, err = encoder.Encode(w, results)
+		if err != nil {
+			if n == 0 {
+				// If the encoder did not write anything, we can write an error header.
+				h.httpError(w, err.Error(), http.StatusInternalServerError)
+			}
+		}
+	}
+}
+
+func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
+	var q string
+	switch c := compiler.(type) {
+	//case lang.SpecCompiler:
+	//	q = fmt.Sprint(flux.Formatted(c.Spec))
+	case lang.FluxCompiler:
+		q = c.Query
 	}
 
-	atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(len(compressed)))
+	h.Logger.Info("Executed Flux query",
+		zap.String("compiler_type", string(compiler.CompilerType())),
+		zap.Int64("response_size", n),
+		zap.String("query", q),
+		zap.Error(err),
+		zap.Duration("stat_total_duration", stats.TotalDuration),
+		zap.Duration("stat_compile_duration", stats.CompileDuration),
+		zap.Duration("stat_queue_duration", stats.QueueDuration),
+		zap.Duration("stat_plan_duration", stats.PlanDuration),
+		zap.Duration("stat_requeue_duration", stats.RequeueDuration),
+		zap.Duration("stat_execute_duration", stats.ExecuteDuration),
+		zap.Int64("stat_max_allocated", stats.MaxAllocated),
+		zap.Int("stat_concurrency", stats.Concurrency),
+	)
 }
 
 // serveExpvar serves internal metrics in /debug/vars format over HTTP.
@@ -1320,12 +1558,21 @@ type credentials struct {
 	Token    string
 }
 
+func parseToken(token string) (user, pass string, ok bool) {
+	s := strings.IndexByte(token, ':')
+	if s < 0 {
+		return
+	}
+	return token[:s], token[s+1:], true
+}
+
 // parseCredentials parses a request and returns the authentication credentials.
 // The credentials may be present as URL query params, or as a Basic
 // Authentication header.
 // As params: http://127.0.0.1/query?u=username&p=password
 // As basic auth: http://username:password@127.0.0.1
 // As Bearer token in Authorization header: Bearer <JWT_TOKEN_BLOB>
+// As Token in Authorization header: Token <username:password>
 func parseCredentials(r *http.Request) (*credentials, error) {
 	q := r.URL.Query()
 
@@ -1342,11 +1589,22 @@ func parseCredentials(r *http.Request) (*credentials, error) {
 	if s := r.Header.Get("Authorization"); s != "" {
 		// Check for Bearer token.
 		strs := strings.Split(s, " ")
-		if len(strs) == 2 && strs[0] == "Bearer" {
-			return &credentials{
-				Method: BearerAuthentication,
-				Token:  strs[1],
-			}, nil
+		if len(strs) == 2 {
+			switch strs[0] {
+			case "Bearer":
+				return &credentials{
+					Method: BearerAuthentication,
+					Token:  strs[1],
+				}, nil
+			case "Token":
+				if u, p, ok := parseToken(strs[1]); ok {
+					return &credentials{
+						Method:   UserAuthentication,
+						Username: u,
+						Password: p,
+					}, nil
+				}
+			}
 		}
 
 		// Check for basic auth.
@@ -1400,6 +1658,11 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, meta.User), h *
 					return
 				}
 			case BearerAuthentication:
+				if h.Config.SharedSecret == "" {
+					atomic.AddInt64(&h.stats.AuthenticationFailures, 1)
+					h.httpError(w, "bearer auth disabled", http.StatusUnauthorized)
+					return
+				}
 				keyLookupFn := func(token *jwt.Token) (interface{}, error) {
 					// Check for expected signing method.
 					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -1533,7 +1796,10 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		start := time.Now()
 		l := &responseLogger{w: w}
 		inner.ServeHTTP(l, r)
-		h.CLFLogger.Println(buildLogLine(l, r, start))
+
+		if h.accessLogFilters.Match(l.Status()) {
+			h.CLFLogger.Println(buildLogLine(l, r, start))
+		}
 
 		// Log server errors.
 		if l.Status()/100 == 5 {
@@ -1591,8 +1857,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 
 // Store describes the behaviour of the storage packages Store type.
 type Store interface {
-	Read(ctx context.Context, req *storage.ReadRequest) (storage.Results, error)
-	WithLogger(log *zap.Logger)
+	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
 }
 
 // Response represents a list of statement results.

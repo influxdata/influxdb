@@ -2,6 +2,7 @@ package meta_test
 
 import (
 	"fmt"
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -12,6 +13,10 @@ import (
 
 	"github.com/influxdata/influxdb/services/meta"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func Test_Data_DropDatabase(t *testing.T) {
 	data := &meta.Data{
@@ -66,6 +71,21 @@ func Test_Data_DropDatabase(t *testing.T) {
 	}
 }
 
+func Test_Data_CreateDatabase(t *testing.T) {
+	data := meta.Data{}
+
+	// Test creating a database succeedes.
+	if err := data.CreateDatabase("foo"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Test creating a database with a name that is too long fails.
+	name := randString(meta.MaxNameLen + 1)
+	if err := data.CreateDatabase(name); err != meta.ErrNameTooLong {
+		t.Fatalf("exp: %v, got: %v", meta.ErrNameTooLong, err)
+	}
+}
+
 func Test_Data_CreateRetentionPolicy(t *testing.T) {
 	data := meta.Data{}
 
@@ -110,6 +130,16 @@ func Test_Data_CreateRetentionPolicy(t *testing.T) {
 	}, false)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	// Try creating a retention policy with a name that is too long. Should fail.
+	err = data.CreateRetentionPolicy("foo", &meta.RetentionPolicyInfo{
+		Name:     randString(meta.MaxNameLen + 1),
+		ReplicaN: 1,
+		Duration: 24 * time.Hour,
+	}, true)
+	if err != meta.ErrNameTooLong {
+		t.Fatalf("exp: %v, got %v", meta.ErrNameTooLong, err)
 	}
 }
 
@@ -352,4 +382,13 @@ func TestShardGroupInfo_Contains(t *testing.T) {
 			assert.Equal(t, got, test.exp)
 		})
 	}
+}
+
+func randString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }

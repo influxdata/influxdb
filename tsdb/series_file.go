@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/binaryutil"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -35,6 +37,8 @@ type SeriesFile struct {
 	path       string
 	partitions []*SeriesPartition
 
+	maxSnapshotConcurrency int
+
 	refs sync.RWMutex // RWMutex to track references to the SeriesFile that are in use.
 
 	Logger *zap.Logger
@@ -42,10 +46,27 @@ type SeriesFile struct {
 
 // NewSeriesFile returns a new instance of SeriesFile.
 func NewSeriesFile(path string) *SeriesFile {
-	return &SeriesFile{
-		path:   path,
-		Logger: zap.NewNop(),
+	maxSnapshotConcurrency := runtime.GOMAXPROCS(0)
+	if maxSnapshotConcurrency < 1 {
+		maxSnapshotConcurrency = 1
 	}
+
+	return &SeriesFile{
+		path:                   path,
+		maxSnapshotConcurrency: maxSnapshotConcurrency,
+		Logger:                 zap.NewNop(),
+	}
+}
+
+func (f *SeriesFile) WithMaxCompactionConcurrency(maxCompactionConcurrency int) {
+	if maxCompactionConcurrency < 1 {
+		maxCompactionConcurrency = runtime.GOMAXPROCS(0)
+		if maxCompactionConcurrency < 1 {
+			maxCompactionConcurrency = 1
+		}
+	}
+
+	f.maxSnapshotConcurrency = maxCompactionConcurrency
 }
 
 // Open memory maps the data file at the file's path.
@@ -59,13 +80,20 @@ func (f *SeriesFile) Open() error {
 		return err
 	}
 
+	// Limit concurrent series file compactions
+	compactionLimiter := limiter.NewFixed(f.maxSnapshotConcurrency)
+
 	// Open partitions.
 	f.partitions = make([]*SeriesPartition, 0, SeriesFilePartitionN)
 	for i := 0; i < SeriesFilePartitionN; i++ {
-		p := NewSeriesPartition(i, f.SeriesPartitionPath(i))
+		p := NewSeriesPartition(i, f.SeriesPartitionPath(i), compactionLimiter)
 		p.Logger = f.Logger.With(zap.Int("partition", p.ID()))
 		if err := p.Open(); err != nil {
-			f.Close()
+			f.Logger.Error("Unable to open series file",
+				zap.String("path", f.path),
+				zap.Int("partition", p.ID()),
+				zap.Error(err))
+			f.close()
 			return err
 		}
 		f.partitions = append(f.partitions, p)
@@ -74,12 +102,7 @@ func (f *SeriesFile) Open() error {
 	return nil
 }
 
-// Close unmaps the data file.
-func (f *SeriesFile) Close() (err error) {
-	// Wait for all references to be released and prevent new ones from being acquired.
-	f.refs.Lock()
-	defer f.refs.Unlock()
-
+func (f *SeriesFile) close() (err error) {
 	for _, p := range f.partitions {
 		if e := p.Close(); e != nil && err == nil {
 			err = e
@@ -87,6 +110,13 @@ func (f *SeriesFile) Close() (err error) {
 	}
 
 	return err
+}
+
+// Close unmaps the data file.
+func (f *SeriesFile) Close() (err error) {
+	f.refs.Lock()
+	defer f.refs.Unlock()
+	return f.close()
 }
 
 // Path returns the path to the file.
@@ -355,18 +385,41 @@ func ReadSeriesKeyTag(data []byte) (key, value, remainder []byte) {
 
 // ParseSeriesKey extracts the name & tags from a series key.
 func ParseSeriesKey(data []byte) (name []byte, tags models.Tags) {
+	return parseSeriesKey(data, nil)
+}
+
+// ParseSeriesKeyInto extracts the name and tags for data, parsing the tags into
+// dstTags, which is then returened.
+//
+// The returned dstTags may have a different length and capacity.
+func ParseSeriesKeyInto(data []byte, dstTags models.Tags) ([]byte, models.Tags) {
+	return parseSeriesKey(data, dstTags)
+}
+
+// parseSeriesKey extracts the name and tags from data, attempting to re-use the
+// provided tags value rather than allocating. The returned tags may have a
+// different length and capacity to those provided.
+func parseSeriesKey(data []byte, dst models.Tags) ([]byte, models.Tags) {
+	var name []byte
 	_, data = ReadSeriesKeyLen(data)
 	name, data = ReadSeriesKeyMeasurement(data)
-
 	tagN, data := ReadSeriesKeyTagN(data)
-	tags = make(models.Tags, tagN)
+
+	dst = dst[:cap(dst)] // Grow dst to use full capacity
+	if got, want := len(dst), tagN; got < want {
+		dst = append(dst, make(models.Tags, want-got)...)
+	} else if got > want {
+		dst = dst[:want]
+	}
+	dst = dst[:tagN]
+
 	for i := 0; i < tagN; i++ {
 		var key, value []byte
 		key, value, data = ReadSeriesKeyTag(data)
-		tags[i] = models.Tag{Key: key, Value: value}
+		dst[i].Key, dst[i].Value = key, value
 	}
 
-	return name, tags
+	return name, dst
 }
 
 func CompareSeriesKeys(a, b []byte) int {

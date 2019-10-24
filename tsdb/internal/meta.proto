@@ -19,12 +19,12 @@ message Tag {
 }
 
 message MeasurementFields {
-  string Name = 1;
+  bytes Name = 1;
   repeated Field Fields = 2;
 }
 
 message Field {
-  string Name = 1;
+  bytes Name = 1;
   int32 Type = 2;
 }
 

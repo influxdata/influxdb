@@ -51,6 +51,24 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 	return u.AuthorizeQuery(database, query)
 }
 
+func (a *QueryAuthorizer) AuthorizeDatabase(u User, priv influxql.Privilege, database string) error {
+	if u == nil {
+		return &ErrAuthorize{
+			Database: database,
+			Message:  "no user provided",
+		}
+	}
+
+	if !u.AuthorizeDatabase(priv, database) {
+		return &ErrAuthorize{
+			Database: database,
+			Message:  fmt.Sprintf("user %q, requires %s for database %q", u.ID(), priv.String(), database),
+		}
+	}
+
+	return nil
+}
+
 func (u *UserInfo) AuthorizeQuery(database string, query *influxql.Query) error {
 
 	// Admin privilege allows the user to execute all statements.

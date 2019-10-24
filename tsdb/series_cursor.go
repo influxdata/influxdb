@@ -50,8 +50,8 @@ func (r *SeriesCursorRow) Compare(other *SeriesCursorRow) int {
 	return models.CompareTags(r.Tags, other.Tags)
 }
 
-// newSeriesCursor returns a new instance of seriesCursor.
-func newSeriesCursor(req SeriesCursorRequest, indexSet IndexSet, cond influxql.Expr) (_ *seriesCursor, err error) {
+// newSeriesCursor returns a new instance of SeriesCursor.
+func newSeriesCursor(req SeriesCursorRequest, indexSet IndexSet, cond influxql.Expr) (_ SeriesCursor, err error) {
 	// Only equality operators are allowed.
 	influxql.WalkFunc(cond, func(node influxql.Node) {
 		switch n := node.(type) {

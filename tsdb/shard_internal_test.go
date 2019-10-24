@@ -231,7 +231,7 @@ func NewTempShard(index string) *TempShard {
 	opt := NewEngineOptions()
 	opt.IndexVersion = index
 	opt.Config.WALDir = filepath.Join(dir, "wal")
-	if index == "inmem" {
+	if index == InmemIndexName {
 		opt.InmemIndex, _ = NewInmemIndex(path.Base(dir), sfile)
 	}
 

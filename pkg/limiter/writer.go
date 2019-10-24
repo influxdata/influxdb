@@ -17,6 +17,7 @@ type Writer struct {
 
 type Rate interface {
 	WaitN(ctx context.Context, n int) error
+	Burst() int
 }
 
 func NewRate(bytesPerSec, burstLimit int) Rate {
@@ -47,21 +48,31 @@ func NewWriterWithRate(w io.WriteCloser, limiter Rate) *Writer {
 	}
 }
 
-// Write writes bytes from p.
+// Write writes bytes from b.
 func (s *Writer) Write(b []byte) (int, error) {
 	if s.limiter == nil {
 		return s.w.Write(b)
 	}
 
-	n, err := s.w.Write(b)
-	if err != nil {
-		return n, err
+	var n int
+	for n < len(b) {
+		wantToWriteN := len(b[n:])
+		if wantToWriteN > s.limiter.Burst() {
+			wantToWriteN = s.limiter.Burst()
+		}
+
+		wroteN, err := s.w.Write(b[n : n+wantToWriteN])
+		if err != nil {
+			return n, err
+		}
+		n += wroteN
+
+		if err := s.limiter.WaitN(s.ctx, wroteN); err != nil {
+			return n, err
+		}
 	}
 
-	if err := s.limiter.WaitN(s.ctx, n); err != nil {
-		return n, err
-	}
-	return n, err
+	return n, nil
 }
 
 func (s *Writer) Sync() error {

@@ -45,6 +45,7 @@ func main() {
 	fs.StringVar(&c.ClientConfig.Username, "username", "", "Username to connect to the server.")
 	fs.StringVar(&c.ClientConfig.Password, "password", "", `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
+	fs.Var(&c.Type, "type", "query language for executing commands or invoking the REPL: influxql, flux")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.BoolVar(&c.ClientConfig.UnsafeSsl, "unsafeSsl", false, "Set this when connecting to the cluster using https and not use SSL verification.")
 	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
@@ -82,6 +83,8 @@ func main() {
         Set this when connecting to the cluster using https and not use SSL verification.
   -execute 'command'
        Execute command and quit.
+  -type 'influxql|flux'
+       Type specifies the query language for executing commands or when invoking the REPL.
   -format 'json|csv|column'
        Format specifies the format of the server responses:  json, csv, or column.
   -precision 'rfc3339|h|m|s|ms|u|ns'

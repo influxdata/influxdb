@@ -160,6 +160,7 @@ func (c *MetaClient) Users() []meta.UserInfo {
 func DefaultMetaClientDatabaseFn(name string) *meta.DatabaseInfo {
 	return &meta.DatabaseInfo{
 		Name: DefaultDatabase,
+
 		DefaultRetentionPolicy: DefaultRetentionPolicy,
 	}
 }

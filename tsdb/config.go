@@ -14,7 +14,7 @@ const (
 	DefaultEngine = "tsm1"
 
 	// DefaultIndex is the default index for new shards
-	DefaultIndex = "inmem"
+	DefaultIndex = InmemIndexName
 
 	// tsdb/engine/wal configuration options
 
@@ -37,6 +37,17 @@ const (
 	// will compact all TSM files in a shard if it hasn't received a write or delete
 	DefaultCompactFullWriteColdDuration = time.Duration(4 * time.Hour)
 
+	// DefaultCompactThroughput is the rate limit in bytes per second that we
+	// will allow TSM compactions to write to disk. Not that short bursts are allowed
+	// to happen at a possibly larger value, set by DefaultCompactThroughputBurst.
+	// A value of 0 here will disable compaction rate limiting
+	DefaultCompactThroughput = 48 * 1024 * 1024
+
+	// DefaultCompactThroughputBurst is the rate limit in bytes per second that we
+	// will allow TSM compactions to write to disk. If this is not set, the burst value
+	// will be set to equal the normal throughput
+	DefaultCompactThroughputBurst = 48 * 1024 * 1024
+
 	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
@@ -55,6 +66,14 @@ const (
 	// DefaultMaxIndexLogFileSize is the default threshold, in bytes, when an index
 	// write-ahead log file will compact into an index file.
 	DefaultMaxIndexLogFileSize = 1 * 1024 * 1024 // 1MB
+
+	// DefaultSeriesIDSetCacheSize is the default number of series ID sets to cache in the TSI index.
+	DefaultSeriesIDSetCacheSize = 100
+
+	// DefaultSeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent series
+	// partition snapshot compactions that can run at one time.
+	// A value of 0 results in runtime.GOMAXPROCS(0).
+	DefaultSeriesFileMaxConcurrentSnapshotCompactions = 0
 )
 
 // Config holds the configuration for the tsbd package.
@@ -71,6 +90,9 @@ type Config struct {
 	// disks or when WAL write contention is seen.  A value of 0 fsyncs every write to the WAL.
 	WALFsyncDelay toml.Duration `toml:"wal-fsync-delay"`
 
+	// Enables unicode validation on series keys on write.
+	ValidateKeys bool `toml:"validate-keys"`
+
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
 
@@ -79,6 +101,8 @@ type Config struct {
 	CacheSnapshotMemorySize        toml.Size     `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
+	CompactThroughput              toml.Size     `toml:"compact-throughput"`
+	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
 
 	// Limits
 
@@ -104,7 +128,25 @@ type Config struct {
 	// be compacted less frequently, store more series in-memory, and provide higher write throughput.
 	MaxIndexLogFileSize toml.Size `toml:"max-index-log-file-size"`
 
+	// SeriesIDSetCacheSize is the number items that can be cached within the TSI index. TSI caching can help
+	// with query performance when the same tag key/value predicates are commonly used on queries.
+	// Setting series-id-set-cache-size to 0 disables the cache.
+	SeriesIDSetCacheSize int `toml:"series-id-set-cache-size"`
+
+	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
+	// that can be running at one time across all series partitions in a database. Snapshots scheduled
+	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
+	// compactions are affected by this limit. A value of 0 limits snapshot compactions to the lesser of
+	// 8 (series file partition quantity) and runtime.GOMAXPROCS(0).
+	SeriesFileMaxConcurrentSnapshotCompactions int `toml:"series-file-max-concurrent-snapshot-compactions"`
+
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
+
+	// TSMWillNeed controls whether we hint to the kernel that we intend to
+	// page in mmap'd sections of TSM files. This setting defaults to off, as it has
+	// been found to be problematic in some cases. It may help users who have
+	// slow disks.
+	TSMWillNeed bool `toml:"tsm-use-madv-willneed"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -119,14 +161,20 @@ func NewConfig() Config {
 		CacheSnapshotMemorySize:        toml.Size(DefaultCacheSnapshotMemorySize),
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
+		CompactThroughput:              toml.Size(DefaultCompactThroughput),
+		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
 
 		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
 		MaxValuesPerTag:          DefaultMaxValuesPerTag,
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
-		MaxIndexLogFileSize: toml.Size(DefaultMaxIndexLogFileSize),
+		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
+		SeriesIDSetCacheSize: DefaultSeriesIDSetCacheSize,
+
+		SeriesFileMaxConcurrentSnapshotCompactions: DefaultSeriesFileMaxConcurrentSnapshotCompactions,
 
 		TraceLoggingEnabled: false,
+		TSMWillNeed:         false,
 	}
 }
 
@@ -139,7 +187,15 @@ func (c *Config) Validate() error {
 	}
 
 	if c.MaxConcurrentCompactions < 0 {
-		return errors.New("max-concurrent-compactions must be greater than 0")
+		return errors.New("max-concurrent-compactions must be non-negative")
+	}
+
+	if c.SeriesIDSetCacheSize < 0 {
+		return errors.New("series-id-set-cache-size must be non-negative")
+	}
+
+	if c.SeriesFileMaxConcurrentSnapshotCompactions < 0 {
+		return errors.New("series-file-max-concurrent-compactions must be non-negative")
 	}
 
 	valid := false
@@ -170,15 +226,18 @@ func (c *Config) Validate() error {
 // Diagnostics returns a diagnostics representation of a subset of the Config.
 func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
-		"dir":                                c.Dir,
-		"wal-dir":                            c.WALDir,
-		"wal-fsync-delay":                    c.WALFsyncDelay,
-		"cache-max-memory-size":              c.CacheMaxMemorySize,
-		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
-		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
-		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
-		"max-series-per-database":            c.MaxSeriesPerDatabase,
-		"max-values-per-tag":                 c.MaxValuesPerTag,
-		"max-concurrent-compactions":         c.MaxConcurrentCompactions,
+		"dir":                                    c.Dir,
+		"wal-dir":                                c.WALDir,
+		"wal-fsync-delay":                        c.WALFsyncDelay,
+		"cache-max-memory-size":                  c.CacheMaxMemorySize,
+		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
+		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
+		"compact-full-write-cold-duration":       c.CompactFullWriteColdDuration,
+		"max-series-per-database":                c.MaxSeriesPerDatabase,
+		"max-values-per-tag":                     c.MaxValuesPerTag,
+		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
+		"max-index-log-file-size":                c.MaxIndexLogFileSize,
+		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
+		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
 	}), nil
 }

@@ -194,6 +194,7 @@ type {{.name}}Iterator struct {
 	statsLock sync.Mutex
 	stats     query.IteratorStats
 	statsBuf  query.IteratorStats
+	valuer    influxql.ValuerEval
 }
 
 func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOptions, cur {{.name}}Cursor, aux []cursorAt, conds []cursorAt, condNames []string) *{{.name}}Iterator {
@@ -220,6 +221,13 @@ func new{{.Name}}Iterator(name string, tags query.Tags, opt query.IteratorOption
 	}
 	itr.conds.names = condNames
 	itr.conds.curs = conds
+
+	itr.valuer = influxql.ValuerEval{
+		Valuer: influxql.MultiValuer(
+			query.MathValuer{},
+			influxql.MapValuer(itr.m),
+		),
+	}
 
 	return itr
 }
@@ -268,13 +276,7 @@ func (itr *{{.name}}Iterator) Next() (*query.{{.Name}}Point, error) {
 		}
 
 		// Evaluate condition, if one exists. Retry if it fails.
-		valuer := influxql.ValuerEval{
-			Valuer: influxql.MultiValuer(
-				query.MathValuer{},
-				influxql.MapValuer(itr.m),
-			),
-		}
-		if itr.opt.Condition != nil && !valuer.EvalBool(itr.opt.Condition) {
+		if itr.opt.Condition != nil && !itr.valuer.EvalBool(itr.opt.Condition) {
 			continue
 		}
 

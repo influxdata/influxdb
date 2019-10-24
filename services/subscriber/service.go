@@ -348,7 +348,7 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 		if s.conf.InsecureSkipVerify {
 			s.Logger.Warn("'insecure-skip-verify' is true. This will skip all certificate verifications.")
 		}
-		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts)
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts, s.conf.TLS)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}

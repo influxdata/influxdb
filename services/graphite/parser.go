@@ -20,7 +20,7 @@ var (
 	MaxDate = time.Date(2038, 1, 19, 0, 0, 0, 0, time.UTC)
 )
 
-var defaultTemplate *template
+var defaultTemplate *Template
 
 func init() {
 	var err error
@@ -182,8 +182,8 @@ func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string, 
 	return name, tags, field, err
 }
 
-// template represents a pattern and tags to map a graphite metric string to a influxdb Point.
-type template struct {
+// Template represents a pattern and tags to map a graphite metric string to a influxdb Point.
+type Template struct {
 	tags              []string
 	defaultTags       models.Tags
 	greedyMeasurement bool
@@ -192,10 +192,10 @@ type template struct {
 
 // NewTemplate returns a new template ensuring it has a measurement
 // specified.
-func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*template, error) {
+func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*Template, error) {
 	tags := strings.Split(pattern, ".")
 	hasMeasurement := false
-	template := &template{tags: tags, defaultTags: defaultTags, separator: separator}
+	template := &Template{tags: tags, defaultTags: defaultTags, separator: separator}
 
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, "measurement") {
@@ -215,7 +215,7 @@ func NewTemplate(pattern string, defaultTags models.Tags, separator string) (*te
 
 // Apply extracts the template fields from the given line and returns the measurement
 // name and tags.
-func (t *template) Apply(line string) (string, map[string]string, string, error) {
+func (t *Template) Apply(line string) (string, map[string]string, string, error) {
 	fields := strings.Split(line, ".")
 	var (
 		measurement            []string
@@ -266,19 +266,19 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 	}
 
 	// Convert to map of strings.
-	out_tags := make(map[string]string)
+	outTags := make(map[string]string)
 	for k, values := range tags {
-		out_tags[k] = strings.Join(values, t.separator)
+		outTags[k] = strings.Join(values, t.separator)
 	}
 
-	return strings.Join(measurement, t.separator), out_tags, field, nil
+	return strings.Join(measurement, t.separator), outTags, field, nil
 }
 
 // matcher determines which template should be applied to a given metric
 // based on a filter tree.
 type matcher struct {
 	root            *node
-	defaultTemplate *template
+	defaultTemplate *Template
 }
 
 func newMatcher() *matcher {
@@ -288,7 +288,7 @@ func newMatcher() *matcher {
 }
 
 // Add inserts the template in the filter tree based the given filter.
-func (m *matcher) Add(filter string, template *template) {
+func (m *matcher) Add(filter string, template *Template) {
 	if filter == "" {
 		m.AddDefaultTemplate(template)
 		return
@@ -296,12 +296,12 @@ func (m *matcher) Add(filter string, template *template) {
 	m.root.Insert(filter, template)
 }
 
-func (m *matcher) AddDefaultTemplate(template *template) {
+func (m *matcher) AddDefaultTemplate(template *Template) {
 	m.defaultTemplate = template
 }
 
 // Match returns the template that matches the given graphite line.
-func (m *matcher) Match(line string) *template {
+func (m *matcher) Match(line string) *Template {
 	tmpl := m.root.Search(line)
 	if tmpl != nil {
 		return tmpl
@@ -315,10 +315,10 @@ func (m *matcher) Match(line string) *template {
 type node struct {
 	value    string
 	children nodes
-	template *template
+	template *Template
 }
 
-func (n *node) insert(values []string, template *template) {
+func (n *node) insert(values []string, template *Template) {
 	// Add the end, set the template
 	if len(values) == 0 {
 		n.template = template
@@ -350,11 +350,11 @@ func (n *node) insert(values []string, template *template) {
 
 // Insert inserts the given string template into the tree.  The filter string is separated
 // on "." and each part is used as the path in the tree.
-func (n *node) Insert(filter string, template *template) {
+func (n *node) Insert(filter string, template *Template) {
 	n.insert(strings.Split(filter, "."), template)
 }
 
-func (n *node) search(lineParts []string) *template {
+func (n *node) search(lineParts []string) *Template {
 	// Nothing to search
 	if len(lineParts) == 0 || len(n.children) == 0 {
 		return n.template
@@ -384,7 +384,7 @@ func (n *node) search(lineParts []string) *template {
 	return n.template
 }
 
-func (n *node) Search(line string) *template {
+func (n *node) Search(line string) *Template {
 	return n.search(strings.Split(line, "."))
 }
 

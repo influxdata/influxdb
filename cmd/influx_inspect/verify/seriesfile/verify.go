@@ -227,6 +227,7 @@ entries:
 		flag, id, key, sz := tsdb.ReadSeriesEntry(buf.data)
 
 		// Check the flag is valid and for id monotonicity.
+		hasKey := true
 		switch flag {
 		case tsdb.SeriesEntryInsertFlag:
 			if !firstID && prevID > id {
@@ -251,6 +252,7 @@ entries:
 			}
 
 		case tsdb.SeriesEntryTombstoneFlag:
+			hasKey = false
 			if ids != nil {
 				data := ids[id]
 				data.Deleted = true
@@ -275,21 +277,23 @@ entries:
 
 		// Ensure the key parses. This may panic, but our defer handler should
 		// make the error message more usable by providing the key.
-		parsed := false
-		func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					v.Logger.Error("Panic parsing key",
-						zap.String("key", fmt.Sprintf("%x", key)),
-						zap.Int64("offset", buf.offset),
-						zap.String("recovered", fmt.Sprint(rec)))
-				}
+		if hasKey {
+			parsed := false
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						v.Logger.Error("Panic parsing key",
+							zap.String("key", fmt.Sprintf("%x", key)),
+							zap.Int64("offset", buf.offset),
+							zap.String("recovered", fmt.Sprint(rec)))
+					}
+				}()
+				tsdb.ParseSeriesKey(key)
+				parsed = true
 			}()
-			tsdb.ParseSeriesKey(key)
-			parsed = true
-		}()
-		if !parsed {
-			return false, nil
+			if !parsed {
+				return false, nil
+			}
 		}
 
 		// Advance past the entry.
@@ -349,27 +353,33 @@ func (v Verify) VerifyIndex(indexPath string, segments []*tsdb.SeriesSegment,
 
 		IDData := ids[id]
 
-		expectedOffset, expectedID := IDData.Offset, id
-		if IDData.Deleted {
-			expectedOffset, expectedID = 0, 0
-		}
-
-		// check both that the offset is right and that we get the right
-		// id for the key
-
-		if gotOffset := index.FindOffsetByID(id); gotOffset != expectedOffset {
+		if gotDeleted := index.IsDeleted(id); gotDeleted != IDData.Deleted {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
-				zap.Int64("got_offset", gotOffset),
-				zap.Int64("expected_offset", expectedOffset))
+				zap.Bool("got_deleted", gotDeleted),
+				zap.Bool("expected_deleted", IDData.Deleted))
 			return false, nil
 		}
 
-		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != expectedID {
+		// do not perform any other checks if the id is deleted.
+		if IDData.Deleted {
+			continue
+		}
+
+		// otherwise, check both that the offset is right and that we get the right id for the key
+		if gotOffset := index.FindOffsetByID(id); gotOffset != IDData.Offset {
+			v.Logger.Error("Index inconsistency",
+				zap.Uint64("id", id),
+				zap.Int64("got_offset", gotOffset),
+				zap.Int64("expected_offset", IDData.Offset))
+			return false, nil
+		}
+
+		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != id {
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id", id),
 				zap.Uint64("got_id", gotID),
-				zap.Uint64("expected_id", expectedID))
+				zap.Uint64("expected_id", id))
 			return false, nil
 		}
 	}

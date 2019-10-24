@@ -6345,13 +6345,13 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
 		},
 		&Query{
-			name:    "non-existant tag and field",
+			name:    "non-existent tag and field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select foo from where_events where tenant != 'paul' AND foo = 'bar'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:05Z","bar"]]}]}]}`,
 		},
 		&Query{
-			name:    "non-existant tag or field",
+			name:    "non-existent tag or field",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select foo from where_events where tenant != 'paul' OR foo = 'bar'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"where_events","columns":["time","foo"],"values":[["2009-11-10T23:00:02Z","bar"],["2009-11-10T23:00:03Z","baz"],["2009-11-10T23:00:04Z","bat"],["2009-11-10T23:00:05Z","bar"],["2009-11-10T23:00:06Z","bap"]]}]}]}`,
@@ -6861,17 +6861,20 @@ func TestServer_Query_TimeZone(t *testing.T) {
 	}
 }
 
-func TestServer_Query_Chunk(t *testing.T) {
+func TestServer_Query_MaxRowLimit(t *testing.T) {
 	t.Parallel()
-	s := OpenServer(NewConfig())
+	config := NewConfig()
+	config.HTTPD.MaxRowLimit = 10
+
+	s := OpenServer(config)
 	defer s.Close()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
-	writes := make([]string, 10001) // 10,000 is the default chunking size, even when no chunking requested.
-	expectedValues := make([]string, len(writes))
+	writes := make([]string, 11) // write one extra value beyond the max row limit
+	expectedValues := make([]string, 10)
 	for i := 0; i < len(writes); i++ {
 		writes[i] = fmt.Sprintf(`cpu value=%d %d`, i, time.Unix(0, int64(i)).UnixNano())
 		if i < len(expectedValues) {
@@ -7010,7 +7013,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
-			name:    "Drop non-existant measurement",
+			name:    "Drop non-existent measurement",
 			command: `DROP MEASUREMENT doesntexist`,
 			exp:     `{"results":[{"statement_id":0}]}`,
 			params:  url.Values{"db": []string{"db0"}},
@@ -7966,6 +7969,8 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 		fmt.Sprintf(`gpu,host=server02,region=useast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 		fmt.Sprintf(`gpu,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 		fmt.Sprintf(`disk,host=server03,region=caeast value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`_,__name__=metric1 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
+		fmt.Sprintf(`_,__name__=metric2 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:00Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -8104,6 +8109,12 @@ func TestServer_Query_ShowTagValues(t *testing.T) {
 			name:    `show tag values with key and measurement matches regular expression where time`,
 			command: `SHOW TAG VALUES FROM /[cg]pu/ WITH KEY = host WHERE time > 0`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["host","server02"]]},{"name":"gpu","columns":["key","value"],"values":[["host","server02"],["host","server03"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag values with key where label starts with underscore`,
+			command: `SHOW TAG VALUES FROM "_" WITH KEY = "__name__" WHERE "__name__" = 'metric1'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"_","columns":["key","value"],"values":[["__name__","metric1"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{

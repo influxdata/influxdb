@@ -1,11 +1,41 @@
+v1.8.0 [unreleased]
+-------------------
+
+### Features
+
+-	[#14315](https://github.com/influxdata/influxdb/pull/14315): Update to go 1.12.7
+-	[#15222](https://github.com/influxdata/influxdb/pull/15222): Add options to authenticate pprof and ping endpoints.
+
+### Bugfixes
+
+-	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
+-	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
+
 v1.7.0 [unreleased]
 -------------------
+
+### Breaking changes
+
+-	The `ifql` section in the configuration has been changed to `flux` and it is enabled by default on port `:8082`.
 
 ### Features
 
 -	[#9964](https://github.com/influxdata/influxdb/pull/9964): Enable the storage service by default.
 -	[#9996](https://github.com/influxdata/influxdb/pull/9996): Ensure read service regexes get optimised.
--	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation
+-	[#10408](https://github.com/influxdata/influxdb/pull/10408): Add Flux support to the influx CLI command.
+-	[#10257](https://github.com/influxdata/influxdb/issues/10257): Add chunked query into the Go client v2.
+-	[#9509](https://github.com/influxdata/influxdb/pull/9509): Add an access log filter for the access log.
+
+### Bugfixes
+
+-	[#10005](https://github.com/influxdata/influxdb/pull/10005): Missing hardwareAddr in uuid v1 generation.
+-	[#10246](https://github.com/influxdata/influxdb/pull/10246): Fix the inherited interval for derivative and others.
+-	[#10333](https://github.com/influxdata/influxdb/pull/10333): Fix subquery functionality when a function references a tag from the subquery.
+-	[#10333](https://github.com/influxdata/influxdb/pull/10333): Strip tags from a subquery when the outer query does not group by that tag.
+
+### Bugfixes
+
+-	[#10206](https://github.com/influxdata/influxdb/pull/10206): Fix legacy restore bug #10072
 
 v1.6.0 [2018-07-05]
 -------------------
@@ -36,6 +66,17 @@ v1.6.0 [2018-07-05]
 -	[#9959](https://github.com/influxdata/influxdb/pull/9959): Improve the number of regex patterns that are optimized to static OR conditions.
 -	[#10044](https://github.com/influxdata/influxdb/pull/10044): Implement bitset iterator.
 -	[#10102](https://github.com/influxdata/influxdb/pull/10102): Remove max concurrent compaction limit.
+-	[#10122](https://github.com/influxdata/influxdb/pull/10122): Add roaring bitmaps to TSI index files.
+-	[#10152](https://github.com/influxdata/influxdb/pull/10152): Add option to hint MADV_WILLNEED to kernel.
+-	[#9939](https://github.com/influxdata/influxdb/pull/9939): Add configuration parameter to expose rate limit for TSM compaction.
+-	[#10190](https://github.com/influxdata/influxdb/pull/10190): Reduce allocations in TSI TagSets implementation.
+-	[#10215](https://github.com/influxdata/influxdb/pull/10215): Switch digests to use snappy compression.
+-	[#10321](https://github.com/influxdata/influxdb/pull/10321): Changes /ping route to return status code 200 instead of 204 when verbose is set.
+-	[#10300](https://github.com/influxdata/influxdb/pull/10300): Improve Compaction Performance.
+-	[#10130](https://github.com/influxdata/influxdb/pull/10130): client/v2: support custom dialer, not just socks proxy.
+-	[#10586](https://github.com/influxdata/influxdb/pull/10586): Update flux to 0.11.0.
+-	[#11525](https://github.com/influxdata/influxdb/pull/11525): Allow TSI bitset cache to be configured.
+-	[#10414](https://github.com/influxdata/influxdb/pull/10414): reuse ValuerEval objects.
 
 ### Bugfixes
 
@@ -66,6 +107,39 @@ v1.6.0 [2018-07-05]
 -	[#9977](https://github.com/influxdata/influxdb/pull/9977): Allow value filtering on SHOW TAG VALUES.
 -	[#10051](https://github.com/influxdata/influxdb/pull/10051): Update example config with UDP precision option.
 -	[#10094](https://github.com/influxdata/influxdb/pull/10094): Fix a panic when matching on a specific type of regular expression.
+-	[#10175](https://github.com/influxdata/influxdb/pull/10175): tsdb: Copy return value of IndexSet.MeasurementNamesByExpr.
+-	[#10181](https://github.com/influxdata/influxdb/pull/10181): Fix line protocol parsing panic.
+-	[#10212](https://github.com/influxdata/influxdb/pull/10212): Ensure orhpaned series cleaned up with shard drop.
+-	[#10262](https://github.com/influxdata/influxdb/pull/10262): Fix the derivative and others time ranges for aggregate data.
+-	[#10326](https://github.com/influxdata/influxdb/pull/10326): Fix append of possible nil iterator.
+-	[#10339](https://github.com/influxdata/influxdb/pull/10339): Fix series file tombstoning.
+-	[#10327](https://github.com/influxdata/influxdb/pull/10327): Cleanup failed TSM snapshots.
+-	[#10299](https://github.com/influxdata/influxdb/pull/10299): Fix TSM1 panic on reader error.
+-	[#9884](https://github.com/influxdata/influxdb/pull/9884): Add -series-file flag to dumptsi command help.
+-	[#10423](https://github.com/influxdata/influxdb/pull/10423): Fix panic in IndexSet.
+-	[#10494](https://github.com/influxdata/influxdb/pull/10494): Fix ApplyEnvOverrides when a type that implements Unmarshaler is in a slice.
+-	[#10549](https://github.com/influxdata/influxdb/pull/10549): Pass the query authorizer to subqueries.
+-	[#10664](https://github.com/influxdata/influxdb/pull/10664): Marked functions that always return floats as always returning floats.
+-	[#10276](https://github.com/influxdata/influxdb/pull/10276): Fix bug with incorrect ABS results for negative integer values.
+-	[#11742](https://github.com/influxdata/influxdb/pull/11742): Use Systemd for Amazon Linux 2.
+-	[#11791](https://github.com/influxdata/influxdb/pull/11791): Revert "Limit force-full and cold compaction size.".
+-	[#11829](https://github.com/influxdata/influxdb/pull/11829): Convert TagValueSeriesIDCache to use string fields.
+-	[#11832](https://github.com/influxdata/influxdb/pull/11832): Ensure that cached series id sets are Go heap backed.
+-	[#11750](https://github.com/influxdata/influxdb/pull/11750): Update tagKeyValue mutex to write lock.
+-	[#10541](https://github.com/influxdata/influxdb/pull/10541): Fix open/close race in SeriesFile.
+-	[#13053](https://github.com/influxdata/influxdb/pull/13053): Add nil check for tagKeyValueEntry.setIDs().
+-	[#13442](https://github.com/influxdata/influxdb/pull/13442): Fix the sort order for aggregates so that they are sorted by tag and then time.
+-	[#13501](https://github.com/influxdata/influxdb/pull/13501): fill resets the previous value when a new series or window is encountered.
+-	[#13540](https://github.com/influxdata/influxdb/pull/13540): Use the timezone when evaluating time literals in subqueries.
+-	[#13567](https://github.com/influxdata/influxdb/pull/13567): Fix csv decoder bug where empty tag values cause an array index panic.
+-	[#14232](https://github.com/influxdata/influxdb/pull/14232): Prevent data from re-appearing on startup in some cases.
+-	[#14270](https://github.com/influxdata/influxdb/pull/14270): Remove stray fmt.Println in tsm1.StringArrayEncodeAll.
+-	[#14266](https://github.com/influxdata/influxdb/pull/14266): fix(storage): Fix issue where fields re-appear.
+-	[#14357](https://github.com/influxdata/influxdb/pull/14357): Subquery ordering with aggregates in descending mode was wrong.
+-	[#14421](https://github.com/influxdata/influxdb/pull/14421): Fix the http handler to not mislabel series as partial.
+-	[#14444](https://github.com/influxdata/influxdb/pull/14444): fix(query): make show series exact cardinality count only distinct series.
+-	[#14656](https://github.com/influxdata/influxdb/pull/14656): fix(query/compile.go): time range was exceeding min/max bounds under ….
+-	[#12568](https://github.com/influxdata/influxdb/pull/12568): Expose debug pprof port 6060.
 
 v1.5.4 [2018-06-21]
 -------------------

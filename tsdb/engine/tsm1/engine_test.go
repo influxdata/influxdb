@@ -66,6 +66,112 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	}
 }
 
+// See https://github.com/influxdata/influxdb/issues/14229
+func TestEngine_DeleteSeriesAfterCacheSnapshot(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			e := MustOpenEngine(index)
+			defer e.Close()
+
+			if err := e.WritePointsString(
+				`cpu,host=A value=1.1 1000000000`,
+				`cpu,host=B value=1.2 2000000000`,
+			); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+
+			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=B"), []byte("cpu"), models.NewTags(map[string]string{"host": "B"}))
+
+			// Verify series exist.
+			n, err := seriesExist(e, "cpu", []string{"host"})
+			if err != nil {
+				t.Fatal(err)
+			} else if got, exp := n, 2; got != exp {
+				t.Fatalf("got %d points, expected %d", got, exp)
+			}
+
+			// Simulate restart of server
+			if err := e.Reopen(); err != nil {
+				t.Fatal(err)
+			}
+
+			// Snapshot the cache
+			if err := e.WriteSnapshot(); err != nil {
+				t.Fatalf("failed to snapshot: %s", err.Error())
+			}
+
+			// Verify series exist.
+			n, err = seriesExist(e, "cpu", []string{"host"})
+			if err != nil {
+				t.Fatal(err)
+			} else if got, exp := n, 2; got != exp {
+				t.Fatalf("got %d points, expected %d", got, exp)
+			}
+
+			// Delete the series
+			itr := &seriesIterator{keys: [][]byte{
+				[]byte("cpu,host=A"),
+				[]byte("cpu,host=B"),
+			},
+			}
+			if err := e.DeleteSeriesRange(itr, math.MinInt64, math.MaxInt64); err != nil {
+				t.Fatalf("failed to delete series: %s", err.Error())
+			}
+
+			// Verify the series are no longer present.
+			n, err = seriesExist(e, "cpu", []string{"host"})
+			if err != nil {
+				t.Fatal(err)
+			} else if got, exp := n, 0; got != exp {
+				t.Fatalf("got %d points, expected %d", got, exp)
+			}
+
+			// Simulate restart of server
+			if err := e.Reopen(); err != nil {
+				t.Fatal(err)
+			}
+
+			// Verify the series are no longer present.
+			n, err = seriesExist(e, "cpu", []string{"host"})
+			if err != nil {
+				t.Fatal(err)
+			} else if got, exp := n, 0; got != exp {
+				t.Fatalf("got %d points, expected %d", got, exp)
+			}
+		})
+	}
+}
+
+func seriesExist(e *Engine, m string, dims []string) (int, error) {
+	itr, err := e.CreateIterator(context.Background(), "cpu", query.IteratorOptions{
+		Expr:       influxql.MustParseExpr(`value`),
+		Dimensions: []string{"host"},
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+		Ascending:  false,
+	})
+	if err != nil {
+		return 0, err
+	} else if itr == nil {
+		return 0, nil
+	}
+	defer itr.Close()
+	fitr := itr.(query.FloatIterator)
+
+	var n int
+	for {
+		p, err := fitr.Next()
+		if err != nil {
+			return 0, err
+		} else if p == nil {
+			return n, nil
+		}
+		n++
+	}
+}
+
 // Ensure that the engine can write & read shard digest files.
 func TestEngine_Digest(t *testing.T) {
 	e := MustOpenEngine(inmem.IndexName)
@@ -106,6 +212,11 @@ func TestEngine_Digest(t *testing.T) {
 			return nil, err
 		}
 		defer dr.Close()
+
+		_, err = dr.ReadManifest()
+		if err != nil {
+			t.Fatal(err)
+		}
 
 		got := []span{}
 
@@ -394,14 +505,14 @@ func TestEngine_Export(t *testing.T) {
 	}
 
 	// TEST 1: did we get any extra files not found in the store?
-	for k, _ := range fileData {
+	for k := range fileData {
 		if _, ok := fileNames[k]; !ok {
 			t.Errorf("exported a file not in the store: %s", k)
 		}
 	}
 
 	// TEST 2: did we miss any files that the store had?
-	for k, _ := range fileNames {
+	for k := range fileNames {
 		if _, ok := fileData[k]; !ok {
 			t.Errorf("failed to export a file from the store: %s", k)
 		}
@@ -811,7 +922,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	}
 }
 
-// Ensure engine can create an iterator with auxilary fields.
+// Ensure engine can create an iterator with auxiliary fields.
 func TestEngine_CreateIterator_Aux(t *testing.T) {
 	t.Parallel()
 
@@ -2012,6 +2123,40 @@ func TestEngine_WritePoints_Reload(t *testing.T) {
 	}
 }
 
+func TestEngine_Invalid_UTF8(t *testing.T) {
+	for _, index := range tsdb.RegisteredIndexes() {
+		t.Run(index, func(t *testing.T) {
+			name := []byte{255, 112, 114, 111, 99} // A known invalid UTF-8 string
+			field := []byte{255, 110, 101, 116}    // A known invalid UTF-8 string
+			p := MustParsePointString(fmt.Sprintf("%s,host=A %s=1.1 6000000000", name, field))
+
+			e, err := NewEngine(index)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// mock the planner so compactions don't run during the test
+			e.CompactionPlan = &mockPlanner{}
+			if err := e.Open(); err != nil {
+				t.Fatal(err)
+			}
+			defer e.Close()
+
+			if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				t.Fatalf("create series index error: %v", err)
+			}
+
+			if err := e.WritePoints([]models.Point{p}); err != nil {
+				t.Fatalf("failed to write points: %s", err.Error())
+			}
+
+			// Re-open the engine
+			if err := e.Reopen(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
 func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
@@ -2347,7 +2492,7 @@ func NewEngine(index string) (*Engine, error) {
 
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
-	if index == "inmem" {
+	if index == tsdb.InmemIndexName {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
 	// Initialise series id sets. Need to do this as it's normally done at the

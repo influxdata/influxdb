@@ -121,10 +121,11 @@ func munmap(b []byte) (err error) {
 	return nil
 }
 
-func madviseDontNeed(b []byte) error {
-	// Not supported
-	return nil
-}
+// madviseWillNeed is unsupported on Windows.
+func madviseWillNeed(b []byte) error { return nil }
+
+// madviseDontNeed is unsupported on Windows.
+func madviseDontNeed(b []byte) error { return nil }
 
 func madvise(b []byte, advice int) error {
 	// Not implemented

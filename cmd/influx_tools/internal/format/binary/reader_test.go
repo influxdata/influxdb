@@ -371,8 +371,9 @@ type floatCursor struct {
 	vals []float64
 }
 
-func (c *floatCursor) Close()     {}
-func (c *floatCursor) Err() error { return nil }
+func (c *floatCursor) Close()                  {}
+func (c *floatCursor) Err() error              { return nil }
+func (c *floatCursor) Stats() tsdb.CursorStats { return tsdb.CursorStats{} }
 
 func (c *floatCursor) Next() *tsdb.FloatArray {
 	if c.c > len(c.keys) {
@@ -391,8 +392,9 @@ type unsignedCursor struct {
 	vals []uint64
 }
 
-func (c *unsignedCursor) Close()     {}
-func (c *unsignedCursor) Err() error { return nil }
+func (c *unsignedCursor) Close()                  {}
+func (c *unsignedCursor) Err() error              { return nil }
+func (c *unsignedCursor) Stats() tsdb.CursorStats { return tsdb.CursorStats{} }
 
 func (c *unsignedCursor) Next() *tsdb.UnsignedArray {
 	if c.c > len(c.keys) {
@@ -411,8 +413,9 @@ type booleanCursor struct {
 	vals []bool
 }
 
-func (c *booleanCursor) Close()     {}
-func (c *booleanCursor) Err() error { return nil }
+func (c *booleanCursor) Close()                  {}
+func (c *booleanCursor) Err() error              { return nil }
+func (c *booleanCursor) Stats() tsdb.CursorStats { return tsdb.CursorStats{} }
 
 func (c *booleanCursor) Next() *tsdb.BooleanArray {
 	if c.c > len(c.keys) {
@@ -431,8 +434,9 @@ type stringCursor struct {
 	vals []string
 }
 
-func (c *stringCursor) Close()     {}
-func (c *stringCursor) Err() error { return nil }
+func (c *stringCursor) Close()                  {}
+func (c *stringCursor) Err() error              { return nil }
+func (c *stringCursor) Stats() tsdb.CursorStats { return tsdb.CursorStats{} }
 
 func (c *stringCursor) Next() *tsdb.StringArray {
 	if c.c > len(c.keys) {

@@ -82,7 +82,7 @@ func (ctx *ExecutionContext) Err() error {
 
 func (ctx *ExecutionContext) Value(key interface{}) interface{} {
 	switch key {
-	case monitorContextKey:
+	case monitorContextKey{}:
 		return ctx.task
 	}
 	return ctx.Context.Value(key)
