@@ -21,7 +21,7 @@ describe('Dashboard', () => {
     })
   })
 
-  it('can edit a dashboards name', () => {
+  it("can edit a dashboard's name", () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
@@ -58,6 +58,38 @@ describe('Dashboard', () => {
     cy.getByTestID('add-cell--button').click()
     cy.getByTestID('save-cell--button').click()
     cy.getByTestID('cell--view-empty').should('have.length', 1)
+  })
+
+  // fix for https://github.com/influxdata/influxdb/issues/15239
+  it('retains the cell content after canceling an edit to the cell', () => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body}) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${orgID}/dashboards/${body.id}`)
+        })
+      })
+    })
+
+    // Add an empty celly cell
+    cy.getByTestID('add-cell--button').click()
+    cy.getByTestID('save-cell--button').click()
+    cy.getByTestID('cell--view-empty').should('be.visible')
+
+    cy.getByTestID('cell--view-empty')
+      .invoke('text')
+      .then(cellContent => {
+        // cellContent is yielded as a cutesy phrase from src/shared/copy/cell
+
+        // open Cell Editor Overlay
+        cy.getByTestID('cell-context-menu--edit').click()
+        cy.getByTestID('cell-context-menu-item--configure').click()
+
+        // Cancel edit
+        cy.getByTestID('cancel-cell-edit--button').click()
+
+        // Cell content should remain
+        cy.getByTestID('cell--view-empty').contains(cellContent)
+      })
   })
 
   const getSelectedVariable = (contextID: string, variableID: string) => win =>
