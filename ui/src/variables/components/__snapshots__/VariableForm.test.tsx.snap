@@ -38,9 +38,17 @@ exports[`Variables.Components.VariableForm rendering renders 1`] = `
               </span>
             </label>
             <div
-              class="cf-input cf-input-sm cf-input__error"
+              class="cf-input cf-input-sm"
               style="width: 100%;"
             >
+              <div
+                class="cf-status-indicator cf-status-indicator__default cf-status-indicator__sm"
+                data-testid="input-field--default"
+              >
+                <div
+                  class="cf-status-indicator--shadow"
+                />
+              </div>
               <input
                 autocomplete="off"
                 class="cf-input-field"
@@ -52,20 +60,7 @@ exports[`Variables.Components.VariableForm rendering renders 1`] = `
                 type="text"
                 value=""
               />
-              <span
-                class="cf-icon alert-triangle cf-input-status"
-                data-testid="input-error"
-              />
-              <div
-                class="cf-input-shadow"
-              />
             </div>
-            <span
-              class="cf-form--element-error"
-              data-testid="form--element-error"
-            >
-              Variable name cannot be empty
-            </span>
           </div>
         </div>
       </div>

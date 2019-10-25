@@ -23,6 +23,7 @@
 1. [15559](https://github.com/influxdata/influxdb/pull/15559): Exiting a configuration of a dashboard cell now properly renders the cell content
 1. [15556](https://github.com/influxdata/influxdb/pull/15556): Creating a check now displays on the checklist
 1. [15592](https://github.com/influxdata/influxdb/pull/15592): Changed task runs success status code from 200 to 201 to match Swagger documentation.
+1. [15634](https://github.com/influxdata/influxdb/pull/15634): TextAreas have the correct height
 
 ## v2.0.0-alpha.18 [2019-09-26]
 
