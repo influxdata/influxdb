@@ -21,14 +21,10 @@ module.exports = merge(common, {
       '/api/v2': 'http://localhost:9999',
       '/debug/flush': 'http://localhost:9999',
     },
-    watchOptions: {
-      aggregateTimeout: 300,
-      poll: 1000
-    },
     disableHostCheck: true,
     host: '0.0.0.0',
     port: PORT,
-    public: PUBLIC
+    public: PUBLIC,
   },
   module: {
     rules: [
