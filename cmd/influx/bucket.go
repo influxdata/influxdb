@@ -48,12 +48,12 @@ func init() {
 }
 
 func newBucketService(f Flags) (platform.BucketService, error) {
-	if flags.local {
+	if f.local {
 		return newLocalKVService()
 	}
 	return &http.BucketService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:  f.host,
+		Token: f.token,
 	}, nil
 }
 
