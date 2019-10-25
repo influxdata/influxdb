@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influx/internal"
+	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -37,6 +38,11 @@ func pkgCmd() *cobra.Command {
 
 func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
+		influxOrgID, err := influxdb.IDFromString(*orgID)
+		if err != nil {
+			return err
+		}
+
 		svc, err := newPkgerSVC(flags)
 		if err != nil {
 			return err
@@ -60,17 +66,26 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return nil
 		}
 
-		influxOrgID, err := influxdb.IDFromString(*orgID)
-		if err != nil {
-			return err
-		}
-
 		summary, err := svc.Apply(context.Background(), *influxOrgID, pkg)
 		if err != nil {
 			return err
 		}
 
 		w := internal.NewTabWriter(os.Stdout)
+		if newLabels := summary.Labels; len(newLabels) > 0 {
+			w.WriteHeaders(strings.ToUpper("Labels"))
+			w.WriteHeaders("ID", "Name", "Description", "Color")
+			for _, l := range newLabels {
+				w.Write(map[string]interface{}{
+					"ID":          l.ID,
+					"Name":        l.Name,
+					"Description": l.Properties["description"],
+					"Color":       l.Properties["color"],
+				})
+			}
+			w.WriteHeaders()
+		}
+
 		if newBuckets := summary.Buckets; len(newBuckets) > 0 {
 			w.WriteHeaders(strings.ToUpper("Buckets"))
 			w.WriteHeaders("ID", "Name", "Description", "Retention", "Created At")
@@ -96,7 +111,22 @@ func newPkgerSVC(f Flags) (*pkger.Service, error) {
 		return nil, err
 	}
 
-	return pkger.NewService(zap.NewNop(), bucketSVC), nil
+	labelSVC, err := newLabelService(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return pkger.NewService(zap.NewNop(), bucketSVC, labelSVC), nil
+}
+
+func newLabelService(f Flags) (influxdb.LabelService, error) {
+	if f.local {
+		return newLocalKVService()
+	}
+	return &http.LabelService{
+		Addr:  f.host,
+		Token: f.token,
+	}, nil
 }
 
 func pkgFromFile(path string) (*pkger.Pkg, error) {
@@ -115,6 +145,19 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 
 func printManifestSummary(m pkger.Summary) {
 	w := internal.NewTabWriter(os.Stdout)
+	if labels := m.Labels; len(labels) > 0 {
+		w.WriteHeaders(strings.ToUpper("Labels"))
+		w.WriteHeaders("Name", "Description", "Color")
+		for _, l := range labels {
+			w.Write(map[string]interface{}{
+				"Name":        l.Name,
+				"Description": l.Properties["description"],
+				"Color":       l.Properties["color"],
+			})
+		}
+		w.WriteHeaders()
+	}
+
 	if buckets := m.Buckets; len(buckets) > 0 {
 		w.WriteHeaders(strings.ToUpper("Buckets"))
 		w.WriteHeaders("Name", "Retention", "Description")
