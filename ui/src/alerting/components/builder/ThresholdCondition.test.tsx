@@ -7,16 +7,14 @@ import {ThresholdCondition} from 'src/alerting/components/builder/ThresholdCondi
 
 // Types
 import {Table} from '@influxdata/giraffe'
-import {
-  CheckStatusLevel,
-} from 'src/types'
+import {CheckStatusLevel} from 'src/types'
 
 describe('ThresholdCondition Builder', () => {
   describe('empty state', () => {
     it('should default to the middle of the graph', () => {
       const onUpdateCheckThreshold = jest.fn()
       const onRemoveCheckThreshold = jest.fn()
-      const table = {
+      const table = ({
         getColumn() {
           return [0, 0, 1000000]
         },
@@ -25,7 +23,7 @@ describe('ThresholdCondition Builder', () => {
         addColumn: jest.fn(),
         columnKeys: [],
         length: 3,
-      } as unknown as Table
+      } as unknown) as Table
       const props = {
         onUpdateCheckThreshold,
         onRemoveCheckThreshold,

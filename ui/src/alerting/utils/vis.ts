@@ -45,7 +45,11 @@ export const useCheckYDomain = (
   const dataDomain = useMemo(() => extent(data as number[]), [data])
 
   const initialDomain: number[] = useMemo(() => {
-    const extrema: number[] = flatMap(thresholds || [], (t: any) => [t.value, t.min, t.max])
+    const extrema: number[] = flatMap(thresholds || [], (t: any) => [
+      t.value,
+      t.min,
+      t.max,
+    ])
       .filter(v => v !== undefined && v !== null)
       .concat(dataDomain)
 
