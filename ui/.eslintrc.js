@@ -7,7 +7,7 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ['@typescript-eslint', 'react', 'prettier'],
+  plugins: ['@typescript-eslint', 'react', 'prettier', 'no-only-tests'],
   env: {
     browser: true,
     es6: true,
@@ -34,6 +34,7 @@ module.exports = {
     'getter-return': 'off',
     'no-extra-boolean-cast': 'off',
     'no-case-declarations': 'off',
+    'no-only-tests/no-only-tests': 'error',
     'no-useless-escape': 'off',
     'no-undef': 'off',
     'no-fallthrough': 'off',

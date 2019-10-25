@@ -19,7 +19,7 @@ const setup = (override = {}) => {
 
 describe('Onboarding.Components.OnboardingButtons', () => {
   describe('rendering', () => {
-    it.only('renders next and back buttons with the correct text', () => {
+    it('renders next and back buttons with the correct text', () => {
       const nextButtonText = 'Continue'
       const backButtonText = 'Previous'
       const onClickBack = jest.fn()
