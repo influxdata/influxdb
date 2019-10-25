@@ -32,8 +32,10 @@ const BoxTooltip: FunctionComponent<Props> = ({
     }
 
     const rect = el.getBoundingClientRect()
-
-    let left = triggerRect.left - rect.width
+    let left = Math.floor(triggerRect.left - rect.width) - 2
+    // Hacky for #15518 (https://github.com/influxdata/influxdb/issues/15518)
+    // Long term solution would be to have getBoundingClientRect output
+    // to the left / ride side of the div based on boxtooltip location
     let caretClassName = 'left'
 
     // If the width of the tooltip causes it to overflow left
