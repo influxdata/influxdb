@@ -33,7 +33,7 @@ const BoxTooltip: FunctionComponent<Props> = ({
 
     const rect = el.getBoundingClientRect()
 
-    let left = ~~(triggerRect.left - rect.width) - 2
+    let left = Math.floor(triggerRect.left - rect.width) - 2
     let caretClassName = 'left'
 
     // If the width of the tooltip causes it to overflow left
