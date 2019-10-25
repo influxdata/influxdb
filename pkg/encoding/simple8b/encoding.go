@@ -519,8 +519,8 @@ func canPack(src []uint64, n, bits int) bool {
 
 	max := uint64((1 << uint64(bits)) - 1)
 
-	for i := 0; i < end; i++ {
-		if src[i] > max {
+	for _, s := range src[:n] {
+		if s > max {
 			return false
 		}
 	}
@@ -540,8 +540,8 @@ func pack120(src []uint64) uint64 {
 
 // pack60 packs 60 values from in using 1 bit each
 func pack60(src []uint64) uint64 {
-	_ = src[59] // eliminate multiple bounds checks
-	return 2<<60 |
+	return src[59]<<59 | // eliminate multiple bounds checks
+		2<<60 |
 		src[0] |
 		src[1]<<1 |
 		src[2]<<2 |
@@ -600,15 +600,13 @@ func pack60(src []uint64) uint64 {
 		src[55]<<55 |
 		src[56]<<56 |
 		src[57]<<57 |
-		src[58]<<58 |
-		src[59]<<59
-
+		src[58]<<58
 }
 
 // pack30 packs 30 values from in using 2 bits each
 func pack30(src []uint64) uint64 {
-	_ = src[29] // eliminate multiple bounds checks
-	return 3<<60 |
+	return src[29]<<58 | // eliminate multiple bounds checks
+		3<<60 |
 		src[0] |
 		src[1]<<2 |
 		src[2]<<4 |
@@ -637,14 +635,13 @@ func pack30(src []uint64) uint64 {
 		src[25]<<50 |
 		src[26]<<52 |
 		src[27]<<54 |
-		src[28]<<56 |
-		src[29]<<58
+		src[28]<<56
 }
 
 // pack20 packs 20 values from in using 3 bits each
 func pack20(src []uint64) uint64 {
-	_ = src[19] // eliminate multiple bounds checks
-	return 4<<60 |
+	return src[19]<<57 | // eliminate multiple bounds checks
+		4<<60 |
 		src[0] |
 		src[1]<<3 |
 		src[2]<<6 |
@@ -663,14 +660,13 @@ func pack20(src []uint64) uint64 {
 		src[15]<<45 |
 		src[16]<<48 |
 		src[17]<<51 |
-		src[18]<<54 |
-		src[19]<<57
+		src[18]<<54
 }
 
 // pack15 packs 15 values from in using 3 bits each
 func pack15(src []uint64) uint64 {
-	_ = src[14] // eliminate multiple bounds checks
-	return 5<<60 |
+	return src[14]<<56 | // eliminate multiple bounds checks
+		5<<60 |
 		src[0] |
 		src[1]<<4 |
 		src[2]<<8 |
@@ -684,14 +680,13 @@ func pack15(src []uint64) uint64 {
 		src[10]<<40 |
 		src[11]<<44 |
 		src[12]<<48 |
-		src[13]<<52 |
-		src[14]<<56
+		src[13]<<52
 }
 
 // pack12 packs 12 values from in using 5 bits each
 func pack12(src []uint64) uint64 {
-	_ = src[11] // eliminate multiple bounds checks
-	return 6<<60 |
+	return src[11]<<55 | // eliminate multiple bounds checks
+		6<<60 |
 		src[0] |
 		src[1]<<5 |
 		src[2]<<10 |
@@ -702,14 +697,13 @@ func pack12(src []uint64) uint64 {
 		src[7]<<35 |
 		src[8]<<40 |
 		src[9]<<45 |
-		src[10]<<50 |
-		src[11]<<55
+		src[10]<<50
 }
 
 // pack10 packs 10 values from in using 6 bits each
 func pack10(src []uint64) uint64 {
-	_ = src[9] // eliminate multiple bounds checks
-	return 7<<60 |
+	return src[9]<<54 |
+		7<<60 |
 		src[0] |
 		src[1]<<6 |
 		src[2]<<12 |
@@ -718,85 +712,77 @@ func pack10(src []uint64) uint64 {
 		src[5]<<30 |
 		src[6]<<36 |
 		src[7]<<42 |
-		src[8]<<48 |
-		src[9]<<54
+		src[8]<<48
 }
 
 // pack8 packs 8 values from in using 7 bits each
 func pack8(src []uint64) uint64 {
-	_ = src[7] // eliminate multiple bounds checks
-	return 8<<60 |
+	return src[7]<<49 |
+		8<<60 |
 		src[0] |
 		src[1]<<7 |
 		src[2]<<14 |
 		src[3]<<21 |
 		src[4]<<28 |
 		src[5]<<35 |
-		src[6]<<42 |
-		src[7]<<49
+		src[6]<<42
 }
 
 // pack7 packs 7 values from in using 8 bits each
 func pack7(src []uint64) uint64 {
-	_ = src[6] // eliminate multiple bounds checks
-	return 9<<60 |
+	return src[6]<<48 | // eliminate multiple bounds checks
+		9<<60 |
 		src[0] |
 		src[1]<<8 |
 		src[2]<<16 |
 		src[3]<<24 |
 		src[4]<<32 |
-		src[5]<<40 |
-		src[6]<<48
+		src[5]<<40
 }
 
 // pack6 packs 6 values from in using 10 bits each
 func pack6(src []uint64) uint64 {
-	_ = src[5] // eliminate multiple bounds checks
-	return 10<<60 |
+	return src[5]<<50 | // eliminate multiple bounds checks
+		10<<60 |
 		src[0] |
 		src[1]<<10 |
 		src[2]<<20 |
 		src[3]<<30 |
-		src[4]<<40 |
-		src[5]<<50
+		src[4]<<40
 }
 
 // pack5 packs 5 values from in using 12 bits each
 func pack5(src []uint64) uint64 {
-	_ = src[4] // eliminate multiple bounds checks
-	return 11<<60 |
+	return src[4]<<48 | // eliminate multiple bounds checks
+		11<<60 |
 		src[0] |
 		src[1]<<12 |
 		src[2]<<24 |
-		src[3]<<36 |
-		src[4]<<48
+		src[3]<<36
 }
 
 // pack4 packs 4 values from in using 15 bits each
 func pack4(src []uint64) uint64 {
-	_ = src[3] // eliminate multiple bounds checks
-	return 12<<60 |
+	return src[3]<<45 | // eliminate multiple bounds checks
+		12<<60 |
 		src[0] |
 		src[1]<<15 |
-		src[2]<<30 |
-		src[3]<<45
+		src[2]<<30
 }
 
 // pack3 packs 3 values from in using 20 bits each
 func pack3(src []uint64) uint64 {
-	_ = src[2] // eliminate multiple bounds checks
-	return 13<<60 |
+	return src[2]<<40 | // eliminate multiple bounds checks
+		13<<60 |
 		src[0] |
-		src[1]<<20 |
-		src[2]<<40
+		src[1]<<20
 }
 
 // pack2 packs 2 values from in using 30 bits each
 func pack2(src []uint64) uint64 {
-	_ = src[1] // eliminate multiple bounds checks
-	return 14<<60 |
-		src[0] |
-		src[1]<<30
+	return src[1]<<30 | // eliminate multiple bounds checks
+		14<<60 |
+		src[0]
 }
 
 // pack1 packs 1 values from in using 60 bits each
@@ -812,14 +798,14 @@ func unpack240(v uint64, dst []uint64) {
 }
 
 func unpack120(v uint64, dst []uint64) {
-	_ = dst[119] // eliminate multiple bounds checks
-	for i := range dst[:120] {
+	dst[119] = 1
+	for i := range dst[:119] {
 		dst[i] = 1
 	}
 }
 
 func unpack60(v uint64, dst []uint64) {
-	_ = dst[59] // eliminate multiple bounds checks
+	dst[59] = (v >> 59) & 1 // eliminate multiple bounds checks
 	dst[0] = v & 1
 	dst[1] = (v >> 1) & 1
 	dst[2] = (v >> 2) & 1
@@ -879,11 +865,10 @@ func unpack60(v uint64, dst []uint64) {
 	dst[56] = (v >> 56) & 1
 	dst[57] = (v >> 57) & 1
 	dst[58] = (v >> 58) & 1
-	dst[59] = (v >> 59) & 1
 }
 
 func unpack30(v uint64, dst []uint64) {
-	_ = dst[29] // eliminate multiple bounds checks
+	dst[29] = (v >> 58) & 3 // eliminate multiple bounds checks
 	dst[0] = v & 3
 	dst[1] = (v >> 2) & 3
 	dst[2] = (v >> 4) & 3
@@ -913,11 +898,10 @@ func unpack30(v uint64, dst []uint64) {
 	dst[26] = (v >> 52) & 3
 	dst[27] = (v >> 54) & 3
 	dst[28] = (v >> 56) & 3
-	dst[29] = (v >> 58) & 3
 }
 
 func unpack20(v uint64, dst []uint64) {
-	_ = dst[19] // eliminate multiple bounds checks
+	dst[19] = (v >> 57) & 7 // eliminate multiple bounds checks
 	dst[0] = v & 7
 	dst[1] = (v >> 3) & 7
 	dst[2] = (v >> 6) & 7
@@ -937,11 +921,10 @@ func unpack20(v uint64, dst []uint64) {
 	dst[16] = (v >> 48) & 7
 	dst[17] = (v >> 51) & 7
 	dst[18] = (v >> 54) & 7
-	dst[19] = (v >> 57) & 7
 }
 
 func unpack15(v uint64, dst []uint64) {
-	_ = dst[14] // eliminate multiple bounds checks
+	dst[14] = (v >> 56) & 15 // eliminate multiple bounds checks
 	dst[0] = v & 15
 	dst[1] = (v >> 4) & 15
 	dst[2] = (v >> 8) & 15
@@ -956,11 +939,10 @@ func unpack15(v uint64, dst []uint64) {
 	dst[11] = (v >> 44) & 15
 	dst[12] = (v >> 48) & 15
 	dst[13] = (v >> 52) & 15
-	dst[14] = (v >> 56) & 15
 }
 
 func unpack12(v uint64, dst []uint64) {
-	_ = dst[11] // eliminate multiple bounds checks
+	dst[11] = (v >> 55) & 31 // eliminate multiple bounds checks
 	dst[0] = v & 31
 	dst[1] = (v >> 5) & 31
 	dst[2] = (v >> 10) & 31
@@ -972,11 +954,10 @@ func unpack12(v uint64, dst []uint64) {
 	dst[8] = (v >> 40) & 31
 	dst[9] = (v >> 45) & 31
 	dst[10] = (v >> 50) & 31
-	dst[11] = (v >> 55) & 31
 }
 
 func unpack10(v uint64, dst []uint64) {
-	_ = dst[9] // eliminate multiple bounds checks
+	dst[9] = (v >> 54) & 63 // eliminate multiple bounds checks
 	dst[0] = v & 63
 	dst[1] = (v >> 6) & 63
 	dst[2] = (v >> 12) & 63
@@ -986,11 +967,10 @@ func unpack10(v uint64, dst []uint64) {
 	dst[6] = (v >> 36) & 63
 	dst[7] = (v >> 42) & 63
 	dst[8] = (v >> 48) & 63
-	dst[9] = (v >> 54) & 63
 }
 
 func unpack8(v uint64, dst []uint64) {
-	_ = dst[7] // eliminate multiple bounds checks
+	dst[7] = (v >> 49) & 127 // eliminate multiple bounds checks
 	dst[0] = v & 127
 	dst[1] = (v >> 7) & 127
 	dst[2] = (v >> 14) & 127
@@ -998,58 +978,51 @@ func unpack8(v uint64, dst []uint64) {
 	dst[4] = (v >> 28) & 127
 	dst[5] = (v >> 35) & 127
 	dst[6] = (v >> 42) & 127
-	dst[7] = (v >> 49) & 127
 }
 
 func unpack7(v uint64, dst []uint64) {
-	_ = dst[6] // eliminate multiple bounds checks
+	dst[6] = (v >> 48) & 255 // eliminate multiple bounds checks
 	dst[0] = v & 255
 	dst[1] = (v >> 8) & 255
 	dst[2] = (v >> 16) & 255
 	dst[3] = (v >> 24) & 255
 	dst[4] = (v >> 32) & 255
 	dst[5] = (v >> 40) & 255
-	dst[6] = (v >> 48) & 255
 }
 
 func unpack6(v uint64, dst []uint64) {
-	_ = dst[5] // eliminate multiple bounds checks
+	dst[5] = (v >> 50) & 1023 // eliminate multiple bounds checks
 	dst[0] = v & 1023
 	dst[1] = (v >> 10) & 1023
 	dst[2] = (v >> 20) & 1023
 	dst[3] = (v >> 30) & 1023
 	dst[4] = (v >> 40) & 1023
-	dst[5] = (v >> 50) & 1023
 }
 
 func unpack5(v uint64, dst []uint64) {
-	_ = dst[4] // eliminate multiple bounds checks
+	dst[4] = (v >> 48) & 4095 // eliminate multiple bounds checks
 	dst[0] = v & 4095
 	dst[1] = (v >> 12) & 4095
 	dst[2] = (v >> 24) & 4095
 	dst[3] = (v >> 36) & 4095
-	dst[4] = (v >> 48) & 4095
 }
 
 func unpack4(v uint64, dst []uint64) {
-	_ = dst[3] // eliminate multiple bounds checks
+	dst[3] = (v >> 45) & 32767 // eliminate multiple bounds checks
 	dst[0] = v & 32767
 	dst[1] = (v >> 15) & 32767
 	dst[2] = (v >> 30) & 32767
-	dst[3] = (v >> 45) & 32767
 }
 
 func unpack3(v uint64, dst []uint64) {
-	_ = dst[2] // eliminate multiple bounds checks
+	dst[2] = (v >> 40) & 1048575 // eliminate multiple bounds checks
 	dst[0] = v & 1048575
 	dst[1] = (v >> 20) & 1048575
-	dst[2] = (v >> 40) & 1048575
 }
 
 func unpack2(v uint64, dst []uint64) {
-	_ = dst[1] // eliminate multiple bounds checks
+	dst[1] = (v >> 30) & 1073741823 // eliminate multiple bounds checks
 	dst[0] = v & 1073741823
-	dst[1] = (v >> 30) & 1073741823
 }
 
 func unpack1(v uint64, dst []uint64) {
