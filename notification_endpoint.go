@@ -52,6 +52,7 @@ type NotificationEndpointFilter struct {
 	ID    *ID
 	OrgID *ID
 	Org   *string
+	UserResourceMappingFilter
 }
 
 // QueryParams Converts NotificationEndpointFilter fields to url query params.
