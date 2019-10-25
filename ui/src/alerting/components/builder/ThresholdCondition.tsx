@@ -14,9 +14,12 @@ import {
   updateCheckThreshold,
   removeCheckThreshold,
 } from 'src/timeMachine/actions'
+import {useCheckYDomain} from 'src/alerting/utils/vis'
+import {getVisTable} from 'src/timeMachine/selectors'
 
 // Types
 import {
+  AppState,
   Threshold,
   ThresholdType,
   GreaterThreshold,
@@ -25,7 +28,12 @@ import {
   CheckStatusLevel,
 } from 'src/types'
 import {ComponentSize} from '@influxdata/clockface'
+import {Table} from '@influxdata/giraffe'
 import {LEVEL_COMPONENT_COLORS} from 'src/alerting/constants'
+
+interface StateProps {
+  table: Table
+}
 
 interface DispatchProps {
   onUpdateCheckThreshold: typeof updateCheckThreshold
@@ -37,15 +45,15 @@ interface OwnProps {
   level: CheckStatusLevel
 }
 
-type Props = DispatchProps & OwnProps
+type Props = StateProps & DispatchProps & OwnProps
 
 const defaultThreshold = {
   type: 'greater' as 'greater',
-  value: 20,
 }
 
 const ThresholdCondition: FC<Props> = ({
   level,
+  table,
   threshold,
   onUpdateCheckThreshold,
   onRemoveCheckThreshold,
@@ -62,8 +70,16 @@ const ThresholdCondition: FC<Props> = ({
     ])
   }, [threshold])
 
+  const [yDomain] = useCheckYDomain(table.getColumn('_value', 'number'), [])
+
   const addLevel = () => {
-    const newThreshold = {...defaultThreshold, level}
+    const low = yDomain[0] || 0
+    const high = yDomain[1] || 40
+    const newThreshold = {
+      ...defaultThreshold,
+      value: (high - low) / 2 + low,
+      level,
+    }
     onUpdateCheckThreshold(newThreshold)
   }
 
@@ -132,12 +148,22 @@ const ThresholdCondition: FC<Props> = ({
   )
 }
 
+const mstp = (state: AppState): StateProps => {
+  const giraffeResult = getVisTable(state)
+
+  return {
+    table: giraffeResult.table,
+  }
+}
+
 const mdtp: DispatchProps = {
   onUpdateCheckThreshold: updateCheckThreshold,
   onRemoveCheckThreshold: removeCheckThreshold,
 }
 
-export default connect<{}, DispatchProps, {}>(
-  null,
+export {ThresholdCondition}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
   mdtp
 )(ThresholdCondition)
