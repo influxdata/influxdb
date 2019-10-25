@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, createRef, RefObject} from 'react'
+import React, {Component} from 'react'
 import _ from 'lodash'
 
 // Components
@@ -16,7 +16,6 @@ import {
   IconFont,
   ComponentColor,
   Page,
-  Popover, PopoverPosition, PopoverType
 } from '@influxdata/clockface'
 
 // Constants
@@ -51,7 +50,6 @@ interface Props {
 }
 
 export default class DashboardHeader extends Component<Props> {
-
   public static defaultProps = {
     zoomedTimeRange: {
       upper: null,
@@ -59,10 +57,7 @@ export default class DashboardHeader extends Component<Props> {
     },
   }
 
-
   public render() {
-    const triggerRef: createRef<HTMLSpanElement>()
-
     const {
       org,
       handleChooseAutoRefresh,
@@ -72,8 +67,8 @@ export default class DashboardHeader extends Component<Props> {
       zoomedTimeRange: {upper: zoomedUpper, lower: zoomedLower},
       toggleVariablesControlBar,
       isShowingVariablesControlBar,
-      onAddCell,
       onRenameDashboard,
+      onAddCell,
       activeDashboard,
       autoRefresh,
     } = this.props
@@ -90,17 +85,13 @@ export default class DashboardHeader extends Component<Props> {
           />
         </Page.HeaderLeft>
         <Page.HeaderRight>
-        <span ref={triggerRef}>?</span>
-        <Popover
-            type={PopoverType.Outline}
-            position={PopoverPosition.Below}
-            triggerRef={triggerRef}
-            distanceFromTrigger={8}
-            contents={()=> (
-              <span>
-            <h1>Graph Tips:</h1><p><code>Click + Drag</code> Zoom in (X or Y)<br/><code>Shift + Click</code> Pan Graph Window<br/><code>Double Click</code> Reset Graph Window</p><h1>Static Legend Tips:</h1><p><code>Click</code>Focus on single Series<br/><code>Shift + Click</code> Show/Hide single Series</p>
-              </span>
-            )}
+          <GraphTips />
+          <Button
+            icon={IconFont.AddCell}
+            color={ComponentColor.Primary}
+            onClick={onAddCell}
+            text="Add Cell"
+            titleText="Add cell to dashboard"
           />
           <Button
             icon={IconFont.TextBlock}
@@ -144,7 +135,6 @@ export default class DashboardHeader extends Component<Props> {
   private handleAddNote = () => {
     this.props.onAddNote()
   }
-
 
   private handleClickPresentationButton = (): void => {
     this.props.handleClickPresentationButton()
