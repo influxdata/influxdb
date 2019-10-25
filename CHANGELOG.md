@@ -22,7 +22,6 @@
 1. [15549](https://github.com/influxdata/influxdb/pull/15549): UI/Task edit functionality fixed
 1. [15559](https://github.com/influxdata/influxdb/pull/15559): Exiting a configuration of a dashboard cell now properly renders the cell content
 1. [15556](https://github.com/influxdata/influxdb/pull/15556): Creating a check now displays on the checklist
-1. [15581](https://github.com/influxdata/influxdb/pull/15581): Hovering over an Event Marker in the `alerting/checks` chart no longer jitters between on/off in certain situations
 
 ## v2.0.0-alpha.18 [2019-09-26]
 
