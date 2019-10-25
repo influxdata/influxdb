@@ -10,6 +10,8 @@ v1.8.0 [unreleased]
 
 -	[#10503](https://github.com/influxdata/influxdb/pull/10503): Delete rebuilds series index when series to be deleted are only found in cache.
 -	[#10504](https://github.com/influxdata/influxdb/issue/10504): Delete rebuilds series index when series to be deleted are outside timerange.
+-	[#15580](https://github.com/influxdata/influxdb/pull/15580): influxd restore restore and influx import feekback bugfix 
+
 
 v1.7.0 [unreleased]
 -------------------
