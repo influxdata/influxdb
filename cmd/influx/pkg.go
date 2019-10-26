@@ -31,12 +31,12 @@ func pkgCmd() *cobra.Command {
 	orgID := cmd.Flags().String("org-id", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
 
-	cmd.RunE = manifestApply(orgID, path)
+	cmd.RunE = pkgApply(orgID, path)
 
 	return cmd
 }
 
-func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
+func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
 		influxOrgID, err := influxdb.IDFromString(*orgID)
 		if err != nil {
@@ -53,7 +53,7 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		printManifestSummary(pkg.Summary())
+		printPkgSummary(pkg.Summary(), false)
 
 		ui := &input.UI{
 			Writer: os.Stdout,
@@ -71,35 +71,7 @@ func manifestApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		w := internal.NewTabWriter(os.Stdout)
-		if newLabels := summary.Labels; len(newLabels) > 0 {
-			w.WriteHeaders(strings.ToUpper("Labels"))
-			w.WriteHeaders("ID", "Name", "Description", "Color")
-			for _, l := range newLabels {
-				w.Write(map[string]interface{}{
-					"ID":          l.ID,
-					"Name":        l.Name,
-					"Description": l.Properties["description"],
-					"Color":       l.Properties["color"],
-				})
-			}
-			w.WriteHeaders()
-		}
-
-		if newBuckets := summary.Buckets; len(newBuckets) > 0 {
-			w.WriteHeaders(strings.ToUpper("Buckets"))
-			w.WriteHeaders("ID", "Name", "Description", "Retention", "Created At")
-			for _, bucket := range newBuckets {
-				w.Write(map[string]interface{}{
-					"ID":          bucket.ID.String(),
-					"Name":        bucket.Name,
-					"Description": bucket.Description,
-					"Retention":   formatDuration(bucket.RetentionPeriod),
-				})
-			}
-			w.WriteHeaders()
-		}
-		w.Flush()
+		printPkgSummary(summary, true)
 
 		return nil
 	}
@@ -143,30 +115,53 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 	return pkger.Parse(enc, pkger.FromFile(path))
 }
 
-func printManifestSummary(m pkger.Summary) {
+func printPkgSummary(m pkger.Summary, withIDs bool) {
+	headerFn := func(headers ...string) []string {
+		allHeaders := make([]string, 0, len(headers)+1)
+		if withIDs {
+			allHeaders = append(allHeaders, "ID")
+		}
+		allHeaders = append(allHeaders, headers...)
+		return allHeaders
+	}
+
 	w := internal.NewTabWriter(os.Stdout)
 	if labels := m.Labels; len(labels) > 0 {
 		w.WriteHeaders(strings.ToUpper("Labels"))
-		w.WriteHeaders("Name", "Description", "Color")
+		w.WriteHeaders(headerFn("Name", "Description", "Color")...)
 		for _, l := range labels {
-			w.Write(map[string]interface{}{
+			base := map[string]interface{}{
 				"Name":        l.Name,
 				"Description": l.Properties["description"],
 				"Color":       l.Properties["color"],
-			})
+			}
+			if withIDs {
+				base["ID"] = l.ID
+			}
+			w.Write(base)
 		}
 		w.WriteHeaders()
 	}
 
 	if buckets := m.Buckets; len(buckets) > 0 {
 		w.WriteHeaders(strings.ToUpper("Buckets"))
-		w.WriteHeaders("Name", "Retention", "Description")
+		w.WriteHeaders(headerFn("Name", "Retention", "Description", "Labels")...)
 		for _, bucket := range buckets {
-			w.Write(map[string]interface{}{
+			labels := make([]string, 0, len(bucket.Associations))
+			for _, l := range bucket.Associations {
+				labels = append(labels, l.Name)
+			}
+
+			base := map[string]interface{}{
 				"Name":        bucket.Name,
 				"Retention":   formatDuration(bucket.RetentionPeriod),
 				"Description": bucket.Description,
-			})
+				"Labels":      labels,
+			}
+			if withIDs {
+				base["ID"] = bucket.ID
+			}
+			w.Write(base)
 		}
 		w.WriteHeaders()
 	}
