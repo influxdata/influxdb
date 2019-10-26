@@ -53,6 +53,7 @@ type (
 		Description     string
 		Name            string
 		RetentionPeriod time.Duration
+		labels          []*label
 	}
 
 	label struct {

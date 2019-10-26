@@ -9,7 +9,7 @@ import (
 )
 
 func TestParse(t *testing.T) {
-	t.Run("file has all necessary metadata", func(t *testing.T) {
+	t.Run("pkg has all necessary metadata", func(t *testing.T) {
 		t.Run("has valid metadata and at least 1 resource", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", nil)
 		})
@@ -127,9 +127,9 @@ spec:
 					failedResource := pErr.Resources[0]
 					assert.Equal(t, "Package", failedResource.Type)
 
-					require.Len(t, failedResource.ValidationFailures, len(tt.expectedFields))
+					require.Len(t, failedResource.ValidationFails, len(tt.expectedFields))
 
-					for _, f := range failedResource.ValidationFailures {
+					for _, f := range failedResource.ValidationFails {
 						containsField(t, tt.expectedFields, f.Field)
 					}
 				}
@@ -139,7 +139,7 @@ spec:
 		})
 	})
 
-	t.Run("file with just a bucket", func(t *testing.T) {
+	t.Run("pkg with just a bucket", func(t *testing.T) {
 		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 				buckets := pkg.buckets()
@@ -245,13 +245,13 @@ spec:
 			require.True(t, ok)
 			assert.Len(t, pErr.Resources, 1)
 
-			fields := pErr.Resources[0].ValidationFailures
+			fields := pErr.Resources[0].ValidationFails
 			require.Len(t, fields, 1)
 			assert.Equal(t, "name", fields[0].Field)
 		})
 	})
 
-	t.Run("file with just a label", func(t *testing.T) {
+	t.Run("pkg with just a label", func(t *testing.T) {
 		t.Run("with valid label pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
 				labels := pkg.labels()
@@ -329,6 +329,156 @@ spec:
 					pErr, ok := IsParseErr(err)
 					require.True(t, ok)
 					assert.Len(t, pErr.Resources, tt.numErrs)
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+	})
+
+	t.Run("pkg with buckets and labels associated", func(t *testing.T) {
+		testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			require.Len(t, sum.Labels, 2)
+
+			bkts := sum.Buckets
+			require.Len(t, bkts, 3)
+
+			expectedLabels := []struct {
+				bktName string
+				labels  []string
+			}{
+				{
+					bktName: "rucket_1",
+					labels:  []string{"label_1"},
+				},
+				{
+					bktName: "rucket_2",
+					labels:  []string{"label_2"},
+				},
+				{
+					bktName: "rucket_3",
+					labels:  []string{"label_1", "label_2"},
+				},
+			}
+			for i, expected := range expectedLabels {
+				bkt := bkts[i]
+				require.Len(t, bkt.Associations, len(expected.labels))
+
+				for j, label := range expected.labels {
+					assert.Equal(t, label, bkt.Associations[j].Name)
+				}
+			}
+		})
+
+		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				numErrs int
+				in      string
+				errIdxs []int
+			}{
+				{
+					name:    "no labels provided",
+					numErrs: 1,
+					errIdxs: []int{0},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Bucket
+      name: buck_1
+      associations:
+        - kind: Label
+          name: label_1
+`,
+				},
+				{
+					name:    "mixed found and not found",
+					numErrs: 1,
+					errIdxs: []int{1},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Bucket
+      name: buck_1
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: unfound label
+`,
+				},
+				{
+					name:    "multiple not found",
+					numErrs: 1,
+					errIdxs: []int{0, 1},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Bucket
+      name: buck_1
+      associations:
+        - kind: Label
+          name: not found 1
+        - kind: Label
+          name: unfound label
+`,
+				},
+				{
+					name:    "duplicate valid nested labels",
+					numErrs: 1,
+					errIdxs: []int{1},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Bucket
+      name: buck_1
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_1
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					_, err := Parse(EncodingYAML, FromString(tt.in))
+
+					pErr, ok := IsParseErr(err)
+					require.True(t, ok)
+					require.Len(t, pErr.Resources, tt.numErrs)
+
+					assFails := pErr.Resources[0].AssociationFails
+					require.Len(t, assFails, len(tt.errIdxs))
+					assert.Equal(t, "associations", assFails[0].Field)
+
+					for i, f := range assFails {
+						assert.Equal(t, tt.errIdxs[i], f.Index)
+					}
 				}
 
 				t.Run(tt.name, fn)
