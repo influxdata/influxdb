@@ -42,7 +42,7 @@ func TestService(t *testing.T) {
 				})
 			})
 
-			t.Run("rollsback all created buckets on an error", func(t *testing.T) {
+			t.Run("rolls back all created buckets on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 					fakeBucketSVC := mock.NewBucketService()
 					var c int
@@ -79,8 +79,8 @@ func TestService(t *testing.T) {
 				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
 					id := 1
-					fakeLabelSVC.CreateLabelFn = func(_ context.Context, b *influxdb.Label) error {
-						b.ID = influxdb.ID(id)
+					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+						l.ID = influxdb.ID(id)
 						id++
 						return nil
 					}
@@ -107,37 +107,114 @@ func TestService(t *testing.T) {
 					assert.Equal(t, "#000000", label2.Properties["color"])
 					assert.Equal(t, "label 2 description", label2.Properties["description"])
 				})
+			})
 
-				t.Run("rollsback all created labels on an error", func(t *testing.T) {
-					testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
-						fakeLabelSVC := mock.NewLabelService()
-						var c int
-						fakeLabelSVC.CreateLabelFn = func(_ context.Context, b *influxdb.Label) error {
-							// 4th label will return the error here, and 3 before should be rolled back
-							if c == 3 {
-								return errors.New("blowed up ")
-							}
-							c++
-							return nil
+			t.Run("rolls back all created labels on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+					fakeLabelSVC := mock.NewLabelService()
+					var c int
+					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+						// 4th label will return the error here, and 3 before should be rolled back
+						if c == 3 {
+							return errors.New("blowed up ")
 						}
-						var count int
-						fakeLabelSVC.DeleteLabelFn = func(_ context.Context, id influxdb.ID) error {
-							count++
-							return nil
+						c++
+						return nil
+					}
+					var count int
+					fakeLabelSVC.DeleteLabelFn = func(_ context.Context, id influxdb.ID) error {
+						count++
+						return nil
+					}
+
+					pkg.mLabels["copy1"] = pkg.mLabels["label_1"]
+					pkg.mLabels["copy2"] = pkg.mLabels["label_2"]
+
+					svc := NewService(zap.NewNop(), nil, fakeLabelSVC)
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.Error(t, err)
+
+					assert.Equal(t, 3, count)
+				})
+			})
+		})
+
+		t.Run("label mapping", func(t *testing.T) {
+			t.Run("successfully creates pkg of labels", func(t *testing.T) {
+				testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
+					fakeBktSVC := mock.NewBucketService()
+					id := 1
+					fakeBktSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
+						b.ID = influxdb.ID(id)
+						id++
+						return nil
+					}
+
+					fakeLabelSVC := mock.NewLabelService()
+					id = 1
+					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+						l.ID = influxdb.ID(id)
+						id++
+						return nil
+					}
+					numLabelMappings := 0
+					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
+						numLabelMappings++
+						return nil
+					}
+
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.NoError(t, err)
+
+					assert.Equal(t, 4, numLabelMappings)
+				})
+			})
+
+			t.Run("rolls back all created resources on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
+					var deleteCount struct {
+						bkts, labels, mappings int
+					}
+					fakeBktSVC := mock.NewBucketService()
+					fakeBktSVC.DeleteBucketFn = func(_ context.Context, _ influxdb.ID) error {
+						deleteCount.bkts++
+						return nil
+					}
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.DeleteLabelFn = func(_ context.Context, id influxdb.ID) error {
+						deleteCount.labels++
+						return nil
+					}
+					var createdLabelMappings int
+					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, _ *influxdb.LabelMapping) error {
+						if createdLabelMappings == 3 {
+							return errors.New("error")
 						}
+						createdLabelMappings++
+						return nil
+					}
+					fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, _ *influxdb.LabelMapping) error {
+						deleteCount.mappings++
+						return nil
+					}
 
-						pkg.mLabels["copy1"] = pkg.mLabels["label_1"]
-						pkg.mLabels["copy2"] = pkg.mLabels["label_2"]
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
 
-						svc := NewService(zap.NewNop(), nil, fakeLabelSVC)
+					orgID := influxdb.ID(9000)
 
-						orgID := influxdb.ID(9000)
+					_, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.Error(t, err)
 
-						_, err := svc.Apply(context.TODO(), orgID, pkg)
-						require.Error(t, err)
-
-						assert.Equal(t, 3, count)
-					})
+					assert.Equal(t, 3, deleteCount.bkts)
+					assert.Equal(t, 2, deleteCount.labels)
+					assert.Equal(t, 3, deleteCount.mappings)
 				})
 			})
 		})

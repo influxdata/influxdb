@@ -1,0 +1,55 @@
+{
+  "apiVersion": "0.1.0",
+  "kind": "Package",
+  "meta": {
+    "pkgName": "pkg_name",
+    "pkgVersion": "1",
+    "description": "pack description"
+  },
+  "spec": {
+    "resources": [
+      {
+        "kind": "Label",
+        "name": "label_1"
+      },
+      {
+        "kind": "Label",
+        "name": "label_2"
+      },
+      {
+        "kind": "Bucket",
+        "name": "rucket_1",
+        "associations": [
+          {
+            "kind": "Label",
+            "name": "label_1"
+          }
+        ]
+      },
+      {
+        "kind": "Bucket",
+        "name": "rucket_2",
+        "associations": [
+          {
+            "kind": "Label",
+            "name": "label_2"
+          }
+        ]
+      },
+      {
+        "kind": "Bucket",
+        "name": "rucket_3",
+        "associations": [
+          {
+            "kind": "Label",
+            "name": "label_1"
+          },
+          {
+            "kind": "Label",
+            "name": "label_2"
+          }
+        ]
+      }
+    ]
+  }
+}
