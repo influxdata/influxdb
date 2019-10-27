@@ -1,4 +1,4 @@
-v1.7.9 [unreleased]
+v1.7.9 [2019-10-27]
 -------------------
 
 ### Bugfixes
@@ -7,10 +7,13 @@ v1.7.9 [unreleased]
 -	[#15182](https://github.com/influxdata/influxdb/pull/15182): fix(tsi1): replace TSI compaction wait group with counter.
 -	[#15254](https://github.com/influxdata/influxdb/pull/15254): chore(influxdb): Update InfluxQL dependency.
 -	[#15257](https://github.com/influxdata/influxdb/pull/15257): feat(httpd): Add option to authenticate debug/pprof and ping endpoints.
+-	[#15386](https://github.com/influxdata/influxdb/pull/15386): fix(http): honor insecure-skip-very even if custom tls config is specified.
 
 ### Features
 
 -	[#15341](https://github.com/influxdata/influxdb/pull/15341): Update golang version to 1.12.10
+-	[#15397](https://github.com/influxdata/influxdb/pull/15397): chore(build): remove Godeps file.
+-	[#15524](https://github.com/influxdata/influxdb/pull/15524): Update flux version to v0.50.2
 
 v1.7.8 [2019-08-20]
 -------------------
