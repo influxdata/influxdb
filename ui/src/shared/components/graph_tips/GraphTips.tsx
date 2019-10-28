@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, createRef, RefObject} from 'react'
+import React, {PureComponent, createRef, RefObject} from 'react'
 
 // Components
 import {
@@ -9,9 +9,8 @@ import {
   PopoverType,
 } from '@influxdata/clockface'
 
-interface Props {}
 
-export default class GraphTips extends Component<Props> {
+export default class GraphTips extends PureComponent{
   private triggerRef: RefObject<HTMLSpanElement> = createRef()
 
   public render() {
