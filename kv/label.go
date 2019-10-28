@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -12,6 +14,7 @@ import (
 var (
 	labelBucket        = []byte("labelsv1")
 	labelMappingBucket = []byte("labelmappingsv1")
+	labelIndex         = []byte("labelindexv1")
 )
 
 func (s *Service) initializeLabels(ctx context.Context, tx Tx) error {
@@ -248,6 +251,10 @@ func (s *Service) deleteLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
+		if err := s.validLabelName(ctx, tx, l); err != nil {
+			return err
+		}
+
 		l.ID = s.IDGenerator.ID()
 
 		if err := s.putLabel(ctx, tx, l); err != nil {
@@ -529,4 +536,32 @@ func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error 
 	}
 
 	return nil
+}
+
+// LabelAlreadyExistsError is used when creating a new label with
+// a name that has already been used. Label names must be unique.
+func LabelAlreadyExistsError(lbl *influxdb.Label) error {
+	return &influxdb.Error{
+		Code: influxdb.EConflict,
+		Msg:  fmt.Sprintf("label with name %s already exists", lbl.Name),
+	}
+}
+
+func labelIndexKey(n string) []byte {
+	return []byte(n)
+}
+
+func (s *Service) validLabelName(ctx context.Context, tx Tx, lbl *influxdb.Label) error {
+	if lbl.Name = strings.TrimSpace(lbl.Name); lbl.Name == "" {
+		return influxdb.ErrOrgNameisEmpty
+	}
+	key := labelIndexKey(lbl.Name) // organizationIndexKey(l.Name)
+
+	// if the name is not unique across all organizations, then, do not
+	// allow creation.
+	err := s.unique(ctx, tx, labelIndex, key)
+	if err == NotUniqueError {
+		return LabelAlreadyExistsError(lbl)
+	}
+	return err
 }
