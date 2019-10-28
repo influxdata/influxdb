@@ -79,7 +79,16 @@ class DateRangePicker extends PureComponent<Props, State> {
     }
 
     const style = Object.entries(position).reduce(
-      (acc, [k, v]) => ({...acc, [k]: `${v}px`}),
+      (acc, [k, v]) => {
+        const obj = { ...acc }
+        if (isNaN(+v)) {
+          obj[k] = v
+        } else {
+          obj[k] = `${v}px`
+        }
+        console.log('obj: ', obj)
+        return obj;
+      },
       {}
     )
 
