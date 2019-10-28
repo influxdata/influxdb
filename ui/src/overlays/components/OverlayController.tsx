@@ -28,10 +28,10 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
   let activeOverlay = <></>
   let visibility = true
 
-  const {overlayID, onClose, onDismiss} = props
+  const {overlayID, onClose, clearOverlayControllerState} = props
 
   const closer = () => {
-    onDismiss()
+    clearOverlayControllerState()
     if (onClose) {
       onClose()
     }
@@ -69,7 +69,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp = {
-  onDismiss: dismissOverlay,
+  clearOverlayControllerState: dismissOverlay,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
