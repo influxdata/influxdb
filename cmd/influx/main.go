@@ -39,6 +39,7 @@ func init() {
 	influxCmd.AddCommand(taskCmd)
 	influxCmd.AddCommand(userCmd)
 	influxCmd.AddCommand(writeCmd)
+	influxCmd.AddCommand(deleteCmd)
 	influxCmd.AddCommand(pingCmd)
 }
 

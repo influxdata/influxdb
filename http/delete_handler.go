@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -167,6 +168,17 @@ type deleteRequestDecode struct {
 	Predicate string `json:"predicate"`
 }
 
+// DeleteRequest is the request send over http to delete points.
+type DeleteRequest struct {
+	OrgID     string `json:"-"`
+	Org       string `json:"-"` // org name
+	BucketID  string `json:"-"`
+	Bucket    string `json:"-"`
+	Start     string `json:"start"`
+	Stop      string `json:"stop"`
+	Predicate string `json:"predicate"`
+}
+
 func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 	var drd deleteRequestDecode
 	if err := json.Unmarshal(b, &drd); err != nil {
@@ -202,4 +214,54 @@ func (dr *deleteRequest) UnmarshalJSON(b []byte) error {
 	}
 	dr.Predicate, err = predicate.New(node)
 	return err
+}
+
+// DeleteService sends data over HTTP to delete points.
+type DeleteService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+// DeleteBucketRangePredicate send delete request over http to delete points.
+func (s *DeleteService) DeleteBucketRangePredicate(ctx context.Context, dr DeleteRequest) error {
+	u, err := NewURL(s.Addr, deletePath)
+	if err != nil {
+		return err
+	}
+	buf := new(bytes.Buffer)
+	if err := json.NewEncoder(buf).Encode(dr); err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", u.String(), buf)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	SetToken(s.Token, req)
+
+	params := req.URL.Query()
+	if dr.OrgID != "" {
+		params.Set("orgID", dr.OrgID)
+	} else if dr.Org != "" {
+		params.Set("org", dr.Org)
+	}
+
+	if dr.BucketID != "" {
+		params.Set("bucketID", dr.BucketID)
+	} else if dr.Bucket != "" {
+		params.Set("bucket", dr.Bucket)
+	}
+	req.URL.RawQuery = params.Encode()
+
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return CheckError(resp)
 }
