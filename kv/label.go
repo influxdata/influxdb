@@ -370,6 +370,11 @@ func (s *Service) forEachLabel(ctx context.Context, tx Tx, fn func(*influxdb.Lab
 func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var label *influxdb.Label
 	err := s.kv.Update(ctx, func(tx Tx) error {
+		l := influxdb.Label{Name: upd.Name}
+		if err := s.validLabelName(ctx, tx, &l); err != nil {
+			return err
+		}
+
 		labelResponse, pe := s.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
 			return &influxdb.Error{
