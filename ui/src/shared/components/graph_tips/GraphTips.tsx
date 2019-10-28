@@ -9,8 +9,7 @@ import {
   PopoverType,
 } from '@influxdata/clockface'
 
-
-export default class GraphTips extends PureComponent{
+export default class GraphTips extends PureComponent {
   private triggerRef: RefObject<HTMLSpanElement> = createRef()
 
   public render() {
