@@ -32,21 +32,15 @@ export enum RangeType {
 interface Props {
   timeRange: TimeRange
   onSetTimeRange: (timeRange: TimeRange, rangeType?: RangeType) => void
-  centerPicker: boolean
 }
 
 interface State {
   isDatePickerOpen: boolean
-  dropdownPosition: {top: number; right: number}
+  dropdownPosition: {position: string}
 }
 
 class TimeRangeDropdown extends PureComponent<Props, State> {
-  public static defaultProps = {
-    centerPicker: false,
-  }
-
   private dropdownRef = createRef<HTMLDivElement>()
-  private triggerRef = createRef<HTMLSpanElement>()
 
   constructor(props: Props) {
     super(props)
@@ -56,32 +50,26 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
 
   public render() {
     const timeRange = this.timeRange
-    const {centerPicker} = this.props
-
     return (
       <>
         <Popover
           type={PopoverType.Outline}
           position={PopoverPosition.ToTheLeft}
-          triggerRef={this.triggerRef}
-          showEvent={PopoverInteraction.Hover}
-          hideEvent={PopoverInteraction.Hover}
+          triggerRef={this.dropdownRef}
+          visible={this.isDatePickerVisible}
+          showEvent={PopoverInteraction.None}
+          hideEvent={PopoverInteraction.None}
           distanceFromTrigger={8}
+          enableDefaultStyles={false}
           contents={() => (
-            <div>
-              Hello World
-            </div>
+            <DateRangePicker
+              timeRange={timeRange}
+              onSetTimeRange={this.handleApplyTimeRange}
+              onClose={this.handleHideDatePicker}
+              position={this.state.dropdownPosition}
+            />
           )}
         />
-        {console.log('this over here: ', this)}
-        {this.isDatePickerVisible && (
-          <DateRangePicker
-            timeRange={timeRange}
-            onSetTimeRange={this.handleApplyTimeRange}
-            onClose={this.handleHideDatePicker}
-            position={this.state.dropdownPosition}
-          />
-        )}
         <div ref={this.dropdownRef}>
           <Dropdown
             style={{width: `${this.dropdownWidth}px`}}
@@ -92,31 +80,13 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             )}
             menu={onCollapse => (
               <Dropdown.Menu
-                // onCollapse={onCollapse}
+                onCollapse={onCollapse}
                 style={{width: `${this.dropdownWidth + 50}px`}}
               >
                 {TIME_RANGES.map(({label}) => {
                   if (label === TIME_RANGE_LABEL) {
                     return (
                       <Dropdown.Divider key={label} text={label} id={label} />
-                    )
-                  }
-                  if (label === CUSTOM_TIME_RANGE_LABEL) {
-                    console.log('this: ', this)
-                    return (
-                      <span
-                        ref={this.triggerRef}
-                        key={label}
-                      >
-                        <Dropdown.Item
-                          value={label}
-                          id={label}
-                          onClick={this.handleChange}
-                          selected={label === timeRange.label}
-                        >
-                          {label}
-                        </Dropdown.Item>
-                      </span>
                     )
                   }
                   return (
@@ -234,16 +204,9 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     const timeRange = TIME_RANGES.find(t => t.label === label)
 
     if (label === CUSTOM_TIME_RANGE_LABEL) {
-      const {top, left} = this.dropdownRef.current.getBoundingClientRect()
-      const right = window.innerWidth - left
       this.setState({
         isDatePickerOpen: true,
-        dropdownPosition: {
-          top,
-          right,
-          transform: 'translate(-50%, -50%)',
-          position: 'fixed',
-        }
+        dropdownPosition: {position: 'relative'}
       })
       return
     }

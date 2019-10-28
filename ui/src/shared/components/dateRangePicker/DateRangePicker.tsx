@@ -13,7 +13,7 @@ interface Props {
   timeRange: TimeRange
   onSetTimeRange: (timeRange: TimeRange) => void
   onClose: () => void
-  position?: {top?: number; right?: number; bottom?: number; left?: number}
+  position?: {top?: number; right?: number; bottom?: number; left?: number; position?: string}
 }
 
 interface State {
@@ -86,7 +86,6 @@ class DateRangePicker extends PureComponent<Props, State> {
         } else {
           obj[k] = `${v}px`
         }
-        console.log('obj: ', obj)
         return obj;
       },
       {}
