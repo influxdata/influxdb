@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cmd/influx/internal"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/pkger"
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
 	"go.uber.org/zap"
@@ -53,7 +55,12 @@ func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		printPkgSummary(pkg.Summary(), false)
+		_, diff, err := svc.DryRun(context.Background(), *influxOrgID, pkg)
+		if err != nil {
+			return err
+		}
+
+		printPkgDiff(diff)
 
 		ui := &input.UI{
 			Writer: os.Stdout,
@@ -62,7 +69,7 @@ func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
 
 		confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
 		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(os.Stdout, "aborted application of manifest")
+			fmt.Fprintln(os.Stdout, "aborted application of package")
 			return nil
 		}
 
@@ -71,7 +78,7 @@ func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		printPkgSummary(summary, true)
+		printPkgSummary(summary)
 
 		return nil
 	}
@@ -115,57 +122,172 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 	return pkger.Parse(enc, pkger.FromFile(path))
 }
 
-func printPkgSummary(m pkger.Summary, withIDs bool) {
-	headerFn := func(headers ...string) []string {
-		allHeaders := make([]string, 0, len(headers)+1)
-		if withIDs {
-			allHeaders = append(allHeaders, "ID")
+func printPkgDiff(diff pkger.Diff) {
+	red := color.New(color.FgRed).SprintfFunc()
+	green := color.New(color.FgHiGreen, color.Bold).SprintfFunc()
+
+	strDiff := func(isNew bool, old, new string) string {
+		if isNew {
+			return green(new)
 		}
-		allHeaders = append(allHeaders, headers...)
-		return allHeaders
+		if old == new {
+			return new
+		}
+		return fmt.Sprintf("%s\n%s", red("%q", old), green("%q", new))
 	}
 
-	w := internal.NewTabWriter(os.Stdout)
-	if labels := m.Labels; len(labels) > 0 {
-		w.WriteHeaders(strings.ToUpper("Labels"))
-		w.WriteHeaders(headerFn("Name", "Description", "Color")...)
-		for _, l := range labels {
-			base := map[string]interface{}{
-				"Name":        l.Name,
-				"Description": l.Properties["description"],
-				"Color":       l.Properties["color"],
-			}
-			if withIDs {
-				base["ID"] = l.ID
-			}
-			w.Write(base)
+	boolDiff := func(b bool) string {
+		bb := strconv.FormatBool(b)
+		if b {
+			return green(bb)
 		}
-		w.WriteHeaders()
+		return bb
 	}
 
-	if buckets := m.Buckets; len(buckets) > 0 {
-		w.WriteHeaders(strings.ToUpper("Buckets"))
-		w.WriteHeaders(headerFn("Name", "Retention", "Description", "Labels")...)
-		for _, bucket := range buckets {
-			labels := make([]string, 0, len(bucket.Associations))
-			for _, l := range bucket.Associations {
-				labels = append(labels, l.Name)
-			}
-
-			base := map[string]interface{}{
-				"Name":        bucket.Name,
-				"Retention":   formatDuration(bucket.RetentionPeriod),
-				"Description": bucket.Description,
-				"Labels":      labels,
-			}
-			if withIDs {
-				base["ID"] = bucket.ID
-			}
-			w.Write(base)
+	durDiff := func(isNew bool, oldDur, newDur time.Duration) string {
+		o := oldDur.String()
+		if oldDur == 0 {
+			o = "inf"
 		}
-		w.WriteHeaders()
+		n := newDur.String()
+		if newDur == 0 {
+			n = "inf"
+		}
+		if isNew {
+			return green(n)
+		}
+		if oldDur == newDur {
+			return n
+		}
+		return fmt.Sprintf("%s\n%s", red(o), green(n))
 	}
-	w.Flush()
+
+	if len(diff.Labels) > 0 {
+		headers := []string{"New", "ID", "Name", "Color", "Description"}
+		tablePrinter("LABELS", headers, len(diff.Labels), func(w *tablewriter.Table) {
+			for _, l := range diff.Labels {
+				w.Append([]string{
+					boolDiff(l.IsNew()),
+					l.ID.String(),
+					l.Name,
+					strDiff(l.IsNew(), l.OldColor, l.NewColor),
+					strDiff(l.IsNew(), l.OldDesc, l.NewDesc),
+				})
+			}
+		})
+	}
+
+	if len(diff.Buckets) > 0 {
+		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
+		tablePrinter("BUCKETS", headers, len(diff.Buckets), func(w *tablewriter.Table) {
+			for _, b := range diff.Buckets {
+				w.Append([]string{
+					boolDiff(b.IsNew()),
+					b.ID.String(),
+					b.Name,
+					durDiff(b.IsNew(), b.OldRetention, b.NewRetention),
+					strDiff(b.IsNew(), b.OldDesc, b.NewDesc),
+				})
+			}
+		})
+	}
+
+	if len(diff.LabelMappings) > 0 {
+		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
+		tablePrinter("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(w *tablewriter.Table) {
+			for _, m := range diff.LabelMappings {
+				w.Append([]string{
+					boolDiff(m.IsNew),
+					string(m.ResType),
+					m.ResName,
+					m.ResID.String(),
+					m.LabelName,
+					m.LabelID.String(),
+				})
+			}
+		})
+	}
+}
+
+func printPkgSummary(sum pkger.Summary) {
+	if labels := sum.Labels; len(labels) > 0 {
+		headers := []string{"ID", "Name", "Description", "Color"}
+		tablePrinter("LABELS", headers, len(labels), func(w *tablewriter.Table) {
+			for _, l := range labels {
+				w.Append([]string{
+					l.ID.String(),
+					l.Name,
+					l.Properties["description"],
+					l.Properties["color"],
+				})
+			}
+		})
+	}
+
+	if buckets := sum.Buckets; len(buckets) > 0 {
+		headers := []string{"ID", "Name", "Retention", "Description"}
+		tablePrinter("BUCKETS", headers, len(buckets), func(w *tablewriter.Table) {
+			for _, bucket := range buckets {
+				w.Append([]string{
+					bucket.ID.String(),
+					bucket.Name,
+					formatDuration(bucket.RetentionPeriod),
+					bucket.Description,
+				})
+			}
+		})
+	}
+
+	if mappings := sum.LabelMappings; len(mappings) > 0 {
+		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
+		tablePrinter("LABEL MAPPINGS", headers, len(mappings), func(w *tablewriter.Table) {
+			for _, m := range mappings {
+				w.Append([]string{
+					string(m.ResourceType),
+					m.ResourceName,
+					m.ResourceID.String(),
+					m.LabelName,
+					m.LabelID.String(),
+				})
+			}
+		})
+	}
+}
+
+func tablePrinter(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
+	descrCol := -1
+	for i, h := range headers {
+		if strings.ToLower(h) == "description" {
+			descrCol = i
+			break
+		}
+	}
+
+	w := tablewriter.NewWriter(os.Stdout)
+	w.SetBorder(false)
+	if descrCol != -1 {
+		w.SetAutoWrapText(false)
+		w.SetColMinWidth(descrCol, 30)
+	}
+
+	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
+	w.SetHeader(headers)
+	var colors []tablewriter.Colors
+	for i := 0; i < len(headers); i++ {
+		colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
+	}
+	w.SetHeaderColor(colors...)
+
+	appendFn(w)
+
+	footers := make([]string, len(headers))
+	footers[len(footers)-2] = "TOTAL"
+	footers[len(footers)-1] = strconv.Itoa(count)
+	w.SetFooter(footers)
+	w.SetFooterColor(colors...)
+
+	w.Render()
+	fmt.Fprintln(os.Stdout)
 }
 
 func formatDuration(d time.Duration) string {

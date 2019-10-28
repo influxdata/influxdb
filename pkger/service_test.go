@@ -14,6 +14,135 @@ import (
 )
 
 func TestService(t *testing.T) {
+	t.Run("DryRun", func(t *testing.T) {
+		t.Run("buckets", func(t *testing.T) {
+			t.Run("single bucket updated", func(t *testing.T) {
+				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+					fakeBktSVC := mock.NewBucketService()
+					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{
+							ID:              influxdb.ID(1),
+							OrgID:           orgID,
+							Name:            name,
+							Description:     "old desc",
+							RetentionPeriod: 30 * time.Hour,
+						}, nil
+					}
+					fakeLabelSVC := mock.NewLabelService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+
+					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
+					require.NoError(t, err)
+
+					require.Len(t, diff.Buckets, 1)
+
+					expected := DiffBucket{
+						ID:           influxdb.ID(1),
+						Name:         "rucket_11",
+						OldDesc:      "old desc",
+						NewDesc:      "bucket 1 description",
+						OldRetention: 30 * time.Hour,
+						NewRetention: time.Hour,
+					}
+					assert.Equal(t, expected, diff.Buckets[0])
+				})
+			})
+
+			t.Run("single bucket new", func(t *testing.T) {
+				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+					fakeBktSVC := mock.NewBucketService()
+					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+						return nil, errors.New("not found")
+					}
+					fakeLabelSVC := mock.NewLabelService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+
+					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
+					require.NoError(t, err)
+
+					require.Len(t, diff.Buckets, 1)
+
+					expected := DiffBucket{
+						Name:         "rucket_11",
+						NewDesc:      "bucket 1 description",
+						NewRetention: time.Hour,
+					}
+					assert.Equal(t, expected, diff.Buckets[0])
+				})
+			})
+		})
+
+		t.Run("labels", func(t *testing.T) {
+			t.Run("two labels updated", func(t *testing.T) {
+				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+					fakeBktSVC := mock.NewBucketService()
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{
+								ID:   influxdb.ID(1),
+								Name: filter.Name,
+								Properties: map[string]string{
+									"color":       "old color",
+									"description": "old description",
+								},
+							},
+						}, nil
+					}
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+
+					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
+					require.NoError(t, err)
+
+					require.Len(t, diff.Labels, 2)
+
+					expected := DiffLabel{
+						ID:       influxdb.ID(1),
+						Name:     "label_1",
+						OldColor: "old color",
+						NewColor: "#FFFFFF",
+						OldDesc:  "old description",
+						NewDesc:  "label 1 description",
+					}
+					assert.Equal(t, expected, diff.Labels[0])
+
+					expected.Name = "label_2"
+					expected.NewColor = "#000000"
+					expected.NewDesc = "label 2 description"
+					assert.Equal(t, expected, diff.Labels[1])
+				})
+			})
+
+			t.Run("two labels created", func(t *testing.T) {
+				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+					fakeBktSVC := mock.NewBucketService()
+					fakeLabelSVC := mock.NewLabelService()
+					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
+						return nil, errors.New("no labels found")
+					}
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+
+					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
+					require.NoError(t, err)
+
+					require.Len(t, diff.Labels, 2)
+
+					expected := DiffLabel{
+						Name:     "label_1",
+						NewColor: "#FFFFFF",
+						NewDesc:  "label 1 description",
+					}
+					assert.Equal(t, expected, diff.Labels[0])
+
+					expected.Name = "label_2"
+					expected.NewColor = "#000000"
+					expected.NewDesc = "label 2 description"
+					assert.Equal(t, expected, diff.Labels[1])
+				})
+			})
+		})
+	})
+
 	t.Run("Apply", func(t *testing.T) {
 		t.Run("buckets", func(t *testing.T) {
 			t.Run("successfully creates pkg of buckets", func(t *testing.T) {
@@ -22,6 +151,13 @@ func TestService(t *testing.T) {
 					fakeBucketSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
 						b.ID = influxdb.ID(b.RetentionPeriod)
 						return nil
+					}
+					fakeBucketSVC.FindBucketByNameFn = func(_ context.Context, id influxdb.ID, s string) (*influxdb.Bucket, error) {
+						// forces the bucket to be created a new
+						return nil, errors.New("an error")
+					}
+					fakeBucketSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{ID: id}, nil
 					}
 
 					svc := NewService(zap.NewNop(), fakeBucketSVC, nil)
@@ -44,6 +180,10 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created buckets on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 					fakeBucketSVC := mock.NewBucketService()
+					fakeBucketSVC.FindBucketByNameFn = func(_ context.Context, id influxdb.ID, s string) (*influxdb.Bucket, error) {
+						// forces the bucket to be created a new
+						return nil, errors.New("an error")
+					}
 					var c int
 					fakeBucketSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
 						if c == 2 {
@@ -151,6 +291,10 @@ func TestService(t *testing.T) {
 						id++
 						return nil
 					}
+					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, id influxdb.ID, s string) (*influxdb.Bucket, error) {
+						// forces the bucket to be created a new
+						return nil, errors.New("an error")
+					}
 
 					fakeLabelSVC := mock.NewLabelService()
 					id = 1
@@ -173,47 +317,6 @@ func TestService(t *testing.T) {
 					require.NoError(t, err)
 
 					assert.Equal(t, 4, numLabelMappings)
-				})
-			})
-
-			t.Run("rolls back all created resources on an error", func(t *testing.T) {
-				testfileRunner(t, "testdata/bucket_associates_label", func(t *testing.T, pkg *Pkg) {
-					var deleteCount struct {
-						bkts, labels, mappings int
-					}
-					fakeBktSVC := mock.NewBucketService()
-					fakeBktSVC.DeleteBucketFn = func(_ context.Context, _ influxdb.ID) error {
-						deleteCount.bkts++
-						return nil
-					}
-					fakeLabelSVC := mock.NewLabelService()
-					fakeLabelSVC.DeleteLabelFn = func(_ context.Context, id influxdb.ID) error {
-						deleteCount.labels++
-						return nil
-					}
-					var createdLabelMappings int
-					fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, _ *influxdb.LabelMapping) error {
-						if createdLabelMappings == 3 {
-							return errors.New("error")
-						}
-						createdLabelMappings++
-						return nil
-					}
-					fakeLabelSVC.DeleteLabelMappingFn = func(_ context.Context, _ *influxdb.LabelMapping) error {
-						deleteCount.mappings++
-						return nil
-					}
-
-					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
-
-					orgID := influxdb.ID(9000)
-
-					_, err := svc.Apply(context.TODO(), orgID, pkg)
-					require.Error(t, err)
-
-					assert.Equal(t, 3, deleteCount.bkts)
-					assert.Equal(t, 2, deleteCount.labels)
-					assert.Equal(t, 3, deleteCount.mappings)
 				})
 			})
 		})

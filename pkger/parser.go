@@ -127,6 +127,8 @@ type Pkg struct {
 
 	mLabels  map[string]*label
 	mBuckets map[string]*bucket
+
+	isVerified bool
 }
 
 // Summary returns a package summary that describes all the resources and
@@ -135,57 +137,47 @@ type Pkg struct {
 func (p *Pkg) Summary() Summary {
 	var sum Summary
 
-	type lbl struct {
-		influxdb.Label
-	}
 	for _, l := range p.mLabels {
-		sum.Labels = append(sum.Labels, lbl{
-			Label: influxdb.Label{
-				ID:    l.ID,
-				OrgID: l.OrgID,
-				Name:  l.Name,
-				Properties: map[string]string{
-					"color":       l.Color,
-					"description": l.Description,
-				},
-			},
-		})
+		sum.Labels = append(sum.Labels, l.summarize())
 	}
-
 	sort.Slice(sum.Labels, func(i, j int) bool {
 		return sum.Labels[i].Name < sum.Labels[j].Name
 	})
 
-	type bkt struct {
-		influxdb.Bucket
-		Associations []influxdb.Label
-	}
-
 	for _, b := range p.mBuckets {
-		iBkt := bkt{
-			Bucket: influxdb.Bucket{
-				ID:              b.ID,
-				OrgID:           b.OrgID,
-				Name:            b.Name,
-				Description:     b.Description,
-				RetentionPeriod: b.RetentionPeriod,
-			},
-		}
-		for _, l := range b.labels {
-			iBkt.Associations = append(iBkt.Associations, influxdb.Label{
-				ID:    l.ID,
-				OrgID: l.OrgID,
-				Name:  l.Name,
-				Properties: map[string]string{
-					"color":       l.Color,
-					"description": l.Description,
-				},
-			})
-		}
-		sum.Buckets = append(sum.Buckets, iBkt)
+		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
 	sort.Slice(sum.Buckets, func(i, j int) bool {
 		return sum.Buckets[i].Name < sum.Buckets[j].Name
+	})
+
+	for _, m := range p.labelMappings() {
+		sum.LabelMappings = append(sum.LabelMappings, struct {
+			ResourceName string
+			LabelName    string
+			influxdb.LabelMapping
+		}{
+			ResourceName: m.ResourceName,
+			LabelName:    m.LabelName,
+			LabelMapping: m.LabelMapping,
+		})
+	}
+	// sort by res type ASC, then res name ASC, then label name ASC
+	sort.Slice(sum.LabelMappings, func(i, j int) bool {
+		n, m := sum.LabelMappings[i], sum.LabelMappings[j]
+		if n.ResourceType < m.ResourceType {
+			return true
+		}
+		if n.ResourceType > m.ResourceType {
+			return false
+		}
+		if n.ResourceName < m.ResourceName {
+			return true
+		}
+		if n.ResourceName > m.ResourceName {
+			return false
+		}
+		return n.LabelName < m.LabelName
 	})
 
 	return sum
@@ -221,19 +213,20 @@ func (p *Pkg) labels() []*label {
 // valid pairs of labels and resources of which all have IDs.
 // If a resource does not exist yet, a label mapping will not
 // be returned for it.
-func (p *Pkg) labelMappings() []influxdb.LabelMapping {
-	var mappings []influxdb.LabelMapping
-	for _, b := range p.buckets() {
-		for _, l := range b.labels {
-			if l.ID == influxdb.ID(0) || b.ID == influxdb.ID(0) {
-				continue
-			}
-			mappings = append(mappings, influxdb.LabelMapping{
-				LabelID:      l.ID,
-				ResourceID:   b.ID,
-				ResourceType: influxdb.BucketsResourceType,
-			})
-		}
+func (p *Pkg) labelMappings() []struct {
+	exists       bool
+	ResourceName string
+	LabelName    string
+	influxdb.LabelMapping
+} {
+	var mappings []struct {
+		exists       bool
+		ResourceName string
+		LabelName    string
+		influxdb.LabelMapping
+	}
+	for _, l := range p.mLabels {
+		mappings = append(mappings, l.mappingSummary()...)
 	}
 
 	return mappings
@@ -518,42 +511,9 @@ func (r Resource) nestedAssociations() []Resource {
 	return resources
 }
 
-func (r Resource) bool(key string) bool {
-	b, _ := r[key].(bool)
-	return b
-}
-
 func (r Resource) duration(key string) time.Duration {
 	dur, _ := time.ParseDuration(r.stringShort(key))
 	return dur
-}
-
-func (r Resource) float64(key string) float64 {
-	i, ok := r[key].(float64)
-	if !ok {
-		return 0
-	}
-	return i
-}
-
-func (r Resource) intShort(key string) int {
-	i, _ := r.int(key)
-	return i
-}
-
-func (r Resource) int(key string) (int, bool) {
-	i, ok := r[key].(int)
-	if ok {
-		return i, true
-	}
-
-	s, ok := r[key].(string)
-	if !ok {
-		return 0, false
-	}
-
-	i, err := strconv.Atoi(s)
-	return i, err == nil
 }
 
 func (r Resource) string(key string) (string, bool) {
@@ -564,22 +524,6 @@ func (r Resource) string(key string) (string, bool) {
 func (r Resource) stringShort(key string) string {
 	s, _ := r.string(key)
 	return s
-}
-
-func (r Resource) slcStr(key string) ([]string, bool) {
-	v, ok := r[key].([]interface{})
-	if !ok {
-		return nil, false
-	}
-
-	out := make([]string, 0, len(v))
-	for _, iface := range v {
-		s, ok := iface.(string)
-		if ok {
-			out = append(out, s)
-		}
-	}
-	return out, true
 }
 
 func ifaceMapToResource(i interface{}) (Resource, bool) {
