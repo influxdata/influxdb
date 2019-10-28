@@ -954,7 +954,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newRunResponse(*run)); err != nil {
 		logEncodingError(h.logger, r, err)
 		return
 	}

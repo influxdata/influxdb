@@ -19,7 +19,7 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onDismiss: typeof dismissOverlay
+  clearOverlayControllerState: typeof dismissOverlay
 }
 
 type OverlayControllerProps = StateProps & DispatchProps
