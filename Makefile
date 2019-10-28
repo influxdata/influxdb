@@ -123,6 +123,9 @@ test-js: node_modules
 test-go:
 	$(GO_TEST) ./...
 
+test-promql-e2e:
+	cd query/promql/internal/promqltests; go test ./...
+
 test-integration: GO_TAGS=integration
 test-integration:
 	$(GO_TEST) -count=1 ./...
