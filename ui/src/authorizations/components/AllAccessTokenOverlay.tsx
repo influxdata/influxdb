@@ -30,7 +30,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 import {AppState, Authorization} from 'src/types'
 
 interface OwnProps {
-  onClose: any
+  onClose: () => void
 }
 
 interface StateProps {
