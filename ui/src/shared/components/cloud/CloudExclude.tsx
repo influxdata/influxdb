@@ -5,7 +5,7 @@ export default class extends PureComponent {
   render() {
     const {children} = this.props
 
-    if (CLOUD) {
+    if (!CLOUD) {
       return children
     }
 
