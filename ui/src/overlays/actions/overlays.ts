@@ -12,16 +12,18 @@ export interface ShowOverlay {
   payload: {
     overlayID: string
     overlayParams: OverlayParams
+    onClose: any
   }
 }
 
 export const showOverlay = (
   overlayID: string,
-  overlayParams: OverlayParams
+  overlayParams: OverlayParams,
+  onClose: any
 ): ShowOverlay => {
   return {
     type: ActionTypes.ShowOverlay,
-    payload: {overlayID, overlayParams},
+    payload: {overlayID, overlayParams, onClose},
   }
 }
 

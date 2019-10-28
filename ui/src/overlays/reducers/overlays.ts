@@ -11,6 +11,7 @@ export interface OverlayParams {
 export interface OverlayState {
   id: string | null
   params: OverlayParams
+  onClose: () => void
 }
 
 const nullParams = {}
@@ -18,6 +19,7 @@ const nullParams = {}
 const defaultState: OverlayState = {
   id: null,
   params: nullParams,
+  onClose: () => {},
 }
 
 export const overlaysReducer = (
@@ -27,14 +29,16 @@ export const overlaysReducer = (
   produce(state, draftState => {
     switch (action.type) {
       case ActionTypes.ShowOverlay: {
-        const {overlayID, overlayParams} = action.payload
+        const {overlayID, overlayParams, onClose} = action.payload
         draftState.id = overlayID
         draftState.params = overlayParams
+        draftState.onClose = onClose
         return
       }
       case ActionTypes.DismissOverlay: {
         draftState.id = null
         draftState.params = nullParams
+        draftState.onClose = () => {}
         return
       }
     }

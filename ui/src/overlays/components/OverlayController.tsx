@@ -8,26 +8,67 @@ import {AppState} from 'src/types'
 // Components
 import {Overlay} from '@influxdata/clockface'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
+import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
+import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
+import {dismissOverlay} from 'src/overlays/actions/overlays'
 
 interface StateProps {
   overlayID: string
+  onClose: () => void
 }
 
-const OverlayController: FunctionComponent<StateProps> = ({overlayID}) => {
+interface DispatchProps {
+  onDismiss: typeof dismissOverlay
+}
+
+type OverlayControllerProps = StateProps & DispatchProps
+
+const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
   let activeOverlay = <></>
-  let visibility = false
+  let visibility = true
+
+  const {overlayID, onClose, onDismiss} = props
+
+  const closer = () => {
+    onDismiss()
+    if (onClose) {
+      onClose()
+    }
+  }
 
   switch (overlayID) {
     case 'add-note':
     case 'edit-note':
-      visibility = true
-      activeOverlay = <NoteEditorOverlay />
+      activeOverlay = <NoteEditorOverlay onClose={closer} />
       break
+    case 'add-master-token':
+      activeOverlay = <AllAccessTokenOverlay onClose={closer} />
+      break
+    case 'add-token':
+      activeOverlay = <BucketsTokenOverlay onClose={closer} />
+      break
+    default:
+      visibility = false
   }
 
   return <Overlay visible={visibility}>{activeOverlay}</Overlay>
 }
 
-const mstp = ({overlays: {id}}: AppState): StateProps => ({overlayID: id})
+const mstp = (state: AppState): StateProps => {
+  const id = state.overlays.id
+  const onClose = state.overlays.onClose
 
-export default connect<StateProps, {}, {}>(mstp)(OverlayController)
+  return {
+    overlayID: id,
+    onClose,
+  }
+}
+
+const mdtp = {
+  onDismiss: dismissOverlay,
+}
+
+export default connect<StateProps, DispatchProps, {}>(
+  mstp,
+  mdtp
+)(OverlayController)
