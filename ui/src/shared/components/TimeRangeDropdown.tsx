@@ -206,7 +206,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     if (label === CUSTOM_TIME_RANGE_LABEL) {
       this.setState({
         isDatePickerOpen: true,
-        dropdownPosition: {position: 'relative'}
+        dropdownPosition: {position: 'relative'},
       })
       return
     }
