@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -251,9 +249,10 @@ func (s *Service) deleteLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		if err := s.validLabelName(ctx, tx, l); err != nil {
-			return err
-		}
+		/*
+			if err := s.validLabelName(ctx, tx, l); err != nil {
+				return err
+			}*/
 
 		l.ID = s.IDGenerator.ID()
 
@@ -370,10 +369,11 @@ func (s *Service) forEachLabel(ctx context.Context, tx Tx, fn func(*influxdb.Lab
 func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var label *influxdb.Label
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		l := influxdb.Label{Name: upd.Name}
-		if err := s.validLabelName(ctx, tx, &l); err != nil {
-			return err
-		}
+		/*
+			l := influxdb.Label{Name: upd.Name}
+			if err := s.validLabelName(ctx, tx, &l); err != nil {
+				return err
+			}*/
 
 		labelResponse, pe := s.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
@@ -545,6 +545,7 @@ func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error 
 
 // LabelAlreadyExistsError is used when creating a new label with
 // a name that has already been used. Label names must be unique.
+/*
 func LabelAlreadyExistsError(lbl *influxdb.Label) error {
 	return &influxdb.Error{
 		Code: influxdb.EConflict,
@@ -570,3 +571,4 @@ func (s *Service) validLabelName(ctx context.Context, tx Tx, lbl *influxdb.Label
 	}
 	return err
 }
+*/

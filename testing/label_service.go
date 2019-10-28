@@ -106,6 +106,37 @@ func CreateLabel(
 		wants  wants
 	}{
 		{
+			name: "names should be unique",
+			fields: LabelFields{
+				IDGenerator: mock.NewMockIDGenerator(),
+				Labels: []*influxdb.Label{
+					{
+						ID:   MustIDBase16(labelOneID),
+						Name: "Tag2",
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+			},
+			args: args{
+				label: &influxdb.Label{
+					ID:   MustIDBase16(labelTwoID),
+					Name: "Tag2",
+					Properties: map[string]string{
+						"color": "fff000",
+					},
+				},
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateLabel,
+					Msg:  "label with name Tag2 already exists",
+				},
+			},
+		},
+		{
 			name: "basic create label",
 			fields: LabelFields{
 				IDGenerator: mock.NewIDGenerator(labelOneID, t),
