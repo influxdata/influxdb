@@ -268,7 +268,7 @@ func (i *Importer) batchWrite() {
 	i.batch = i.batch[:0]
 	// Give some status feedback every 100000 lines processed
 	processed := i.totalInserts + i.failedInserts
-	if processed / reportSize > i.reports {
+	if processed/reportSize > i.reports {
 		since := time.Since(i.startTime)
 		pps := float64(processed) / since.Seconds()
 		i.stdoutLogger.Printf("Processed %d lines.  Time elapsed: %s.  Points per second (PPS): %d", processed, since.String(), int64(pps))
