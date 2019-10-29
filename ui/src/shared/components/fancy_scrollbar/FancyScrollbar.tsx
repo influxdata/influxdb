@@ -29,7 +29,7 @@ class FancyScrollbar extends Component<Props> {
     autoHeight: false,
     hideTracksWhenNotNeeded: true,
     maxHeight: null,
-    style: {'margin-bottom': '40px'},
+    style: {marginBottom: '40px'},
     setScrollTop: () => {},
   }
 
