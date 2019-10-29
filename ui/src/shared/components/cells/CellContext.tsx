@@ -1,13 +1,18 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FunctionComponent, useRef, RefObject, useState} from 'react'
 import {get} from 'lodash'
+import classnames from 'classnames'
 
 // Components
-import {Context} from 'src/clockface'
-import {ErrorHandling} from 'src/shared/decorators/errors'
+import {
+  Popover,
+  PopoverType,
+  Icon,
+  IconFont,
+  PopoverInteraction,
+} from '@influxdata/clockface'
 
 // Types
-import {IconFont, ComponentColor} from '@influxdata/clockface'
 import {Cell, View} from 'src/types'
 
 interface Props {
@@ -20,72 +25,89 @@ interface Props {
   onEditNote: (id: string) => void
 }
 
-@ErrorHandling
-export default class CellContext extends PureComponent<Props> {
-  public render() {
-    const {cell, onDeleteCell, onCloneCell} = this.props
+const CellContext: FunctionComponent<Props> = ({
+  view,
+  cell,
+  onEditNote,
+  onEditCell,
+  onDeleteCell,
+  onCloneCell,
+  onCSVDownload,
+}) => {
+  const [popoverVisible, setPopoverVisibility] = useState<boolean>(false)
+  const editNoteText = !!get(view, 'properties.note') ? 'Edit Note' : 'Add Note'
+  const triggerRef: RefObject<HTMLButtonElement> = useRef<HTMLButtonElement>(
+    null
+  )
+  const buttonClass = classnames('cell--context', {
+    'cell--context__active': popoverVisible,
+  })
+
+  const handleEditNote = (): void => {
+    onEditNote(view.id)
+  }
+
+  const handleCloneCell = (): void => {
+    onCloneCell(cell)
+  }
+
+  const handleDeleteCell = (): void => {
+    onDeleteCell(cell)
+  }
+
+  const popoverContents = (onHide): JSX.Element => {
+    if (view.properties.type === 'markdown') {
+      return (
+        <div className="cell--context-menu" onClick={onHide}>
+          <div className="cell--context-item" onClick={handleEditNote}>
+            Edit Note
+          </div>
+        </div>
+      )
+    }
 
     return (
-      <Context className="cell--context">
-        <Context.Menu testID="cell-context-menu--edit" icon={IconFont.Pencil}>
-          {this.editMenuItems}
-        </Context.Menu>
-        <Context.Menu
-          icon={IconFont.Duplicate}
-          color={ComponentColor.Secondary}
-          testID="cell-context-menu--clone"
-        >
-          <Context.Item label="Clone" action={onCloneCell} value={cell} />
-        </Context.Menu>
-        <Context.Menu
-          icon={IconFont.Trash}
-          color={ComponentColor.Danger}
-          testID="cell-context-menu--delete"
-        >
-          <Context.Item label="Delete" action={onDeleteCell} value={cell} />
-        </Context.Menu>
-      </Context>
+      <div className="cell--context-menu" onClick={onHide}>
+        <div className="cell--context-item" onClick={onEditCell}>
+          Configure
+        </div>
+        <div className="cell--context-item" onClick={handleCloneCell}>
+          Clone
+        </div>
+        <div className="cell--context-item" onClick={handleDeleteCell}>
+          Delete
+        </div>
+        <div className="cell--context-item" onClick={handleEditNote}>
+          {editNoteText}
+        </div>
+        <div className="cell--context-item" onClick={onCSVDownload}>
+          Download CSV
+        </div>
+      </div>
     )
   }
 
-  private get editMenuItems(): JSX.Element[] | JSX.Element {
-    const {view, onEditCell, onCSVDownload} = this.props
-
-    if (view.properties.type === 'markdown') {
-      return <Context.Item label="Edit Note" action={this.handleEditNote} />
-    }
-
-    const hasNote = !!get(view, 'properties.note')
-
-    return [
-      <Context.Item
-        key="configure"
-        label="Configure"
-        action={onEditCell}
-        testID="cell-context-menu-item--configure"
-      />,
-      <Context.Item
-        key="note"
-        label={hasNote ? 'Edit Note' : 'Add Note'}
-        action={this.handleEditNote}
-        testID="cell-context-menu-item--note"
-      />,
-      <Context.Item
-        key="download"
-        label="Download CSV"
-        action={onCSVDownload}
-        disabled={true}
-        testID="cell-context-menu-item--dl"
-      />,
-    ]
-  }
-
-  private handleEditNote = () => {
-    const {
-      view: {id},
-      onEditNote,
-    } = this.props
-
-    onEditNote(id)
-  }
+  return (
+    <>
+      <button className={buttonClass} ref={triggerRef}>
+        <Icon glyph={IconFont.CogThick} />
+      </button>
+      <Popover
+        type={PopoverType.Solid}
+        enableDefaultStyles={false}
+        showEvent={PopoverInteraction.Hover}
+        hideEvent={PopoverInteraction.Hover}
+        triggerRef={triggerRef}
+        contents={popoverContents}
+        onShow={() => {
+          setPopoverVisibility(true)
+        }}
+        onHide={() => {
+          setPopoverVisibility(false)
+        }}
+      />
+    </>
+  )
 }
+
+export default CellContext

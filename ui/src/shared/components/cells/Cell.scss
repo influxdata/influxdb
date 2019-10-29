@@ -4,6 +4,8 @@
 */
 
 $cell--header-size: 26px;
+$cell--header-button-color: $g5-pepper;
+$cell--header-button-hover-color: $g13-mist;
 
 .cell {
   background-color: $g0-obsidian;
@@ -88,7 +90,7 @@ $cell--header-size: 26px;
   &:before,
   &:after {
     border-radius: $ix-border / 2;
-    background-color: $g5-pepper;
+    background-color: $cell--header-button-color;
     transition: background-color 0.25s ease;
   }
 
@@ -108,6 +110,12 @@ $cell--header-size: 26px;
   &:after {
     transform: translateY(200%);
   }
+
+  .cell:hover &,
+  .cell:hover &:before,
+  .cell:hover &:after {
+    background-color: $cell--header-button-hover-color;
+  }
 }
 
 .cell--draggable:hover {
@@ -124,8 +132,50 @@ $cell--header-size: 26px;
   flex: 0 0 $cell--header-size;
   width: $cell--header-size;
   height: $cell--header-size;
-  opacity: 0;
-  transition: opacity 0.25s ease;
+  border: 0;
+  outline: none;
+  background: none;
+  transition: color 0.25s ease;
+  color: $cell--header-button-color;
+  position: relative;
+
+  > .cf-icon {
+    font-size: 14px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+  }
+
+  .cell:hover &:not(.cell--context__active) {
+    color: $cell--header-button-hover-color;
+  }
+
+  &:hover,
+  &.cell--context__active {
+    cursor: pointer;
+    color: $c-pool;
+  }
+}
+
+.cell--context-menu {
+  padding: $ix-marg-a;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cell--context-item {
+  font-size: 12px;
+  line-height: 12px;
+  white-space: nowrap;
+  padding: $ix-marg-a;
+  border-radius: $ix-radius - 1px;
+  font-weight: 600;
+
+  &:hover {
+    background-color: #f00;
+  }
 }
 
 .cell--name {
