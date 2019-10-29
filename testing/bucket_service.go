@@ -19,20 +19,6 @@ const (
 	bucketThreeID = "020f755c3c082002"
 )
 
-// taskBucket := influxdb.Bucket{
-// 	ID:              influxdb.TasksSystemBucketID,
-// 	Name:            "_tasks",
-// 	RetentionPeriod: time.Hour * 24 * 3,
-// 	Description:     "System bucket for task logs",
-// }
-//
-// monitoringBucket := influxdb.Bucket{
-// 	ID:              influxdb.MonitoringSystemBucketID,
-// 	Name:            "_monitoring",
-// 	RetentionPeriod: time.Hour * 24 * 7,
-// 	Description:     "System bucket for monitoring logs",
-// }
-
 var bucketCmpOptions = cmp.Options{
 	cmp.Comparer(func(x, y []byte) bool {
 		return bytes.Equal(x, y)
@@ -985,6 +971,43 @@ func DeleteBucket(
 				},
 			},
 		},
+		{
+			name: "delete system buckets",
+			fields: BucketFields{
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						Name:  "A",
+						ID:    MustIDBase16(bucketOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Type:  influxdb.BucketTypeSystem,
+					},
+				},
+			},
+			args: args{
+				ID: bucketOneID,
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Op:   influxdb.OpDeleteBucket,
+					Msg:  "system buckets cannot be deleted",
+					Code: influxdb.EInvalid,
+				},
+				buckets: []*influxdb.Bucket{
+					{
+						Name:  "A",
+						ID:    MustIDBase16(bucketOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Type:  influxdb.BucketTypeSystem,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1210,6 +1233,36 @@ func UpdateBucket(
 				err: &influxdb.Error{
 					Code: influxdb.EConflict,
 					Msg:  "bucket name is not unique",
+				},
+			},
+		},
+		{
+			name: "update system bucket name",
+			fields: BucketFields{
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						Name: "theorg",
+						ID:   MustIDBase16(orgOneID),
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						ID:    MustIDBase16(bucketOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Type:  influxdb.BucketTypeSystem,
+						Name:  "bucket1",
+					},
+				},
+			},
+			args: args{
+				id:   MustIDBase16(bucketOneID),
+				name: "bucket2",
+			},
+			wants: wants{
+				err: &influxdb.Error{
+					Code: influxdb.EInvalid,
+					Msg:  "system buckets cannot be renamed",
 				},
 			},
 		},

@@ -675,6 +675,15 @@ func (s *Service) updateBucket(ctx context.Context, tx Tx, id influxdb.ID, upd i
 		return nil, err
 	}
 
+	if upd.Name != nil && b.Type == influxdb.BucketTypeSystem {
+		err = &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "system buckets cannot be renamed",
+		}
+
+		return nil, err
+	}
+
 	if upd.RetentionPeriod != nil {
 		b.RetentionPeriod = *upd.RetentionPeriod
 	}

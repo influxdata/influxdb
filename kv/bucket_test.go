@@ -9,47 +9,12 @@ import (
 	influxdbtesting "github.com/influxdata/influxdb/testing"
 )
 
-const (
-	bucketOneID = "020f755c3c082000"
-	orgOneID    = "020f755c3c083000"
-)
-
 func TestBoltBucketService(t *testing.T) {
 	influxdbtesting.BucketService(initBoltBucketService, t)
 }
 
 func TestInmemBucketService(t *testing.T) {
 	influxdbtesting.BucketService(initInmemBucketService, t)
-}
-
-func TestSystemBucketDeletion(t *testing.T) {
-	fields := influxdbtesting.BucketFields{
-		Organizations: []*influxdb.Organization{
-			{
-				Name: "theorg",
-				ID:   influxdbtesting.MustIDBase16(orgOneID),
-			},
-		},
-		Buckets: []*influxdb.Bucket{
-			{
-				Name:  "A",
-				ID:    influxdbtesting.MustIDBase16(bucketOneID),
-				OrgID: influxdbtesting.MustIDBase16(orgOneID),
-				Type:  influxdb.BucketTypeSystem,
-			},
-		},
-	}
-	bucketService, _, cls := initBoltBucketService(fields, t)
-	defer cls()
-
-	ctx := context.Background()
-	id := influxdbtesting.MustIDBase16(bucketOneID)
-
-	err := bucketService.DeleteBucket(ctx, id)
-
-	if err.Error() != "system buckets cannot be deleted" {
-		t.Errorf("failed to stop system bucket deletion")
-	}
 }
 
 func initBoltBucketService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
