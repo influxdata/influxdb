@@ -93,7 +93,7 @@ exports[`Account rendering renders! 1`] = `
                                       title="Edit About Me"
                                       type="button"
                                     >
-                                      <X
+                                      <G
                                         icon=""
                                         placeIconAfterText={false}
                                         text="Edit About Me"
@@ -103,7 +103,7 @@ exports[`Account rendering renders! 1`] = `
                                         >
                                           Edit About Me
                                         </span>
-                                      </X>
+                                      </G>
                                     </button>
                                   </ButtonBase>
                                 </Button>
@@ -159,6 +159,21 @@ exports[`Account rendering renders! 1`] = `
                                           }
                                         }
                                       >
+                                        <StatusIndicator
+                                          shadow={true}
+                                          size="sm"
+                                          status="disabled"
+                                          testID="nameInput"
+                                        >
+                                          <div
+                                            className="cf-status-indicator cf-status-indicator__disabled cf-status-indicator__sm"
+                                            data-testid="nameInput--disabled"
+                                          >
+                                            <div
+                                              className="cf-status-indicator--shadow"
+                                            />
+                                          </div>
+                                        </StatusIndicator>
                                         <input
                                           autoComplete="off"
                                           autoFocus={false}
@@ -174,13 +189,6 @@ exports[`Account rendering renders! 1`] = `
                                           type="text"
                                           value="groot"
                                         />
-                                        <ye
-                                          status="disabled"
-                                        >
-                                          <div
-                                            className="cf-input-shadow"
-                                          />
-                                        </ye>
                                       </div>
                                     </Input>
                                   </div>

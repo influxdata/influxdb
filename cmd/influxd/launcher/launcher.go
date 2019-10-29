@@ -45,12 +45,13 @@ import (
 	"github.com/influxdata/influxdb/task/backend/coordinator"
 	taskexecutor "github.com/influxdata/influxdb/task/backend/executor"
 	"github.com/influxdata/influxdb/task/backend/middleware"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"github.com/influxdata/influxdb/telemetry"
 	_ "github.com/influxdata/influxdb/tsdb/tsi1" // needed for tsi1
 	_ "github.com/influxdata/influxdb/tsdb/tsm1" // needed for tsm1
 	"github.com/influxdata/influxdb/vault"
 	pzap "github.com/influxdata/influxdb/zap"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	jaegerconfig "github.com/uber/jaeger-client-go/config"
@@ -256,6 +257,12 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Default: "",
 			Desc:    "TLS key for HTTPs",
 		},
+		{
+			DestP:   &l.EnableNewScheduler,
+			Flag:    "feature-enable-new-scheduler",
+			Default: false,
+			Desc:    "feature flag that enables using the new treescheduler",
+		},
 	}
 
 	cli.BindOptions(cmd, opts)
@@ -299,7 +306,9 @@ type Launcher struct {
 	natsServer *nats.Server
 	natsPort   int
 
+	EnableNewScheduler bool
 	scheduler          *taskbackend.TickScheduler
+	treeScheduler      *scheduler.TreeScheduler
 	taskControlService taskbackend.TaskControlService
 
 	jaegerTracerCloser io.Closer
@@ -363,7 +372,11 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 	m.httpServer.Shutdown(ctx)
 
 	m.logger.Info("Stopping", zap.String("service", "task"))
-	m.scheduler.Stop()
+	if m.EnableNewScheduler {
+		m.treeScheduler.Stop()
+	} else {
+		m.scheduler.Stop()
+	}
 
 	m.logger.Info("Stopping", zap.String("service", "nats"))
 	m.natsServer.Close()
@@ -616,31 +629,79 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
 	{
-
 		// create the task stack:
 		// validation(coordinator(analyticalstore(kv.Service)))
+		combinedTaskService := taskbackend.NewAnalyticalStorage(m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
+		if m.EnableNewScheduler {
+			executor, executorMetrics := taskexecutor.NewExecutor(
+				m.logger.With(zap.String("service", "task-executor")),
+				query.QueryServiceBridge{AsyncQueryService: m.queryController},
+				authSvc,
+				combinedTaskService,
+				combinedTaskService,
+			)
+			m.reg.MustRegister(executorMetrics.PrometheusCollectors()...)
+			schLogger := m.logger.With(zap.String("service", "task-scheduler"))
 
-		// define the executor and build analytical storage middleware
-		combinedTaskService := taskbackend.NewAnalyticalStorage(
-			m.logger.With(zap.String("service", "task-analytical-store")), m.kvService, m.kvService, m.kvService, pointsWriter, query.QueryServiceBridge{AsyncQueryService: m.queryController})
-		executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
+			sch, sm, err := scheduler.NewScheduler(
+				executor,
+				taskbackend.NewSchedulableTaskService(m.kvService),
+				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+					schLogger.Info(
+						"error in scheduler run",
+						zap.String("taskID", platform.ID(taskID).String()),
+						zap.Time("scheduledAt", scheduledAt),
+						zap.Error(err))
+				}),
+			)
+			if err != nil {
+				m.logger.Fatal("could not start task scheduler", zap.Error(err))
+			}
+			m.treeScheduler = sch
+			m.reg.MustRegister(sm.PrometheusCollectors()...)
+			coordLogger := m.logger.With(zap.String("service", "task-coordinator"))
+			taskCoord := coordinator.NewCoordinator(
+				coordLogger,
+				sch,
+				executor)
 
-		// create the scheduler
-		m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
-		m.scheduler.Start(ctx)
-		m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
+			taskSvc = middleware.New(combinedTaskService, taskCoord)
+			m.taskControlService = combinedTaskService
+			if err := taskbackend.TaskNotifyCoordinatorOfExisting(
+				ctx,
+				taskSvc,
+				combinedTaskService,
+				taskCoord,
+				func(ctx context.Context, taskID platform.ID, runID platform.ID) error {
+					_, err := executor.ResumeCurrentRun(ctx, taskID, runID)
+					return err
+				},
+				coordLogger); err != nil {
+				m.logger.Error("failed to resume existing tasks", zap.Error(err))
+			}
+		} else {
 
-		logger := m.logger.With(zap.String("service", "task-coordinator"))
-		coordinator := coordinator.New(logger, m.scheduler)
+			// define the executor and build analytical storage middleware
+			executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
-		// resume existing task claims from task service
-		if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
-			logger.Error("failed to resume existing tasks", zap.Error(err))
+			// create the scheduler
+			m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+			m.scheduler.Start(ctx)
+			m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
+
+			logger := m.logger.With(zap.String("service", "task-coordinator"))
+			coordinator := coordinator.New(logger, m.scheduler)
+
+			// resume existing task claims from task service
+			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
+				logger.Error("failed to resume existing tasks", zap.Error(err))
+			}
+
+			taskSvc = middleware.New(combinedTaskService, coordinator)
+			taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
+			m.taskControlService = combinedTaskService
 		}
 
-		taskSvc = middleware.New(combinedTaskService, coordinator)
-		taskSvc = authorizer.NewTaskService(m.logger.With(zap.String("service", "task-authz-validator")), taskSvc)
-		m.taskControlService = combinedTaskService
 	}
 
 	var checkSvc platform.CheckService
@@ -882,6 +943,7 @@ func (m *Launcher) TaskControlService() taskbackend.TaskControlService {
 }
 
 // TaskScheduler returns the internal scheduler service.
+// TODO(docmerlin): remove this when we delete the old scheduler
 func (m *Launcher) TaskScheduler() taskbackend.Scheduler {
 	return m.scheduler
 }

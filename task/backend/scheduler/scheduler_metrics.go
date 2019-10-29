@@ -8,6 +8,7 @@ type SchedulerMetrics struct {
 	totalExecuteCalls   prometheus.Counter
 	totalExecuteFailure prometheus.Counter
 	scheduleCalls       prometheus.Counter
+	scheduleFails       prometheus.Counter
 	releaseCalls        prometheus.Counter
 
 	executingTasks *executingTasks
@@ -37,6 +38,13 @@ func NewSchedulerMetrics(te *TreeScheduler) *SchedulerMetrics {
 			Name:      "total_schedule_calls",
 			Help:      "Total number of schedule requests.",
 		}),
+		scheduleFails: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "total_schedule_fails",
+			Help:      "Total number of schedule requests that fail to schedule.",
+		}),
+
 		totalExecuteFailure: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: namespace,
 			Subsystem: subsystem,
@@ -75,6 +83,7 @@ func (em *SchedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 		em.totalExecuteCalls,
 		em.totalExecuteFailure,
 		em.scheduleCalls,
+		em.scheduleFails,
 		em.releaseCalls,
 		em.executingTasks,
 		em.scheduleDelay,
@@ -85,6 +94,11 @@ func (em *SchedulerMetrics) PrometheusCollectors() []prometheus.Collector {
 func (em *SchedulerMetrics) schedule(taskID ID) {
 	em.scheduleCalls.Inc()
 }
+
+func (em *SchedulerMetrics) scheduleFail(taskID ID) {
+	em.scheduleFails.Inc()
+}
+
 func (em *SchedulerMetrics) release(taskID ID) {
 	em.releaseCalls.Inc()
 }
