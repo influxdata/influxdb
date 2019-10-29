@@ -7,10 +7,14 @@
   position: absolute !important;
   top: 0;
   left: 0;
+  background-color: $g3-castle;
+  border: $ix-border solid $g0-obsidian;
+  border-top: 0;
+  border-radius: $ix-radius;
 }
 
 .markdown-cell--contents {
-  padding: 16px;
+  padding: $ix-marg-b + $ix-marg-a;
   font-size: 13px;
 }
 
