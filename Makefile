@@ -15,10 +15,23 @@
 # It is required that all subdirs have the `all` and `clean` targets.
 SUBDIRS := http ui chronograf query storage
 GO_ARGS=-tags '$(GO_TAGS)'
+ifeq ($(OS), Windows_NT)
+	VERSION := $(shell git describe --exact-match --tags 2>nil)
+else
+	VERSION := $(shell git describe --exact-match --tags 2>/dev/null)
+endif
+COMMIT := $(shell git rev-parse --short HEAD)
+DATE := $(shell date --utc +%FT%TZ)
+
+LDFLAGS := $(LDFLAGS) -X main.commit=$(COMMIT) -X main.date=$(DATE)
+ifdef VERSION
+	LDFLAGS += -X main.version=$(VERSION)
+endif
+
 
 # Test vars can be used by all recursive Makefiles
 export GOOS=$(shell go env GOOS)
-export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
 export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS)
 export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.

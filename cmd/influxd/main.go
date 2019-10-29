@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	_ "net/http/pprof"
 	"os"
 	"strings"
@@ -33,7 +34,13 @@ func init() {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	rootCmd.InitDefaultHelpCmd()
-
+	rootCmd.AddCommand(&cobra.Command{
+		Use:   "version",
+		Short: "Print the influxd server version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
+		},
+	})
 	rootCmd.AddCommand(launcher.NewCommand())
 	rootCmd.AddCommand(generate.Command)
 	rootCmd.AddCommand(inspect.NewCommand())
