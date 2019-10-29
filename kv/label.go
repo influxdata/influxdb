@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
@@ -21,6 +23,10 @@ func (s *Service) initializeLabels(ctx context.Context, tx Tx) error {
 	}
 
 	if _, err := tx.Bucket(labelMappingBucket); err != nil {
+		return err
+	}
+
+	if _, err := tx.Bucket(labelIndex); err != nil {
 		return err
 	}
 
@@ -86,7 +92,7 @@ func (s *Service) findLabelByID(ctx context.Context, tx Tx, id influxdb.ID) (*in
 
 func filterLabelsFn(filter influxdb.LabelFilter) func(l *influxdb.Label) bool {
 	return func(label *influxdb.Label) bool {
-		return (filter.Name == "" || (filter.Name == label.Name)) &&
+		return (filter.Name == "" || (strings.ToLower(filter.Name) == strings.ToLower(label.Name))) &&
 			((filter.OrgID == nil) || (filter.OrgID != nil && *filter.OrgID == label.OrgID))
 	}
 }
@@ -249,10 +255,10 @@ func (s *Service) deleteLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		/*
-			if err := s.validLabelName(ctx, tx, l); err != nil {
-				return err
-			}*/
+
+		if err := s.validLabelName(ctx, tx, l); err != nil {
+			return err
+		}
 
 		l.ID = s.IDGenerator.ID()
 
@@ -369,11 +375,21 @@ func (s *Service) forEachLabel(ctx context.Context, tx Tx, fn func(*influxdb.Lab
 func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var label *influxdb.Label
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		/*
-			l := influxdb.Label{Name: upd.Name}
+		original_label, err := s.FindLabelByID(ctx, id)
+		if err != nil {
+			return err
+		}
+
+		if upd.Name != "" {
+			l := influxdb.Label{
+				ID:    id,
+				OrgID: original_label.OrgID,
+				Name:  upd.Name,
+			}
 			if err := s.validLabelName(ctx, tx, &l); err != nil {
 				return err
-			}*/
+			}
+		}
 
 		labelResponse, pe := s.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
@@ -437,6 +453,26 @@ func (s *Service) putLabel(ctx context.Context, tx Tx, l *influxdb.Label) error 
 
 	encodedID, err := l.ID.Encode()
 	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	idx, err := tx.Bucket(labelIndex)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	key, err := labelIndexKey(l)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	if err := idx.Put([]byte(key), encodedID); err != nil {
 		return &influxdb.Error{
 			Err: err,
 		}
@@ -543,32 +579,56 @@ func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error 
 	return nil
 }
 
-// LabelAlreadyExistsError is used when creating a new label with
+// labelAlreadyExistsError is used when creating a new label with
 // a name that has already been used. Label names must be unique.
-/*
-func LabelAlreadyExistsError(lbl *influxdb.Label) error {
+func labelAlreadyExistsError(lbl *influxdb.Label) error {
 	return &influxdb.Error{
 		Code: influxdb.EConflict,
 		Msg:  fmt.Sprintf("label with name %s already exists", lbl.Name),
 	}
 }
 
-func labelIndexKey(n string) []byte {
-	return []byte(n)
+func labelIndexKey(l *influxdb.Label) ([]byte, error) {
+	orgID, err := l.OrgID.Encode()
+	if err != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	k := make([]byte, influxdb.IDLength+len(l.Name))
+	copy(k, orgID)
+	copy(k[influxdb.IDLength:], []byte(l.Name))
+	return k, nil
 }
 
 func (s *Service) validLabelName(ctx context.Context, tx Tx, lbl *influxdb.Label) error {
 	if lbl.Name = strings.TrimSpace(lbl.Name); lbl.Name == "" {
-		return influxdb.ErrOrgNameisEmpty
+		return labelAlreadyExistsError(lbl)
 	}
-	key := labelIndexKey(lbl.Name) // organizationIndexKey(l.Name)
 
-	// if the name is not unique across all organizations, then, do not
-	// allow creation.
-	err := s.unique(ctx, tx, labelIndex, key)
+	lbls, err := s.FindLabels(ctx, influxdb.LabelFilter{})
+
+	if err != nil {
+		return err
+	}
+
+	for _, l := range lbls {
+		if strings.ToLower(l.Name) == strings.ToLower(lbl.Name) {
+			return labelAlreadyExistsError(l)
+		}
+	}
+
+	key, err := labelIndexKey(lbl)
+	if err != nil {
+		return err
+	}
+
+	// labels are unique by `organization:label_name`
+	err = s.unique(ctx, tx, labelIndex, key)
 	if err == NotUniqueError {
-		return LabelAlreadyExistsError(lbl)
+		return labelAlreadyExistsError(lbl)
 	}
 	return err
 }
-*/
