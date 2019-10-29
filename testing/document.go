@@ -36,8 +36,8 @@ func NewDocumentIntegrationTest(store kv.Store) func(t *testing.T) {
 			t.Fatalf("failed to find document store: %v", err)
 		}
 
-		l1 := &influxdb.Label{Name: "l1"}
-		l2 := &influxdb.Label{Name: "l2"}
+		l1 := &influxdb.Label{Name: "l1", OrgID: MustIDBase16("41a9f7288d4e2d64")}
+		l2 := &influxdb.Label{Name: "l2", OrgID: MustIDBase16("41a9f7288d4e2d64")}
 		mustCreateLabels(ctx, svc, l1, l2)
 		lBad := &influxdb.Label{ID: MustIDBase16(oneID), Name: "bad"}
 

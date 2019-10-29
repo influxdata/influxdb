@@ -92,7 +92,7 @@ func (s *Service) findLabelByID(ctx context.Context, tx Tx, id influxdb.ID) (*in
 
 func filterLabelsFn(filter influxdb.LabelFilter) func(l *influxdb.Label) bool {
 	return func(label *influxdb.Label) bool {
-		return (filter.Name == "" || (strings.ToLower(filter.Name) == strings.ToLower(label.Name))) &&
+		return (filter.Name == "" || (strings.EqualFold(filter.Name, label.Name))) &&
 			((filter.OrgID == nil) || (filter.OrgID != nil && *filter.OrgID == label.OrgID))
 	}
 }
@@ -425,6 +425,12 @@ func (s *Service) updateLabel(ctx context.Context, tx Tx, id influxdb.ID, upd in
 		}
 
 		key, err := labelIndexKey(label)
+		if err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
+
 		if err := idx.Delete(key); err != nil {
 			return nil, &influxdb.Error{
 				Err: err,
@@ -588,7 +594,13 @@ func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error 
 			Err: err,
 		}
 	}
+
 	key, err := labelIndexKey(label)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
 
 	if err := idx.Delete(key); err != nil {
 		return &influxdb.Error{
