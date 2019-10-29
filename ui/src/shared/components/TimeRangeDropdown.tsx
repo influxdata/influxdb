@@ -60,6 +60,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
           showEvent={PopoverInteraction.None}
           hideEvent={PopoverInteraction.None}
           distanceFromTrigger={8}
+          testID="timerange-popover"
           enableDefaultStyles={false}
           contents={() => (
             <DateRangePicker
@@ -73,6 +74,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
         <div ref={this.dropdownRef}>
           <Dropdown
             style={{width: `${this.dropdownWidth}px`}}
+            testID="timerange-dropdown"
             button={(active, onClick) => (
               <Dropdown.Button active={active} onClick={onClick}>
                 {this.formattedCustomTimeRange}
@@ -89,11 +91,13 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                       <Dropdown.Divider key={label} text={label} id={label} />
                     )
                   }
+                  const testID = label.toLowerCase().replace(/\s/g, '')
                   return (
                     <Dropdown.Item
                       key={label}
                       value={label}
                       id={label}
+                      testID={`dropdown-item-${testID}`}
                       selected={label === timeRange.label}
                       onClick={this.handleChange}
                     >
