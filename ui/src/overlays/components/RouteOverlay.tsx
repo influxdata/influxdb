@@ -2,6 +2,7 @@
 import React, {Component, ComponentClass} from 'react'
 import {withRouter, WithRouterProps, InjectedRouter} from 'react-router'
 import {connect} from 'react-redux'
+import {OverlayID} from 'src/overlays/reducers/overlays'
 
 // Actions
 import {showOverlay} from 'src/overlays/actions/overlays'
@@ -15,7 +16,7 @@ interface RealInjectedRouter extends InjectedRouter {
 export type OverlayDismissalWithRoute = (router: RealInjectedRouter) => void
 
 interface OwnProps {
-  overlayID: string
+  overlayID: OverlayID
   onClose: OverlayDismissalWithRoute
 }
 

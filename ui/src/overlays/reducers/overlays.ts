@@ -4,12 +4,18 @@ import {produce} from 'immer'
 // Types
 import {ActionTypes, Actions} from 'src/overlays/actions/overlays'
 
+export type OverlayID =
+  | 'add-note'
+  | 'edit-note'
+  | 'add-master-token'
+  | 'add-token'
+
 export interface OverlayParams {
   [key: string]: string
 }
 
 export interface OverlayState {
-  id: string | null
+  id: OverlayID | null
   params: OverlayParams
   onClose: () => void
 }
