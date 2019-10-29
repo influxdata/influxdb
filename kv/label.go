@@ -255,8 +255,16 @@ func (s *Service) deleteLabelMapping(ctx context.Context, tx Tx, m *influxdb.Lab
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
+		if err := l.Validate(); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Err:  err,
+			}
+		}
 
-		if err := s.validLabelName(ctx, tx, l); err != nil {
+		l.Name = strings.TrimSpace(l.Name)
+
+		if err := s.uniqueLabelName(ctx, tx, l); err != nil {
 			return err
 		}
 
@@ -375,22 +383,6 @@ func (s *Service) forEachLabel(ctx context.Context, tx Tx, fn func(*influxdb.Lab
 func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var label *influxdb.Label
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		original_label, err := s.FindLabelByID(ctx, id)
-		if err != nil {
-			return err
-		}
-
-		if upd.Name != "" {
-			l := influxdb.Label{
-				ID:    id,
-				OrgID: original_label.OrgID,
-				Name:  upd.Name,
-			}
-			if err := s.validLabelName(ctx, tx, &l); err != nil {
-				return err
-			}
-		}
-
 		labelResponse, pe := s.updateLabel(ctx, tx, id, upd)
 		if pe != nil {
 			return &influxdb.Error{
@@ -423,7 +415,28 @@ func (s *Service) updateLabel(ctx context.Context, tx Tx, id influxdb.ID, upd in
 	}
 
 	if upd.Name != "" {
+		upd.Name = strings.TrimSpace(upd.Name)
+
+		idx, err := tx.Bucket(labelIndex)
+		if err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
+
+		key, err := labelIndexKey(label)
+		if err := idx.Delete(key); err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
+
 		label.Name = upd.Name
+		if err := s.uniqueLabelName(ctx, tx, label); err != nil {
+			return nil, &influxdb.Error{
+				Err: err,
+			}
+		}
 	}
 
 	if err := label.Validate(); err != nil {
@@ -547,7 +560,7 @@ func (s *Service) DeleteLabel(ctx context.Context, id influxdb.ID) error {
 }
 
 func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error {
-	_, err := s.findLabelByID(ctx, tx, id)
+	label, err := s.findLabelByID(ctx, tx, id)
 	if err != nil {
 		return err
 	}
@@ -564,6 +577,20 @@ func (s *Service) deleteLabel(ctx context.Context, tx Tx, id influxdb.ID) error 
 	}
 
 	if err := b.Delete(encodedID); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	idx, err := tx.Bucket(labelIndex)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+	key, err := labelIndexKey(label)
+
+	if err := idx.Delete(key); err != nil {
 		return &influxdb.Error{
 			Err: err,
 		}
@@ -599,27 +626,11 @@ func labelIndexKey(l *influxdb.Label) ([]byte, error) {
 
 	k := make([]byte, influxdb.IDLength+len(l.Name))
 	copy(k, orgID)
-	copy(k[influxdb.IDLength:], []byte(l.Name))
+	copy(k[influxdb.IDLength:], []byte(strings.ToLower((l.Name))))
 	return k, nil
 }
 
-func (s *Service) validLabelName(ctx context.Context, tx Tx, lbl *influxdb.Label) error {
-	if lbl.Name = strings.TrimSpace(lbl.Name); lbl.Name == "" {
-		return labelAlreadyExistsError(lbl)
-	}
-
-	lbls, err := s.FindLabels(ctx, influxdb.LabelFilter{})
-
-	if err != nil {
-		return err
-	}
-
-	for _, l := range lbls {
-		if strings.ToLower(l.Name) == strings.ToLower(lbl.Name) {
-			return labelAlreadyExistsError(l)
-		}
-	}
-
+func (s *Service) uniqueLabelName(ctx context.Context, tx Tx, lbl *influxdb.Label) error {
 	key, err := labelIndexKey(lbl)
 	if err != nil {
 		return err

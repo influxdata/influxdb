@@ -230,7 +230,7 @@ func CreateLabel(
 				err: &influxdb.Error{
 					Code: influxdb.EConflict,
 					Op:   influxdb.OpCreateLabel,
-					Msg:  "label with name tag_1 already exists",
+					Msg:  "label with name TAG_1 already exists",
 				},
 			},
 		},
@@ -543,7 +543,7 @@ func UpdateLabel(
 			},
 		},
 		{
-			name: "can't update a label with a name that already exists",
+			name: "cant update a label with a name that already exists",
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
@@ -551,10 +551,15 @@ func UpdateLabel(
 						OrgID: MustIDBase16(orgOneID),
 						Name:  "tag_1",
 					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
 				},
 			},
 			args: args{
-				labelID: MustIDBase16(labelOneID),
+				labelID: MustIDBase16(labelTwoID),
 				update: influxdb.LabelUpdate{
 					Name: "tag_1",
 				},
@@ -566,6 +571,11 @@ func UpdateLabel(
 						OrgID: MustIDBase16(orgOneID),
 						Name:  "tag_1",
 					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
 				},
 				err: &influxdb.Error{
 					Code: influxdb.EConflict,
@@ -575,7 +585,7 @@ func UpdateLabel(
 			},
 		},
 		{
-			name: "should trim space, but fails to update existing label",
+			name: "should trim space but fails to update existing label",
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
@@ -583,10 +593,15 @@ func UpdateLabel(
 						OrgID: MustIDBase16(orgOneID),
 						Name:  "tag_1",
 					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
 				},
 			},
 			args: args{
-				labelID: MustIDBase16(labelOneID),
+				labelID: MustIDBase16(labelTwoID),
 				update: influxdb.LabelUpdate{
 					Name: " tag_1 ",
 				},
@@ -597,6 +612,11 @@ func UpdateLabel(
 						ID:    MustIDBase16(labelOneID),
 						OrgID: MustIDBase16(orgOneID),
 						Name:  "tag_1",
+					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
 					},
 				},
 				err: &influxdb.Error{
