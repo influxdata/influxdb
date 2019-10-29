@@ -115,14 +115,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             size={ComponentSize.ExtraSmall}
             onClick={this.handleRenameBucket}
           />
-          <FeatureFlag name="deleteWithPredicate">
-            <Button
-              text="Delete Data By Filter"
-              testID="bucket-delete-task"
-              size={ComponentSize.ExtraSmall}
-              onClick={this.handleDeleteData}
-            />
-          </FeatureFlag>
+          <Button
+            text="Delete Data By Filter"
+            testID="bucket-delete-task"
+            size={ComponentSize.ExtraSmall}
+            onClick={this.handleDeleteData}
+          />
         </FlexBox>
       )
     }

@@ -13,13 +13,12 @@ const DeleteDataButton: FunctionComponent<WithRouterProps> = ({
   const onClick = () => router.push(`${pathname}/delete-data`)
 
   return (
-    <FeatureFlag name="deleteWithPredicate">
-      <Button
-        text="Delete Data"
-        onClick={onClick}
-        titleText="Filter and mark data for deletion"
-      />
-    </FeatureFlag>
+    <Button
+      data-testID="delete-data-predicate"
+      text="Delete Data"
+      onClick={onClick}
+      titleText="Filter and mark data for deletion"
+    />
   )
 }
 

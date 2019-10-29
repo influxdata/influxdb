@@ -1,6 +1,7 @@
 // Libraries
 import React, {useReducer, FunctionComponent} from 'react'
 import moment from 'moment'
+import {connect} from 'react-redux'
 import {Form, Grid, Columns, Panel} from '@influxdata/clockface'
 
 // Components
@@ -15,17 +16,23 @@ import FilterEditor, {
 // Types
 import {RemoteDataState} from 'src/types'
 
+// action
+import {deleteWithPredicate} from 'src/buckets/actions'
+
+
 const HOUR_MS = 1000 * 60 * 60
 
-const FAKE_API_CALL = async (_: any) => {
-  await new Promise(res => setTimeout(res, 2000))
-}
-
-interface Props {
+interface OwnProps {
   orgID: string
   initialBucketName?: string
   initialTimeRange?: [number, number]
 }
+
+interface DispatchProps {
+  deleteWithPredicate: typeof deleteWithPredicate
+}
+
+type Props = DispatchProps & OwnProps
 
 interface State {
   bucketName: string
@@ -81,9 +88,10 @@ const reducer = (state: State, action: Action): State => {
 }
 
 const DeleteDataForm: FunctionComponent<Props> = ({
-  orgID,
+  deleteWithPredicate,
   initialBucketName,
   initialTimeRange,
+  orgID,
 }) => {
   const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
 
@@ -109,21 +117,20 @@ const DeleteDataForm: FunctionComponent<Props> = ({
         deletionStatus: RemoteDataState.Loading,
       })
 
-      const deleteRequest = {
-        query: {
-          bucket: state.bucketName,
-          org: orgID,
-          precision: 'ms',
-        },
+      const [start, stop] = state.timeRange
 
-        body: {
-          start: state.timeRange[0],
-          stop: state.timeRange[1],
-          tags: state.filters,
+      const params = {
+        data: {
+          start: moment(start).toISOString(),
+          stop: moment(stop).toISOString(),
+        },
+        query: {
+          orgID,
+          bucket: state.bucketName,
         },
       }
 
-      await FAKE_API_CALL(deleteRequest)
+      const res = await deleteWithPredicate(params)
 
       dispatch({
         type: 'SET_DELETION_STATUS',
@@ -202,4 +209,8 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   )
 }
 
-export default DeleteDataForm
+const mdtp = {
+  deleteWithPredicate,
+}
+
+export default connect<{}, DispatchProps, {}>(null, mdtp)(DeleteDataForm)
