@@ -4,7 +4,13 @@ import {get} from 'lodash'
 import moment from 'moment'
 
 // Components
-import {Dropdown} from '@influxdata/clockface'
+import {
+  Dropdown,
+  Popover,
+  PopoverPosition,
+  PopoverInteraction,
+  PopoverType,
+} from '@influxdata/clockface'
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
 // Constants
@@ -26,19 +32,14 @@ export enum RangeType {
 interface Props {
   timeRange: TimeRange
   onSetTimeRange: (timeRange: TimeRange, rangeType?: RangeType) => void
-  centerPicker: boolean
 }
 
 interface State {
   isDatePickerOpen: boolean
-  dropdownPosition: {top: number; right: number}
+  dropdownPosition: {position: string}
 }
 
 class TimeRangeDropdown extends PureComponent<Props, State> {
-  public static defaultProps = {
-    centerPicker: false,
-  }
-
   private dropdownRef = createRef<HTMLDivElement>()
 
   constructor(props: Props) {
@@ -49,21 +50,31 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
 
   public render() {
     const timeRange = this.timeRange
-    const {centerPicker} = this.props
-
     return (
       <>
-        {this.isDatePickerVisible && (
-          <DateRangePicker
-            timeRange={timeRange}
-            onSetTimeRange={this.handleApplyTimeRange}
-            onClose={this.handleHideDatePicker}
-            position={centerPicker ? null : this.state.dropdownPosition}
-          />
-        )}
+        <Popover
+          type={PopoverType.Outline}
+          position={PopoverPosition.ToTheLeft}
+          triggerRef={this.dropdownRef}
+          visible={this.isDatePickerVisible}
+          showEvent={PopoverInteraction.None}
+          hideEvent={PopoverInteraction.None}
+          distanceFromTrigger={8}
+          testID="timerange-popover"
+          enableDefaultStyles={false}
+          contents={() => (
+            <DateRangePicker
+              timeRange={timeRange}
+              onSetTimeRange={this.handleApplyTimeRange}
+              onClose={this.handleHideDatePicker}
+              position={this.state.dropdownPosition}
+            />
+          )}
+        />
         <div ref={this.dropdownRef}>
           <Dropdown
             style={{width: `${this.dropdownWidth}px`}}
+            testID="timerange-dropdown"
             button={(active, onClick) => (
               <Dropdown.Button active={active} onClick={onClick}>
                 {this.formattedCustomTimeRange}
@@ -80,11 +91,13 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                       <Dropdown.Divider key={label} text={label} id={label} />
                     )
                   }
+                  const testID = label.toLowerCase().replace(/\s/g, '')
                   return (
                     <Dropdown.Item
                       key={label}
                       value={label}
                       id={label}
+                      testID={`dropdown-item-${testID}`}
                       selected={label === timeRange.label}
                       onClick={this.handleChange}
                     >
@@ -195,9 +208,10 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     const timeRange = TIME_RANGES.find(t => t.label === label)
 
     if (label === CUSTOM_TIME_RANGE_LABEL) {
-      const {top, left} = this.dropdownRef.current.getBoundingClientRect()
-      const right = window.innerWidth - left
-      this.setState({isDatePickerOpen: true, dropdownPosition: {top, right}})
+      this.setState({
+        isDatePickerOpen: true,
+        dropdownPosition: {position: 'relative'},
+      })
       return
     }
 
