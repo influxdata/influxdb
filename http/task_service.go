@@ -180,6 +180,23 @@ type taskResponse struct {
 
 // NewFrontEndTask converts a internal task type to a task that we want to display to users
 func NewFrontEndTask(t influxdb.Task) Task {
+	latestCompleted := ""
+	if !t.LatestCompleted.IsZero() {
+		latestCompleted = t.LatestCompleted.Format(time.RFC3339)
+	}
+	createdAt := ""
+	if !t.CreatedAt.IsZero() {
+		createdAt = t.CreatedAt.Format(time.RFC3339)
+	}
+	updatedAt := ""
+	if !t.UpdatedAt.IsZero() {
+		updatedAt = t.UpdatedAt.Format(time.RFC3339)
+	}
+	offset := ""
+	if t.Offset != 0*time.Second {
+		offset = customParseDuration(t.Offset)
+	}
+
 	return Task{
 		ID:              t.ID,
 		OrganizationID:  t.OrganizationID,
@@ -191,14 +208,50 @@ func NewFrontEndTask(t influxdb.Task) Task {
 		Flux:            t.Flux,
 		Every:           t.Every,
 		Cron:            t.Cron,
-		Offset:          t.Offset,
-		LatestCompleted: t.LatestCompleted,
+		Offset:          offset,
+		LatestCompleted: latestCompleted,
 		LastRunStatus:   t.LastRunStatus,
 		LastRunError:    t.LastRunError,
-		CreatedAt:       t.CreatedAt,
-		UpdatedAt:       t.UpdatedAt,
+		CreatedAt:       createdAt,
+		UpdatedAt:       updatedAt,
 		Metadata:        t.Metadata,
 	}
+}
+
+func customParseDuration(d time.Duration) string {
+	str := ""
+	if d < 0 {
+		str = "-"
+		d = d * -1
+	}
+
+	// parse hours
+	hours := d / time.Hour
+	if hours != 0 {
+		str = fmt.Sprintf("%s%dh", str, hours)
+	}
+	if d%time.Hour == 0 {
+		return str
+	}
+	// parse minutes
+	d = d - (time.Duration(hours) * time.Hour)
+
+	min := d / time.Minute
+	if min != 0 {
+		str = fmt.Sprintf("%s%dm", str, min)
+	}
+	if d%time.Minute == 0 {
+		return str
+	}
+
+	// parse seconds
+	d = d - time.Duration(min)*time.Minute
+	sec := d / time.Second
+
+	if sec != 0 {
+		str = fmt.Sprintf("%s%ds", str, sec)
+	}
+	return str
 }
 
 func newTaskResponse(t influxdb.Task, labels []*influxdb.Label) taskResponse {

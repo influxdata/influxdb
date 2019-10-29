@@ -76,7 +76,7 @@ func (s *CoordinatingTaskService) UpdateTask(ctx context.Context, id influxdb.ID
 	if upd.Status != nil && *upd.Status == string(backend.TaskActive) {
 		// confirm that it was inactive and this is an attempt to activate
 		if from.Status == string(backend.TaskInactive) {
-			lc := s.now().Format(time.RFC3339)
+			lc := s.now()
 			upd.LatestCompleted = &lc
 		}
 	}

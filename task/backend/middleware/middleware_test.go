@@ -257,7 +257,7 @@ func TestCoordinatingTaskService_ClaimTaskUpdatesLatestCompleted(t *testing.T) {
 
 	select {
 	case claimedTask := <-cchan:
-		if claimedTask.LatestCompleted != latest.UTC().Format(time.RFC3339) {
+		if claimedTask.LatestCompleted != latest.UTC() {
 			t.Fatal("failed up update latest completed in claimed task")
 		}
 	case <-time.After(time.Second):

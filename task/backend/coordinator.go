@@ -33,7 +33,7 @@ func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coor
 		return err
 	}
 
-	latestCompleted := now().Format(time.RFC3339)
+	latestCompleted := now()
 	for len(tasks) > 0 {
 		for _, task := range tasks {
 			if task.Status != string(TaskActive) {
@@ -74,7 +74,7 @@ func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs Ta
 		return err
 	}
 
-	latestCompleted := now().Format(time.RFC3339)
+	latestCompleted := now()
 	for len(tasks) > 0 {
 		for _, task := range tasks {
 			if task.Status != string(TaskActive) {

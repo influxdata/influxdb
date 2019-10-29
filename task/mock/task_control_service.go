@@ -112,11 +112,9 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 	if err != nil {
 		return backend.RunCreation{}, err
 	}
-	latest := int64(0)
-	lt, err := time.Parse(time.RFC3339, task.LatestCompleted)
-	if err == nil {
-		latest = lt.Unix()
-	}
+
+	latest := task.LatestCompleted.Unix()
+
 	for _, r := range t.runs[task.ID] {
 		if r.ScheduledFor.Unix() > latest {
 			latest = r.ScheduledFor.Unix()
@@ -126,13 +124,12 @@ func (t *TaskControlService) createNextRun(task *influxdb.Task, now int64) (back
 
 	nextScheduled := sch.Next(time.Unix(latest, 0))
 	nextScheduledUnix := nextScheduled.Unix()
+
 	offset := int64(0)
-	if task.Offset != "" {
-		toff, err := time.ParseDuration(task.Offset)
-		if err == nil {
-			offset = toff.Nanoseconds()
-		}
+	if task.Offset != 0 {
+		offset = task.Offset.Nanoseconds()
 	}
+
 	if dueAt := nextScheduledUnix + int64(offset); dueAt > now {
 		return backend.RunCreation{}, influxdb.ErrRunNotDueYet(dueAt)
 	}
@@ -201,19 +198,11 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 	r := d.runs[tid][rid]
 	delete(d.runs[tid], rid)
 	t := d.tasks[tid]
-	schedFor := r.ScheduledFor.Format(time.RFC3339)
 
-	if t.LatestCompleted != "" {
-		var latest time.Time
-		latest, err := time.Parse(time.RFC3339, t.LatestCompleted)
-		if err != nil {
-			return nil, err
-		}
-
-		if r.ScheduledFor.After(latest) {
-			t.LatestCompleted = schedFor
-		}
+	if r.ScheduledFor.After(t.LatestCompleted) {
+		t.LatestCompleted = r.ScheduledFor
 	}
+
 	d.finishedRuns[rid] = r
 	delete(d.created, tid.String()+rid.String())
 	return r, nil
@@ -254,11 +243,8 @@ func (d *TaskControlService) nextDueRun(ctx context.Context, taskID influxdb.ID)
 	if err != nil {
 		return 0, err
 	}
-	latest := int64(0)
-	lt, err := time.Parse(time.RFC3339, task.LatestCompleted)
-	if err == nil {
-		latest = lt.Unix()
-	}
+
+	latest := task.LatestCompleted.Unix()
 
 	for _, r := range d.runs[task.ID] {
 		if r.ScheduledFor.Unix() > latest {
@@ -268,12 +254,10 @@ func (d *TaskControlService) nextDueRun(ctx context.Context, taskID influxdb.ID)
 
 	nextScheduled := sch.Next(time.Unix(latest, 0))
 	nextScheduledUnix := nextScheduled.Unix()
+
 	offset := int64(0)
-	if task.Offset != "" {
-		toff, err := time.ParseDuration(task.Offset)
-		if err == nil {
-			offset = toff.Nanoseconds()
-		}
+	if task.Offset != 0 {
+		offset = task.Offset.Nanoseconds()
 	}
 
 	return nextScheduledUnix + int64(offset), nil
