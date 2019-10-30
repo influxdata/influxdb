@@ -13,7 +13,7 @@ const DeleteDataButton: FunctionComponent<WithRouterProps> = ({
 
   return (
     <Button
-      data-testID="delete-data-predicate"
+      testID="delete-data-predicate"
       text="Delete Data"
       onClick={onClick}
       titleText="Filter and mark data for deletion"

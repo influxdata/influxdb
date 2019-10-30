@@ -28,7 +28,7 @@ const initialState: PredicatesState = {
 
 const predicatesReducer = (
   state: PredicatesState = initialState,
-  action: Action,
+  action: Action
 ): PredicatesState => {
   switch (action.type) {
     case 'SET_IS_SERIOUS':

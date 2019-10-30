@@ -44,7 +44,11 @@ const FilterRow: FunctionComponent<Props> = ({
         required={true}
         errorMessage={keyErrorMessage}
       >
-        <Input value={key} onChange={onChangeKey} />
+        <Input
+          onChange={onChangeKey}
+          value={key}
+          testID="key-input"
+        />
       </Form.Element>
       <div className="delete-data-filter--equals">==</div>
       <FeatureFlag name="deleteWithPredicate">
@@ -65,7 +69,11 @@ const FilterRow: FunctionComponent<Props> = ({
         required={true}
         errorMessage={valueErrorMessage}
       >
-        <Input value={value} onChange={onChangeValue} />
+        <Input
+          onChange={onChangeValue}
+          value={value}
+          testID="value-input"
+        />
       </Form.Element>
       <Button
         className="delete-data-filter--remove"

@@ -12,7 +12,7 @@ import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
 import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
 
 // Types
-import {RemoteDataState} from 'src/types'
+import {RemoteDataState, Filter} from 'src/types'
 
 // action
 import {
@@ -26,7 +26,7 @@ import {
 } from 'src/shared/actions/predicates'
 
 // state
-// import {PredicatesState} from 'src/shared/reducers/predicates'
+import {PredicatesState} from 'src/shared/reducers/predicates'
 
 interface OwnProps {
   orgID: string
@@ -36,8 +36,9 @@ interface OwnProps {
 }
 
 interface StateProps {
-  filters: Array<{key?: string, equality?: string, value?: string}>
-  timeRange: Array<string | number>
+  bucketName: string
+  filters: Filter[]
+  timeRange: [number, number]
   isSerious: boolean
   deletionStatus: RemoteDataState
 }
@@ -102,7 +103,7 @@ const DeleteDataForm: FunctionComponent<Props> = ({
     }
 
     if (filters.length > 0) {
-      data.predicate = formatPredicates(filters)
+      data['predicate'] = formatPredicates(filters)
     }
 
     const params = {
@@ -156,6 +157,7 @@ const DeleteDataForm: FunctionComponent<Props> = ({
               </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
                 <Checkbox
+                  testID="delete-checkbox"
                   label="I understand that this cannot be undone."
                   checked={isSerious}
                   onSetChecked={isSerious => setIsSerious(isSerious)}
@@ -176,13 +178,11 @@ const DeleteDataForm: FunctionComponent<Props> = ({
 
 const mstp = (state: PredicatesState) => {
   const {
-    predicates: {
-      bucketName,
-      deletionStatus,
-      filters,
-      isSerious,
-      timeRange,
-    }
+    bucketName,
+    deletionStatus,
+    filters,
+    isSerious,
+    timeRange,
   } = state
 
   return {

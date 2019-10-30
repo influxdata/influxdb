@@ -25,6 +25,7 @@ const FilterEditor: FunctionComponent<Props> = ({
     <div className="delete-data-filters">
       <Button
         text="Add Filter"
+        testID="add-filter-btn"
         icon={IconFont.Plus}
         shape={ButtonShape.StretchToFit}
         className="delete-data-filters--new-filter"
