@@ -107,9 +107,6 @@ describe('labels', () => {
       'contain',
       'Please enter a hexcode'
     )
-    cy.getByTestID('input-error').should($ie => {
-      expect($ie).to.have.class('alert-triangle')
-    })
 
     // Type nonsense string - color input
     cy.getByTestID('color-picker--input').type('zzzzzz')
@@ -117,9 +114,6 @@ describe('labels', () => {
       'contain',
       'Please enter a hexcode'
     )
-    cy.getByTestID('input-error').should($ie => {
-      expect($ie).to.have.class('alert-triangle')
-    })
 
     // feel lucky
     cy.getByTestID('color-picker--randomize').click()

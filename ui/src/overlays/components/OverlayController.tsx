@@ -4,6 +4,7 @@ import {connect} from 'react-redux'
 
 // Types
 import {AppState} from 'src/types'
+import {OverlayID} from 'src/overlays/reducers/overlays'
 
 // Components
 import {Overlay} from '@influxdata/clockface'
@@ -14,7 +15,7 @@ import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverla
 import {dismissOverlay} from 'src/overlays/actions/overlays'
 
 interface StateProps {
-  overlayID: string
+  overlayID: OverlayID
   onClose: () => void
 }
 

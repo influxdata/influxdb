@@ -1011,10 +1011,10 @@
     debug "^3.1.0"
     lodash.once "^4.1.1"
 
-"@influxdata/clockface@1.0.2":
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-1.0.2.tgz#7c3926bbce62de6477208ac9d01c75352cd1a1de"
-  integrity sha512-7EGySc3ev2Os9XNpdSzjkkSqRy8dlC+s+/Fmil7VZ8tN76kaoKan8e6E+SD6DcLIPNK3SNhUFC/dn19ox84ibw==
+"@influxdata/clockface@1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-1.0.3.tgz#a24e5476f9d31c005bf1c2924220723e77e4c597"
+  integrity sha512-LxCUZ/1E7CZSLFxK/qO/L0m6T6GTCzEO9DoMgLAfGE4vdFpjxs7yMQNkfWxFYpXAUv+DBp/OFPKTqLtaB5bK0w==
   dependencies:
     "@types/d3-ease" "^1.0.8"
     d3-ease "^1.0.5"
@@ -5689,7 +5689,7 @@ htmlparser2@^3.3.0:
     inherits "^2.0.1"
     readable-stream "^3.1.1"
 
-htmlparser2@^3.9.0, htmlparser2@^3.9.1:
+htmlparser2@^3.9.1:
   version "3.9.2"
   resolved "https://registry.yarnpkg.com/htmlparser2/-/htmlparser2-3.9.2.tgz#1bdf87acca0f3f9e53fa4fcceb0f4b4cbb00b338"
   integrity sha1-G9+HrMoPP55T+k/M6w9LTLsAszg=
@@ -9556,15 +9556,6 @@ react-testing-library@^5.4.4:
   dependencies:
     dom-testing-library "^3.13.1"
 
-react-tooltip@^3.2.1:
-  version "3.8.4"
-  resolved "https://registry.yarnpkg.com/react-tooltip/-/react-tooltip-3.8.4.tgz#7af7994d5a242c08f2a3cf0b86919fede6eb44f2"
-  integrity sha512-i9rP5eihRNXFqYtyw58fhy+oT7OAEox/WC7XJOSED57s31nLU+uOJai5TgADbwNzJ7xamPkijYF36IfrUGJgcQ==
-  dependencies:
-    classnames "^2.2.5"
-    prop-types "^15.6.0"
-    sanitize-html-react "^1.13.0"
-
 react-virtualized@^9.18.5:
   version "9.20.1"
   resolved "https://registry.yarnpkg.com/react-virtualized/-/react-virtualized-9.20.1.tgz#02dc08fe9070386b8c48e2ac56bce7af0208d22d"
@@ -9757,11 +9748,6 @@ regex-not@^1.0.0, regex-not@^1.0.2:
   dependencies:
     extend-shallow "^3.0.2"
     safe-regex "^1.1.0"
-
-regexp-quote@0.0.0:
-  version "0.0.0"
-  resolved "https://registry.yarnpkg.com/regexp-quote/-/regexp-quote-0.0.0.tgz#1e0f4650c862dcbfed54fd42b148e9bb1721fcf2"
-  integrity sha1-Hg9GUMhi3L/tVP1CsUjpuxch/PI=
 
 regexp-tree@^0.1.0:
   version "0.1.0"
@@ -10170,15 +10156,6 @@ sane@^4.0.3:
     micromatch "^3.1.4"
     minimist "^1.1.1"
     walker "~1.0.5"
-
-sanitize-html-react@^1.13.0:
-  version "1.13.0"
-  resolved "https://registry.yarnpkg.com/sanitize-html-react/-/sanitize-html-react-1.13.0.tgz#e757b9adbaf2c8a762f3d2dff70138838e05420a"
-  integrity sha1-51e5rbryyKdi89Lf9wE4g44FQgo=
-  dependencies:
-    htmlparser2 "^3.9.0"
-    regexp-quote "0.0.0"
-    xtend "^4.0.0"
 
 sass-loader@^7.1.0:
   version "7.1.0"

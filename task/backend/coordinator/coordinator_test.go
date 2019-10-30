@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"go.uber.org/zap"
 )
 
@@ -27,7 +28,7 @@ var (
 		TaskID: one,
 	}
 
-	allowUnexported = cmp.AllowUnexported(schedulerS{})
+	allowUnexported = cmp.AllowUnexported(schedulerS{}, scheduler.Schedule{}, SchedulableTask{})
 )
 
 func Test_Coordinator(t *testing.T) {

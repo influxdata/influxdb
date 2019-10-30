@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -92,6 +93,12 @@ func testQuerySuccess(t *testing.T) {
 	if got := promise.Error(); got != nil {
 		t.Fatal(got)
 	}
+	// confirm run is removed from in-mem store
+	run, err = tes.i.FindRunByID(context.Background(), task.ID, run.ID)
+	if run != nil || err == nil || !strings.Contains(err.Error(), "run not found") {
+		t.Fatal("run was returned when it should have been removed from kv")
+	}
+
 }
 
 func testQueryFailure(t *testing.T) {
@@ -363,11 +370,14 @@ func testMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tes.ex.ManualRun(ctx, mt.ID, r.ID)
+	_, err = tes.ex.ManualRun(ctx, mt.ID, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	mg = promtest.MustGather(t, reg)
 
-	m = promtest.MustFindMetric(t, mg, "task_executor_manual_runs_counter", map[string]string{"taskID": string(mt.ID)})
+	m = promtest.MustFindMetric(t, mg, "task_executor_manual_runs_counter", map[string]string{"taskID": string(mt.ID.String())})
 	if got := *m.Counter.Value; got != 1 {
 		t.Fatalf("expected 1 manual run, got %v", got)
 	}
