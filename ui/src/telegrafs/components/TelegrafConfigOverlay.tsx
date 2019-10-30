@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 
 // Components
@@ -24,6 +23,10 @@ import {downloadTextFile} from 'src/shared/utils/download'
 import {AppState} from 'src/types'
 import {ITelegraf as Telegraf} from '@influxdata/influx'
 
+interface OwnProps {
+  onClose: () => void
+}
+
 interface StateProps {
   telegraf: Telegraf
   status: RemoteDataState
@@ -31,7 +34,7 @@ interface StateProps {
   configStatus: RemoteDataState
 }
 
-type Props = StateProps & WithRouterProps
+type Props = OwnProps & StateProps
 
 @ErrorHandling
 class TelegrafConfigOverlay extends PureComponent<Props> {
@@ -43,32 +46,30 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
     const {telegraf, status} = this.props
 
     return (
-      <Overlay visible={true}>
-        <Overlay.Container maxWidth={1200}>
-          <Overlay.Header
-            title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
-            onDismiss={this.handleDismiss}
+      <Overlay.Container maxWidth={1200}>
+        <Overlay.Header
+          title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
+          onDismiss={this.handleDismiss}
+        />
+        <Overlay.Body>
+          <SpinnerContainer
+            loading={status}
+            spinnerComponent={<TechnoSpinner />}
+          >
+            <div className="config-overlay">
+              <TelegrafConfig />
+            </div>
+          </SpinnerContainer>
+        </Overlay.Body>
+        <Overlay.Footer>
+          <Button
+            color={ComponentColor.Secondary}
+            text="Download Config"
+            onClick={this.handleDownloadConfig}
+            status={this.buttonStatus}
           />
-          <Overlay.Body>
-            <SpinnerContainer
-              loading={status}
-              spinnerComponent={<TechnoSpinner />}
-            >
-              <div className="config-overlay">
-                <TelegrafConfig />
-              </div>
-            </SpinnerContainer>
-          </Overlay.Body>
-          <Overlay.Footer>
-            <Button
-              color={ComponentColor.Secondary}
-              text="Download Config"
-              onClick={this.handleDownloadConfig}
-              status={this.buttonStatus}
-            />
-          </Overlay.Footer>
-        </Overlay.Container>
-      </Overlay>
+        </Overlay.Footer>
+      </Overlay.Container>
     )
   }
   private get buttonStatus(): ComponentStatus {
@@ -80,12 +81,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
   }
 
   private handleDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/telegrafs`)
+    this.props.onClose()
   }
 
   private handleDownloadConfig = () => {
@@ -93,14 +89,12 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
       telegrafConfig,
       telegraf: {name},
     } = this.props
-    downloadTextFile(telegrafConfig, name || 'config', '.toml')
+    downloadTextFile(telegrafConfig, name || 'telegraf', '.conf')
   }
 }
 
-const mstp = ({telegrafs}: AppState, props: Props): StateProps => {
-  const {
-    params: {id},
-  } = props
+const mstp = ({telegrafs, overlays}: AppState): StateProps => {
+  const id = overlays.params.id
 
   return {
     telegraf: telegrafs.list.find(t => {
@@ -115,4 +109,4 @@ const mstp = ({telegrafs}: AppState, props: Props): StateProps => {
 export default connect<StateProps, {}, {}>(
   mstp,
   null
-)(withRouter<Props>(TelegrafConfigOverlay))
+)(TelegrafConfigOverlay)

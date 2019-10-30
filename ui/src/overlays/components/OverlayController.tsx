@@ -11,6 +11,7 @@ import {Overlay} from '@influxdata/clockface'
 import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
+import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import {dismissOverlay} from 'src/overlays/actions/overlays'
 
 interface StateProps {
@@ -47,6 +48,9 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'add-token':
       activeOverlay = <BucketsTokenOverlay onClose={closer} />
+      break
+    case 'telegraf-config':
+      activeOverlay = <TelegrafConfigOverlay onClose={closer} />
       break
     default:
       visibility = false

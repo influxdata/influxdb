@@ -65,7 +65,6 @@ import TokensIndex from 'src/authorizations/containers/TokensIndex'
 import MembersIndex from 'src/members/containers/MembersIndex'
 import LabelsIndex from 'src/labels/containers/LabelsIndex'
 import TemplateViewOverlay from 'src/templates/components/TemplateViewOverlay'
-import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
 import LineProtocolWizard from 'src/dataLoaders/components/lineProtocolWizard/LineProtocolWizard'
 import CollectorsWizard from 'src/dataLoaders/components/collectorsWizard/CollectorsWizard'
 import TelegrafInstructionsOverlay from 'src/telegrafs/components/TelegrafInstructionsOverlay'
@@ -116,6 +115,13 @@ const BucketsTokenOverlay = RouteOverlay(
   'add-token',
   router => {
     router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+  }
+)
+const TelegrafConfigOverlay = RouteOverlay(
+  OverlayHandler,
+  'telegraf-config',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
   }
 )
 
