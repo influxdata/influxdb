@@ -7,7 +7,7 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ['@typescript-eslint', 'react', 'prettier', 'no-only-tests'],
+  plugins: ['@typescript-eslint', 'react', 'no-only-tests'],
   env: {
     browser: true,
     es6: true,
@@ -15,7 +15,6 @@ module.exports = {
   },
   extends: [
     'plugin:react/recommended',
-    'plugin:prettier/recommended',
     'prettier/react',
     'prettier/@typescript-eslint',
     'eslint:recommended',
@@ -38,6 +37,8 @@ module.exports = {
     'no-useless-escape': 'off',
     'no-undef': 'off',
     'no-fallthrough': 'off',
+    'no-prototype-builtins': 'off',
+    'require-atomic-updates': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-namespace': 'off',

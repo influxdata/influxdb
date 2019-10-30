@@ -7,16 +7,16 @@
     "webpack.tsconfig.json",
     "webpack.*.ts",
     "coverage",
-    "__mocks__"
+    "__mocks__",
+    "cypress/**/*.js",
+    "jest.config.js"
   ],
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
     "cypress/**/*.ts",
-    "cypress/**/*.js",
     "mocks/**/*.ts",
     "mocks/**/*.tsx",
-    "jestSetup.ts",
-    "jest.config.js"
+    "jestSetup.ts"
   ]
 }
