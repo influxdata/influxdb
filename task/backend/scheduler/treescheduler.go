@@ -289,11 +289,12 @@ func (s *TreeScheduler) release(taskID ID) {
 // Release releases a task.
 // Release also cancels the running task.
 // Task deletion would be faster if the tree supported deleting ranges.
-func (s *TreeScheduler) Release(taskID ID) {
+func (s *TreeScheduler) Release(taskID ID) error {
 	s.sm.release(taskID)
 	s.mu.Lock()
 	s.release(taskID)
 	s.mu.Unlock()
+	return nil
 }
 
 // work does work from the channel and checkpoints it.
@@ -333,6 +334,8 @@ func (s *TreeScheduler) Schedule(sch Schedulable) error {
 	}
 	nt, err := it.cron.Next(sch.LastScheduled())
 	if err != nil {
+		s.sm.scheduleFail(it.id)
+		s.onErr(context.Background(), it.id, time.Time{}, err)
 		return err
 	}
 	it.next = nt.UTC().Unix()

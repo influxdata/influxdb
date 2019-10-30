@@ -76,8 +76,6 @@ import UpdateBucketOverlay from 'src/buckets/components/UpdateBucketOverlay'
 import RenameBucketOverlay from 'src/buckets/components/RenameBucketOverlay'
 import RenameVariableOverlay from 'src/variables/components/RenameVariableOverlay'
 import UpdateVariableOverlay from 'src/variables/components/UpdateVariableOverlay'
-import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
-import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TaskImportFromTemplateOverlay from './tasks/components/TaskImportFromTemplateOverlay'
 import StaticTemplateViewOverlay from 'src/templates/components/StaticTemplateViewOverlay'
 import AlertingIndex from 'src/alerting/components/AlertingIndex'
@@ -96,8 +94,30 @@ import EditEndpointOverlay from 'src/alerting/components/endpoints/EditEndpointO
 import OverlayHandler, {
   RouteOverlay,
 } from 'src/overlays/components/RouteOverlay'
-const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note')
-const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note')
+const AddNoteOverlay = RouteOverlay(OverlayHandler, 'add-note', router => {
+  router.push(
+    `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
+  )
+})
+const EditNoteOverlay = RouteOverlay(OverlayHandler, 'edit-note', router => {
+  router.push(
+    `/orgs/${router.params.orgID}/dashboards/${router.params.dashboardID}`
+  )
+})
+const AllAccessTokenOverlay = RouteOverlay(
+  OverlayHandler,
+  'add-master-token',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+  }
+)
+const BucketsTokenOverlay = RouteOverlay(
+  OverlayHandler,
+  'add-token',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/tokens`)
+  }
+)
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'

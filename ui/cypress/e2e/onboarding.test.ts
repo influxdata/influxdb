@@ -216,8 +216,6 @@ describe('Onboarding', () => {
       'Passwords do not match'
     )
 
-    cy.getByTestID('input-error').should('have.class', 'alert-triangle')
-
     cy.getByTestID('input-field--orgname').type(user.org)
     cy.getByTestID('input-field--bucketname').type(user.bucket)
 

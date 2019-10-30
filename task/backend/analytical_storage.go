@@ -202,7 +202,6 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	if err := ittr.Err(); err != nil {
 		return nil, 0, fmt.Errorf("unexpected internal error while decoding run response: %v", err)
 	}
-
 	runs = as.combineRuns(runs, re.runs)
 
 	return runs, len(runs), err

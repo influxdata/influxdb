@@ -13,7 +13,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/pkg/pointer"
-	"gopkg.in/robfig/cron.v2"
+	cron "gopkg.in/robfig/cron.v2"
 )
 
 const maxConcurrency = 100
@@ -407,6 +407,7 @@ func (o *Options) Validate() error {
 // TODO(docmerlin): create an EffectiveCronStringFrom(t time.Time) string,
 // that works from a unit of time.
 // Do not use this if you haven't checked for validity already.
+// TODO(docmerlin): modify this when the new scheduler comes on line, replace this method with TaskEffectiveCronString
 func (o *Options) EffectiveCronString() string {
 	if o.Cron != "" {
 		return o.Cron
