@@ -1,5 +1,5 @@
 // Libraries
-import React, {useReducer, FunctionComponent} from 'react'
+import React, {FunctionComponent} from 'react'
 import moment from 'moment'
 import {connect} from 'react-redux'
 import {Form, Grid, Columns, Panel} from '@influxdata/clockface'
@@ -9,139 +9,112 @@ import BucketsDropdown from 'src/shared/components/DeleteDataForm/BucketsDropdow
 import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 import Checkbox from 'src/shared/components/Checkbox'
 import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
-import FilterEditor, {
-  Filter,
-} from 'src/shared/components/DeleteDataForm/FilterEditor'
+import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
 
 // Types
 import {RemoteDataState} from 'src/types'
 
 // action
-import {deleteWithPredicate} from 'src/buckets/actions'
+import {
+  deleteFilter,
+  deleteWithPredicate,
+  setBucketName,
+  setDeletionStatus,
+  setFilter,
+  setIsSerious,
+  setTimeRange,
+} from 'src/shared/actions/predicates'
 
-
-const HOUR_MS = 1000 * 60 * 60
+// state
+// import {PredicatesState} from 'src/shared/reducers/predicates'
 
 interface OwnProps {
   orgID: string
+  handleDismiss: () => void
   initialBucketName?: string
   initialTimeRange?: [number, number]
 }
 
-interface DispatchProps {
-  deleteWithPredicate: typeof deleteWithPredicate
-}
-
-type Props = DispatchProps & OwnProps
-
-interface State {
-  bucketName: string
-  timeRange: [number, number]
-  filters: Filter[]
+interface StateProps {
+  filters: Array<{key?: string, equality?: string, value?: string}>
+  timeRange: Array<string | number>
   isSerious: boolean
   deletionStatus: RemoteDataState
 }
 
-type Action =
-  | {type: 'SET_IS_SERIOUS'; isSerious: boolean}
-  | {type: 'SET_BUCKET_NAME'; bucketName: string}
-  | {type: 'SET_TIME_RANGE'; timeRange: [number, number]}
-  | {type: 'SET_FILTER'; filter: Filter; index: number}
-  | {type: 'DELETE_FILTER'; index: number}
-  | {type: 'SET_DELETION_STATUS'; deletionStatus: RemoteDataState}
-
-const reducer = (state: State, action: Action): State => {
-  switch (action.type) {
-    case 'SET_IS_SERIOUS':
-      return {...state, isSerious: action.isSerious}
-
-    case 'SET_BUCKET_NAME':
-      return {...state, bucketName: action.bucketName}
-
-    case 'SET_TIME_RANGE':
-      return {...state, timeRange: action.timeRange}
-
-    case 'SET_FILTER':
-      if (action.index >= state.filters.length) {
-        return {...state, filters: [...state.filters, action.filter]}
-      }
-
-      return {
-        ...state,
-        filters: state.filters.map((filter, i) =>
-          i === action.index ? action.filter : filter
-        ),
-      }
-
-    case 'DELETE_FILTER':
-      return {
-        ...state,
-        filters: state.filters.filter((_, i) => i !== action.index),
-      }
-
-    case 'SET_DELETION_STATUS':
-      return {...state, deletionStatus: action.deletionStatus}
-
-    default:
-      throw new Error('unhandled reducer action in <DeleteDataForm />')
-  }
+interface DispatchProps {
+  deleteFilter: typeof deleteFilter
+  deleteWithPredicate: typeof deleteWithPredicate
+  setBucketName: typeof setBucketName
+  setDeletionStatus: typeof setDeletionStatus
+  setFilter: typeof setFilter
+  setIsSerious: typeof setIsSerious
+  setTimeRange: typeof setTimeRange
 }
 
+type Props = StateProps & DispatchProps & OwnProps
+
 const DeleteDataForm: FunctionComponent<Props> = ({
+  bucketName,
+  deleteFilter,
+  deletionStatus,
   deleteWithPredicate,
+  filters,
+  handleDismiss,
   initialBucketName,
   initialTimeRange,
+  isSerious,
   orgID,
+  setBucketName,
+  setDeletionStatus,
+  setFilter,
+  setIsSerious,
+  setTimeRange,
+  timeRange,
 }) => {
-  const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
 
-  const initialState: State = {
-    bucketName: initialBucketName,
-    filters: [],
-    timeRange: initialTimeRange || [recently - HOUR_MS, recently],
-    isSerious: false,
-    deletionStatus: RemoteDataState.NotStarted,
-  }
+  const name = bucketName || initialBucketName
 
-  const [state, dispatch] = useReducer(reducer, initialState)
+  const realTimeRange = initialTimeRange || timeRange
 
   const canDelete =
-    state.isSerious &&
-    state.deletionStatus === RemoteDataState.NotStarted &&
-    state.filters.every(f => !!f.key && !!f.value)
+    isSerious &&
+    deletionStatus === RemoteDataState.NotStarted &&
+    filters.every(f => !!f.key && !!f.value && !!f.equality)
+
+  const formatPredicates = predicates => {
+    const result = [];
+    predicates.forEach(predicate => {
+      const {key, equality, value} = predicate
+      result.push(`${key} ${equality} ${value}`)
+    })
+    return result.join(' AND ')
+  }
 
   const handleDelete = async () => {
-    try {
-      dispatch({
-        type: 'SET_DELETION_STATUS',
-        deletionStatus: RemoteDataState.Loading,
-      })
+    setDeletionStatus(RemoteDataState.Loading)
 
-      const [start, stop] = state.timeRange
+    const [start, stop] = realTimeRange
 
-      const params = {
-        data: {
-          start: moment(start).toISOString(),
-          stop: moment(stop).toISOString(),
-        },
-        query: {
-          orgID,
-          bucket: state.bucketName,
-        },
-      }
-
-      const res = await deleteWithPredicate(params)
-
-      dispatch({
-        type: 'SET_DELETION_STATUS',
-        deletionStatus: RemoteDataState.Done,
-      })
-    } catch {
-      dispatch({
-        type: 'SET_DELETION_STATUS',
-        deletionStatus: RemoteDataState.Error,
-      })
+    const data = {
+      start: moment(start).toISOString(),
+      stop: moment(stop).toISOString(),
     }
+
+    if (filters.length > 0) {
+      data.predicate = formatPredicates(filters)
+    }
+
+    const params = {
+      data,
+      query: {
+        orgID,
+        bucket: name,
+      },
+    }
+
+    deleteWithPredicate(params)
+    handleDismiss()
   }
 
   return (
@@ -151,20 +124,16 @@ const DeleteDataForm: FunctionComponent<Props> = ({
           <Grid.Column widthXS={Columns.Four}>
             <Form.Element label="Target Bucket">
               <BucketsDropdown
-                bucketName={state.bucketName}
-                onSetBucketName={bucketName =>
-                  dispatch({type: 'SET_BUCKET_NAME', bucketName})
-                }
+                bucketName={name}
+                onSetBucketName={bucketName => setBucketName(bucketName)}
               />
             </Form.Element>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Eight}>
             <Form.Element label="Time Range">
               <TimeRangeDropdown
-                timeRange={state.timeRange}
-                onSetTimeRange={timeRange =>
-                  dispatch({type: 'SET_TIME_RANGE', timeRange})
-                }
+                timeRange={realTimeRange}
+                onSetTimeRange={timeRange => setTimeRange(timeRange)}
               />
             </Form.Element>
           </Grid.Column>
@@ -172,12 +141,10 @@ const DeleteDataForm: FunctionComponent<Props> = ({
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <FilterEditor
-              filters={state.filters}
-              onSetFilter={(filter, index) =>
-                dispatch({type: 'SET_FILTER', filter, index})
-              }
-              onDeleteFilter={index => dispatch({type: 'DELETE_FILTER', index})}
-              shouldValidate={state.isSerious}
+              filters={filters}
+              onSetFilter={(filter, index) => setFilter(filter, index)}
+              onDeleteFilter={index => deleteFilter(index)}
+              shouldValidate={isSerious}
             />
           </Grid.Column>
         </Grid.Row>
@@ -190,13 +157,11 @@ const DeleteDataForm: FunctionComponent<Props> = ({
               <Panel.Body className="delete-data-form--confirm">
                 <Checkbox
                   label="I understand that this cannot be undone."
-                  checked={state.isSerious}
-                  onSetChecked={isSerious =>
-                    dispatch({type: 'SET_IS_SERIOUS', isSerious})
-                  }
+                  checked={isSerious}
+                  onSetChecked={isSerious => setIsSerious(isSerious)}
                 />
                 <DeleteButton
-                  status={state.deletionStatus}
+                  status={deletionStatus}
                   valid={canDelete}
                   onClick={handleDelete}
                 />
@@ -209,8 +174,34 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   )
 }
 
-const mdtp = {
-  deleteWithPredicate,
+const mstp = (state: PredicatesState) => {
+  const {
+    predicates: {
+      bucketName,
+      deletionStatus,
+      filters,
+      isSerious,
+      timeRange,
+    }
+  } = state
+
+  return {
+    bucketName,
+    deletionStatus,
+    filters,
+    isSerious,
+    timeRange,
+  }
 }
 
-export default connect<{}, DispatchProps, {}>(null, mdtp)(DeleteDataForm)
+const mdtp = {
+  deleteFilter,
+  deleteWithPredicate,
+  setBucketName,
+  setDeletionStatus,
+  setFilter,
+  setIsSerious,
+  setTimeRange,
+}
+
+export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(DeleteDataForm)

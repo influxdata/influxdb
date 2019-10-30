@@ -4,7 +4,6 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {Button} from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 const DeleteDataButton: FunctionComponent<WithRouterProps> = ({
   location: {pathname},

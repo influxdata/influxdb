@@ -13,7 +13,6 @@ import {
 } from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {isSystemBucket} from 'src/buckets/constants/index'

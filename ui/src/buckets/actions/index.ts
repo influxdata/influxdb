@@ -185,21 +185,3 @@ export const deleteBucket = (id: string, name: string) => async (
     dispatch(notify(bucketDeleteFailed(name)))
   }
 }
-
-export const deleteWithPredicate = (params) => async (
-  dispatch: Dispatch<Action>
-) => {
-  try {
-    const resp = await api.postDelete(params)
-    if (resp.status !== 204) {
-      throw new Error(resp.data.message)
-    }
-
-    // dispatch(removeBucket(id))
-    // dispatch(checkBucketLimits())
-  } catch (e) {
-    console.error('e: ', e)
-    throw Error(e)
-    // dispatch(notify(bucketDeleteFailed(name)))
-  }
-}
