@@ -29,7 +29,8 @@ func TestService(t *testing.T) {
 						}, nil
 					}
 					fakeLabelSVC := mock.NewLabelService()
-					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+					fakeDashSVC := mock.NewDashboardService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC, fakeDashSVC)
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -55,7 +56,8 @@ func TestService(t *testing.T) {
 						return nil, errors.New("not found")
 					}
 					fakeLabelSVC := mock.NewLabelService()
-					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+					fakeDashSVC := mock.NewDashboardService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC, fakeDashSVC)
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -89,7 +91,8 @@ func TestService(t *testing.T) {
 							},
 						}, nil
 					}
-					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+					fakeDashSVC := mock.NewDashboardService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC, fakeDashSVC)
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -120,7 +123,8 @@ func TestService(t *testing.T) {
 					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return nil, errors.New("no labels found")
 					}
-					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+					fakeDashSVC := mock.NewDashboardService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC, fakeDashSVC)
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -160,7 +164,7 @@ func TestService(t *testing.T) {
 						return &influxdb.Bucket{ID: id}, nil
 					}
 
-					svc := NewService(zap.NewNop(), fakeBucketSVC, nil)
+					svc := NewService(zap.NewNop(), fakeBucketSVC, nil, nil)
 
 					orgID := influxdb.ID(9000)
 
@@ -201,7 +205,7 @@ func TestService(t *testing.T) {
 					pkg.mBuckets["copybuck1"] = pkg.mBuckets["rucket_11"]
 					pkg.mBuckets["copybuck2"] = pkg.mBuckets["rucket_11"]
 
-					svc := NewService(zap.NewNop(), fakeBucketSVC, nil)
+					svc := NewService(zap.NewNop(), fakeBucketSVC, nil, nil)
 
 					orgID := influxdb.ID(9000)
 
@@ -224,7 +228,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					svc := NewService(zap.NewNop(), nil, fakeLabelSVC)
+					svc := NewService(zap.NewNop(), nil, fakeLabelSVC, nil)
 
 					orgID := influxdb.ID(9000)
 
@@ -265,11 +269,12 @@ func TestService(t *testing.T) {
 						count++
 						return nil
 					}
+					fakeDashSVC := mock.NewDashboardService()
 
 					pkg.mLabels["copy1"] = pkg.mLabels["label_1"]
 					pkg.mLabels["copy2"] = pkg.mLabels["label_2"]
 
-					svc := NewService(zap.NewNop(), nil, fakeLabelSVC)
+					svc := NewService(zap.NewNop(), nil, fakeLabelSVC, fakeDashSVC)
 
 					orgID := influxdb.ID(9000)
 
@@ -308,8 +313,8 @@ func TestService(t *testing.T) {
 						numLabelMappings++
 						return nil
 					}
-
-					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC)
+					fakeDashSVC := mock.NewDashboardService()
+					svc := NewService(zap.NewNop(), fakeBktSVC, fakeLabelSVC, fakeDashSVC)
 
 					orgID := influxdb.ID(9000)
 

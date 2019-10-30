@@ -126,31 +126,30 @@ type Pkg struct {
 		Resources []Resource `yaml:"resources" json:"resources"`
 	} `yaml:"spec" json:"spec"`
 
-	mLabels  map[string]*label
-	mBuckets map[string]*bucket
+	mLabels     map[string]*label
+	mBuckets    map[string]*bucket
+	mDashboards map[string]*dashboard
 
 	isVerified bool
 }
 
-// Summary returns a package summary that describes all the resources and
+// Summary returns a package Summary that describes all the resources and
 // associations the pkg contains. It is very useful for informing users of
 // the changes that will take place when this pkg would be applied.
 func (p *Pkg) Summary() Summary {
 	var sum Summary
 
-	for _, l := range p.mLabels {
+	for _, l := range p.labels() {
 		sum.Labels = append(sum.Labels, l.summarize())
 	}
-	sort.Slice(sum.Labels, func(i, j int) bool {
-		return sum.Labels[i].Name < sum.Labels[j].Name
-	})
 
-	for _, b := range p.mBuckets {
+	for _, b := range p.buckets() {
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
-	sort.Slice(sum.Buckets, func(i, j int) bool {
-		return sum.Buckets[i].Name < sum.Buckets[j].Name
-	})
+
+	for _, d := range p.dashboards() {
+		sum.Dashboards = append(sum.Dashboards, d.summarize())
+	}
 
 	for _, m := range p.labelMappings() {
 		sum.LabelMappings = append(sum.LabelMappings, SummaryLabelMapping{
@@ -159,23 +158,6 @@ func (p *Pkg) Summary() Summary {
 			LabelMapping: m.LabelMapping,
 		})
 	}
-	// sort by res type ASC, then res name ASC, then label name ASC
-	sort.Slice(sum.LabelMappings, func(i, j int) bool {
-		n, m := sum.LabelMappings[i], sum.LabelMappings[j]
-		if n.ResourceType < m.ResourceType {
-			return true
-		}
-		if n.ResourceType > m.ResourceType {
-			return false
-		}
-		if n.ResourceName < m.ResourceName {
-			return true
-		}
-		if n.ResourceName > m.ResourceName {
-			return false
-		}
-		return n.LabelName < m.LabelName
-	})
 
 	return sum
 }
@@ -206,6 +188,19 @@ func (p *Pkg) labels() []*label {
 	return labels
 }
 
+func (p *Pkg) dashboards() []*dashboard {
+	dashes := make([]*dashboard, 0, len(p.mDashboards))
+	for _, d := range p.mDashboards {
+		dashes = append(dashes, d)
+	}
+
+	sort.Slice(dashes, func(i, j int) bool {
+		return dashes[i].Name < dashes[j].Name
+	})
+
+	return dashes
+}
+
 // labelMappings returns the mappings that will be created for
 // valid pairs of labels and resources of which all have IDs.
 // If a resource does not exist yet, a label mapping will not
@@ -215,6 +210,24 @@ func (p *Pkg) labelMappings() []SummaryLabelMapping {
 	for _, l := range p.mLabels {
 		mappings = append(mappings, l.mappingSummary()...)
 	}
+
+	// sort by res type ASC, then res name ASC, then label name ASC
+	sort.Slice(mappings, func(i, j int) bool {
+		n, m := mappings[i], mappings[j]
+		if n.ResourceType < m.ResourceType {
+			return true
+		}
+		if n.ResourceType > m.ResourceType {
+			return false
+		}
+		if n.ResourceName < m.ResourceName {
+			return true
+		}
+		if n.ResourceName > m.ResourceName {
+			return false
+		}
+		return n.LabelName < m.LabelName
+	})
 
 	return mappings
 }
@@ -295,6 +308,7 @@ func (p *Pkg) graphResources() error {
 		// labels are first to validate associations with other resources
 		p.graphLabels,
 		p.graphBuckets,
+		p.graphDashboards,
 	}
 
 	for _, fn := range graphFns {
@@ -329,22 +343,14 @@ func (p *Pkg) graphBuckets() error {
 			RetentionPeriod: r.duration("retention_period"),
 		}
 
-		nestedLabels := make(map[string]*label)
-		var failures []failure
-		for i, nr := range r.nestedAssociations() {
-			fail := p.processNestedLabel(i, nr, func(l *label) error {
-				if _, ok := nestedLabels[l.Name]; ok {
-					return fmt.Errorf("duplicate nested label: %q", l.Name)
-				}
-				nestedLabels[l.Name] = l
-				bkt.labels = append(bkt.labels, l)
-				return nil
-			})
-			if fail != nil {
-				failures = append(failures, *fail)
-			}
+		failures := p.processNestedLabels(r, func(l *label) error {
+			bkt.labels = append(bkt.labels, l)
+			p.mLabels[l.Name].setBucketMapping(bkt, false)
+			return nil
+		})
+		if len(failures) > 0 {
+			return failures
 		}
-
 		sort.Slice(bkt.labels, func(i, j int) bool {
 			return bkt.labels[i].Name < bkt.labels[j].Name
 		})
@@ -376,6 +382,46 @@ func (p *Pkg) graphLabels() error {
 			Color:       r.stringShort("color"),
 			Description: r.stringShort("description"),
 		}
+
+		return nil
+	})
+}
+
+func (p *Pkg) graphDashboards() error {
+	p.mDashboards = make(map[string]*dashboard)
+	return p.eachResource(kindDashboard, func(r Resource) []failure {
+		if r.Name() == "" {
+			return []failure{{
+				Field: "name",
+				Msg:   "must be a string of at least 2 chars in length",
+			}}
+		}
+
+		if _, ok := p.mDashboards[r.Name()]; ok {
+			return []failure{{
+				Field: "name",
+				Msg:   "duplicate name: " + r.Name(),
+			}}
+		}
+
+		dash := &dashboard{
+			Name:        r.Name(),
+			Description: r.stringShort("description"),
+		}
+
+		failures := p.processNestedLabels(r, func(l *label) error {
+			dash.labels = append(dash.labels, l)
+			p.mLabels[l.Name].setDashboardMapping(dash, false)
+			return nil
+		})
+		if len(failures) > 0 {
+			return failures
+		}
+		sort.Slice(dash.labels, func(i, j int) bool {
+			return dash.labels[i].Name < dash.labels[j].Name
+		})
+
+		p.mDashboards[r.Name()] = dash
 
 		return nil
 	})
@@ -432,6 +478,27 @@ func (p *Pkg) eachResource(resourceKind kind, fn func(r Resource) []failure) err
 		return &parseErr
 	}
 	return nil
+}
+
+func (p *Pkg) processNestedLabels(r Resource, fn func(lb *label) error) []failure {
+	nestedLabels := make(map[string]*label)
+
+	var failures []failure
+	for i, nr := range r.nestedAssociations() {
+		fail := p.processNestedLabel(i, nr, func(l *label) error {
+			if _, ok := nestedLabels[l.Name]; ok {
+				return fmt.Errorf("duplicate nested label: %q", l.Name)
+			}
+			nestedLabels[l.Name] = l
+
+			return fn(l)
+		})
+		if fail != nil {
+			failures = append(failures, *fail)
+		}
+	}
+
+	return failures
 }
 
 func (p *Pkg) processNestedLabel(idx int, nr Resource, fn func(lb *label) error) *failure {

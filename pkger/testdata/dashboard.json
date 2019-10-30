@@ -1,0 +1,18 @@
+{
+  "apiVersion": "0.1.0",
+  "kind": "Package",
+  "meta": {
+    "pkgName": "pkg_name",
+    "pkgVersion": "1",
+    "description": "pack description"
+  },
+  "spec": {
+    "resources": [
+      {
+        "kind": "Dashboard",
+        "name": "dash_1",
+        "description": "desc1"
+      }
+    ]
+  }
+}

@@ -15,17 +15,20 @@ import (
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
-	logger    *zap.Logger
+	logger *zap.Logger
+
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
+	dashSVC   influxdb.DashboardService
 }
 
 // NewService is a constructor for a pkger Service.
-func NewService(l *zap.Logger, bucketSVC influxdb.BucketService, labelSVC influxdb.LabelService) *Service {
+func NewService(l *zap.Logger, bucketSVC influxdb.BucketService, labelSVC influxdb.LabelService, dashSVC influxdb.DashboardService) *Service {
 	svc := Service{
 		logger:    zap.NewNop(),
 		bucketSVC: bucketSVC,
 		labelSVC:  labelSVC,
+		dashSVC:   dashSVC,
 	}
 
 	if l != nil {
@@ -39,6 +42,11 @@ func NewService(l *zap.Logger, bucketSVC influxdb.BucketService, labelSVC influx
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
 	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
+	diffDashes, err := s.dryRunDashboards(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
@@ -60,6 +68,7 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 
 	diff := Diff{
 		Buckets:       diffBuckets,
+		Dashboards:    diffDashes,
 		Labels:        diffLabels,
 		LabelMappings: diffLabelMappings,
 	}
@@ -85,6 +94,38 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 
 	var diffs []DiffBucket
 	for _, diff := range mExistingBkts {
+		diffs = append(diffs, diff)
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].Name < diffs[j].Name
+	})
+
+	return diffs, nil
+}
+
+func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffDashboard, error) {
+	mExistingDashes := make(map[string]DiffDashboard)
+	dashes := pkg.dashboards()
+	for i := range dashes {
+		d := dashes[i]
+		// TODO: extend dashboard filter to take a name
+		existingDashes, _, err := s.dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{
+			OrganizationID: &orgID,
+		}, influxdb.FindOptions{})
+		switch {
+		// TODO: case for err not found here and another case handle where
+		//  err isn't a not found (some other error)
+		case err == nil && len(existingDashes) > 0:
+			existing := existingDashes[0]
+			d.existing = existing
+			mExistingDashes[d.Name] = newDiffDashboard(d, *existing)
+		default:
+			mExistingDashes[d.Name] = newDiffDashboard(d, influxdb.Dashboard{})
+		}
+	}
+
+	var diffs []DiffDashboard
+	for _, diff := range mExistingDashes {
 		diffs = append(diffs, diff)
 	}
 	sort.Slice(diffs, func(i, j int) bool {
@@ -126,16 +167,43 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	return diffs, nil
 }
 
+type (
+	labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
+
+	labelAssociater interface {
+		ID() influxdb.ID
+		ResourceType() influxdb.ResourceType
+		Exists() bool
+	}
+)
+
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
 	var diffs []DiffLabelMapping
 	for _, b := range pkg.buckets() {
-		err := s.dryRunBucketLabelMapping(ctx, b, func(labelID influxdb.ID, labelName string, isNew bool) {
+		err := s.dryRunResourceLabelMapping(ctx, b, b.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
 			pkg.mLabels[labelName].setBucketMapping(b, !isNew)
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
-				ResType:   influxdb.BucketsResourceType,
+				ResType:   b.ResourceType(),
 				ResID:     b.ID(),
 				ResName:   b.Name,
+				LabelID:   labelID,
+				LabelName: labelName,
+			})
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, d := range pkg.dashboards() {
+		err := s.dryRunResourceLabelMapping(ctx, d, d.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
+			pkg.mLabels[labelName].setDashboardMapping(d, !isNew)
+			diffs = append(diffs, DiffLabelMapping{
+				IsNew:     isNew,
+				ResType:   d.ResourceType(),
+				ResID:     d.ID(),
+				ResName:   d.Name,
 				LabelID:   labelID,
 				LabelName: labelName,
 			})
@@ -166,11 +234,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 	return diffs, nil
 }
 
-type labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
-
-func (s *Service) dryRunBucketLabelMapping(ctx context.Context, b *bucket, mappingFn labelMappingDiffFn) error {
-	if b.existing == nil {
-		for _, l := range b.labels {
+func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, labels []*label, mappingFn labelMappingDiffFn) error {
+	if !la.Exists() {
+		for _, l := range labels {
 			mappingFn(l.ID(), l.Name, true)
 		}
 		return nil
@@ -178,9 +244,9 @@ func (s *Service) dryRunBucketLabelMapping(ctx context.Context, b *bucket, mappi
 	// loop through and hit api for all labels associated with a bkt
 	// lookup labels in pkg, add it to the label mapping, if exists in
 	// the results from API, mark it exists
-	labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
-		ResourceID:   b.ID(),
-		ResourceType: influxdb.BucketsResourceType,
+	existingLabels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
+		ResourceID:   la.ID(),
+		ResourceType: la.ResourceType(),
 	})
 	if err != nil {
 		// TODO: inspect err, if its a not found error, do nothing, if any other error
@@ -188,8 +254,8 @@ func (s *Service) dryRunBucketLabelMapping(ctx context.Context, b *bucket, mappi
 		return err
 	}
 
-	pkgLabels := labelSlcToMap(b.labels)
-	for _, l := range labels {
+	pkgLabels := labelSlcToMap(labels)
+	for _, l := range existingLabels {
 		// should ignore any labels that are not specified in pkg
 		mappingFn(l.ID, l.Name, false)
 		delete(pkgLabels, l.Name)
@@ -237,6 +303,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 			// primary resources
 			s.applyLabels(pkg.labels()),
 			s.applyBuckets(pkg.buckets()),
+			s.applyDashboards(pkg.dashboards()),
 		},
 		{
 			// secondary (dependent) resources
@@ -255,6 +322,8 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 }
 
 func (s *Service) applyBuckets(buckets []*bucket) applier {
+	const resource = "bucket"
+
 	rollbackBuckets := make([]*bucket, 0, len(buckets))
 	createFn := func(ctx context.Context, orgID influxdb.ID) error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
@@ -275,13 +344,13 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 			rollbackBuckets = append(rollbackBuckets, buckets[i])
 		}
 
-		return errs.toError("bucket", "failed to create bucket")
+		return errs.toError(resource, "failed to create bucket")
 	}
 
 	return applier{
 		creater: createFn,
 		rollbacker: rollbacker{
-			resource: "bucket",
+			resource: resource,
 			fn:       func() error { return s.rollbackBuckets(rollbackBuckets) },
 		},
 	}
@@ -341,7 +410,99 @@ func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, 
 	return influxBucket, nil
 }
 
+func (s *Service) applyDashboards(dashboards []*dashboard) applier {
+	const resource = "dashboard"
+
+	rollbackDashboards := make([]*dashboard, 0, len(dashboards))
+	createFn := func(ctx context.Context, orgID influxdb.ID) error {
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+
+		var errs applyErrs
+		for i := range dashboards {
+			d := dashboards[i]
+			d.OrgID = orgID
+			influxBucket, err := s.applyDashboard(ctx, d)
+			if err != nil {
+				errs = append(errs, applyErrBody{
+					name: d.Name,
+					msg:  err.Error(),
+				})
+				continue
+			}
+			d.id = influxBucket.ID
+			rollbackDashboards = append(rollbackDashboards, d)
+		}
+
+		return errs.toError(resource, "failed to create bucket")
+	}
+
+	return applier{
+		creater: createFn,
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func() error { return s.rollbackDashboards(rollbackDashboards) },
+		},
+	}
+}
+
+func (s *Service) rollbackDashboards(dashboards []*dashboard) error {
+	var errs []string
+	for i := range dashboards {
+		d := dashboards[i]
+		if d.existing == nil {
+			err := s.dashSVC.DeleteDashboard(context.Background(), d.ID())
+			if err != nil {
+				errs = append(errs, d.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.dashSVC.UpdateDashboard(context.Background(), d.ID(), influxdb.DashboardUpdate{
+			Name:        &d.Name,
+			Description: &d.Description,
+		})
+		if err != nil {
+			errs = append(errs, d.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		// TODO: fixup error
+		return fmt.Errorf(`dashboard_ids=[%s] err="unable to delete dashboard"`, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Dashboard, error) {
+	if d.existing != nil {
+		influxDashboard, err := s.dashSVC.UpdateDashboard(ctx, d.ID(), influxdb.DashboardUpdate{
+			Name:        &d.Name,
+			Description: &d.Description,
+		})
+		if err != nil {
+			return influxdb.Dashboard{}, err
+		}
+		return *influxDashboard, nil
+	}
+
+	influxDashboard := influxdb.Dashboard{
+		OrganizationID: d.OrgID,
+		Description:    d.Description,
+		Name:           d.Name,
+	}
+	err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
+	if err != nil {
+		return influxdb.Dashboard{}, err
+	}
+
+	return influxDashboard, nil
+}
+
 func (s *Service) applyLabels(labels []*label) applier {
+	const resource = "label"
+
 	rollBackLabels := make([]*label, 0, len(labels))
 	createFn := func(ctx context.Context, orgID influxdb.ID) error {
 		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
@@ -362,13 +523,13 @@ func (s *Service) applyLabels(labels []*label) applier {
 			rollBackLabels = append(rollBackLabels, labels[i])
 		}
 
-		return errs.toError("label", "failed to create label")
+		return errs.toError(resource, "failed to create label")
 	}
 
 	return applier{
 		creater: createFn,
 		rollbacker: rollbacker{
-			resource: "label",
+			resource: resource,
 			fn:       func() error { return s.rollbackLabels(rollBackLabels) },
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -363,11 +364,36 @@ spec:
 			}
 			for i, expected := range expectedLabels {
 				bkt := bkts[i]
-				require.Len(t, bkt.Associations, len(expected.labels))
+				require.Len(t, bkt.LabelAssociations, len(expected.labels))
 
 				for j, label := range expected.labels {
-					assert.Equal(t, label, bkt.Associations[j].Name)
+					assert.Equal(t, label, bkt.LabelAssociations[j].Name)
 				}
+			}
+
+			expectedMappings := []SummaryLabelMapping{
+				{
+					ResourceName: "rucket_1",
+					LabelName:    "label_1",
+				},
+				{
+					ResourceName: "rucket_2",
+					LabelName:    "label_2",
+				},
+				{
+					ResourceName: "rucket_3",
+					LabelName:    "label_1",
+				},
+				{
+					ResourceName: "rucket_3",
+					LabelName:    "label_2",
+				},
+			}
+
+			require.Len(t, sum.LabelMappings, len(expectedMappings))
+			for i, expected := range expectedMappings {
+				expected.LabelMapping.ResourceType = influxdb.BucketsResourceType
+				assert.Equal(t, expected, sum.LabelMappings[i])
 			}
 		})
 
@@ -455,6 +481,159 @@ spec:
       name: label_1
     - kind: Bucket
       name: buck_1
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: label_1
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					_, err := Parse(EncodingYAML, FromString(tt.in))
+
+					pErr, ok := IsParseErr(err)
+					require.True(t, ok)
+					require.Len(t, pErr.Resources, tt.numErrs)
+
+					assFails := pErr.Resources[0].AssociationFails
+					require.Len(t, assFails, len(tt.errIdxs))
+					assert.Equal(t, "associations", assFails[0].Field)
+
+					for i, f := range assFails {
+						assert.Equal(t, tt.errIdxs[i], f.Index)
+					}
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+	})
+
+	t.Run("pkg with single dashboard", func(t *testing.T) {
+		testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
+			dashboards := pkg.dashboards()
+			require.Len(t, dashboards, 1)
+
+			actual := dashboards[0]
+			assert.Equal(t, "dash_1", actual.Name)
+			assert.Equal(t, "desc1", actual.Description)
+		})
+	})
+
+	t.Run("pkg with dashboard and labels associated", func(t *testing.T) {
+		testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			require.Len(t, sum.Dashboards, 1)
+
+			actual := sum.Dashboards[0]
+			assert.Equal(t, "dash_1", actual.Name)
+			assert.Equal(t, "desc1", actual.Description)
+
+			require.Len(t, actual.LabelAssociations, 1)
+			actualLabel := actual.LabelAssociations[0]
+			assert.Equal(t, "label_1", actualLabel.Name)
+
+			expectedMappings := []SummaryLabelMapping{
+				{
+					ResourceName: "dash_1",
+					LabelName:    "label_1",
+				},
+			}
+			require.Len(t, sum.LabelMappings, len(expectedMappings))
+
+			for i, expected := range expectedMappings {
+				expected.LabelMapping.ResourceType = influxdb.DashboardsResourceType
+				assert.Equal(t, expected, sum.LabelMappings[i])
+			}
+		})
+
+		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
+			tests := []struct {
+				name    string
+				numErrs int
+				in      string
+				errIdxs []int
+			}{
+				{
+					name:    "no labels provided",
+					numErrs: 1,
+					errIdxs: []int{0},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      associations:
+        - kind: Label
+          name: label_1
+`,
+				},
+				{
+					name:    "mixed found and not found",
+					numErrs: 1,
+					errIdxs: []int{1},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Dashboard
+      name: dash_1
+      associations:
+        - kind: Label
+          name: label_1
+        - kind: Label
+          name: unfound label
+`,
+				},
+				{
+					name:    "multiple not found",
+					numErrs: 1,
+					errIdxs: []int{0, 1},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Dashboard
+      name: dash_1
+      associations:
+        - kind: Label
+          name: not found 1
+        - kind: Label
+          name: unfound label
+`,
+				},
+				{
+					name:    "duplicate valid nested labels",
+					numErrs: 1,
+					errIdxs: []int{1},
+					in: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName: label_pkg
+  pkgVersion: 1
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+    - kind: Dashboard
+      name: dash_1
       associations:
         - kind: Label
           name: label_1
