@@ -9,7 +9,7 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
-import MonacoEditor from 'src/shared/components/MonacoEditor'
+import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -58,7 +58,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         handleDisplay: HANDLE_NONE,
         render: () => {
           if (isFlagEnabled('monaco')) {
-            return <MonacoEditor script={activeQueryText} />
+            return <FluxMonacoEditor script={activeQueryText} />
           }
           return (
             <FluxEditor
