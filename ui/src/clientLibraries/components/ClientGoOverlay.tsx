@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
-import CodeSnippet from 'src/shared/components/CodeSnippet'
+import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 
 // Constants
 import {clientGoLibrary} from 'src/clientLibraries/constants'
@@ -24,9 +24,23 @@ const ClientGoOverlay: FunctionComponent<{}> = () => {
         </a>
       </p>
       <h5>Initialize the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="Go Code" />
+      <TemplatedCodeSnippet
+        template={initializeClientCodeSnippet}
+        label="Go Code"
+        defaults={{
+          token: 'myToken',
+          server: 'myHTTPInfluxAddress',
+        }}
+      />
       <h5>Write Data</h5>
-      <CodeSnippet copyText={writeDataCodeSnippet} label="Go Code" />
+      <TemplatedCodeSnippet
+        template={writeDataCodeSnippet}
+        label="Go Code"
+        defaults={{
+          bucket: 'my-awesome-bucket',
+          org: 'my-very-awesome-org',
+        }}
+      />
     </ClientLibraryOverlay>
   )
 }

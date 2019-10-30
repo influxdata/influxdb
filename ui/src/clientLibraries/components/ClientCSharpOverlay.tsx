@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
-import CodeSnippet from 'src/shared/components/CodeSnippet'
+import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 // Constants
 import {clientCSharpLibrary} from 'src/clientLibraries/constants'
 
@@ -30,32 +30,67 @@ const ClientCSharpOverlay: FunctionComponent<{}> = () => {
       </p>
       <h5>Install Package</h5>
       <p>Package Manager</p>
-      <CodeSnippet
-        copyText={installingPackageManagerCodeSnippet}
+      <TemplatedCodeSnippet
+        template={installingPackageManagerCodeSnippet}
         label="Code"
       />
       <p>.NET CLI</p>
-      <CodeSnippet
-        copyText={installingPackageDotNetCLICodeSnippet}
+      <TemplatedCodeSnippet
+        template={installingPackageDotNetCLICodeSnippet}
         label="Code"
       />
       <p>Package Reference</p>
-      <CodeSnippet copyText={packageReferenceCodeSnippet} label="Code" />
+      <TemplatedCodeSnippet
+        template={packageReferenceCodeSnippet}
+        label="Code"
+      />
       <h5>Initialize the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="C# Code" />
+      <TemplatedCodeSnippet
+        template={initializeClientCodeSnippet}
+        label="C# Code"
+        defaults={{
+          server: 'basepath',
+          token: 'token',
+        }}
+      />
       <h5>Write Data</h5>
       <p>Option 1: Use InfluxDB Line Protocol to write data</p>
-      <CodeSnippet
-        copyText={writingDataLineProtocolCodeSnippet}
+      <TemplatedCodeSnippet
+        template={writingDataLineProtocolCodeSnippet}
         label="C# Code"
+        defaults={{
+          org: 'orgID',
+          bucket: 'bucketID',
+        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
-      <CodeSnippet copyText={writingDataDataPointCodeSnippet} label="C# Code" />
+      <TemplatedCodeSnippet
+        template={writingDataDataPointCodeSnippet}
+        label="C# Code"
+        defaults={{
+          org: 'orgID',
+          bucket: 'bucketID',
+        }}
+      />
       <p>Option 3: Use POCO and corresponding Class to write data</p>
-      <CodeSnippet copyText={writingDataPocoCodeSnippet} label="C# Code" />
-      <CodeSnippet copyText={pocoClassCodeSnippet} label="C# Code" />
+      <TemplatedCodeSnippet
+        template={writingDataPocoCodeSnippet}
+        label="C# Code"
+        defaults={{
+          org: 'orgID',
+          bucket: 'bucketID',
+        }}
+      />
+      <TemplatedCodeSnippet template={pocoClassCodeSnippet} label="C# Code" />
       <h5>Execute a Flux query</h5>
-      <CodeSnippet copyText={executeQueryCodeSnippet} label="C# Code" />
+      <TemplatedCodeSnippet
+        template={executeQueryCodeSnippet}
+        label="C# Code"
+        defaults={{
+          org: 'orgID',
+          bucket: 'bucketID',
+        }}
+      />
     </ClientLibraryOverlay>
   )
 }
