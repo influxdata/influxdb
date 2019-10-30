@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/influxdata/influxdb"
 )
@@ -11,6 +13,7 @@ import (
 var (
 	variableBucket    = []byte("variablesv1")
 	variableOrgsIndex = []byte("variableorgsv1")
+	variablesIndex    = []byte("variablesindexv1")
 )
 
 func (s *Service) initializeVariables(ctx context.Context, tx Tx) error {
@@ -237,6 +240,19 @@ func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (
 // CreateVariable creates a new variable and assigns it an ID
 func (s *Service) CreateVariable(ctx context.Context, variable *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
+		if err := variable.Valid(); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Err:  err,
+			}
+		}
+
+		variable.Name = strings.TrimSpace(variable.Name)
+
+		if err := s.uniqueVariableName(ctx, tx, variable); err != nil {
+			return err
+		}
+
 		variable.ID = s.IDGenerator.ID()
 
 		if err := s.putVariableOrgsIndex(ctx, tx, variable); err != nil {
@@ -263,6 +279,14 @@ func (s *Service) ReplaceVariable(ctx context.Context, variable *influxdb.Variab
 				Err: err,
 			}
 		}
+
+		err := s.uniqueVariableName(ctx, tx, variable)
+		if err != nil {
+			return &influxdb.Error{
+				Err: err,
+			}
+		}
+
 		return s.putVariable(ctx, tx, variable)
 	})
 }
@@ -345,6 +369,13 @@ func (s *Service) putVariable(ctx context.Context, tx Tx, variable *influxdb.Var
 		}
 	}
 
+	err = s.createVariableIndex(ctx, tx, variable)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
 	b, err := tx.Bucket(variableBucket)
 	if err != nil {
 		return err
@@ -363,23 +394,43 @@ func (s *Service) putVariable(ctx context.Context, tx Tx, variable *influxdb.Var
 func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 	var variable *influxdb.Variable
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		m, pe := s.findVariableByID(ctx, tx, id)
-		if pe != nil {
+		m, err := s.findVariableByID(ctx, tx, id)
+		if err != nil {
 			return &influxdb.Error{
-				Err: pe,
+				Err: err,
 			}
 		}
 		m.UpdatedAt = s.Now()
+
+		variable = m
+
+		if update.Name != "" {
+			update.Name = strings.TrimSpace(update.Name)
+
+			err = s.deleteVariableIndex(ctx, tx, variable)
+			if err != nil {
+				return &influxdb.Error{
+					Err: err,
+				}
+			}
+
+			variable.Name = update.Name
+			if err := s.uniqueVariableName(ctx, tx, variable); err != nil {
+				return &influxdb.Error{
+					Err: err,
+				}
+			}
+		}
+
 		if err := update.Apply(m); err != nil {
 			return &influxdb.Error{
 				Err: err,
 			}
 		}
 
-		variable = m
-		if pe = s.putVariable(ctx, tx, variable); pe != nil {
+		if err = s.putVariable(ctx, tx, variable); err != nil {
 			return &influxdb.Error{
-				Err: pe,
+				Err: err,
 			}
 		}
 		return nil
@@ -391,10 +442,10 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 // DeleteVariable removes a single variable from the store by its ID
 func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		m, pe := s.findVariableByID(ctx, tx, id)
-		if pe != nil {
+		v, err := s.findVariableByID(ctx, tx, id)
+		if err != nil {
 			return &influxdb.Error{
-				Err: pe,
+				Err: err,
 			}
 		}
 
@@ -405,7 +456,7 @@ func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
 			}
 		}
 
-		if err := s.removeVariableOrgsIndex(ctx, tx, m); err != nil {
+		if err := s.removeVariableOrgsIndex(ctx, tx, v); err != nil {
 			return &influxdb.Error{
 				Err: err,
 			}
@@ -416,6 +467,12 @@ func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
 			return err
 		}
 
+		if err := s.deleteVariableIndex(ctx, tx, v); err != nil {
+			return &influxdb.Error{
+				Err: err,
+			}
+		}
+
 		if err := b.Delete(encID); err != nil {
 			return &influxdb.Error{
 				Err: err,
@@ -424,4 +481,83 @@ func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
 
 		return nil
 	})
+}
+
+func variableAlreadyExistsError(v *influxdb.Variable) error {
+	return &influxdb.Error{
+		Code: influxdb.EConflict,
+		Msg:  fmt.Sprintf("variable with name %s already exists", v.Name),
+	}
+}
+
+func variableIndexKey(v *influxdb.Variable) ([]byte, error) {
+	orgID, err := v.OrganizationID.Encode()
+	if err != nil {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}
+	}
+
+	k := make([]byte, influxdb.IDLength+len(v.Name))
+	copy(k, orgID)
+	copy(k[influxdb.IDLength:], []byte(strings.ToLower((v.Name))))
+	return k, nil
+}
+
+func (s *Service) deleteVariableIndex(ctx context.Context, tx Tx, v *influxdb.Variable) error {
+	idx, err := tx.Bucket(variablesIndex)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	idxKey, err := variableIndexKey(v)
+	if err := idx.Delete(idxKey); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+	return nil
+}
+
+func (s *Service) createVariableIndex(ctx context.Context, tx Tx, v *influxdb.Variable) error {
+	encID, err := v.OrganizationID.Encode()
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	idxBkt, err := tx.Bucket(variablesIndex)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	idxKey, err := variableIndexKey(v)
+
+	if err := idxBkt.Put([]byte(idxKey), encID); err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) uniqueVariableName(ctx context.Context, tx Tx, v *influxdb.Variable) error {
+	key, err := variableIndexKey(v)
+	if err != nil {
+		return err
+	}
+
+	err = s.unique(ctx, tx, variablesIndex, key)
+	if err == NotUniqueError {
+		return variableAlreadyExistsError(v)
+	}
+
+	return nil
 }
