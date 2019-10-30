@@ -72,11 +72,11 @@
 
 [[constraint]]
   name = "github.com/influxdata/flux"
-  version = "~ 0.33.2"
+  version = "~ 0.50.0"
 
 [[constraint]]
   name = "github.com/apache/arrow"
-  revision = "338c62a2a20574072fde5c478fcd42bf27a2d4b6"
+  revision = "af6fa24be0dbbc021e0844c63d1c0b89fb23a95c"
 
 [[constraint]]
   name = "github.com/influxdata/influxql"

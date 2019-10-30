@@ -989,7 +989,7 @@ var xxx_messageInfo_CapabilitiesResponse proto.InternalMessageInfo
 type TimestampRange struct {
 	// Start defines the inclusive lower bound.
 	Start int64 `protobuf:"varint,1,opt,name=start,proto3" json:"start,omitempty"`
-	// End defines the inclusive upper bound.
+	// End defines the exclusive upper bound.
 	End int64 `protobuf:"varint,2,opt,name=end,proto3" json:"end,omitempty"`
 }
 

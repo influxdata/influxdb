@@ -111,6 +111,12 @@ func (r *ResultSetStreamReader) Stats() cursors.CursorStats {
 	return r.fr.stats.Stats()
 }
 
+// Peek reads the next frame on the underlying stream-reader
+// if there is one
+func (r *ResultSetStreamReader) Peek() {
+	r.fr.peekFrame()
+}
+
 func (r *ResultSetStreamReader) Next() bool {
 	if r.fr.state == stateReadSeries {
 		return r.readSeriesFrame()
@@ -176,6 +182,12 @@ func NewGroupResultSetStreamReader(stream StreamReader) *GroupResultSetStreamRea
 }
 
 func (r *GroupResultSetStreamReader) Err() error { return r.fr.err }
+
+// Peek reads the next frame on the underlying stream-reader
+// if there is one
+func (r *GroupResultSetStreamReader) Peek() {
+	r.fr.peekFrame()
+}
 
 func (r *GroupResultSetStreamReader) Next() GroupCursor {
 	if r.fr.state == stateReadGroup {

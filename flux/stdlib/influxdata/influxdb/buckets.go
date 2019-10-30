@@ -1,10 +1,12 @@
 package influxdb
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
@@ -19,20 +21,20 @@ func init() {
 }
 
 type BucketsDecoder struct {
-	deps  BucketDependencies
+	deps  StorageDependencies
 	alloc *memory.Allocator
 	user  meta.User
 }
 
-func (bd *BucketsDecoder) Connect() error {
+func (bd *BucketsDecoder) Connect(ctx context.Context) error {
 	return nil
 }
 
-func (bd *BucketsDecoder) Fetch() (bool, error) {
+func (bd *BucketsDecoder) Fetch(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (bd *BucketsDecoder) Decode() (flux.Table, error) {
+func (bd *BucketsDecoder) Decode(ctx context.Context) (flux.Table, error) {
 	kb := execute.NewGroupKeyBuilder(nil)
 	kb.AddKeyValue("organizationID", values.NewString(""))
 	gk, err := kb.Build()
@@ -48,10 +50,6 @@ func (bd *BucketsDecoder) Decode() (flux.Table, error) {
 	})
 	_, _ = b.AddCol(flux.ColMeta{
 		Label: "id",
-		Type:  flux.TString,
-	})
-	_, _ = b.AddCol(flux.ColMeta{
-		Label: "organization",
 		Type:  flux.TString,
 	})
 	_, _ = b.AddCol(flux.ColMeta{
@@ -102,12 +100,15 @@ func (bd *BucketsDecoder) Close() error {
 func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a execute.Administration) (execute.Source, error) {
 	_, ok := prSpec.(*influxdb.BucketsProcedureSpec)
 	if !ok {
-		return nil, fmt.Errorf("invalid spec type %T", prSpec)
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  fmt.Sprintf("invalid spec type %T", prSpec),
+		}
 	}
 
 	// the dependencies used for FromKind are adequate for what we need here
 	// so there's no need to inject custom dependencies for buckets()
-	deps := a.Dependencies()[influxdb.BucketsKind].(BucketDependencies)
+	deps := GetStorageDependencies(a.Context())
 
 	var user meta.User
 	if deps.AuthEnabled {
@@ -120,34 +121,9 @@ func createBucketsSource(prSpec plan.ProcedureSpec, dsid execute.DatasetID, a ex
 	bd := &BucketsDecoder{deps: deps, alloc: a.Allocator(), user: user}
 
 	return execute.CreateSourceFromDecoder(bd, dsid, a)
-
 }
 
 type MetaClient interface {
 	Databases() []meta.DatabaseInfo
 	Database(name string) *meta.DatabaseInfo
-}
-
-type BucketDependencies struct {
-	MetaClient  MetaClient
-	Authorizer  Authorizer
-	AuthEnabled bool
-}
-
-func (d BucketDependencies) Validate() error {
-	if d.MetaClient == nil {
-		return errors.New("validate BucketDependencies: missing MetaClient")
-	}
-	if d.AuthEnabled && d.Authorizer == nil {
-		return errors.New("validate BucketDependencies: missing Authorizer")
-	}
-	return nil
-}
-
-func InjectBucketDependencies(depsMap execute.Dependencies, deps BucketDependencies) error {
-	if err := deps.Validate(); err != nil {
-		return err
-	}
-	depsMap[influxdb.BucketsKind] = deps
-	return nil
 }
