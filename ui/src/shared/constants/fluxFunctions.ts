@@ -3046,6 +3046,23 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/pivot/',
   },
   {
+    name: 'prometheus.histogramQuantile',
+    args: [
+      {
+        name: 'quantile',
+        desc: 'A value between 0.0 and 1.0 indicating the desired quantile.',
+        type: 'Float',
+      },
+    ],
+    package: 'experimental/prometheus',
+    desc:
+      'Calculates quantiles on a set of values assuming the histogram data is scraped or read from a Prometheus data source.',
+    example: 'prometheus.histogramQuantile(quantile: 0.99)',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/prometheus/histogramquantile/',
+  },
+  {
     name: 'prometheus.scrape',
     args: [
       {
