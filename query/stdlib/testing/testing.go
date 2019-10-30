@@ -126,5 +126,6 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 	},
 	"testing/promql": {
 		"emptyTable": "tests a source",
+		"year":       "flakey test: https://github.com/influxdata/influxdb/issues/15667",
 	},
 }
