@@ -17,12 +17,12 @@ import {
 import {RemoteDataState, Filter} from 'src/types'
 
 export type Action =
-| SetIsSerious
-| SetBucketName
-| SetTimeRange
-| SetFilter
-| DeleteFilter
-| SetDeletionStatus
+  | SetIsSerious
+  | SetBucketName
+  | SetTimeRange
+  | SetFilter
+  | DeleteFilter
+  | SetDeletionStatus
 
 interface SetIsSerious {
   type: 'SET_IS_SERIOUS'
@@ -81,12 +81,13 @@ interface SetDeletionStatus {
   deletionStatus: RemoteDataState
 }
 
-export const setDeletionStatus = (status: RemoteDataState): SetDeletionStatus => ({
+export const setDeletionStatus = (
+  status: RemoteDataState): SetDeletionStatus => ({
   type: 'SET_DELETION_STATUS',
   deletionStatus: status,
 })
 
-export const deleteWithPredicate = (params) => async (
+export const deleteWithPredicate = params => async (
   dispatch: Dispatch<Action>
 ) => {
   try {

@@ -12,7 +12,10 @@ import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
 import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
 
 // Types
-import {RemoteDataState, Filter} from 'src/types'
+import {AppState, Filter, RemoteDataState} from 'src/types'
+
+// Selectors
+import {setCanDelete} from 'src/shared/selectors/canDelete'
 
 // action
 import {
@@ -25,9 +28,6 @@ import {
   setTimeRange,
 } from 'src/shared/actions/predicates'
 
-// state
-import {PredicatesState} from 'src/shared/reducers/predicates'
-
 interface OwnProps {
   orgID: string
   handleDismiss: () => void
@@ -37,6 +37,7 @@ interface OwnProps {
 
 interface StateProps {
   bucketName: string
+  canDelete: boolean
   filters: Filter[]
   timeRange: [number, number]
   isSerious: boolean
@@ -53,10 +54,11 @@ interface DispatchProps {
   setTimeRange: typeof setTimeRange
 }
 
-type Props = StateProps & DispatchProps & OwnProps
+export type Props = StateProps & DispatchProps & OwnProps
 
 const DeleteDataForm: FunctionComponent<Props> = ({
   bucketName,
+  canDelete,
   deleteFilter,
   deletionStatus,
   deleteWithPredicate,
@@ -73,18 +75,12 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   setTimeRange,
   timeRange,
 }) => {
-
   const name = bucketName || initialBucketName
 
   const realTimeRange = initialTimeRange || timeRange
 
-  const canDelete =
-    isSerious &&
-    deletionStatus === RemoteDataState.NotStarted &&
-    filters.every(f => !!f.key && !!f.value && !!f.equality)
-
   const formatPredicates = predicates => {
-    const result = [];
+    const result = []
     predicates.forEach(predicate => {
       const {key, equality, value} = predicate
       result.push(`${key} ${equality} ${value}`)
@@ -92,7 +88,7 @@ const DeleteDataForm: FunctionComponent<Props> = ({
     return result.join(' AND ')
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setDeletionStatus(RemoteDataState.Loading)
 
     const [start, stop] = realTimeRange
@@ -176,17 +172,12 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: PredicatesState) => {
-  const {
-    bucketName,
-    deletionStatus,
-    filters,
-    isSerious,
-    timeRange,
-  } = state
+const mstp = ({predicates}: AppState) => {
+  const {bucketName, deletionStatus, filters, isSerious, timeRange} = predicates
 
   return {
     bucketName,
+    canDelete: setCanDelete(predicates)
     deletionStatus,
     filters,
     isSerious,
@@ -204,4 +195,7 @@ const mdtp = {
   setTimeRange,
 }
 
-export default connect<StateProps, DispatchProps, {}>(mstp, mdtp)(DeleteDataForm)
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(DeleteDataForm)

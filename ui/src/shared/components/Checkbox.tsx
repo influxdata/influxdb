@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
 
 interface Props {
   label: string
@@ -11,7 +11,12 @@ interface Props {
 // TODO: Replace this with the Clockface checkbox once available
 //
 // See https://github.com/influxdata/influxdb/issues/14125.
-const Checkbox: FunctionComponent<Props> = ({label, checked, onSetChecked, testID}) => {
+const Checkbox: FC<Props> = ({
+  label,
+  checked,
+  onSetChecked,
+  testID,
+}) => {
   return (
     <label className={`fancy-checkbox ${checked ? 'checked' : ''}`}>
       <input

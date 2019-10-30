@@ -5,20 +5,12 @@ import moment from 'moment'
 import {Action} from 'src/shared/actions/predicates'
 
 // Types
-import {RemoteDataState, Filter} from 'src/types'
+import {Filter, PredicatesState, RemoteDataState} from 'src/types'
 
-export interface PredicatesState {
-  bucketName: string
-  timeRange: [number, number]
-  filters: Filter[]
-  isSerious: boolean
-  deletionStatus: RemoteDataState
-}
+export const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
+export const HOUR_MS = 1000 * 60 * 60
 
-const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
-const HOUR_MS = 1000 * 60 * 60
-
-const initialState: PredicatesState = {
+export const initialState: PredicatesState = {
   bucketName: '',
   timeRange: [recently - HOUR_MS, recently],
   filters: [],
@@ -26,7 +18,7 @@ const initialState: PredicatesState = {
   deletionStatus: RemoteDataState.NotStarted,
 }
 
-const predicatesReducer = (
+export const predicatesReducer = (
   state: PredicatesState = initialState,
   action: Action
 ): PredicatesState => {
@@ -65,5 +57,3 @@ const predicatesReducer = (
       return state
   }
 }
-
-export default predicatesReducer

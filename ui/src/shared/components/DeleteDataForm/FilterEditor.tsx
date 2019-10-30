@@ -29,7 +29,9 @@ const FilterEditor: FunctionComponent<Props> = ({
         icon={IconFont.Plus}
         shape={ButtonShape.StretchToFit}
         className="delete-data-filters--new-filter"
-        onClick={() => onSetFilter({key: '', equality: '=', value: ''}, filters.length)}
+        onClick={() =>
+          onSetFilter({key: '', equality: '=', value: ''}, filters.length)
+        }
       />
       {filters.length > 0 ? (
         <div className="delete-data-filters--filters">

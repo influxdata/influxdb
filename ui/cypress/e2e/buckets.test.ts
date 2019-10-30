@@ -77,6 +77,7 @@ describe('Buckets', () => {
       cy.getByTestID('bucket-delete-task').click()
       cy.getByTestID('overlay--container').should('have.length', 1)
     })
+
     it('requires consent to perform delete with predicate', () => {
       // confirm delete is disabled
       cy.getByTestID('confirm-delete-btn').should('be.disabled')
@@ -87,24 +88,24 @@ describe('Buckets', () => {
         .should('not.be.disabled')
         .click()
     })
+
     it('closes the overlay upon a successful delete with predicate submission', () => {
       cy.getByTestID('delete-checkbox').check({force: true})
       cy.getByTestID('confirm-delete-btn').click()
-      cy.getByTestID('overlay--container').should('have.length', 0)
+      cy.getByTestID('overlay--container').should('not.exist')
       cy.getByTestID('notification-success').should('have.length', 1)
     })
+
     it('should require key-value pairs when deleting predicate with filters', () => {
       // confirm delete is disabled
       cy.getByTestID('add-filter-btn').click()
       // checks the consent input
       cy.getByTestID('delete-checkbox').check({force: true})
       // cannot delete
-      cy.getByTestID('confirm-delete-btn')
-        .should('be.disabled')
+      cy.getByTestID('confirm-delete-btn').should('be.disabled')
 
       // should display warnings
-      cy.getByTestID('form--element-error')
-        .should('have.length', 2)
+      cy.getByTestID('form--element-error').should('have.length', 2)
 
       cy.getByTestID('key-input').type('mean')
       cy.getByTestID('value-input').type(100)

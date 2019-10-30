@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC} from 'react'
 import {
   Button,
   ButtonShape,
@@ -20,7 +20,7 @@ interface Props {
   shouldValidate: boolean
 }
 
-const FilterRow: FunctionComponent<Props> = ({
+const FilterRow: FC<Props> = ({
   filter: {key, equality, value},
   onChange,
   onDelete,
@@ -44,11 +44,7 @@ const FilterRow: FunctionComponent<Props> = ({
         required={true}
         errorMessage={keyErrorMessage}
       >
-        <Input
-          onChange={onChangeKey}
-          value={key}
-          testID="key-input"
-        />
+        <Input onChange={onChangeKey} value={key} testID="key-input" />
       </Form.Element>
       <div className="delete-data-filter--equals">==</div>
       <FeatureFlag name="deleteWithPredicate">
@@ -69,11 +65,7 @@ const FilterRow: FunctionComponent<Props> = ({
         required={true}
         errorMessage={valueErrorMessage}
       >
-        <Input
-          onChange={onChangeValue}
-          value={value}
-          testID="value-input"
-        />
+        <Input onChange={onChangeValue} value={value} testID="value-input" />
       </Form.Element>
       <Button
         className="delete-data-filter--remove"
