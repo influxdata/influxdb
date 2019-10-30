@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -30,6 +29,9 @@ const (
 	EncodingJSON
 )
 
+// ErrInvalidEncoding indicates the encoding is invalid type for the parser.
+var ErrInvalidEncoding = errors.New("invalid encoding provided")
+
 // Parse parses a pkg defined by the encoding and readerFns. As of writing this
 // we can parse both a YAML and JSON format of the Pkg model.
 func Parse(encoding Encoding, readerFn ReaderFn) (*Pkg, error) {
@@ -44,8 +46,7 @@ func Parse(encoding Encoding, readerFn ReaderFn) (*Pkg, error) {
 	case EncodingJSON:
 		return parseJSON(r)
 	default:
-		// TODO: fixup error
-		return nil, errors.New("invalid encoding provided")
+		return nil, ErrInvalidEncoding
 	}
 }
 
@@ -92,13 +93,13 @@ type decoder interface {
 
 func parse(dec decoder) (*Pkg, error) {
 	var pkg Pkg
-	err := dec.Decode(&pkg)
-	if err != nil {
+	if err := dec.Decode(&pkg); err != nil {
 		return nil, err
 	}
 
 	setupFns := []func() error{
 		pkg.validMetadata,
+		pkg.validResources,
 		pkg.graphResources,
 	}
 
@@ -152,11 +153,7 @@ func (p *Pkg) Summary() Summary {
 	})
 
 	for _, m := range p.labelMappings() {
-		sum.LabelMappings = append(sum.LabelMappings, struct {
-			ResourceName string
-			LabelName    string
-			influxdb.LabelMapping
-		}{
+		sum.LabelMappings = append(sum.LabelMappings, SummaryLabelMapping{
 			ResourceName: m.ResourceName,
 			LabelName:    m.LabelName,
 			LabelMapping: m.LabelMapping,
@@ -213,18 +210,8 @@ func (p *Pkg) labels() []*label {
 // valid pairs of labels and resources of which all have IDs.
 // If a resource does not exist yet, a label mapping will not
 // be returned for it.
-func (p *Pkg) labelMappings() []struct {
-	exists       bool
-	ResourceName string
-	LabelName    string
-	influxdb.LabelMapping
-} {
-	var mappings []struct {
-		exists       bool
-		ResourceName string
-		LabelName    string
-		influxdb.LabelMapping
-	}
+func (p *Pkg) labelMappings() []SummaryLabelMapping {
+	var mappings []SummaryLabelMapping
 	for _, l := range p.mLabels {
 		mappings = append(mappings, l.mappingSummary()...)
 	}
@@ -285,6 +272,24 @@ func (p *Pkg) validMetadata() error {
 	return &err
 }
 
+func (p *Pkg) validResources() error {
+	if len(p.Spec.Resources) > 0 {
+		return nil
+	}
+
+	res := errResource{
+		Type: "Package",
+		Idx:  -1,
+	}
+	res.ValidationFails = append(res.ValidationFails, struct {
+		Field string
+		Msg   string
+	}{Field: "resources", Msg: "at least 1 resource must be provided"})
+	var err ParseErr
+	err.append(res)
+	return &err
+}
+
 func (p *Pkg) graphResources() error {
 	graphFns := []func() error{
 		// labels are first to validate associations with other resources
@@ -297,8 +302,6 @@ func (p *Pkg) graphResources() error {
 			return err
 		}
 	}
-
-	// TODO: make sure a resource was created....
 
 	return nil
 }

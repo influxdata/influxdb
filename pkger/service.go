@@ -53,9 +53,9 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 		return Summary{}, Diff{}, err
 	}
 
-	// verify the pkg is verified by a dry run. when calling apply this
+	// verify the pkg is verified by a dry run. when calling Service.Apply this
 	// is required to have been run. if it is not true, then apply runs
-	// the Dry run again.
+	// the Dry run.
 	pkg.isVerified = true
 
 	diff := Diff{
@@ -73,13 +73,10 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		b := bkts[i]
 		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name)
 		switch err {
-		// TODO: this is useless until the http client provides this functionality, right none of the http
-		//  clients do :sad_face:
 		// TODO: case for err not found here and another case handle where
 		//  err isn't a not found (some other error)
 		case nil:
 			b.existing = existingBkt
-			b.ID = existingBkt.ID
 			mExistingBkts[b.Name] = newDiffBucket(b, *existingBkt)
 		default:
 			mExistingBkts[b.Name] = newDiffBucket(b, influxdb.Bucket{})
@@ -107,14 +104,11 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 			OrgID: &orgID,
 		}, influxdb.FindOptions{Limit: 1})
 		switch {
-		// TODO: this is useless until the http client provides this functionality, right none of the http
-		//  clients do :sad_face:
 		// TODO: case for err not found here and another case handle where
 		//  err isn't a not found (some other error)
 		case err == nil && len(existingLabels) > 0:
 			existingLabel := existingLabels[0]
 			l.existing = existingLabel
-			l.ID = existingLabel.ID
 			mExistingLabels[l.Name] = newDiffLabel(l, *existingLabel)
 		default:
 			mExistingLabels[l.Name] = newDiffLabel(l, influxdb.Label{})
@@ -140,7 +134,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   influxdb.BucketsResourceType,
-				ResID:     b.ID,
+				ResID:     b.ID(),
 				ResName:   b.Name,
 				LabelID:   labelID,
 				LabelName: labelName,
@@ -177,7 +171,7 @@ type labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
 func (s *Service) dryRunBucketLabelMapping(ctx context.Context, b *bucket, mappingFn labelMappingDiffFn) error {
 	if b.existing == nil {
 		for _, l := range b.labels {
-			mappingFn(l.ID, l.Name, true)
+			mappingFn(l.ID(), l.Name, true)
 		}
 		return nil
 	}
@@ -185,7 +179,7 @@ func (s *Service) dryRunBucketLabelMapping(ctx context.Context, b *bucket, mappi
 	// lookup labels in pkg, add it to the label mapping, if exists in
 	// the results from API, mark it exists
 	labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
-		ResourceID:   b.ID,
+		ResourceID:   b.ID(),
 		ResourceType: influxdb.BucketsResourceType,
 	})
 	if err != nil {
@@ -203,7 +197,7 @@ func (s *Service) dryRunBucketLabelMapping(ctx context.Context, b *bucket, mappi
 
 	// now we add labels that were not apart of the existing labels
 	for _, l := range pkgLabels {
-		mappingFn(l.ID, l.Name, true)
+		mappingFn(l.ID(), l.Name, true)
 	}
 	return nil
 }
@@ -277,7 +271,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 				})
 				continue
 			}
-			buckets[i].ID = influxBucket.ID
+			buckets[i].id = influxBucket.ID
 			rollbackBuckets = append(rollbackBuckets, buckets[i])
 		}
 
@@ -297,19 +291,19 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 	var errs []string
 	for _, b := range buckets {
 		if b.existing == nil {
-			err := s.bucketSVC.DeleteBucket(context.Background(), b.ID)
+			err := s.bucketSVC.DeleteBucket(context.Background(), b.ID())
 			if err != nil {
-				errs = append(errs, b.ID.String())
+				errs = append(errs, b.ID().String())
 			}
 			continue
 		}
 
-		_, err := s.bucketSVC.UpdateBucket(context.Background(), b.ID, influxdb.BucketUpdate{
+		_, err := s.bucketSVC.UpdateBucket(context.Background(), b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
 			RetentionPeriod: &b.RetentionPeriod,
 		})
 		if err != nil {
-			errs = append(errs, b.ID.String())
+			errs = append(errs, b.ID().String())
 		}
 	}
 
@@ -323,7 +317,7 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 
 func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, error) {
 	if b.existing != nil {
-		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID, influxdb.BucketUpdate{
+		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
 			RetentionPeriod: &b.RetentionPeriod,
 		})
@@ -364,7 +358,7 @@ func (s *Service) applyLabels(labels []*label) applier {
 				})
 				continue
 			}
-			labels[i].ID = influxLabel.ID
+			labels[i].id = influxLabel.ID
 			rollBackLabels = append(rollBackLabels, labels[i])
 		}
 
@@ -383,9 +377,9 @@ func (s *Service) applyLabels(labels []*label) applier {
 func (s *Service) rollbackLabels(labels []*label) error {
 	var errs []string
 	for _, l := range labels {
-		err := s.labelSVC.DeleteLabel(context.Background(), l.ID)
+		err := s.labelSVC.DeleteLabel(context.Background(), l.ID())
 		if err != nil {
-			errs = append(errs, l.ID.String())
+			errs = append(errs, l.ID().String())
 		}
 	}
 
@@ -398,7 +392,7 @@ func (s *Service) rollbackLabels(labels []*label) error {
 
 func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, error) {
 	if l.existing != nil {
-		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID, influxdb.LabelUpdate{
+		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
 			Properties: l.properties(),
 		})
 		if err != nil {

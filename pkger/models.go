@@ -106,46 +106,55 @@ type DiffLabelMapping struct {
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets []struct {
-		influxdb.Bucket
-		Associations []influxdb.Label
-	}
+	Buckets       []SummaryBucket
+	Labels        []SummaryLabel
+	LabelMappings []SummaryLabelMapping
+}
 
-	Labels []struct {
-		influxdb.Label
-	}
+// SummaryBucket provides a summary of a pkg bucket.
+type SummaryBucket struct {
+	influxdb.Bucket
+	Associations []influxdb.Label
+}
 
-	LabelMappings []struct {
-		ResourceName string
-		LabelName    string
-		influxdb.LabelMapping
-	}
+// SummaryLabel provides a summary of a pkg label.
+type SummaryLabel struct {
+	influxdb.Label
+}
+
+// SummaryLabelMapping provides a summary of a label mapped with a single resource.
+type SummaryLabelMapping struct {
+	exists       bool
+	ResourceName string
+	LabelName    string
+	influxdb.LabelMapping
 }
 
 type bucket struct {
-	ID              influxdb.ID
+	id              influxdb.ID
 	OrgID           influxdb.ID
 	Description     string
 	Name            string
 	RetentionPeriod time.Duration
 	labels          []*label
 
-	// exists provides context for a resource that already
-	// exists in the platform. If a resource already exists(exists=true)
-	// then the ID should be populated.
+	// existing provides context for a resource that already
+	// exists in the platform. If a resource already exists
+	// then it will be referenced here.
 	existing *influxdb.Bucket
 }
 
-func (b *bucket) summarize() struct {
-	influxdb.Bucket
-	Associations []influxdb.Label
-} {
-	iBkt := struct {
-		influxdb.Bucket
-		Associations []influxdb.Label
-	}{
+func (b *bucket) ID() influxdb.ID {
+	if b.existing != nil {
+		return b.existing.ID
+	}
+	return b.id
+}
+
+func (b *bucket) summarize() SummaryBucket {
+	iBkt := SummaryBucket{
 		Bucket: influxdb.Bucket{
-			ID:              b.ID,
+			ID:              b.ID(),
 			OrgID:           b.OrgID,
 			Name:            b.Name,
 			Description:     b.Description,
@@ -154,7 +163,7 @@ func (b *bucket) summarize() struct {
 	}
 	for _, l := range b.labels {
 		iBkt.Associations = append(iBkt.Associations, influxdb.Label{
-			ID:         l.ID,
+			ID:         l.ID(),
 			OrgID:      l.OrgID,
 			Name:       l.Name,
 			Properties: l.properties(),
@@ -182,7 +191,7 @@ func (l labelMapVal) bucket() (*bucket, bool) {
 }
 
 type label struct {
-	ID          influxdb.ID
+	id          influxdb.ID
 	OrgID       influxdb.ID
 	Name        string
 	Color       string
@@ -196,32 +205,35 @@ type label struct {
 	existing *influxdb.Label
 }
 
-func (l *label) mappingSummary() []struct {
-	exists       bool
-	ResourceName string
-	LabelName    string
-	influxdb.LabelMapping
-} {
-	var mappings []struct {
-		exists       bool
-		ResourceName string
-		LabelName    string
-		influxdb.LabelMapping
+func (l *label) ID() influxdb.ID {
+	if l.existing != nil {
+		return l.existing.ID
 	}
-	for k, lm := range l.mappings {
-		mappings = append(mappings, struct {
-			exists       bool
-			ResourceName string
-			LabelName    string
-			influxdb.LabelMapping
-		}{
+	return l.id
+}
+
+func (l *label) summarize() SummaryLabel {
+	return SummaryLabel{
+		Label: influxdb.Label{
+			ID:         l.ID(),
+			OrgID:      l.OrgID,
+			Name:       l.Name,
+			Properties: l.properties(),
+		},
+	}
+}
+
+func (l *label) mappingSummary() []SummaryLabelMapping {
+	var mappings []SummaryLabelMapping
+	for res, lm := range l.mappings {
+		mappings = append(mappings, SummaryLabelMapping{
 			exists:       lm.exists,
-			ResourceName: k.name,
+			ResourceName: res.name,
 			LabelName:    l.Name,
 			LabelMapping: influxdb.LabelMapping{
-				LabelID:      l.ID,
-				ResourceID:   l.getMappedResourceID(k),
-				ResourceType: influxdb.BucketsResourceType,
+				LabelID:      l.ID(),
+				ResourceID:   l.getMappedResourceID(res),
+				ResourceType: res.resType,
 			},
 		})
 	}
@@ -234,7 +246,7 @@ func (l *label) getMappedResourceID(k labelMapKey) influxdb.ID {
 	case influxdb.BucketsResourceType:
 		b, ok := l.mappings[k].bucket()
 		if ok {
-			return b.ID
+			return b.ID()
 		}
 	}
 	return 0
@@ -255,19 +267,6 @@ func (l *label) setBucketMapping(b *bucket, exists bool) {
 	l.mappings[key] = labelMapVal{
 		exists: exists,
 		v:      b,
-	}
-}
-
-func (l *label) summarize() struct {
-	influxdb.Label
-} {
-	return struct{ influxdb.Label }{
-		Label: influxdb.Label{
-			ID:         l.ID,
-			OrgID:      l.OrgID,
-			Name:       l.Name,
-			Properties: l.properties(),
-		},
 	}
 }
 

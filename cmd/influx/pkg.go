@@ -33,13 +33,20 @@ func pkgCmd() *cobra.Command {
 	orgID := cmd.Flags().String("org-id", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
 
-	cmd.RunE = pkgApply(orgID, path)
+	hasColor := cmd.Flags().Bool("color", true, "Enable color in output, defaults true")
+	hasTableBorders := cmd.Flags().Bool("table-borders", true, "Enable table borders, defaults true")
+
+	cmd.RunE = pkgApply(orgID, path, hasColor, hasTableBorders)
 
 	return cmd
 }
 
-func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
+func pkgApply(orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
+		if !*hasColor {
+			color.NoColor = true
+		}
+
 		influxOrgID, err := influxdb.IDFromString(*orgID)
 		if err != nil {
 			return err
@@ -60,7 +67,7 @@ func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		printPkgDiff(diff)
+		printPkgDiff(*hasColor, *hasTableBorders, diff)
 
 		ui := &input.UI{
 			Writer: os.Stdout,
@@ -78,7 +85,7 @@ func pkgApply(orgID, path *string) func(*cobra.Command, []string) error {
 			return err
 		}
 
-		printPkgSummary(summary)
+		printPkgSummary(*hasColor, *hasTableBorders, summary)
 
 		return nil
 	}
@@ -122,7 +129,7 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 	return pkger.Parse(enc, pkger.FromFile(path))
 }
 
-func printPkgDiff(diff pkger.Diff) {
+func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 	red := color.New(color.FgRed).SprintfFunc()
 	green := color.New(color.FgHiGreen, color.Bold).SprintfFunc()
 
@@ -164,7 +171,7 @@ func printPkgDiff(diff pkger.Diff) {
 
 	if len(diff.Labels) > 0 {
 		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrinter("LABELS", headers, len(diff.Labels), func(w *tablewriter.Table) {
+		tablePrinter("LABELS", headers, len(diff.Labels), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, l := range diff.Labels {
 				w.Append([]string{
 					boolDiff(l.IsNew()),
@@ -179,7 +186,7 @@ func printPkgDiff(diff pkger.Diff) {
 
 	if len(diff.Buckets) > 0 {
 		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrinter("BUCKETS", headers, len(diff.Buckets), func(w *tablewriter.Table) {
+		tablePrinter("BUCKETS", headers, len(diff.Buckets), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, b := range diff.Buckets {
 				w.Append([]string{
 					boolDiff(b.IsNew()),
@@ -194,7 +201,7 @@ func printPkgDiff(diff pkger.Diff) {
 
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrinter("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(w *tablewriter.Table) {
+		tablePrinter("LABEL MAPPINGS", headers, len(diff.LabelMappings), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, m := range diff.LabelMappings {
 				w.Append([]string{
 					boolDiff(m.IsNew),
@@ -209,10 +216,10 @@ func printPkgDiff(diff pkger.Diff) {
 	}
 }
 
-func printPkgSummary(sum pkger.Summary) {
+func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
 	if labels := sum.Labels; len(labels) > 0 {
 		headers := []string{"ID", "Name", "Description", "Color"}
-		tablePrinter("LABELS", headers, len(labels), func(w *tablewriter.Table) {
+		tablePrinter("LABELS", headers, len(labels), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, l := range labels {
 				w.Append([]string{
 					l.ID.String(),
@@ -226,7 +233,7 @@ func printPkgSummary(sum pkger.Summary) {
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
 		headers := []string{"ID", "Name", "Retention", "Description"}
-		tablePrinter("BUCKETS", headers, len(buckets), func(w *tablewriter.Table) {
+		tablePrinter("BUCKETS", headers, len(buckets), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, bucket := range buckets {
 				w.Append([]string{
 					bucket.ID.String(),
@@ -240,7 +247,7 @@ func printPkgSummary(sum pkger.Summary) {
 
 	if mappings := sum.LabelMappings; len(mappings) > 0 {
 		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrinter("LABEL MAPPINGS", headers, len(mappings), func(w *tablewriter.Table) {
+		tablePrinter("LABEL MAPPINGS", headers, len(mappings), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, m := range mappings {
 				w.Append([]string{
 					string(m.ResourceType),
@@ -254,7 +261,7 @@ func printPkgSummary(sum pkger.Summary) {
 	}
 }
 
-func tablePrinter(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
+func tablePrinter(table string, headers []string, count int, hasColor, hasTableBorders bool, appendFn func(w *tablewriter.Table)) {
 	descrCol := -1
 	for i, h := range headers {
 		if strings.ToLower(h) == "description" {
@@ -264,7 +271,8 @@ func tablePrinter(table string, headers []string, count int, appendFn func(w *ta
 	}
 
 	w := tablewriter.NewWriter(os.Stdout)
-	w.SetBorder(false)
+	w.SetBorder(hasTableBorders)
+	w.SetRowLine(hasTableBorders)
 	if descrCol != -1 {
 		w.SetAutoWrapText(false)
 		w.SetColMinWidth(descrCol, 30)
@@ -272,11 +280,6 @@ func tablePrinter(table string, headers []string, count int, appendFn func(w *ta
 
 	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
 	w.SetHeader(headers)
-	var colors []tablewriter.Colors
-	for i := 0; i < len(headers); i++ {
-		colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
-	}
-	w.SetHeaderColor(colors...)
 
 	appendFn(w)
 
@@ -284,7 +287,14 @@ func tablePrinter(table string, headers []string, count int, appendFn func(w *ta
 	footers[len(footers)-2] = "TOTAL"
 	footers[len(footers)-1] = strconv.Itoa(count)
 	w.SetFooter(footers)
-	w.SetFooterColor(colors...)
+	if hasColor {
+		var colors []tablewriter.Colors
+		for i := 0; i < len(headers); i++ {
+			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
+		}
+		w.SetHeaderColor(colors...)
+		w.SetFooterColor(colors...)
+	}
 
 	w.Render()
 	fmt.Fprintln(os.Stdout)

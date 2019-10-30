@@ -16,14 +16,14 @@ func TestPkg(t *testing.T) {
 			pkg := Pkg{
 				mBuckets: map[string]*bucket{
 					"buck_2": {
-						ID:              influxdb.ID(2),
+						id:              influxdb.ID(2),
 						OrgID:           influxdb.ID(100),
 						Description:     "desc2",
 						Name:            "name2",
 						RetentionPeriod: 2 * time.Hour,
 					},
 					"buck_1": {
-						ID:              influxdb.ID(1),
+						id:              influxdb.ID(1),
 						OrgID:           influxdb.ID(100),
 						Name:            "name1",
 						Description:     "desc1",
@@ -49,14 +49,14 @@ func TestPkg(t *testing.T) {
 			pkg := Pkg{
 				mLabels: map[string]*label{
 					"2": {
-						ID:          influxdb.ID(2),
+						id:          influxdb.ID(2),
 						OrgID:       influxdb.ID(100),
 						Name:        "name2",
 						Description: "desc2",
 						Color:       "blurple",
 					},
 					"1": {
-						ID:          influxdb.ID(1),
+						id:          influxdb.ID(1),
 						OrgID:       influxdb.ID(100),
 						Name:        "name1",
 						Description: "desc1",
@@ -81,6 +81,44 @@ func TestPkg(t *testing.T) {
 			assert.Equal(t, "desc2", label2.Properties["description"])
 			assert.Equal(t, "name2", label2.Name)
 			assert.Equal(t, "blurple", label2.Properties["color"])
+		})
+
+		t.Run("label mappings returned in asc order by name", func(t *testing.T) {
+			bucket1 := &bucket{
+				id:   influxdb.ID(20),
+				Name: "b1",
+			}
+			label1 := &label{
+				id:          influxdb.ID(2),
+				OrgID:       influxdb.ID(100),
+				Name:        "name2",
+				Description: "desc2",
+				Color:       "blurple",
+				mappings: map[labelMapKey]labelMapVal{
+					labelMapKey{
+						resType: influxdb.BucketsResourceType,
+						name:    bucket1.Name,
+					}: {
+						v: bucket1,
+					},
+				},
+			}
+			bucket1.labels = append(bucket1.labels, label1)
+
+			pkg := Pkg{
+				mBuckets: map[string]*bucket{bucket1.Name: bucket1},
+				mLabels:  map[string]*label{label1.Name: label1},
+			}
+
+			summary := pkg.Summary()
+
+			require.Len(t, summary.LabelMappings, 1)
+			mapping1 := summary.LabelMappings[0]
+			assert.Equal(t, bucket1.id, mapping1.ResourceID)
+			assert.Equal(t, bucket1.Name, mapping1.ResourceName)
+			assert.Equal(t, influxdb.BucketsResourceType, mapping1.ResourceType)
+			assert.Equal(t, label1.id, mapping1.LabelID)
+			assert.Equal(t, label1.Name, mapping1.LabelName)
 		})
 	})
 }
