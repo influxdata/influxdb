@@ -564,6 +564,10 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.Created.RunID, time.Now(), backend.RunSuccess); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.Created.RunID); err != nil {
 		t.Fatal(err)
 	}
@@ -575,6 +579,56 @@ func testUpdate(t *testing.T, sys *System) {
 
 	if st2.LatestCompleted <= st.LatestCompleted {
 		t.Fatalf("executed task has not updated latest complete: expected %s > %s", st2.LatestCompleted, st.LatestCompleted)
+	}
+
+	if st2.LastRunStatus != "success" {
+		t.Fatal("executed task has not updated last run status")
+	}
+
+	if st2.LastRunError != "" {
+		t.Fatal("executed task has updated last run error on success")
+	}
+
+	rc2, err := sys.TaskControlService.CreateNextRun(sys.Ctx, task.ID, requestedAtUnix)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), backend.RunStarted); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), "error message"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), backend.RunFail); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := sys.TaskControlService.AddRunLog(sys.Ctx, task.ID, rc2.Created.RunID, time.Now(), "last message"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.Created.RunID); err != nil {
+		t.Fatal(err)
+	}
+
+	st3, err := sys.TaskService.FindTaskByID(sys.Ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if st3.LatestCompleted <= st2.LatestCompleted {
+		t.Fatalf("executed task has not updated latest complete: expected %s > %s", st3.LatestCompleted, st2.LatestCompleted)
+	}
+
+	if st3.LastRunStatus != "failed" {
+		t.Fatal("executed task has not updated last run status")
+	}
+
+	if st3.LastRunError != "error message" {
+		t.Fatal("executed task has not updated last run error on failed")
 	}
 
 	now = time.Now()

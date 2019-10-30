@@ -44,6 +44,8 @@ type Task struct {
 	Cron            string                 `json:"cron,omitempty"`
 	Offset          string                 `json:"offset,omitempty"`
 	LatestCompleted string                 `json:"latestCompleted,omitempty"`
+	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
+	LastRunError    string                 `json:"lastRunError,omitempty"`
 	CreatedAt       string                 `json:"createdAt,omitempty"`
 	UpdatedAt       string                 `json:"updatedAt,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
@@ -230,6 +232,8 @@ type TaskUpdate struct {
 
 	// LatestCompleted us to set latest completed on startup to skip task catchup
 	LatestCompleted *string                `json:"-"`
+	LastRunStatus   *string                `json:"-"`
+	LastRunError    *string                `json:"-"`
 	Metadata        map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.

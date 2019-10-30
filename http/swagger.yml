@@ -7155,6 +7155,16 @@ components:
           type: string
           format: date-time
           readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         createdAt:
           type: string
           format: date-time
