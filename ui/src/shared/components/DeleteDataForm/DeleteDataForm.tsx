@@ -177,7 +177,7 @@ const mstp = ({predicates}: AppState) => {
 
   return {
     bucketName,
-    canDelete: setCanDelete(predicates)
+    canDelete: setCanDelete(predicates),
     deletionStatus,
     filters,
     isSerious,
