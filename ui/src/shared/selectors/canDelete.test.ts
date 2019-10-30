@@ -1,4 +1,4 @@
-import {AppState, RemoteDataState} from 'src/types'
+import {RemoteDataState} from 'src/types'
 import {setCanDelete} from './canDelete'
 
 export interface TestState {

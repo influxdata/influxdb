@@ -12,7 +12,7 @@ import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
 import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
 
 // Types
-import {AppState, Filter, RemoteDataState} from 'src/types'
+import {Filter, RemoteDataState} from 'src/types'
 
 // Selectors
 import {setCanDelete} from 'src/shared/selectors/canDelete'
@@ -172,7 +172,7 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = ({predicates}: AppState) => {
+const mstp = ({predicates}) => {
   const {bucketName, deletionStatus, filters, isSerious, timeRange} = predicates
 
   return {

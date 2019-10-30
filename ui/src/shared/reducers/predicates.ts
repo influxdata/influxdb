@@ -5,7 +5,7 @@ import moment from 'moment'
 import {Action} from 'src/shared/actions/predicates'
 
 // Types
-import {Filter, PredicatesState, RemoteDataState} from 'src/types'
+import {PredicatesState, RemoteDataState} from 'src/types'
 
 export const recently = Date.parse(moment().format('YYYY-MM-DD HH:00:00'))
 export const HOUR_MS = 1000 * 60 * 60

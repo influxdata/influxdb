@@ -1,3 +1,5 @@
+import {Filter, RemoteDataState} from 'src/types'
+
 export interface PredicatesState {
   bucketName: string
   timeRange: [number, number]
