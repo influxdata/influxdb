@@ -1216,6 +1216,11 @@
     "@types/istanbul-reports" "^1.1.1"
     "@types/yargs" "^13.0.0"
 
+"@monaco-editor/react@^2.1.1":
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/@monaco-editor/react/-/react-2.1.1.tgz#c37e82f0e3f0dff596339fa548bb480afb31c1fb"
+  integrity sha512-rGEkvdcdV9fYcxU/Ir9zss4c7HVZmDRaO5dsrahObZvJahqnS61PPd8A3vzoh39JC7QQZfh630MJJSLMDy/mOg==
+
 "@sheerun/mutationobserver-shim@^0.3.2":
   version "0.3.2"
   resolved "https://registry.yarnpkg.com/@sheerun/mutationobserver-shim/-/mutationobserver-shim-0.3.2.tgz#8013f2af54a2b7d735f71560ff360d3a8176a87b"

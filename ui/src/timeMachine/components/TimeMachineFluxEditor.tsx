@@ -9,6 +9,7 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
+import MonacoEditor from 'src/shared/components/MonacoEditor'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -18,6 +19,7 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 import {insertFluxFunction} from 'src/timeMachine/utils/insertFunction'
 import {insertVariable} from 'src/timeMachine/utils/insertVariable'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
@@ -54,16 +56,21 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
       {
         size: 0.75,
         handleDisplay: HANDLE_NONE,
-        render: () => (
-          <FluxEditor
-            script={activeQueryText}
-            status={{type: '', text: ''}}
-            onChangeScript={onSetActiveQueryText}
-            onSubmitScript={onSubmitQueries}
-            suggestions={[]}
-            onCursorChange={this.handleCursorPosition}
-          />
-        ),
+        render: () => {
+          if (isFlagEnabled('monaco')) {
+            return <MonacoEditor script={activeQueryText} />
+          }
+          return (
+            <FluxEditor
+              script={activeQueryText}
+              status={{type: '', text: ''}}
+              onChangeScript={onSetActiveQueryText}
+              onSubmitScript={onSubmitQueries}
+              suggestions={[]}
+              onCursorChange={this.handleCursorPosition}
+            />
+          )
+        },
       },
       {
         render: () => {
