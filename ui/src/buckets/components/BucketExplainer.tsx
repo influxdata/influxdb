@@ -7,21 +7,23 @@ import {Panel, InfluxColors} from '@influxdata/clockface'
 const TelegrafExplainer: FunctionComponent = () => (
   <Panel backgroundColor={InfluxColors.Onyx} style={{marginTop: '32px'}}>
     <Panel.Header>
-      <Panel.Title>What is Telegraf?</Panel.Title>
+      <Panel.Title>What is a Bucket?</Panel.Title>
     </Panel.Header>
     <Panel.Body>
       <p>
-        Telegraf is an agent written in Go for collecting metrics and writing
-        them into <strong>InfluxDB</strong> or other possible outputs.
+        A bucket is a named location where time series data is stored. All
+        buckets have a <b>Retention Policy</b>, a duration of time that each
+        data point persists.
         <br />
         <br />
-        Here's a handy guide for{' '}
+        Here's{' '}
         <a
-          href="https://v2.docs.influxdata.com/v2.0/write-data/use-telegraf/"
+          href="https://v2.docs.influxdata.com/v2.0/write-data/"
           target="_blank"
         >
-          Getting Started with Telegraf
-        </a>
+          how to write data
+        </a>{' '}
+        into your bucket.
       </p>
     </Panel.Body>
   </Panel>
