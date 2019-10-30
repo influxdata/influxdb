@@ -82,7 +82,8 @@ interface SetDeletionStatus {
 }
 
 export const setDeletionStatus = (
-  status: RemoteDataState): SetDeletionStatus => ({
+  status: RemoteDataState
+): SetDeletionStatus => ({
   type: 'SET_DELETION_STATUS',
   deletionStatus: status,
 })

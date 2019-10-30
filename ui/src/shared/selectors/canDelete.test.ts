@@ -23,9 +23,9 @@ describe('canDelete', () => {
       filters: [],
     }
     expect(setCanDelete(state)).toEqual(false)
-    state.deletionStatus = RemoteDataState.Error;
+    state.deletionStatus = RemoteDataState.Error
     expect(setCanDelete(state)).toEqual(false)
-    state.deletionStatus = RemoteDataState.Done;
+    state.deletionStatus = RemoteDataState.Done
     expect(setCanDelete(state)).toEqual(false)
   })
   it('should return false when the filter properties are empty', () => {
@@ -35,7 +35,7 @@ describe('canDelete', () => {
       filters: [],
     }
     const filter = {
-      equality: '='
+      equality: '=',
     }
     state.filters = [filter]
     expect(setCanDelete(state)).toEqual(false)
@@ -59,11 +59,13 @@ describe('canDelete', () => {
     const state: TestState = {
       isSerious: true,
       deletionStatus: RemoteDataState.NotStarted,
-      filters: [{
-        key: 'mean',
-        equality: '=',
-        value: 100,
-      }],
+      filters: [
+        {
+          key: 'mean',
+          equality: '=',
+          value: 100,
+        },
+      ],
     }
     expect(setCanDelete(state)).toEqual(true)
   })

@@ -11,12 +11,7 @@ interface Props {
 // TODO: Replace this with the Clockface checkbox once available
 //
 // See https://github.com/influxdata/influxdb/issues/14125.
-const Checkbox: FC<Props> = ({
-  label,
-  checked,
-  onSetChecked,
-  testID,
-}) => {
+const Checkbox: FC<Props> = ({label, checked, onSetChecked, testID}) => {
   return (
     <label className={`fancy-checkbox ${checked ? 'checked' : ''}`}>
       <input
