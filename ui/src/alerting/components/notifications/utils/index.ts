@@ -105,13 +105,11 @@ export const draftRuleToPostRule = (
   draftRule: NotificationRuleDraft
 ): PostNotificationRule => {
   return {
-    id: '',
     ...draftRule,
     statusRules: draftRule.statusRules.map(r => r.value),
     tagRules: draftRule.tagRules
       .map(r => r.value)
       .filter(tr => tr.key && tr.value),
-    labels: draftRule.labels.map(l => l.id),
   } as PostNotificationRule
 }
 
