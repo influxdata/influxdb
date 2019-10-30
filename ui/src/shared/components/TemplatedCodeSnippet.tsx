@@ -6,7 +6,10 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Components
 import CodeSnippet from 'src/shared/components/CodeSnippet'
 
-interface StringMap { [key: string]: string; }
+interface StringMap {
+  [key: string]: string
+}
+
 export interface Props {
   template: string
   label: string
