@@ -24,15 +24,17 @@ describe('Dashboards', () => {
       cy.getByTestID('add-resource-dropdown--button').click()
     })
 
-    cy.getByTestID('add-resource-dropdown--new').click()
+    cy.getByTestID('add-resource-dropdown--new')
+      .click()
+      .then(() => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get('@org').then(({id}: Organization) => {
+            cy.visit(`${orgs}/${id}/dashboards`)
+          })
+        })
 
-    cy.fixture('routes').then(({orgs}) => {
-      cy.get('@org').then(({id}: Organization) => {
-        cy.visit(`${orgs}/${id}/dashboards`)
+        cy.getByTestID('dashboard-card').should('have.length', 1)
       })
-    })
-
-    cy.getByTestID('dashboard-card').should('have.length', 1)
   })
 
   it('can create a dashboard from the header', () => {

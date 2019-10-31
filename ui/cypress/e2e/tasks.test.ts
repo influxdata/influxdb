@@ -60,80 +60,69 @@ from(bucket: "${name}")
       .and('contain', taskName)
   })
 
-  it('can delete a task', () => {
-    cy.get('@org').then(({id}: Organization) => {
-      cy.get<string>('@token').then(token => {
-        cy.createTask(token, id)
-        cy.createTask(token, id)
+  describe('When tasks already exist', () => {
+    beforeEach(() => {
+      cy.get('@org').then(({id}: Organization) => {
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id)
+        })
+      })
+    })
+
+    it('can edit a task', () => {
+      // Disabling the test
+      cy.getByTestID('task-card--slide-toggle').should('have.class', 'active')
+
+      cy.getByTestID('task-card--slide-toggle').click()
+
+      cy.getByTestID('task-card--slide-toggle').should(
+        'not.have.class',
+        'active'
+      )
+
+      // Editing a name
+      const newName = 'Task'
+
+      cy.getByTestID('task-card').within(() => {
+        cy.getByTestID('task-card--name').trigger('mouseover')
+
+        cy.getByTestID('task-card--name-button').click()
+
+        cy.get('.cf-input-field')
+          .type(newName)
+          .type('{enter}')
       })
 
-      cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/tasks`)
-      })
+      cy.getByTestID('notification-success').should('exist')
+      cy.getByTestID('task-card').should('contain', newName)
+    })
 
-      cy.getByTestID('task-card').should('have.length', 2)
-
+    it('can delete a task', () => {
       cy.getByTestID('task-card')
         .first()
         .trigger('mouseover')
-        .within(() => {
-          cy.getByTestID('context-delete-menu').click()
-          cy.getByTestID('context-delete-task').click()
+        .then(() => {
+          cy.getByTestID('context-delete-menu')
+            .click()
+            .then(() => {
+              cy.getByTestID('context-delete-task')
+                .click()
+                .then(() => {
+                  cy.getByTestID('empty-tasks-list').should('exist')
+                })
+            })
         })
-
-      cy.getByTestID('task-card').should('have.length', 1)
     })
   })
 
-  it('can disable a task', () => {
-    cy.get('@org').then(({id}: Organization) => {
-      cy.get<string>('@token').then(token => {
-        cy.createTask(token, id)
-      })
-    })
+  describe('Searching and filtering', () => {
+    const newLabelName = 'click-me'
+    const taskName = 'beepBoop'
 
-    cy.getByTestID('task-card--slide-toggle').should('have.class', 'active')
-
-    cy.getByTestID('task-card--slide-toggle').click()
-
-    cy.getByTestID('task-card--slide-toggle').should('not.have.class', 'active')
-  })
-
-  it('can edit a tasks name', () => {
-    cy.get('@org').then(({id}: Organization) => {
-      cy.get<string>('@token').then(token => {
-        cy.createTask(token, id)
-      })
-    })
-
-    const newName = 'Task'
-
-    cy.getByTestID('task-card').within(() => {
-      cy.getByTestID('task-card--name').trigger('mouseover')
-
-      cy.getByTestID('task-card--name-button').click()
-
-      cy.get('.cf-input-field')
-        .type(newName)
-        .type('{enter}')
-    })
-
-    cy.fixture('routes').then(({orgs}) => {
-      cy.get('@org').then(({id}: Organization) => {
-        cy.visit(`${orgs}/${id}/tasks`)
-      })
-    })
-
-    cy.getByTestID('task-card').should('contain', newName)
-  })
-
-  describe('labeling', () => {
-    it('can click to filter tasks by labels', () => {
-      const newLabelName = 'click-me'
-
+    beforeEach(() => {
       cy.get('@org').then(({id}: Organization) => {
         cy.get<string>('@token').then(token => {
-          cy.createTask(token, id).then(({body}) => {
+          cy.createTask(token, id, taskName).then(({body}) => {
             cy.createAndAddLabel('tasks', id, body.id, newLabelName)
           })
 
@@ -148,32 +137,19 @@ from(bucket: "${name}")
           cy.visit(`${orgs}/${id}/tasks`)
         })
       })
+    })
 
+    it('can click to filter tasks by labels', () => {
       cy.getByTestID('task-card').should('have.length', 2)
 
       cy.getByTestID(`label--pill ${newLabelName}`).click()
 
       cy.getByTestID('task-card').should('have.length', 1)
-    })
-  })
 
-  describe('searching', () => {
-    it('can search by task name', () => {
-      const searchName = 'beepBoop'
-      cy.get('@org').then(({id}: Organization) => {
-        cy.get<string>('@token').then(token => {
-          cy.createTask(token, id, searchName)
-          cy.createTask(token, id)
-        })
-      })
-
-      cy.fixture('routes').then(({orgs}) => {
-        cy.get('@org').then(({id}: Organization) => {
-          cy.visit(`${orgs}/${id}/tasks`)
-        })
-      })
-
-      cy.getByTestID('search-widget').type('bEE')
+      // searching by task name
+      cy.getByTestID('search-widget')
+        .clear()
+        .type('bEE')
 
       cy.getByTestID('task-card').should('have.length', 1)
     })
