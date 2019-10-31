@@ -3,7 +3,7 @@ import React, {FunctionComponent} from 'react'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
-import CodeSnippet from 'src/shared/components/CodeSnippet'
+import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 
 // Constants
 import {clientJSLibrary} from 'src/clientLibraries/constants'
@@ -27,17 +27,31 @@ const ClientJSOverlay: FunctionComponent<{}> = () => {
       </p>
       <br />
       <h5>Initialize the Client</h5>
-      <CodeSnippet
-        copyText={initializeClientCodeSnippet}
+      <TemplatedCodeSnippet
+        template={initializeClientCodeSnippet}
         label="JavaScript Code"
+        defaults={{
+          server: 'server',
+          token: 'token',
+        }}
       />
       <h5>Write Data</h5>
-      <CodeSnippet
-        copyText={writingDataLineProtocolCodeSnippet}
+      <TemplatedCodeSnippet
+        template={writingDataLineProtocolCodeSnippet}
         label="JavaScript Code"
+        defaults={{
+          org: 'orgID',
+          bucket: 'bucketID',
+        }}
       />
       <h5>Execute a Flux query</h5>
-      <CodeSnippet copyText={executeQueryCodeSnippet} label="JavaScript Code" />
+      <TemplatedCodeSnippet
+        template={executeQueryCodeSnippet}
+        label="JavaScript Code"
+        defaults={{
+          org: 'orgID',
+        }}
+      />
     </ClientLibraryOverlay>
   )
 }
