@@ -12,6 +12,7 @@ import NoteEditorOverlay from 'src/dashboards/components/NoteEditorOverlay'
 import AllAccessTokenOverlay from 'src/authorizations/components/AllAccessTokenOverlay'
 import BucketsTokenOverlay from 'src/authorizations/components/BucketsTokenOverlay'
 import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverlay'
+import TelegrafOutputOverlay from 'src/telegrafs/components/TelegrafOutputOverlay'
 import {dismissOverlay} from 'src/overlays/actions/overlays'
 
 interface StateProps {
@@ -51,6 +52,9 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'telegraf-config':
       activeOverlay = <TelegrafConfigOverlay onClose={closer} />
+      break
+    case 'telegraf-output':
+      activeOverlay = <TelegrafOutputOverlay onClose={closer} />
       break
     default:
       visibility = false

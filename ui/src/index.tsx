@@ -124,6 +124,13 @@ const TelegrafConfigOverlay = RouteOverlay(
     router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
   }
 )
+const TelegrafOutputOverlay = RouteOverlay(
+  OverlayHandler,
+  'telegraf-output',
+  router => {
+    router.push(`/orgs/${router.params.orgID}/load-data/telegrafs`)
+  }
+)
 
 // Actions
 import {disablePresentationMode} from 'src/shared/actions/app'
@@ -305,6 +312,10 @@ class Root extends PureComponent {
                               <Route
                                 path=":id/instructions"
                                 component={TelegrafInstructionsOverlay}
+                              />
+                              <Route
+                                path="output"
+                                component={TelegrafOutputOverlay}
                               />
                               <Route path="new" component={CollectorsWizard} />
                             </Route>
