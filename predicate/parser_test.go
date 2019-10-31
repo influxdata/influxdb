@@ -18,10 +18,23 @@ func TestParseNode(t *testing.T) {
 		err  error
 	}{
 		{
-			str: `               abc="opq" AND gender="male" AND temp=1123`,
-			node: LogicalNode{Operator: LogicalAnd, Children: []Node{
+			str:  `abc=opq`,
+			node: TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "opq"}},
+		},
+		{
+			str: `abc=opq and gender="male"`,
+			node: LogicalNode{Operator: LogicalAnd, Children: [2]Node{
 				TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "opq"}},
 				TagRuleNode{Tag: influxdb.Tag{Key: "gender", Value: "male"}},
+			}},
+		},
+		{
+			str: `               abc="opq" AND gender="male" AND temp=1123`,
+			node: LogicalNode{Operator: LogicalAnd, Children: [2]Node{
+				LogicalNode{Operator: LogicalAnd, Children: [2]Node{
+					TagRuleNode{Tag: influxdb.Tag{Key: "abc", Value: "opq"}},
+					TagRuleNode{Tag: influxdb.Tag{Key: "gender", Value: "male"}},
+				}},
 				TagRuleNode{Tag: influxdb.Tag{Key: "temp", Value: "1123"}},
 			}},
 		},
@@ -34,16 +47,18 @@ func TestParseNode(t *testing.T) {
 		},
 		{
 			str: ` (t1="v1" and t2="v2") and (t3=v3 and (t4=v4 and t5=v5 and t6=v6))`,
-			node: LogicalNode{Operator: LogicalAnd, Children: []Node{
-				LogicalNode{Operator: LogicalAnd, Children: []Node{
+			node: LogicalNode{Operator: LogicalAnd, Children: [2]Node{
+				LogicalNode{Operator: LogicalAnd, Children: [2]Node{
 					TagRuleNode{Tag: influxdb.Tag{Key: "t1", Value: "v1"}},
 					TagRuleNode{Tag: influxdb.Tag{Key: "t2", Value: "v2"}},
 				}},
-				LogicalNode{Operator: LogicalAnd, Children: []Node{
+				LogicalNode{Operator: LogicalAnd, Children: [2]Node{
 					TagRuleNode{Tag: influxdb.Tag{Key: "t3", Value: "v3"}},
-					LogicalNode{Operator: LogicalAnd, Children: []Node{
-						TagRuleNode{Tag: influxdb.Tag{Key: "t4", Value: "v4"}},
-						TagRuleNode{Tag: influxdb.Tag{Key: "t5", Value: "v5"}},
+					LogicalNode{Operator: LogicalAnd, Children: [2]Node{
+						LogicalNode{Operator: LogicalAnd, Children: [2]Node{
+							TagRuleNode{Tag: influxdb.Tag{Key: "t4", Value: "v4"}},
+							TagRuleNode{Tag: influxdb.Tag{Key: "t5", Value: "v5"}},
+						}},
 						TagRuleNode{Tag: influxdb.Tag{Key: "t6", Value: "v6"}},
 					}},
 				}},
