@@ -1,10 +1,12 @@
-
 // Libraries
 import React from 'react'
 import {render} from 'react-testing-library'
 
 describe('TeplatedCodeSnippet', () => {
   beforeEach(() => {
+    // NOTE: as long as you mock children like below, before importing your
+    // component by using a require().default pattern, this will reset your
+    // mocks between tests (alex)
     jest.resetModules()
   })
 
@@ -14,7 +16,6 @@ describe('TeplatedCodeSnippet', () => {
       'src/shared/components/CodeSnippet',
       () => ({ children, ...rest }) => {
         props = rest
-        props.testing = 1
 
         return false
       }
@@ -26,7 +27,6 @@ describe('TeplatedCodeSnippet', () => {
 
     expect(props.hasOwnProperty('copyText')).toBe(true)
     expect(props.copyText).toEqual(template)
-    expect(props.testing).toEqual(1)
   })
 
   it('should show undefined', () => {
@@ -35,7 +35,6 @@ describe('TeplatedCodeSnippet', () => {
       'src/shared/components/CodeSnippet',
       () => ({ children, ...rest }) => {
         props = rest;
-        props.testing = 2
 
         return false
       }
@@ -48,7 +47,6 @@ describe('TeplatedCodeSnippet', () => {
 
     expect(props.hasOwnProperty('copyText')).toBe(true)
     expect(props.copyText).toEqual(response)
-    expect(props.testing).toEqual(2)
   })
 
   it('should respect defaults', () => {
