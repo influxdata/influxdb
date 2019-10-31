@@ -264,7 +264,6 @@ from(bucket: "${name}")
     // https://github.com/influxdata/influxdb/issues/15552
     const firstTask = 'First_Task'
     const secondTask = 'Second_Task'
-    const taskName = 'First_Task'
     const interval = '12h'
     const offset = '30m'
     const flux = name => `import "influxdata/influxdb/v1"
