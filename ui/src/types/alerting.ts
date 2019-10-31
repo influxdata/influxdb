@@ -6,6 +6,7 @@ import {
   SMTPNotificationRuleBase,
   PagerDutyNotificationRuleBase,
   HTTPNotificationRuleBase,
+  Label,
 } from 'src/client'
 
 type Omit<T, U> = Pick<T, Exclude<keyof T, U>>
@@ -26,6 +27,7 @@ export type NotificationRuleBaseDraft = Overwrite<
     id?: string
     statusRules: StatusRuleDraft[]
     tagRules: TagRuleDraft[]
+    labels?: Label[]
   }
 >
 

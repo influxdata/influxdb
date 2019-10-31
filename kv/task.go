@@ -123,9 +123,6 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 	}
 	if latestCompletedRun != nil {
 		latestCompleted := latestCompletedRun.ScheduledFor
-		if err != nil {
-			return nil, err
-		}
 		if t.LatestCompleted != "" {
 			tlc, err := time.Parse(time.RFC3339, t.LatestCompleted)
 			if err == nil && latestCompleted.After(tlc) {
@@ -742,6 +739,15 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 		if !ulc.IsZero() && ulc.After(tlc) {
 			task.LatestCompleted = *upd.LatestCompleted
+		}
+	}
+
+	if upd.LastRunStatus != nil {
+		task.LastRunStatus = *upd.LastRunStatus
+		if *upd.LastRunStatus == "failed" && upd.LastRunError != nil {
+			task.LastRunError = *upd.LastRunError
+		} else {
+			task.LastRunError = ""
 		}
 	}
 
@@ -1571,7 +1577,22 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 
 	// tell task to update latest completed
 	scheduledStr := r.ScheduledFor.Format(time.RFC3339)
-	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{LatestCompleted: &scheduledStr})
+	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{
+		LatestCompleted: &scheduledStr,
+		LastRunStatus:   &r.Status,
+		LastRunError: func() *string {
+			if r.Status == "failed" {
+				// prefer the second to last log message as the error message
+				// per https://github.com/influxdata/influxdb/issues/15153#issuecomment-547706005
+				if len(r.Log) > 1 {
+					return &r.Log[len(r.Log)-2].Message
+				} else if len(r.Log) > 0 {
+					return &r.Log[len(r.Log)-1].Message
+				}
+			}
+			return nil
+		}(),
+	})
 	if err != nil {
 		return nil, err
 	}

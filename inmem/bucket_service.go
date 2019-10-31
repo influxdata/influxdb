@@ -98,7 +98,7 @@ func (s *Service) filterBuckets(ctx context.Context, fn func(b *platform.Bucket)
 			if count >= offset {
 				buckets = append(buckets, b)
 			}
-			count += 1
+			count++
 		}
 
 		if limit > 0 && len(buckets) >= limit {

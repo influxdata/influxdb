@@ -1,8 +1,9 @@
-## v2.0.0-alpha.19 [unreleased]
+## v2.0.0-alpha.19 [2019-10-30]
 
 ### Features
 
 1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
+1. [15650](https://github.com/influxdata/influxdb/pull/15650): Expose last run status and last run error in task API
 
 ### UI Improvements
 1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
