@@ -14,7 +14,7 @@ const SettingsTabbedPageHeader: SFC<Props> = ({children, className}) => (
     direction={FlexDirection.Row}
     justifyContent={JustifyContent.SpaceBetween}
     style={{marginBottom: '32px'}}
-    className={ className }
+    className={className}
   >
     {children}
   </FlexBox>
