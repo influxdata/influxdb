@@ -106,14 +106,25 @@ func CreateLabel(
 		wants  wants
 	}{
 		{
-			name: "basic create label",
+			name: "names should be unique",
 			fields: LabelFields{
-				IDGenerator: mock.NewIDGenerator(labelOneID, t),
-				Labels:      []*influxdb.Label{},
+				IDGenerator: mock.NewMockIDGenerator(),
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "label_1",
+						OrgID: MustIDBase16(orgOneID),
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
 			},
 			args: args{
 				label: &influxdb.Label{
-					Name: "Tag2",
+					ID:    MustIDBase16(labelTwoID),
+					Name:  "label_1",
+					OrgID: MustIDBase16(orgOneID),
 					Properties: map[string]string{
 						"color": "fff000",
 					},
@@ -122,8 +133,128 @@ func CreateLabel(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "label_1",
+						OrgID: MustIDBase16(orgOneID),
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateLabel,
+					Msg:  "label with name label_1 already exists",
+				},
+			},
+		},
+		{
+			name: "names should be trimmed of spacing",
+			fields: LabelFields{
+				IDGenerator: mock.NewMockIDGenerator(),
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "tag_1",
+						OrgID: MustIDBase16(orgOneID),
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+			},
+			args: args{
+				label: &influxdb.Label{
+					ID:    MustIDBase16(labelOneID),
+					Name:  "     tag_1     ",
+					OrgID: MustIDBase16(orgOneID),
+					Properties: map[string]string{
+						"color": "fff000",
+					},
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "tag_1",
+						OrgID: MustIDBase16(orgOneID),
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateLabel,
+					Msg:  "label with name tag_1 already exists",
+				},
+			},
+		},
+		{
+			name: "labels should be unique and case-agnostic",
+			fields: LabelFields{
+				IDGenerator: mock.NewMockIDGenerator(),
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "tag_1",
+						OrgID: MustIDBase16(orgOneID),
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+			},
+			args: args{
+				label: &influxdb.Label{
+					ID:    MustIDBase16(labelOneID),
+					Name:  "TAG_1",
+					OrgID: MustIDBase16(orgOneID),
+					Properties: map[string]string{
+						"color": "fff000",
+					},
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "tag_1",
+						OrgID: MustIDBase16(orgOneID),
+						Properties: map[string]string{
+							"color": "fff000",
+						},
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateLabel,
+					Msg:  "label with name TAG_1 already exists",
+				},
+			},
+		},
+		{
+			name: "basic create label",
+			fields: LabelFields{
+				IDGenerator: mock.NewIDGenerator(labelOneID, t),
+				Labels:      []*influxdb.Label{},
+			},
+			args: args{
+				label: &influxdb.Label{
+					Name:  "Tag2",
+					OrgID: MustIDBase16(orgOneID),
+					Properties: map[string]string{
+						"color": "fff000",
+					},
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag2",
+						OrgID: MustIDBase16(orgOneID),
 						Properties: map[string]string{
 							"color": "fff000",
 						},
@@ -177,12 +308,14 @@ func FindLabels(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:   MustIDBase16(labelTwoID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelTwoID),
+						Name:  "Tag2",
+						OrgID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -192,12 +325,14 @@ func FindLabels(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:   MustIDBase16(labelTwoID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelTwoID),
+						Name:  "Tag2",
+						OrgID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -234,6 +369,33 @@ func FindLabels(
 					{
 						ID:    MustIDBase16(labelOneID),
 						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+			},
+		},
+		{
+			name: "find a label by name is case-agnostic",
+			fields: LabelFields{
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "tag1",
+						OrgID: MustIDBase16(orgOneID),
+					},
+				},
+			},
+			args: args{
+				filter: influxdb.LabelFilter{
+					Name:  "TAG1",
+					OrgID: idPtr(MustIDBase16(orgOneID)),
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						Name:  "tag1",
 						OrgID: MustIDBase16(orgOneID),
 					},
 				},
@@ -279,12 +441,14 @@ func FindLabelByID(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 					{
-						ID:   MustIDBase16(labelTwoID),
-						Name: "Tag2",
+						ID:    MustIDBase16(labelTwoID),
+						Name:  "Tag2",
+						OrgID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -293,8 +457,9 @@ func FindLabelByID(
 			},
 			wants: wants{
 				label: &influxdb.Label{
-					ID:   MustIDBase16(labelOneID),
-					Name: "Tag1",
+					ID:    MustIDBase16(labelOneID),
+					Name:  "Tag1",
+					OrgID: MustIDBase16(orgOneID),
 				},
 			},
 		},
@@ -374,6 +539,90 @@ func UpdateLabel(
 						OrgID: MustIDBase16(orgOneID),
 						Name:  "NotTag1",
 					},
+				},
+			},
+		},
+		{
+			name: "cant update a label with a name that already exists",
+			fields: LabelFields{
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_1",
+					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
+				},
+			},
+			args: args{
+				labelID: MustIDBase16(labelTwoID),
+				update: influxdb.LabelUpdate{
+					Name: "tag_1",
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_1",
+					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateLabel,
+					Msg:  "label with name tag_1 already exists",
+				},
+			},
+		},
+		{
+			name: "should trim space but fails to update existing label",
+			fields: LabelFields{
+				Labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_1",
+					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
+				},
+			},
+			args: args{
+				labelID: MustIDBase16(labelTwoID),
+				update: influxdb.LabelUpdate{
+					Name: " tag_1 ",
+				},
+			},
+			wants: wants{
+				labels: []*influxdb.Label{
+					{
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_1",
+					},
+					{
+						ID:    MustIDBase16(labelTwoID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "tag_2",
+					},
+				},
+				err: &influxdb.Error{
+					Code: influxdb.EConflict,
+					Op:   influxdb.OpCreateLabel,
+					Msg:  "label with name tag_1 already exists",
 				},
 			},
 		},
@@ -646,8 +895,9 @@ func CreateLabelMapping(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						OrgID: MustIDBase16(orgOneID),
+						Name:  "Tag1",
 					},
 				},
 			},
@@ -663,8 +913,9 @@ func CreateLabelMapping(
 			wants: wants{
 				labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 				},
 			},
@@ -766,8 +1017,9 @@ func DeleteLabelMapping(
 			fields: LabelFields{
 				Labels: []*influxdb.Label{
 					{
-						ID:   MustIDBase16(labelOneID),
-						Name: "Tag1",
+						ID:    MustIDBase16(labelOneID),
+						Name:  "Tag1",
+						OrgID: MustIDBase16(orgOneID),
 					},
 				},
 				Mappings: []*influxdb.LabelMapping{

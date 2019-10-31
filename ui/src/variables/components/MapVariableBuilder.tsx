@@ -72,33 +72,31 @@ class MapVariableBuilder extends PureComponent<Props, State> {
             </p>
           </Grid.Column>
           <Grid.Column widthXS={Columns.Six}>
-            {
-              <Form.Element label="Select A Default">
-                <Dropdown
-                  button={(active, onClick) => (
-                    <Dropdown.Button active={active} onClick={onClick}>
-                      {this.defaultID}
-                    </Dropdown.Button>
-                  )}
-                  menu={onCollapse => (
-                    <Dropdown.Menu onCollapse={onCollapse}>
-                      {entries.map(v => (
-                        <Dropdown.Item
-                          key={v.key}
-                          id={v.key}
-                          value={v.key}
-                          onClick={onSelectDefault}
-                          selected={v.key === this.defaultID}
-                        >
-                          <strong>{v.key}</strong>{' '}
-                          <Icon glyph={IconFont.CaretRight} /> {v.value}
-                        </Dropdown.Item>
-                      ))}
-                    </Dropdown.Menu>
-                  )}
-                />
-              </Form.Element>
-            }
+            <Form.Element label="Select A Default">
+              <Dropdown
+                button={(active, onClick) => (
+                  <Dropdown.Button active={active} onClick={onClick}>
+                    {this.defaultID}
+                  </Dropdown.Button>
+                )}
+                menu={onCollapse => (
+                  <Dropdown.Menu onCollapse={onCollapse}>
+                    {entries.map(v => (
+                      <Dropdown.Item
+                        key={v.key}
+                        id={v.key}
+                        value={v.key}
+                        onClick={onSelectDefault}
+                        selected={v.key === this.defaultID}
+                      >
+                        <strong>{v.key}</strong>{' '}
+                        <Icon glyph={IconFont.CaretRight} /> {v.value}
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                )}
+              />
+            </Form.Element>
           </Grid.Column>
         </Grid.Row>
       </Form.Element>

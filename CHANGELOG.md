@@ -1,8 +1,9 @@
-## v2.0.0-alpha.19 [unreleased]
+## v2.0.0-alpha.19 [2019-10-30]
 
 ### Features
 
 1. [15313](https://github.com/influxdata/influxdb/pull/15313): Add shortcut for toggling comments in script editor
+1. [15650](https://github.com/influxdata/influxdb/pull/15650): Expose last run status and last run error in task API
 
 ### UI Improvements
 1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
@@ -24,6 +25,7 @@
 1. [15556](https://github.com/influxdata/influxdb/pull/15556): Creating a check now displays on the checklist
 1. [15592](https://github.com/influxdata/influxdb/pull/15592): Changed task runs success status code from 200 to 201 to match Swagger documentation.
 1. [15634](https://github.com/influxdata/influxdb/pull/15634): TextAreas have the correct height
+1. [15647](https://github.com/influxdata/influxdb/pull/15647): Ensures labels are unique by organization in the kv store
 
 ## v2.0.0-alpha.18 [2019-09-26]
 

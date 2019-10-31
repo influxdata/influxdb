@@ -18,6 +18,15 @@ const (
 	OpDeleteLabelMapping = "DeleteLabelMapping"
 )
 
+// errors on label
+var (
+	// ErrLabelNameisEmpty is error when org name is empty
+	ErrLabelNameisEmpty = &Error{
+		Code: EInvalid,
+		Msg:  "label name is empty",
+	}
+)
+
 // LabelService represents a service for managing resource labels
 type LabelService interface {
 	// FindLabelByID a single label by ID.

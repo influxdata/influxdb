@@ -3,12 +3,11 @@ module github.com/influxdata/promqltests
 go 1.12
 
 require (
-	github.com/apache/arrow/go/arrow v0.0.0-20190926012457-07ab5083d5a2 // indirect
 	github.com/glycerine/go-unsnap-stream v0.0.0-20190901134440-81cf024a9e0a // indirect
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect
 	github.com/gogo/protobuf v1.3.0 // indirect
 	github.com/google/go-cmp v0.3.1
-	github.com/influxdata/flux v0.50.0
+	github.com/influxdata/flux v0.52.0
 	github.com/influxdata/influxdb v0.0.0-20190925213338-8af36d5aaedd
 	github.com/influxdata/influxql v1.0.1 // indirect
 	github.com/influxdata/promql/v2 v2.12.0
