@@ -3,8 +3,6 @@ import {shallow} from 'enzyme'
 
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'
 
-let wrapper
-
 const setup = (override = {}) => {
   const props = {
     token: '',
