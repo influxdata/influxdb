@@ -193,7 +193,7 @@ describe('DataExplorer', () => {
       cy.getByTestID('query-builder').should('exist')
     })
 
-    it.only('should display the popover when hovering', () => {
+    it('should display the popover when hovering', () => {
       cy.getByTestID('selector-list my_meas').click()
       cy.getByTestID('selector-list my_field').click()
 
