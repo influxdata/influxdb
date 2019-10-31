@@ -23,7 +23,10 @@ function transform(template, vars) {
   const output = new Function(
     'vars',
     'var output=' +
-      JSON.stringify(template).replace(/<%=(.+?)%>/g, '"+(vars["$1".trim()])+"') +
+      JSON.stringify(template).replace(
+        /<%=(.+?)%>/g,
+        '"+(vars["$1".trim()])+"'
+      ) +
       ';return output;'
   )
   return output(vars)
@@ -33,11 +36,7 @@ function transform(template, vars) {
 class TemplatedCodeSnippet extends PureComponent<Props> {
   public transform() {
     const text = this.props.template
-    const vars = Object.assign(
-      {},
-      this.props.defaults,
-      this.props.values
-    )
+    const vars = Object.assign({}, this.props.defaults, this.props.values)
 
     return transform(text, vars)
   }
@@ -53,5 +52,5 @@ class TemplatedCodeSnippet extends PureComponent<Props> {
   }
 }
 
-export { transform }
+export {transform}
 export default TemplatedCodeSnippet

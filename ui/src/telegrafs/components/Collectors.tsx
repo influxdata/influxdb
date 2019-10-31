@@ -107,9 +107,9 @@ class Collectors extends PureComponent<Props, State> {
             <Button
               text="V2 Migration"
               color={ComponentColor.Secondary}
-              style={{ marginRight: '8px' }}
+              style={{marginRight: '8px'}}
               onClick={this.handleJustTheOutput}
-              titleText={"Output section of telegraf.conf for V2"}
+              titleText="Output section of telegraf.conf for V2"
             />
             {this.createButton}
           </div>

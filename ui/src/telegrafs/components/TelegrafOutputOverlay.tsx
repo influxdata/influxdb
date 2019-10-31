@@ -5,7 +5,9 @@ import {Link} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import TemplatedCodeSnippet, {transform} from 'src/shared/components/TemplatedCodeSnippet'
+import TemplatedCodeSnippet, {
+  transform,
+} from 'src/shared/components/TemplatedCodeSnippet'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
 import {
   ComponentColor,
@@ -27,7 +29,7 @@ interface OwnProps {
 
 interface StateProps {
   org: string
-  orgID: number
+  orgID: string
   server: string
   buckets: Bucket[]
 }
@@ -56,13 +58,13 @@ const OUTPUT_DEFAULTS = {
   server: 'http://127.0.0.1:9999',
   token: '$INFLUX_TOKEN',
   org: 'orgID',
-  bucket: 'bucketID'
+  bucket: 'bucketID',
 }
 
 @ErrorHandling
 class TelegrafOutputOverlay extends PureComponent<Props> {
   state = {
-    selectedBucket: null
+    selectedBucket: null,
   }
 
   public render() {
@@ -70,52 +72,46 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
   }
 
   private get overlay(): JSX.Element {
-    const {
-      server,
-      org,
-      orgID,
-      buckets,
-    } = this.props
-    const {
-      selectedBucket
-    } = this.state
+    const {server, org, orgID, buckets} = this.props
+    const {selectedBucket} = this.state
     const bucket = selectedBucket ? selectedBucket : buckets[0]
-    let bucket_dd = false
+    let bucket_dd = null
 
     if (buckets.length) {
       bucket_dd = (
-              <BucketDropdown
-                selectedBucketID={bucket.id}
-                buckets={buckets}
-                onSelectBucket={this.handleSelectBucket}
-              />
+        <BucketDropdown
+          selectedBucketID={bucket.id}
+          buckets={buckets}
+          onSelectBucket={this.handleSelectBucket}
+        />
       )
     }
 
     return (
       <Overlay.Container maxWidth={1200}>
         <Overlay.Header
-          title={`Telegraf Output Configuration`}
+          title="Telegraf Output Configuration"
           onDismiss={this.handleDismiss}
         />
         <Overlay.Body>
-          <p style={{ marginTop: '-18px' }}>
+          <p style={{marginTop: '-18px'}}>
             The $INFLUX_TOKEN can be generated on the
             <Link to={`/orgs/${orgID}/load-data/tokens`}>&nbsp;Tokens tab</Link>
             .
           </p>
-          { bucket_dd }
-            <div className="output-overlay">
-              <TemplatedCodeSnippet
-                template={TELEGRAF_OUTPUT}
-                label="telegraf.conf"
-                values={{
-                  server,
-                  org,
-                  bucket: bucket ? bucket.name : OUTPUT_DEFAULTS.bucket
-                  }}
-                defaults={OUTPUT_DEFAULTS} />
-            </div>
+          {bucket_dd}
+          <div className="output-overlay">
+            <TemplatedCodeSnippet
+              template={TELEGRAF_OUTPUT}
+              label="telegraf.conf"
+              values={{
+                server,
+                org,
+                bucket: bucket ? bucket.name : OUTPUT_DEFAULTS.bucket,
+              }}
+              defaults={OUTPUT_DEFAULTS}
+            />
+          </div>
         </Overlay.Body>
         <Overlay.Footer>
           <Button
@@ -132,15 +128,17 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
     this.props.onClose()
   }
 
-  private handleSelectBucket = (bucket) => {
+  private handleSelectBucket = bucket => {
     this.setState({
-      selectedBucket: bucket
+      selectedBucket: bucket,
     })
   }
 
   private handleDownloadConfig = () => {
-    const config = transform(TELEGRAF_OUTPUT, Object.assign({}, OUTPUT_DEFAULTS, {
-    }))
+    const config = transform(
+      TELEGRAF_OUTPUT,
+      Object.assign({}, OUTPUT_DEFAULTS, {})
+    )
     downloadTextFile(config, 'outputs.influxdb_v2', '.conf')
   }
 }
