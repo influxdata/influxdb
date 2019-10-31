@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/benbjohnson/clock"
 	"github.com/cespare/xxhash"
 	"github.com/google/btree"
+	"go.uber.org/zap"
 )
 
 const (
@@ -75,6 +77,8 @@ type TreeScheduler struct {
 	checkpointer SchedulableService
 
 	sm *SchedulerMetrics
+
+	logger *zap.Logger
 }
 
 // ErrorFunc is a function for error handling.  It is a good way to inject logging into a TreeScheduler.
@@ -107,6 +111,14 @@ func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	}
 }
 
+// WithLogger sets logger on the tree scheduler
+func WithLogger(logger *zap.Logger) treeSchedulerOptFunc {
+	return func(sch *TreeScheduler) error {
+		sch.logger = logger
+		return nil
+	}
+}
+
 // NewScheduler gives us a new TreeScheduler and SchedulerMetrics when given an  Executor, a SchedulableService, and zero or more options.
 // Schedulers should be initialized with this function.
 func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...treeSchedulerOptFunc) (*TreeScheduler, *SchedulerMetrics, error) {
@@ -118,6 +130,7 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 		time:         clock.New(),
 		done:         make(chan struct{}, 1),
 		checkpointer: checkpointer,
+		logger:       zap.NewNop(),
 	}
 
 	// apply options
@@ -126,9 +139,9 @@ func NewScheduler(executor Executor, checkpointer SchedulableService, opts ...tr
 			return nil, nil, err
 		}
 	}
+
 	if s.workchans == nil {
 		s.workchans = make([]chan Item, defaultMaxWorkers)
-
 	}
 
 	s.wg.Add(len(s.workchans))
@@ -308,9 +321,11 @@ func (s *TreeScheduler) work(ctx context.Context, ch chan Item) {
 		err := func() (err error) {
 			defer func() {
 				if r := recover(); r != nil {
+					s.logger.Debug(fmt.Sprintf("panic on execute %v", r))
 					err = &ErrUnrecoverable{errors.New("executor panicked")}
 				}
 			}()
+
 			return s.executor.Execute(ctx, it.id, t)
 		}()
 		if err != nil {

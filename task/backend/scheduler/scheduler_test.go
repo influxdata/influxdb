@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
+	icontext "github.com/influxdata/influxdb/context"
+	"go.uber.org/zap"
 )
 
 type mockExecutor struct {
@@ -37,6 +39,12 @@ func (s mockSchedulable) LastScheduled() time.Time {
 }
 
 func (e *mockExecutor) Execute(ctx context.Context, id ID, scheduledAt time.Time) error {
+	// require the presence of an auth on context
+	_, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		panic(err)
+	}
+
 	done := make(chan struct{}, 1)
 	select {
 	case <-ctx.Done():
@@ -58,23 +66,31 @@ func (m *mockSchedulableService) UpdateLastScheduled(ctx context.Context, id ID,
 
 func TestSchedule_Next(t *testing.T) {
 	t.Run("fires properly with non-mocked time", func(t *testing.T) {
-		now := time.Now()
-		c := make(chan time.Time, 100)
-		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
-			select {
-			case <-ctx.Done():
-				t.Log("ctx done")
-			case c <- scheduledAt:
-			default:
-				t.Errorf("called the executor too many times")
-			}
-		}}
+		var (
+			logger, _ = zap.NewDevelopment()
+			now       = time.Now()
+			c         = make(chan time.Time, 100)
+			exe       = &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+				select {
+				case <-ctx.Done():
+					t.Log("ctx done")
+				case c <- scheduledAt:
+				default:
+					t.Errorf("called the executor too many times")
+				}
+			}}
+		)
+
 		sch, _, err := NewScheduler(
 			exe,
 			&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
 				return nil
 			}},
-			WithMaxConcurrentWorkers(2))
+			WithLogger(logger),
+			WithMaxConcurrentWorkers(2),
+			WithOnErrorFn(func(_ context.Context, _ ID, _ time.Time, err error) {
+				t.Error(err)
+			}))
 		if err != nil {
 			t.Fatal(err)
 		}
