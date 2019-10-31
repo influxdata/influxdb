@@ -392,7 +392,7 @@ func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task)
 		if maxC > len(ts.runners) {
 			delta := maxC - len(ts.runners)
 			for i := 0; i < delta; i++ {
-				ts.runners = append(ts.runners, newRunner(s.ctx, ts.wg, s.logger, task, s.taskControlService, s.executor, ts))
+				ts.runners = append(ts.runners, newRunner(s.ctx, authCtx, ts.wg, s.logger, task, s.taskControlService, s.executor, ts))
 			}
 		}
 		ts.runningMu.Unlock()
@@ -505,7 +505,7 @@ func newTaskScheduler(
 
 	for i := range ts.runners {
 		logger := ts.logger.With(zap.Int("run_slot", i))
-		ts.runners[i] = newRunner(ctx, wg, logger, task, s.taskControlService, s.executor, ts)
+		ts.runners[i] = newRunner(ctx, authCtx, wg, logger, task, s.taskControlService, s.executor, ts)
 	}
 
 	return ts, nil
@@ -577,7 +577,9 @@ type runner struct {
 
 	// Cancelable context from parent taskScheduler.
 	ctx context.Context
-	wg  *sync.WaitGroup
+	// context which ferries authentication
+	authCtx context.Context
+	wg      *sync.WaitGroup
 
 	task *platform.Task
 
@@ -592,6 +594,7 @@ type runner struct {
 
 func newRunner(
 	ctx context.Context,
+	authCtx context.Context,
 	wg *sync.WaitGroup,
 	logger *zap.Logger,
 	task *platform.Task,
@@ -601,6 +604,7 @@ func newRunner(
 ) *runner {
 	return &runner{
 		ctx:                ctx,
+		authCtx:            authCtx,
 		wg:                 wg,
 		state:              new(uint32),
 		task:               task,
@@ -723,7 +727,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	defer r.wg.Done()
 	errMsg := "Failed to finish run"
 	defer func() {
-		if _, err := r.taskControlService.FinishRun(r.ctx, qr.TaskID, qr.RunID); err != nil {
+		if _, err := r.taskControlService.FinishRun(r.authCtx, qr.TaskID, qr.RunID); err != nil {
 			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
 
 			runLogger.Error(errMsg, zap.Error(err))
