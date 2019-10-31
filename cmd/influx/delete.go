@@ -54,17 +54,14 @@ func fluxDeleteF(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
 	if deleteFlags.Org == "" && deleteFlags.OrgID == "" {
-		cmd.Usage()
 		return fmt.Errorf("please specify one of org or org-id")
 	}
 
 	if deleteFlags.Bucket == "" && deleteFlags.BucketID == "" {
-		cmd.Usage()
 		return fmt.Errorf("please specify one of bucket or bucket-id")
 	}
 
 	if deleteFlags.Start == "" || deleteFlags.Stop == "" {
-		cmd.Usage()
 		return fmt.Errorf("both start and stop are required")
 	}
 
