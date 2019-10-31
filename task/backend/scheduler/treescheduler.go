@@ -207,20 +207,23 @@ func (s *TreeScheduler) Stop() {
 	s.wg.Wait()
 }
 
-type unsent struct {
-	items []Item
-}
-
-func (u *unsent) append(i Item) {
-	u.items = append(u.items, i)
+// itemList is a list of items for deleting and inserting.  We have to do them seperately instead of just a re-add,
+// because usually the items key must be changed between the delete and insert
+type itemList struct {
+	toInsert []Item
+	toDelete []Item
 }
 
 func (s *TreeScheduler) process() {
 	iter, toReAdd := s.iterator(s.time.Now())
 	s.scheduled.Ascend(iter)
-	for i := range toReAdd.items {
-		s.nextTime[toReAdd.items[i].id] = toReAdd.items[i].ordering
-		s.scheduled.ReplaceOrInsert(toReAdd.items[i])
+	for i := range toReAdd.toDelete {
+		delete(s.nextTime, toReAdd.toDelete[i].id)
+		s.scheduled.Delete(toReAdd.toDelete[i])
+	}
+	for i := range toReAdd.toInsert {
+		s.nextTime[toReAdd.toInsert[i].id] = toReAdd.toInsert[i].ordering
+		s.scheduled.ReplaceOrInsert(toReAdd.toInsert[i])
 	}
 }
 
@@ -229,8 +232,8 @@ func (s *TreeScheduler) resetTimer(whenFromNow time.Duration) {
 	s.timer.Reset(whenFromNow)
 }
 
-func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *unsent) {
-	itemsToPlace := &unsent{}
+func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *itemList) {
+	itemsToPlace := &itemList{}
 	return func(i btree.Item) bool {
 		if i == nil {
 			return false
@@ -246,20 +249,20 @@ func (s *TreeScheduler) iterator(ts time.Time) (btree.ItemIterator, *unsent) {
 			wc := xxhash.Sum64(buf[:]) % uint64(len(s.workchans)) // we just hash so that the number is uniformly distributed
 			select {
 			case s.workchans[wc] <- it:
-				s.scheduled.Delete(it)
+				itemsToPlace.toDelete = append(itemsToPlace.toDelete, it)
 				if err := it.updateNext(); err != nil {
 					// in this error case we can't schedule next, so we have to drop the task
 					s.onErr(context.Background(), it.id, it.Next(), &ErrUnrecoverable{err})
 					return true
 				}
-				itemsToPlace.append(it)
+				itemsToPlace.toInsert = append(itemsToPlace.toInsert, it)
 
 			case <-s.done:
 				return false
 			default:
-				s.scheduled.Delete(it)
+				itemsToPlace.toDelete = append(itemsToPlace.toDelete, it)
 				it.incrementNonce()
-				itemsToPlace.append(it)
+				itemsToPlace.toInsert = append(itemsToPlace.toInsert, it)
 				return true
 			}
 		}

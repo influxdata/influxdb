@@ -362,6 +362,65 @@ func TestSchedule_panic(t *testing.T) {
 	}
 }
 
+func TestTreeScheduler_LongPanicTest(t *testing.T) {
+	// This test is to catch one specifgic type of race condition that can occur and isn't caught by race test, but causes a panic
+	// in the google btree library
+	now := time.Date(2096, time.December, 30, 0, 0, 0, 0, time.UTC)
+
+	mockTime := clock.NewMock()
+	mockTime.Set(now)
+
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+		select {
+		case <-ctx.Done():
+			t.Log("ctx done")
+		default:
+		}
+	}}
+
+	sch, _, err := NewScheduler(
+		exe,
+		&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
+			return nil
+		}},
+		WithTime(mockTime),
+		WithMaxConcurrentWorkers(20))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sch.Stop()
+
+	// this tests for a race condition in the btree that isn't normally caught by the race detector
+	schedule, err := NewSchedule("* * * * * * *")
+	if err != nil {
+		t.Fatal(err)
+	}
+	badSchedule, err := NewSchedule("0 0 1 12 *")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i := ID(1); i <= 2000; i++ { // since a valid ID probably shouldn't be zero
+		if i%100 == 0 {
+			err = sch.Schedule(mockSchedulable{id: i, schedule: badSchedule, offset: 0, lastScheduled: now.Add(-1 * time.Second)})
+			if err != nil {
+				t.Fatal(err)
+			}
+		} else {
+			err = sch.Schedule(mockSchedulable{id: i, schedule: schedule, offset: 0, lastScheduled: now.Add(-1 * time.Second)})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	time.Sleep(2 * time.Second)
+	sch.mu.Lock()
+	mockTime.Set(mockTime.Now().UTC().Add(99 * time.Second))
+	sch.mu.Unlock()
+	time.Sleep(5 * time.Second)
+
+}
+
 func TestTreeScheduler_Release(t *testing.T) {
 	c := make(chan time.Time, 100)
 	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
