@@ -97,15 +97,16 @@ class Collectors extends PureComponent<Props, State> {
           resourceName="Telegraf Configurations"
         />
 
-        <SettingsTabbedPageHeader>
+        <SettingsTabbedPageHeader className="telegraf-collectors--header">
           <SearchWidget
             placeholderText="Filter telegraf configurations..."
             searchTerm={searchTerm}
             onSearch={this.handleFilterChange}
           />
-          <div>
+          <div className="telegraf-collectors-button-wrap">
             <Button
-              text="V2 Migration"
+              text="InfluxDB Output Plugin"
+              icon={IconFont.Eye}
               color={ComponentColor.Secondary}
               style={{marginRight: '8px'}}
               onClick={this.handleJustTheOutput}
