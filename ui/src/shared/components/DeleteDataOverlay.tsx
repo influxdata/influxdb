@@ -28,7 +28,11 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
       <Overlay.Container maxWidth={600}>
         <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
         <Overlay.Body>
-          <DeleteDataForm initialBucketName={bucketName} orgID={orgID} />
+          <DeleteDataForm
+            initialBucketName={bucketName}
+            orgID={orgID}
+            handleDismiss={handleDismiss}
+          />
         </Overlay.Body>
       </Overlay.Container>
     </Overlay>

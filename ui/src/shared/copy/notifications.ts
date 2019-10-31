@@ -563,6 +563,11 @@ export const bucketDeleteFailed = (bucketName: string): Notification => ({
   message: `Failed to delete bucket: "${bucketName}"`,
 })
 
+export const predicateDeleteFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to delete data with predicate',
+})
+
 export const bucketCreateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Bucket was successfully created',
@@ -576,6 +581,11 @@ export const bucketCreateFailed = (error: string): Notification => ({
 export const bucketUpdateSuccess = (bucketName: string): Notification => ({
   ...defaultSuccessNotification,
   message: `Bucket "${bucketName}" was successfully updated`,
+})
+
+export const predicateDeleteSucceeded = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Successfully deleted data with predicate!',
 })
 
 export const bucketUpdateFailed = (error: string): Notification => ({

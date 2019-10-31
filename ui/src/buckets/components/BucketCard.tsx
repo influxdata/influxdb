@@ -13,7 +13,6 @@ import {
 } from '@influxdata/clockface'
 import BucketContextMenu from 'src/buckets/components/BucketContextMenu'
 import BucketAddDataButton from 'src/buckets/components/BucketAddDataButton'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {isSystemBucket} from 'src/buckets/constants/index'
@@ -115,14 +114,12 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
             size={ComponentSize.ExtraSmall}
             onClick={this.handleRenameBucket}
           />
-          <FeatureFlag name="deleteWithPredicate">
-            <Button
-              text="Delete Data By Filter"
-              testID="bucket-delete-task"
-              size={ComponentSize.ExtraSmall}
-              onClick={this.handleDeleteData}
-            />
-          </FeatureFlag>
+          <Button
+            text="Delete Data By Filter"
+            testID="bucket-delete-task"
+            size={ComponentSize.ExtraSmall}
+            onClick={this.handleDeleteData}
+          />
         </FlexBox>
       )
     }
