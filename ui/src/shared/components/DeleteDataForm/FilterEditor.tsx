@@ -5,10 +5,8 @@ import {Button, IconFont, ButtonShape, Panel} from '@influxdata/clockface'
 // Components
 import FilterRow from 'src/shared/components/DeleteDataForm/FilterRow'
 
-export interface Filter {
-  key: string
-  value: string
-}
+// Types
+import {Filter} from 'src/types'
 
 interface Props {
   filters: Filter[]
@@ -27,10 +25,13 @@ const FilterEditor: FunctionComponent<Props> = ({
     <div className="delete-data-filters">
       <Button
         text="Add Filter"
+        testID="add-filter-btn"
         icon={IconFont.Plus}
         shape={ButtonShape.StretchToFit}
         className="delete-data-filters--new-filter"
-        onClick={() => onSetFilter({key: '', value: ''}, filters.length)}
+        onClick={() =>
+          onSetFilter({key: '', equality: '=', value: ''}, filters.length)
+        }
       />
       {filters.length > 0 ? (
         <div className="delete-data-filters--filters">

@@ -225,7 +225,7 @@ func FromScript(script string) (Options, error) {
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
 	// TODO(desa): should be dependencies.NewEmpty(), but for now we'll hack things together
 	ctx := newDeps().Inject(context.Background())
-	_, scope, err := flux.EvalAST(ctx, fluxAST)
+	_, scope, err := flux.EvalOptions(ctx, fluxAST)
 	if err != nil {
 		return opt, err
 	}

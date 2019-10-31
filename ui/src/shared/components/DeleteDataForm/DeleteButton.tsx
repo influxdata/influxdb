@@ -48,6 +48,7 @@ const DeleteButton: FunctionComponent<Props> = ({status, valid, onClick}) => {
 
   return (
     <Button
+      testID="confirm-delete-btn"
       text="Confirm Delete"
       color={ComponentColor.Danger}
       status={deleteButtonStatus}

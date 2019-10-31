@@ -72,9 +72,53 @@ describe('Buckets', () => {
     })
   })
 
+  describe('delete with predicate', () => {
+    beforeEach(() => {
+      cy.getByTestID('bucket-delete-task').click()
+      cy.getByTestID('overlay--container').should('have.length', 1)
+    })
+
+    it('requires consent to perform delete with predicate', () => {
+      // confirm delete is disabled
+      cy.getByTestID('confirm-delete-btn').should('be.disabled')
+      // checks the consent input
+      cy.getByTestID('delete-checkbox').check({force: true})
+      // can delete
+      cy.getByTestID('confirm-delete-btn')
+        .should('not.be.disabled')
+        .click()
+    })
+
+    it('closes the overlay upon a successful delete with predicate submission', () => {
+      cy.getByTestID('delete-checkbox').check({force: true})
+      cy.getByTestID('confirm-delete-btn').click()
+      cy.getByTestID('overlay--container').should('not.exist')
+      cy.getByTestID('notification-success').should('have.length', 1)
+    })
+
+    it('should require key-value pairs when deleting predicate with filters', () => {
+      // confirm delete is disabled
+      cy.getByTestID('add-filter-btn').click()
+      // checks the consent input
+      cy.getByTestID('delete-checkbox').check({force: true})
+      // cannot delete
+      cy.getByTestID('confirm-delete-btn').should('be.disabled')
+
+      // should display warnings
+      cy.getByTestID('form--element-error').should('have.length', 2)
+
+      cy.getByTestID('key-input').type('mean')
+      cy.getByTestID('value-input').type(100)
+
+      cy.getByTestID('confirm-delete-btn')
+        .should('not.be.disabled')
+        .click()
+    })
+  })
+
   describe('Routing directly to the edit overlay', () => {
     it('reroutes to buckets view if bucket does not exist', () => {
-      cy.get<Organization>('@org').then(({id}: Organization) => {
+      cy.get('@org').then(({id}: Organization) => {
         cy.fixture('routes').then(({orgs}) => {
           const idThatDoesntExist = '261234d1a7f932e4'
           cy.visit(`${orgs}/${id}/load-data/buckets/${idThatDoesntExist}/edit`)
@@ -86,10 +130,10 @@ describe('Buckets', () => {
       })
     })
 
-    it('displays overlay if bucket does exist', () => {
-      cy.get<Organization>('@org').then(({id: orgID}: Organization) => {
+    it('displays overlay if bucket exists', () => {
+      cy.get('@org').then(({id: orgID}: Organization) => {
         cy.fixture('routes').then(({orgs}) => {
-          cy.get<Bucket>('@bucket').then(({id: bucketID}: Bucket) => {
+          cy.get('@bucket').then(({id: bucketID}: Bucket) => {
             cy.visit(`${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`)
             cy.location('pathname').should(
               'be',
