@@ -38,14 +38,41 @@ type Tx interface {
 	WithContext(ctx context.Context)
 }
 
+type CursorHints struct {
+	KeyPrefix *string
+	KeyStart  *string
+}
+
+// CursorHint configures CursorHints
+type CursorHint func(*CursorHints)
+
+// WithCursorHintPrefix is a hint to the store
+// that the caller is only interested keys with the
+// specified prefix.
+func WithCursorHintPrefix(prefix string) CursorHint {
+	return func(o *CursorHints) {
+		o.KeyPrefix = &prefix
+	}
+}
+
+// WithCursorHintKeyStart is a hint to the store
+// that the caller is interested in reading keys from
+// start.
+func WithCursorHintKeyStart(start string) CursorHint {
+	return func(o *CursorHints) {
+		o.KeyStart = &start
+	}
+}
+
 // Bucket is the abstraction used to perform get/put/delete/get-many operations
 // in a key value store.
 type Bucket interface {
 	// TODO context?
 	// Get returns a key within this bucket. Errors if key does not exist.
 	Get(key []byte) ([]byte, error)
-	// Cursor returns a cursor at the beginning of this bucket.
-	Cursor() (Cursor, error)
+	// Cursor returns a cursor at the beginning of this bucket optionally
+	// using the provided hints to improve performance.
+	Cursor(hints ...CursorHint) (Cursor, error)
 	// Put should error if the transaction it was called in is not writable.
 	Put(key, value []byte) error
 	// Delete should error if the transaction it was called in is not writable.

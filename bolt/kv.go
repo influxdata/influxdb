@@ -198,7 +198,7 @@ func (b *Bucket) Delete(key []byte) error {
 
 // Cursor retrieves a cursor for iterating through the entries
 // in the key value store.
-func (b *Bucket) Cursor() (kv.Cursor, error) {
+func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
 	return &Cursor{
 		cursor: b.bucket.Cursor(),
 	}, nil
