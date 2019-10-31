@@ -21,9 +21,9 @@ describe('Onboarding.Utils.PluginConfig', () => {
       const actual = isPluginUniqueToBundle(telegrafPlugin, bundle, bundles)
 
       expect(actual).toBe(true)
-      expect(actual).toMatchSnapshot()
     })
   })
+
   describe('if plugin is not in bundle', () => {
     it('isPluginInBundle returns false', () => {
       const telegrafPlugin = TelegrafPluginInputSystem.NameEnum.System
@@ -34,6 +34,7 @@ describe('Onboarding.Utils.PluginConfig', () => {
       expect(actual).toBe(false)
     })
   })
+
   describe('if plugin is in bundle', () => {
     it('isPluginInBundle returns true', () => {
       const telegrafPlugin = TelegrafPluginInputSystem.NameEnum.System

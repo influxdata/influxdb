@@ -46,14 +46,13 @@ describe('SideBar', () => {
     it('renders with no children', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
-    }),
-      it('renders with children, and renders its children', () => {
-        const {wrapper} = setup(null, childrenArray)
-        expect(wrapper.exists()).toBe(true)
-        expect(wrapper.contains(childrenArray[0])).toBe(true)
-        expect(wrapper.find(SideBar.Tab)).toHaveLength(2)
-        expect(wrapper).toMatchSnapshot()
-      })
+    })
+
+    it('renders with children, and renders its children', () => {
+      const {wrapper} = setup(null, childrenArray)
+      expect(wrapper.exists()).toBe(true)
+      expect(wrapper.contains(childrenArray[0])).toBe(true)
+      expect(wrapper.find(SideBar.Tab)).toHaveLength(2)
+    })
   })
 })

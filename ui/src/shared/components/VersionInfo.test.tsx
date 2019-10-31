@@ -20,7 +20,6 @@ describe('VersionInfo', () => {
     const {wrapper} = setup()
 
     expect(wrapper.exists()).toBe(true)
-    expect(wrapper).toMatchSnapshot()
   })
 
   describe('when width is specified', () => {
@@ -28,7 +27,6 @@ describe('VersionInfo', () => {
       const {wrapper} = setup({widthPixels: 300})
 
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
     })
   })
 })

@@ -23,7 +23,6 @@ describe('Account', () => {
       const {wrapper} = setup()
 
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
     })
 
     it('displays the users info by default', () => {

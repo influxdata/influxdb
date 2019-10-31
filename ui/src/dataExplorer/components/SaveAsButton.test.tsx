@@ -16,7 +16,6 @@ describe('SaveAsButton', () => {
   describe('rendering', () => {
     it('renders', () => {
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
     })
   })
 })
