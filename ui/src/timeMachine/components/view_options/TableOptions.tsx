@@ -72,13 +72,7 @@ export class TableOptions extends Component<Props, {}> {
       onSetDecimalPlaces,
     } = this.props
 
-    const filteredColumns = fieldOptions.filter(
-      col =>
-        col.internalName !== 'time' &&
-        col.internalName !== '' &&
-        col.internalName !== 'result' &&
-        col.internalName !== 'table'
-    )
+    const filteredColumns = this.filterFieldOptions(fieldOptions)
 
     const {fixFirstColumn, sortBy} = tableOptions
 
@@ -139,13 +133,27 @@ export class TableOptions extends Component<Props, {}> {
     )
   }
 
+  private filterFieldOptions = (fieldOptions: FieldOption[]) => {
+    return fieldOptions.filter(
+      col =>
+        col.internalName !== 'time' &&
+        col.internalName !== '' &&
+        col.internalName !== 'result' &&
+        col.internalName !== 'table'
+    )
+  }
+
   private handleChangeSortBy = (sortBy: FieldOption) => {
     const {tableOptions, onSetTableOptions} = this.props
     onSetTableOptions({...tableOptions, sortBy})
   }
 
   private handleMoveColumn = (dragIndex: number, hoverIndex: number) => {
-    const fieldOptions = move(this.props.fieldOptions, dragIndex, hoverIndex)
+    const fieldOptions = move(
+      this.filterFieldOptions(this.props.fieldOptions),
+      dragIndex,
+      hoverIndex
+    )
     this.props.onSetFieldOptions(fieldOptions)
   }
 
