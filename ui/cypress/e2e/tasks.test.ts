@@ -25,8 +25,7 @@ describe('Tasks', () => {
     })
   })
 
-  it.skip('cannot create a task with an invalid to() function', () => {
-    // skipped pending https://github.com/influxdata/flux/issues/2085
+  it('cannot create a task with an invalid to() function', () => {
     const taskName = 'Bad Task'
 
     createFirstTask(taskName, ({name}) => {
