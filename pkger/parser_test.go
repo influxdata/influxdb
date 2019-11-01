@@ -126,7 +126,7 @@ spec:
 					require.Len(t, pErr.Resources, 1)
 
 					failedResource := pErr.Resources[0]
-					assert.Equal(t, "Package", failedResource.Type)
+					assert.Equal(t, "Package", failedResource.Kind)
 
 					require.Len(t, failedResource.ValidationFails, len(tt.expectedFields))
 
@@ -512,14 +512,253 @@ spec:
 		})
 	})
 
-	t.Run("pkg with single dashboard", func(t *testing.T) {
-		testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
-			dashboards := pkg.dashboards()
-			require.Len(t, dashboards, 1)
+	t.Run("pkg with single dashboard and single chart", func(t *testing.T) {
+		t.Run("single stat chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
 
-			actual := dashboards[0]
-			assert.Equal(t, "dash_1", actual.Name)
-			assert.Equal(t, "desc1", actual.Description)
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dash_1", actual.Name)
+				assert.Equal(t, "desc1", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, ChartKindSingleStat, actualChart.Kind)
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "single stat note", props.Note)
+				assert.True(t, props.ShowNoteWhenEmpty)
+				assert.True(t, props.DecimalPlaces.IsEnforced)
+				assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
+				assert.Equal(t, "days", props.Suffix)
+				assert.Equal(t, "sumtin", props.Prefix)
+
+				require.Len(t, props.Queries, 1)
+				q := props.Queries[0]
+				queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "processes") |> filter(fn: (r) => r._field == "running" or r._field == "blocked") |> aggregateWindow(every: v.windowPeriod, fn: max) |> yield(name: "max")`
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				require.Len(t, props.ViewColors, 1)
+				c := props.ViewColors[0]
+				assert.NotZero(t, c.ID)
+				assert.Equal(t, "laser", c.Name)
+				assert.Equal(t, "text", c.Type)
+				assert.Equal(t, "#8F8AF4", c.Hex)
+				assert.Equal(t, 3.0, c.Value)
+			})
+
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []struct {
+					name      string
+					ymlStr    string
+					numErrs   int
+					errFields []string
+				}{
+					{
+						name:      "color missing hex value",
+						numErrs:   1,
+						errFields: []string{"charts[0].colors[0].hex"},
+						ymlStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          width:  6
+          height: 3
+          shade: true
+          queries:
+            - query: >
+                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
+          colors:
+            - name: laser
+              type: text
+`,
+					},
+					{
+						name:      "no colors provided",
+						numErrs:   1,
+						errFields: []string{"charts[0].colors"},
+						ymlStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          width:  6
+          height: 3
+          shade: true
+          queries:
+            - query: >
+                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
+`,
+					},
+					{
+						name:      "query missing text value",
+						numErrs:   1,
+						errFields: []string{"charts[0].queries[0].query"},
+						ymlStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          width:  6
+          height: 3
+          shade: true
+          queries:
+            - query: 
+          colors:
+            - name: laser
+              type: text
+              hex: "#aaa222"
+`,
+					},
+					{
+						name:      "no queries provided",
+						numErrs:   1,
+						errFields: []string{"charts[0].queries"},
+						ymlStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          width:  6
+          height: 3
+          shade: true
+          colors:
+            - name: laser
+              type: text
+              hex: "#aaa222"
+`,
+					},
+					{
+						name:      "no width provided",
+						numErrs:   1,
+						errFields: []string{"charts[0].width"},
+						ymlStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          height: 3
+          shade: true
+          queries:
+            - query: >
+                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
+          colors:
+            - name: laser
+              type: text
+              hex: "#aaa333"
+`,
+					},
+					{
+						name:      "no height provided",
+						numErrs:   1,
+						errFields: []string{"charts[0].height"},
+						ymlStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          width: 3
+          shade: true
+          queries:
+            - query: >
+                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
+          colors:
+            - name: laser
+              type: text
+              hex: "#aaa333"
+`,
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						_, err := Parse(EncodingYAML, FromString(tt.ymlStr))
+						require.Error(t, err)
+
+						pErr, ok := IsParseErr(err)
+						require.True(t, ok, err)
+
+						require.Len(t, pErr.Resources, 1)
+
+						resErr := pErr.Resources[0]
+						assert.Equal(t, "dashboard", resErr.Kind)
+
+						require.Len(t, resErr.ValidationFails, 1)
+						for i, vFail := range resErr.ValidationFails {
+							assert.Equal(t, tt.errFields[i], vFail.Field)
+						}
+					}
+					t.Run(tt.name, fn)
+				}
+			})
 		})
 	})
 

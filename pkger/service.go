@@ -104,30 +104,11 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 }
 
 func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffDashboard, error) {
-	mExistingDashes := make(map[string]DiffDashboard)
-	dashes := pkg.dashboards()
-	for i := range dashes {
-		d := dashes[i]
-		// TODO: extend dashboard filter to take a name
-		existingDashes, _, err := s.dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{
-			OrganizationID: &orgID,
-		}, influxdb.FindOptions{})
-		switch {
-		// TODO: case for err not found here and another case handle where
-		//  err isn't a not found (some other error)
-		case err == nil && len(existingDashes) > 0:
-			existing := existingDashes[0]
-			d.existing = existing
-			mExistingDashes[d.Name] = newDiffDashboard(d, *existing)
-		default:
-			mExistingDashes[d.Name] = newDiffDashboard(d, influxdb.Dashboard{})
-		}
+	var diffs []DiffDashboard
+	for _, d := range pkg.dashboards() {
+		diffs = append(diffs, newDiffDashboard(d))
 	}
 
-	var diffs []DiffDashboard
-	for _, diff := range mExistingDashes {
-		diffs = append(diffs, diff)
-	}
 	sort.Slice(diffs, func(i, j int) bool {
 		return diffs[i].Name < diffs[j].Name
 	})
@@ -198,7 +179,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 
 	for _, d := range pkg.dashboards() {
 		err := s.dryRunResourceLabelMapping(ctx, d, d.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setDashboardMapping(d, !isNew)
+			pkg.mLabels[labelName].setDashboardMapping(d)
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   d.ResourceType(),
@@ -448,20 +429,8 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 
 func (s *Service) rollbackDashboards(dashboards []*dashboard) error {
 	var errs []string
-	for i := range dashboards {
-		d := dashboards[i]
-		if d.existing == nil {
-			err := s.dashSVC.DeleteDashboard(context.Background(), d.ID())
-			if err != nil {
-				errs = append(errs, d.ID().String())
-			}
-			continue
-		}
-
-		_, err := s.dashSVC.UpdateDashboard(context.Background(), d.ID(), influxdb.DashboardUpdate{
-			Name:        &d.Name,
-			Description: &d.Description,
-		})
+	for _, d := range dashboards {
+		err := s.dashSVC.DeleteDashboard(context.Background(), d.ID())
 		if err != nil {
 			errs = append(errs, d.ID().String())
 		}
@@ -476,28 +445,49 @@ func (s *Service) rollbackDashboards(dashboards []*dashboard) error {
 }
 
 func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Dashboard, error) {
-	if d.existing != nil {
-		influxDashboard, err := s.dashSVC.UpdateDashboard(ctx, d.ID(), influxdb.DashboardUpdate{
-			Name:        &d.Name,
-			Description: &d.Description,
-		})
-		if err != nil {
-			return influxdb.Dashboard{}, err
-		}
-		return *influxDashboard, nil
-	}
-
+	cells, cellChartMap := convertChartsToCells(d.Charts)
 	influxDashboard := influxdb.Dashboard{
 		OrganizationID: d.OrgID,
 		Description:    d.Description,
 		Name:           d.Name,
+		Cells:          cells,
 	}
 	err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
 	if err != nil {
 		return influxdb.Dashboard{}, err
 	}
 
+	for cell, i := range cellChartMap {
+		ch := d.Charts[i]
+
+		_, err := s.dashSVC.UpdateDashboardCellView(ctx, influxDashboard.ID, cell.ID, influxdb.ViewUpdate{
+			ViewContentsUpdate: influxdb.ViewContentsUpdate{
+				Name: &ch.Name,
+			},
+			Properties: ch.properties(),
+		})
+		if err != nil {
+			return influxdb.Dashboard{}, err
+		}
+	}
+
 	return influxDashboard, nil
+}
+
+func convertChartsToCells(ch []chart) ([]*influxdb.Cell, map[*influxdb.Cell]int) {
+	cellChartMap := make(map[*influxdb.Cell]int)
+	icells := make([]*influxdb.Cell, 0, len(ch))
+	for i, c := range ch {
+		icell := &influxdb.Cell{
+			CellProperty: influxdb.CellProperty{
+				H: int32(c.Height),
+				W: int32(c.Width),
+			},
+		}
+		cellChartMap[icell] = i
+		icells = append(icells, icell)
+	}
+	return icells, cellChartMap
 }
 
 func (s *Service) applyLabels(labels []*label) applier {

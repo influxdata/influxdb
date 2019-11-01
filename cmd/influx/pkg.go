@@ -215,14 +215,14 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 	}
 
 	if dashes := diff.Dashboards; len(dashes) > 0 {
-		headers := []string{"New", "ID", "Name", "Description"}
+		headers := []string{"New", "Name", "Description", "Num Charts"}
 		tablePrinter("DASHBOARDS", headers, len(dashes), hasColor, hasTableBorders, func(w *tablewriter.Table) {
 			for _, d := range dashes {
 				w.Append([]string{
-					boolDiff(d.IsNew()),
-					d.ID.String(),
+					boolDiff(true),
 					d.Name,
-					strDiff(d.IsNew(), d.OldDesc, d.NewDesc),
+					green(d.Desc),
+					green(strconv.Itoa(len(d.Charts))),
 				})
 			}
 		})
@@ -315,13 +315,20 @@ func tablePrinter(table string, headers []string, count int, hasColor, hasTableB
 	w := tablewriter.NewWriter(os.Stdout)
 	w.SetBorder(hasTableBorders)
 	w.SetRowLine(hasTableBorders)
+
+	var alignments []int
+	for range headers {
+		alignments = append(alignments, tablewriter.ALIGN_CENTER)
+	}
 	if descrCol != -1 {
 		w.SetAutoWrapText(false)
 		w.SetColMinWidth(descrCol, 30)
+		alignments[descrCol] = tablewriter.ALIGN_LEFT
 	}
 
 	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
 	w.SetHeader(headers)
+	w.SetColumnAlignment(alignments)
 
 	appendFn(w)
 
@@ -335,6 +342,8 @@ func tablePrinter(table string, headers []string, count int, hasColor, hasTableB
 			colors = append(colors, tablewriter.Color(tablewriter.FgHiCyanColor))
 		}
 		w.SetHeaderColor(colors...)
+		colors[len(colors)-2] = tablewriter.Color(tablewriter.FgHiBlueColor)
+		colors[len(colors)-1] = tablewriter.Color(tablewriter.FgHiBlueColor)
 		w.SetFooterColor(colors...)
 	}
 
