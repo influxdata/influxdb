@@ -214,19 +214,19 @@ describe('Collectors', () => {
           .then(() => {
             bucketz.sort()
             cy.getByTestID('bucket-name')
-            .should('have.length', 3)
-            .each((val, index) => {
-              const text = val.text()
-              expect(text).to.include(bucketz[index])
-            })
-            .then(() => {
-              cy.getByTestID('bucket-sorter').click()
-              bucketz.reverse()
-              cy.getByTestID('bucket-name').each((val, index) => {
+              .should('have.length', 3)
+              .each((val, index) => {
                 const text = val.text()
                 expect(text).to.include(bucketz[index])
               })
-            })
+              .then(() => {
+                cy.getByTestID('bucket-sorter').click()
+                bucketz.reverse()
+                cy.getByTestID('bucket-name').each((val, index) => {
+                  const text = val.text()
+                  expect(text).to.include(bucketz[index])
+                })
+              })
           })
 
         // sort by name test here
