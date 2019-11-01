@@ -514,6 +514,12 @@ func (s *Service) deleteVariableIndex(ctx context.Context, tx Tx, v *influxdb.Va
 	}
 
 	idxKey, err := variableIndexKey(v)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
+
 	if err := idx.Delete(idxKey); err != nil {
 		return &influxdb.Error{
 			Err: err,
@@ -538,6 +544,11 @@ func (s *Service) createVariableIndex(ctx context.Context, tx Tx, v *influxdb.Va
 	}
 
 	idxKey, err := variableIndexKey(v)
+	if err != nil {
+		return &influxdb.Error{
+			Err: err,
+		}
+	}
 
 	if err := idxBkt.Put([]byte(idxKey), encID); err != nil {
 		return &influxdb.Error{
