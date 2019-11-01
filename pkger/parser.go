@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"gopkg.in/yaml.v3"
 )
 
@@ -126,31 +127,30 @@ type Pkg struct {
 		Resources []Resource `yaml:"resources" json:"resources"`
 	} `yaml:"spec" json:"spec"`
 
-	mLabels  map[string]*label
-	mBuckets map[string]*bucket
+	mLabels     map[string]*label
+	mBuckets    map[string]*bucket
+	mDashboards map[string]*dashboard
 
 	isVerified bool
 }
 
-// Summary returns a package summary that describes all the resources and
+// Summary returns a package Summary that describes all the resources and
 // associations the pkg contains. It is very useful for informing users of
 // the changes that will take place when this pkg would be applied.
 func (p *Pkg) Summary() Summary {
 	var sum Summary
 
-	for _, l := range p.mLabels {
+	for _, l := range p.labels() {
 		sum.Labels = append(sum.Labels, l.summarize())
 	}
-	sort.Slice(sum.Labels, func(i, j int) bool {
-		return sum.Labels[i].Name < sum.Labels[j].Name
-	})
 
-	for _, b := range p.mBuckets {
+	for _, b := range p.buckets() {
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
-	sort.Slice(sum.Buckets, func(i, j int) bool {
-		return sum.Buckets[i].Name < sum.Buckets[j].Name
-	})
+
+	for _, d := range p.dashboards() {
+		sum.Dashboards = append(sum.Dashboards, d.summarize())
+	}
 
 	for _, m := range p.labelMappings() {
 		sum.LabelMappings = append(sum.LabelMappings, SummaryLabelMapping{
@@ -159,23 +159,6 @@ func (p *Pkg) Summary() Summary {
 			LabelMapping: m.LabelMapping,
 		})
 	}
-	// sort by res type ASC, then res name ASC, then label name ASC
-	sort.Slice(sum.LabelMappings, func(i, j int) bool {
-		n, m := sum.LabelMappings[i], sum.LabelMappings[j]
-		if n.ResourceType < m.ResourceType {
-			return true
-		}
-		if n.ResourceType > m.ResourceType {
-			return false
-		}
-		if n.ResourceName < m.ResourceName {
-			return true
-		}
-		if n.ResourceName > m.ResourceName {
-			return false
-		}
-		return n.LabelName < m.LabelName
-	})
 
 	return sum
 }
@@ -206,6 +189,19 @@ func (p *Pkg) labels() []*label {
 	return labels
 }
 
+func (p *Pkg) dashboards() []*dashboard {
+	dashes := make([]*dashboard, 0, len(p.mDashboards))
+	for _, d := range p.mDashboards {
+		dashes = append(dashes, d)
+	}
+
+	sort.Slice(dashes, func(i, j int) bool {
+		return dashes[i].Name < dashes[j].Name
+	})
+
+	return dashes
+}
+
 // labelMappings returns the mappings that will be created for
 // valid pairs of labels and resources of which all have IDs.
 // If a resource does not exist yet, a label mapping will not
@@ -215,6 +211,24 @@ func (p *Pkg) labelMappings() []SummaryLabelMapping {
 	for _, l := range p.mLabels {
 		mappings = append(mappings, l.mappingSummary()...)
 	}
+
+	// sort by res type ASC, then res name ASC, then label name ASC
+	sort.Slice(mappings, func(i, j int) bool {
+		n, m := mappings[i], mappings[j]
+		if n.ResourceType < m.ResourceType {
+			return true
+		}
+		if n.ResourceType > m.ResourceType {
+			return false
+		}
+		if n.ResourceName < m.ResourceName {
+			return true
+		}
+		if n.ResourceName > m.ResourceName {
+			return false
+		}
+		return n.LabelName < m.LabelName
+	})
 
 	return mappings
 }
@@ -255,7 +269,7 @@ func (p *Pkg) validMetadata() error {
 	}
 
 	res := errResource{
-		Type: "Package",
+		Kind: "Package",
 		Idx:  -1,
 	}
 	for _, f := range failures {
@@ -278,7 +292,7 @@ func (p *Pkg) validResources() error {
 	}
 
 	res := errResource{
-		Type: "Package",
+		Kind: "Package",
 		Idx:  -1,
 	}
 	res.ValidationFails = append(res.ValidationFails, struct {
@@ -295,6 +309,7 @@ func (p *Pkg) graphResources() error {
 		// labels are first to validate associations with other resources
 		p.graphLabels,
 		p.graphBuckets,
+		p.graphDashboards,
 	}
 
 	for _, fn := range graphFns {
@@ -329,22 +344,14 @@ func (p *Pkg) graphBuckets() error {
 			RetentionPeriod: r.duration("retention_period"),
 		}
 
-		nestedLabels := make(map[string]*label)
-		var failures []failure
-		for i, nr := range r.nestedAssociations() {
-			fail := p.processNestedLabel(i, nr, func(l *label) error {
-				if _, ok := nestedLabels[l.Name]; ok {
-					return fmt.Errorf("duplicate nested label: %q", l.Name)
-				}
-				nestedLabels[l.Name] = l
-				bkt.labels = append(bkt.labels, l)
-				return nil
-			})
-			if fail != nil {
-				failures = append(failures, *fail)
-			}
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			bkt.labels = append(bkt.labels, l)
+			p.mLabels[l.Name].setBucketMapping(bkt, false)
+			return nil
+		})
+		if len(failures) > 0 {
+			return failures
 		}
-
 		sort.Slice(bkt.labels, func(i, j int) bool {
 			return bkt.labels[i].Name < bkt.labels[j].Name
 		})
@@ -381,13 +388,68 @@ func (p *Pkg) graphLabels() error {
 	})
 }
 
+func (p *Pkg) graphDashboards() error {
+	p.mDashboards = make(map[string]*dashboard)
+	return p.eachResource(kindDashboard, func(r Resource) []failure {
+		if r.Name() == "" {
+			return []failure{{
+				Field: "name",
+				Msg:   "must be a string of at least 2 chars in length",
+			}}
+		}
+
+		if _, ok := p.mDashboards[r.Name()]; ok {
+			return []failure{{
+				Field: "name",
+				Msg:   "duplicate name: " + r.Name(),
+			}}
+		}
+
+		dash := &dashboard{
+			Name:        r.Name(),
+			Description: r.stringShort("description"),
+		}
+
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			dash.labels = append(dash.labels, l)
+			p.mLabels[l.Name].setDashboardMapping(dash)
+			return nil
+		})
+		sort.Slice(dash.labels, func(i, j int) bool {
+			return dash.labels[i].Name < dash.labels[j].Name
+		})
+
+		for i, cr := range r.slcResource("charts") {
+			ch, fails := parseChart(cr)
+			if fails != nil {
+				for _, f := range fails {
+					failures = append(failures, failure{
+						Field: fmt.Sprintf("charts[%d].%s", i, f.Field),
+						Msg:   f.Msg,
+					})
+				}
+				continue
+			}
+			dash.Charts = append(dash.Charts, ch)
+		}
+
+		if len(failures) > 0 {
+			return failures
+		}
+
+		p.mDashboards[r.Name()] = dash
+
+		return nil
+	})
+}
+
 func (p *Pkg) eachResource(resourceKind kind, fn func(r Resource) []failure) error {
 	var parseErr ParseErr
 	for i, r := range p.Spec.Resources {
 		k, err := r.kind()
 		if err != nil {
 			parseErr.append(errResource{
-				Type: k.String(),
+				Kind: k.String(),
 				Idx:  i,
 				ValidationFails: []struct {
 					Field string
@@ -407,7 +469,7 @@ func (p *Pkg) eachResource(resourceKind kind, fn func(r Resource) []failure) err
 
 		if failures := fn(r); failures != nil {
 			err := errResource{
-				Type: resourceKind.String(),
+				Kind: resourceKind.String(),
 				Idx:  i,
 			}
 			for _, f := range failures {
@@ -416,7 +478,7 @@ func (p *Pkg) eachResource(resourceKind kind, fn func(r Resource) []failure) err
 						Field string
 						Msg   string
 						Index int
-					}{Field: f.Field, Msg: f.Msg, Index: f.Index})
+					}{Field: f.Field, Msg: f.Msg, Index: f.assIndex})
 					continue
 				}
 				err.ValidationFails = append(err.ValidationFails, struct {
@@ -434,14 +496,35 @@ func (p *Pkg) eachResource(resourceKind kind, fn func(r Resource) []failure) err
 	return nil
 }
 
-func (p *Pkg) processNestedLabel(idx int, nr Resource, fn func(lb *label) error) *failure {
+func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []failure {
+	nestedLabels := make(map[string]*label)
+
+	var failures []failure
+	for i, nr := range r.nestedAssociations() {
+		fail := p.parseNestedLabel(i, nr, func(l *label) error {
+			if _, ok := nestedLabels[l.Name]; ok {
+				return fmt.Errorf("duplicate nested label: %q", l.Name)
+			}
+			nestedLabels[l.Name] = l
+
+			return fn(l)
+		})
+		if fail != nil {
+			failures = append(failures, *fail)
+		}
+	}
+
+	return failures
+}
+
+func (p *Pkg) parseNestedLabel(idx int, nr Resource, fn func(lb *label) error) *failure {
 	k, err := nr.kind()
 	if err != nil {
 		return &failure{
 			Field:           "kind",
 			Msg:             err.Error(),
 			fromAssociation: true,
-			Index:           idx,
+			assIndex:        idx,
 		}
 	}
 	if k != kindLabel {
@@ -454,7 +537,7 @@ func (p *Pkg) processNestedLabel(idx int, nr Resource, fn func(lb *label) error)
 			Field:           "associations",
 			Msg:             fmt.Sprintf("label %q does not exist in pkg", nr.Name()),
 			fromAssociation: true,
-			Index:           idx,
+			assIndex:        idx,
 		}
 	}
 
@@ -463,15 +546,77 @@ func (p *Pkg) processNestedLabel(idx int, nr Resource, fn func(lb *label) error)
 			Field:           "associations",
 			Msg:             err.Error(),
 			fromAssociation: true,
-			Index:           idx,
+			assIndex:        idx,
 		}
 	}
 	return nil
 }
 
+func parseChart(r Resource) (chart, []failure) {
+	ck, err := r.chartKind()
+	if err != nil {
+		return chart{}, []failure{{
+			Field: "kind",
+			Msg:   err.Error(),
+		}}
+	}
+
+	c := chart{
+		Kind:        ck,
+		Name:        r.Name(),
+		Prefix:      r.stringShort("prefix"),
+		Suffix:      r.stringShort("suffix"),
+		Note:        r.stringShort("note"),
+		NoteOnEmpty: r.boolShort("noteOnEmpty"),
+		Shade:       r.boolShort("shade"),
+		XCol:        r.stringShort("xCol"),
+		YCol:        r.stringShort("yCol"),
+		XPos:        r.intShort("xPos"),
+		YPos:        r.intShort("yPos"),
+		Height:      r.intShort("height"),
+		Width:       r.intShort("width"),
+	}
+
+	if dp, ok := r.int("decimalPlaces"); ok {
+		c.EnforceDecimals = true
+		c.DecimalPlaces = dp
+	}
+
+	var failures []failure
+	for _, rq := range r.slcResource("queries") {
+		c.Queries = append(c.Queries, query{
+			Query: rq.stringShort("query"),
+		})
+	}
+
+	for _, rc := range r.slcResource("colors") {
+		c.Colors = append(c.Colors, &color{
+			id:    influxdb.ID(int(time.Now().UnixNano())).String(),
+			Name:  rc.Name(),
+			Type:  rc.stringShort("type"),
+			Hex:   rc.stringShort("hex"),
+			Value: rc.float64Short("value"),
+		})
+	}
+
+	if fails := c.validProperties(); len(fails) > 0 {
+		failures = append(failures, fails...)
+	}
+
+	if len(failures) > 0 {
+		return chart{}, failures
+	}
+
+	return c, nil
+}
+
 // Resource is a pkger Resource kind. It can be one of any of
 // available kinds that are supported.
 type Resource map[string]interface{}
+
+func (r Resource) Name() string {
+	return strings.TrimSpace(r.stringShort("name"))
+}
 
 func (r Resource) kind() (kind, error) {
 	resKind, ok := r.string("kind")
@@ -487,8 +632,13 @@ func (r Resource) kind() (kind, error) {
 	return newKind, nil
 }
 
-func (r Resource) Name() string {
-	return strings.TrimSpace(r.stringShort("name"))
+func (r Resource) chartKind() (ChartKind, error) {
+	ck, _ := r.kind()
+	chartKind := ChartKind(ck)
+	if !chartKind.ok() {
+		return ChartKindUnknown, errors.New("invalid chart kind provided: " + string(chartKind))
+	}
+	return chartKind, nil
 }
 
 func (r Resource) nestedAssociations() []Resource {
@@ -514,9 +664,55 @@ func (r Resource) nestedAssociations() []Resource {
 	return resources
 }
 
+func (r Resource) bool(key string) (bool, bool) {
+	b, ok := r[key].(bool)
+	return b, ok
+}
+
+func (r Resource) boolShort(key string) bool {
+	b, _ := r.bool(key)
+	return b
+}
+
 func (r Resource) duration(key string) time.Duration {
 	dur, _ := time.ParseDuration(r.stringShort(key))
 	return dur
+}
+
+func (r Resource) float64(key string) (float64, bool) {
+	f, ok := r[key].(float64)
+	if ok {
+		return f, true
+	}
+
+	i, ok := r[key].(int)
+	if ok {
+		return float64(i), true
+	}
+	return 0, false
+}
+
+func (r Resource) float64Short(key string) float64 {
+	f, _ := r.float64(key)
+	return f
+}
+
+func (r Resource) int(key string) (int, bool) {
+	i, ok := r[key].(int)
+	if ok {
+		return i, true
+	}
+
+	f, ok := r[key].(float64)
+	if ok {
+		return int(f), true
+	}
+	return 0, false
+}
+
+func (r Resource) intShort(key string) int {
+	i, _ := r.int(key)
+	return i
 }
 
 func (r Resource) string(key string) (string, bool) {
@@ -527,6 +723,29 @@ func (r Resource) string(key string) (string, bool) {
 func (r Resource) stringShort(key string) string {
 	s, _ := r.string(key)
 	return s
+}
+
+func (r Resource) slcResource(key string) []Resource {
+	v, ok := r[key]
+	if !ok {
+		return nil
+	}
+
+	iFaceSlc, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	var newResources []Resource
+	for _, iFace := range iFaceSlc {
+		r, ok := ifaceMapToResource(iFace)
+		if !ok {
+			continue
+		}
+		newResources = append(newResources, r)
+	}
+
+	return newResources
 }
 
 func ifaceMapToResource(i interface{}) (Resource, bool) {
@@ -562,7 +781,7 @@ func ifaceMapToResource(i interface{}) (Resource, bool) {
 // have multiple validation failures.
 type ParseErr struct {
 	Resources []struct {
-		Type            string
+		Kind            string
 		Idx             int
 		ValidationFails []struct {
 			Field string
@@ -584,7 +803,7 @@ func (e *ParseErr) Error() string {
 		if r.Idx == -1 {
 			resIndex = "root"
 		}
-		err := fmt.Sprintf("resource_index=%s resource_type=%q", r.Type, resIndex)
+		err := fmt.Sprintf("resource_index=%s resource_kind=%q", resIndex, r.Kind)
 		errMsg = append(errMsg, err)
 		for _, f := range r.ValidationFails {
 			// for time being we go to new line and indent them (mainly for CLI)
@@ -615,7 +834,7 @@ func IsParseErr(err error) (*ParseErr, bool) {
 }
 
 type errResource struct {
-	Type            string
+	Kind            string
 	Idx             int
 	ValidationFails []struct {
 		Field string
@@ -631,5 +850,5 @@ type errResource struct {
 type failure struct {
 	Field, Msg      string
 	fromAssociation bool
-	Index           int
+	assIndex        int
 }
