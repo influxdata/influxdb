@@ -194,17 +194,24 @@ describe('DataExplorer', () => {
     })
 
     it('should display the popover when hovering', () => {
-      cy.getByTestID('selector-list my_meas').click()
-      cy.getByTestID('selector-list my_field').click()
+      cy.getByTestID('selector-list my_meas')
+        .click()
+        .then(() => {
+          cy.getByTestID('selector-list my_field')
+            .click()
+            .then(() => {
+              cy.getByTestID('switch-to-script-editor').click()
+              cy.getByTestID('flux-editor').should('exist')
 
-      cy.getByTestID('switch-to-script-editor').click()
-      cy.getByTestID('flux-editor').should('exist')
+              cy.getByTestID('toolbar-popover--contents').should('not.exist')
 
-      cy.getByTestID('toolbar-popover--contents').should('not.exist')
+              cy.getByTestID('flux-function aggregateWindow').trigger(
+                'mouseover'
+              )
 
-      cy.getByTestID('flux-function aggregateWindow').trigger('mouseover')
-
-      cy.getByTestID('toolbar-popover--contents').should('exist')
+              cy.getByTestID('toolbar-popover--contents').should('exist')
+            })
+        })
     })
   })
 
