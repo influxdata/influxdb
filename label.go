@@ -41,7 +41,7 @@ type LabelService interface {
 	// CreateLabel creates a new label
 	CreateLabel(ctx context.Context, l *Label) error
 
-	// CreateLabel maps a resource to an existing label
+	// CreateLabelMapping maps a resource to an existing label
 	CreateLabelMapping(ctx context.Context, m *LabelMapping) error
 
 	// UpdateLabel updates a label with a changeset.

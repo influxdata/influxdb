@@ -18,6 +18,16 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 )
 
+// FIXME(edd): this temporarily enables uint64 support. It should be enabled by
+// default in 2.0. Therefore we need to pay down all the technical debt of cleaning
+// up all the conditionals within this package.
+//
+// This issue tracks the cleanup work:
+// https://github.com/influxdata/influxdb/issues/15711
+func init() {
+	EnableUintSupport()
+}
+
 // Values used to store the field key and measurement name as special internal tags.
 const (
 	FieldKeyTagKey    = "\xff"

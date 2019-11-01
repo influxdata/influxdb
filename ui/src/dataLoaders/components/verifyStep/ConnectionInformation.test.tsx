@@ -28,28 +28,4 @@ describe('Onboarding.Components.ConnectionInformation', () => {
 
     expect(wrapper.exists()).toBe(true)
   })
-
-  it('matches snapshot if loading', () => {
-    const {wrapper} = setup({loading: LoadingState.Loading})
-
-    expect(wrapper).toMatchSnapshot()
-  })
-
-  it('matches snapshot if success', () => {
-    const {wrapper} = setup({loading: LoadingState.Done})
-
-    expect(wrapper).toMatchSnapshot()
-  })
-
-  it('matches snapshot if no data is found', () => {
-    const {wrapper} = setup({loading: LoadingState.NotFound})
-
-    expect(wrapper).toMatchSnapshot()
-  })
-
-  it('matches snapshot if error', () => {
-    const {wrapper} = setup({loading: LoadingState.Error})
-
-    expect(wrapper).toMatchSnapshot()
-  })
 })

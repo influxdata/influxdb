@@ -34,12 +34,12 @@ describe('SideBarTab', () => {
     it('renders! wee!', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
-    }),
-      it('renders a checkmark if status success', () => {
-        const {wrapper} = setup({status: TabStatus.Success})
-        expect(wrapper.exists()).toBe(true)
-        expect(wrapper.find(`.${IconFont.Checkmark}`)).toHaveLength(1)
-      })
+    })
+
+    it('renders a checkmark if status success', () => {
+      const {wrapper} = setup({status: TabStatus.Success})
+      expect(wrapper.exists()).toBe(true)
+      expect(wrapper.find(`.${IconFont.Checkmark}`)).toHaveLength(1)
+    })
   })
 })

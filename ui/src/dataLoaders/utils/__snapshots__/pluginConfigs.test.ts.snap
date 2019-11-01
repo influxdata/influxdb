@@ -1,3 +1,0 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
-
-exports[`Onboarding.Utils.PluginConfig if plugin is found in only one bundle isPluginUniqueToBundle returns true 1`] = `true`;

@@ -7,7 +7,7 @@ module.exports = {
       jsx: true,
     },
   },
-  plugins: ['@typescript-eslint', 'react', 'no-only-tests'],
+  plugins: ['@typescript-eslint', 'react', 'jest'],
   env: {
     browser: true,
     es6: true,
@@ -33,7 +33,6 @@ module.exports = {
     'getter-return': 'off',
     'no-extra-boolean-cast': 'off',
     'no-case-declarations': 'off',
-    'no-only-tests/no-only-tests': 'error',
     'no-useless-escape': 'off',
     'no-undef': 'off',
     'no-fallthrough': 'off',
@@ -67,5 +66,7 @@ module.exports = {
     'react/no-unescaped-entities': 'off',
     'react/prop-types': 'off',
     'react/no-find-dom-node': 'off',
+    'jest/no-large-snapshots': ['error', {maxSize: 0}], // no shapshots please
+    'jest/no-focused-tests': ['error'],
   },
 }

@@ -16,11 +16,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-func init() {
-	// Force uint support to be enabled for testing.
-	models.EnableUintSupport()
-}
-
 var (
 	tags   = models.NewTags(map[string]string{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"})
 	fields = models.Fields{

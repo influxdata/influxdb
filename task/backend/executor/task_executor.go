@@ -350,7 +350,8 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	} else {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
 	}
-	w.te.tcs.FinishRun(p.ctx, p.task.ID, p.run.ID)
+
+	w.te.tcs.FinishRun(icontext.SetAuthorizer(p.ctx, p.auth), p.task.ID, p.run.ID)
 
 }
 

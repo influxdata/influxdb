@@ -37,14 +37,22 @@
   }
 }
 
-.flux-functions-toolbar--function {
-  position: relative;
-}
-
 .flux-functions-toolbar--helper {
   color: $g10-wolf;
   padding: 15px;
+  visibility: hidden;
 }
+
+.flux-functions-toolbar--function {
+  position: relative;
+
+  &:hover {
+    .flux-functions-toolbar--helper {
+      visibility: visible;
+    }
+  }
+}
+
 
 .flux-functions-toolbar--heading {
   font-weight: 600;
