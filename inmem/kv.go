@@ -199,9 +199,9 @@ func (b *Bucket) Delete(key []byte) error {
 }
 
 // Cursor creates a static cursor from all entries in the database.
-func (b *Bucket) Cursor() (kv.Cursor, error) {
+func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
 	// TODO we should do this by using the Ascend/Descend methods that
-	// the btree provides.
+	//  the btree provides.
 	pairs, err := b.getAll()
 	if err != nil {
 		return nil, err
