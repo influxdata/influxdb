@@ -22,6 +22,7 @@ require (
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/editorconfig-checker/editorconfig-checker v0.0.0-20190819115812-1474bdeaf2a2
 	github.com/elazarl/go-bindata-assetfs v1.0.0
+	github.com/fatih/color v1.7.0
 	github.com/getkin/kin-openapi v0.2.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/glycerine/go-unsnap-stream v0.0.0-20181221182339-f9677308dec2 // indirect
@@ -58,6 +59,7 @@ require (
 	github.com/nats-io/nats-streaming-server v0.11.2
 	github.com/nats-io/nkeys v0.0.2 // indirect
 	github.com/nats-io/nuid v1.0.0 // indirect
+	github.com/olekukonko/tablewriter v0.0.1
 	github.com/onsi/ginkgo v1.7.0 // indirect
 	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/opentracing/opentracing-go v1.1.0
@@ -72,6 +74,7 @@ require (
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3
 	github.com/spf13/viper v1.2.1
+	github.com/stretchr/testify v1.4.0
 	github.com/tcnksm/go-input v0.0.0-20180404061846-548a7d7a8ee8
 	github.com/testcontainers/testcontainers-go v0.0.0-20190108154635-47c0da630f72
 	github.com/tinylib/msgp v1.1.0 // indirect
@@ -96,6 +99,7 @@ require (
 	google.golang.org/grpc v1.21.1
 	gopkg.in/robfig/cron.v2 v2.0.0-20150107220207-be2e0b0deed5
 	gopkg.in/vmihailenco/msgpack.v2 v2.9.1 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20191010095647-fc94e3f71652
 	honnef.co/go/tools v0.0.1-2019.2.3.0.20190904154718-afd67930eec2
 	labix.org/v2/mgo v0.0.0-20140701140051-000000000287 // indirect
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
