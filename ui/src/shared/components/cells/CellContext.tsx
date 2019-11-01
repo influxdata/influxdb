@@ -11,6 +11,8 @@ import {
   IconFont,
   PopoverInteraction,
 } from '@influxdata/clockface'
+import CellContextItem from 'src/shared/components/cells/CellContextItem'
+import CellContextDangerItem from 'src/shared/components/cells/CellContextDangerItem'
 
 // Types
 import {Cell, View} from 'src/types'
@@ -58,31 +60,49 @@ const CellContext: FunctionComponent<Props> = ({
   const popoverContents = (onHide): JSX.Element => {
     if (view.properties.type === 'markdown') {
       return (
-        <div className="cell--context-menu" onClick={onHide}>
-          <div className="cell--context-item" onClick={handleEditNote}>
-            Edit Note
-          </div>
+        <div className="cell--context-menu">
+          <CellContextItem
+            label="Edit Note"
+            onClick={handleEditNote}
+            icon={IconFont.TextBlock}
+            onHide={onHide}
+          />
         </div>
       )
     }
 
     return (
-      <div className="cell--context-menu" onClick={onHide}>
-        <div className="cell--context-item" onClick={onEditCell}>
-          Configure
-        </div>
-        <div className="cell--context-item" onClick={handleCloneCell}>
-          Clone
-        </div>
-        <div className="cell--context-item" onClick={handleDeleteCell}>
-          Delete
-        </div>
-        <div className="cell--context-item" onClick={handleEditNote}>
-          {editNoteText}
-        </div>
-        <div className="cell--context-item" onClick={onCSVDownload}>
-          Download CSV
-        </div>
+      <div className="cell--context-menu">
+        <CellContextItem
+          label="Configure"
+          onClick={onEditCell}
+          icon={IconFont.Pencil}
+          onHide={onHide}
+        />
+        <CellContextItem
+          label={editNoteText}
+          onClick={handleEditNote}
+          icon={IconFont.TextBlock}
+          onHide={onHide}
+        />
+        <CellContextItem
+          label="Clone"
+          onClick={handleCloneCell}
+          icon={IconFont.Duplicate}
+          onHide={onHide}
+        />
+        <CellContextItem
+          label="Download CSV"
+          onClick={onCSVDownload}
+          icon={IconFont.Download}
+          onHide={onHide}
+        />
+        <CellContextDangerItem
+          label="Delete"
+          onClick={handleDeleteCell}
+          icon={IconFont.Trash}
+          onHide={onHide}
+        />
       </div>
     )
   }
@@ -93,10 +113,10 @@ const CellContext: FunctionComponent<Props> = ({
         <Icon glyph={IconFont.CogThick} />
       </button>
       <Popover
-        type={PopoverType.Solid}
+        type={PopoverType.Outline}
         enableDefaultStyles={false}
-        showEvent={PopoverInteraction.Hover}
-        hideEvent={PopoverInteraction.Hover}
+        showEvent={PopoverInteraction.Click}
+        hideEvent={PopoverInteraction.Click}
         triggerRef={triggerRef}
         contents={popoverContents}
         onShow={() => {

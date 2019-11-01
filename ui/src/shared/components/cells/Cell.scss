@@ -151,7 +151,7 @@ $cell--header-button-hover-color: $g13-mist;
     color: $cell--header-button-hover-color;
   }
 
-  &:hover,
+  .cell:hover &:hover,
   &.cell--context__active {
     cursor: pointer;
     color: $c-pool;
@@ -169,12 +169,33 @@ $cell--header-button-hover-color: $g13-mist;
   font-size: 12px;
   line-height: 12px;
   white-space: nowrap;
-  padding: $ix-marg-a;
+  padding: $ix-marg-a + $ix-border $ix-marg-b;
   border-radius: $ix-radius - 1px;
   font-weight: 600;
+  transition: color 0.25s ease, background-color 0.25s ease;
+
+  > .cf-icon {
+    margin-right: $ix-marg-b;
+  }
 
   &:hover {
-    background-color: #f00;
+    cursor: pointer;
+    color: $g20-white;
+    background-color: $g5-pepper;
+  }
+}
+
+.cell--context-item__danger {
+  color: $c-dreamsicle;
+
+  &:hover {
+    color: $c-tungsten;
+  }
+}
+
+.cell--context-item__confirm {
+  &:hover {
+    background-color: transparent;
   }
 }
 
