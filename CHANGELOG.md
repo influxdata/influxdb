@@ -3,6 +3,7 @@
 ### Bug Fixes
 
 1. [15777](https://github.com/influxdata/influxdb/pull/15777): Fix long startup when running 'influx help'
+1. [15713](https://github.com/influxdata/influxdb/pull/15713): Mock missing Flux dependencies when creating tasks
 1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
 
 ## v2.0.0-alpha.19 [2019-10-30]
@@ -13,6 +14,7 @@
 1. [15650](https://github.com/influxdata/influxdb/pull/15650): Expose last run status and last run error in task API
 
 ### UI Improvements
+
 1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
 1. [15426](https://github.com/influxdata/influxdb/pull/15426): Add 403 handler that redirects back to the sign-in page on oats-generated routes.
 1. [15710](https://github.com/influxdata/influxdb/pull/15710): Add button to nginx and redis configuration sections to make interaction more clear
