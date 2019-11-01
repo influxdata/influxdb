@@ -115,7 +115,11 @@ const CellContext: FunctionComponent<Props> = ({
 
   return (
     <>
-      <button className={buttonClass} ref={triggerRef} data-testid="cell-context--toggle">
+      <button
+        className={buttonClass}
+        ref={triggerRef}
+        data-testid="cell-context--toggle"
+      >
         <Icon glyph={IconFont.CogThick} />
       </button>
       <Popover
