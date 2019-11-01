@@ -42,10 +42,7 @@ class TableGraphs extends PureComponent<Props, State> {
   }
 
   public componentDidMount() {
-    const {properties} = this.props
-    if (properties.fieldOptions.length === 0) {
-      this.updateFieldOptions()
-    }
+    this.updateFieldOptions()
   }
 
   public componentDidUpdate(prevProps: Props, prevState: State) {

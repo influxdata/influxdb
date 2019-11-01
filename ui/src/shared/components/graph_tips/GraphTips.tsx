@@ -2,10 +2,7 @@
 import React, {FC, createRef, RefObject} from 'react'
 
 // Components
-import {
-  ComponentColor,
-  QuestionMarkTooltip,
-} from '@influxdata/clockface'
+import {ComponentColor, QuestionMarkTooltip} from '@influxdata/clockface'
 
 const GraphTips: FC = ({}) => {
   const triggerRef: RefObject<HTMLSpanElement> = createRef()
@@ -16,7 +13,7 @@ const GraphTips: FC = ({}) => {
         diameter={18}
         color={ComponentColor.Primary}
         testID={`graphtips-question-mark`}
-        tooltipContents={(
+        tooltipContents={
           <span>
             <h1>Graph Tips:</h1>
             <p>
@@ -33,7 +30,7 @@ const GraphTips: FC = ({}) => {
               <code>Shift + Click</code> Show/Hide single Series
             </p>
           </span>
-        )}
+        }
       />
     </>
   )

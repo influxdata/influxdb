@@ -1,5 +1,13 @@
 // Libraries
-import {omit, map, get, cloneDeep, isNumber} from 'lodash'
+import {
+  cloneDeep,
+  differenceWith,
+  isEqual,
+  isNumber,
+  get,
+  map,
+  omit,
+} from 'lodash'
 import {produce} from 'immer'
 
 // Utils
@@ -803,7 +811,11 @@ export const timeMachineReducer = (
         typeof action.payload
       >
       const {fieldOptions} = action.payload
-      const properties = {...workingView.properties, fieldOptions}
+      const {fieldOptions: options} = workingView.properties
+      const properties = {
+        ...workingView.properties,
+        fieldOptions: trueFieldOptions(fieldOptions, options),
+      }
       const view = {...state.view, properties}
 
       return {...state, view}
@@ -981,8 +993,11 @@ const convertView = (
   outType: ViewType
 ): View<QueryViewProperties> => {
   const newView: any = createView(outType)
-
   newView.properties.queries = cloneDeep(view.properties.queries)
+  if (view.properties.fieldOptions) {
+    // prevents reselecting the table option from reseting the fieldOptions
+    newView.properties.fieldOptions = cloneDeep(view.properties.fieldOptions)
+  }
   newView.name = view.name
   newView.cellID = view.cellID
   newView.dashboardID = view.dashboardID
@@ -1047,4 +1062,24 @@ const resetBuilderState = (draftState: TimeMachineState) => {
     draftState.draftQueries[draftState.activeQueryIndex].builderConfig
 
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
+}
+
+const trueFieldOptions = (defaultOptions, fieldOptions = []) => {
+  // get the difference b/w fieldOptions
+  const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
+  // create a reference to the defaultOptions
+  const options = defaultOptions
+  diff.forEach(option => {
+    const {internalName} = option
+    const index = defaultOptions.findIndex(o => o.internalName === internalName)
+    if (index > -1) {
+      // reassigns the fieldOption to the aliased one
+      options[index] = option
+    } else {
+      // adds any extra fieldOption that has been aliased,
+      // even if it no longer exists in the headers
+      options.push(option)
+    }
+  })
+  return options
 }
