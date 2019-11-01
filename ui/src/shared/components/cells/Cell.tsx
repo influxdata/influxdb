@@ -67,7 +67,7 @@ class CellComponent extends Component<Props, State> {
             view={view}
             onDeleteCell={onDeleteCell}
             onCloneCell={onCloneCell}
-            onEditCell={onEditCell}
+            onEditCell={() => onEditCell(cell)}
             onEditNote={onEditNote}
             onCSVDownload={this.handleCSVDownload}
           />
