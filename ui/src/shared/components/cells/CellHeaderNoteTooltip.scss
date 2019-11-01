@@ -1,17 +1,6 @@
 @import "src/style/modules";
 
-#notes-portal {
-  z-index: $z--notes-portal;
-}
-
-.cell-header-note-tooltip {
-  position: fixed;
-}
-
-.cell-header-note-tooltip--content {
-  padding: 10px 15px;
-  border-radius: 4px;
-  @include gradient-v($g0-obsidian, $g1-raven);
+.cell--note-contents {
+  padding: $ix-marg-c;
   font-size: 13px;
-  overflow: scroll;
 }

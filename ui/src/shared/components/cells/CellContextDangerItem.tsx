@@ -9,7 +9,7 @@ import {
   ComponentColor,
   ComponentSize,
 } from '@influxdata/clockface'
-import { ButtonShape } from 'src/clockface'
+import {ButtonShape} from 'src/clockface'
 
 interface Props {
   testID?: string

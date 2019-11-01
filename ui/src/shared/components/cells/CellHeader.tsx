@@ -15,7 +15,7 @@ const CellHeader: FunctionComponent<Props> = ({name, note, children}) => {
       <div className="cell--draggable">
         <div className="cell--hamburger" />
       </div>
-      <label className="cell--name">{name}</label>
+      <div className="cell--name">{name}</div>
       {note && <CellHeaderNote note={note} />}
       {children}
     </div>
