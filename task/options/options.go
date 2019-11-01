@@ -200,17 +200,12 @@ func grabTaskOptionAST(p *ast.Package, keys ...string) map[string]ast.Expression
 	return res
 }
 
-type constantSecretService struct{}
-
-func (s constantSecretService) LoadSecret(ctx context.Context, k string) (string, error) {
-	return "", nil
-}
-
 func newDeps() flux.Dependencies {
 	deps := flux.NewDefaultDependencies()
-	deps.Deps.HTTPClient = nil
-	deps.Deps.URLValidator = nil
-	deps.Deps.SecretService = constantSecretService{}
+	deps.Deps.HTTPClient = httpClient{}
+	deps.Deps.URLValidator = urlValidator{}
+	deps.Deps.SecretService = secretService{}
+	deps.Deps.FilesystemService = fileSystem{}
 	return deps
 }
 
