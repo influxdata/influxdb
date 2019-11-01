@@ -67,34 +67,43 @@ from(bucket: "${name}")
           cy.createTask(token, id)
         })
       })
+      cy.reload()
     })
 
     it('can edit a task', () => {
       // Disabling the test
-      cy.getByTestID('task-card--slide-toggle').should('have.class', 'active')
-
-      cy.getByTestID('task-card--slide-toggle').click()
-
-      cy.getByTestID('task-card--slide-toggle').should(
-        'not.have.class',
-        'active'
-      )
+      cy.getByTestID('task-card--slide-toggle')
+        .should('have.class', 'active')
+        .then(() => {
+          cy.getByTestID('task-card--slide-toggle')
+            .click()
+            .then(() => {
+              cy.getByTestID('task-card--slide-toggle').should(
+                'not.have.class',
+                'active'
+              )
+            })
+        })
 
       // Editing a name
       const newName = 'Task'
 
-      cy.getByTestID('task-card').within(() => {
-        cy.getByTestID('task-card--name').trigger('mouseover')
+      cy.getByTestID('task-card').then(() => {
+        cy.getByTestID('task-card--name')
+          .trigger('mouseover')
+          .then(() => {
+            cy.getByTestID('task-card--name-button')
+              .click()
+              .then(() => {
+                cy.getByTestID('task-card--input')
+                  .type(newName)
+                  .type('{enter}')
+              })
 
-        cy.getByTestID('task-card--name-button').click()
-
-        cy.get('.cf-input-field')
-          .type(newName)
-          .type('{enter}')
+            cy.getByTestID('notification-success').should('exist')
+            cy.contains(newName).should('exist')
+          })
       })
-
-      cy.getByTestID('notification-success').should('exist')
-      cy.getByTestID('task-card').should('contain', newName)
     })
 
     it('can delete a task', () => {
