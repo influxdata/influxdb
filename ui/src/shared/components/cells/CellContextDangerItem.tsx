@@ -48,6 +48,7 @@ const CellContextItem: FunctionComponent<Props> = ({
           onClick={handleClick}
           size={ComponentSize.ExtraSmall}
           shape={ButtonShape.StretchToFit}
+          testID={`${testID}-confirm`}
         />
       </div>
     )

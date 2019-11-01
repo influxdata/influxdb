@@ -66,6 +66,7 @@ const CellContext: FunctionComponent<Props> = ({
             onClick={handleEditNote}
             icon={IconFont.TextBlock}
             onHide={onHide}
+            testID="cell-context--note"
           />
         </div>
       )
@@ -78,30 +79,35 @@ const CellContext: FunctionComponent<Props> = ({
           onClick={onEditCell}
           icon={IconFont.Pencil}
           onHide={onHide}
+          testID="cell-context--configure"
         />
         <CellContextItem
           label={editNoteText}
           onClick={handleEditNote}
           icon={IconFont.TextBlock}
           onHide={onHide}
+          testID="cell-context--note"
         />
         <CellContextItem
           label="Clone"
           onClick={handleCloneCell}
           icon={IconFont.Duplicate}
           onHide={onHide}
+          testID="cell-context--clone"
         />
         <CellContextItem
           label="Download CSV"
           onClick={onCSVDownload}
           icon={IconFont.Download}
           onHide={onHide}
+          testID="cell-context--download"
         />
         <CellContextDangerItem
           label="Delete"
           onClick={handleDeleteCell}
           icon={IconFont.Trash}
           onHide={onHide}
+          testID="cell-context--delete"
         />
       </div>
     )
@@ -109,7 +115,7 @@ const CellContext: FunctionComponent<Props> = ({
 
   return (
     <>
-      <button className={buttonClass} ref={triggerRef}>
+      <button className={buttonClass} ref={triggerRef} data-testid="cell-context--toggle">
         <Icon glyph={IconFont.CogThick} />
       </button>
       <Popover
