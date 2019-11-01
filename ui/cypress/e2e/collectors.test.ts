@@ -253,4 +253,121 @@ describe('Collectors', () => {
       })
     })
   })
+
+  describe('configuring plugins', () => {
+    // fix for https://github.com/influxdata/influxdb/issues/15500
+    describe('configuring nginx', () => {
+      beforeEach(() => {
+        // These clicks launch move through configuration modals rather than navigate to new pages
+        cy.contains('Create Configuration')
+          .click()
+          .then(() => {
+            cy.contains('NGINX')
+              .click()
+              .then(() => {
+                cy.contains('Continue')
+                  .click()
+                  .then(() => {
+                    cy.contains('nginx').click()
+                  })
+              })
+          })
+      })
+
+      it('can add and delete urls', () => {
+        cy.getByTestID('input-field').type('http://localhost:9999')
+        cy.contains('Add').click()
+
+        cy.contains('http://localhost:9999').should('exist', () => {
+          cy.getByTestID('input-field').type('http://example.com')
+          cy.contains('Add').click()
+
+          cy.contains('http://example.com')
+            .should('exist')
+            .then($example => {
+              $example.contains('Delete').click()
+              $example.contains('Confirm').click()
+
+              cy.contains('http://example').should('not.exist')
+
+              cy.contains('Done')
+                .click()
+                .then(() => {
+                  cy.get('.icon.checkmark').should('exist')
+                })
+            })
+        })
+      })
+
+      it('handles busted input', () => {
+        // do nothing when clicking done with no urls
+        cy.contains('Done').click()
+        cy.contains('Done').should('exist')
+        cy.contains('Nginx').should('exist')
+
+        cy.getByTestID('input-field').type('youre mom')
+        cy.contains('Add').click()
+
+        cy.contains('youre mom')
+          .should('exist')
+          .then(() => {
+            cy.contains('Done')
+              .click()
+              .then(() => {
+                cy.get('.icon.remove').should('exist')
+              })
+          })
+      })
+    })
+
+    // redis was affected by the change that was written to address https://github.com/influxdata/influxdb/issues/15500
+    describe('configuring redis', () => {
+      beforeEach(() => {
+        // These clicks launch move through configuration modals rather than navigate to new pages
+        cy.contains('Create Configuration')
+          .click()
+          .then(() => {
+            cy.contains('Redis')
+              .click()
+              .then(() => {
+                cy.contains('Continue')
+                  .click()
+                  .then(() => {
+                    cy.contains('redis').click()
+                  })
+              })
+          })
+      })
+
+      it('can add and delete urls', () => {
+        cy.get('input[title="servers"]').type('michael collins')
+        cy.contains('Add').click()
+
+        cy.contains('michael collins').should('exist', () => {
+          cy.get('input[title="servers"]').type('alan bean')
+          cy.contains('Add').click()
+
+          cy.contains('alan bean')
+            .should('exist')
+            .then($server => {
+              $server.contains('Delete').click()
+              $server.contains('Confirm').click()
+              cy.contains('alan bean').should('not.exist')
+
+              cy.contains('Done').click()
+              cy.get('.icon.checkmark').should('exist')
+            })
+        })
+      })
+
+      it('does nothing when clicking done with no urls', () => {
+        cy.contains('Done')
+          .click()
+          .then(() => {
+            cy.contains('Done').should('exist')
+            cy.contains('Redis').should('exist')
+          })
+      })
+    })
+  })
 })

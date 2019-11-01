@@ -77,7 +77,7 @@ describe('Onboarding.Components.ConfigureStep.Streaming.ConfigFieldSwitcher', ()
       const {wrapper} = setup({fieldName, fieldType, value}, true)
 
       const input = wrapper.find(ArrayFormElement)
-      const formElement = wrapper.find(FormElement)
+      const formElement = wrapper.find(FormElement).first()
 
       expect(input.exists()).toBe(true)
       expect(formElement.prop('helpText')).toBe('')
@@ -93,7 +93,7 @@ describe('Onboarding.Components.ConfigureStep.Streaming.ConfigFieldSwitcher', ()
       )
 
       const input = wrapper.find(ArrayFormElement)
-      const formElement = wrapper.find(FormElement)
+      const formElement = wrapper.find(FormElement).first()
 
       expect(wrapper.exists()).toBe(true)
       expect(input.exists()).toBe(true)
