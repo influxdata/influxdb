@@ -2,7 +2,7 @@
 import React, {FunctionComponent} from 'react'
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
-import CodeSnippet from 'src/shared/components/CodeSnippet'
+import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 // Constants
 import {clientJavaLibrary} from 'src/clientLibraries/constants'
 
@@ -30,24 +30,59 @@ const ClientJavaOverlay: FunctionComponent<{}> = () => {
       </p>
       <h5>Add Dependency</h5>
       <p>Build with Maven</p>
-      <CodeSnippet copyText={buildWithMavenCodeSnippet} label="Code" />
+      <TemplatedCodeSnippet template={buildWithMavenCodeSnippet} label="Code" />
       <p>Build with Gradle</p>
-      <CodeSnippet copyText={buildWithGradleCodeSnippet} label="Code" />
+      <TemplatedCodeSnippet
+        template={buildWithGradleCodeSnippet}
+        label="Code"
+      />
       <h5>Initialize the Client</h5>
-      <CodeSnippet copyText={initializeClientCodeSnippet} label="Java Code" />
+      <TemplatedCodeSnippet
+        template={initializeClientCodeSnippet}
+        label="Java Code"
+        defaults={{
+          server: 'serverUrl',
+          token: 'token',
+        }}
+      />
       <h5>Write Data</h5>
       <p>Option 1: Use InfluxDB Line Protocol to write data</p>
-      <CodeSnippet
-        copyText={writingDataLineProtocolCodeSnippet}
+      <TemplatedCodeSnippet
+        template={writingDataLineProtocolCodeSnippet}
         label="Java Code"
+        defaults={{
+          bucket: 'bucketID',
+          org: 'orgID',
+        }}
       />
       <p>Option 2: Use a Data Point to write data</p>
-      <CodeSnippet copyText={writingDataPointCodeSnippet} label="Java Code" />
+      <TemplatedCodeSnippet
+        template={writingDataPointCodeSnippet}
+        label="Java Code"
+        defaults={{
+          bucket: 'bucketID',
+          org: 'orgID',
+        }}
+      />
       <p>Option 3: Use POJO and corresponding class to write data</p>
-      <CodeSnippet copyText={writingDataPojoCodeSnippet} label="Java Code" />
-      <CodeSnippet copyText={pojoClassCodeSnippet} label="Java Code" />
+      <TemplatedCodeSnippet
+        template={writingDataPojoCodeSnippet}
+        label="Java Code"
+        defaults={{
+          bucket: 'bucketID',
+          org: 'orgID',
+        }}
+      />
+      <TemplatedCodeSnippet template={pojoClassCodeSnippet} label="Java Code" />
       <h5>Execute a Flux query</h5>
-      <CodeSnippet copyText={executeQueryCodeSnippet} label="Java Code" />
+      <TemplatedCodeSnippet
+        template={executeQueryCodeSnippet}
+        label="Java Code"
+        defaults={{
+          bucket: 'my_bucket',
+          org: 'myorgid',
+        }}
+      />
     </ClientLibraryOverlay>
   )
 }

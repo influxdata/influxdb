@@ -28,7 +28,6 @@ describe('SideBarButton', () => {
     it('renders! wee!', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
     })
   })
 })

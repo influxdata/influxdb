@@ -7155,6 +7155,16 @@ components:
           type: string
           format: date-time
           readOnly: true
+        lastRunStatus:
+          readOnly: true
+          type: string
+          enum:
+            - failed
+            - success
+            - canceled
+        lastRunError:
+          readOnly: true
+          type: string
         createdAt:
           type: string
           format: date-time
@@ -9433,7 +9443,7 @@ components:
           enum:
             - active
             - inactive
-    Check:
+    CheckDiscriminator:
       oneOf:
         - $ref: "#/components/schemas/DeadmanCheck"
         - $ref: "#/components/schemas/ThresholdCheck"
@@ -9442,9 +9452,16 @@ components:
         mapping:
           deadman:  "#/components/schemas/DeadmanCheck"
           threshold: "#/components/schemas/ThresholdCheck"
+    Check:
+      allOf:
+        - $ref: "#/components/schemas/CheckDiscriminator"
+        - type: object
+          properties:
+            labels:
+              $ref: "#/components/schemas/Labels"
     PostCheck:
       allOf:
-        - $ref: "#/components/schemas/Check"
+        - $ref: "#/components/schemas/CheckDiscriminator"
         - type: object
           properties:
             status:
@@ -9513,8 +9530,6 @@ components:
         statusMessageTemplate:
           description: The template used to generate and write a status message.
           type: string
-        labels:
-          $ref: "#/components/schemas/Labels"
         links:
           type: object
           readOnly: true
@@ -9647,7 +9662,7 @@ components:
           enum:
             - active
             - inactive
-    NotificationRule:
+    NotificationRuleDiscriminator:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationRule"
         - $ref: "#/components/schemas/SMTPNotificationRule"
@@ -9660,9 +9675,16 @@ components:
           smtp: "#/components/schemas/SMTPNotificationRule"
           pagerduty: "#/components/schemas/PagerDutyNotificationRule"
           http: "#/components/schemas/HTTPNotificationRule"
+    NotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRuleDiscriminator"
+        - type: object
+          properties:
+            labels:
+              $ref: "#/components/schemas/Labels"
     PostNotificationRule:
       allOf:
-        - $ref: "#/components/schemas/NotificationRule"
+        - $ref: "#/components/schemas/NotificationRuleDiscriminator"
         - type: object
           properties:
             status:
@@ -9749,8 +9771,6 @@ components:
           minItems: 1
           items:
             $ref: "#/components/schemas/StatusRule"
-        labels:
-          $ref: "#/components/schemas/Labels"
         links:
           type: object
           readOnly: true
@@ -9863,7 +9883,7 @@ components:
           enum:
             - active
             - inactive
-    NotificationEndpoint:
+    NotificationEndpointDiscrimator:
       oneOf:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
@@ -9874,9 +9894,16 @@ components:
           slack: "#/components/schemas/SlackNotificationEndpoint"
           pagerduty:  "#/components/schemas/PagerDutyNotificationEndpoint"
           http: "#/components/schemas/HTTPNotificationEndpoint"
+    NotificationEndpoint:
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+        - type: object
+          properties:
+            labels:
+              $ref: "#/components/schemas/Labels"
     PostNotificationEndpoint:
       allOf:
-        - $ref: "#/components/schemas/NotificationEndpoint"
+        - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
         - type: object
           properties:
             status:
@@ -9925,8 +9952,6 @@ components:
           default: active
           type: string
           enum: ["active", "inactive"]
-        labels:
-          $ref: "#/components/schemas/Labels"
         links:
           type: object
           readOnly: true

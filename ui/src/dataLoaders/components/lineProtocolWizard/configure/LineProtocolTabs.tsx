@@ -76,7 +76,8 @@ export class LineProtocolTabs extends PureComponent<Props, State> {
         <Grid>
           <Grid.Row>
             <Grid.Column
-              widthXS={Columns.Twelve}
+              widthXS={Columns.Ten}
+              offsetXS={Columns.One}
               widthMD={Columns.Ten}
               offsetMD={Columns.One}
               widthLG={Columns.Eight}

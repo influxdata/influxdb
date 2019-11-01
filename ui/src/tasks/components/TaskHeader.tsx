@@ -31,6 +31,7 @@ export default class TaskHeader extends PureComponent<Props> {
             color={ComponentColor.Default}
             text="Cancel"
             onClick={this.props.onCancel}
+            testID="task-cancel-btn"
           />
           <Button
             color={ComponentColor.Success}
@@ -41,6 +42,7 @@ export default class TaskHeader extends PureComponent<Props> {
                 : ComponentStatus.Disabled
             }
             onClick={this.props.onSave}
+            testID="task-save-btn"
           />
         </Page.HeaderRight>
       </Page.Header>

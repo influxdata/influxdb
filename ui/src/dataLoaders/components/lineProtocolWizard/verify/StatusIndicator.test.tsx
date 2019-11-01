@@ -24,8 +24,6 @@ describe('StatusIndicator', () => {
     it('renders!', () => {
       const {wrapper} = setup()
       expect(wrapper.exists()).toBe(true)
-
-      expect(wrapper).toMatchSnapshot()
     })
   })
 })

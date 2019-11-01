@@ -33,7 +33,6 @@ describe('PluginsSideBar', () => {
       })
 
       expect(wrapper.exists()).toBe(true)
-      expect(wrapper).toMatchSnapshot()
     })
   })
 

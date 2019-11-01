@@ -31,7 +31,7 @@ func (op LogicalOperator) Value() (datatypes.Node_Logical, error) {
 // LogicalNode is a node type includes a logical expression with other nodes.
 type LogicalNode struct {
 	Operator LogicalOperator `json:"operator"`
-	Children []Node          `json:"children"`
+	Children [2]Node         `json:"children"`
 }
 
 // ToDataType convert a LogicalNode to datatypes.Node.

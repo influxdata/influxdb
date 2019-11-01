@@ -1,6 +1,5 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {
@@ -39,8 +38,13 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 // Types
 import {AppState, Bucket, Permission, Authorization} from 'src/types'
 
+interface OwnProps {
+  onClose: () => void
+}
+
 interface StateProps {
   buckets: Bucket[]
+  orgID: string
 }
 
 interface DispatchProps {
@@ -55,7 +59,7 @@ interface State {
   activeTabWrite: BucketTab
 }
 
-type Props = WithRouterProps & DispatchProps & StateProps
+type Props = OwnProps & DispatchProps & StateProps
 
 @ErrorHandling
 class BucketsTokenOverlay extends PureComponent<Props, State> {
@@ -77,84 +81,76 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
     } = this.state
 
     return (
-      <Overlay visible={true}>
-        <Overlay.Container maxWidth={700}>
-          <Overlay.Header
-            title="Generate Read/Write Token"
-            onDismiss={this.handleDismiss}
-          />
-          <Overlay.Body>
-            <Form onSubmit={this.handleSave}>
-              <FlexBox
-                alignItems={AlignItems.Center}
-                direction={FlexDirection.Column}
-                margin={ComponentSize.Large}
-              >
-                <Form.Element label="Description">
-                  <Input
-                    placeholder="Describe this new token"
-                    value={description}
-                    onChange={this.handleInputChange}
-                    testID="input-field--descr"
-                  />
-                </Form.Element>
-                <Form.Element label="">
-                  <GetResources resources={[ResourceType.Buckets]}>
-                    <Grid.Row>
-                      <Grid.Column
-                        widthXS={Columns.Twelve}
-                        widthSM={Columns.Six}
-                      >
-                        <BucketsSelector
-                          onSelect={this.handleSelectReadBucket}
-                          buckets={this.nonSystemBuckets}
-                          selectedBuckets={readBuckets}
-                          title="Read"
-                          onSelectAll={this.handleReadSelectAllBuckets}
-                          onDeselectAll={this.handleReadDeselectAllBuckets}
-                          activeTab={activeTabRead}
-                          onTabClick={this.handleReadTabClick}
-                        />
-                      </Grid.Column>
-                      <Grid.Column
-                        widthXS={Columns.Twelve}
-                        widthSM={Columns.Six}
-                      >
-                        <BucketsSelector
-                          onSelect={this.handleSelectWriteBucket}
-                          buckets={this.nonSystemBuckets}
-                          selectedBuckets={writeBuckets}
-                          title="Write"
-                          onSelectAll={this.handleWriteSelectAllBuckets}
-                          onDeselectAll={this.handleWriteDeselectAllBuckets}
-                          activeTab={activeTabWrite}
-                          onTabClick={this.handleWriteTabClick}
-                        />
-                      </Grid.Column>
-                    </Grid.Row>
-                  </GetResources>
-                </Form.Element>
-                <Form.Footer>
-                  <Button
-                    text="Cancel"
-                    icon={IconFont.Remove}
-                    onClick={this.handleDismiss}
-                    testID="button--cancel"
-                  />
+      <Overlay.Container maxWidth={700}>
+        <Overlay.Header
+          title="Generate Read/Write Token"
+          onDismiss={this.handleDismiss}
+        />
+        <Overlay.Body>
+          <Form onSubmit={this.handleSave}>
+            <FlexBox
+              alignItems={AlignItems.Center}
+              direction={FlexDirection.Column}
+              margin={ComponentSize.Large}
+            >
+              <Form.Element label="Description">
+                <Input
+                  placeholder="Describe this new token"
+                  value={description}
+                  onChange={this.handleInputChange}
+                  testID="input-field--descr"
+                />
+              </Form.Element>
+              <Form.Element label="">
+                <GetResources resources={[ResourceType.Buckets]}>
+                  <Grid.Row>
+                    <Grid.Column widthXS={Columns.Twelve} widthSM={Columns.Six}>
+                      <BucketsSelector
+                        onSelect={this.handleSelectReadBucket}
+                        buckets={this.nonSystemBuckets}
+                        selectedBuckets={readBuckets}
+                        title="Read"
+                        onSelectAll={this.handleReadSelectAllBuckets}
+                        onDeselectAll={this.handleReadDeselectAllBuckets}
+                        activeTab={activeTabRead}
+                        onTabClick={this.handleReadTabClick}
+                      />
+                    </Grid.Column>
+                    <Grid.Column widthXS={Columns.Twelve} widthSM={Columns.Six}>
+                      <BucketsSelector
+                        onSelect={this.handleSelectWriteBucket}
+                        buckets={this.nonSystemBuckets}
+                        selectedBuckets={writeBuckets}
+                        title="Write"
+                        onSelectAll={this.handleWriteSelectAllBuckets}
+                        onDeselectAll={this.handleWriteDeselectAllBuckets}
+                        activeTab={activeTabWrite}
+                        onTabClick={this.handleWriteTabClick}
+                      />
+                    </Grid.Column>
+                  </Grid.Row>
+                </GetResources>
+              </Form.Element>
+              <Form.Footer>
+                <Button
+                  text="Cancel"
+                  icon={IconFont.Remove}
+                  onClick={this.handleDismiss}
+                  testID="button--cancel"
+                />
 
-                  <Button
-                    text="Save"
-                    icon={IconFont.Checkmark}
-                    color={ComponentColor.Success}
-                    type={ButtonType.Submit}
-                    testID="button--save"
-                  />
-                </Form.Footer>
-              </FlexBox>
-            </Form>
-          </Overlay.Body>
-        </Overlay.Container>
-      </Overlay>
+                <Button
+                  text="Save"
+                  icon={IconFont.Checkmark}
+                  color={ComponentColor.Success}
+                  type={ButtonType.Submit}
+                  testID="button--save"
+                />
+              </Form.Footer>
+            </FlexBox>
+          </Form>
+        </Overlay.Body>
+      </Overlay.Container>
     )
   }
 
@@ -197,10 +193,7 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 
   private handleSave = () => {
-    const {
-      params: {orgID},
-      onCreateAuthorization,
-    } = this.props
+    const {orgID, onCreateAuthorization} = this.props
     const {activeTabRead, activeTabWrite} = this.state
 
     let permissions = []
@@ -249,17 +242,13 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 
   private get allReadBucketPermissions(): Permission[] {
-    const {
-      params: {orgID},
-    } = this.props
+    const {orgID} = this.props
 
     return allBucketsPermissions(orgID, 'read')
   }
 
   private get allWriteBucketPermissions(): Permission[] {
-    const {
-      params: {orgID},
-    } = this.props
+    const {orgID} = this.props
 
     return allBucketsPermissions(orgID, 'write')
   }
@@ -277,24 +266,22 @@ class BucketsTokenOverlay extends PureComponent<Props, State> {
   }
 
   private handleDismiss = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
-
-    router.push(`/orgs/${orgID}/load-data/tokens`)
+    this.props.onClose()
   }
 }
 
-const mstp = ({buckets: {list}}: AppState): StateProps => {
-  return {buckets: list}
+const mstp = (state: AppState): StateProps => {
+  return {
+    orgID: state.orgs.org.id,
+    buckets: state.buckets.list,
+  }
 }
 
 const mdtp: DispatchProps = {
   onCreateAuthorization: createAuthorization,
 }
 
-export default connect<{}, DispatchProps, {}>(
+export default connect<StateProps, DispatchProps, {}>(
   mstp,
   mdtp
-)(withRouter(BucketsTokenOverlay))
+)(BucketsTokenOverlay)
