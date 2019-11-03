@@ -244,6 +244,13 @@ func (b *bucket) summarize() SummaryBucket {
 	}
 }
 
+func (b *bucket) shouldApply() bool {
+	return b.existing == nil ||
+		b.Description != b.existing.Description ||
+		b.Name != b.existing.Name ||
+		b.RetentionPeriod != b.existing.RetentionPeriod
+}
+
 type labelMapKey struct {
 	resType influxdb.ResourceType
 	name    string
@@ -283,6 +290,13 @@ type label struct {
 	// exists in the platform. If a resource already exists(exists=true)
 	// then the ID should be populated.
 	existing *influxdb.Label
+}
+
+func (l *label) shouldApply() bool {
+	return l.existing == nil ||
+		l.Description != l.existing.Properties["description"] ||
+		l.Name != l.existing.Name ||
+		l.Color != l.existing.Properties["color"]
 }
 
 func (l *label) ID() influxdb.ID {

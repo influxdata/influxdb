@@ -313,6 +313,9 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 		var errs applyErrs
 		for i, b := range buckets {
 			buckets[i].OrgID = orgID
+			if !b.shouldApply() {
+				continue
+			}
 			influxBucket, err := s.applyBucket(ctx, b)
 			if err != nil {
 				errs = append(errs, applyErrBody{
@@ -501,6 +504,9 @@ func (s *Service) applyLabels(labels []*label) applier {
 		var errs applyErrs
 		for i, l := range labels {
 			labels[i].OrgID = orgID
+			if !l.shouldApply() {
+				continue
+			}
 			influxLabel, err := s.applyLabel(ctx, l)
 			if err != nil {
 				errs = append(errs, applyErrBody{
