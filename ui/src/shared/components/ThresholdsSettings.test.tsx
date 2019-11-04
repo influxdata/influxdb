@@ -5,8 +5,6 @@ import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
 import {BASE_THRESHOLD_ID} from 'src/shared/constants/thresholds'
 import {Color} from 'src/types'
 
-
-
 describe('ThresholdSettings', () => {
   test('making then correcting an error', () => {
     const thresholds: Color[] = [
@@ -24,8 +22,8 @@ describe('ThresholdSettings', () => {
       <ThresholdsSettings thresholds={thresholds} onSetThresholds={jest.fn()} />
     )
 
-    const inputElement = getByTestId(`threshold-${thresholds[0].id}input`)
-    const errorElement = getByTestId(`threshold-${thresholds[0].id}error`)
+    const inputElement = getByTestId(`threshold-${thresholds[0].id}-input`)
+    const errorElement = getByTestId(`threshold-${thresholds[0].id}-error`)
 
     // Enter an invalid value in the input
     fireEvent.change(inputElement, {
@@ -36,9 +34,7 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(inputElement)
 
     // Expect an error message to exist
-    expect(errorElement).toContain(
-      'Please enter a valid number'
-    )
+    expect(errorElement).toContain('Please enter a valid number')
 
     // Enter a valid value in the input
     fireEvent.change(inputElement, {
@@ -111,9 +107,9 @@ describe('ThresholdSettings', () => {
   test('broadcasts edited thresholds only when changes are valid', async () => {
     const handleSetThresholdsSpy = jest.fn()
     const testShresholds: Color[] = [
-      { id: '0', type: 'min', name: 'thunder', hex: '', value: 20 },
-      { id: '1', type: 'threshold', name: 'fire', hex: '', value: 30 },
-      { id: '2', type: 'max', name: 'ruby', hex: '', value: 60 },
+      {id: '0', type: 'min', name: 'thunder', hex: '', value: 20},
+      {id: '1', type: 'threshold', name: 'fire', hex: '', value: 30},
+      {id: '2', type: 'max', name: 'ruby', hex: '', value: 60},
     ]
 
     const TestWrapper = () => {

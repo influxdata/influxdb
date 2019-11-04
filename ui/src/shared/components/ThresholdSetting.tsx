@@ -101,10 +101,21 @@ const ThresholdSetting: FunctionComponent<Props> = ({
           style={dropdownStyle}
         />
         {isRemoveable && (
-          <SquareButton icon={IconFont.Remove} onClick={onRemove} style={{flex: '0 0 30px'}} />
+          <SquareButton
+            icon={IconFont.Remove}
+            onClick={onRemove}
+            style={{flex: '0 0 30px'}}
+          />
         )}
       </FlexBox>
-      {error && <div className="threshold-setting--error" data-testid={`threshold-${id}-error`}>{error}</div>}
+      {error && (
+        <div
+          className="threshold-setting--error"
+          data-testid={`threshold-${id}-error`}
+        >
+          {error}
+        </div>
+      )}
     </>
   )
 }
