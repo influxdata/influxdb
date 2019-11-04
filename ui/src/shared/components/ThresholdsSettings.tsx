@@ -143,6 +143,7 @@ const ThresholdsSettings: FunctionComponent<Props> = ({
       direction={FlexDirection.Column}
       alignItems={AlignItems.Stretch}
       margin={ComponentSize.Medium}
+      testID="threshold-settings"
     >
       <Button
         shape={ButtonShape.StretchToFit}
