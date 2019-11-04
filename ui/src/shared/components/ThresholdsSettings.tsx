@@ -4,7 +4,15 @@ import {cloneDeep} from 'lodash'
 
 // Components
 import ThresholdSetting from 'src/shared/components/ThresholdSetting'
-import { Button, ButtonShape, IconFont, FlexBox, ComponentSize, FlexDirection,AlignItems} from '@influxdata/clockface'
+import {
+  Button,
+  ButtonShape,
+  IconFont,
+  FlexBox,
+  ComponentSize,
+  FlexDirection,
+  AlignItems,
+} from '@influxdata/clockface'
 
 // Utils
 import {useOneWayReducer} from 'src/shared/utils/useOneWayReducer'
@@ -131,7 +139,11 @@ const ThresholdsSettings: FunctionComponent<Props> = ({
   }, [state])
 
   return (
-    <FlexBox direction={FlexDirection.Column} alignItems={AlignItems.Stretch} margin={ComponentSize.Medium}>
+    <FlexBox
+      direction={FlexDirection.Column}
+      alignItems={AlignItems.Stretch}
+      margin={ComponentSize.Medium}
+    >
       <Button
         shape={ButtonShape.StretchToFit}
         icon={IconFont.Plus}

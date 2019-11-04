@@ -29,7 +29,10 @@ class ViewOptions extends PureComponent<Props> {
   public render() {
     return (
       <div className="view-options">
-        <DapperScrollbars autoHide={false} style={{width: '100%', height: '100%'}}>
+        <DapperScrollbars
+          autoHide={false}
+          style={{width: '100%', height: '100%'}}
+        >
           <div className="view-options--container">
             <Grid>
               <Grid.Row>

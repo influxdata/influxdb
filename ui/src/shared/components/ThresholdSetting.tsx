@@ -65,38 +65,42 @@ const ThresholdSetting: FunctionComponent<Props> = ({
 
   const inputStatus = error ? ComponentStatus.Error : ComponentStatus.Default
 
-  const dropdownStyle = isBaseThreshold ? {flex: '1 0 120px'} : {flex: '0 0 120px'}
+  const dropdownStyle = isBaseThreshold
+    ? {flex: '1 0 120px'}
+    : {flex: '0 0 120px'}
 
   return (
     <>
-      <FlexBox direction={FlexDirection.Row} alignItems={AlignItems.Center} margin={ComponentSize.Small} testID={id}>
+      <FlexBox
+        direction={FlexDirection.Row}
+        alignItems={AlignItems.Center}
+        margin={ComponentSize.Small}
+        testID={id}
+      >
         <TextBlock text={label} style={{flex: '0 0 90px'}} />
         {!isBaseThreshold && (
           <Input
-          className="threshold-setting--value"
-          value={value}
-          status={inputStatus}
-          onChange={e => onChangeValue(e.target.value)}
-          onBlur={onBlur}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              onBlur()
-            }
-          }}
+            className="threshold-setting--value"
+            value={value}
+            status={inputStatus}
+            onChange={e => onChangeValue(e.target.value)}
+            onBlur={onBlur}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                onBlur()
+              }
+            }}
           />
-          )}
+        )}
         <ColorDropdown
           colors={THRESHOLD_COLORS}
           selected={THRESHOLD_COLORS.find(d => d.name === name)}
           onChoose={({name, hex}) => onChangeColor(name, hex)}
           style={dropdownStyle}
-          />
+        />
         {isRemoveable && (
-          <SquareButton
-            icon={IconFont.Remove}
-            onClick={onRemove}
-          />
-          )}
+          <SquareButton icon={IconFont.Remove} onClick={onRemove} />
+        )}
       </FlexBox>
       {error && <div className="threshold-setting--error">{error}</div>}
     </>

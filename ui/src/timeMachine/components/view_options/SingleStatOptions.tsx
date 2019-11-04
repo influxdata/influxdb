@@ -79,7 +79,7 @@ const SingleStatOptions: SFC<Props> = props => {
         <h4 className="view-options--header">Colorized Thresholds</h4>
       </Grid.Column>
       <Grid.Column>
-      <ThresholdsSettings thresholds={colors} onSetThresholds={onSetColors} />
+        <ThresholdsSettings thresholds={colors} onSetThresholds={onSetColors} />
       </Grid.Column>
       <Grid.Column>
         <ThresholdColoring />

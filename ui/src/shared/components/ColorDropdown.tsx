@@ -26,13 +26,7 @@ interface DefaultProps {
 type Props = PassedProps & DefaultProps
 
 const ColorDropdown: FC<Props> = props => {
-  const {
-    selected,
-    colors,
-    onChoose,
-    disabled,
-    style,
-  } = props
+  const {selected, colors, onChoose, disabled, style} = props
 
   const status = disabled ? ComponentStatus.Disabled : ComponentStatus.Default
 
