@@ -1068,15 +1068,22 @@ export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
   const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
   // create a reference to the defaultOptions
   const options = defaultOptions.slice()
+  console.log('diff: ', diff)
   diff.forEach(option => {
     const {internalName} = option
     // check to see if the defaultOptions have been changed
     const index = defaultOptions.findIndex(o => o.internalName === internalName)
     if (index > -1) {
+      const selected = defaultOptions[index]
       // allows the defaultHeaders to be edited once they've loaded
-      if (defaultOptions[index].internalName === defaultOptions[index].displayName) {
-        // reassigns the fieldOption to the aliased one
-        options[index] = option
+      if (selected.internalName === selected.displayName) {
+        if (selected.visible !== option.visible) {
+          // retains the default header visibility
+          options[index] = selected
+        } else {
+          // reassigns the fieldOption to the aliased one
+          options[index] = option
+        }
       }
     } else {
       // adds any extra fieldOption that has been aliased,
