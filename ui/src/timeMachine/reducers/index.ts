@@ -1066,30 +1066,25 @@ const resetBuilderState = (draftState: TimeMachineState) => {
 export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
   // get the difference b/w fieldOptions
   const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
-  // create a reference to the defaultOptions
+  // create a copy of the defaultOptions to mutate
   const options = defaultOptions.slice()
-  console.log('diff: ', diff)
   diff.forEach(option => {
     const {internalName} = option
     // check to see if the defaultOptions have been changed
-    const index = defaultOptions.findIndex(o => o.internalName === internalName)
-    if (index > -1) {
-      const selected = defaultOptions[index]
+    const matchingIndex = defaultOptions.findIndex(o => o.internalName === internalName)
+    // if the updated fieldOption exists in the default values
+    if (matchingIndex > -1) {
+      const matchingOption = defaultOptions[matchingIndex]
+      // check to see if the header values are set their initial values
       // allows the defaultHeaders to be edited once they've loaded
-      // console.log('selected: ', selected)
-      // console.log('option: ', option)
-      if (selected.internalName === selected.displayName) {
-        if (!selected.visible) {
-          options[index] = selected
+      if (matchingOption.internalName === matchingOption.displayName) {
+        // if the default option is set to false, set the option value to the default value
+        if (matchingOption.visible === false) {
+          options[matchingIndex] = matchingOption
         } else {
-          options[index] = option
+          // reassigns the fieldOption to the aliased one
+          options[matchingIndex] = option
         }
-        // if (!option.visible) {
-        //   // retains the default header visibility
-        //   options[index] = option
-        // // } else {
-        //   // reassigns the fieldOption to the aliased one
-        // }
       }
     } else {
       // adds any extra fieldOption that has been aliased,
