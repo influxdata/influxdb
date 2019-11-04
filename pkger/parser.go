@@ -577,6 +577,11 @@ func parseChart(r Resource) (chart, []failure) {
 		Width:       r.intShort("width"),
 	}
 
+	if leg, ok := ifaceMapToResource(r["legend"]); ok {
+		c.Legend.Type = leg.stringShort("type")
+		c.Legend.Orientation = leg.stringShort("orientation")
+	}
+
 	if dp, ok := r.int("decimalPlaces"); ok {
 		c.EnforceDecimals = true
 		c.DecimalPlaces = dp
@@ -585,7 +590,7 @@ func parseChart(r Resource) (chart, []failure) {
 	var failures []failure
 	for _, rq := range r.slcResource("queries") {
 		c.Queries = append(c.Queries, query{
-			Query: rq.stringShort("query"),
+			Query: strings.TrimSpace(rq.stringShort("query")),
 		})
 	}
 
@@ -596,6 +601,17 @@ func parseChart(r Resource) (chart, []failure) {
 			Type:  rc.stringShort("type"),
 			Hex:   rc.stringShort("hex"),
 			Value: rc.float64Short("value"),
+		})
+	}
+
+	for _, ra := range r.slcResource("axes") {
+		c.Axes = append(c.Axes, axis{
+			Base:   ra.stringShort("base"),
+			Label:  ra.stringShort("label"),
+			Name:   ra.Name(),
+			Prefix: ra.stringShort("prefix"),
+			Scale:  ra.stringShort("scale"),
+			Suffix: ra.stringShort("suffix"),
 		})
 	}
 
@@ -716,8 +732,15 @@ func (r Resource) intShort(key string) int {
 }
 
 func (r Resource) string(key string) (string, bool) {
-	s, ok := r[key].(string)
-	return s, ok
+	if s, ok := r[key].(string); ok {
+		return s, true
+	}
+
+	if i, ok := r[key].(int); ok {
+		return strconv.Itoa(i), true
+	}
+
+	return "", false
 }
 
 func (r Resource) stringShort(key string) string {
