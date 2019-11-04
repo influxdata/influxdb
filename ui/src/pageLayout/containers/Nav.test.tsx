@@ -7,7 +7,7 @@ import _ from 'lodash'
 import {NavMenu, Icon, IconFont} from '@influxdata/clockface'
 
 // Utils
-import {getNavItemActivation} from 'src/pageLayout/utils'
+import {getNavItemActivation} from 'src/pageLayout/utils/getNavItemActivation'
 
 // Constants
 const DASHBOARDS_NAV_ITEM = 'Dashboards'
