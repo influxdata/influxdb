@@ -81,11 +81,6 @@ func TestEngine_CursorIterator_Stats(t *testing.T) {
 	for a := fc.Next(); a.Len() > 0; a = fc.Next() {
 	}
 
-	// iterator should report float stats
-	if got, exp := cursorIterator.Stats(), (cursors.CursorStats{ScannedValues: 2, ScannedBytes: 16}); exp != got {
-		t.Fatalf("expected %v, got %v", exp, got)
-	}
-
 	cur.Close()
 
 	cur, err = cursorIterator.Next(ctx, &tsdb.CursorRequest{
@@ -116,7 +111,7 @@ func TestEngine_CursorIterator_Stats(t *testing.T) {
 	}
 
 	// iterator should report integer array stats
-	if got, exp := cursorIterator.Stats(), (cursors.CursorStats{ScannedValues: 1, ScannedBytes: 8}); exp != got {
+	if got, exp := cursorIterator.Stats(), (cursors.CursorStats{ScannedValues: 3, ScannedBytes: 24}); exp != got {
 		t.Fatalf("expected %v, got %v", exp, got)
 	}
 }
