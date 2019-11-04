@@ -36,7 +36,10 @@ describe('Buckets', () => {
     it("can update a bucket's retention rules", () => {
       cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
         cy.getByTestID(`bucket--card--name ${name}`).click()
-        cy.getByTestID(`bucket--card--name ${name}`).should('not.contain', '7 days')
+        cy.getByTestID(`bucket--card--name ${name}`).should(
+          'not.contain',
+          '7 days'
+        )
       })
 
       cy.getByTestID('retention-intervals--button').click()
@@ -47,40 +50,51 @@ describe('Buckets', () => {
         cy.contains('Save').click()
       })
 
-      cy.get<Bucket>('@bucket').then(({name}: Bucket) => {
-        cy.getByTestID(`cf-resource-card--meta-item`).should('contain', '7 days')
+      cy.get<Bucket>('@bucket').then(() => {
+        cy.getByTestID(`cf-resource-card--meta-item`).should(
+          'contain',
+          '7 days'
+        )
       })
     })
 
     describe('Searching and Sorting', () => {
-      beforeEach( () => {
+      beforeEach(() => {
         cy.get<Organization>('@org').then(({id, name}: Organization) => {
           cy.createBucket(id, name, 'cookie')
           cy.createBucket(id, name, 'bucket2')
-        })  
+        })
       })
-      
-      it('Searching buckets', ()=> {
+
+      it('Searching buckets', () => {
         cy.getByTestID('search-widget').type('cookie')
         cy.getByTestID('bucket-card').should('have.length', 1)
       })
-  
-      it('Sorting by Name', ()=> {
+
+      it('Sorting by Name', () => {
         cy.getByTestID('name-sorter').click()
-        cy.getByTestID('bucket-card').first().contains('defbuck')
+        cy.getByTestID('bucket-card')
+          .first()
+          .contains('defbuck')
 
         cy.getByTestID('name-sorter').click()
-        cy.getByTestID('bucket-card').first().contains('_monitoring')
+        cy.getByTestID('bucket-card')
+          .first()
+          .contains('_monitoring')
       })
 
-      it.only('Sorting by Retention', ()=> {
+      it('Sorting by Retention', () => {
         cy.getByTestID('retention-sorter').click()
-        cy.getByTestID('bucket-card').first().contains('_tasks')
+        cy.getByTestID('bucket-card')
+          .first()
+          .contains('_tasks')
 
         cy.getByTestID('retention-sorter').click()
-        cy.getByTestID('bucket-card').first().contains('bucket2')
+        cy.getByTestID('bucket-card')
+          .first()
+          .contains('bucket2')
       })
-    }) 
+    })
 
     // Currently producing a false negative
     it.skip('can delete a bucket', () => {
