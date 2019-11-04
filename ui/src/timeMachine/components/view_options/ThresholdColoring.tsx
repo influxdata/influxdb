@@ -39,7 +39,7 @@ type Props = StateProps & DispatchProps
 class ThresholdColoring extends PureComponent<Props> {
   public render() {
     return (
-      <Form.Element label="Colorization">
+      <Form.Element label="Colorization" style={{marginTop: '16px'}}>
         <Radio shape={ButtonShape.StretchToFit}>
           <Radio.Button
             id={ThresholdColoringSetting.Background}
