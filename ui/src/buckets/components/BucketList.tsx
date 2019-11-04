@@ -84,12 +84,14 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
               sortKey={this.headerKeys[0]}
               sort={sortKey === this.headerKeys[0] ? sortDirection : Sort.None}
               onClick={onClickColumn(SortTypes.String)}
+              testID="name-sorter"
             />
             <ResourceList.Sorter
               name="Retention"
               sortKey={this.headerKeys[1]}
               sort={sortKey === this.headerKeys[1] ? sortDirection : Sort.None}
               onClick={onClickColumn(SortTypes.Float)}
+              testID="retention-sorter"
             />
           </ResourceList.Header>
           <ResourceList.Body emptyState={emptyState}>
@@ -121,7 +123,6 @@ class BucketList extends PureComponent<Props & WithRouterProps, State> {
     )
 
     return sortedBuckets.map(bucket => {
-      console.log(bucket)
       return (
         <BucketCard
           key={bucket.id}
