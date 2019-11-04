@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {useState} from 'react'
-import {render, fireEvent, wait} from 'react-testing-library'
+import {render, fireEvent, wait, getNodeText} from 'react-testing-library'
 import ThresholdsSettings from 'src/shared/components/ThresholdsSettings'
 import {BASE_THRESHOLD_ID} from 'src/shared/constants/thresholds'
 import {Color} from 'src/types'
@@ -34,7 +34,8 @@ describe('ThresholdSettings', () => {
 
     // Expect an error message to exist
     const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
-    expect(errorElement).toContain('Please enter a valid number')
+    const errorText = getNodeText(errorElement)
+    expect(errorText).toEqual('Please enter a valid number')
 
     // Enter a valid value in the input
     fireEvent.change(inputElement, {
@@ -71,7 +72,8 @@ describe('ThresholdSettings', () => {
 
     // Expect an error message to exist
     const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
-    expect(errorElement).toContain(
+    const errorText = getNodeText(errorElement)
+    expect(errorText).toEqual(
       'Please enter a value greater than the minimum threshold'
     )
   })
@@ -99,7 +101,8 @@ describe('ThresholdSettings', () => {
 
     // Expect an error message to be called
     const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
-    expect(errorElement).toContain(
+    const errorText = getNodeText(errorElement)
+    expect(errorText).toEqual(
       'Please enter a value less than the maximum threshold'
     )
   })
