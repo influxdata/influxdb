@@ -494,4 +494,22 @@ func TestService(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("CreatePkg", func(t *testing.T) {
+		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
+			svc := new(Service)
+
+			expectedMeta := Metadata{
+				Description: "desc",
+				Name:        "name",
+				Version:     "v1",
+			}
+			pkg, err := svc.CreatePkg(context.TODO(), WithMetadata(expectedMeta))
+			require.NoError(t, err)
+
+			assert.Equal(t, APIVersion, pkg.APIVersion)
+			assert.Equal(t, expectedMeta, pkg.Metadata)
+			assert.NotNil(t, pkg.Spec.Resources)
+		})
+	})
 }

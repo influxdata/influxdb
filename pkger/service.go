@@ -12,6 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// APIVersion marks the current APIVersion for influx packages.
+const APIVersion = "0.1.0"
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
@@ -35,6 +38,39 @@ func NewService(l *zap.Logger, bucketSVC influxdb.BucketService, labelSVC influx
 		svc.logger = l
 	}
 	return &svc
+}
+
+// CreatePkgSetFn is a functional input for setting the pkg fields.
+type CreatePkgSetFn func(ctx context.Context, pkg *Pkg) error
+
+// WithMetadata sets the metadata on the pkg in a CreatePkg call.
+func WithMetadata(meta Metadata) CreatePkgSetFn {
+	return func(ctx context.Context, pkg *Pkg) error {
+		pkg.Metadata = meta
+		return nil
+	}
+}
+
+// CreatePkg will produce a pkg from the parameters provided.
+func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
+	pkg := &Pkg{
+		APIVersion: APIVersion,
+		Kind:       kindPackage.String(),
+		Spec: struct {
+			Resources []Resource `yaml:"resources" json:"resources"`
+		}{
+			Resources: []Resource{},
+		},
+	}
+
+	for _, setter := range setters {
+		err := setter(ctx, pkg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return pkg, nil
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
