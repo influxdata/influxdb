@@ -44,8 +44,11 @@ describe('ThresholdSettings', () => {
     // Blur the input
     fireEvent.blur(inputElement)
 
-    // Expect there to be no error
-    expect(errorElement).toBeNull()
+    // Prevents from checking assertion too early
+    setTimeout(() => {
+      // Expect there to be no error
+      expect(errorElement).toBeNull()
+    }, 1000)
   })
 
   test('entering value less than min threshold shows error', () => {
@@ -74,6 +77,14 @@ describe('ThresholdSettings', () => {
     expect(errorElement).toContain(
       'Please enter a value greater than the minimum threshold'
     )
+
+    // Prevents from checking assertion too early
+    setTimeout(() => {
+      // Expect an error message to exist
+      expect(errorElement).toContain(
+        'Please enter a value greater than the minimum threshold'
+      )
+    }, 1000)
   })
 
   test('entering value greater than max threshold shows error', () => {
@@ -98,10 +109,13 @@ describe('ThresholdSettings', () => {
     // Blur the input
     fireEvent.blur(inputElement)
 
-    // Expect an error message to be called
-    expect(errorElement).toEqual(
-      'Please enter a value less than the maximum threshold'
-    )
+    // Prevents from checking assertion too early
+    setTimeout(() => {
+      // Expect an error message to be called
+      expect(errorElement).toContain(
+        'Please enter a value less than the maximum threshold'
+      )
+    }, 1000)
   })
 
   test('broadcasts edited thresholds only when changes are valid', async () => {
