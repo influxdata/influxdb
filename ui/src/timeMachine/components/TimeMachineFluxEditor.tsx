@@ -9,7 +9,6 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
-import FluxMonacoEditor from 'src/shared/components/FluxMonacoEditor'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -19,7 +18,6 @@ import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
 import {getActiveQuery} from 'src/timeMachine/selectors'
 import {insertFluxFunction} from 'src/timeMachine/utils/insertFunction'
 import {insertVariable} from 'src/timeMachine/utils/insertVariable'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Constants
 import {HANDLE_VERTICAL, HANDLE_NONE} from 'src/shared/constants'
@@ -57,7 +55,8 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         size: 0.75,
         handleDisplay: HANDLE_NONE,
         render: () => {
-          if (isFlagEnabled('monaco')) {
+          if (ENABLE_MONACO) {
+            const FluxMonacoEditor = require('src/shared/components/FluxMonacoEditor').default
             return <FluxMonacoEditor script={activeQueryText} />
           }
           return (
