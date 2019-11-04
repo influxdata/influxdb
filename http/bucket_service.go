@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -427,6 +426,77 @@ type getBucketRequest struct {
 	BucketID influxdb.ID
 }
 
+func bucketIDPath(id influxdb.ID) string {
+	return path.Join(bucketPath, id.String())
+}
+
+// hanldeGetBucketLog retrieves a bucket log by the buckets ID.
+func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	req, err := decodeGetBucketLogRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	log, _, err := h.BucketOperationLogService.GetBucketOperationLog(ctx, req.BucketID, req.opts)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	h.Logger.Debug("bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
+
+	if err := encodeResponse(ctx, w, http.StatusOK, newBucketLogResponse(req.BucketID, log)); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
+type getBucketLogRequest struct {
+	BucketID influxdb.ID
+	opts     influxdb.FindOptions
+}
+
+func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucketLogRequest, error) {
+	params := httprouter.ParamsFromContext(ctx)
+	id := params.ByName("id")
+	if id == "" {
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg:  "url missing id",
+		}
+	}
+
+	var i influxdb.ID
+	if err := i.DecodeFromString(id); err != nil {
+		return nil, err
+	}
+
+	opts, err := decodeFindOptions(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+
+	return &getBucketLogRequest{
+		BucketID: i,
+		opts:     *opts,
+	}, nil
+}
+
+func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
+	logs := make([]*operationLogEntryResponse, 0, len(es))
+	for _, e := range es {
+		logs = append(logs, newOperationLogEntryResponse(e))
+	}
+	return &operationLogResponse{
+		Links: map[string]string{
+			"self": fmt.Sprintf("/api/v2/buckets/%s/logs", id),
+		},
+		Logs: logs,
+	}
+}
+
 func decodeGetBucketRequest(ctx context.Context, r *http.Request) (*getBucketRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
@@ -645,9 +715,34 @@ type BucketService struct {
 }
 
 // FindBucketByName returns a single bucket by name
-//	 NOTE: Currently not implemented
-func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
-	return nil, errors.New("not implemented")
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+	span, _ := tracing.StartSpanFromContext(ctx)
+	defer span.Finish()
+
+	if name == "" {
+		return nil, &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Op:   s.OpPrefix + influxdb.OpFindBuckets,
+			Msg:  "bucket name is required",
+		}
+	}
+
+	bkts, n, err := s.FindBuckets(ctx, influxdb.BucketFilter{
+		Name:           &name,
+		OrganizationID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 || len(bkts) == 0 {
+		return nil, &influxdb.Error{
+			Code: influxdb.ENotFound,
+			Op:   s.OpPrefix + influxdb.OpFindBucket,
+			Msg:  fmt.Sprintf("bucket %q not found", name),
+		}
+	}
+
+	return bkts[0], nil
 }
 
 // FindBucketByID returns a single bucket by ID.
@@ -892,75 +987,4 @@ func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error 
 	defer resp.Body.Close()
 
 	return CheckError(resp)
-}
-
-func bucketIDPath(id influxdb.ID) string {
-	return path.Join(bucketPath, id.String())
-}
-
-// hanldeGetBucketLog retrieves a bucket log by the buckets ID.
-func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	req, err := decodeGetBucketLogRequest(ctx, r)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	log, _, err := h.BucketOperationLogService.GetBucketOperationLog(ctx, req.BucketID, req.opts)
-	if err != nil {
-		h.HandleHTTPError(ctx, err, w)
-		return
-	}
-
-	h.Logger.Debug("bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
-
-	if err := encodeResponse(ctx, w, http.StatusOK, newBucketLogResponse(req.BucketID, log)); err != nil {
-		logEncodingError(h.Logger, r, err)
-		return
-	}
-}
-
-type getBucketLogRequest struct {
-	BucketID influxdb.ID
-	opts     influxdb.FindOptions
-}
-
-func decodeGetBucketLogRequest(ctx context.Context, r *http.Request) (*getBucketLogRequest, error) {
-	params := httprouter.ParamsFromContext(ctx)
-	id := params.ByName("id")
-	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "url missing id",
-		}
-	}
-
-	var i influxdb.ID
-	if err := i.DecodeFromString(id); err != nil {
-		return nil, err
-	}
-
-	opts, err := decodeFindOptions(ctx, r)
-	if err != nil {
-		return nil, err
-	}
-
-	return &getBucketLogRequest{
-		BucketID: i,
-		opts:     *opts,
-	}, nil
-}
-
-func newBucketLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *operationLogResponse {
-	logs := make([]*operationLogEntryResponse, 0, len(es))
-	for _, e := range es {
-		logs = append(logs, newOperationLogEntryResponse(e))
-	}
-	return &operationLogResponse{
-		Links: map[string]string{
-			"self": fmt.Sprintf("/api/v2/buckets/%s/logs", id),
-		},
-		Logs: logs,
-	}
 }

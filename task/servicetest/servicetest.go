@@ -56,6 +56,10 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 					testTaskCRUD(t, sys)
 				})
 
+				t.Run("FindTasks paging", func(t *testing.T) {
+					testTaskFindTasksPaging(t, sys)
+				})
+
 				t.Run("Task Update Options Full", func(t *testing.T) {
 					t.Parallel()
 					testTaskOptionsUpdateFull(t, sys)
@@ -420,6 +424,62 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Task should not be returned.
 	if _, err := sys.TaskService.FindTaskByID(sys.Ctx, origID); err != influxdb.ErrTaskNotFound {
 		t.Fatalf("expected %v, got %v", influxdb.ErrTaskNotFound, err)
+	}
+}
+
+func testTaskFindTasksPaging(t *testing.T, sys *System) {
+	script := `option task = {
+	name: "Task %03d",
+	cron: "* * * * *",
+	concurrency: 100,
+	offset: 10s,
+}
+
+from(bucket: "b")
+	|> to(bucket: "two", orgID: "000000000000000")`
+
+	cr := creds(t, sys)
+
+	tc := influxdb.TaskCreate{
+		OrganizationID: cr.OrgID,
+		OwnerID:        cr.UserID,
+		Type:           influxdb.TaskSystemType,
+	}
+
+	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+
+	created := make([]*influxdb.Task, 50)
+	for i := 0; i < 50; i++ {
+		tc.Flux = fmt.Sprintf(script, i/10)
+		tsk, err := sys.TaskService.CreateTask(authorizedCtx, tc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !tsk.ID.Valid() {
+			t.Fatal("no task ID set")
+		}
+
+		created[i] = tsk
+	}
+
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Limit: 5})
+	if err != nil {
+		t.Fatalf("FindTasks: %v", err)
+	}
+
+	if got, exp := len(tasks), 5; got != exp {
+		t.Fatalf("unexpected len(taksks), -got/+exp: %v", cmp.Diff(got, exp))
+	}
+
+	// find tasks using name which are after first 10
+	name := "Task 004"
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Limit: 5, Name: &name})
+	if err != nil {
+		t.Fatalf("FindTasks: %v", err)
+	}
+
+	if got, exp := len(tasks), 5; got != exp {
+		t.Fatalf("unexpected len(taksks), -got/+exp: %v", cmp.Diff(got, exp))
 	}
 }
 

@@ -1,0 +1,25 @@
+apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Dashboard
+      name: dash_1
+      description: desc1
+      charts:
+        - kind:   Single_Stat
+          name:   single stat
+          suffix: days
+          width:  6
+          height: 3
+          shade: true
+          queries:
+            - query: >
+                from(bucket: v.bucket) |> range(start: v.timeRangeStart) |> filter(fn: (r) => r._measurement == "system") |> filter(fn: (r) => r._field == "uptime") |> last() |> map(fn: (r) => ({r with _value: r._value / 86400})) |> yield(name: "last")
+          colors:
+            - name: laser
+              type: text
+              hex: "#8F8AF4"

@@ -171,6 +171,7 @@
     "redux-thunk": "^1.0.3",
     "reselect": "^4.0.0",
     "rome": "^2.1.22",
-    "uuid": "^3.2.1"
+    "uuid": "^3.2.1",
+    "webpack-bundle-analyzer": "^3.6.0"
   }
 }

@@ -8,6 +8,7 @@
 ### UI Improvements
 1. [15503](https://github.com/influxdata/influxdb/pull/15503): Redesign page headers to be more space efficient
 1. [15426](https://github.com/influxdata/influxdb/pull/15426): Add 403 handler that redirects back to the sign-in page on oats-generated routes.
+1. [15710](https://github.com/influxdata/influxdb/pull/15710): Add button to nginx and redis configuration sections to make interaction more clear
 
 ### Bug Fixes
 
@@ -26,6 +27,7 @@
 1. [15592](https://github.com/influxdata/influxdb/pull/15592): Changed task runs success status code from 200 to 201 to match Swagger documentation.
 1. [15634](https://github.com/influxdata/influxdb/pull/15634): TextAreas have the correct height
 1. [15647](https://github.com/influxdata/influxdb/pull/15647): Ensures labels are unique by organization in the kv store
+1. [15695](https://github.com/influxdata/influxdb/pull/15695): Ensures variable names are unique by organization
 
 ## v2.0.0-alpha.18 [2019-09-26]
 

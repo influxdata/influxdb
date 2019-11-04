@@ -292,10 +292,6 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 		}
 	}
 
-	if filter.Name != nil {
-		ts = filterByName(ts, *filter.Name)
-	}
-
 	return ts, len(ts), nil
 }
 
@@ -417,6 +413,45 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 	return ts, len(ts), err
 }
 
+type taskMatchFn func(*influxdb.Task) bool
+
+// newTaskMatchFn returns a function for validating
+// a task matches the filter. Will return nil if
+// the filter should match all tasks.
+func newTaskMatchFn(f influxdb.TaskFilter, org *influxdb.Organization) func(t *influxdb.Task) bool {
+	var fn taskMatchFn
+
+	if org != nil {
+		expected := org.ID
+		prevFn := fn
+		fn = func(t *influxdb.Task) bool {
+			res := prevFn == nil || prevFn(t)
+			return res && expected == t.OrganizationID
+		}
+	}
+
+	if f.Type != nil {
+		expected := *f.Type
+		prevFn := fn
+		fn = func(t *influxdb.Task) bool {
+			res := prevFn == nil || prevFn(t)
+			return res &&
+				((expected == influxdb.TaskSystemType && (t.Type == influxdb.TaskSystemType || t.Type == "")) || expected == t.Type)
+		}
+	}
+
+	if f.Name != nil {
+		expected := *f.Name
+		prevFn := fn
+		fn = func(t *influxdb.Task) bool {
+			res := prevFn == nil || prevFn(t)
+			return res && (expected == t.Name)
+		}
+	}
+
+	return fn
+}
+
 // findAllTasks is a subset of the find tasks function. Used for cleanliness.
 // This function should only be executed internally because it doesn't force organization or user filtering.
 // Enforcing filters should be done in a validation layer.
@@ -432,9 +467,10 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 	if err != nil {
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
+
+	var k, v []byte
 	// we can filter by orgID
 	if filter.After != nil {
-
 		key, err := taskKey(*filter.After)
 		if err != nil {
 			return nil, 0, err
@@ -442,73 +478,38 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		// ignore the key:val returned in this seek because we are starting "after"
 		// this key
 		c.Seek(key)
+		k, v = c.Next()
 	} else {
-		k, v := c.First()
-		if k == nil {
-			return ts, len(ts), nil
-		}
+		k, v = c.First()
+	}
 
+	matchFn := newTaskMatchFn(filter, nil)
+
+	for k != nil {
 		t := &influxdb.Task{}
 		if err := json.Unmarshal(v, t); err != nil {
 			return nil, 0, influxdb.ErrInternalTaskServiceError(err)
 		}
-		latestCompleted, err := s.findLatestScheduledTime(ctx, tx, t.ID)
-		if err != nil {
-			return nil, 0, err
-		}
-		if !latestCompleted.IsZero() {
-			t.LatestCompleted = latestCompleted.Format(time.RFC3339)
-		} else {
-			t.LatestCompleted = t.CreatedAt
-		}
 
-		if t != nil {
+		if matchFn == nil || matchFn(t) {
+			latestCompleted, err := s.findLatestScheduledTimeForTask(ctx, tx, t)
+			if err != nil {
+				return nil, 0, err
+			}
+			if !latestCompleted.IsZero() {
+				t.LatestCompleted = latestCompleted.Format(time.RFC3339)
+			} else {
+				t.LatestCompleted = t.CreatedAt
+			}
 
-			if taskFilterMatch(filter.Type, t.Type) {
-				ts = append(ts, t)
+			ts = append(ts, t)
+
+			if len(ts) >= filter.Limit {
+				break
 			}
 		}
-	}
 
-	// if someone has a limit of 1
-	if len(ts) >= filter.Limit {
-		return ts, len(ts), nil
-	}
-
-	for {
-		k, v := c.Next()
-		if k == nil {
-			break
-		}
-		t := &influxdb.Task{}
-		if err := json.Unmarshal(v, t); err != nil {
-			return nil, 0, influxdb.ErrInternalTaskServiceError(err)
-		}
-		latestCompleted, err := s.findLatestScheduledTime(ctx, tx, t.ID)
-		if err != nil {
-			return nil, 0, err
-		}
-		if !latestCompleted.IsZero() {
-			t.LatestCompleted = latestCompleted.Format(time.RFC3339)
-		} else {
-			t.LatestCompleted = t.CreatedAt
-		}
-
-		if !taskFilterMatch(filter.Type, t.Type) {
-			continue
-		}
-
-		// insert the new task into the list
-		ts = append(ts, t)
-
-		// Check if we are over running the limit
-		if len(ts) >= filter.Limit {
-			break
-		}
-	}
-
-	if filter.Name != nil {
-		ts = filterByName(ts, *filter.Name)
+		k, v = c.Next()
 	}
 
 	return ts, len(ts), err
@@ -1405,7 +1406,7 @@ func (s *Service) currentlyRunning(ctx context.Context, tx Tx, taskID influxdb.I
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	c, err := bucket.Cursor()
+	c, err := bucket.Cursor(WithCursorHintPrefix(taskID.String()))
 	if err != nil {
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
@@ -1807,12 +1808,7 @@ func (s *Service) findLatestCompleted(ctx context.Context, tx Tx, id influxdb.ID
 
 	return run, nil
 }
-
-func (s *Service) findLatestScheduledTime(ctx context.Context, tx Tx, id influxdb.ID) (time.Time, error) {
-	task, err := s.findTaskByID(ctx, tx, id)
-	if err != nil {
-		return time.Time{}, err
-	}
+func (s *Service) findLatestScheduledTimeForTask(ctx context.Context, tx Tx, task *influxdb.Task) (time.Time, error) {
 
 	// Get the latest completed time
 	// This can come from whichever is latest between:
@@ -1820,7 +1816,10 @@ func (s *Service) findLatestScheduledTime(ctx context.Context, tx Tx, id influxd
 	// - LatestCompleted time of the task
 	// - Latest scheduled currently running task
 	// - or the latest completed run's ScheduleFor time
-	var latestCompleted time.Time
+	var (
+		latestCompleted time.Time
+		err             error
+	)
 
 	if task.LatestCompleted == "" {
 		latestCompleted, err = time.Parse(time.RFC3339, task.CreatedAt)
@@ -1835,37 +1834,40 @@ func (s *Service) findLatestScheduledTime(ctx context.Context, tx Tx, id influxd
 	}
 
 	// look to see if we have a "latest completed run"
-	lRun, err := s.findLatestCompleted(ctx, tx, id)
+	lRun, err := s.findLatestCompleted(ctx, tx, task.ID)
 	if err != nil {
 		return time.Time{}, err
 	}
 
 	if lRun != nil {
 		runTime := lRun.ScheduledFor
-		if err != nil {
-			return time.Time{}, err
-		}
 		if runTime.After(latestCompleted) {
 			latestCompleted = runTime
 		}
 	}
 
 	// find out if we have a currently running schedule that is after the latest completed
-	currentRunning, err := s.currentlyRunning(ctx, tx, id)
+	currentRunning, err := s.currentlyRunning(ctx, tx, task.ID)
 	if err != nil {
 		return time.Time{}, err
 	}
 	for _, cr := range currentRunning {
 		crTime := cr.ScheduledFor
-		if err != nil {
-			return time.Time{}, err
-		}
 		if crTime.After(latestCompleted) {
 			latestCompleted = crTime
 		}
 	}
 
 	return latestCompleted, nil
+}
+
+func (s *Service) findLatestScheduledTime(ctx context.Context, tx Tx, id influxdb.ID) (time.Time, error) {
+	task, err := s.findTaskByID(ctx, tx, id)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return s.findLatestScheduledTimeForTask(ctx, tx, task)
 }
 
 func taskKey(taskID influxdb.ID) ([]byte, error) {

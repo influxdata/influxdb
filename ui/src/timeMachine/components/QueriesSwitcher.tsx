@@ -71,12 +71,12 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
         <ConfirmationButton
           popoverColor={ComponentColor.Danger}
           popoverType={PopoverType.Outline}
+          popoverStyle={{width: '400px'}}
           confirmationLabel="Switching to Query Builder mode will discard any changes you
                 have made using Flux. This cannot be recovered."
           confirmationButtonText="Switch to Builder"
           text="Query Builder"
           onConfirm={onEditWithBuilder}
-          style={{width: '400px'}}
           testID="switch-query-builder-confirm"
         />
       )
