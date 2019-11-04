@@ -80,6 +80,8 @@ const ThresholdSetting: FunctionComponent<Props> = ({
         <TextBlock text={label} style={{flex: '0 0 90px'}} />
         {!isBaseThreshold && (
           <Input
+            style={{flex: '1 0 0'}}
+            testID={`threshold-${id}-input`}
             className="threshold-setting--value"
             value={value}
             status={inputStatus}
@@ -99,10 +101,10 @@ const ThresholdSetting: FunctionComponent<Props> = ({
           style={dropdownStyle}
         />
         {isRemoveable && (
-          <SquareButton icon={IconFont.Remove} onClick={onRemove} />
+          <SquareButton icon={IconFont.Remove} onClick={onRemove} style={{flex: '0 0 30px'}} />
         )}
       </FlexBox>
-      {error && <div className="threshold-setting--error">{error}</div>}
+      {error && <div className="threshold-setting--error" data-testid={`threshold-${id}-error`}>{error}</div>}
     </>
   )
 }
