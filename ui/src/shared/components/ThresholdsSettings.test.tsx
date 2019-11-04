@@ -33,7 +33,8 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(inputElement)
 
     // Expect an error message to exist
-    let thresholdsElementCount = getByTestId('threshold-settings').childElementCount
+    let thresholdsElementCount = getByTestId('threshold-settings')
+      .childElementCount
     const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
     const errorText = getNodeText(errorElement)
     expect(errorText).toEqual('Please enter a valid number')
