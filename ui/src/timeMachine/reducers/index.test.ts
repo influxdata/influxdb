@@ -5,7 +5,7 @@ describe('trueFieldOptions utility function', () => {
   it('should return defaultProps if no fieldOptions are passed: ', () => {
     const defaultOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'Applications',
         visible: true,
       },
@@ -17,7 +17,7 @@ describe('trueFieldOptions utility function', () => {
   it("should return the new fieldOptions if the defaultOptions don't exist: ", () => {
     const fieldOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'Applications',
         visible: true,
       },
@@ -29,14 +29,14 @@ describe('trueFieldOptions utility function', () => {
   it('should return the new aliased fields for fieldOptions with the same internalName: ', () => {
     const fieldOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'New Alias',
         visible: true,
       },
     ]
     const defaultOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'Applications',
         visible: true,
       },
@@ -48,14 +48,14 @@ describe('trueFieldOptions utility function', () => {
   it('should add aliased fieldOptions onto defaultOptions if they no longer exist: ', () => {
     const fieldOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'New Alias',
         visible: true,
       },
     ]
     const defaultOptions = [
       {
-        internalName: 'table',
+        internalName: 'Table',
         displayName: 'Table',
         visible: true,
       },
@@ -68,19 +68,19 @@ describe('trueFieldOptions utility function', () => {
     and use the aliased versions of ones that do exist: `, () => {
     const fieldOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'New Alias',
         visible: true,
       },
     ]
     const defaultOptions = [
       {
-        internalName: 'applications',
+        internalName: 'Applications',
         displayName: 'Applications',
         visible: true,
       },
       {
-        internalName: 'table',
+        internalName: 'Table',
         displayName: 'Table',
         visible: true,
       },

@@ -1063,17 +1063,21 @@ const resetBuilderState = (draftState: TimeMachineState) => {
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
 }
 
-export const trueFieldOptions = (defaultOptions, fieldOptions = []) => {
+export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
   // get the difference b/w fieldOptions
   const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
   // create a reference to the defaultOptions
-  const options = defaultOptions
+  const options = defaultOptions.slice()
   diff.forEach(option => {
     const {internalName} = option
+    // check to see if the defaultOptions have been changed
     const index = defaultOptions.findIndex(o => o.internalName === internalName)
     if (index > -1) {
-      // reassigns the fieldOption to the aliased one
-      options[index] = option
+      // allows the defaultHeaders to be edited once they've loaded
+      if (defaultOptions[index].internalName === defaultOptions[index].displayName) {
+        // reassigns the fieldOption to the aliased one
+        options[index] = option
+      }
     } else {
       // adds any extra fieldOption that has been aliased,
       // even if it no longer exists in the headers
