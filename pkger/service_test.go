@@ -181,6 +181,50 @@ func TestService(t *testing.T) {
 				})
 			})
 
+			t.Run("will not apply bucket if no changes to be applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
+					orgID := influxdb.ID(9000)
+
+					pkg.isVerified = true
+					pkgBkt := pkg.mBuckets["rucket_11"]
+					pkgBkt.existing = &influxdb.Bucket{
+						// makes all pkg changes same as they are on thes existing bucket
+						ID:              influxdb.ID(3),
+						OrgID:           orgID,
+						Name:            pkgBkt.Name,
+						Description:     pkgBkt.Description,
+						RetentionPeriod: pkgBkt.RetentionPeriod,
+					}
+
+					fakeBucketSVC := mock.NewBucketService()
+					var createCallCount int
+					fakeBucketSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
+						createCallCount++
+						return nil
+					}
+					var updateCallCount int
+					fakeBucketSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+						updateCallCount++
+						return &influxdb.Bucket{ID: id}, nil
+					}
+
+					svc := NewService(zap.NewNop(), fakeBucketSVC, nil, nil)
+
+					sum, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.Buckets, 1)
+					buck1 := sum.Buckets[0]
+					assert.Equal(t, influxdb.ID(3), buck1.ID)
+					assert.Equal(t, orgID, buck1.OrgID)
+					assert.Equal(t, "rucket_11", buck1.Name)
+					assert.Equal(t, time.Hour, buck1.RetentionPeriod)
+					assert.Equal(t, "bucket 1 description", buck1.Description)
+					assert.Zero(t, createCallCount)
+					assert.Zero(t, updateCallCount)
+				})
+			})
+
 			t.Run("rolls back all created buckets on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 					fakeBucketSVC := mock.NewBucketService()
@@ -284,6 +328,65 @@ func TestService(t *testing.T) {
 					assert.Equal(t, 3, count)
 				})
 			})
+
+			t.Run("will not apply label if no changes to be applied", func(t *testing.T) {
+				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
+					orgID := influxdb.ID(9000)
+
+					pkg.isVerified = true
+					pkgLabel := pkg.mLabels["label_1"]
+					pkgLabel.existing = &influxdb.Label{
+						// makes all pkg changes same as they are on the existing
+						ID:    influxdb.ID(1),
+						OrgID: orgID,
+						Name:  pkgLabel.Name,
+						Properties: map[string]string{
+							"color":       pkgLabel.Color,
+							"description": pkgLabel.Description,
+						},
+					}
+
+					fakeLabelSVC := mock.NewLabelService()
+					var createCallCount int
+					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+						createCallCount++
+						if l.Name == "label_2" {
+							l.ID = influxdb.ID(2)
+							return nil
+						}
+						return nil
+					}
+					fakeLabelSVC.UpdateLabelFn = func(_ context.Context, id influxdb.ID, l influxdb.LabelUpdate) (*influxdb.Label, error) {
+						if id == influxdb.ID(3) {
+							return nil, errors.New("invalid id provided")
+						}
+						return &influxdb.Label{ID: id}, nil
+					}
+
+					svc := NewService(zap.NewNop(), nil, fakeLabelSVC, nil)
+
+					sum, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.Labels, 2)
+					label1 := sum.Labels[0]
+					assert.Equal(t, influxdb.ID(1), label1.ID)
+					assert.Equal(t, orgID, label1.OrgID)
+					assert.Equal(t, "label_1", label1.Name)
+					assert.Equal(t, "#FFFFFF", label1.Properties["color"])
+					assert.Equal(t, "label 1 description", label1.Properties["description"])
+
+					label2 := sum.Labels[1]
+					assert.Equal(t, influxdb.ID(2), label2.ID)
+					assert.Equal(t, orgID, label2.OrgID)
+					assert.Equal(t, "label_2", label2.Name)
+					assert.Equal(t, "#000000", label2.Properties["color"])
+					assert.Equal(t, "label 2 description", label2.Properties["description"])
+
+					assert.Equal(t, 1, createCallCount) // only called for second label
+				})
+			})
+
 		})
 
 		t.Run("dashboards", func(t *testing.T) {

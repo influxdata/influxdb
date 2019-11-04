@@ -27,6 +27,7 @@
 1. [15592](https://github.com/influxdata/influxdb/pull/15592): Changed task runs success status code from 200 to 201 to match Swagger documentation.
 1. [15634](https://github.com/influxdata/influxdb/pull/15634): TextAreas have the correct height
 1. [15647](https://github.com/influxdata/influxdb/pull/15647): Ensures labels are unique by organization in the kv store
+1. [15695](https://github.com/influxdata/influxdb/pull/15695): Ensures variable names are unique by organization
 
 ## v2.0.0-alpha.18 [2019-09-26]
 
