@@ -23,7 +23,6 @@ describe('ThresholdSettings', () => {
     )
 
     const inputElement = getByTestId(`threshold-${thresholds[1].id}-input`)
-    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
 
     // Enter an invalid value in the input
     fireEvent.change(inputElement, {
@@ -34,6 +33,7 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(inputElement)
 
     // Expect an error message to exist
+    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
     expect(errorElement).toContain('Please enter a valid number')
 
     // Enter a valid value in the input
@@ -44,11 +44,8 @@ describe('ThresholdSettings', () => {
     // Blur the input
     fireEvent.blur(inputElement)
 
-    // Prevents from checking assertion too early
-    setTimeout(() => {
-      // Expect there to be no error
-      expect(errorElement).toBeNull()
-    }, 1000)
+    // Expect there to be no error
+    expect(errorElement).toBeNull()
   })
 
   test('entering value less than min threshold shows error', () => {
@@ -63,7 +60,6 @@ describe('ThresholdSettings', () => {
     )
 
     const inputElement = getByTestId(`threshold-${thresholds[1].id}-input`)
-    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
 
     // Enter a value in the input
     fireEvent.change(inputElement, {
@@ -74,17 +70,10 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(inputElement)
 
     // Expect an error message to exist
+    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
     expect(errorElement).toContain(
       'Please enter a value greater than the minimum threshold'
     )
-
-    // Prevents from checking assertion too early
-    setTimeout(() => {
-      // Expect an error message to exist
-      expect(errorElement).toContain(
-        'Please enter a value greater than the minimum threshold'
-      )
-    }, 1000)
   })
 
   test('entering value greater than max threshold shows error', () => {
@@ -99,7 +88,6 @@ describe('ThresholdSettings', () => {
     )
 
     const inputElement = getByTestId(`threshold-${thresholds[1].id}-input`)
-    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
 
     // Enter a value in the input
     fireEvent.change(inputElement, {
@@ -109,13 +97,11 @@ describe('ThresholdSettings', () => {
     // Blur the input
     fireEvent.blur(inputElement)
 
-    // Prevents from checking assertion too early
-    setTimeout(() => {
-      // Expect an error message to be called
-      expect(errorElement).toContain(
-        'Please enter a value less than the maximum threshold'
-      )
-    }, 1000)
+    // Expect an error message to be called
+    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
+    expect(errorElement).toContain(
+      'Please enter a value less than the maximum threshold'
+    )
   })
 
   test('broadcasts edited thresholds only when changes are valid', async () => {
