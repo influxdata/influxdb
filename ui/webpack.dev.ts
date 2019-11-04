@@ -6,6 +6,7 @@ const common = require('./webpack.common.ts')
 const path = require('path')
 const PORT = parseInt(process.env.PORT, 10) || 8080
 const PUBLIC = process.env.PUBLIC || undefined
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
 
 module.exports = merge(common, {
   mode: 'development',
@@ -50,5 +51,11 @@ module.exports = merge(common, {
       manifest: require('./build/vendor-manifest.json'),
     }),
     new ForkTsCheckerWebpackPlugin(),
+    new BundleAnalyzerPlugin({
+      analyzerMode: 'server',
+      analyzerHost: '0.0.0.0',
+      analyzerPort: '9998',
+      openAnalyzer: false,
+    }),
   ],
 })

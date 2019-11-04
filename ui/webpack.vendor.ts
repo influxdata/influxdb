@@ -4,7 +4,10 @@ const path = require('path')
 const {dependencies} = require('./package.json')
 
 // only dll infrequently updated dependencies
-const vendor = Object.keys(dependencies).filter(d => !d.includes('@influxdata'))
+const vendor = Object.keys(dependencies).filter(d => (
+  !d.includes('@influxdata') &&
+  !d.includes('webpack-bundle-analyzer')
+))
 
 module.exports = {
   context: __dirname,
