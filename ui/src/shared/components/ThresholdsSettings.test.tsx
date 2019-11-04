@@ -33,7 +33,7 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(inputElement)
 
     // Expect an error message to exist
-    let errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
+    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
     const errorText = getNodeText(errorElement)
     expect(errorText).toEqual('Please enter a valid number')
 
@@ -46,8 +46,7 @@ describe('ThresholdSettings', () => {
     fireEvent.blur(inputElement)
 
     // Expect there to be no error
-    errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
-    expect(errorElement).toBeNull()
+    expect(getByTestId(`threshold-${thresholds[1].id}-error`)).toHaveLength(0)
   })
 
   test('entering value less than min threshold shows error', () => {
