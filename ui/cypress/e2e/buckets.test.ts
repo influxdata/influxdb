@@ -59,7 +59,6 @@ describe('Buckets', () => {
     })
 
     describe('Searching and Sorting', () => {
-
       it('Searching buckets', () => {
         cy.getByTestID('search-widget').type('tasks')
         cy.getByTestID('bucket-card').should('have.length', 1)
