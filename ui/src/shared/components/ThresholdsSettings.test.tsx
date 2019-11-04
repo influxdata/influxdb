@@ -59,8 +59,8 @@ describe('ThresholdSettings', () => {
       <ThresholdsSettings thresholds={thresholds} onSetThresholds={jest.fn()} />
     )
 
-    const inputElement = getByTestId(`threshold-${thresholds[1].id}input`)
-    const errorElement = getByTestId(`threshold-${thresholds[1].id}error`)
+    const inputElement = getByTestId(`threshold-${thresholds[1].id}-input`)
+    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
 
     // Enter a value in the input
     fireEvent.change(inputElement, {
@@ -87,8 +87,8 @@ describe('ThresholdSettings', () => {
       <ThresholdsSettings thresholds={thresholds} onSetThresholds={jest.fn()} />
     )
 
-    const inputElement = getByTestId(`threshold-${thresholds[1].id}input`)
-    const errorElement = getByTestId(`threshold-${thresholds[1].id}error`)
+    const inputElement = getByTestId(`threshold-${thresholds[1].id}-input`)
+    const errorElement = getByTestId(`threshold-${thresholds[1].id}-error`)
 
     // Enter a value in the input
     fireEvent.change(inputElement, {
@@ -136,7 +136,7 @@ describe('ThresholdSettings', () => {
 
     const {getByTestId} = render(<TestWrapper />)
 
-    const input1 = getByTestId(`threshold-${testShresholds[1].id}input`)
+    const input1 = getByTestId(`threshold-${testShresholds[1].id}-input`)
 
     // Enter an invalid value in the input
     fireEvent.change(input1, {
