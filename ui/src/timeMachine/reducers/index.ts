@@ -811,10 +811,10 @@ export const timeMachineReducer = (
         typeof action.payload
       >
       const {fieldOptions} = action.payload
-      const {fieldOptions: options} = workingView.properties
+      const {fieldOptions: prevOptions} = workingView.properties
       const properties = {
         ...workingView.properties,
-        fieldOptions: trueFieldOptions(fieldOptions, options),
+        fieldOptions: trueFieldOptions(fieldOptions, prevOptions),
       }
       const view = {...state.view, properties}
       return {...state, view}
@@ -1076,14 +1076,20 @@ export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
     if (index > -1) {
       const selected = defaultOptions[index]
       // allows the defaultHeaders to be edited once they've loaded
+      // console.log('selected: ', selected)
+      // console.log('option: ', option)
       if (selected.internalName === selected.displayName) {
-        if (selected.visible !== option.visible) {
-          // retains the default header visibility
+        if (!selected.visible) {
           options[index] = selected
         } else {
-          // reassigns the fieldOption to the aliased one
           options[index] = option
         }
+        // if (!option.visible) {
+        //   // retains the default header visibility
+        //   options[index] = option
+        // // } else {
+        //   // reassigns the fieldOption to the aliased one
+        // }
       }
     } else {
       // adds any extra fieldOption that has been aliased,
