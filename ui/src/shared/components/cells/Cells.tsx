@@ -64,7 +64,7 @@ class Cells extends Component<Props & WithRouterProps> {
               timeRange={timeRange}
               onCloneCell={onCloneCell}
               onDeleteCell={onDeleteCell}
-              onEditCell={this.handleEditCell}
+              onEditCell={this.handleEditCell(cell)}
               onEditNote={onEditNote}
             />
             {this.cellBorder}
@@ -136,7 +136,7 @@ class Cells extends Component<Props & WithRouterProps> {
   private handleEditCell = (cell: Cell) => {
     const {onEditView} = this.props
 
-    return onEditView(cell.id)
+    return () => onEditView(cell.id)
   }
 }
 

@@ -27,13 +27,13 @@ import {
 
 // Types
 import {
-  TimeRange,
-  View,
   AutoRefresh,
   Check,
   DeadmanCheck,
-  ThresholdCheck,
   StatusRow,
+  TimeRange,
+  ThresholdCheck,
+  View,
 } from 'src/types'
 import {
   ViewType,
@@ -817,7 +817,6 @@ export const timeMachineReducer = (
         fieldOptions: trueFieldOptions(fieldOptions, options),
       }
       const view = {...state.view, properties}
-
       return {...state, view}
     }
 
@@ -994,7 +993,7 @@ const convertView = (
 ): View<QueryViewProperties> => {
   const newView: any = createView(outType)
   newView.properties.queries = cloneDeep(view.properties.queries)
-  if (view.properties.fieldOptions) {
+  if (view.properties.type === 'table' && view.properties.fieldOptions) {
     // prevents reselecting the table option from reseting the fieldOptions
     newView.properties.fieldOptions = cloneDeep(view.properties.fieldOptions)
   }
@@ -1064,7 +1063,7 @@ const resetBuilderState = (draftState: TimeMachineState) => {
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
 }
 
-const trueFieldOptions = (defaultOptions, fieldOptions = []) => {
+export const trueFieldOptions = (defaultOptions, fieldOptions = []) => {
   // get the difference b/w fieldOptions
   const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
   // create a reference to the defaultOptions
