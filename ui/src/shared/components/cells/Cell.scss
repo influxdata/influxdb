@@ -143,7 +143,7 @@ $cell--header-button-active-color: $c-pool;
   border: 0;
   outline: none;
   background: none;
-  transition: color 0.25s ease;
+  transition: color 0.25s ease, 0.25s opacity ease;
   color: $cell--header-button-color;
   position: relative;
 
@@ -223,7 +223,7 @@ $cell--header-button-active-color: $c-pool;
   height: $cell--header-size;
   cursor: default;
   color: $cell--header-button-color;
-  transition: opacity 0.25s ease;
+  transition: color 0.25s ease, opacity 0.25s ease;
   
   & > .cf-icon {
     position: absolute;
@@ -262,7 +262,8 @@ $cell--header-button-active-color: $c-pool;
 /* Drag & Resize State */
 .react-grid-item.resizing,
 .react-grid-item.react-draggable-dragging {
-  .cell--context {
+  .cell--context,
+  .cell--note-indicator {
     opacity: 0;
   }
 }
