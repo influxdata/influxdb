@@ -59,14 +59,9 @@ describe('Buckets', () => {
     })
 
     describe('Searching and Sorting', () => {
-      beforeEach(() => {
-        cy.get<Organization>('@org').then(({id, name}: Organization) => {
-          cy.createBucket(id, name, 'cookie')
-        })
-      })
 
       it('Searching buckets', () => {
-        cy.getByTestID('search-widget').type('cookie')
+        cy.getByTestID('search-widget').type('tasks')
         cy.getByTestID('bucket-card').should('have.length', 1)
       })
 
@@ -88,10 +83,6 @@ describe('Buckets', () => {
           .first()
           .contains('_tasks')
 
-        // Randomness of forever means this can not work with two forever buckets
-        // So we delete the cookie bucket to remove this problem
-        cy.getByTestID(`context-delete-menu cookie`).click()
-        cy.getByTestID(`context-delete-bucket cookie`).click()
         cy.getByTestID('retention-sorter').click()
         cy.getByTestID('bucket-card')
           .first()
