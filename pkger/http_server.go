@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,16 +30,21 @@ func NewHTTPServer(errHandler influxdb.HTTPErrorHandler, svc SVC) *HTTPServer {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(traceMW)
 	r.Use(middleware.SetHeader("Content-Type", "application/json; charset=utf-8"))
 	r.Use(middleware.Recoverer)
 
-	r.Route("/api/v2/packages", func(r chi.Router) {
+	r.Route(svr.Prefix(), func(r chi.Router) {
 		r.Post("/", svr.createPkg)
 		r.Post("/apply", svr.applyPkg)
 	})
 
 	svr.r = r
 	return svr
+}
+
+func (s *HTTPServer) Prefix() string {
+	return "/api/v2/packages"
 }
 
 // ServeHTTP serves up the http request.
@@ -166,7 +172,9 @@ func decodeApplyReq(r *http.Request) (ReqApplyPkg, error) {
 
 func (s *HTTPServer) encResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
 	w.WriteHeader(code)
-	if err := json.NewEncoder(w).Encode(res); err != nil {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(res); err != nil {
 		s.HandleHTTPError(ctx, &influxdb.Error{
 			Msg:  fmt.Sprintf("unable to marshal json; Err: %v", err),
 			Code: influxdb.EInternal,
@@ -185,4 +193,13 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 
 func httpParseErr(err error) error {
 	return err
+}
+
+func traceMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		span, ctx := tracing.StartSpanFromContext(r.Context())
+		defer span.Finish()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
+	return http.HandlerFunc(fn)
 }

@@ -85,13 +85,6 @@ func FromReader(r io.Reader) ReaderFn {
 	}
 }
 
-// FromBytes provides a reader from a byte array.
-func FromBytes(b []byte) ReaderFn {
-	return func() (io.Reader, error) {
-		return bytes.NewReader(b), nil
-	}
-}
-
 // FromString parses a pkg from a raw string value. This is very useful
 // in tests.
 func FromString(s string) ReaderFn {
@@ -677,11 +670,11 @@ func (r Resource) kind() (kind, error) {
 	return newKind, nil
 }
 
-func (r Resource) chartKind() (ChartKind, error) {
+func (r Resource) chartKind() (chartKind, error) {
 	ck, _ := r.kind()
-	chartKind := ChartKind(ck)
+	chartKind := chartKind(ck)
 	if !chartKind.ok() {
-		return ChartKindUnknown, errors.New("invalid chart kind provided: " + string(chartKind))
+		return chartKindUnknown, errors.New("invalid chart kind provided: " + string(chartKind))
 	}
 	return chartKind, nil
 }

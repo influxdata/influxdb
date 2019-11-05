@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/influxdata/influxdb"
@@ -18,29 +19,31 @@ import (
 // APIHandler is a collection of all the service handlers.
 type APIHandler struct {
 	influxdb.HTTPErrorHandler
-	BucketHandler               *BucketHandler
-	UserHandler                 *UserHandler
-	OrgHandler                  *OrgHandler
-	AuthorizationHandler        *AuthorizationHandler
-	DashboardHandler            *DashboardHandler
-	LabelHandler                *LabelHandler
 	AssetHandler                *AssetHandler
-	ChronografHandler           *ChronografHandler
-	ScraperHandler              *ScraperHandler
-	SourceHandler               *SourceHandler
-	VariableHandler             *VariableHandler
-	TaskHandler                 *TaskHandler
+	AuthorizationHandler        *AuthorizationHandler
+	BucketHandler               *BucketHandler
 	CheckHandler                *CheckHandler
-	TelegrafHandler             *TelegrafHandler
-	QueryHandler                *FluxHandler
-	WriteHandler                *WriteHandler
+	ChronografHandler           *ChronografHandler
+	DashboardHandler            *DashboardHandler
 	DeleteHandler               *DeleteHandler
 	DocumentHandler             *DocumentHandler
-	SetupHandler                *SetupHandler
-	SessionHandler              *SessionHandler
-	SwaggerHandler              http.Handler
-	NotificationRuleHandler     *NotificationRuleHandler
+	LabelHandler                *LabelHandler
 	NotificationEndpointHandler *NotificationEndpointHandler
+	NotificationRuleHandler     *NotificationRuleHandler
+	OrgHandler                  *OrgHandler
+	QueryHandler                *FluxHandler
+	ScraperHandler              *ScraperHandler
+	SessionHandler              *SessionHandler
+	SetupHandler                *SetupHandler
+	SourceHandler               *SourceHandler
+	SwaggerHandler              http.Handler
+	TaskHandler                 *TaskHandler
+	TelegrafHandler             *TelegrafHandler
+	UserHandler                 *UserHandler
+	VariableHandler             *VariableHandler
+	WriteHandler                *WriteHandler
+
+	ResourceHandlers []ResourceHandler
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -105,11 +108,37 @@ func (b *APIBackend) PrometheusCollectors() []prometheus.Collector {
 	return cs
 }
 
+// ResourceHandler is an HTTP handler for a resource. The prefix
+// describes the url path prefix that relates to the handler
+// endpoints.
+type ResourceHandler interface {
+	Prefix() string
+	http.Handler
+}
+
+// APIHandlerOptFn is a functional input param to set parameters on
+// the APIHandler.
+type APIHandlerOptFn func(*APIHandler)
+
+// WithResourceHandler registers a resource handler on the APIHandler.
+func WithResourceHandler(resHandler ResourceHandler) APIHandlerOptFn {
+	return func(h *APIHandler) {
+		h.ResourceHandlers = append(h.ResourceHandlers, resHandler)
+	}
+}
+
 // NewAPIHandler constructs all api handlers beneath it and returns an APIHandler
-func NewAPIHandler(b *APIBackend) *APIHandler {
+func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h := &APIHandler{
 		HTTPErrorHandler: b.HTTPErrorHandler,
 	}
+
+	for _, o := range opts {
+		o(h)
+	}
+	sort.Slice(h.ResourceHandlers, func(i, j int) bool {
+		return h.ResourceHandlers[i].Prefix() < h.ResourceHandlers[j].Prefix()
+	})
 
 	internalURM := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
@@ -260,6 +289,14 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/v2/signin" || r.URL.Path == "/api/v2/signout" {
 		h.SessionHandler.ServeHTTP(w, r)
 		return
+	}
+
+	// this for loop is equivalent to the if statements below
+	for _, resHandler := range h.ResourceHandlers {
+		if strings.HasPrefix(r.URL.Path, resHandler.Prefix()) {
+			resHandler.ServeHTTP(w, r)
+			return
+		}
 	}
 
 	if strings.HasPrefix(r.URL.Path, "/api/v2/setup") {

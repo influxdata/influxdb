@@ -65,8 +65,8 @@ type DiffBucket struct {
 	Name         string        `json:"name"`
 	OldDesc      string        `json:"oldDescription"`
 	NewDesc      string        `json:"newDescription"`
-	OldRetention time.Duration `json:"oldDuration"`
-	NewRetention time.Duration `json:"newDuration"`
+	OldRetention time.Duration `json:"oldRP"`
+	NewRetention time.Duration `json:"newRP"`
 }
 
 // IsNew indicates whether a pkg bucket is going to be new to the platform.
@@ -100,7 +100,6 @@ func newDiffDashboard(d *dashboard) DiffDashboard {
 
 	for _, c := range d.Charts {
 		diff.Charts = append(diff.Charts, DiffChart{
-			Kind:       c.Kind,
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
@@ -166,7 +165,7 @@ type Summary struct {
 // SummaryBucket provides a summary of a pkg bucket.
 type SummaryBucket struct {
 	influxdb.Bucket
-	LabelAssociations []influxdb.Label `json:"associations"`
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
 // SummaryDashboard provides a summary of a pkg dashboard.
@@ -177,26 +176,27 @@ type SummaryDashboard struct {
 	Description string         `json:"description"`
 	Charts      []SummaryChart `json:"charts"`
 
-	LabelAssociations []influxdb.Label `json:"associations"`
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
-// ChartKind identifies what kind of chart is eluded too. Each
+// chartKind identifies what kind of chart is eluded too. Each
 // chart kind has their own requirements for what constitutes
 // a chart.
-type ChartKind string
+type chartKind string
 
 // available chart kinds
 const (
-	ChartKindUnknown            ChartKind = ""
-	ChartKindSingleStat         ChartKind = "single_stat"
-	ChartKindSingleStatPlusLine ChartKind = "single_stat_plus_line"
-	ChartKindXY                 ChartKind = "xy"
-	ChartKindGauge              ChartKind = "gauge"
+	chartKindUnknown            chartKind = ""
+	chartKindGauge              chartKind = "gauge"
+	chartKindSingleStat         chartKind = "single_stat"
+	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
+	chartKindXY                 chartKind = "xy"
 )
 
-func (c ChartKind) ok() bool {
+func (c chartKind) ok() bool {
 	switch c {
-	case ChartKindSingleStat, ChartKindSingleStatPlusLine, ChartKindXY, ChartKindGauge:
+	case chartKindSingleStat, chartKindSingleStatPlusLine, chartKindXY,
+		chartKindGauge:
 		return true
 	default:
 		return false
@@ -205,7 +205,6 @@ func (c ChartKind) ok() bool {
 
 // SummaryChart provides a summary of a pkg dashboard's chart.
 type SummaryChart struct {
-	Kind       ChartKind               `json:"kind"`
 	Properties influxdb.ViewProperties `json:"properties"`
 
 	XPosition int `json:"xPos"`
@@ -461,7 +460,6 @@ func (d *dashboard) summarize() SummaryDashboard {
 	}
 	for _, c := range d.Charts {
 		iDash.Charts = append(iDash.Charts, SummaryChart{
-			Kind:       c.Kind,
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
@@ -473,7 +471,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 }
 
 type chart struct {
-	Kind            ChartKind
+	Kind            chartKind
 	Name            string
 	Prefix          string
 	Suffix          string
@@ -495,7 +493,7 @@ type chart struct {
 
 func (c chart) properties() influxdb.ViewProperties {
 	switch c.Kind {
-	case ChartKindSingleStat:
+	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
 			Type:   "single-stat",
 			Prefix: c.Prefix,
@@ -509,7 +507,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
 		}
-	case ChartKindSingleStatPlusLine:
+	case chartKindSingleStatPlusLine:
 		return influxdb.LinePlusSingleStatProperties{
 			Type:   "line-plus-single-stat",
 			Prefix: c.Prefix,
@@ -528,7 +526,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
 		}
-	case ChartKindXY:
+	case chartKindXY:
 		return influxdb.XYViewProperties{
 			Type:              "xy",
 			Note:              c.Note,
@@ -542,7 +540,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
 		}
-	case ChartKindGauge:
+	case chartKindGauge:
 		return influxdb.GaugeViewProperties{
 			Type:       "gauge",
 			Queries:    c.Queries.influxDashQueries(),
@@ -575,17 +573,17 @@ func (c chart) validProperties() []failure {
 
 	// chart kind specific validations
 	switch c.Kind {
-	case ChartKindSingleStat:
+	case chartKindGauge:
+		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
+	case chartKindSingleStat:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
-	case ChartKindSingleStatPlusLine:
+	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText, colorTypeScale)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
-	case ChartKindXY:
+	case chartKindXY:
 		fails = append(fails, c.Colors.hasTypes(colorTypeScale)...)
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
-	case ChartKindGauge:
-		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
 	}
 
 	return fails
@@ -628,11 +626,11 @@ func (c chart) validBaseProps() []failure {
 }
 
 const (
-	colorTypeText      = "text"
-	colorTypeScale     = "scale"
 	colorTypeMin       = "min"
-	colorTypeThreshold = "threshold"
 	colorTypeMax       = "max"
+	colorTypeScale     = "scale"
+	colorTypeText      = "text"
+	colorTypeThreshold = "threshold"
 )
 
 type color struct {

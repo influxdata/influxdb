@@ -524,7 +524,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindSingleStat, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
@@ -773,7 +772,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindSingleStatPlusLine, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
@@ -1204,7 +1202,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindXY, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
@@ -1425,7 +1422,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindGauge, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
