@@ -13,6 +13,7 @@ import {
 } from '@influxdata/clockface'
 import CellContextItem from 'src/shared/components/cells/CellContextItem'
 import CellContextDangerItem from 'src/shared/components/cells/CellContextDangerItem'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {Cell, View} from 'src/types'
@@ -95,13 +96,15 @@ const CellContext: FunctionComponent<Props> = ({
           onHide={onHide}
           testID="cell-context--clone"
         />
-        <CellContextItem
-          label="Download CSV"
-          onClick={onCSVDownload}
-          icon={IconFont.Download}
-          onHide={onHide}
-          testID="cell-context--download"
-        />
+        <FeatureFlag name="downloadCellCSV">
+          <CellContextItem
+            label="Download CSV"
+            onClick={onCSVDownload}
+            icon={IconFont.Download}
+            onHide={onHide}
+            testID="cell-context--download"
+          />
+        </FeatureFlag>
         <CellContextDangerItem
           label="Delete"
           onClick={handleDeleteCell}

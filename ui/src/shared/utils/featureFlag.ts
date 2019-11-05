@@ -5,6 +5,7 @@ const OSS_FLAGS = {
   alerting: false,
   eventMarkers: false,
   deleteWithPredicate: false,
+  downloadCellCSV: false,
 }
 
 const CLOUD_FLAGS = {
@@ -12,6 +13,7 @@ const CLOUD_FLAGS = {
   eventMarkers: false,
   deleteWithPredicate: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
+  downloadCellCSV: false,
 }
 
 export const isFlagEnabled = (flagName: string) => {
