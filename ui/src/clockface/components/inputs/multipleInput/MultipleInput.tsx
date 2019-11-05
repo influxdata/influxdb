@@ -3,7 +3,7 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import _ from 'lodash'
 
 // Components
-import {Form, Input, Grid} from '@influxdata/clockface'
+import {Button, Form, Input, Grid} from '@influxdata/clockface'
 import Rows from 'src/clockface/components/inputs/multipleInput/MultipleRows'
 
 // Utils
@@ -11,11 +11,12 @@ import {validateURI} from 'src/shared/utils/validateURI'
 
 // Types
 import {
-  Columns,
-  InputType,
   AutoComplete,
+  Columns,
+  ComponentColor,
   ComponentSize,
   ComponentStatus,
+  InputType,
 } from '@influxdata/clockface'
 
 // Decorators
@@ -53,10 +54,13 @@ interface State {
 @ErrorHandling
 class MultipleInput extends PureComponent<Props, State> {
   private debouncedValidate: (value: string) => void
+  private inputRef
 
   constructor(props: Props) {
     super(props)
     this.state = {editingText: '', status: ComponentStatus.Default}
+
+    this.inputRef = React.createRef()
 
     this.debouncedValidate = _.debounce(
       this.handleValidateURI,
@@ -71,7 +75,7 @@ class MultipleInput extends PureComponent<Props, State> {
     return (
       <Grid>
         <Grid.Row>
-          <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
+          <Grid.Column widthXS={Columns.Eight} offsetXS={Columns.One}>
             <Form.Element label={title} key={title} helpText={helpText}>
               <Input
                 placeholder={`Type and hit 'Enter' to add to list of ${title}`}
@@ -84,8 +88,28 @@ class MultipleInput extends PureComponent<Props, State> {
                 onChange={this.handleInputChange}
                 size={ComponentSize.Medium}
                 titleText={title}
+                ref={this.inputRef}
               />
             </Form.Element>
+          </Grid.Column>
+          <Grid.Column widthXS={Columns.Two}>
+            <Form.Element
+              key="submit"
+              label="&nbsp;"
+              style={{minHeight: '15px'}}
+            >
+              <Button
+                color={ComponentColor.Secondary}
+                onClick={this.handleSubmit}
+                size={ComponentSize.Medium}
+                text="Add"
+                titleText={`Add to list of ${title}`}
+              />
+            </Form.Element>
+          </Grid.Column>
+        </Grid.Row>
+        <Grid.Row>
+          <Grid.Column widthXS={Columns.Ten} offsetXS={Columns.One}>
             <Rows
               tags={tags}
               onDeleteTag={this.handleDeleteRow}
@@ -105,6 +129,17 @@ class MultipleInput extends PureComponent<Props, State> {
     if (inputType === MultiInputType.URI) {
       this.debouncedValidate(value)
     }
+  }
+
+  private handleSubmit = e => {
+    e.preventDefault()
+    const newItem = this.inputRef.current.value.trim()
+    const {tags, onAddRow} = this.props
+    if (!this.shouldAddToList(newItem, tags)) {
+      return
+    }
+    this.setState({editingText: ''})
+    onAddRow(this.inputRef.current.value)
   }
 
   private handleKeyDown = e => {

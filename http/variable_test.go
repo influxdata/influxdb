@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 
 	platform "github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"github.com/julienschmidt/httprouter"
@@ -886,38 +885,4 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 			}
 		})
 	}
-}
-
-func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
-	t.Helper()
-
-	svc := inmem.NewService()
-	svc.IDGenerator = f.IDGenerator
-	svc.TimeGenerator = f.TimeGenerator
-	if f.TimeGenerator == nil {
-		svc.TimeGenerator = platform.RealTimeGenerator{}
-	}
-
-	ctx := context.Background()
-	for _, variable := range f.Variables {
-		if err := svc.ReplaceVariable(ctx, variable); err != nil {
-			t.Fatalf("failed to populate variables")
-		}
-	}
-
-	variableBackend := NewMockVariableBackend()
-	variableBackend.HTTPErrorHandler = ErrorHandler(0)
-	variableBackend.VariableService = svc
-	handler := NewVariableHandler(variableBackend)
-	server := httptest.NewServer(handler)
-	client := VariableService{
-		Addr: server.URL,
-	}
-	done := server.Close
-
-	return &client, inmem.OpPrefix, done
-}
-
-func TestVariableService(t *testing.T) {
-	platformtesting.VariableService(initVariableService, t)
 }

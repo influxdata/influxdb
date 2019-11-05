@@ -8,17 +8,18 @@ const dispatch = action =>
 
 describe('Dashboard', () => {
   beforeEach(() => {
-    cy.flush()
+    return cy.flush()
+      .then(() => cy.signin())
+      .then(({body}) => {
+        cy.wrap(body.org).as('org')
 
-    cy.signin().then(({body}) => {
-      cy.wrap(body.org).as('org')
-    })
-
-    cy.fixture('routes').then(({orgs}) => {
-      cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.visit(`${orgs}/${orgID}/dashboards`)
+        return cy.fixture('routes').then(({orgs}) => {
+          return cy.get('@org').then(({id: orgID}: Organization) => {
+            cy.visit(`${orgs}/${orgID}/dashboards`)
+          })
+        })
       })
-    })
+
   })
 
   it("can edit a dashboard's name", () => {

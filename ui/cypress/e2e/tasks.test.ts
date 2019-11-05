@@ -3,13 +3,13 @@ import _ from 'lodash'
 
 describe('Tasks', () => {
   beforeEach(() => {
-    cy.flush()
-
-    cy.signin().then(({body}) => {
+    return cy.flush()
+    .then(() => cy.signin())
+    .then(({body}) => {
       cy.wrap(body.org).as('org')
       cy.wrap(body.bucket).as('bucket')
 
-      cy.createToken(body.org.id, 'test token', 'active', [
+      return cy.createToken(body.org.id, 'test token', 'active', [
         {action: 'write', resource: {type: 'views'}},
         {action: 'write', resource: {type: 'documents'}},
         {action: 'write', resource: {type: 'tasks'}},
@@ -17,11 +17,12 @@ describe('Tasks', () => {
         cy.wrap(body.token).as('token')
       })
     })
-
-    cy.fixture('routes').then(({orgs}) => {
-      cy.get('@org').then(({id}: Organization) => {
+    .then(() => {
+    return cy.fixture('routes').then(({orgs}) => {
+      return cy.get('@org').then(({id}: Organization) => {
         cy.visit(`${orgs}/${id}/tasks`)
       })
+    })
     })
   })
 
@@ -62,12 +63,13 @@ from(bucket: "${name}")
 
   describe('When tasks already exist', () => {
     beforeEach(() => {
-      cy.get('@org').then(({id}: Organization) => {
-        cy.get<string>('@token').then(token => {
-          cy.createTask(token, id)
+      return cy.get('@org')
+        .then(({id}: Organization) => {
+        return cy.get<string>('@token').then(token => {
+          return cy.createTask(token, id)
         })
       })
-      cy.reload()
+        .then(() => cy.reload())
     })
 
     it('can edit a task', () => {
@@ -129,21 +131,23 @@ from(bucket: "${name}")
     const taskName = 'beepBoop'
 
     beforeEach(() => {
-      cy.get('@org').then(({id}: Organization) => {
-        cy.get<string>('@token').then(token => {
-          cy.createTask(token, id, taskName).then(({body}) => {
+      return cy.get('@org')
+      .then(({id}: Organization) => {
+        return cy.get<string>('@token')
+        .then(token => {
+          return cy.createTask(token, id, taskName).then(({body}) => {
             cy.createAndAddLabel('tasks', id, body.id, newLabelName)
-          })
-
-          cy.createTask(token, id).then(({body}) => {
-            cy.createAndAddLabel('tasks', id, body.id, 'bar')
+          }).then(() => {
+            return cy.createTask(token, id).then(({body}) => {
+              cy.createAndAddLabel('tasks', id, body.id, 'bar')
+            })
           })
         })
-      })
-
-      cy.fixture('routes').then(({orgs}) => {
-        cy.get('@org').then(({id}: Organization) => {
-          cy.visit(`${orgs}/${id}/tasks`)
+      }).then(() => {
+        return cy.fixture('routes').then(({orgs}) => {
+          return cy.get('@org').then(({id}: Organization) => {
+            return cy.visit(`${orgs}/${id}/tasks`)
+          })
         })
       })
     })
@@ -171,7 +175,7 @@ from(bucket: "${name}")
     const interval = '12h'
     const offset = '30m'
     beforeEach(() => {
-      createFirstTask(
+      return createFirstTask(
         taskName,
         ({name}) => {
           return `import "influxdata/influxdb/v1"
@@ -181,8 +185,9 @@ from(bucket: "${name}")
         },
         interval,
         offset
-      )
+      ).then(() => {
       cy.contains('Save').click()
+      .then(() => {
       cy.getByTestID('task-card')
         .should('have.length', 1)
         .and('contain', taskName)
@@ -194,6 +199,8 @@ from(bucket: "${name}")
       cy.getByInputValue(taskName)
       cy.getByInputValue(interval)
       cy.getByInputValue(offset)
+      })
+      })
     })
 
     it('can update a task', () => {
@@ -274,19 +281,19 @@ from(bucket: "${name}")
       cy.getByInputName('name').type(secondTask)
       cy.getByTestID('task-form-schedule-input').type(interval)
       cy.getByTestID('task-form-offset-input').type(offset)
-      cy.get<Bucket>('@bucket').then(bucket => {
+      return cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
           cy.get('textarea').type(flux(bucket), {force: true})
         })
+        cy.contains('Save').click()
+        cy.getByTestID('task-card')
+          .should('have.length', 2)
+          .and('contain', firstTask)
+          .and('contain', secondTask)
+        cy.getByTestID('task-card--name')
+          .contains(firstTask)
+          .click()
       })
-      cy.contains('Save').click()
-      cy.getByTestID('task-card')
-        .should('have.length', 2)
-        .and('contain', firstTask)
-        .and('contain', secondTask)
-      cy.getByTestID('task-card--name')
-        .contains(firstTask)
-        .click()
     })
 
     it('when navigating using the navbar', () => {
@@ -366,7 +373,7 @@ function createFirstTask(
   cy.getByTestID('task-form-schedule-input').type(interval)
   cy.getByTestID('task-form-offset-input').type(offset)
 
-  cy.get<Bucket>('@bucket').then(bucket => {
+  return cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type(flux(bucket), {force: true})
     })

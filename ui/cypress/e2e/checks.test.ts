@@ -4,9 +4,9 @@ const measurement = 'my_meas'
 const field = 'my_field'
 describe('Checks', () => {
   beforeEach(() => {
-    cy.flush()
-
-    cy.signin().then(({body}) => {
+    return cy.flush()
+    .then(() => cy.signin())
+    .then(({body}) => {
       const {
         org: {id},
       } = body
@@ -14,7 +14,7 @@ describe('Checks', () => {
       cy.wrap(body.org).as('org')
 
       // visit the alerting index
-      cy.fixture('routes').then(({orgs, alerting}) => {
+      return cy.fixture('routes').then(({orgs, alerting}) => {
         cy.visit(`${orgs}/${id}${alerting}`)
       })
     })

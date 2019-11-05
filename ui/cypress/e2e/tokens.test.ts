@@ -10,11 +10,11 @@ describe('tokens', () => {
   }[]
 
   beforeEach(() => {
-    cy.flush()
-
     authData = []
 
-    cy.signin().then(({body}) => {
+    return cy.flush()
+    .then(() => cy.signin())
+    .then(({body}) => {
       const {
         org: {id},
       } = body
@@ -57,7 +57,7 @@ describe('tokens', () => {
       ]
 
       // check out array.reduce for the nested calls here
-      cy.request('api/v2/authorizations').then(resp => {
+      return cy.request('api/v2/authorizations').then(resp => {
         expect(resp.body).to.exist
         authData.push({
           description: resp.body.authorizations[0].description,
@@ -65,8 +65,8 @@ describe('tokens', () => {
           id: resp.body.authorizations[0].id,
         })
 
-        testTokens.forEach(token => {
-          cy.createToken(
+        Promise.all(testTokens.map(token => {
+          return cy.createToken(
             token.id,
             token.description,
             token.status,
@@ -79,10 +79,11 @@ describe('tokens', () => {
               id: resp.body.id,
             })
           })
-        })
-
-        cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${id}/load-data/tokens`)
+        }))
+        .then(() => {
+          return cy.fixture('routes').then(({orgs}) => {
+            return cy.visit(`${orgs}/${id}/load-data/tokens`)
+          })
         })
       })
     })

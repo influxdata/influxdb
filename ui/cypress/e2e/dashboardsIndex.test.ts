@@ -6,17 +6,17 @@ const dashSearchName = 'bEE'
 
 describe('Dashboards', () => {
   beforeEach(() => {
-    cy.flush()
-
-    cy.signin().then(({body}) => {
+    return cy.flush()
+    .then(() => cy.signin())
+    .then(({body}) => {
       cy.wrap(body.org).as('org')
-    })
-
-    cy.fixture('routes').then(({orgs}) => {
-      cy.get('@org').then(({id}: Organization) => {
-        cy.visit(`${orgs}/${id}/dashboards`)
+    return cy.fixture('routes').then(({orgs}) => {
+      return cy.get('@org').then(({id}: Organization) => {
+        return cy.visit(`${orgs}/${id}/dashboards`)
       })
     })
+    })
+
   })
 
   it('can create a dashboard from empty state', () => {
@@ -72,7 +72,7 @@ describe('Dashboards', () => {
 
   describe('Dashboard List', () => {
     beforeEach(() => {
-      cy.get('@org').then(({id}: Organization) => {
+      return cy.get('@org').then(({id}: Organization) => {
         cy.createDashboard(id, dashboardName).then(({body}) => {
           cy.createAndAddLabel('dashboards', id, body.id, newLabelName)
         })
@@ -80,13 +80,13 @@ describe('Dashboards', () => {
         cy.createDashboard(id).then(({body}) => {
           cy.createAndAddLabel('dashboards', id, body.id, 'bar')
         })
-      })
-
-      cy.fixture('routes').then(({orgs}) => {
-        cy.get('@org').then(({id}: Organization) => {
-          cy.visit(`${orgs}/${id}/dashboards`)
+      return cy.fixture('routes').then(({orgs}) => {
+        return cy.get('@org').then(({id}: Organization) => {
+          return cy.visit(`${orgs}/${id}/dashboards`)
         })
       })
+      })
+
     })
 
     it('can delete a dashboard', () => {

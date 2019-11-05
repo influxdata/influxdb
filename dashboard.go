@@ -802,6 +802,23 @@ type BuilderConfig struct {
 	} `json:"aggregateWindow"`
 }
 
+// NewBuilderTag is a constructor for the builder config types. This
+// isn't technically required, but working with struct literals with embedded
+// struct tags is really painful. This is to get around that bit. Would be nicer
+// to have these as actual types maybe.
+func NewBuilderTag(key string, values ...string) struct {
+	Key    string   `json:"key"`
+	Values []string `json:"values"`
+} {
+	return struct {
+		Key    string   `json:"key"`
+		Values []string `json:"values"`
+	}{
+		Key:    key,
+		Values: values,
+	}
+}
+
 // Axis represents the visible extents of a visualization
 type Axis struct {
 	Bounds       []string `json:"bounds"` // bounds are an arbitrary list of client-defined strings that specify the viewport for a View

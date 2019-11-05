@@ -66,7 +66,7 @@ func (b *Bucket) Get(key []byte) ([]byte, error) {
 }
 
 // Cursor returns a cursor at the beginning of this bucket.
-func (b *Bucket) Cursor() (kv.Cursor, error) {
+func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
 	return b.CursorFn()
 }
 

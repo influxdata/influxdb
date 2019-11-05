@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/kv"
 )
 
@@ -44,6 +45,10 @@ func KVStore(
 		{
 			name: "Cursor",
 			fn:   KVCursor,
+		},
+		{
+			name: "CursorWithHints",
+			fn:   KVCursorWithHints,
 		},
 		{
 			name: "View",
@@ -500,6 +505,123 @@ func KVCursor(
 						t.Errorf("exptected to get value %s got %s", string(want), string(got))
 						return err
 					}
+				}
+
+				return nil
+			})
+
+			if err != nil {
+				t.Fatalf("error during view transaction: %v", err)
+			}
+		})
+	}
+}
+
+// KVCursor tests the cursor contract for the key value store.
+func KVCursorWithHints(
+	init func(KVStoreFields, *testing.T) (kv.Store, func()),
+	t *testing.T,
+) {
+	type args struct {
+		seek  string
+		until string
+		hints []kv.CursorHint
+	}
+
+	pairs := func(keys ...string) []kv.Pair {
+		p := make([]kv.Pair, len(keys))
+		for i, k := range keys {
+			p[i].Key = []byte(k)
+			p[i].Value = []byte("val:" + k)
+		}
+		return p
+	}
+
+	tests := []struct {
+		name   string
+		fields KVStoreFields
+		args   args
+		exp    []string
+	}{
+		{
+			name: "no hints",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "bbb/00",
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03", "bbb/00"},
+		},
+		{
+			name: "prefix hint",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "aaa/03",
+				hints: []kv.CursorHint{kv.WithCursorHintPrefix("aaa/")},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03"},
+		},
+		{
+			name: "start hint",
+			fields: KVStoreFields{
+				Bucket: []byte("bucket"),
+				Pairs: pairs(
+					"aa/00", "aa/01",
+					"aaa/00", "aaa/01", "aaa/02", "aaa/03",
+					"bbb/00", "bbb/01", "bbb/02"),
+			},
+			args: args{
+				seek:  "aaa",
+				until: "bbb/00",
+				hints: []kv.CursorHint{kv.WithCursorHintKeyStart("aaa/")},
+			},
+			exp: []string{"aaa/00", "aaa/01", "aaa/02", "aaa/03", "bbb/00"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, fin := init(tt.fields, t)
+			defer fin()
+
+			err := s.View(context.Background(), func(tx kv.Tx) error {
+				b, err := tx.Bucket([]byte("bucket"))
+				if err != nil {
+					t.Errorf("unexpected error retrieving bucket: %v", err)
+					return err
+				}
+
+				cur, err := b.Cursor(tt.args.hints...)
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+					return err
+				}
+
+				var got []string
+				k, _ := cur.Seek([]byte(tt.args.seek))
+				for len(k) > 0 {
+					got = append(got, string(k))
+					if string(k) == tt.args.until {
+						break
+					}
+					k, _ = cur.Next()
+				}
+
+				if exp := tt.exp; !cmp.Equal(got, exp) {
+					t.Errorf("unexpected cursor values: -got/+exp\n%v", cmp.Diff(got, exp))
 				}
 
 				return nil
