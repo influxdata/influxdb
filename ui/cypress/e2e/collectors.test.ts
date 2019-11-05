@@ -4,7 +4,7 @@ describe('Collectors', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.signin().then(({body}) => {
+    return cy.signin().then(({body}) => {
       const {
         org: {id},
       } = body

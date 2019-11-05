@@ -11,10 +11,8 @@ describe('The Login Page', () => {
     cy.fixture('user').then(u => {
       user = u
     })
-
-    cy.setupUser()
-
-    cy.visit('/')
+    .then(() => cy.setupUser())
+    .then(() => cy.visit('/'))
   })
 
   it('can login', () => {

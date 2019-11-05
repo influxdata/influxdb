@@ -9,13 +9,12 @@ describe('Onboarding', () => {
   let user: TestUser
 
   beforeEach(() => {
-    cy.flush()
-
-    cy.fixture('user').then(u => {
+    return cy.flush()
+    .then(() => cy.fixture('user'))
+    .then(u => {
       user = u
+      cy.visit('/')
     })
-
-    cy.visit('/')
   })
 
   it('Can Onboard to Quick Start', () => {
