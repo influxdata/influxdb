@@ -1,5 +1,5 @@
 // Libraries
-import React, {FC} from 'react'
+import React, {FC, CSSProperties} from 'react'
 import {capitalize} from 'lodash'
 
 // Components
@@ -20,24 +20,15 @@ interface PassedProps {
 
 interface DefaultProps {
   disabled?: boolean
-  stretchToFit?: boolean
-  widthPixels?: number
+  style?: CSSProperties
 }
 
 type Props = PassedProps & DefaultProps
 
 const ColorDropdown: FC<Props> = props => {
-  const {
-    selected,
-    colors,
-    onChoose,
-    disabled,
-    stretchToFit,
-    widthPixels,
-  } = props
+  const {selected, colors, onChoose, disabled, style} = props
 
   const status = disabled ? ComponentStatus.Disabled : ComponentStatus.Default
-  const style = stretchToFit ? null : {width: `${widthPixels}px`}
 
   return (
     <Dropdown
@@ -83,9 +74,8 @@ const ColorDropdown: FC<Props> = props => {
 }
 
 ColorDropdown.defaultProps = {
-  stretchToFit: false,
   disabled: false,
-  widthPixels: 100,
+  style: {flex: '0 0 120px'},
 }
 
 export default ColorDropdown
