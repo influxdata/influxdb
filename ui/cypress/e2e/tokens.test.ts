@@ -10,85 +10,79 @@ describe('tokens', () => {
   }[]
 
   beforeEach(() => {
+    cy.flush()
+
     authData = []
 
-    return cy
-      .flush()
-      .then(() => cy.signin())
-      .then(({body}) => {
-        const {
-          org: {id},
-        } = body
-        cy.wrap(body.org).as('org')
+    cy.signin().then(({body}) => {
+      const {
+        org: {id},
+      } = body
+      cy.wrap(body.org).as('org')
 
-        testTokens = [
-          {
-            id: id,
-            description: 'token test \u0950',
-            status: 'active',
-            permissions: [
-              {action: 'write', resource: {type: 'views'}},
-              {action: 'write', resource: {type: 'documents'}},
-              {action: 'write', resource: {type: 'dashboards'}},
-              {action: 'write', resource: {type: 'buckets'}},
-            ],
-          },
-          {
-            id: id,
-            description: 'token test 02',
-            status: 'inactive',
-            permissions: [
-              {action: 'write', resource: {type: 'views'}},
-              {action: 'write', resource: {type: 'documents'}},
-              {action: 'write', resource: {type: 'dashboards'}},
-              {action: 'write', resource: {type: 'buckets'}},
-            ],
-          },
-          {
-            id: id,
-            description: 'token test 03',
-            status: 'inactive',
-            permissions: [
-              {action: 'read', resource: {type: 'views'}},
-              {action: 'read', resource: {type: 'documents'}},
-              {action: 'read', resource: {type: 'dashboards'}},
-              {action: 'read', resource: {type: 'buckets'}},
-            ],
-          },
-        ]
+      testTokens = [
+        {
+          id: id,
+          description: 'token test \u0950',
+          status: 'active',
+          permissions: [
+            {action: 'write', resource: {type: 'views'}},
+            {action: 'write', resource: {type: 'documents'}},
+            {action: 'write', resource: {type: 'dashboards'}},
+            {action: 'write', resource: {type: 'buckets'}},
+          ],
+        },
+        {
+          id: id,
+          description: 'token test 02',
+          status: 'inactive',
+          permissions: [
+            {action: 'write', resource: {type: 'views'}},
+            {action: 'write', resource: {type: 'documents'}},
+            {action: 'write', resource: {type: 'dashboards'}},
+            {action: 'write', resource: {type: 'buckets'}},
+          ],
+        },
+        {
+          id: id,
+          description: 'token test 03',
+          status: 'inactive',
+          permissions: [
+            {action: 'read', resource: {type: 'views'}},
+            {action: 'read', resource: {type: 'documents'}},
+            {action: 'read', resource: {type: 'dashboards'}},
+            {action: 'read', resource: {type: 'buckets'}},
+          ],
+        },
+      ]
 
-        // check out array.reduce for the nested calls here
-        return cy.request('api/v2/authorizations').then(resp => {
-          expect(resp.body).to.exist
-          authData.push({
-            description: resp.body.authorizations[0].description,
-            status: resp.body.authorizations[0].status === 'active',
-            id: resp.body.authorizations[0].id,
-          })
+      // check out array.reduce for the nested calls here
+      cy.request('api/v2/authorizations').then(resp => {
+        expect(resp.body).to.exist
+        authData.push({
+          description: resp.body.authorizations[0].description,
+          status: resp.body.authorizations[0].status === 'active',
+          id: resp.body.authorizations[0].id,
+        })
 
-          Promise.all(
-            testTokens.map(token => {
-              return cy
-                .createToken(
-                  token.id,
-                  token.description,
-                  token.status,
-                  token.permissions
-                )
-                .then(resp => {
-                  expect(resp.body).to.exist
-                  authData.push({
-                    description: resp.body.description,
-                    status: resp.body.status === 'active',
-                    id: resp.body.id,
-                  })
-                })
-            })
-          ).then(() => {
-            return cy.fixture('routes').then(({orgs}) => {
-              return cy.visit(`${orgs}/${id}/load-data/tokens`)
+        testTokens.forEach(token => {
+          cy.createToken(
+            token.id,
+            token.description,
+            token.status,
+            token.permissions
+          ).then(resp => {
+            expect(resp.body).to.exist
+            authData.push({
+              description: resp.body.description,
+              status: resp.body.status === 'active',
+              id: resp.body.id,
             })
           })
+        })
+
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${id}/load-data/tokens`)
         })
       })
   })

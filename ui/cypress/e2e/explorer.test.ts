@@ -20,18 +20,18 @@ type $CM = JQuery<HTMLElementCM>
 
 describe('DataExplorer', () => {
   beforeEach(() => {
-    return cy
-      .flush()
-      .then(() => cy.signin())
-      .then(({body}) => {
-        cy.wrap(body.org).as('org')
-        cy.createMapVariable(body.org.id)
-        return cy.fixture('routes').then(({orgs, explorer}) => {
-          return cy.get<Organization>('@org').then(({id}) => {
-            return cy.visit(`${orgs}/${id}${explorer}`)
-          })
-        })
+    cy.flush()
+
+    cy.signin().then(({body}) => {
+      cy.wrap(body.org).as('org')
+      cy.createMapVariable(body.org.id)
+    })
+
+    cy.fixture('routes').then(({orgs, explorer}) => {
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`${orgs}/${id}${explorer}`)
       })
+    })
   })
 
   describe('select time range to query', () => {
@@ -217,7 +217,7 @@ describe('DataExplorer', () => {
 
   describe('raw script editing', () => {
     beforeEach(() => {
-      return cy.getByTestID('switch-to-script-editor').click()
+      cy.getByTestID('switch-to-script-editor').click()
     })
 
     it('enables the submit button when a query is typed', () => {

@@ -2,20 +2,18 @@ import {Organization, Bucket} from '../../src/types'
 
 describe('Scrapers', () => {
   beforeEach(() => {
-    return cy
-      .flush()
-      .then(() => cy.signin())
-      .then(({body}) => {
-        const {
-          org: {id},
-          bucket,
-        } = body
-        cy.wrap(body.org).as('org')
-        cy.wrap(bucket).as('bucket')
+    cy.flush()
 
-        return cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${id}/load-data/scrapers`)
-        })
+    cy.signin().then(({body}) => {
+      const {
+        org: {id},
+        bucket,
+      } = body
+      cy.wrap(body.org).as('org')
+      cy.wrap(bucket).as('bucket')
+
+      cy.fixture('routes').then(({orgs}) => {
+        cy.visit(`${orgs}/${id}/load-data/scrapers`)
       })
   })
 
@@ -66,19 +64,16 @@ describe('Scrapers', () => {
         const url = 'http://google.com'
         const type = 'Prometheus'
 
-        return cy
-          .get<Organization>('@org')
-          .then((org: Organization) => {
-            return cy.get<Bucket>('@bucket').then((bucket: Bucket) => {
-              cy.createScraper(scraperName, url, type, org.id, bucket.id)
-              cy.createScraper(scraperName, url, type, org.id, bucket.id)
-            })
+        cy.get<Organization>('@org').then((org: Organization) => {
+          cy.get<Bucket>('@bucket').then((bucket: Bucket) => {
+            cy.createScraper(scraperName, url, type, org.id, bucket.id)
+            cy.createScraper(scraperName, url, type, org.id, bucket.id)
           })
-          .then(() => cy.fixture('routes'))
-          .then(({orgs}) => {
-            return cy.get<Organization>('@org').then(({id}: Organization) => {
-              cy.visit(`${orgs}/${id}/load-data/scrapers`)
-            })
+        })
+
+        cy.fixture('routes').then(({orgs}) => {
+          cy.get<Organization>('@org').then(({id}: Organization) => {
+            cy.visit(`${orgs}/${id}/load-data/scrapers`)
           })
       })
 

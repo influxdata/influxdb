@@ -359,7 +359,7 @@ export const setupUser = (): Cypress.Chainable<Cypress.Response> => {
 }
 
 export const flush = () => {
-  return cy.request({
+  cy.request({
     method: 'GET',
     url: '/debug/flush',
   })

@@ -3,30 +3,26 @@ import _ from 'lodash'
 
 describe('Tasks', () => {
   beforeEach(() => {
-    return cy
-      .flush()
-      .then(() => cy.signin())
-      .then(({body}) => {
-        cy.wrap(body.org).as('org')
-        cy.wrap(body.bucket).as('bucket')
+    cy.flush()
 
-        return cy
-          .createToken(body.org.id, 'test token', 'active', [
-            {action: 'write', resource: {type: 'views'}},
-            {action: 'write', resource: {type: 'documents'}},
-            {action: 'write', resource: {type: 'tasks'}},
-          ])
-          .then(({body}) => {
-            cy.wrap(body.token).as('token')
-          })
+    cy.signin().then(({body}) => {
+      cy.wrap(body.org).as('org')
+      cy.wrap(body.bucket).as('bucket')
+
+      cy.createToken(body.org.id, 'test token', 'active', [
+        {action: 'write', resource: {type: 'views'}},
+        {action: 'write', resource: {type: 'documents'}},
+        {action: 'write', resource: {type: 'tasks'}},
+      ]).then(({body}) => {
+        cy.wrap(body.token).as('token')
       })
-      .then(() => {
-        return cy.fixture('routes').then(({orgs}) => {
-          return cy.get('@org').then(({id}: Organization) => {
-            cy.visit(`${orgs}/${id}/tasks`)
-          })
-        })
+    })
+
+    cy.fixture('routes').then(({orgs}) => {
+      cy.get('@org').then(({id}: Organization) => {
+        cy.visit(`${orgs}/${id}/tasks`)
       })
+    })
   })
 
   it('cannot create a task with an invalid to() function', () => {
@@ -66,14 +62,12 @@ from(bucket: "${name}")
 
   describe('When tasks already exist', () => {
     beforeEach(() => {
-      return cy
-        .get('@org')
-        .then(({id}: Organization) => {
-          return cy.get<string>('@token').then(token => {
-            return cy.createTask(token, id)
-          })
+      cy.get('@org').then(({id}: Organization) => {
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id)
         })
-        .then(() => cy.reload())
+      })
+      cy.reload()
     })
 
     it('can edit a task', () => {
@@ -135,29 +129,23 @@ from(bucket: "${name}")
     const taskName = 'beepBoop'
 
     beforeEach(() => {
-      return cy
-        .get('@org')
-        .then(({id}: Organization) => {
-          return cy.get<string>('@token').then(token => {
-            return cy
-              .createTask(token, id, taskName)
-              .then(({body}) => {
-                cy.createAndAddLabel('tasks', id, body.id, newLabelName)
-              })
-              .then(() => {
-                return cy.createTask(token, id).then(({body}) => {
-                  cy.createAndAddLabel('tasks', id, body.id, 'bar')
-                })
-              })
+      cy.get('@org').then(({id}: Organization) => {
+        cy.get<string>('@token').then(token => {
+          cy.createTask(token, id, taskName).then(({body}) => {
+            cy.createAndAddLabel('tasks', id, body.id, newLabelName)
+          })
+
+          cy.createTask(token, id).then(({body}) => {
+            cy.createAndAddLabel('tasks', id, body.id, 'bar')
           })
         })
-        .then(() => {
-          return cy.fixture('routes').then(({orgs}) => {
-            return cy.get('@org').then(({id}: Organization) => {
-              return cy.visit(`${orgs}/${id}/tasks`)
-            })
-          })
+      })
+
+      cy.fixture('routes').then(({orgs}) => {
+        cy.get('@org').then(({id}: Organization) => {
+          cy.visit(`${orgs}/${id}/tasks`)
         })
+      })
     })
 
     it('can click to filter tasks by labels', () => {
@@ -183,7 +171,7 @@ from(bucket: "${name}")
     const interval = '12h'
     const offset = '30m'
     beforeEach(() => {
-      return createFirstTask(
+      createFirstTask(
         taskName,
         ({name}) => {
           return `import "influxdata/influxdb/v1"
@@ -193,23 +181,19 @@ from(bucket: "${name}")
         },
         interval,
         offset
-      ).then(() => {
-        cy.contains('Save')
-          .click()
-          .then(() => {
-            cy.getByTestID('task-card')
-              .should('have.length', 1)
-              .and('contain', taskName)
+      )
+      cy.contains('Save').click()
+      cy.getByTestID('task-card')
+        .should('have.length', 1)
+        .and('contain', taskName)
 
-            cy.getByTestID('task-card--name')
-              .contains(taskName)
-              .click()
-            // verify that the previously input data exists
-            cy.getByInputValue(taskName)
-            cy.getByInputValue(interval)
-            cy.getByInputValue(offset)
-          })
-      })
+      cy.getByTestID('task-card--name')
+        .contains(taskName)
+        .click()
+      // verify that the previously input data exists
+      cy.getByInputValue(taskName)
+      cy.getByInputValue(interval)
+      cy.getByInputValue(offset)
     })
 
     it('can update a task', () => {
@@ -290,19 +274,19 @@ from(bucket: "${name}")
       cy.getByInputName('name').type(secondTask)
       cy.getByTestID('task-form-schedule-input').type(interval)
       cy.getByTestID('task-form-offset-input').type(offset)
-      return cy.get<Bucket>('@bucket').then(bucket => {
+      cy.get<Bucket>('@bucket').then(bucket => {
         cy.getByTestID('flux-editor').within(() => {
           cy.get('textarea').type(flux(bucket), {force: true})
         })
-        cy.contains('Save').click()
-        cy.getByTestID('task-card')
-          .should('have.length', 2)
-          .and('contain', firstTask)
-          .and('contain', secondTask)
-        cy.getByTestID('task-card--name')
-          .contains(firstTask)
-          .click()
       })
+      cy.contains('Save').click()
+      cy.getByTestID('task-card')
+        .should('have.length', 2)
+        .and('contain', firstTask)
+        .and('contain', secondTask)
+      cy.getByTestID('task-card--name')
+        .contains(firstTask)
+        .click()
     })
 
     it('when navigating using the navbar', () => {
@@ -382,7 +366,7 @@ function createFirstTask(
   cy.getByTestID('task-form-schedule-input').type(interval)
   cy.getByTestID('task-form-offset-input').type(offset)
 
-  return cy.get<Bucket>('@bucket').then(bucket => {
+  cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea').type(flux(bucket), {force: true})
     })

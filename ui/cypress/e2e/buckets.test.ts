@@ -2,20 +2,19 @@ import {Bucket, Organization} from '../../src/types'
 
 describe('Buckets', () => {
   beforeEach(() => {
-    return cy
-      .flush()
-      .then(() => cy.signin())
-      .then(({body}) => {
-        const {
-          org: {id},
-          bucket,
-        } = body
-        cy.wrap(body.org).as('org')
-        cy.wrap(bucket).as('bucket')
-        return cy.fixture('routes').then(({orgs}) => {
-          cy.visit(`${orgs}/${id}/load-data/buckets`)
-        })
+    cy.flush()
+
+    cy.signin().then(({body}) => {
+      const {
+        org: {id},
+        bucket,
+      } = body
+      cy.wrap(body.org).as('org')
+      cy.wrap(bucket).as('bucket')
+      cy.fixture('routes').then(({orgs}) => {
+        cy.visit(`${orgs}/${id}/load-data/buckets`)
       })
+    })
   })
 
   describe('from the buckets index page', () => {

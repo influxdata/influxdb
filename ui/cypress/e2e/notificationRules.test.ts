@@ -6,34 +6,28 @@ describe('NotificationRules', () => {
   const name3 = 'Slack 3'
 
   beforeEach(() => {
-    return cy
-      .flush()
-      .then(() => cy.signin())
-      .then(({body}) => {
-        const {
-          org: {id},
-        } = body
-        cy.wrap(body.org).as('org')
+    cy.flush()
 
-        // create the notification endpoints
-        return cy
-          .fixture('endpoints')
-          .then(({slack}) => {
-            cy.createEndpoint({...slack, name: name1, orgID: id})
-            cy.createEndpoint({...slack, name: name2, orgID: id}).then(
-              ({body}) => {
-                cy.wrap(body).as('selectedEndpoint')
-              }
-            )
-            cy.createEndpoint({...slack, name: name3, orgID: id})
-          })
-          .then(() => {
-            // visit the alerting index
-            cy.fixture('routes').then(({orgs, alerting}) => {
-              cy.visit(`${orgs}/${id}${alerting}`)
-            })
-          })
+    cy.signin().then(({body}) => {
+      const {
+        org: {id},
+      } = body
+      cy.wrap(body.org).as('org')
+
+      // create the notification endpoints
+      cy.fixture('endpoints').then(({slack}) => {
+        cy.createEndpoint({...slack, name: name1, orgID: id})
+        cy.createEndpoint({...slack, name: name2, orgID: id}).then(({body}) => {
+          cy.wrap(body).as('selectedEndpoint')
+        })
+        cy.createEndpoint({...slack, name: name3, orgID: id})
       })
+
+      // visit the alerting index
+      cy.fixture('routes').then(({orgs, alerting}) => {
+        cy.visit(`${orgs}/${id}${alerting}`)
+      })
+    })
   })
 
   describe('When a rule does not exist', () => {

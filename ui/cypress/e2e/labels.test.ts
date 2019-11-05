@@ -4,7 +4,7 @@ describe('labels', () => {
   beforeEach(() => {
     cy.flush()
 
-    return cy.signin().then(({body}) => {
+    cy.signin().then(({body}) => {
       const {
         org: {id},
       } = body
