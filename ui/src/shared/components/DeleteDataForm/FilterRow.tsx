@@ -47,7 +47,7 @@ const FilterRow: FC<Props> = ({
         <Input onChange={onChangeKey} value={key} testID="key-input" />
       </Form.Element>
       <div className="delete-data-filter--equals">==</div>
-      <FeatureFlag name="deleteWithPredicate">
+      <FeatureFlag name="deleteWithPredicateEquality">
         <Form.Element
           label="Equality Filter"
           required={true}
