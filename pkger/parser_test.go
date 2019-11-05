@@ -1192,6 +1192,227 @@ spec:
 		})
 	})
 
+	t.Run("pkg with single dashboard xy chart", func(t *testing.T) {
+		t.Run("xy chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dash_1", actual.Name)
+				assert.Equal(t, "desc1", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, ChartKindXY, actualChart.Kind)
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.XYViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "xy", props.GetType())
+				assert.Equal(t, true, props.ShadeBelow)
+				assert.Equal(t, "xy chart note", props.Note)
+				assert.True(t, props.ShowNoteWhenEmpty)
+
+				require.Len(t, props.Queries, 1)
+				q := props.Queries[0]
+				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				require.Len(t, props.ViewColors, 1)
+				c := props.ViewColors[0]
+				assert.NotZero(t, c.ID)
+				assert.Equal(t, "laser", c.Name)
+				assert.Equal(t, "scale", c.Type)
+				assert.Equal(t, "#8F8AF4", c.Hex)
+				assert.Equal(t, 3.0, c.Value)
+			})
+		})
+
+		t.Run("handles invalid config", func(t *testing.T) {
+			tests := []struct {
+				name      string
+				jsonStr   string
+				numErrs   int
+				errFields []string
+			}{
+				{
+					name:      "color missing hex value",
+					numErrs:   1,
+					errFields: []string{"charts[0].colors[0].hex"},
+					jsonStr: `{
+						"apiVersion": "0.1.0",
+						"kind": "Package",
+						"meta": {
+						  "pkgName": "pkg_name",
+						  "pkgVersion": "1",
+						  "description": "pack description"
+						},
+						"spec": {
+						  "resources": [
+							{
+							  "kind": "Dashboard",
+							  "name": "dash_1",
+							  "description": "desc1",
+							  "charts": [
+								{
+								  "kind": "XY",
+								  "name": "xy chart",
+								  "prefix": "sumtin",
+								  "note": "xy chart note",
+								  "noteOnEmpty": true,
+								  "xPos": 1,
+								  "yPos": 2,
+								  "width": 6,
+								  "height": 3,
+								  "decimalPlaces": 1,
+								  "shade": true,
+								  "xColumn": "_time",
+								  "yColumn": "_value",
+								  "legend": {},
+								  "queries": [
+									{
+									  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
+									}
+								  ],
+								  "colors": [
+									{
+									  "name": "laser",
+									  "type": "scale",
+									  "value": 3
+									}
+								  ],
+								  "axes":[
+									{
+									  "name": "x",
+									  "label": "x_label",
+									  "prefix": "x_prefix",
+									  "suffix": "x_suffix",
+									  "base": "10",
+									  "scale": "linear"
+									},
+									{
+									  "name": "y",
+									  "label": "y_label",
+									  "prefix": "y_prefix",
+									  "suffix": "y_suffix",
+									  "base": "10",
+									  "scale": "linear"
+									}
+								  ],
+								  "geom": "line"
+								}
+							  ]
+							}
+						  ]
+						}
+					  }		  
+`,
+				},
+				{
+					name:      "invalid geom flag",
+					numErrs:   1,
+					errFields: []string{"charts[0].geom"},
+					jsonStr: `
+					{
+						"apiVersion": "0.1.0",
+						"kind": "Package",
+						"meta": {
+						  "pkgName": "pkg_name",
+						  "pkgVersion": "1",
+						  "description": "pack description"
+						},
+						"spec": {
+						  "resources": [
+							{
+							  "kind": "Dashboard",
+							  "name": "dash_1",
+							  "description": "desc1",
+							  "charts": [
+								{
+								  "kind": "XY",
+								  "name": "xy chart",
+								  "prefix": "sumtin",
+								  "note": "xy chart note",
+								  "noteOnEmpty": true,
+								  "xPos": 1,
+								  "yPos": 2,
+								  "width": 6,
+								  "height": 3,
+								  "decimalPlaces": 1,
+								  "shade": true,
+								  "xColumn": "_time",
+								  "yColumn": "_value",
+								  "legend": {},
+								  "queries": [
+									{
+									  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
+									}
+								  ],
+								  "colors": [
+									{
+									  "name": "laser",
+									  "type": "scale",
+									  "value": 3,
+									  "hex": "#FFF000"
+									}
+								  ],
+								  "axes":[
+									{
+									  "name": "x",
+									  "label": "x_label",
+									  "prefix": "x_prefix",
+									  "suffix": "x_suffix",
+									  "base": "10",
+									  "scale": "linear"
+									},
+									{
+									  "name": "y",
+									  "label": "y_label",
+									  "prefix": "y_prefix",
+									  "suffix": "y_suffix",
+									  "base": "10",
+									  "scale": "linear"
+									}
+								  ],
+								  "geom": "huzzah"
+								}
+							  ]
+							}
+						  ]
+						}
+					  }  
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					_, err := Parse(EncodingJSON, FromString(tt.jsonStr))
+					require.Error(t, err)
+
+					pErr, ok := IsParseErr(err)
+					require.True(t, ok, err)
+
+					require.Len(t, pErr.Resources, 1)
+
+					resErr := pErr.Resources[0]
+					assert.Equal(t, "dashboard", resErr.Kind)
+
+					require.Len(t, resErr.ValidationFails, tt.numErrs)
+					for i, vFail := range resErr.ValidationFails {
+						assert.Equal(t, tt.errFields[i], vFail.Field)
+					}
+				}
+				t.Run(tt.name, fn)
+			}
+		})
+	})
+
 	t.Run("pkg with dashboard and labels associated", func(t *testing.T) {
 		testfileRunner(t, "testdata/dashboard_associates_label", func(t *testing.T, pkg *Pkg) {
 			sum := pkg.Summary()

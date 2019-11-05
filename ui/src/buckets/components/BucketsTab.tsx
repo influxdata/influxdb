@@ -164,8 +164,10 @@ class BucketsTab extends PureComponent<Props, State> {
     )
   }
 
-  private handleClickColumn = (nextSort: Sort, sortKey: SortKey) => {
-    const sortType = SortTypes.String
+  private handleClickColumn = (sortType: SortTypes) => (
+    nextSort: Sort,
+    sortKey: SortKey
+  ) => {
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 

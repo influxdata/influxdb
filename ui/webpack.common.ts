@@ -84,6 +84,9 @@ module.exports = {
       body: process.env.INJECT_BODY || '',
     }),
     new webpack.ProgressPlugin(),
+    new webpack.DefinePlugin({
+      ENABLE_MONACO: JSON.stringify(false)
+    }),
     new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: API_BASE_PATH, STATIC_PREFIX: BASE_PATH}),
   ],
   stats: {

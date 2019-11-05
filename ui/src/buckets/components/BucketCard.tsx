@@ -40,7 +40,7 @@ class BucketRow extends PureComponent<Props & WithRouterProps> {
     const {bucket, onDeleteBucket} = this.props
     return (
       <ResourceCard
-        testID={`bucket--card ${bucket.name}`}
+        testID="bucket-card"
         contextMenu={
           !isSystemBucket(bucket.name) && (
             <BucketContextMenu

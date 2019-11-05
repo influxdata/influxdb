@@ -237,8 +237,8 @@ github.com/influxdata/changelog v1.1.0 h1:HXhmLZDrbuC+Ca5YX7g8B8cH5DmJpaOjd844d9
 github.com/influxdata/changelog v1.1.0/go.mod h1:uzpGWE/qehT8L426YuXwpMQub+a63vIINhIeEI9mnSM=
 github.com/influxdata/cron v0.0.0-20190812233253-38faece03642 h1:ae+mZOcsOpcD0GyaVpqAzR/2t2tffQ2cWArPGohs3A8=
 github.com/influxdata/cron v0.0.0-20190812233253-38faece03642/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
-github.com/influxdata/flux v0.52.0 h1:R91uUXbHzoiyYF7Xhm+wP3a0iSnl43iYJrN93nBhuP0=
-github.com/influxdata/flux v0.52.0/go.mod h1:ZFf4F0c8ACFP/5BkfCwk9I/vUwcByr0vMdLxwgOk57E=
+github.com/influxdata/flux v0.53.0 h1:pQCXohOPM9gAA+ahh+Wdi1sxjuGTnPbN/6btpv9vIMY=
+github.com/influxdata/flux v0.53.0/go.mod h1:ZFf4F0c8ACFP/5BkfCwk9I/vUwcByr0vMdLxwgOk57E=
 github.com/influxdata/goreleaser v0.97.0-influx h1:jT5OrcW7WfS0e2QxfwmTBjhLvpIC9CDLRhNgZJyhj8s=
 github.com/influxdata/goreleaser v0.97.0-influx/go.mod h1:MnjA0e0Uq6ISqjG1WxxMAl+3VS1QYjILSWVnMYDxasE=
 github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6 h1:CFx+pP90q/qg3spoiZjf8donE4WpAdjeJfPOcoNqkWo=
