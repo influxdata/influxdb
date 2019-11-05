@@ -2,7 +2,8 @@ import {Bucket, Organization} from '../../src/types'
 
 describe('Buckets', () => {
   beforeEach(() => {
-    return cy.flush()
+    return cy
+      .flush()
       .then(() => cy.signin())
       .then(({body}) => {
         const {

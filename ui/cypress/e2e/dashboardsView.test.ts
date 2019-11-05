@@ -8,7 +8,8 @@ const dispatch = action =>
 
 describe('Dashboard', () => {
   beforeEach(() => {
-    return cy.flush()
+    return cy
+      .flush()
       .then(() => cy.signin())
       .then(({body}) => {
         cy.wrap(body.org).as('org')
@@ -19,7 +20,6 @@ describe('Dashboard', () => {
           })
         })
       })
-
   })
 
   it("can edit a dashboard's name", () => {

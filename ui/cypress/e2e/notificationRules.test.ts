@@ -6,7 +6,8 @@ describe('NotificationRules', () => {
   const name3 = 'Slack 3'
 
   beforeEach(() => {
-    return cy.flush()
+    return cy
+      .flush()
       .then(() => cy.signin())
       .then(({body}) => {
         const {
@@ -15,12 +16,15 @@ describe('NotificationRules', () => {
         cy.wrap(body.org).as('org')
 
         // create the notification endpoints
-        return cy.fixture('endpoints')
+        return cy
+          .fixture('endpoints')
           .then(({slack}) => {
             cy.createEndpoint({...slack, name: name1, orgID: id})
-            cy.createEndpoint({...slack, name: name2, orgID: id}).then(({body}) => {
-              cy.wrap(body).as('selectedEndpoint')
-            })
+            cy.createEndpoint({...slack, name: name2, orgID: id}).then(
+              ({body}) => {
+                cy.wrap(body).as('selectedEndpoint')
+              }
+            )
             cy.createEndpoint({...slack, name: name3, orgID: id})
           })
           .then(() => {

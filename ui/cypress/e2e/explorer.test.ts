@@ -20,17 +20,18 @@ type $CM = JQuery<HTMLElementCM>
 
 describe('DataExplorer', () => {
   beforeEach(() => {
-    return cy.flush()
-    .then(() => cy.signin())
-    .then(({body}) => {
-      cy.wrap(body.org).as('org')
-      cy.createMapVariable(body.org.id)
-    return cy.fixture('routes').then(({orgs, explorer}) => {
-      return cy.get<Organization>('@org').then(({id}) => {
-        return cy.visit(`${orgs}/${id}${explorer}`)
+    return cy
+      .flush()
+      .then(() => cy.signin())
+      .then(({body}) => {
+        cy.wrap(body.org).as('org')
+        cy.createMapVariable(body.org.id)
+        return cy.fixture('routes').then(({orgs, explorer}) => {
+          return cy.get<Organization>('@org').then(({id}) => {
+            return cy.visit(`${orgs}/${id}${explorer}`)
+          })
+        })
       })
-    })
-    })
   })
 
   describe('select time range to query', () => {

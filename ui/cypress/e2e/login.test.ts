@@ -8,11 +8,12 @@ describe('The Login Page', () => {
   beforeEach(() => {
     cy.flush()
 
-    cy.fixture('user').then(u => {
-      user = u
-    })
-    .then(() => cy.setupUser())
-    .then(() => cy.visit('/'))
+    cy.fixture('user')
+      .then(u => {
+        user = u
+      })
+      .then(() => cy.setupUser())
+      .then(() => cy.visit('/'))
   })
 
   it('can login', () => {

@@ -2,12 +2,13 @@ import {Organization} from '../../src/types'
 
 describe('Variables', () => {
   beforeEach(() => {
-    return cy.flush()
-    .then(() => cy.signin())
-    .then(({body}) => {
-      cy.wrap(body.org).as('org')
-      return cy.visit(`orgs/${body.org.id}/settings/variables`)
-    })
+    return cy
+      .flush()
+      .then(() => cy.signin())
+      .then(({body}) => {
+        cy.wrap(body.org).as('org')
+        return cy.visit(`orgs/${body.org.id}/settings/variables`)
+      })
   })
 
   it('can create a variable', () => {

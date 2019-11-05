@@ -4,20 +4,21 @@ const measurement = 'my_meas'
 const field = 'my_field'
 describe('Checks', () => {
   beforeEach(() => {
-    return cy.flush()
-    .then(() => cy.signin())
-    .then(({body}) => {
-      const {
-        org: {id},
-      } = body
-      cy.writeData([`${measurement} ${field}=0`, `${measurement} ${field}=1`])
-      cy.wrap(body.org).as('org')
+    return cy
+      .flush()
+      .then(() => cy.signin())
+      .then(({body}) => {
+        const {
+          org: {id},
+        } = body
+        cy.writeData([`${measurement} ${field}=0`, `${measurement} ${field}=1`])
+        cy.wrap(body.org).as('org')
 
-      // visit the alerting index
-      return cy.fixture('routes').then(({orgs, alerting}) => {
-        cy.visit(`${orgs}/${id}${alerting}`)
+        // visit the alerting index
+        return cy.fixture('routes').then(({orgs, alerting}) => {
+          cy.visit(`${orgs}/${id}${alerting}`)
+        })
       })
-    })
   })
 
   it('can validate a threshold check', () => {
