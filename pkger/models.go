@@ -26,6 +26,22 @@ func (k kind) String() string {
 	}
 }
 
+// SafeID is an equivalent influxdb.ID that encodes safely with
+// zero values (influxdb.ID == 0).
+type SafeID influxdb.ID
+
+// Encode will safely encode the id.
+func (s SafeID) Encode() ([]byte, error) {
+	id := influxdb.ID(s)
+	b, _ := id.Encode()
+	return b, nil
+}
+
+// String prints a encoded string representation of the id.
+func (s SafeID) String() string {
+	return influxdb.ID(s).String()
+}
+
 // Metadata is the pkg metadata. This data describes the user
 // defined identifiers.
 type Metadata struct {
@@ -37,28 +53,30 @@ type Metadata struct {
 // Diff is the result of a service DryRun call. The diff outlines
 // what is new and or updated from the current state of the platform.
 type Diff struct {
-	Buckets       []DiffBucket
-	Dashboards    []DiffDashboard
-	Labels        []DiffLabel
-	LabelMappings []DiffLabelMapping
+	Buckets       []DiffBucket       `json:"buckets"`
+	Dashboards    []DiffDashboard    `json:"dashboards"`
+	Labels        []DiffLabel        `json:"labels"`
+	LabelMappings []DiffLabelMapping `json:"labelMappings"`
 }
 
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
-	ID                         influxdb.ID
-	Name                       string
-	OldDesc, NewDesc           string
-	OldRetention, NewRetention time.Duration
+	ID           SafeID        `json:"id"`
+	Name         string        `json:"name"`
+	OldDesc      string        `json:"oldDescription"`
+	NewDesc      string        `json:"newDescription"`
+	OldRetention time.Duration `json:"oldDuration"`
+	NewRetention time.Duration `json:"newDuration"`
 }
 
 // IsNew indicates whether a pkg bucket is going to be new to the platform.
 func (d DiffBucket) IsNew() bool {
-	return d.ID == influxdb.ID(0)
+	return d.ID == SafeID(0)
 }
 
 func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
 	return DiffBucket{
-		ID:           i.ID,
+		ID:           SafeID(i.ID),
 		Name:         b.Name,
 		OldDesc:      i.Description,
 		NewDesc:      b.Description,
@@ -69,9 +87,9 @@ func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
 
 // DiffDashboard is a diff of an individual dashboard.
 type DiffDashboard struct {
-	Name   string
-	Desc   string
-	Charts []DiffChart
+	Name   string      `json:"name"`
+	Desc   string      `json:"description"`
+	Charts []DiffChart `json:"charts"`
 }
 
 func newDiffDashboard(d *dashboard) DiffDashboard {
@@ -98,20 +116,22 @@ type DiffChart SummaryChart
 
 // DiffLabel is a diff of an individual label.
 type DiffLabel struct {
-	ID                 influxdb.ID
-	Name               string
-	OldColor, NewColor string
-	OldDesc, NewDesc   string
+	ID       SafeID `json:"id"`
+	Name     string `json:"name"`
+	OldColor string `json:"oldColor"`
+	NewColor string `json:"newColor"`
+	OldDesc  string `json:"oldDescription"`
+	NewDesc  string `json:"newDescription"`
 }
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
 func (d DiffLabel) IsNew() bool {
-	return d.ID == influxdb.ID(0)
+	return d.ID == SafeID(0)
 }
 
 func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
 	return DiffLabel{
-		ID:       i.ID,
+		ID:       SafeID(i.ID),
 		Name:     l.Name,
 		OldColor: i.Properties["color"],
 		NewColor: l.Color,
@@ -124,40 +144,40 @@ func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
 // single resource may have multiple mappings to multiple labels.
 // A label can have many mappings to other resources.
 type DiffLabelMapping struct {
-	IsNew bool
+	IsNew bool `json:"isNew"`
 
-	ResType influxdb.ResourceType
-	ResID   influxdb.ID
-	ResName string
+	ResType influxdb.ResourceType `json:"resourceType"`
+	ResID   SafeID                `json:"resourceID"`
+	ResName string                `json:"resourceName"`
 
-	LabelID   influxdb.ID
-	LabelName string
+	LabelID   SafeID `json:"labelID"`
+	LabelName string `json:"labelName"`
 }
 
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets       []SummaryBucket
-	Dashboards    []SummaryDashboard
-	Labels        []SummaryLabel
-	LabelMappings []SummaryLabelMapping
+	Buckets       []SummaryBucket       `json:"buckets"`
+	Dashboards    []SummaryDashboard    `json:"dashboards"`
+	Labels        []SummaryLabel        `json:"labels"`
+	LabelMappings []SummaryLabelMapping `json:"labelMappings"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
 type SummaryBucket struct {
 	influxdb.Bucket
-	LabelAssociations []influxdb.Label
+	LabelAssociations []influxdb.Label `json:"associations"`
 }
 
 // SummaryDashboard provides a summary of a pkg dashboard.
 type SummaryDashboard struct {
-	ID          influxdb.ID
-	OrgID       influxdb.ID
-	Name        string
-	Description string
-	Charts      []SummaryChart
+	ID          SafeID         `json:"id"`
+	OrgID       SafeID         `json:"orgID"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Charts      []SummaryChart `json:"charts"`
 
-	LabelAssociations []influxdb.Label
+	LabelAssociations []influxdb.Label `json:"associations"`
 }
 
 // ChartKind identifies what kind of chart is eluded too. Each
@@ -185,11 +205,13 @@ func (c ChartKind) ok() bool {
 
 // SummaryChart provides a summary of a pkg dashboard's chart.
 type SummaryChart struct {
-	Kind       ChartKind
-	Properties influxdb.ViewProperties
+	Kind       ChartKind               `json:"kind"`
+	Properties influxdb.ViewProperties `json:"properties"`
 
-	XPosition, YPosition int
-	Height, Width        int
+	XPosition int `json:"xPos"`
+	YPosition int `json:"yPos"`
+	Height    int `json:"height"`
+	Width     int `json:"width"`
 }
 
 // SummaryLabel provides a summary of a pkg label.
@@ -200,8 +222,8 @@ type SummaryLabel struct {
 // SummaryLabelMapping provides a summary of a label mapped with a single resource.
 type SummaryLabelMapping struct {
 	exists       bool
-	ResourceName string
-	LabelName    string
+	ResourceName string `json:"resourceName"`
+	LabelName    string `json:"labelName"`
 	influxdb.LabelMapping
 }
 
@@ -431,8 +453,8 @@ func (d *dashboard) Exists() bool {
 
 func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
-		ID:                d.ID(),
-		OrgID:             d.OrgID,
+		ID:                SafeID(d.ID()),
+		OrgID:             SafeID(d.OrgID),
 		Name:              d.Name,
 		Description:       d.Description,
 		LabelAssociations: toInfluxLabels(d.labels...),

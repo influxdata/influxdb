@@ -9,15 +9,18 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb"
+	"gopkg.in/yaml.v3"
 )
 
+// HTTPServer is a server that manages the packages HTTP transport.
 type HTTPServer struct {
 	r chi.Router
 	influxdb.HTTPErrorHandler
-	svc *Service
+	svc SVC
 }
 
-func NewHTTPServer(errHandler influxdb.HTTPErrorHandler, svc *Service) *HTTPServer {
+// NewHTTPServer constructs a new http server.
+func NewHTTPServer(errHandler influxdb.HTTPErrorHandler, svc SVC) *HTTPServer {
 	svr := &HTTPServer{
 		HTTPErrorHandler: errHandler,
 		svc:              svc,
@@ -26,28 +29,31 @@ func NewHTTPServer(errHandler influxdb.HTTPErrorHandler, svc *Service) *HTTPServ
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(middleware.SetHeader("Content-Type", "application/json; charset=utf-8"))
 	r.Use(middleware.Recoverer)
 
 	r.Route("/api/v2/packages", func(r chi.Router) {
-		r.Use(middleware.SetHeader("Content-Type", "application/json; charset=utf-8"))
-
 		r.Post("/", svr.createPkg)
+		r.Post("/apply", svr.applyPkg)
 	})
 
 	svr.r = r
 	return svr
 }
 
+// ServeHTTP serves up the http request.
 func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.r.ServeHTTP(w, r)
 }
 
+// ReqCreatePkg is a request body for the create pkg endpoint.
 type ReqCreatePkg struct {
 	PkgName        string `json:"pkgName"`
 	PkgDescription string `json:"pkgDescription"`
 	PkgVersion     string `json:"pkgVersion"`
 }
 
+// RespCreatePkg is a response body for the create pkg endpoint.
 type RespCreatePkg struct {
 	Package *Pkg `json:"package"`
 }
@@ -55,7 +61,7 @@ type RespCreatePkg struct {
 func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreatePkg
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		s.HandleHTTPError(r.Context(), newDecodeErr(err), w)
+		s.HandleHTTPError(r.Context(), newDecodeErr("json", err), w)
 		return
 	}
 	defer r.Body.Close()
@@ -77,17 +83,106 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
+type ReqApplyPkg struct {
+	DryRun bool   `yaml:"dryRun" json:"dryRun"`
+	OrgID  string `yaml:"orgID" json:"orgID"`
+	Pkg    *Pkg   `yaml:"package" json:"package"`
+}
+
+// RespApplyPkg is the response body for the apply pkg endpoint.
+type RespApplyPkg struct {
+	Diff    Diff    `yaml:"diff" json:"diff"`
+	Summary Summary `yaml:"summary" json:"summary"`
+}
+
+func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
+	reqBody, err := decodeApplyReq(r)
+	if err != nil {
+		s.HandleHTTPError(r.Context(), err, w)
+		return
+	}
+
+	orgID, err := influxdb.IDFromString(reqBody.OrgID)
+	if err != nil {
+		s.HandleHTTPError(r.Context(), err, w)
+		return
+	}
+
+	if err := reqBody.Pkg.Validate(); err != nil {
+		s.HandleHTTPError(r.Context(), err, w)
+		return
+	}
+
+	parsedPkg := reqBody.Pkg
+	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, parsedPkg)
+	if err != nil {
+		s.HandleHTTPError(r.Context(), httpParseErr(err), w)
+		return
+	}
+
+	// if only a dry run, then we exit before anything destructive
+	if reqBody.DryRun {
+		s.encResp(r.Context(), w, http.StatusOK, RespApplyPkg{
+			Diff:    diff,
+			Summary: sum,
+		})
+		return
+	}
+
+	sum, err = s.svc.Apply(r.Context(), *orgID, parsedPkg)
+	if err != nil {
+		s.HandleHTTPError(r.Context(), httpParseErr(err), w)
+		return
+	}
+
+	s.encResp(r.Context(), w, http.StatusCreated, RespApplyPkg{
+		Diff:    diff,
+		Summary: sum,
+	})
+}
+
+func decodeApplyReq(r *http.Request) (ReqApplyPkg, error) {
+	var (
+		reqBody  ReqApplyPkg
+		encoding Encoding
+		err      error
+	)
+
+	switch contentType := r.Header.Get("Content-Type"); contentType {
+	case "text/yml", "application/x-yaml":
+		encoding = EncodingYAML
+		err = yaml.NewDecoder(r.Body).Decode(&reqBody)
+	default:
+		encoding = EncodingJSON
+		err = json.NewDecoder(r.Body).Decode(&reqBody)
+	}
+	if err != nil {
+		return ReqApplyPkg{}, newDecodeErr(encoding.String(), err)
+	}
+
+	return reqBody, nil
+}
+
 func (s *HTTPServer) encResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
 	w.WriteHeader(code)
 	if err := json.NewEncoder(w).Encode(res); err != nil {
-		s.HandleHTTPError(ctx, err, w)
+		s.HandleHTTPError(ctx, &influxdb.Error{
+			Msg:  fmt.Sprintf("unable to marshal json; Err: %v", err),
+			Code: influxdb.EInternal,
+			Err:  err,
+		}, w)
 	}
 }
 
-func newDecodeErr(err error) *influxdb.Error {
+func newDecodeErr(encoding string, err error) *influxdb.Error {
 	return &influxdb.Error{
-		Msg:  fmt.Sprintf("unable to marshal JSON; Err: %v", err),
+		Msg:  fmt.Sprintf("unable to unmarshal %s; Err: %v", encoding, err),
 		Code: influxdb.EInvalid,
 		Err:  err,
 	}
+}
+
+func httpParseErr(err error) error {
+	return err
 }

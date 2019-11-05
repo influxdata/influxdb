@@ -15,6 +15,13 @@ import (
 // APIVersion marks the current APIVersion for influx packages.
 const APIVersion = "0.1.0"
 
+// SVC is the packages service interface.
+type SVC interface {
+	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
+	DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
+	Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, error)
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
@@ -202,9 +209,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   b.ResourceType(),
-				ResID:     b.ID(),
+				ResID:     SafeID(b.ID()),
 				ResName:   b.Name,
-				LabelID:   labelID,
+				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
 		})
@@ -219,9 +226,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   d.ResourceType(),
-				ResID:     d.ID(),
+				ResID:     SafeID(d.ID()),
 				ResName:   d.Name,
-				LabelID:   labelID,
+				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
 		})

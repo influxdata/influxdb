@@ -262,8 +262,8 @@ github.com/jmespath/go-jmespath v0.0.0-20160202185014-0b12d6b521d8/go.mod h1:Nht
 github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af h1:pmfjZENx5imkbgOkpRUYLnmbU7UEFbjtDA2hxJ1ichM=
 github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af/go.mod h1:Nht3zPeWKUH0NzdCt2Blrr5ys8VGpn0CEB0cQHVjt7k=
 github.com/json-iterator/go v1.1.6/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
-github.com/jsteenb2/testttp v0.0.0-20190807043343-249d5435f72f h1:/yuIWaHCxcz1pivurAmhBjVQpUAfJR1JHWWVeviSUBc=
-github.com/jsteenb2/testttp v0.0.0-20190807043343-249d5435f72f/go.mod h1:b4xqoUXV10gDTau9rOyBPcgYYxuCISP6BYynbRuJKBc=
+github.com/jsteenb2/testttp v0.0.0-20191105194620-6f0e3104c0c3 h1:ly+XY7dTLOVyradrd8CL8qralznIMkmAdQkPeprM4BI=
+github.com/jsteenb2/testttp v0.0.0-20191105194620-6f0e3104c0c3/go.mod h1:Bpl/IMLYUekm9vMu/EA8SwzUtmH+rGBPKeY4xLswom8=
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jsternberg/zap-logfmt v1.2.0 h1:1v+PK4/B48cy8cfQbxL4FmmNZrjnIMr2BsnyEmXqv2o=
 github.com/jsternberg/zap-logfmt v1.2.0/go.mod h1:kz+1CUmCutPWABnNkOu9hOHKdT2q3TDYCcsFy9hpqb0=
