@@ -109,7 +109,8 @@ describe('Buckets', () => {
     })
   })
 
-  describe('should alphabetize buckets in dropdown', () => {
+  // skipping until feature flag feature is removed for deleteWithPredicate
+  describe.skip('should alphabetize buckets in dropdown', () => {
     beforeEach(() => {
       cy.get<Organization>('@org').then(({id, name}) => {
         cy.createBucket(id, name, 'Funky Town').then(() => {
@@ -154,7 +155,8 @@ describe('Buckets', () => {
     })
   })
 
-  describe('delete with predicate', () => {
+  // skipping until feature flag feature is removed for deleteWithPredicate
+  describe.skip('delete with predicate', () => {
     beforeEach(() => {
       cy.getByTestID('bucket-delete-task').click()
       cy.getByTestID('overlay--container').should('have.length', 1)

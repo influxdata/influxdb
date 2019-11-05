@@ -417,7 +417,8 @@ describe('DataExplorer', () => {
     })
   })
 
-  describe('delete with predicate', () => {
+  // skipping until feature flag feature is removed for deleteWithPredicate
+  describe.skip('delete with predicate', () => {
     beforeEach(() => {
       cy.getByTestID('delete-data-predicate').click()
       cy.getByTestID('overlay--container').should('have.length', 1)
