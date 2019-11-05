@@ -311,6 +311,7 @@ func (w *worker) start(p *promise) {
 
 	// add to metrics
 	w.te.metrics.StartRun(p.task, time.Since(p.createdAt))
+	p.startedAt = time.Now()
 }
 
 func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
@@ -325,7 +326,7 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
 
 	// add to metrics
-	rd := time.Since(p.run.StartedAt)
+	rd := time.Since(p.startedAt)
 	w.te.metrics.FinishRun(p.task, rs, rd)
 
 	// log error
@@ -445,6 +446,7 @@ type promise struct {
 	err  error
 
 	createdAt time.Time
+	startedAt time.Time
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc

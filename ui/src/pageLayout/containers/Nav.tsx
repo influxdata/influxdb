@@ -11,6 +11,9 @@ import AccountNavSubItem from 'src/pageLayout/components/AccountNavSubItem'
 import CloudExclude from 'src/shared/components/cloud/CloudExclude'
 import CloudOnly from 'src/shared/components/cloud/CloudOnly'
 
+// Constants
+import {HOMEPAGE_PATHNAME} from 'src/shared/constants'
+
 // Utils
 import {getNavItemActivation} from 'src/pageLayout/utils'
 
@@ -98,7 +101,10 @@ class SideNav extends PureComponent<Props, State> {
                 <Icon glyph={IconFont.CuboNav} />
               </Link>
             )}
-            active={getNavItemActivation(['me', 'account'], location.pathname)}
+            active={getNavItemActivation(
+              [HOMEPAGE_PATHNAME, 'account'],
+              location.pathname
+            )}
           >
             <AccountNavSubItem
               orgs={orgs}

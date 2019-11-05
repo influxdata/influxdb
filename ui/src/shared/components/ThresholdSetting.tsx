@@ -4,10 +4,14 @@ import React, {FunctionComponent} from 'react'
 // Components
 import {
   Input,
-  Button,
-  ButtonShape,
+  SquareButton,
   IconFont,
   ComponentStatus,
+  TextBlock,
+  FlexBox,
+  ComponentSize,
+  FlexDirection,
+  AlignItems,
 } from '@influxdata/clockface'
 import ColorDropdown from 'src/shared/components/ColorDropdown'
 
@@ -61,12 +65,23 @@ const ThresholdSetting: FunctionComponent<Props> = ({
 
   const inputStatus = error ? ComponentStatus.Error : ComponentStatus.Default
 
+  const dropdownStyle = isBaseThreshold
+    ? {flex: '1 0 120px'}
+    : {flex: '0 0 120px'}
+
   return (
-    <div className="threshold-setting" data-test-id={id}>
-      <div className="threshold-setting--controls">
-        <div className="threshold-setting--label">{label}</div>
+    <>
+      <FlexBox
+        direction={FlexDirection.Row}
+        alignItems={AlignItems.Center}
+        margin={ComponentSize.Small}
+        testID={id}
+      >
+        <TextBlock text={label} style={{flex: '0 0 90px'}} />
         {!isBaseThreshold && (
           <Input
+            style={{flex: '1 0 0'}}
+            testID={`threshold-${id}-input`}
             className="threshold-setting--value"
             value={value}
             status={inputStatus}
@@ -83,19 +98,25 @@ const ThresholdSetting: FunctionComponent<Props> = ({
           colors={THRESHOLD_COLORS}
           selected={THRESHOLD_COLORS.find(d => d.name === name)}
           onChoose={({name, hex}) => onChangeColor(name, hex)}
-          stretchToFit={true}
+          style={dropdownStyle}
         />
         {isRemoveable && (
-          <Button
-            className="threshold-setting--remove"
+          <SquareButton
             icon={IconFont.Remove}
-            shape={ButtonShape.Square}
             onClick={onRemove}
+            style={{flex: '0 0 30px'}}
           />
         )}
-      </div>
-      {error && <div className="threshold-setting--error">{error}</div>}
-    </div>
+      </FlexBox>
+      {error && (
+        <div
+          className="threshold-setting--error"
+          data-testid={`threshold-${id}-error`}
+        >
+          {error}
+        </div>
+      )}
+    </>
   )
 }
 
