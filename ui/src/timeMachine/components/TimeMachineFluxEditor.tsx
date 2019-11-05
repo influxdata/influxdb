@@ -56,7 +56,8 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         handleDisplay: HANDLE_NONE,
         render: () => {
           if (ENABLE_MONACO) {
-            const FluxMonacoEditor = require('src/shared/components/FluxMonacoEditor').default
+            const FluxMonacoEditor = require('src/shared/components/FluxMonacoEditor')
+              .default
             return <FluxMonacoEditor script={activeQueryText} />
           }
           return (
