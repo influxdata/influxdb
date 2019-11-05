@@ -278,6 +278,10 @@ func (s *Service) createAuthorization(ctx context.Context, tx Tx, a *influxdb.Au
 
 	a.ID = s.IDGenerator.ID()
 
+	now := s.TimeGenerator.Now()
+	a.SetCreatedAt(now)
+	a.SetUpdatedAt(now)
+
 	if err := s.putAuthorization(ctx, tx, a); err != nil {
 		return err
 	}
@@ -457,30 +461,13 @@ func (s *Service) updateAuthorization(ctx context.Context, tx Tx, id influxdb.ID
 		a.Description = *upd.Description
 	}
 
-	v, err := encodeAuthorization(a)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
+	now := s.TimeGenerator.Now()
+	a.SetUpdatedAt(now)
 
-	encodedID, err := id.Encode()
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	b, err := tx.Bucket(authBucket)
-	if err != nil {
+	if err := s.putAuthorization(ctx, tx, a); err != nil {
 		return nil, err
 	}
 
-	if err = b.Put(encodedID, v); err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
 	return a, nil
 }
 

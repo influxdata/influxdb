@@ -5,6 +5,7 @@ import (
 	"context"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb"
@@ -35,6 +36,7 @@ var authorizationCmpOptions = cmp.Options{
 type AuthorizationFields struct {
 	IDGenerator    platform.IDGenerator
 	TokenGenerator platform.TokenGenerator
+	TimeGenerator  platform.TimeGenerator
 	Authorizations []*platform.Authorization
 	Users          []*platform.User
 	Orgs           []*platform.Organization
@@ -104,6 +106,9 @@ func CreateAuthorization(
 			name: "basic create authorization",
 			fields: AuthorizationFields{
 				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TimeGenerator: &mock.TimeGenerator{
+					FakeValue: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+				},
 				TokenGenerator: &mock.TokenGenerator{
 					TokenFn: func() (string, error) {
 						return "rand", nil
@@ -159,6 +164,10 @@ func CreateAuthorization(
 						Status:      platform.Active,
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 						Description: "new auth",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+						},
 					},
 				},
 			},

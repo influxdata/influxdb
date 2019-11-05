@@ -47,6 +47,7 @@ func initAuthorizationService(s kv.Store, f influxdbtesting.AuthorizationFields,
 	svc := kv.NewService(s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
+	svc.TimeGenerator = f.TimeGenerator
 
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {
