@@ -57,8 +57,14 @@ describe('Shared.Reducers.notifications', () => {
   it('should reset the state after a filter DWP has been successfully submitted', () => {
     const state = Object.assign({}, initialState)
     const filter: Filter = {key: 'mean', equality: '=', value: '100'}
-    initialState.isSerious = predicatesReducer(initialState, setIsSerious(true)).isSerious
-    initialState.filters = predicatesReducer(initialState, setFilter(filter, 0)).filters
+    initialState.isSerious = predicatesReducer(
+      initialState,
+      setIsSerious(true)
+    ).isSerious
+    initialState.filters = predicatesReducer(
+      initialState,
+      setFilter(filter, 0)
+    ).filters
     const result = predicatesReducer(initialState, resetPredicateState())
     expect(result).toEqual(state)
   })
