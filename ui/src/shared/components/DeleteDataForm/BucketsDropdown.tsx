@@ -22,7 +22,22 @@ const BucketsDropdown: FunctionComponent<Props> = ({
   bucketName,
   onSetBucketName,
 }) => {
-  const bucketNames = buckets.map(bucket => bucket.name)
+  const handleDefaults = name => name === '_monitoring' || name === '_tasks'
+  const bucketNames = buckets
+    .map(bucket => bucket.name)
+    .sort((a, b) => {
+      if (handleDefaults(a)) {
+        // ensures that the default _monitoring && _tasks are the last buckets
+        return 1
+      }
+      if (`${a}`.toLowerCase() < `${b}`.toLowerCase()) {
+        return -1
+      }
+      if (`${a}`.toLowerCase() > `${b}`.toLowerCase()) {
+        return 1
+      }
+      return 0
+    })
   return (
     <SelectDropdown
       options={bucketNames}
