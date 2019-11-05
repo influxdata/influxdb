@@ -1,6 +1,3 @@
-// Libraries
-import moment from 'moment'
-
 // Reducer
 import {
   HOUR_MS,
