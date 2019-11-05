@@ -17,10 +17,7 @@ interface Props {
   onSetTimeRange: (timeRange: [number, number]) => any
 }
 
-const TimeRangeDropdown: FC<Props> = ({
-  timeRange,
-  onSetTimeRange,
-}) => {
+const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   const [pickerActive, setPickerActive] = useState(false)
   const buttonRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +35,7 @@ const TimeRangeDropdown: FC<Props> = ({
       </Dropdown.Button>
       <Popover
         type={PopoverType.Outline}
-        position={PopoverPosition.ToTheBottom}
+        position={PopoverPosition.Below}
         triggerRef={buttonRef}
         visible={pickerActive}
         showEvent={PopoverInteraction.None}
@@ -49,7 +46,9 @@ const TimeRangeDropdown: FC<Props> = ({
         contents={() => (
           <DateRangePicker
             timeRange={{lower, upper}}
-            onSetTimeRange={({lower, upper}) => handleApplyTimeRange(lower, upper)}
+            onSetTimeRange={({lower, upper}) =>
+              handleApplyTimeRange(lower, upper)
+            }
             onClose={() => setPickerActive(false)}
             position={{position: 'relative'}}
           />
