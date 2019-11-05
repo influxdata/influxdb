@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -101,6 +103,18 @@ func (em *SchedulerMetrics) scheduleFail(taskID ID) {
 
 func (em *SchedulerMetrics) release(taskID ID) {
 	em.releaseCalls.Inc()
+}
+
+func (em *SchedulerMetrics) reportScheduleDelay(d time.Duration) {
+	em.scheduleDelay.Observe(d.Seconds())
+}
+
+func (em *SchedulerMetrics) reportExecution(err error, d time.Duration) {
+	em.totalExecuteCalls.Inc()
+	em.executeDelta.Observe(d.Seconds())
+	if err != nil {
+		em.totalExecuteFailure.Inc()
+	}
 }
 
 func newExecutingTasks(ts *TreeScheduler) *executingTasks {

@@ -575,6 +575,7 @@ func parseChart(r Resource) (chart, []failure) {
 		YPos:        r.intShort("yPos"),
 		Height:      r.intShort("height"),
 		Width:       r.intShort("width"),
+		Geom:        r.stringShort("geom"),
 	}
 
 	if leg, ok := ifaceMapToResource(r["legend"]); ok {
