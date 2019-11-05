@@ -22,11 +22,10 @@ const BucketsDropdown: FunctionComponent<Props> = ({
   bucketName,
   onSetBucketName,
 }) => {
-  const handleDefaults = name => name === '_monitoring' || name === '_tasks'
   const bucketNames = buckets
     .map(bucket => bucket.name)
     .sort((a, b) => {
-      if (handleDefaults(a)) {
+      if (isDefaultBucket(a)) {
         // ensures that the default _monitoring && _tasks are the last buckets
         return 1
       }
@@ -47,8 +46,11 @@ const BucketsDropdown: FunctionComponent<Props> = ({
   )
 }
 
-const mstp = (state: AppState): StateProps => ({
-  buckets: state.buckets.list,
-})
+const mstp = (state: AppState): StateProps => {
+  // map names and sort via a selector
+  return {
+    buckets: state.buckets.list,
+  }
+}
 
 export default connect<StateProps, {}, OwnProps>(mstp)(BucketsDropdown)
