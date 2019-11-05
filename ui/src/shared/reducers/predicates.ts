@@ -29,7 +29,7 @@ export const predicatesReducer = (
     case 'SET_BUCKET_NAME':
       return {...state, bucketName: action.bucketName}
 
-    case 'SET_TIME_RANGE':
+    case 'SET_DELETE_TIME_RANGE':
       return {...state, timeRange: action.timeRange}
 
     case 'SET_FILTER':
