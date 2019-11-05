@@ -168,7 +168,6 @@ class BucketsTab extends PureComponent<Props, State> {
     nextSort: Sort,
     sortKey: SortKey
   ) => {
-    // const sortType = SortTypes.Float
     this.setState({sortKey, sortDirection: nextSort, sortType})
   }
 

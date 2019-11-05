@@ -126,6 +126,7 @@ describe('Buckets', () => {
         .click()
     })
 
+    // this is currently not producing success, its actually failing, im going to write a separate issue for this
     it.skip('closes the overlay upon a successful delete with predicate submission', () => {
       cy.getByTestID('delete-checkbox').check({force: true})
       cy.getByTestID('confirm-delete-btn').click()
