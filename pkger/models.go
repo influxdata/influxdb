@@ -171,11 +171,12 @@ const (
 	ChartKindSingleStat         ChartKind = "single_stat"
 	ChartKindSingleStatPlusLine ChartKind = "single_stat_plus_line"
 	ChartKindXY                 ChartKind = "xy"
+	ChartKindGauge              ChartKind = "gauge"
 )
 
 func (c ChartKind) ok() bool {
 	switch c {
-	case ChartKindSingleStat, ChartKindSingleStatPlusLine, ChartKindXY:
+	case ChartKindSingleStat, ChartKindSingleStatPlusLine, ChartKindXY, ChartKindGauge:
 		return true
 	default:
 		return false
@@ -519,6 +520,20 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
 		}
+	case ChartKindGauge:
+		return influxdb.GaugeViewProperties{
+			Type:       "gauge",
+			Queries:    c.Queries.influxDashQueries(),
+			Prefix:     c.Prefix,
+			Suffix:     c.Suffix,
+			ViewColors: c.Colors.influxViewColors(),
+			DecimalPlaces: influxdb.DecimalPlaces{
+				IsEnforced: c.EnforceDecimals,
+				Digits:     int32(c.DecimalPlaces),
+			},
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
 	default:
 		return nil
 	}
@@ -547,6 +562,8 @@ func (c chart) validProperties() []failure {
 		fails = append(fails, c.Colors.hasTypes(colorTypeScale)...)
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+	case ChartKindGauge:
+		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
 	}
 
 	return fails
@@ -589,8 +606,11 @@ func (c chart) validBaseProps() []failure {
 }
 
 const (
-	colorTypeText  = "text"
-	colorTypeScale = "scale"
+	colorTypeText      = "text"
+	colorTypeScale     = "scale"
+	colorTypeMin       = "min"
+	colorTypeThreshold = "threshold"
+	colorTypeMax       = "max"
 )
 
 type color struct {
