@@ -53,6 +53,15 @@ export const predicatesReducer = (
     case 'SET_DELETION_STATUS':
       return {...state, deletionStatus: action.deletionStatus}
 
+    case 'SET_PREDICATE_DEFAULT':
+      return {
+        bucketName: '',
+        timeRange: [recently - HOUR_MS, recently],
+        filters: [],
+        isSerious: false,
+        deletionStatus: RemoteDataState.NotStarted,
+      }
+
     default:
       return state
   }
