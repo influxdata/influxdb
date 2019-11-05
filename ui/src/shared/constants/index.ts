@@ -37,6 +37,8 @@ export const FIVE_SECONDS = 5000
 export const TEN_SECONDS = 10000
 export const INFINITE = -1
 
+export const HOMEPAGE_PATHNAME = 'me'
+
 // Resizer && Threesizer
 export const HANDLE_VERTICAL = 'vertical'
 export const HANDLE_HORIZONTAL = 'horizontal'
