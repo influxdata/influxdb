@@ -186,8 +186,7 @@ describe('Dashboard', () => {
       })
     })
 
-    cy
-      .getByTestID('add-cell--button')
+    cy.getByTestID('add-cell--button')
       .click()
       .then(() => {
         cy.get('.view-options').should('not.exist')
@@ -200,14 +199,12 @@ describe('Dashboard', () => {
           .contains('Graph')
           .click()
           .then(() => {
-            cy
-              .getByTestID('dropdown-item')
+            cy.getByTestID('dropdown-item')
               .contains('Table')
               .should('have.length', 1)
               .click()
 
-            cy
-              .getByTestID('empty-state--text')
+            cy.getByTestID('empty-state--text')
               .contains('This query returned no columns')
               .should('exist')
           })
