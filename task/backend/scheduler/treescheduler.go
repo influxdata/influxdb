@@ -314,7 +314,14 @@ func (s *TreeScheduler) work(ctx context.Context, ch chan Item) {
 					err = &ErrUnrecoverable{errors.New("executor panicked")}
 				}
 			}()
-			return s.executor.Execute(ctx, it.id, t)
+			// report the difference between when the item was supposed to be scheduled and now
+			s.sm.reportScheduleDelay(time.Since(it.Next()))
+			preExec := time.Now()
+			// execute
+			err = s.executor.Execute(ctx, it.id, t)
+			// report how long execution took
+			s.sm.reportExecution(err, time.Since(preExec))
+			return err
 		}()
 		if err != nil {
 			s.onErr(ctx, it.id, it.Next(), err)
