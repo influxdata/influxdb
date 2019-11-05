@@ -45,12 +45,12 @@ export const setBucketName = (bucketName: string): SetBucketName => ({
 })
 
 interface SetTimeRange {
-  type: 'SET_TIME_RANGE'
+  type: 'SET_DELETE_TIME_RANGE'
   timeRange: [number, number]
 }
 
 export const setTimeRange = (timeRange: [number, number]): SetTimeRange => ({
-  type: 'SET_TIME_RANGE',
+  type: 'SET_DELETE_TIME_RANGE',
   timeRange,
 })
 
