@@ -3,7 +3,6 @@
 ### Bug Fixes
 
 1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
-1. [15766](https://github.com/influxdata/influxdb/pull/15766): Reset delete with predicate state after submission
 
 ## v2.0.0-alpha.19 [2019-10-30]
 
