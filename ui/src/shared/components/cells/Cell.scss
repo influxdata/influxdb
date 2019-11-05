@@ -3,24 +3,23 @@
   ------------------------------------------------------------------------------
 */
 
-$cell--header-size: 36px;
+$cell--header-size: 26px;
+$cell--header-button-color: $g5-pepper;
+$cell--header-button-hover-color: $g13-mist;
+$cell--header-button-active-color: $c-pool;
 
 .cell {
-  background-color: $g3-castle;
+  background-color: $g0-obsidian;
   border-radius: $radius;
-  transform: translate3d(0, 0, 0); // gpu boost
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
 }
 
 .cell--view {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  padding-top: $cell--header-size;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  left: 0;
-  z-index: $z--cell-view;
+  flex: 1 0 0;
+  position: relative;
 
   > .single-stat {
     border-radius: $radius;
@@ -49,7 +48,6 @@ $cell--header-size: 36px;
   justify-content: center;
   color: $empty-state-text;
   @extend %no-user-select;
-  padding: 0 $ix-marg-d $ix-marg-d $ix-marg-d;
   overflow: hidden;
 
   &.error {
@@ -67,106 +65,182 @@ $cell--header-size: 36px;
 }
 
 .cell--header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: $cell--header-size;
-  z-index: $z--cell-header;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  flex: 0 0 $cell--header-size;
 }
 
-.cell--draggable:hover {
-  cursor: move;
-}
-
-.cell--context {
-  position: absolute;
-  top: 0;
-  right: 2px;
-  padding: 4px;
-  height: $cell--header-size;
-  z-index: $z--cell-context;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.cell--name {
-  z-index: 3;
-  font-size: 13px;
-  line-height: 13px;
-  font-weight: 600;
-  position: absolute;
-  top: 50%;
-  padding: 0 10px;
-  transform: translateY(-50%);
-  width: 100%;
-  pointer-events: none;
-
-  .cell--header-note & {
-    padding-left: $cell--header-size;
-  }
-}
-
-.cell--note-indicator {
-  position: absolute;
+.cell--draggable {
+  flex: 0 0 $cell--header-size;
   width: $cell--header-size;
   height: $cell--header-size;
-  top: 0;
-  left: 0;
-  z-index: 10;
-  cursor: default;
-  color: $g20-white;
-  opacity: 0.5;
-  transition: opacity 0.25s ease;
-
-  &:hover {
-    opacity: 1;
-  }
-
-  & > span.cf-icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-  }
+  position: relative;
 }
 
-.cell--header-bar {
+.cell--dot-grid {
   position: absolute;
-  z-index: 1;
-  width: calc(100% - 8px);
-  height: calc(100% - 8px);
-  top: 4px;
-  left: 4px;
-  background-color: rgba($g20-white, 0.1);
-  border-radius: $radius-small;
-  opacity: 0;
-  transition: 0.25s opacity ease;
+  width: $ix-border;
+  height: $ix-border;
+  top: 50%;
+  transform: translate(-50%, -50%);
 
+  &,
+  &:before,
   &:after {
-    opacity: 0;
-    transition: 0.25s opacity ease;
+    border-radius: $ix-border / 2;
+    background-color: $cell--header-button-color;
+    transition: background-color 0.25s ease;
+  }
+
+  &:before,
+  &:after {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    border-radius: $radius-small;
-    @include gradient-h($c-pool, mix($c-pool, $c-comet));
+  }
+
+  &:before {
+    transform: translateY(-200%);
+  }
+  &:after {
+    transform: translateY(200%);
+  }
+
+  .cell:hover &,
+  .cell:hover &:before,
+  .cell:hover &:after {
+    background-color: $cell--header-button-hover-color;
   }
 }
 
-/* Hover State */
-.cell:hover {
-  .cell--context {
-    opacity: 1;
+.cell--dot-grid:nth-child(1) {
+  left: calc(50% - 4px);
+}
+.cell--dot-grid:nth-child(2) {
+  left: 50%;
+}
+.cell--dot-grid:nth-child(3) {
+  left: calc(50% + 4px);
+}
+.cell--draggable:hover {
+  cursor: move;
+
+  .cell--dot-grid,
+  .cell--dot-grid:before,
+  .cell--dot-grid:after {
+    background-color: $cell--header-button-active-color;
   }
-  .cell--header-bar {
-    opacity: 0.6;
+}
+
+.cell--context {
+  flex: 0 0 $cell--header-size;
+  width: $cell--header-size;
+  height: $cell--header-size;
+  border: 0;
+  outline: none;
+  background: none;
+  transition: color 0.25s ease, 0.25s opacity ease;
+  color: $cell--header-button-color;
+  position: relative;
+
+  > .cf-icon {
+    font-size: 14px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
   }
-  .cell--header:hover .cell--header-bar {
-    opacity: 1;
+
+  .cell:hover &:not(.cell--context__active) {
+    color: $cell--header-button-hover-color;
+  }
+
+  .cell:hover &:hover,
+  &.cell--context__active {
+    cursor: pointer;
+    color: $cell--header-button-active-color;
+  }
+}
+
+.cell--context-menu {
+  padding: $ix-marg-a;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.cell--context-item {
+  font-size: 12px;
+  line-height: 12px;
+  white-space: nowrap;
+  padding: $ix-marg-a + $ix-border $ix-marg-b;
+  border-radius: $ix-radius - 1px;
+  font-weight: 600;
+  transition: color 0.25s ease, background-color 0.25s ease;
+
+  > .cf-icon {
+    margin-right: $ix-marg-b;
+  }
+
+  &:hover {
+    cursor: pointer;
+    color: $g20-white;
+    background-color: $g5-pepper;
+  }
+}
+
+.cell--context-item__danger {
+  color: $c-dreamsicle;
+
+  &:hover {
+    color: $c-tungsten;
+  }
+}
+
+.cell--context-item__confirm {
+  &:hover {
+    background-color: transparent;
+  }
+}
+
+.cell--name {
+  flex: 1 0 0;
+  font-size: $ix-text-base;
+  line-height: $ix-text-base;
+  font-weight: 600;
+  padding-right: $ix-marg-b;
+  pointer-events: none;
+}
+
+.cell--note-indicator {
+  position: relative;
+  flex: 0 0 $cell--header-size;
+  width: $cell--header-size;
+  height: $cell--header-size;
+  cursor: default;
+  color: $cell--header-button-color;
+  transition: color 0.25s ease, opacity 0.25s ease;
+  
+  & > .cf-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .cell:hover &:not(.cell--note-indicator__active) {
+    color: $cell--header-button-hover-color;
+  }
+
+  &.cell--note-indicator__active,
+  &:hover,
+  .cell:hover &:hover {
+    cursor: pointer;
+    color: $cell--header-button-active-color;
   }
 }
 
@@ -188,11 +262,8 @@ $cell--header-size: 36px;
 /* Drag & Resize State */
 .react-grid-item.resizing,
 .react-grid-item.react-draggable-dragging {
-  .cell--header-bar,
-  .cell--header-bar:after {
-    opacity: 1;
-  }
-  .cell--context {
+  .cell--context,
+  .cell--note-indicator {
     opacity: 0;
   }
 }

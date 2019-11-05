@@ -12,10 +12,6 @@
   z-index: $z--cell-default;
   transition: all 200ms ease;
   transition-property: left, top;
-
-  &:hover {
-    z-index: $z--cell-context-hover;
-  }
 }
 .react-grid-item.cssTransforms {
   transition-property: transform;

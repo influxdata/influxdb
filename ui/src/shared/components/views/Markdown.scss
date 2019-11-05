@@ -7,10 +7,11 @@
   position: absolute !important;
   top: 0;
   left: 0;
+  border-radius: $ix-radius;
 }
 
 .markdown-cell--contents {
-  padding: 16px;
+  padding: $ix-marg-b + $ix-marg-a 26px;
   font-size: 13px;
 }
 
