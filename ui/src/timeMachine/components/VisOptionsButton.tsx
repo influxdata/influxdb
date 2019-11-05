@@ -37,6 +37,7 @@ export const VisOptionsButton: FC<Props> = ({
       color={color}
       icon={IconFont.CogThick}
       onClick={onToggleVisOptions}
+      testID="cog-cell--button"
     />
   )
 }

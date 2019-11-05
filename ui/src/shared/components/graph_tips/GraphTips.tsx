@@ -4,12 +4,12 @@ import React, {FC} from 'react'
 // Components
 import {ComponentColor, QuestionMarkTooltip} from '@influxdata/clockface'
 
-const GraphTips: FC = ({}) => (
+const GraphTips: FC = () => (
   <>
     <QuestionMarkTooltip
       diameter={18}
       color={ComponentColor.Primary}
-      testID={`graphtips-question-mark`}
+      testID="graphtips-question-mark"
       tooltipContents={
         <span>
           <h1>Graph Tips:</h1>

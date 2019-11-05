@@ -1071,7 +1071,9 @@ export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
   diff.forEach(option => {
     const {internalName} = option
     // check to see if the defaultOptions have been changed
-    const matchingIndex = defaultOptions.findIndex(o => o.internalName === internalName)
+    const matchingIndex = defaultOptions.findIndex(
+      o => o.internalName === internalName
+    )
     // if the updated fieldOption exists in the default values
     if (matchingIndex > -1) {
       const matchingOption = defaultOptions[matchingIndex]
