@@ -170,11 +170,12 @@ const (
 	ChartKindUnknown            ChartKind = ""
 	ChartKindSingleStat         ChartKind = "single_stat"
 	ChartKindSingleStatPlusLine ChartKind = "single_stat_plus_line"
+	ChartKindXY                 ChartKind = "xy"
 )
 
 func (c ChartKind) ok() bool {
 	switch c {
-	case ChartKindSingleStat, ChartKindSingleStatPlusLine:
+	case ChartKindSingleStat, ChartKindSingleStatPlusLine, ChartKindXY:
 		return true
 	default:
 		return false
@@ -462,6 +463,7 @@ type chart struct {
 	Colors          colors
 	Queries         queries
 	Axes            axes
+	Geom            string
 
 	XCol, YCol    string
 	XPos, YPos    int
@@ -503,6 +505,20 @@ func (c chart) properties() influxdb.ViewProperties {
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
 		}
+	case ChartKindXY:
+		return influxdb.XYViewProperties{
+			Type:              "xy",
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			ShadeBelow:        c.Shade,
+			Legend:            c.Legend.influxLegend(),
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			Axes:              c.Axes.influxAxes(),
+			Geom:              c.Geom,
+		}
 	default:
 		return nil
 	}
@@ -527,9 +543,31 @@ func (c chart) validProperties() []failure {
 	case ChartKindSingleStatPlusLine:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText, colorTypeScale)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+	case ChartKindXY:
+		fails = append(fails, c.Colors.hasTypes(colorTypeScale)...)
+		fails = append(fails, validGeometry(c.Geom)...)
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	}
 
 	return fails
+}
+
+var geometryTypes = map[string]bool{
+	"line":    true,
+	"step":    true,
+	"stacked": true,
+	"bar":     true,
+}
+
+func validGeometry(geom string) []failure {
+	if !geometryTypes[geom] {
+		return []failure{{
+			Field: "geom",
+			Msg:   fmt.Sprintf("type not found: %q", geom),
+		}}
+	}
+
+	return nil
 }
 
 func (c chart) validBaseProps() []failure {
