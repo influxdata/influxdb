@@ -79,24 +79,32 @@ func (q *arrayCursorIterator) Stats() cursors.CursorStats {
 	var stats cursors.CursorStats
 	if cur := q.asc.Float; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.asc.Integer; cur != nil {
+	}
+	if cur := q.asc.Integer; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.asc.Unsigned; cur != nil {
+	}
+	if cur := q.asc.Unsigned; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.asc.Boolean; cur != nil {
+	}
+	if cur := q.asc.Boolean; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.asc.String; cur != nil {
+	}
+	if cur := q.asc.String; cur != nil {
 		stats.Add(cur.Stats())
 	}
 	if cur := q.desc.Float; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.desc.Integer; cur != nil {
+	}
+	if cur := q.desc.Integer; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.desc.Unsigned; cur != nil {
+	}
+	if cur := q.desc.Unsigned; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.desc.Boolean; cur != nil {
+	}
+	if cur := q.desc.Boolean; cur != nil {
 		stats.Add(cur.Stats())
-	} else if cur := q.desc.String; cur != nil {
+	}
+	if cur := q.desc.String; cur != nil {
 		stats.Add(cur.Stats())
 	}
 	return stats
