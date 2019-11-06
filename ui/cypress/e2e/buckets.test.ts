@@ -109,7 +109,54 @@ describe('Buckets', () => {
     })
   })
 
-  describe('delete with predicate', () => {
+  // skipping until feature flag feature is removed for deleteWithPredicate
+  describe.skip('should alphabetize buckets in dropdown', () => {
+    beforeEach(() => {
+      cy.get<Organization>('@org').then(({id, name}) => {
+        cy.createBucket(id, name, 'Funky Town').then(() => {
+          cy.createBucket(id, name, 'ABC').then(() => {
+            cy.createBucket(id, name, 'Jimmy Mack')
+          })
+        })
+      })
+    })
+
+    it('alphabetizes buckets', () => {
+      cy.getByTestID('bucket-delete-task')
+        .first()
+        .click()
+        .then(() => {
+          cy.getByTestID('dropdown--button')
+            .contains('ABC')
+            .click()
+            .then(() => {
+              // get the bucket list
+              cy.get('.cf-dropdown-item--children')
+                .should('have.length', 6)
+                .then(el => {
+                  const results = []
+                  // output in an array
+                  el.text((index, currentContent) => {
+                    results[index] = currentContent
+                  })
+                  const expectedOrder = [
+                    'ABC',
+                    'defbuck',
+                    'Funky Town',
+                    'Jimmy Mack',
+                    '_tasks',
+                    '_monitoring',
+                  ]
+                  // check the order
+                  expect(results).to.deep.equal(expectedOrder)
+                })
+            })
+        })
+    })
+  })
+
+  // skipping until feature flag feature is removed for deleteWithPredicate
+  describe.skip('delete with predicate', () => {
     beforeEach(() => {
       cy.getByTestID('bucket-delete-task').click()
       cy.getByTestID('overlay--container').should('have.length', 1)
