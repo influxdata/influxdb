@@ -135,6 +135,7 @@ type Pkg struct {
 	mLabels     map[string]*label
 	mBuckets    map[string]*bucket
 	mDashboards map[string]*dashboard
+	mVariables  map[string]*variable
 
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -146,10 +147,6 @@ type Pkg struct {
 func (p *Pkg) Summary() Summary {
 	var sum Summary
 
-	for _, l := range p.labels() {
-		sum.Labels = append(sum.Labels, l.summarize())
-	}
-
 	for _, b := range p.buckets() {
 		sum.Buckets = append(sum.Buckets, b.summarize())
 	}
@@ -158,12 +155,20 @@ func (p *Pkg) Summary() Summary {
 		sum.Dashboards = append(sum.Dashboards, d.summarize())
 	}
 
+	for _, l := range p.labels() {
+		sum.Labels = append(sum.Labels, l.summarize())
+	}
+
 	for _, m := range p.labelMappings() {
 		sum.LabelMappings = append(sum.LabelMappings, SummaryLabelMapping{
 			ResourceName: m.ResourceName,
 			LabelName:    m.LabelName,
 			LabelMapping: m.LabelMapping,
 		})
+	}
+
+	for _, v := range p.variables() {
+		sum.Variables = append(sum.Variables, v.summarize())
 	}
 
 	return sum
@@ -224,6 +229,19 @@ func (p *Pkg) dashboards() []*dashboard {
 	})
 
 	return dashes
+}
+
+func (p *Pkg) variables() []*variable {
+	vars := make([]*variable, 0, len(p.mVariables))
+	for _, v := range p.mVariables {
+		vars = append(vars, v)
+	}
+
+	sort.Slice(vars, func(i, j int) bool {
+		return vars[i].Name < vars[j].Name
+	})
+
+	return vars
 }
 
 // labelMappings returns the mappings that will be created for
@@ -293,7 +311,7 @@ func (p *Pkg) validMetadata() error {
 	}
 
 	res := errResource{
-		Kind: "Package",
+		Kind: kindPackage.String(),
 		Idx:  -1,
 	}
 	for _, f := range failures {
@@ -332,6 +350,7 @@ func (p *Pkg) graphResources() error {
 	graphFns := []func() error{
 		// labels are first to validate associations with other resources
 		p.graphLabels,
+		p.graphVariables,
 		p.graphBuckets,
 		p.graphDashboards,
 	}
@@ -464,6 +483,47 @@ func (p *Pkg) graphDashboards() error {
 		p.mDashboards[r.Name()] = dash
 
 		return nil
+	})
+}
+
+func (p *Pkg) graphVariables() error {
+	p.mVariables = make(map[string]*variable)
+	return p.eachResource(kindVariable, func(r Resource) []failure {
+		if r.Name() == "" {
+			return []failure{{
+				Field: "name",
+				Msg:   "must be provided",
+			}}
+		}
+
+		if _, ok := p.mVariables[r.Name()]; ok {
+			return []failure{{
+				Field: "name",
+				Msg:   "duplicate name: " + r.Name(),
+			}}
+		}
+
+		newVar := &variable{
+			Name:        r.Name(),
+			Description: r.stringShort("description"),
+			Type:        strings.ToLower(r.stringShort("type")),
+			Query:       strings.TrimSpace(r.stringShort("query")),
+			Language:    strings.ToLower(strings.TrimSpace(r.stringShort("language"))),
+			ConstValues: r.slcStr("values"),
+			MapValues:   r.mapStrStr("values"),
+		}
+
+		p.mVariables[r.Name()] = newVar
+
+		// here we set the var on the var map and return fails
+		// reaons for this is we could end up providing bad
+		// errors to the user if we dont' set it b/c of a bad
+		// query or something, and its being referenced by a
+		// dashboard or something. The var exists, its just
+		// invalid. So the mapping is correct. So we keep this
+		// to validate that mapping is correct, and return fails
+		// to indicate fails from the var.
+		return newVar.valid()
 	})
 }
 
@@ -602,7 +662,7 @@ func parseChart(r Resource) (chart, []failure) {
 		Geom:        r.stringShort("geom"),
 	}
 
-	if leg, ok := ifaceMapToResource(r["legend"]); ok {
+	if leg, ok := ifaceToResource(r["legend"]); ok {
 		c.Legend.Type = leg.stringShort("type")
 		c.Legend.Orientation = leg.stringShort("orientation")
 	}
@@ -669,6 +729,9 @@ func (r Resource) kind() (kind, error) {
 	if newKind == kindUnknown {
 		return kindUnknown, errors.New("invalid kind")
 	}
+	if !kinds[newKind] {
+		return newKind, errors.New("unsupported kind provided")
+	}
 
 	return newKind, nil
 }
@@ -695,7 +758,7 @@ func (r Resource) nestedAssociations() []Resource {
 
 	var resources []Resource
 	for _, iface := range ifaces {
-		newRes, ok := ifaceMapToResource(iface)
+		newRes, ok := ifaceToResource(iface)
 		if !ok {
 			continue
 		}
@@ -757,15 +820,7 @@ func (r Resource) intShort(key string) int {
 }
 
 func (r Resource) string(key string) (string, bool) {
-	if s, ok := r[key].(string); ok {
-		return s, true
-	}
-
-	if i, ok := r[key].(int); ok {
-		return strconv.Itoa(i), true
-	}
-
-	return "", false
+	return ifaceToStr(r[key])
 }
 
 func (r Resource) stringShort(key string) string {
@@ -786,7 +841,7 @@ func (r Resource) slcResource(key string) []Resource {
 
 	var newResources []Resource
 	for _, iFace := range iFaceSlc {
-		r, ok := ifaceMapToResource(iFace)
+		r, ok := ifaceToResource(iFace)
 		if !ok {
 			continue
 		}
@@ -796,7 +851,51 @@ func (r Resource) slcResource(key string) []Resource {
 	return newResources
 }
 
-func ifaceMapToResource(i interface{}) (Resource, bool) {
+func (r Resource) slcStr(key string) []string {
+	v, ok := r[key]
+	if !ok {
+		return nil
+	}
+
+	iFaceSlc, ok := v.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	var out []string
+	for _, iface := range iFaceSlc {
+		s, ok := ifaceToStr(iface)
+		if !ok {
+			continue
+		}
+		out = append(out, s)
+	}
+
+	return out
+}
+
+func (r Resource) mapStrStr(key string) map[string]string {
+	res, ok := ifaceToResource(r[key])
+	if !ok {
+		return nil
+	}
+
+	m := make(map[string]string)
+	for k, v := range res {
+		s, ok := ifaceToStr(v)
+		if !ok {
+			continue
+		}
+		m[k] = s
+	}
+	return m
+}
+
+func ifaceToResource(i interface{}) (Resource, bool) {
+	if i == nil {
+		return nil, false
+	}
+
 	res, ok := i.(Resource)
 	if ok {
 		return res, true
@@ -820,6 +919,26 @@ func ifaceMapToResource(i interface{}) (Resource, bool) {
 		newRes[s] = v
 	}
 	return newRes, true
+}
+
+func ifaceToStr(v interface{}) (string, bool) {
+	if v == nil {
+		return "", false
+	}
+
+	if s, ok := v.(string); ok {
+		return s, true
+	}
+
+	if i, ok := v.(int); ok {
+		return strconv.Itoa(i), true
+	}
+
+	if f, ok := v.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64), true
+	}
+
+	return "", false
 }
 
 // ParseErr is a error from parsing the given package. The ParseErr
