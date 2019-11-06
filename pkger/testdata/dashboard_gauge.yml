@@ -18,9 +18,6 @@ spec:
           yPos:  2
           width:  6
           height: 3
-          shade: true
-          geom: line
-          legend:
           queries:
             - query: >
                 from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
