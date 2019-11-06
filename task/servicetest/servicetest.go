@@ -587,6 +587,10 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
+	if !task.LatestScheduled.IsZero() {
+		t.Fatal("expected a zero LatestScheduled on created task")
+	}
+
 	st, err := sys.TaskService.FindTaskByID(sys.Ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -724,6 +728,21 @@ func testUpdate(t *testing.T, sys *System) {
 	if earliestUA.After(ua) || latestUA.Before(ua) {
 		t.Fatalf("updatedAt not accurate after pulling new task, expected %s to be between %s and %s", ua, earliestUA, latestUA)
 	}
+
+	ls := time.Now().Round(time.Second) // round to remove monotonic clock
+	task, err = sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{LatestScheduled: &ls})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = sys.TaskService.FindTaskByID(sys.Ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.LatestScheduled.Equal(ls) {
+		t.Fatalf("expected latest scheduled to update, expected: %v, got: %v", ls, st.LatestScheduled)
+	}
+
 }
 
 func testTaskRuns(t *testing.T, sys *System) {

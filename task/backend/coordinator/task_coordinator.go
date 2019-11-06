@@ -59,8 +59,16 @@ func (t SchedulableTask) Offset() time.Duration {
 
 // LastScheduled parses the task's LatestCompleted value as a Time object
 func (t SchedulableTask) LastScheduled() time.Time {
-	tm, _ := t.LatestCompletedTime()
-	return tm
+	if !t.LatestScheduled.IsZero() {
+		return t.LatestScheduled
+	}
+	if t.LatestCompleted != "" {
+		latestCompleted, _ := t.LatestCompletedTime()
+		return latestCompleted
+	}
+
+	createdAt, _ := time.Parse(time.RFC3339, t.CreatedAt)
+	return createdAt
 }
 
 func WithLimitOpt(i int) CoordinatorOption {

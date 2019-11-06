@@ -117,22 +117,6 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 	if err := json.Unmarshal(v, t); err != nil {
 		return nil, influxdb.ErrInternalTaskServiceError(err)
 	}
-	latestCompletedRun, err := s.findLatestCompleted(ctx, tx, t.ID)
-	if err != nil {
-		return nil, err
-	}
-	if latestCompletedRun != nil {
-		latestCompleted := latestCompletedRun.ScheduledFor
-		if t.LatestCompleted != "" {
-			tlc, err := time.Parse(time.RFC3339, t.LatestCompleted)
-			if err == nil && latestCompleted.After(tlc) {
-				t.LatestCompleted = latestCompleted.Format(time.RFC3339)
-
-			}
-		} else {
-			t.LatestCompleted = latestCompleted.Format(time.RFC3339)
-		}
-	}
 
 	if t.LatestCompleted == "" {
 		t.LatestCompleted = t.CreatedAt
@@ -492,16 +476,6 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 		}
 
 		if matchFn == nil || matchFn(t) {
-			latestCompleted, err := s.findLatestScheduledTimeForTask(ctx, tx, t)
-			if err != nil {
-				return nil, 0, err
-			}
-			if !latestCompleted.IsZero() {
-				t.LatestCompleted = latestCompleted.Format(time.RFC3339)
-			} else {
-				t.LatestCompleted = t.CreatedAt
-			}
-
 			ts = append(ts, t)
 
 			if len(ts) >= filter.Limit {
@@ -740,6 +714,13 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 		if !ulc.IsZero() && ulc.After(tlc) {
 			task.LatestCompleted = *upd.LatestCompleted
+		}
+	}
+
+	if upd.LatestScheduled != nil {
+		// make sure we only update latest scheduled one way
+		if upd.LatestScheduled.After(task.LatestScheduled) {
+			task.LatestScheduled = *upd.LatestScheduled
 		}
 	}
 
@@ -1783,31 +1764,6 @@ func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	return nil
 }
 
-func (s *Service) findLatestCompleted(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Run, error) {
-	bucket, err := tx.Bucket(taskRunBucket)
-	if err != nil {
-		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
-	}
-	key, err := taskLatestCompletedKey(id)
-	if err != nil {
-		return nil, err
-	}
-
-	bytes, err := bucket.Get(key)
-	if err != nil {
-		if err == ErrKeyNotFound {
-			return nil, nil
-		}
-		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
-	}
-
-	run := &influxdb.Run{}
-	if err = json.Unmarshal(bytes, run); err != nil {
-		return nil, influxdb.ErrInternalTaskServiceError(err)
-	}
-
-	return run, nil
-}
 func (s *Service) findLatestScheduledTimeForTask(ctx context.Context, tx Tx, task *influxdb.Task) (time.Time, error) {
 
 	// Get the latest completed time
@@ -1830,19 +1786,6 @@ func (s *Service) findLatestScheduledTimeForTask(ctx context.Context, tx Tx, tas
 		latestCompleted, err = time.Parse(time.RFC3339, task.LatestCompleted)
 		if err != nil {
 			return time.Time{}, influxdb.ErrTaskTimeParse(err)
-		}
-	}
-
-	// look to see if we have a "latest completed run"
-	lRun, err := s.findLatestCompleted(ctx, tx, task.ID)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	if lRun != nil {
-		runTime := lRun.ScheduledFor
-		if runTime.After(latestCompleted) {
-			latestCompleted = runTime
 		}
 	}
 
