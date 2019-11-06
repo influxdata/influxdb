@@ -91,6 +91,13 @@ jobs:
       - run: make test-js
       - run: make chronograf_lint
 
+  openapitest:
+    docker:
+      - image: node:11-alpine
+    steps:
+      - checkout
+      - run: npx ibm-openapi-validator -e http/swagger.yml
+      
   gotest:
     docker:
       - image: circleci/golang:1.12
@@ -245,6 +252,7 @@ workflows:
     jobs:
       - gotest
       - jstest
+      - openapitest
       - build
       - litmus_daily:
           requires:
