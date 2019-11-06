@@ -44,6 +44,7 @@ type Task struct {
 	Cron            string                 `json:"cron,omitempty"`
 	Offset          string                 `json:"offset,omitempty"`
 	LatestCompleted string                 `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
 	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
 	LastRunError    string                 `json:"lastRunError,omitempty"`
 	CreatedAt       string                 `json:"createdAt,omitempty"`
@@ -232,13 +233,13 @@ type TaskUpdate struct {
 
 	// LatestCompleted us to set latest completed on startup to skip task catchup
 	LatestCompleted *string                `json:"-"`
+	LatestScheduled *time.Time             `json:"-"`
 	LastRunStatus   *string                `json:"-"`
 	LastRunError    *string                `json:"-"`
 	Metadata        map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 
 	// Options gets unmarshalled from json as if it was flat, with the same level as Flux and Status.
 	Options options.Options // when we unmarshal this gets unmarshalled from flat key-values
-
 }
 
 func (t *TaskUpdate) UnmarshalJSON(data []byte) error {

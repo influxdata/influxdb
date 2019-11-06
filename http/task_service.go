@@ -152,10 +152,53 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 	return h
 }
 
+type Task struct {
+	ID              influxdb.ID            `json:"id"`
+	OrganizationID  influxdb.ID            `json:"orgID"`
+	Organization    string                 `json:"org"`
+	OwnerID         influxdb.ID            `json:"ownerID"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	Status          string                 `json:"status"`
+	Flux            string                 `json:"flux"`
+	Every           string                 `json:"every,omitempty"`
+	Cron            string                 `json:"cron,omitempty"`
+	Offset          string                 `json:"offset,omitempty"`
+	LatestCompleted string                 `json:"latestCompleted,omitempty"`
+	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
+	LastRunError    string                 `json:"lastRunError,omitempty"`
+	CreatedAt       string                 `json:"createdAt,omitempty"`
+	UpdatedAt       string                 `json:"updatedAt,omitempty"`
+	Metadata        map[string]interface{} `json:"metadata,omitempty"`
+}
+
 type taskResponse struct {
 	Links  map[string]string `json:"links"`
 	Labels []influxdb.Label  `json:"labels"`
-	influxdb.Task
+	Task
+}
+
+// NewFrontEndTask converts a internal task type to a task that we want to display to users
+func NewFrontEndTask(t influxdb.Task) Task {
+	return Task{
+		ID:              t.ID,
+		OrganizationID:  t.OrganizationID,
+		Organization:    t.Organization,
+		OwnerID:         t.OwnerID,
+		Name:            t.Name,
+		Description:     t.Description,
+		Status:          t.Status,
+		Flux:            t.Flux,
+		Every:           t.Every,
+		Cron:            t.Cron,
+		Offset:          t.Offset,
+		LatestCompleted: t.LatestCompleted,
+		LastRunStatus:   t.LastRunStatus,
+		LastRunError:    t.LastRunError,
+		CreatedAt:       t.CreatedAt,
+		UpdatedAt:       t.UpdatedAt,
+		Metadata:        t.Metadata,
+	}
 }
 
 func newTaskResponse(t influxdb.Task, labels []*influxdb.Label) taskResponse {
@@ -168,7 +211,7 @@ func newTaskResponse(t influxdb.Task, labels []*influxdb.Label) taskResponse {
 			"runs":    fmt.Sprintf("/api/v2/tasks/%s/runs", t.ID),
 			"logs":    fmt.Sprintf("/api/v2/tasks/%s/logs", t.ID),
 		},
-		Task:   t,
+		Task:   NewFrontEndTask(t),
 		Labels: []influxdb.Label{},
 	}
 
@@ -1310,7 +1353,7 @@ type TaskService struct {
 }
 
 // FindTaskByID returns a single task
-func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1352,7 +1395,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxd
 
 // FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 // of matching tasks.
-func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]Task, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1406,15 +1449,15 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 		return nil, 0, err
 	}
 
-	tasks := make([]*influxdb.Task, len(tr.Tasks))
+	tasks := make([]Task, len(tr.Tasks))
 	for i := range tr.Tasks {
-		tasks[i] = &tr.Tasks[i].Task
+		tasks[i] = tr.Tasks[i].Task
 	}
 	return tasks, len(tasks), nil
 }
 
 // CreateTask creates a new task.
-func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1456,7 +1499,7 @@ func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*i
 }
 
 // UpdateTask updates a single task with changeset.
-func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (t TaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
