@@ -844,9 +844,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		pkgSVC = pkger.NewService(pkgLogger, b.BucketService, b.LabelService, b.DashboardService)
 	}
 
-	var pkgHTTPServer *pkger.HTTPServer
+	var pkgHTTPServer *http.HandlerPkg
 	{
-		pkgHTTPServer = pkger.NewHTTPServer(m.apibackend.HTTPErrorHandler, pkgSVC)
+		pkgHTTPServer = http.NewHandlerPkg(m.apibackend.HTTPErrorHandler, pkgSVC)
 	}
 
 	// HTTP server

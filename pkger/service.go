@@ -84,6 +84,12 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+	if !pkg.isParsed {
+		if err := pkg.Validate(); err != nil {
+			return Summary{}, Diff{}, err
+		}
+	}
+
 	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -304,6 +310,12 @@ func labelSlcToMap(labels []*label) map[string]*label {
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
 func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
+	if !pkg.isParsed {
+		if err := pkg.Validate(); err != nil {
+			return Summary{}, err
+		}
+	}
+
 	if !pkg.isVerified {
 		_, _, err := s.DryRun(ctx, orgID, pkg)
 		if err != nil {

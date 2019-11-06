@@ -1,4 +1,4 @@
-package pkger
+package http
 
 import (
 	"context"
@@ -10,19 +10,20 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/pkger"
 	"gopkg.in/yaml.v3"
 )
 
-// HTTPServer is a server that manages the packages HTTP transport.
-type HTTPServer struct {
-	r chi.Router
+// HandlerPkg is a server that manages the packages HTTP transport.
+type HandlerPkg struct {
+	chi.Router
 	influxdb.HTTPErrorHandler
-	svc SVC
+	svc pkger.SVC
 }
 
-// NewHTTPServer constructs a new http server.
-func NewHTTPServer(errHandler influxdb.HTTPErrorHandler, svc SVC) *HTTPServer {
-	svr := &HTTPServer{
+// NewHandlerPkg constructs a new http server.
+func NewHandlerPkg(errHandler influxdb.HTTPErrorHandler, svc pkger.SVC) *HandlerPkg {
+	svr := &HandlerPkg{
 		HTTPErrorHandler: errHandler,
 		svc:              svc,
 	}
@@ -39,17 +40,13 @@ func NewHTTPServer(errHandler influxdb.HTTPErrorHandler, svc SVC) *HTTPServer {
 		r.Post("/apply", svr.applyPkg)
 	})
 
-	svr.r = r
+	svr.Router = r
 	return svr
 }
 
-func (s *HTTPServer) Prefix() string {
+// Prefix provides the prefix to this route tree.
+func (s *HandlerPkg) Prefix() string {
 	return "/api/v2/packages"
-}
-
-// ServeHTTP serves up the http request.
-func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.r.ServeHTTP(w, r)
 }
 
 // ReqCreatePkg is a request body for the create pkg endpoint.
@@ -61,10 +58,10 @@ type ReqCreatePkg struct {
 
 // RespCreatePkg is a response body for the create pkg endpoint.
 type RespCreatePkg struct {
-	Package *Pkg `json:"package"`
+	Package *pkger.Pkg `json:"package"`
 }
 
-func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
+func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreatePkg
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		s.HandleHTTPError(r.Context(), newDecodeErr("json", err), w)
@@ -73,7 +70,7 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	newPkg, err := s.svc.CreatePkg(r.Context(),
-		WithMetadata(Metadata{
+		pkger.WithMetadata(pkger.Metadata{
 			Description: reqBody.PkgDescription,
 			Name:        reqBody.PkgName,
 			Version:     reqBody.PkgVersion,
@@ -91,18 +88,18 @@ func (s *HTTPServer) createPkg(w http.ResponseWriter, r *http.Request) {
 
 // ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
 type ReqApplyPkg struct {
-	DryRun bool   `yaml:"dryRun" json:"dryRun"`
-	OrgID  string `yaml:"orgID" json:"orgID"`
-	Pkg    *Pkg   `yaml:"package" json:"package"`
+	DryRun bool       `yaml:"dryRun" json:"dryRun"`
+	OrgID  string     `yaml:"orgID" json:"orgID"`
+	Pkg    *pkger.Pkg `yaml:"package" json:"package"`
 }
 
 // RespApplyPkg is the response body for the apply pkg endpoint.
 type RespApplyPkg struct {
-	Diff    Diff    `yaml:"diff" json:"diff"`
-	Summary Summary `yaml:"summary" json:"summary"`
+	Diff    pkger.Diff    `yaml:"diff" json:"diff"`
+	Summary pkger.Summary `yaml:"summary" json:"summary"`
 }
 
-func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
+func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := decodeApplyReq(r)
 	if err != nil {
 		s.HandleHTTPError(r.Context(), err, w)
@@ -111,11 +108,6 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), err, w)
-		return
-	}
-
-	if err := reqBody.Pkg.Validate(); err != nil {
 		s.HandleHTTPError(r.Context(), err, w)
 		return
 	}
@@ -151,16 +143,16 @@ func (s *HTTPServer) applyPkg(w http.ResponseWriter, r *http.Request) {
 func decodeApplyReq(r *http.Request) (ReqApplyPkg, error) {
 	var (
 		reqBody  ReqApplyPkg
-		encoding Encoding
+		encoding pkger.Encoding
 		err      error
 	)
 
 	switch contentType := r.Header.Get("Content-Type"); contentType {
 	case "text/yml", "application/x-yaml":
-		encoding = EncodingYAML
+		encoding = pkger.EncodingYAML
 		err = yaml.NewDecoder(r.Body).Decode(&reqBody)
 	default:
-		encoding = EncodingJSON
+		encoding = pkger.EncodingJSON
 		err = json.NewDecoder(r.Body).Decode(&reqBody)
 	}
 	if err != nil {
@@ -170,7 +162,7 @@ func decodeApplyReq(r *http.Request) (ReqApplyPkg, error) {
 	return reqBody, nil
 }
 
-func (s *HTTPServer) encResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
+func (s *HandlerPkg) encResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
 	w.WriteHeader(code)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")

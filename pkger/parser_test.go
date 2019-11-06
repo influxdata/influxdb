@@ -1837,6 +1837,7 @@ func validParsedPkg(t *testing.T, path string, encoding Encoding, expected baseA
 	require.Equal(t, expected.description, pkg.Metadata.Description)
 	require.Equal(t, expected.metaName, pkg.Metadata.Name)
 	require.Equal(t, expected.metaVersion, pkg.Metadata.Version)
+	require.True(t, pkg.isParsed)
 
 	return pkg
 }
@@ -1878,5 +1879,4 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 		}
 		t.Run(tt.name, fn)
 	}
-
 }

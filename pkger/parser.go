@@ -136,7 +136,8 @@ type Pkg struct {
 	mBuckets    map[string]*bucket
 	mDashboards map[string]*dashboard
 
-	isVerified bool
+	isVerified bool // dry run has verified pkg resources with existing resources
+	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
 }
 
 // Summary returns a package Summary that describes all the resources and
@@ -181,6 +182,8 @@ func (p *Pkg) Validate() error {
 			return err
 		}
 	}
+
+	p.isParsed = true
 	return nil
 }
 
