@@ -59,5 +59,6 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 }
 
 func TestAuthorizationService(t *testing.T) {
+	t.Skip("This service is not used, we use the kv bolt implementation")
 	platformtesting.AuthorizationService(initAuthorizationService, t)
 }

@@ -292,10 +292,6 @@ func CreateAuthorization(
 						Token:       "supersecret",
 						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
 						Description: "already existing auth",
-						CRUDLog: platform.CRUDLog{ // TODO: is this valid if the use already exists?
-							CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-							UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-						},
 					},
 				},
 				err: platform.ErrUnableToCreateToken,
@@ -354,10 +350,6 @@ func CreateAuthorization(
 						Token:       "supersecret",
 						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
 						Description: "already existing auth",
-						CRUDLog: platform.CRUDLog{ // TODO: is this still valid if the org is invalid?
-							CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-							UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
-						},
 					},
 				},
 				err: platform.ErrUnableToCreateToken,
@@ -503,6 +495,9 @@ func UpdateAuthorization(
 		{
 			name: "regular update",
 			fields: AuthorizationFields{
+				TimeGenerator: &mock.TimeGenerator{
+					FakeValue: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+				},
 				Users: []*platform.User{
 					{
 						Name: "cooluser",
@@ -642,6 +637,9 @@ func UpdateAuthorization(
 		{
 			name: "update with unknown status",
 			fields: AuthorizationFields{
+				TimeGenerator: &mock.TimeGenerator{
+					FakeValue: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+				},
 				Users: []*platform.User{
 					{
 						Name: "cooluser",
