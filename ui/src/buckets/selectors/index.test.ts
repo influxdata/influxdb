@@ -1,10 +1,10 @@
 // Funcs
-import {isSystemBucket, sortBucketsByName, SYSTEM} from './index'
+import {isSystemBucket, getSortedBucketNames, SYSTEM} from './index'
 
 // Types
 import {Bucket} from 'src/types'
 
-describe('Bucket Selector Tests', () => {
+describe('Bucket Selector', () => {
   it('should return true when a default bucket is passed', () => {
     expect(isSystemBucket(SYSTEM)).toEqual(true)
   })
@@ -160,7 +160,7 @@ describe('Bucket Selector Tests', () => {
       },
     ]
 
-    const results = sortBucketsByName(buckets)
+    const results = getSortedBucketNames(buckets)
     const expectedResult = [
       'alpha',
       'buck2',

@@ -7,7 +7,7 @@ import {SelectDropdown} from '@influxdata/clockface'
 import {AppState} from 'src/types'
 
 // Selectors
-import {sortBucketsByName} from 'src/buckets/selectors/index'
+import {getSortedBucketNames} from 'src/buckets/selectors/index'
 
 interface StateProps {
   bucketNames: string[]
@@ -36,7 +36,7 @@ const BucketsDropdown: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   // map names and sort via a selector
-  const buckets = sortBucketsByName(state.buckets.list)
+  const buckets = getSortedBucketNames(state.buckets.list)
   return {
     bucketNames: buckets,
   }
