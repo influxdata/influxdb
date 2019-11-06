@@ -1,5 +1,8 @@
 import {Organization, Bucket} from '../../src/types'
 
+// a generous commitment to delivering this page in a loaded state
+const PAGE_LOAD_SLA = 10000
+
 describe('Scrapers', () => {
   beforeEach(() => {
     cy.flush()
@@ -16,6 +19,7 @@ describe('Scrapers', () => {
         cy.visit(`${orgs}/${id}/load-data/scrapers`)
       })
     })
+    cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
   })
 
   describe('from the org settings', () => {
@@ -77,6 +81,7 @@ describe('Scrapers', () => {
             cy.visit(`${orgs}/${id}/load-data/scrapers`)
           })
         })
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
 
       it('can update scrapers name', () => {

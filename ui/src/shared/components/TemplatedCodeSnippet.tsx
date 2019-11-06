@@ -17,19 +17,28 @@ export interface Props {
   defaults?: StringMap
 }
 
+// NOTE: this is just a simplified form of the resig classic:
+// https://johnresig.com/blog/javascript-micro-templating/
+function transform(template, vars) {
+  const output = new Function(
+    'vars',
+    'var output=' +
+      JSON.stringify(template).replace(
+        /<%=(.+?)%>/g,
+        '"+(vars["$1".trim()])+"'
+      ) +
+      ';return output;'
+  )
+  return output(vars)
+}
+
 @ErrorHandling
 class TemplatedCodeSnippet extends PureComponent<Props> {
-  // NOTE: this is just a simplified form of the resig classic:
-  // https://johnresig.com/blog/javascript-micro-templating/
   public transform() {
     const text = this.props.template
-    const output = new Function(
-      'vars',
-      'var output=' +
-        JSON.stringify(text).replace(/<%=(.+?)%>/g, '"+(vars["$1".trim()])+"') +
-        ';return output;'
-    )
-    return output(Object.assign({}, this.props.defaults, this.props.values))
+    const vars = Object.assign({}, this.props.defaults, this.props.values)
+
+    return transform(text, vars)
   }
 
   render() {
@@ -43,4 +52,5 @@ class TemplatedCodeSnippet extends PureComponent<Props> {
   }
 }
 
+export {transform}
 export default TemplatedCodeSnippet

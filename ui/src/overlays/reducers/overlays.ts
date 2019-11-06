@@ -10,6 +10,7 @@ export type OverlayID =
   | 'add-master-token'
   | 'add-token'
   | 'telegraf-config'
+  | 'telegraf-output'
 
 export interface OverlayParams {
   [key: string]: string
