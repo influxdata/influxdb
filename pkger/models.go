@@ -13,17 +13,27 @@ const (
 	kindDashboard kind = "dashboard"
 	kindLabel     kind = "label"
 	kindPackage   kind = "package"
+	kindVariable  kind = "variable"
 )
+
+var kinds = map[kind]bool{
+	kindBucket:    true,
+	kindDashboard: true,
+	kindLabel:     true,
+	kindPackage:   true,
+	kindVariable:  true,
+}
 
 type kind string
 
 func (k kind) String() string {
-	switch k {
-	case kindBucket, kindLabel, kindDashboard, kindPackage:
+	if kinds[k] {
 		return string(k)
-	default:
+	}
+	if k == kindUnknown {
 		return "unknown"
 	}
+	return string(k)
 }
 
 // SafeID is an equivalent influxdb.ID that encodes safely with
@@ -160,6 +170,7 @@ type Summary struct {
 	Dashboards    []SummaryDashboard    `json:"dashboards"`
 	Labels        []SummaryLabel        `json:"labels"`
 	LabelMappings []SummaryLabelMapping `json:"labelMappings"`
+	Variables     []SummaryVariable     `json:"variables"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
@@ -226,6 +237,11 @@ type SummaryLabelMapping struct {
 	influxdb.LabelMapping
 }
 
+// SummaryVariable provides a summary of a pkg variable.
+type SummaryVariable struct {
+	influxdb.Variable
+}
+
 type bucket struct {
 	id              influxdb.ID
 	OrgID           influxdb.ID
@@ -275,17 +291,17 @@ func (b *bucket) shouldApply() bool {
 		b.RetentionPeriod != b.existing.RetentionPeriod
 }
 
-type labelMapKey struct {
+type assocMapKey struct {
 	resType influxdb.ResourceType
 	name    string
 }
 
-type labelMapVal struct {
+type assocMapVal struct {
 	exists bool
 	v      interface{}
 }
 
-func (l labelMapVal) bucket() (*bucket, bool) {
+func (l assocMapVal) bucket() (*bucket, bool) {
 	if l.v == nil {
 		return nil, false
 	}
@@ -293,7 +309,7 @@ func (l labelMapVal) bucket() (*bucket, bool) {
 	return b, ok
 }
 
-func (l labelMapVal) dashboard() (*dashboard, bool) {
+func (l assocMapVal) dashboard() (*dashboard, bool) {
 	if l.v == nil {
 		return nil, false
 	}
@@ -308,7 +324,7 @@ type label struct {
 	Color       string
 	Description string
 
-	mappings map[labelMapKey]labelMapVal
+	mappings map[assocMapKey]assocMapVal
 
 	// exists provides context for a resource that already
 	// exists in the platform. If a resource already exists(exists=true)
@@ -359,7 +375,7 @@ func (l *label) mappingSummary() []SummaryLabelMapping {
 	return mappings
 }
 
-func (l *label) getMappedResourceID(k labelMapKey) influxdb.ID {
+func (l *label) getMappedResourceID(k assocMapKey) influxdb.ID {
 	switch k.resType {
 	case influxdb.BucketsResourceType:
 		b, ok := l.mappings[k].bucket()
@@ -380,14 +396,14 @@ func (l *label) setBucketMapping(b *bucket, exists bool) {
 		return
 	}
 	if l.mappings == nil {
-		l.mappings = make(map[labelMapKey]labelMapVal)
+		l.mappings = make(map[assocMapKey]assocMapVal)
 	}
 
-	key := labelMapKey{
+	key := assocMapKey{
 		resType: influxdb.BucketsResourceType,
 		name:    b.Name,
 	}
-	l.mappings[key] = labelMapVal{
+	l.mappings[key] = assocMapVal{
 		exists: exists,
 		v:      b,
 	}
@@ -398,14 +414,14 @@ func (l *label) setDashboardMapping(d *dashboard) {
 		return
 	}
 	if l.mappings == nil {
-		l.mappings = make(map[labelMapKey]labelMapVal)
+		l.mappings = make(map[assocMapKey]assocMapVal)
 	}
 
-	key := labelMapKey{
+	key := assocMapKey{
 		resType: d.ResourceType(),
 		name:    d.Name,
 	}
-	l.mappings[key] = labelMapVal{v: d}
+	l.mappings[key] = assocMapVal{v: d}
 }
 
 func (l *label) properties() map[string]string {
@@ -426,6 +442,82 @@ func toInfluxLabels(labels ...*label) []influxdb.Label {
 		})
 	}
 	return iLabels
+}
+
+type variable struct {
+	id          influxdb.ID
+	OrgID       influxdb.ID
+	Name        string
+	Description string
+	Type        string
+	Query       string
+	Language    string
+	ConstValues []string
+	MapValues   map[string]string
+
+	mappings map[assocMapKey]assocMapVal
+}
+
+func (v *variable) summarize() SummaryVariable {
+	args := &influxdb.VariableArguments{
+		Type: v.Type,
+	}
+	switch args.Type {
+	case "query":
+		args.Values = influxdb.VariableQueryValues{
+			Query:    v.Query,
+			Language: v.Language,
+		}
+	case "constant":
+		args.Values = influxdb.VariableConstantValues(v.ConstValues)
+	case "map":
+		args.Values = influxdb.VariableMapValues(v.MapValues)
+	}
+
+	return SummaryVariable{
+		Variable: influxdb.Variable{
+			ID:             v.id,
+			OrganizationID: v.OrgID,
+			Name:           v.Name,
+			Description:    v.Description,
+			Arguments:      args,
+		},
+	}
+}
+
+func (v *variable) valid() []failure {
+	var failures []failure
+	switch v.Type {
+	case "map":
+		if len(v.MapValues) == 0 {
+			failures = append(failures, failure{
+				Field: "values",
+				Msg:   "map variable must have at least 1 key/val pair",
+			})
+		}
+	case "constant":
+		if len(v.ConstValues) == 0 {
+			failures = append(failures, failure{
+				Field: "values",
+				Msg:   "constant variable must have a least 1 value provided",
+			})
+		}
+	case "query":
+		if v.Query == "" {
+			failures = append(failures, failure{
+				Field: "query",
+				Msg:   "query variable must provide a query string",
+			})
+		}
+		if v.Language != "influxql" && v.Language != "flux" {
+			const msgFmt = "query variable language must be either %q or %q; got %q"
+			failures = append(failures, failure{
+				Field: "language",
+				Msg:   fmt.Sprintf(msgFmt, "influxql", "flux", v.Language),
+			})
+		}
+	}
+	return failures
 }
 
 type dashboard struct {

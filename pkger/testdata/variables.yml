@@ -1,0 +1,33 @@
+apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var_query_1
+      description: var_query_1 desc
+      type: query
+      language: flux
+      query: |
+        buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
+    - kind: Variable
+      name: var_query_2
+      description: var_query_2 desc
+      type: query
+      query: an influxql query of sorts
+      language: influxql
+    - kind: Variable
+      name: var_const
+      description: var_const desc
+      type: constant
+      values:
+        - first val
+    - kind: Variable
+      name: var_map
+      description: var_map desc
+      type: map
+      values:
+        k1: v1
