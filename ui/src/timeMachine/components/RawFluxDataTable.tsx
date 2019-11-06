@@ -20,8 +20,6 @@ interface State {
   scrollTop: number
 }
 
-const PADDING = 10
-
 class RawFluxDataTable extends PureComponent<Props, State> {
   public state = {scrollLeft: 0, scrollTop: 0}
 
@@ -32,11 +30,11 @@ class RawFluxDataTable extends PureComponent<Props, State> {
     const {scrollTop, scrollLeft} = this.state
     const {data, maxColumnCount} = this.parseFiles(files)
 
-    const tableWidth = width - PADDING * 2
-    const tableHeight = height - PADDING * 2
+    const tableWidth = width
+    const tableHeight = height
 
     return (
-      <div className="raw-flux-data-table" style={{padding: `${PADDING}px`}}>
+      <div className="raw-flux-data-table">
         <FancyScrollbar
           style={{
             overflowY: 'hidden',
