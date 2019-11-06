@@ -163,16 +163,14 @@ describe('Collectors', () => {
     describe('sorting & filtering', () => {
       const telegrafs = ['bad', 'apple', 'cookie']
       const bucketz = ['MO_buckets', 'EZ_buckets', 'Bucky']
-      const labelz = ['snail', 'newer', 'cooler']
       const [firstTelegraf, secondTelegraf, thirdTelegraf] = telegrafs
       beforeEach(() => {
         const description = 'Config Description'
         const [firstBucket, secondBucket, thirdBucket] = bucketz
-        const [firstLabelz, secondLabelz, thirdLabelz] = labelz
         cy.get('@org').then(({id}: Organization) => {
-          cy.createTelegraf(firstTelegraf, description, id, firstBucket, firstLabelz)
-          cy.createTelegraf(secondTelegraf, description, id, secondBucket, secondLabelz)
-          cy.createTelegraf(thirdTelegraf, description, id, thirdBucket,thirdLabelz)
+          cy.createTelegraf(firstTelegraf, description, id, firstBucket)
+          cy.createTelegraf(secondTelegraf, description, id, secondBucket)
+          cy.createTelegraf(thirdTelegraf, description, id, thirdBucket)
         })
         cy.reload()
         cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
@@ -388,28 +386,31 @@ describe('Collectors', () => {
             cy.contains('Redis').should('exist')
           })
       })
+    })
+    describe('Label creation and searching', () => {
+      beforeEach(() => {
+        const description = 'Config Description'
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createTelegraf('newteleg', description, id, 'zoebucket')
+        })
+        cy.reload()
+      })
+      it('Can add label', () => {
+        cy.getByTestID('inline-labels--add').click()
+        cy.getByTestID('inline-labels--popover-field').type('zoe')
+        cy.getByTestID('inline-labels--create-new').click()
+        cy.getByTestID('overlay--container').should('exist')
+        cy.getByTestID('create-label-form--submit').click()
+        cy.getByTestID('label--pill zoe').should('exist')
+      })
 
-      it.only('can sort telegraf configs by label', () => {
-        cy.getByTestID('collector-card--name').should('have.length', 3)
-
-        cy.getByTestID('search-widget').type('slow')
-
-        cy.getByTestID('resource-card').should('have.length', 3)
-        cy.getByTestID('resource-card').should('contain', firstTelegraf)
-
+      it('can search by label', () => {
         cy.getByTestID('search-widget')
           .clear()
-          .type('snail')
+          .type('zoe')
 
         cy.getByTestID('resource-card').should('have.length', 1)
-        cy.getByTestID('resource-card').should('contain', firstTelegraf)
-
-        cy.getByTestID('search-widget')
-        .clear()
-        .type('cooler')
-
-        cy.getByTestID('resource-card').should('have.length', 1)
-        cy.getByTestID('resource-card').should('contain', thirdTelegraf)
+        cy.getByTestID('resource-card').should('contain', 'newteleg')
       })
     })
   })

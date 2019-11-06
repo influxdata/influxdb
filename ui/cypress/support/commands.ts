@@ -299,8 +299,7 @@ export const createTelegraf = (
   name?: string,
   description?: string,
   orgID?: string,
-  bucket?: string,
-  labels?: string
+  bucket?: string
 ): Cypress.Chainable<Cypress.Response> => {
   return cy.request({
     method: 'POST',
@@ -309,7 +308,6 @@ export const createTelegraf = (
       name,
       description,
       agent: {collectionInterval: 10000},
-      labels: [{id: 1,name: 'fast', orgID: orgID}, {id:2, name: 'slow', orgID: orgID}],
       plugins: [
         {
           name: 'influxdb_v2',
