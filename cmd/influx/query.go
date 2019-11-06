@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
+	_ "github.com/influxdata/flux/stdlib"
 	platform "github.com/influxdata/influxdb"
-	_ "github.com/influxdata/influxdb/query/builtin"
+	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -75,6 +77,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 
 		orgID = o.ID
 	}
+
+	flux.FinalizeBuiltIns()
 
 	r, err := getFluxREPL(flags.host, flags.token, orgID)
 	if err != nil {
