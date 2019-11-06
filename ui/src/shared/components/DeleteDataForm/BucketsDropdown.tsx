@@ -4,10 +4,13 @@ import {connect} from 'react-redux'
 import {SelectDropdown} from '@influxdata/clockface'
 
 // Types
-import {AppState, Bucket} from 'src/types'
+import {AppState} from 'src/types'
+
+// Selectors
+import {sortBucketNames} from 'src/buckets/selectors/index'
 
 interface StateProps {
-  buckets: Bucket[]
+  buckets: string[]
 }
 
 interface OwnProps {
@@ -22,24 +25,9 @@ const BucketsDropdown: FunctionComponent<Props> = ({
   bucketName,
   onSetBucketName,
 }) => {
-  const bucketNames = buckets
-    .map(bucket => bucket.name)
-    .sort((a, b) => {
-      if (isDefaultBucket(a)) {
-        // ensures that the default _monitoring && _tasks are the last buckets
-        return 1
-      }
-      if (`${a}`.toLowerCase() < `${b}`.toLowerCase()) {
-        return -1
-      }
-      if (`${a}`.toLowerCase() > `${b}`.toLowerCase()) {
-        return 1
-      }
-      return 0
-    })
   return (
     <SelectDropdown
-      options={bucketNames}
+      options={buckets}
       selectedOption={bucketName}
       onSelect={onSetBucketName}
     />
@@ -48,8 +36,9 @@ const BucketsDropdown: FunctionComponent<Props> = ({
 
 const mstp = (state: AppState): StateProps => {
   // map names and sort via a selector
+  const buckets = sortBucketNames(state.buckets.list)
   return {
-    buckets: state.buckets.list,
+    buckets,
   }
 }
 

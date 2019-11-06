@@ -1,25 +1,32 @@
 // Types
 import {Bucket} from 'src/types'
 
-export const MONITORING = '_monitoring'
-export const TASKS = '_tasks'
+export const SYSTEM = 'system'
 
-export const isDefaultBucket = (name: string): boolean =>
-  name === MONITORING || name === TASKS
+export const isSystemBucket = (type: string): boolean => type === SYSTEM
 
-export const sortBucketNames = (buckets: Bucket[] ) =>
+export const sortBucketNames = (buckets: Bucket[]) =>
   buckets
-    .map(bucket => bucket.name)
     .sort((a, b) => {
-      if (isDefaultBucket(a)) {
-        // ensures that the default _monitoring && _tasks are the last buckets
+      const firstBucket = `${a.name}`.toLowerCase()
+      const secondBucket = `${b.name}`.toLowerCase()
+      if (firstBucket === secondBucket) {
+        return 0
+      }
+      if (isSystemBucket(a.type)) {
+        // ensures that the default system types are the last buckets
         return 1
       }
-      if (`${a}`.toLowerCase() < `${b}`.toLowerCase()) {
+      if (isSystemBucket(b.type)) {
+        // ensures that the default system types are the last buckets
         return -1
       }
-      if (`${a}`.toLowerCase() > `${b}`.toLowerCase()) {
+      if (firstBucket < secondBucket) {
+        return -1
+      }
+      if (firstBucket > secondBucket) {
         return 1
       }
       return 0
     })
+    .map(bucket => bucket.name)
