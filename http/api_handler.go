@@ -2,9 +2,9 @@ package http
 
 import (
 	"net/http"
-	"sort"
 	"strings"
 
+	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/authorizer"
 	"github.com/influxdata/influxdb/chronograf/server"
@@ -43,7 +43,7 @@ type APIHandler struct {
 	VariableHandler             *VariableHandler
 	WriteHandler                *WriteHandler
 
-	ResourceHandlers []ResourceHandler
+	Gateway chi.Router
 }
 
 // APIBackend is all services and associated parameters required to construct
@@ -123,7 +123,7 @@ type APIHandlerOptFn func(*APIHandler)
 // WithResourceHandler registers a resource handler on the APIHandler.
 func WithResourceHandler(resHandler ResourceHandler) APIHandlerOptFn {
 	return func(h *APIHandler) {
-		h.ResourceHandlers = append(h.ResourceHandlers, resHandler)
+		h.Gateway.Mount(resHandler.Prefix(), resHandler)
 	}
 }
 
@@ -131,14 +131,11 @@ func WithResourceHandler(resHandler ResourceHandler) APIHandlerOptFn {
 func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	h := &APIHandler{
 		HTTPErrorHandler: b.HTTPErrorHandler,
+		Gateway:          newBaseChiRouter(b.HTTPErrorHandler),
 	}
-
 	for _, o := range opts {
 		o(h)
 	}
-	sort.Slice(h.ResourceHandlers, func(i, j int) bool {
-		return h.ResourceHandlers[i].Prefix() < h.ResourceHandlers[j].Prefix()
-	})
 
 	internalURM := b.UserResourceMappingService
 	b.UserResourceMappingService = authorizer.NewURMService(b.OrgLookupService, b.UserResourceMappingService)
@@ -291,14 +288,6 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// this for loop is equivalent to the if statements below
-	for _, resHandler := range h.ResourceHandlers {
-		if strings.HasPrefix(r.URL.Path, resHandler.Prefix()) {
-			resHandler.ServeHTTP(w, r)
-			return
-		}
-	}
-
 	if strings.HasPrefix(r.URL.Path, "/api/v2/setup") {
 		h.SetupHandler.ServeHTTP(w, r)
 		return
@@ -409,5 +398,9 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseHandler{HTTPErrorHandler: h.HTTPErrorHandler}.notFound(w, r)
+	// router has not found route registered on it directly
+	// if a route slips through, then the same 404 as before
+	// if a route matches on the gateway router, it will use
+	// whatever handler that matches the router in question.
+	h.Gateway.ServeHTTP(w, r)
 }

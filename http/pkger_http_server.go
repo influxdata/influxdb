@@ -35,10 +35,10 @@ func NewHandlerPkg(errHandler influxdb.HTTPErrorHandler, svc pkger.SVC) *Handler
 	r.Use(middleware.SetHeader("Content-Type", "application/json; charset=utf-8"))
 	r.Use(middleware.Recoverer)
 
-	r.Route(svr.Prefix(), func(r chi.Router) {
+	{
 		r.Post("/", svr.createPkg)
 		r.Post("/apply", svr.applyPkg)
-	})
+	}
 
 	svr.Router = r
 	return svr
