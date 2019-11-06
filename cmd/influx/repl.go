@@ -6,10 +6,11 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/repl"
+	_ "github.com/influxdata/flux/stdlib"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/query"
-	_ "github.com/influxdata/influxdb/query/builtin"
+	_ "github.com/influxdata/influxdb/query/stdlib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -69,6 +70,8 @@ func replF(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("unable to find organization: %v", err)
 		}
 	}
+
+	flux.FinalizeBuiltIns()
 
 	r, err := getFluxREPL(flags.host, flags.token, orgID)
 	if err != nil {

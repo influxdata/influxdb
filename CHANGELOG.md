@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 
+1. [15777](https://github.com/influxdata/influxdb/pull/15777): Fix long startup when running 'influx help'
 1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
 
 ## v2.0.0-alpha.19 [2019-10-30]
