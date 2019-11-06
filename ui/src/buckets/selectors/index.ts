@@ -5,7 +5,7 @@ export const SYSTEM = 'system'
 
 export const isSystemBucket = (type: string): boolean => type === SYSTEM
 
-export const sortBucketNames = (buckets: Bucket[]) =>
+export const sortBucketsByName = (buckets: Bucket[]) =>
   buckets
     .sort((a, b) => {
       const firstBucket = `${a.name}`.toLowerCase()

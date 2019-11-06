@@ -1,5 +1,5 @@
 // Funcs
-import {isSystemBucket, sortBucketNames, SYSTEM} from './index'
+import {isSystemBucket, sortBucketsByName, SYSTEM} from './index'
 
 // Types
 import {Bucket} from 'src/types'
@@ -160,7 +160,7 @@ describe('Bucket Selector Tests', () => {
       },
     ]
 
-    const results = sortBucketNames(buckets)
+    const results = sortBucketsByName(buckets)
     const expectedResult = [
       'alpha',
       'buck2',
