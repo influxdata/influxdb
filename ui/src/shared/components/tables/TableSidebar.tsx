@@ -46,7 +46,10 @@ export default class TableSidebar extends PureComponent<Props, State> {
             />
           </div>
         )}
-        <DapperScrollbars autoHide={true} className="time-machine-sidebar--scroll">
+        <DapperScrollbars
+          autoHide={true}
+          className="time-machine-sidebar--scroll"
+        >
           <div className="time-machine-sidebar--items">
             {this.filteredData.map(({groupKey, id, name}) => {
               return (

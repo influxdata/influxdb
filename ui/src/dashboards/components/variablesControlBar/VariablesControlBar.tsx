@@ -95,8 +95,13 @@ class VariablesControlBar extends PureComponent<Props, State> {
         className="variables-control-bar--empty"
       >
         <EmptyState.Text>
-          This dashboard doesn't have any cells with defined variables. {' '}
-          <a href="https://v2.docs.influxdata.com/v2.0/visualize-data/variables/" target="_blank">Learn How</a>
+          This dashboard doesn't have any cells with defined variables.{' '}
+          <a
+            href="https://v2.docs.influxdata.com/v2.0/visualize-data/variables/"
+            target="_blank"
+          >
+            Learn How
+          </a>
         </EmptyState.Text>
       </EmptyState>
     )
