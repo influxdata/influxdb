@@ -125,7 +125,7 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 	}
 
 	segments := make([]*SeriesSegment, 0, len(segmentInfos))
-	ids := make(map[uint64]IDData)
+	ids := make(map[SeriesIDTyped]IDData)
 
 	// check every segment
 	for _, segmentInfo := range segmentInfos {
@@ -179,7 +179,7 @@ type IDData struct {
 // VerifySegment performs verifications on a segment of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map is populated with information about the ids stored in the segment.
-func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid bool, err error) {
+func (v Verify) VerifySegment(segmentPath string, ids map[SeriesIDTyped]IDData) (valid bool, err error) {
 	segmentName := filepath.Base(segmentPath)
 	v.Logger = v.Logger.With(zap.String("segment", segmentName))
 	v.Logger.Info("Verifying segment")
@@ -213,7 +213,7 @@ func (v Verify) VerifySegment(segmentPath string, ids map[uint64]IDData) (valid 
 		return false, nil
 	}
 
-	prevID, firstID := uint64(0), true
+	currentID, firstID := NewSeriesIDTyped(0), true
 
 entries:
 	for len(buf.data) > 0 {
@@ -229,22 +229,22 @@ entries:
 		hasKey := true
 		switch flag {
 		case SeriesEntryInsertFlag:
-			if !firstID && prevID > id.RawID() {
+			if !firstID && currentID.SeriesID().Greater(id.SeriesID()) {
 				v.Logger.Error("ID is not monotonically increasing",
-					zap.Uint64("prev_id", prevID),
+					zap.Uint64("prev_id", currentID.RawID()),
 					zap.Uint64("id", id.RawID()),
 					zap.Int64("offset", buf.offset))
 				return false, nil
 			}
 
 			firstID = false
-			prevID = id.RawID()
+			currentID = id
 
 			if ids != nil {
 				keyCopy := make([]byte, len(key))
 				copy(keyCopy, key)
 
-				ids[id.RawID()] = IDData{
+				ids[currentID] = IDData{
 					Offset: JoinSeriesOffset(segment.ID(), uint32(buf.offset)),
 					Key:    keyCopy,
 				}
@@ -253,9 +253,9 @@ entries:
 		case SeriesEntryTombstoneFlag:
 			hasKey = false
 			if ids != nil {
-				data := ids[id.RawID()]
+				data := ids[currentID]
 				data.Deleted = true
-				ids[id.RawID()] = data
+				ids[currentID] = data
 			}
 
 		case 0: // if zero, there are no more entries
@@ -310,8 +310,7 @@ entries:
 // VerifyIndex performs verification on an index in a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map must be built from verifying the passed in segments.
-func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
-	ids map[uint64]IDData) (valid bool, err error) {
+func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map[SeriesIDTyped]IDData) (valid bool, err error) {
 	v.Logger.Info("Verifying index")
 
 	defer func() {
@@ -335,12 +334,12 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
 
 	// we check all the ids in a consistent order to get the same errors if
 	// there is a problem
-	idsList := make([]uint64, 0, len(ids))
+	idsList := make([]SeriesIDTyped, 0, len(ids))
 	for id := range ids {
 		idsList = append(idsList, id)
 	}
 	sort.Slice(idsList, func(i, j int) bool {
-		return idsList[i] < idsList[j]
+		return idsList[i].RawID() < idsList[j].RawID()
 	})
 
 	for _, id := range idsList {
@@ -352,9 +351,12 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
 
 		IDData := ids[id]
 
-		if gotDeleted := index.IsDeleted(NewSeriesID(id)); gotDeleted != IDData.Deleted {
+		if gotDeleted := index.IsDeleted(id.SeriesID()); gotDeleted != IDData.Deleted {
+			offset := index.FindOffsetByID(id.SeriesID())
+			index.SeriesKey(id.SeriesID())
 			v.Logger.Error("Index inconsistency",
-				zap.Uint64("id", id),
+				zap.Uint64("id_typed", id.RawID()),
+				zap.Uint64("id", id.SeriesID().RawID()),
 				zap.Bool("got_deleted", gotDeleted),
 				zap.Bool("expected_deleted", IDData.Deleted))
 			return false, nil
@@ -366,19 +368,21 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment,
 		}
 
 		// otherwise, check both that the offset is right and that we get the right id for the key
-		if gotOffset := index.FindOffsetByID(NewSeriesID(id)); gotOffset != IDData.Offset {
+		if gotOffset := index.FindOffsetByID(id.SeriesID()); gotOffset != IDData.Offset {
 			v.Logger.Error("Index inconsistency",
-				zap.Uint64("id", id),
+				zap.Uint64("id_typed", id.RawID()),
+				zap.Uint64("id", id.SeriesID().RawID()),
 				zap.Int64("got_offset", gotOffset),
 				zap.Int64("expected_offset", IDData.Offset))
 			return false, nil
 		}
 
-		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != NewSeriesIDTyped(id) {
+		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != id {
 			v.Logger.Error("Index inconsistency",
-				zap.Uint64("id", id),
+				zap.Uint64("id_typed", id.RawID()),
+				zap.Uint64("id", id.SeriesID().RawID()),
 				zap.Uint64("got_id", gotID.RawID()),
-				zap.Uint64("expected_id", id))
+				zap.Uint64("expected_id_typed", id.RawID()))
 			return false, nil
 		}
 	}
