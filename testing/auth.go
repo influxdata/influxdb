@@ -176,6 +176,9 @@ func CreateAuthorization(
 			name: "if auth ID supplied it is ignored",
 			fields: AuthorizationFields{
 				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TimeGenerator: &mock.TimeGenerator{
+					FakeValue: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+				},
 				TokenGenerator: &mock.TokenGenerator{
 					TokenFn: func() (string, error) {
 						return "rand", nil
@@ -228,6 +231,10 @@ func CreateAuthorization(
 						Token:       "rand",
 						Status:      platform.Active,
 						Permissions: createUsersPermission(MustIDBase16(orgOneID)),
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+						},
 					},
 				},
 			},
@@ -236,6 +243,9 @@ func CreateAuthorization(
 			name: "providing a non existing user is invalid",
 			fields: AuthorizationFields{
 				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TimeGenerator: &mock.TimeGenerator{
+					FakeValue: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+				},
 				TokenGenerator: &mock.TokenGenerator{
 					TokenFn: func() (string, error) {
 						return "rand", nil
@@ -282,6 +292,10 @@ func CreateAuthorization(
 						Token:       "supersecret",
 						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
 						Description: "already existing auth",
+						CRUDLog: platform.CRUDLog{ // TODO: is this valid if the use already exists?
+							CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+						},
 					},
 				},
 				err: platform.ErrUnableToCreateToken,
@@ -291,6 +305,9 @@ func CreateAuthorization(
 			name: "providing a non existing org is invalid",
 			fields: AuthorizationFields{
 				IDGenerator: mock.NewIDGenerator(authTwoID, t),
+				TimeGenerator: &mock.TimeGenerator{
+					FakeValue: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+				},
 				TokenGenerator: &mock.TokenGenerator{
 					TokenFn: func() (string, error) {
 						return "rand", nil
@@ -337,6 +354,10 @@ func CreateAuthorization(
 						Token:       "supersecret",
 						Permissions: allUsersPermission(MustIDBase16(orgOneID)),
 						Description: "already existing auth",
+						CRUDLog: platform.CRUDLog{ // TODO: is this still valid if the org is invalid?
+							CreatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+						},
 					},
 				},
 				err: platform.ErrUnableToCreateToken,
@@ -550,6 +571,9 @@ func UpdateAuthorization(
 					Permissions: createUsersPermission(MustIDBase16(orgOneID)),
 					Status:      platform.Inactive,
 					Description: "desc1",
+					CRUDLog: platform.CRUDLog{
+						UpdatedAt: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+					},
 				},
 			},
 		},
