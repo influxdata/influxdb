@@ -182,7 +182,7 @@ class GetResources extends PureComponent<Props, StateProps> {
         loading={remoteDataState}
         spinnerComponent={<TechnoSpinner />}
       >
-        <>{children}</>
+        {children}
       </SpinnerContainer>
     )
   }

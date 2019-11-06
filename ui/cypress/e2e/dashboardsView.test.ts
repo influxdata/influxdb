@@ -81,8 +81,8 @@ describe('Dashboard', () => {
         // cellContent is yielded as a cutesy phrase from src/shared/copy/cell
 
         // open Cell Editor Overlay
-        cy.getByTestID('cell-context-menu--edit').click()
-        cy.getByTestID('cell-context-menu-item--configure').click()
+        cy.getByTestID('cell-context--toggle').click()
+        cy.getByTestID('cell-context--configure').click()
 
         // Cancel edit
         cy.getByTestID('cancel-cell-edit--button').click()
@@ -129,8 +129,8 @@ describe('Dashboard', () => {
             .should('equal', secondKey)
 
           // open CEO
-          cy.getByTestID('cell-context-menu--edit').click()
-          cy.getByTestID('cell-context-menu-item--configure').click()
+          cy.getByTestID('cell-context--toggle').click()
+          cy.getByTestID('cell-context--configure').click()
 
           // selected value in cell context is 2nd value
           cy.window()

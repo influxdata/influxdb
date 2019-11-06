@@ -1,6 +1,5 @@
 // Libraries
-import React, {SFC} from 'react'
-import classnames from 'classnames'
+import React, {FunctionComponent} from 'react'
 
 // Components
 import CellHeaderNote from 'src/shared/components/cells/CellHeaderNote'
@@ -10,16 +9,17 @@ interface Props {
   note: string
 }
 
-const CellHeader: SFC<Props> = ({name, note}) => {
-  const className = classnames('cell--header cell--draggable', {
-    'cell--header-note': !!note,
-  })
-
+const CellHeader: FunctionComponent<Props> = ({name, note, children}) => {
   return (
-    <div className={className}>
-      <label className="cell--name">{name}</label>
-      <div className="cell--header-bar" />
+    <div className="cell--header">
+      <div className="cell--draggable">
+        <div className="cell--dot-grid" />
+        <div className="cell--dot-grid" />
+        <div className="cell--dot-grid" />
+      </div>
+      <div className="cell--name">{name}</div>
       {note && <CellHeaderNote note={note} />}
+      {children}
     </div>
   )
 }

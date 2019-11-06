@@ -23,6 +23,7 @@ export type Action =
   | SetFilter
   | DeleteFilter
   | SetDeletionStatus
+  | SetPredicateToDefault
 
 interface SetIsSerious {
   type: 'SET_IS_SERIOUS'
@@ -88,6 +89,14 @@ export const setDeletionStatus = (
   deletionStatus: status,
 })
 
+interface SetPredicateToDefault {
+  type: 'SET_PREDICATE_DEFAULT'
+}
+
+export const resetPredicateState = (): SetPredicateToDefault => ({
+  type: 'SET_PREDICATE_DEFAULT',
+})
+
 export const deleteWithPredicate = params => async (
   dispatch: Dispatch<Action>
 ) => {
@@ -97,10 +106,12 @@ export const deleteWithPredicate = params => async (
       throw new Error(resp.data.message)
     }
 
-    dispatch(notify(predicateDeleteSucceeded()))
     dispatch(setDeletionStatus(RemoteDataState.Done))
+    dispatch(notify(predicateDeleteSucceeded()))
+    dispatch(resetPredicateState())
   } catch {
     dispatch(notify(predicateDeleteFailed()))
     dispatch(setDeletionStatus(RemoteDataState.Error))
+    dispatch(resetPredicateState())
   }
 }

@@ -1,79 +1,70 @@
 // Libraries
-import React, {PureComponent, CSSProperties} from 'react'
+import React, {FunctionComponent, useRef, RefObject, useState} from 'react'
+import ReactMarkdown from 'react-markdown'
+import classnames from 'classnames'
 
 // Components
-import CellHeaderNoteTooltip from 'src/shared/components/cells/CellHeaderNoteTooltip'
+import {
+  Popover,
+  PopoverInteraction,
+  Icon,
+  IconFont,
+  PopoverType,
+  DapperScrollbars,
+} from '@influxdata/clockface'
 
-const MAX_TOOLTIP_WIDTH = 400
-const MAX_TOOLTIP_HEIGHT = 200
+// Constants
+const MAX_POPOVER_WIDTH = 280
+const MAX_POPOVER_HEIGHT = 200
 
 interface Props {
   note: string
 }
 
-interface State {
-  isShowingTooltip: boolean
-  domRect?: DOMRect
-}
+const CellHeaderNote: FunctionComponent<Props> = ({note}) => {
+  const [popoverVisible, setPopoverVisibility] = useState<boolean>(false)
+  const triggerRef: RefObject<HTMLDivElement> = useRef<HTMLDivElement>(null)
+  const indicatorClass = classnames('cell--note-indicator', {
+    'cell--note-indicator__active': popoverVisible,
+  })
+  const contentStyle = {
+    width: `${MAX_POPOVER_WIDTH}px`,
+    minWidth: `${MAX_POPOVER_WIDTH}px`,
+    maxWidth: `${MAX_POPOVER_WIDTH}px`,
+    maxHeight: `${MAX_POPOVER_HEIGHT}px`,
+  }
 
-class CellHeaderNote extends PureComponent<Props, State> {
-  public state: State = {isShowingTooltip: false}
+  const handlePopoverShow = (): void => {
+    setPopoverVisibility(true)
+  }
 
-  public render() {
-    const {note} = this.props
-    const {isShowingTooltip} = this.state
+  const handlePopoverHide = (): void => {
+    setPopoverVisibility(false)
+  }
 
-    return (
-      <div
-        className="cell--note-indicator"
-        onMouseEnter={this.handleMouseEnter}
-        onMouseLeave={this.handleMouseLeave}
-      >
-        <span className="icon chat" />
-        {isShowingTooltip && (
-          <CellHeaderNoteTooltip
-            note={note}
-            containerStyle={this.tooltipStyle}
-            maxWidth={MAX_TOOLTIP_WIDTH}
-            maxHeight={MAX_TOOLTIP_HEIGHT}
-          />
-        )}
+  return (
+    <>
+      <div className={indicatorClass} ref={triggerRef}>
+        <Icon glyph={IconFont.Chat} />
       </div>
-    )
-  }
-
-  private get tooltipStyle(): CSSProperties {
-    const {x, y, width, height} = this.state.domRect
-    const overflowsBottom = y + MAX_TOOLTIP_HEIGHT > window.innerHeight
-    const overflowsRight = x + MAX_TOOLTIP_WIDTH > window.innerWidth
-
-    const style: CSSProperties = {}
-
-    if (overflowsBottom) {
-      style.bottom = `${window.innerHeight - y - height}px`
-    } else {
-      style.top = `${y}px`
-    }
-
-    if (overflowsRight) {
-      style.right = `${window.innerWidth - x}px`
-    } else {
-      style.left = `${x + width}px`
-    }
-
-    return style
-  }
-
-  private handleMouseEnter = e => {
-    this.setState({
-      isShowingTooltip: true,
-      domRect: e.target.getBoundingClientRect(),
-    })
-  }
-
-  private handleMouseLeave = () => {
-    this.setState({isShowingTooltip: false})
-  }
+      <Popover
+        triggerRef={triggerRef}
+        type={PopoverType.Outline}
+        showEvent={PopoverInteraction.Click}
+        hideEvent={PopoverInteraction.Click}
+        onShow={handlePopoverShow}
+        onHide={handlePopoverHide}
+        enableDefaultStyles={false}
+        contents={() => (
+          <DapperScrollbars style={contentStyle} autoSize={true}>
+            <div className="cell--note-contents markdown-format">
+              <ReactMarkdown source={note} />
+            </div>
+          </DapperScrollbars>
+        )}
+      />
+    </>
+  )
 }
 
 export default CellHeaderNote

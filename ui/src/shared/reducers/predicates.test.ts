@@ -11,11 +11,12 @@ import {Filter} from 'src/types'
 
 // Actions
 import {
+  deleteFilter,
+  resetPredicateState,
   setBucketName,
   setFilter,
   setIsSerious,
   setTimeRange,
-  deleteFilter,
 } from 'src/shared/actions/predicates'
 
 describe('Shared.Reducers.notifications', () => {
@@ -49,5 +50,19 @@ describe('Shared.Reducers.notifications', () => {
     expect(result.filters).toEqual([filter])
     result = predicatesReducer(initialState, deleteFilter(0))
     expect(initialState.filters).toEqual([])
+  })
+  it('should reset the state after a filter DWP has been successfully submitted', () => {
+    const state = Object.assign({}, initialState)
+    const filter: Filter = {key: 'mean', equality: '=', value: '100'}
+    initialState.isSerious = predicatesReducer(
+      initialState,
+      setIsSerious(true)
+    ).isSerious
+    initialState.filters = predicatesReducer(
+      initialState,
+      setFilter(filter, 0)
+    ).filters
+    const result = predicatesReducer(initialState, resetPredicateState())
+    expect(result).toEqual(state)
   })
 })
