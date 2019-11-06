@@ -73,15 +73,22 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
 
   private get overlay(): JSX.Element {
     const {server, org, orgID, buckets} = this.props
+    const _buckets = (buckets || [])
+      .filter(item => item.type !== 'system')
+      .sort((a, b) => {
+        const _a = a.name.toLowerCase()
+        const _b = b.name.toLowerCase()
+        return _a > _b ? 1 : _a < _b ? -1 : 0
+      })
     const {selectedBucket} = this.state
-    const bucket = selectedBucket ? selectedBucket : buckets[0]
+    const bucket = selectedBucket ? selectedBucket : _buckets[0]
     let bucket_dd = null
 
     if (buckets.length) {
       bucket_dd = (
         <BucketDropdown
           selectedBucketID={bucket.id}
-          buckets={buckets}
+          buckets={_buckets}
           onSelectBucket={this.handleSelectBucket}
         />
       )

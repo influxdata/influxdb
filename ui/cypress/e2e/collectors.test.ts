@@ -59,16 +59,13 @@ describe('Collectors', () => {
     })
 
     it('allows the user to view just the output', () => {
-      const telegrafs = ['bad', 'apple', 'cookie']
       const bucketz = ['MO_buckets', 'EZ_buckets', 'Bucky']
-      const description = 'Config Description'
-      const [firstTelegraf, secondTelegraf, thirdTelegraf] = telegrafs
       const [firstBucket, secondBucket, thirdBucket] = bucketz
 
-      cy.get('@org').then(({id}: Organization) => {
-        cy.createTelegraf(firstTelegraf, description, id, firstBucket)
-        cy.createTelegraf(secondTelegraf, description, id, secondBucket)
-        cy.createTelegraf(thirdTelegraf, description, id, thirdBucket)
+      cy.get<Organization>('@org').then(({id, name}: Organization) => {
+        cy.createBucket(id, name, firstBucket)
+        cy.createBucket(id, name, secondBucket)
+        cy.createBucket(id, name, thirdBucket)
       })
 
       cy.reload()
@@ -78,16 +75,34 @@ describe('Collectors', () => {
       cy.getByTestID('overlay--container')
         .should('be.visible')
         .within(() => {
-          const bucket = 'defbuck'
-          cy.get('code').should($el => {
-            const text = $el.text()
-            expect(text.includes('[[outputs.influxdb_v2]]')).to.be.true
-            expect(text.includes(`bucket = "${bucket}"`)).to.be.true
+          const buckets = bucketz.slice(0).sort((a, b) => {
+            const _a = a.toLowerCase()
+            const _b = b.toLowerCase()
+            return _a > _b ? 1 : _a < _b ? -1 : 0
           })
 
-          cy.getByTestID('bucket-dropdown--button').click()
+          cy.get('code').should($el => {
+            const text = $el.text()
 
-          cy.wait(1000)
+            expect(text.includes('[[outputs.influxdb_v2]]')).to.be.true
+            //expect a default sort to be applied
+            expect(text.includes(`bucket = "${buckets[0]}"`)).to.be.true
+          })
+
+          cy.getByTestID('bucket-dropdown').within(() => {
+            cy.getByTestID('bucket-dropdown--button').click()
+            cy.getByTestID('dropdown-item')
+              .eq(2)
+              .click()
+          })
+
+          cy.get('code').should($el => {
+            const text = $el.text()
+
+            // NOTE: this index is off because there is a default
+            // defbuck bucket in there (alex)
+            expect(text.includes(`bucket = "${buckets[1]}"`)).to.be.true
+          })
         })
     })
 
