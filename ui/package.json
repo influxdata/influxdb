@@ -153,7 +153,7 @@
     "papaparse": "^4.6.3",
     "prop-types": "^15.6.1",
     "qs": "^6.5.2",
-    "react": "^16.8.2",
+    "react": "^16.11.0",
     "react-codemirror2": "^4.2.1",
     "react-copy-to-clipboard": "^5.0.1",
     "react-datepicker": "^2.1.0",

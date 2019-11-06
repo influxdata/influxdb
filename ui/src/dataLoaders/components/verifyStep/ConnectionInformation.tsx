@@ -20,15 +20,15 @@ export interface Props {
 }
 
 @ErrorHandling
-class ListeningResults extends PureComponent<Props> {
+class ConnectionInformation extends PureComponent<Props> {
   public render() {
     return (
-      <>
+      <div>
         <h4 className={`wizard-step--text-state ${this.className}`}>
           {this.header}
         </h4>
         <p>{this.additionalText}</p>
-      </>
+      </div>
     )
   }
 
@@ -70,4 +70,4 @@ class ListeningResults extends PureComponent<Props> {
   }
 }
 
-export default ListeningResults
+export default ConnectionInformation

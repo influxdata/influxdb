@@ -45,7 +45,7 @@ class SearchWidget extends Component<Props, State> {
     }
   }
 
-  public componentWillMount() {
+  public UNSAFE_componentWillMount() {
     this.handleSearch = _.debounce(this.handleSearch, 50)
   }
 
