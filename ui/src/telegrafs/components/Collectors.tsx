@@ -111,6 +111,7 @@ class Collectors extends PureComponent<Props, State> {
               style={{marginRight: '8px'}}
               onClick={this.handleJustTheOutput}
               titleText="Output section of telegraf.conf for V2"
+              testID="button--output-only"
             />
             {this.createButton}
           </div>

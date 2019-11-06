@@ -1,5 +1,8 @@
 import {Organization} from '../../src/types'
 
+// a generous commitment to delivering this page in a loaded state
+const PAGE_LOAD_SLA = 10000
+
 const measurement = 'my_meas'
 const field = 'my_field'
 describe('Checks', () => {
@@ -17,6 +20,8 @@ describe('Checks', () => {
       cy.fixture('routes').then(({orgs, alerting}) => {
         cy.visit(`${orgs}/${id}${alerting}`)
       })
+    })
+    cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
   })
 
   it('can validate a threshold check', () => {

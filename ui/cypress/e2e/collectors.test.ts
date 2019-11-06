@@ -18,7 +18,7 @@ describe('Collectors', () => {
       })
     })
 
-    cy.get('[data-testid="resource-list--body"]', {timeout:PAGE_LOAD_SLA})
+    cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
   })
 
   describe('from the org view', () => {
@@ -26,15 +26,11 @@ describe('Collectors', () => {
       const newConfig = 'New Config'
       const configDescription = 'This is a new config testing'
 
-      cy.getByTestID('table-row')
-        .should('have.length', 0)
-      cy.contains('Create Configuration')
-        .click()
+      cy.getByTestID('table-row').should('have.length', 0)
+      cy.contains('Create Configuration').click()
       cy.getByTestID('overlay--container').within(() => {
-        cy.getByTestID('telegraf-plugins--System')
-          .click()
-        cy.getByTestID('next')
-          .click()
+        cy.getByTestID('telegraf-plugins--System').click()
+        cy.getByTestID('next').click()
         cy.getByInputName('name')
           .clear()
           .type(newConfig)
@@ -62,6 +58,39 @@ describe('Collectors', () => {
       })
     })
 
+    it('allows the user to view just the output', () => {
+      const telegrafs = ['bad', 'apple', 'cookie']
+      const bucketz = ['MO_buckets', 'EZ_buckets', 'Bucky']
+      const description = 'Config Description'
+      const [firstTelegraf, secondTelegraf, thirdTelegraf] = telegrafs
+      const [firstBucket, secondBucket, thirdBucket] = bucketz
+
+      cy.get('@org').then(({id}: Organization) => {
+        cy.createTelegraf(firstTelegraf, description, id, firstBucket)
+        cy.createTelegraf(secondTelegraf, description, id, secondBucket)
+        cy.createTelegraf(thirdTelegraf, description, id, thirdBucket)
+      })
+
+      cy.reload()
+      cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
+
+      cy.getByTestID('button--output-only').click()
+      cy.getByTestID('overlay--container')
+        .should('be.visible')
+        .within(() => {
+          const bucket = 'defbuck'
+          cy.get('code').should($el => {
+            const text = $el.text()
+            expect(text.includes('[[outputs.influxdb_v2]]')).to.be.true
+            expect(text.includes(`bucket = "${bucket}"`)).to.be.true
+          })
+
+          cy.getByTestID('bucket-dropdown--button').click()
+
+          cy.wait(1000)
+        })
+    })
+
     describe('when a config already exists', () => {
       beforeEach(() => {
         const telegrafConfigName = 'New Config'
@@ -73,7 +102,7 @@ describe('Collectors', () => {
         })
 
         cy.reload()
-        cy.get('[data-testid="resource-list--body"]', {timeout:PAGE_LOAD_SLA})
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
 
       it('can update configuration name and delete a configuration', () => {
@@ -88,10 +117,7 @@ describe('Collectors', () => {
         cy.getByTestID('collector-card--input')
           .type(newConfigName)
           .type('{enter}')
-        cy.getByTestID('collector-card--name').should(
-          'contain',
-          newConfigName
-        )
+        cy.getByTestID('collector-card--name').should('contain', newConfigName)
 
         cy.getByTestID('resource-card').should('have.length', 1)
 
@@ -132,13 +158,12 @@ describe('Collectors', () => {
           cy.createTelegraf(thirdTelegraf, description, id, thirdBucket)
         })
         cy.reload()
-        cy.get('[data-testid="resource-list--body"]', {timeout:PAGE_LOAD_SLA})
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
       })
       // filter by name
       it('can filter telegraf configs and sort by bucket and name', () => {
         // fixes https://github.com/influxdata/influxdb/issues/15246
-        cy.getByTestID('search-widget')
-          .type(firstTelegraf)
+        cy.getByTestID('search-widget').type(firstTelegraf)
         cy.getByTestID('resource-card').should('have.length', 1)
         cy.getByTestID('resource-card').should('contain', firstTelegraf)
 
@@ -146,19 +171,13 @@ describe('Collectors', () => {
           .clear()
           .type(secondTelegraf)
         cy.getByTestID('resource-card').should('have.length', 1)
-        cy.getByTestID('resource-card').should(
-          'contain',
-          secondTelegraf
-        )
+        cy.getByTestID('resource-card').should('contain', secondTelegraf)
 
         cy.getByTestID('search-widget')
           .clear()
           .type(thirdTelegraf)
         cy.getByTestID('resource-card').should('have.length', 1)
-        cy.getByTestID('resource-card').should(
-          'contain',
-          thirdTelegraf
-        )
+        cy.getByTestID('resource-card').should('contain', thirdTelegraf)
 
         cy.getByTestID('search-widget')
           .clear()
@@ -169,26 +188,14 @@ describe('Collectors', () => {
         cy.getByTestID('search-widget')
           .clear()
           .type('a')
-        cy.getByTestID('resource-card').should(
-          'have.length',
-          2
-        )
-        cy.getByTestID('resource-card').should(
-          'contain',
-          firstTelegraf
-        )
-        cy.getByTestID('resource-card').should(
-          'contain',
-          secondTelegraf
-        )
-        cy.getByTestID('resource-card').should(
-          'not.contain',
-          thirdTelegraf
-        )
+        cy.getByTestID('resource-card').should('have.length', 2)
+        cy.getByTestID('resource-card').should('contain', firstTelegraf)
+        cy.getByTestID('resource-card').should('contain', secondTelegraf)
+        cy.getByTestID('resource-card').should('not.contain', thirdTelegraf)
 
         // sort by buckets test here
         cy.reload() // clear out filtering state from the previous test
-        cy.get('[data-testid="resource-list--body"]', {timeout:PAGE_LOAD_SLA})
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
 
         cy.getByTestID('bucket-sorter')
           .click()
@@ -207,7 +214,10 @@ describe('Collectors', () => {
           .click()
           .then(() => {
             // NOTE: this then is just here to let me scope this variable (alex)
-            const testBucket = bucketz.slice(0).sort().reverse()
+            const testBucket = bucketz
+              .slice(0)
+              .sort()
+              .reverse()
             cy.getByTestID('bucket-name').each((val, index) => {
               const text = val.text()
               expect(text).to.include(testBucket[index])
@@ -216,28 +226,29 @@ describe('Collectors', () => {
 
         // sort by name test here
         cy.reload() // clear out sorting state from previous test
-        cy.get('[data-testid="resource-list--body"]', {timeout:PAGE_LOAD_SLA})
+        cy.get('[data-testid="resource-list--body"]', {timeout: PAGE_LOAD_SLA})
 
         cy.getByTestID('collector-card--name').should('have.length', 3)
 
         // test to see if telegrafs are initially sorted by name
         telegrafs.sort()
 
-        cy.wait(0)
-          .then(() => {
-            // NOTE: this then is just here to let me scope this variable (alex)
-            const teletubbies = telegrafs.slice(0).sort()
-            cy.getByTestID('collector-card--name')
-              .each((val, index) => {
-                expect(val.text()).to.include(teletubbies[index])
-              })
+        cy.wait(0).then(() => {
+          // NOTE: this then is just here to let me scope this variable (alex)
+          const teletubbies = telegrafs.slice(0).sort()
+          cy.getByTestID('collector-card--name').each((val, index) => {
+            expect(val.text()).to.include(teletubbies[index])
           })
+        })
 
         cy.getByTestID('name-sorter')
           .click()
           .then(() => {
             // NOTE: this then is just here to let me scope this variable (alex)
-            const teletubbies = telegrafs.slice(0).sort().reverse()
+            const teletubbies = telegrafs
+              .slice(0)
+              .sort()
+              .reverse()
             cy.getByTestID('collector-card--name').each((val, index) => {
               expect(val.text()).to.include(teletubbies[index])
             })
