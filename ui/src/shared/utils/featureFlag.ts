@@ -5,7 +5,6 @@ const OSS_FLAGS = {
   alerting: false,
   eventMarkers: false,
   deleteWithPredicate: false,
-  deleteWithPredicateEquality: false,
   downloadCellCSV: false,
 }
 
@@ -13,7 +12,6 @@ const CLOUD_FLAGS = {
   alerting: true,
   eventMarkers: false,
   deleteWithPredicate: false,
-  deleteWithPredicateEquality: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
   downloadCellCSV: false,
 }
