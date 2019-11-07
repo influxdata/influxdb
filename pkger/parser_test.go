@@ -1,6 +1,8 @@
 package pkger
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1831,6 +1833,47 @@ spec:
 			}
 		})
 	})
+
+	t.Run("pkg with variable and labels associated", func(t *testing.T) {
+		testfileRunner(t, "testdata/variables_associates_label.yml", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			require.Len(t, sum.Labels, 1)
+
+			vars := sum.Variables
+			require.Len(t, vars, 1)
+
+			expectedLabelMappings := []struct {
+				varName string
+				labels  []string
+			}{
+				{
+					varName: "var_1",
+					labels:  []string{"label_1"},
+				},
+			}
+			for i, expected := range expectedLabelMappings {
+				v := vars[i]
+				require.Len(t, v.LabelAssociations, len(expected.labels))
+
+				for j, label := range expected.labels {
+					assert.Equal(t, label, v.LabelAssociations[j].Name)
+				}
+			}
+
+			expectedMappings := []SummaryLabelMapping{
+				{
+					ResourceName: "var_1",
+					LabelName:    "label_1",
+				},
+			}
+
+			require.Len(t, sum.LabelMappings, len(expectedMappings))
+			for i, expected := range expectedMappings {
+				expected.LabelMapping.ResourceType = influxdb.VariablesResourceType
+				assert.Equal(t, expected, sum.LabelMappings[i])
+			}
+		})
+	})
 }
 
 type testPkgResourceError struct {
@@ -1925,21 +1968,31 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 	}{
 		{
 			name:      "yaml",
-			extension: "yml",
+			extension: ".yml",
 			encoding:  EncodingYAML,
 		},
 		{
 			name:      "json",
-			extension: "json",
+			extension: ".json",
 			encoding:  EncodingJSON,
 		},
 	}
+
+	ext := filepath.Ext(path)
+	switch ext {
+	case ".yml":
+		tests = tests[:1]
+	case ".json":
+		tests = tests[1:]
+	}
+
+	path = strings.TrimSuffix(path, ext)
 
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			pkg := validParsedPkg(t, path+"."+tt.extension, tt.encoding, baseAsserts{
+			pkg := validParsedPkg(t, path+tt.extension, tt.encoding, baseAsserts{
 				version:     "0.1.0",
 				kind:        "Package",
 				description: "pack description",

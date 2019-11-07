@@ -7186,6 +7186,17 @@ components:
                     type: string
                   labelID:
                     type: string
+            variables:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/Variable"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
         diff:
           type: object
           properties:
@@ -7253,6 +7264,23 @@ components:
                     type: string
                   labelName:
                     type: string
+            variables:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  oldDescription:
+                    type: string
+                  newDescription:
+                    type: string
+                  oldArgs:
+                    $ref: "#/components/schemas/VariableProperties"
+                  newArgs:
+                    $ref: "#/components/schemas/VariableProperties"
     PkgChart:
       type: object
       properties:
@@ -8461,11 +8489,7 @@ components:
         labels:
           $ref: "#/components/schemas/Labels"
         arguments:
-          type: object
-          oneOf:
-            - $ref: "#/components/schemas/QueryVariableProperties"
-            - $ref: "#/components/schemas/ConstantVariableProperties"
-            - $ref: "#/components/schemas/MapVariableProperties"
+          $ref: "#/components/schemas/VariableProperties"
         createdAt:
           type: string
           format: date-time
@@ -8511,6 +8535,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Variable"
+    VariableProperties:
+      type: object
+      oneOf:
+        - $ref: "#/components/schemas/QueryVariableProperties"
+        - $ref: "#/components/schemas/ConstantVariableProperties"
+        - $ref: "#/components/schemas/MapVariableProperties"
     ViewProperties:
       oneOf:
         - $ref: "#/components/schemas/LinePlusSingleStatProperties"

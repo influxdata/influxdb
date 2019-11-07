@@ -513,6 +513,15 @@ func (p *Pkg) graphVariables() error {
 			MapValues:   r.mapStrStr("values"),
 		}
 
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			newVar.labels = append(newVar.labels, l)
+			p.mLabels[l.Name].setVariableMapping(newVar, false)
+			return nil
+		})
+		sort.Slice(newVar.labels, func(i, j int) bool {
+			return newVar.labels[i].Name < newVar.labels[j].Name
+		})
+
 		p.mVariables[r.Name()] = newVar
 
 		// here we set the var on the var map and return fails
@@ -523,7 +532,7 @@ func (p *Pkg) graphVariables() error {
 		// invalid. So the mapping is correct. So we keep this
 		// to validate that mapping is correct, and return fails
 		// to indicate fails from the var.
-		return newVar.valid()
+		return append(failures, newVar.valid()...)
 	})
 }
 
