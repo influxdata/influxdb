@@ -8,7 +8,6 @@ import {
   Input,
   SelectDropdown,
 } from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {Filter} from 'src/types'
