@@ -129,7 +129,7 @@ class Collectors extends PureComponent<Props, State> {
                   searchKeys={[
                     'plugins.0.config.bucket',
                     'name',
-                    'labels[].labels',
+                    'labels[].name',
                   ]}
                   list={collectors}
                 >

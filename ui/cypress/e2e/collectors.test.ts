@@ -391,20 +391,18 @@ describe('Collectors', () => {
       beforeEach(() => {
         const description = 'Config Description'
         cy.get('@org').then(({id}: Organization) => {
-          cy.createTelegraf('newteleg', description, id, 'zoebucket')
+          cy.createTelegraf('newteleg', description, id, 'newbucket')
         })
         cy.reload()
       })
-      it('Can add label', () => {
+      it.only('Can add label', () => {
         cy.getByTestID('inline-labels--add').click()
         cy.getByTestID('inline-labels--popover-field').type('zoe')
         cy.getByTestID('inline-labels--create-new').click()
         cy.getByTestID('overlay--container').should('exist')
         cy.getByTestID('create-label-form--submit').click()
         cy.getByTestID('label--pill zoe').should('exist')
-      })
-
-      it('can search by label', () => {
+        //can search by label
         cy.getByTestID('search-widget')
           .clear()
           .type('zoe')
@@ -412,6 +410,8 @@ describe('Collectors', () => {
         cy.getByTestID('resource-card').should('have.length', 1)
         cy.getByTestID('resource-card').should('contain', 'newteleg')
       })
+
+      it('can search by label', () => {})
     })
   })
 })
