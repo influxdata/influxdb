@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/go-chi/chi"
 	platform "github.com/influxdata/influxdb"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/julienschmidt/httprouter"
@@ -21,6 +22,14 @@ func NewRouter(h platform.HTTPErrorHandler) *httprouter.Router {
 	router.NotFound = http.HandlerFunc(b.notFound)
 	router.MethodNotAllowed = http.HandlerFunc(b.methodNotAllowed)
 	router.PanicHandler = b.panic
+	return router
+}
+
+func newBaseChiRouter(errorHandler platform.HTTPErrorHandler) chi.Router {
+	router := chi.NewRouter()
+	bh := baseHandler{HTTPErrorHandler: errorHandler}
+	router.NotFound(bh.notFound)
+	router.MethodNotAllowed(bh.methodNotAllowed)
 	return router
 }
 

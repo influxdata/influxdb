@@ -26,9 +26,22 @@ type Encoding int
 
 // encoding types
 const (
-	EncodingYAML Encoding = iota + 1
+	EncodingUnknown Encoding = iota
+	EncodingYAML
 	EncodingJSON
 )
+
+// String provides the string representation of the encoding.
+func (e Encoding) String() string {
+	switch e {
+	case EncodingJSON:
+		return "json"
+	case EncodingYAML:
+		return "yaml"
+	default:
+		return "unknown"
+	}
+}
 
 // ErrInvalidEncoding indicates the encoding is invalid type for the parser.
 var ErrInvalidEncoding = errors.New("invalid encoding provided")
@@ -98,16 +111,8 @@ func parse(dec decoder) (*Pkg, error) {
 		return nil, err
 	}
 
-	setupFns := []func() error{
-		pkg.validMetadata,
-		pkg.validResources,
-		pkg.graphResources,
-	}
-
-	for _, fn := range setupFns {
-		if err := fn(); err != nil {
-			return nil, err
-		}
+	if err := pkg.Validate(); err != nil {
+		return nil, err
 	}
 
 	return &pkg, nil
@@ -131,7 +136,8 @@ type Pkg struct {
 	mBuckets    map[string]*bucket
 	mDashboards map[string]*dashboard
 
-	isVerified bool
+	isVerified bool // dry run has verified pkg resources with existing resources
+	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
 }
 
 // Summary returns a package Summary that describes all the resources and
@@ -161,6 +167,24 @@ func (p *Pkg) Summary() Summary {
 	}
 
 	return sum
+}
+
+// Validate will graph all resources and validate every thing is in a useful form.
+func (p *Pkg) Validate() error {
+	setupFns := []func() error{
+		p.validMetadata,
+		p.validResources,
+		p.graphResources,
+	}
+
+	for _, fn := range setupFns {
+		if err := fn(); err != nil {
+			return err
+		}
+	}
+
+	p.isParsed = true
+	return nil
 }
 
 func (p *Pkg) buckets() []*bucket {
@@ -649,11 +673,11 @@ func (r Resource) kind() (kind, error) {
 	return newKind, nil
 }
 
-func (r Resource) chartKind() (ChartKind, error) {
+func (r Resource) chartKind() (chartKind, error) {
 	ck, _ := r.kind()
-	chartKind := ChartKind(ck)
+	chartKind := chartKind(ck)
 	if !chartKind.ok() {
-		return ChartKindUnknown, errors.New("invalid chart kind provided: " + string(chartKind))
+		return chartKindUnknown, errors.New("invalid chart kind provided: " + string(chartKind))
 	}
 	return chartKind, nil
 }

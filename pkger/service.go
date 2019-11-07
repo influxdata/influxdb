@@ -12,6 +12,16 @@ import (
 	"go.uber.org/zap"
 )
 
+// APIVersion marks the current APIVersion for influx packages.
+const APIVersion = "0.1.0"
+
+// SVC is the packages service interface.
+type SVC interface {
+	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
+	DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
+	Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, error)
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
@@ -37,10 +47,49 @@ func NewService(l *zap.Logger, bucketSVC influxdb.BucketService, labelSVC influx
 	return &svc
 }
 
+// CreatePkgSetFn is a functional input for setting the pkg fields.
+type CreatePkgSetFn func(ctx context.Context, pkg *Pkg) error
+
+// WithMetadata sets the metadata on the pkg in a CreatePkg call.
+func WithMetadata(meta Metadata) CreatePkgSetFn {
+	return func(ctx context.Context, pkg *Pkg) error {
+		pkg.Metadata = meta
+		return nil
+	}
+}
+
+// CreatePkg will produce a pkg from the parameters provided.
+func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
+	pkg := &Pkg{
+		APIVersion: APIVersion,
+		Kind:       kindPackage.String(),
+		Spec: struct {
+			Resources []Resource `yaml:"resources" json:"resources"`
+		}{
+			Resources: []Resource{},
+		},
+	}
+
+	for _, setter := range setters {
+		err := setter(ctx, pkg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return pkg, nil
+}
+
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+	if !pkg.isParsed {
+		if err := pkg.Validate(); err != nil {
+			return Summary{}, Diff{}, err
+		}
+	}
+
 	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -166,9 +215,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   b.ResourceType(),
-				ResID:     b.ID(),
+				ResID:     SafeID(b.ID()),
 				ResName:   b.Name,
-				LabelID:   labelID,
+				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
 		})
@@ -183,9 +232,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   d.ResourceType(),
-				ResID:     d.ID(),
+				ResID:     SafeID(d.ID()),
 				ResName:   d.Name,
-				LabelID:   labelID,
+				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
 		})
@@ -261,6 +310,12 @@ func labelSlcToMap(labels []*label) map[string]*label {
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
 func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
+	if !pkg.isParsed {
+		if err := pkg.Validate(); err != nil {
+			return Summary{}, err
+		}
+	}
+
 	if !pkg.isVerified {
 		_, _, err := s.DryRun(ctx, orgID, pkg)
 		if err != nil {

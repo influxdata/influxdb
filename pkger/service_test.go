@@ -38,7 +38,7 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 1)
 
 					expected := DiffBucket{
-						ID:           influxdb.ID(1),
+						ID:           SafeID(1),
 						Name:         "rucket_11",
 						OldDesc:      "old desc",
 						NewDesc:      "bucket 1 description",
@@ -100,7 +100,7 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 2)
 
 					expected := DiffLabel{
-						ID:       influxdb.ID(1),
+						ID:       SafeID(1),
 						Name:     "label_1",
 						OldColor: "old color",
 						NewColor: "#FFFFFF",
@@ -414,8 +414,8 @@ func TestService(t *testing.T) {
 
 					require.Len(t, sum.Dashboards, 1)
 					dash1 := sum.Dashboards[0]
-					assert.Equal(t, influxdb.ID(1), dash1.ID)
-					assert.Equal(t, orgID, dash1.OrgID)
+					assert.Equal(t, SafeID(1), dash1.ID)
+					assert.Equal(t, SafeID(orgID), dash1.OrgID)
 					assert.Equal(t, "dash_1", dash1.Name)
 					require.Len(t, dash1.Charts, 1)
 				})
@@ -492,6 +492,24 @@ func TestService(t *testing.T) {
 					assert.Equal(t, 4, numLabelMappings)
 				})
 			})
+		})
+	})
+
+	t.Run("CreatePkg", func(t *testing.T) {
+		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
+			svc := new(Service)
+
+			expectedMeta := Metadata{
+				Description: "desc",
+				Name:        "name",
+				Version:     "v1",
+			}
+			pkg, err := svc.CreatePkg(context.TODO(), WithMetadata(expectedMeta))
+			require.NoError(t, err)
+
+			assert.Equal(t, APIVersion, pkg.APIVersion)
+			assert.Equal(t, expectedMeta, pkg.Metadata)
+			assert.NotNil(t, pkg.Spec.Resources)
 		})
 	})
 }
