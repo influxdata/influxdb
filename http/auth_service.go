@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -85,6 +86,8 @@ type authResponse struct {
 	User        string               `json:"user"`
 	Permissions []permissionResponse `json:"permissions"`
 	Links       map[string]string    `json:"links"`
+	CreatedAt   time.Time            `json:"createdAt"`
+	UpdatedAt   time.Time            `json:"updatedAt"`
 }
 
 func newAuthResponse(a *platform.Authorization, org *platform.Organization, user *platform.User, ps []permissionResponse) *authResponse {
@@ -102,6 +105,8 @@ func newAuthResponse(a *platform.Authorization, org *platform.Organization, user
 			"self": fmt.Sprintf("/api/v2/authorizations/%s", a.ID),
 			"user": fmt.Sprintf("/api/v2/users/%s", a.UserID),
 		},
+		CreatedAt: a.CreatedAt,
+		UpdatedAt: a.UpdatedAt,
 	}
 	return res
 }
@@ -114,6 +119,10 @@ func (a *authResponse) toPlatform() *platform.Authorization {
 		Description: a.Description,
 		OrgID:       a.OrgID,
 		UserID:      a.UserID,
+		CRUDLog: platform.CRUDLog{
+			CreatedAt: a.CreatedAt,
+			UpdatedAt: a.UpdatedAt,
+		},
 	}
 	for _, p := range a.Permissions {
 		res.Permissions = append(res.Permissions, platform.Permission{Action: p.Action, Resource: p.Resource.Resource})

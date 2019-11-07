@@ -6712,6 +6712,14 @@ components:
         - $ref: "#/components/schemas/AuthorizationUpdateRequest"
         - type: object
           properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+            updatedAt:
+              type: string
+              format: date-time
+              readOnly: true
             orgID:
               type: string
               description: ID of org that authorization is scoped to.

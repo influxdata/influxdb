@@ -32,6 +32,7 @@ type Service struct {
 	OrgBucketIDs influxdb.IDGenerator
 
 	TokenGenerator influxdb.TokenGenerator
+	// TODO(desa:ariel): this should not be embedded
 	influxdb.TimeGenerator
 	Hash Crypt
 }

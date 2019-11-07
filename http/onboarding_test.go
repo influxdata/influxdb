@@ -10,6 +10,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
@@ -23,8 +24,9 @@ func NewMockSetupBackend() *SetupBackend {
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	t.Helper()
-	svc := inmem.NewService()
+	svc := kv.NewService(inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
+	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	if f.TimeGenerator == nil {
 		svc.TimeGenerator = platform.RealTimeGenerator{}
