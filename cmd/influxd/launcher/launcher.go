@@ -839,9 +839,14 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	var pkgSVC pkger.SVC
 	{
-		pkgLogger := m.logger.With(zap.String("service", "pkger"))
 		b := m.apibackend
-		pkgSVC = pkger.NewService(pkgLogger, b.BucketService, b.LabelService, b.DashboardService)
+		pkgSVC = pkger.NewService(
+			pkger.WithLogger(m.logger.With(zap.String("service", "pkger"))),
+			pkger.WithBucketSVC(b.BucketService),
+			pkger.WithDashboardSVC(b.DashboardService),
+			pkger.WithLabelSVC(b.LabelService),
+			pkger.WithVariableSVC(b.VariableService),
+		)
 	}
 
 	var pkgHTTPServer *http.HandlerPkg

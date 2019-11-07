@@ -77,13 +77,7 @@ func (p *parser) parseLogicalNode() (Node, error) {
 	for {
 		tok, pos, _ := p.scanIgnoreWhitespace()
 		switch tok {
-		case influxql.NUMBER:
-			fallthrough
-		case influxql.INTEGER:
-			fallthrough
-		case influxql.NAME:
-			fallthrough
-		case influxql.IDENT:
+		case influxql.NUMBER, influxql.INTEGER, influxql.NAME, influxql.IDENT:
 			p.unscan()
 			tr, err := p.parseTagRuleNode()
 			if err != nil {
@@ -181,7 +175,8 @@ func (p *parser) parseTagRuleNode() (TagRuleNode, error) {
 		n.Operator = influxdb.Equal
 		goto scanRegularTagValue
 	case influxql.NEQ:
-		fallthrough
+		n.Operator = influxdb.NotEqual
+		goto scanRegularTagValue
 	case influxql.EQREGEX:
 		fallthrough
 	case influxql.NEQREGEX:
