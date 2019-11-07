@@ -5,6 +5,9 @@ import React, {FC} from 'react'
 import {FlexBox, Input, InputType} from '@influxdata/clockface'
 import {GreaterThreshold, LesserThreshold} from 'src/types'
 
+// Utils
+import {convertUserInputToNumOrNaN} from 'src/shared/utils/convertUserInput'
+
 // Types
 interface Props {
   threshold: GreaterThreshold | LesserThreshold
@@ -13,7 +16,7 @@ interface Props {
 
 const ThresholdValueStatement: FC<Props> = ({threshold, changeValue}) => {
   const onChangeValue = (e: React.ChangeEvent<HTMLInputElement>) => {
-    changeValue(Number(e.target.value))
+    changeValue(convertUserInputToNumOrNaN(e))
   }
   return (
     <FlexBox.Child testID="component-spacer--flex-child">

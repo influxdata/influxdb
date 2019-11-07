@@ -1,8 +1,18 @@
 // Libraries
-import React, {FunctionComponent, ChangeEvent} from 'react'
+import React, {FunctionComponent, ChangeEvent, useState} from 'react'
 import {connect} from 'react-redux'
 import {VIRIDIS, MAGMA, INFERNO, PLASMA} from '@influxdata/giraffe'
-import {Form, Grid, Input, Columns, InputType} from '@influxdata/clockface'
+import {
+  Form,
+  Grid,
+  Input,
+  Columns,
+  InputType,
+  ComponentStatus,
+} from '@influxdata/clockface'
+
+// Utils
+import {convertUserInputToNumOrNaN} from 'src/shared/utils/convertUserInput'
 
 // Components
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
@@ -75,13 +85,19 @@ interface OwnProps {
 type Props = StateProps & DispatchProps & OwnProps
 
 const HeatmapOptions: FunctionComponent<Props> = props => {
+  const [binInputStatus, setBinInputStatus] = useState(ComponentStatus.Default)
+  const [binInput, setBinInput] = useState(props.binSize)
+
   const onSetBinSize = (e: ChangeEvent<HTMLInputElement>) => {
-    const val = +e.target.value
+    const val = convertUserInputToNumOrNaN(e)
+    setBinInput(val)
 
     if (isNaN(val) || val < 5) {
+      setBinInputStatus(ComponentStatus.Error)
       return
     }
 
+    setBinInputStatus(ComponentStatus.Default)
     props.onSetBinSize(val)
   }
 
@@ -112,7 +128,8 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
       </Form.Element>
       <Form.Element label="Bin Size">
         <Input
-          value={props.binSize}
+          status={binInputStatus}
+          value={binInput}
           type={InputType.Number}
           onChange={onSetBinSize}
         />
