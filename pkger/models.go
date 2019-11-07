@@ -67,6 +67,7 @@ type Diff struct {
 	Dashboards    []DiffDashboard    `json:"dashboards"`
 	Labels        []DiffLabel        `json:"labels"`
 	LabelMappings []DiffLabelMapping `json:"labelMappings"`
+	Variables     []DiffVariable     `json:"variables"`
 }
 
 // DiffBucket is a diff of an individual bucket.
@@ -163,6 +164,33 @@ type DiffLabelMapping struct {
 	LabelName string `json:"labelName"`
 }
 
+// DiffVariable is a diff of an individual variable.
+type DiffVariable struct {
+	ID      SafeID `json:"id"`
+	Name    string `json:"name"`
+	OldDesc string `json:"oldDescription"`
+	NewDesc string `json:"newDescription"`
+
+	OldArgs *influxdb.VariableArguments `json:"oldArgs"`
+	NewArgs *influxdb.VariableArguments `json:"newArgs"`
+}
+
+func newDiffVariable(v *variable, iv influxdb.Variable) DiffVariable {
+	return DiffVariable{
+		ID:      SafeID(iv.ID),
+		Name:    v.Name,
+		OldDesc: iv.Description,
+		NewDesc: v.Description,
+		OldArgs: iv.Arguments,
+		NewArgs: v.influxVarArgs(),
+	}
+}
+
+// IsNew indicates whether a pkg variable is going to be new to the platform.
+func (d DiffVariable) IsNew() bool {
+	return d.ID == SafeID(0)
+}
+
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
@@ -240,6 +268,7 @@ type SummaryLabelMapping struct {
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
 	influxdb.Variable
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
 type bucket struct {
@@ -317,14 +346,68 @@ func (l assocMapVal) dashboard() (*dashboard, bool) {
 	return d, ok
 }
 
+func (l assocMapVal) variable() (*variable, bool) {
+	if l.v == nil {
+		return nil, false
+	}
+	v, ok := l.v.(*variable)
+	return v, ok
+}
+
+type associationMapping struct {
+	mappings map[assocMapKey]assocMapVal
+}
+
+func (l *associationMapping) setMapping(k assocMapKey, v assocMapVal) {
+	if l == nil {
+		return
+	}
+	if l.mappings == nil {
+		l.mappings = make(map[assocMapKey]assocMapVal)
+	}
+	l.mappings[k] = v
+}
+
+func (l *associationMapping) setBucketMapping(b *bucket, exists bool) {
+	key := assocMapKey{
+		resType: b.ResourceType(),
+		name:    b.Name,
+	}
+	val := assocMapVal{
+		exists: exists,
+		v:      b,
+	}
+	l.setMapping(key, val)
+}
+
+func (l *associationMapping) setDashboardMapping(d *dashboard) {
+	key := assocMapKey{
+		resType: d.ResourceType(),
+		name:    d.Name,
+	}
+	val := assocMapVal{v: d}
+	l.setMapping(key, val)
+}
+
+func (l *associationMapping) setVariableMapping(v *variable, exists bool) {
+	key := assocMapKey{
+		resType: v.ResourceType(),
+		name:    v.Name,
+	}
+	val := assocMapVal{
+		exists: exists,
+		v:      v,
+	}
+	l.setMapping(key, val)
+}
+
 type label struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
 	Name        string
 	Color       string
 	Description string
-
-	mappings map[assocMapKey]assocMapVal
+	associationMapping
 
 	// exists provides context for a resource that already
 	// exists in the platform. If a resource already exists(exists=true)
@@ -387,41 +470,13 @@ func (l *label) getMappedResourceID(k assocMapKey) influxdb.ID {
 		if ok {
 			return d.ID()
 		}
+	case influxdb.VariablesResourceType:
+		v, ok := l.mappings[k].variable()
+		if ok {
+			return v.ID()
+		}
 	}
 	return 0
-}
-
-func (l *label) setBucketMapping(b *bucket, exists bool) {
-	if l == nil {
-		return
-	}
-	if l.mappings == nil {
-		l.mappings = make(map[assocMapKey]assocMapVal)
-	}
-
-	key := assocMapKey{
-		resType: influxdb.BucketsResourceType,
-		name:    b.Name,
-	}
-	l.mappings[key] = assocMapVal{
-		exists: exists,
-		v:      b,
-	}
-}
-
-func (l *label) setDashboardMapping(d *dashboard) {
-	if l == nil {
-		return
-	}
-	if l.mappings == nil {
-		l.mappings = make(map[assocMapKey]assocMapVal)
-	}
-
-	key := assocMapKey{
-		resType: d.ResourceType(),
-		name:    d.Name,
-	}
-	l.mappings[key] = assocMapVal{v: d}
 }
 
 func (l *label) properties() map[string]string {
@@ -455,10 +510,47 @@ type variable struct {
 	ConstValues []string
 	MapValues   map[string]string
 
-	mappings map[assocMapKey]assocMapVal
+	labels []*label
+
+	existing *influxdb.Variable
+}
+
+func (v *variable) ID() influxdb.ID {
+	if v.existing != nil {
+		return v.existing.ID
+	}
+	return v.id
+}
+
+func (v *variable) Exists() bool {
+	return v.existing != nil
+}
+
+func (v *variable) ResourceType() influxdb.ResourceType {
+	return influxdb.VariablesResourceType
+}
+
+func (v *variable) shouldApply() bool {
+	return v.existing == nil ||
+		v.existing.Description != v.Description ||
+		v.existing.Arguments == nil ||
+		v.existing.Arguments.Type != v.Type
 }
 
 func (v *variable) summarize() SummaryVariable {
+	return SummaryVariable{
+		Variable: influxdb.Variable{
+			ID:             v.ID(),
+			OrganizationID: v.OrgID,
+			Name:           v.Name,
+			Description:    v.Description,
+			Arguments:      v.influxVarArgs(),
+		},
+		LabelAssociations: toInfluxLabels(v.labels...),
+	}
+}
+
+func (v *variable) influxVarArgs() *influxdb.VariableArguments {
 	args := &influxdb.VariableArguments{
 		Type: v.Type,
 	}
@@ -473,16 +565,7 @@ func (v *variable) summarize() SummaryVariable {
 	case "map":
 		args.Values = influxdb.VariableMapValues(v.MapValues)
 	}
-
-	return SummaryVariable{
-		Variable: influxdb.Variable{
-			ID:             v.id,
-			OrganizationID: v.OrgID,
-			Name:           v.Name,
-			Description:    v.Description,
-			Arguments:      args,
-		},
-	}
+	return args
 }
 
 func (v *variable) valid() []failure {
