@@ -118,7 +118,7 @@ jobs:
       - store_test_results:
           path: ~/test-results
       - store_artifacts:
-          path: ~/artefacts
+          path: ~/artifacts
   jstest:
     docker:
       - image: circleci/golang:1.12-node-browsers
