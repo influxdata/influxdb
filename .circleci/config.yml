@@ -294,9 +294,6 @@ workflows:
   e2e:
     jobs:
       - e2e
-  selenium:
-    jobs:
-      - selenium_accept
   nightly:
     triggers:
       - schedule:
