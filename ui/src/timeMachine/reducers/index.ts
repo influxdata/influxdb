@@ -1,5 +1,13 @@
 // Libraries
-import {omit, map, get, cloneDeep, isNumber} from 'lodash'
+import {
+  cloneDeep,
+  differenceWith,
+  isEqual,
+  isNumber,
+  get,
+  map,
+  omit,
+} from 'lodash'
 import {produce} from 'immer'
 
 // Utils
@@ -19,13 +27,13 @@ import {
 
 // Types
 import {
-  TimeRange,
-  View,
   AutoRefresh,
   Check,
   DeadmanCheck,
-  ThresholdCheck,
   StatusRow,
+  TimeRange,
+  ThresholdCheck,
+  View,
 } from 'src/types'
 import {
   ViewType,
@@ -803,9 +811,12 @@ export const timeMachineReducer = (
         typeof action.payload
       >
       const {fieldOptions} = action.payload
-      const properties = {...workingView.properties, fieldOptions}
+      const {fieldOptions: prevOptions} = workingView.properties
+      const properties = {
+        ...workingView.properties,
+        fieldOptions: trueFieldOptions(fieldOptions, prevOptions),
+      }
       const view = {...state.view, properties}
-
       return {...state, view}
     }
 
@@ -981,8 +992,11 @@ const convertView = (
   outType: ViewType
 ): View<QueryViewProperties> => {
   const newView: any = createView(outType)
-
   newView.properties.queries = cloneDeep(view.properties.queries)
+  if (view.properties.type === 'table' && view.properties.fieldOptions) {
+    // prevents reselecting the table option from reseting the fieldOptions
+    newView.properties.fieldOptions = cloneDeep(view.properties.fieldOptions)
+  }
   newView.name = view.name
   newView.cellID = view.cellID
   newView.dashboardID = view.dashboardID
@@ -1047,4 +1061,38 @@ const resetBuilderState = (draftState: TimeMachineState) => {
     draftState.draftQueries[draftState.activeQueryIndex].builderConfig
 
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
+}
+
+export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
+  // get the difference b/w fieldOptions
+  const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
+  // create a copy of the defaultOptions to mutate
+  const options = defaultOptions.slice()
+  diff.forEach(option => {
+    const {internalName} = option
+    // check to see if the defaultOptions have been changed
+    const matchingIndex = defaultOptions.findIndex(
+      o => o.internalName === internalName
+    )
+    // if the updated fieldOption exists in the default values
+    if (matchingIndex > -1) {
+      const matchingOption = defaultOptions[matchingIndex]
+      // check to see if the header values are set their initial values
+      // allows the defaultHeaders to be edited once they've loaded
+      if (matchingOption.internalName === matchingOption.displayName) {
+        // if the default option is set to false, set the option value to the default value
+        if (matchingOption.visible === false) {
+          options[matchingIndex] = matchingOption
+        } else {
+          // reassigns the fieldOption to the aliased one
+          options[matchingIndex] = option
+        }
+      }
+    } else {
+      // adds any extra fieldOption that has been aliased,
+      // even if it no longer exists in the headers
+      options.push(option)
+    }
+  })
+  return options
 }

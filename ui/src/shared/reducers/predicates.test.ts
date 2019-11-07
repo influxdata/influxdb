@@ -19,7 +19,7 @@ import {
   setTimeRange,
 } from 'src/shared/actions/predicates'
 
-describe('Shared.Reducers.notifications', () => {
+describe('Predicates reducer test', () => {
   it('should set the isSerious property', () => {
     expect(initialState.isSerious).toEqual(false)
     let result = predicatesReducer(initialState, setIsSerious(true))

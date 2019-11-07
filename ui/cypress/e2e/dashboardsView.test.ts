@@ -176,4 +176,38 @@ describe('Dashboard', () => {
       })
     })
   })
+
+  it("Should return empty table parameters when query hasn't been submitted", () => {
+    cy.get('@org').then(({id: orgID}: Organization) => {
+      cy.createDashboard(orgID).then(({body}) => {
+        cy.fixture('routes').then(({orgs}) => {
+          cy.visit(`${orgs}/${orgID}/dashboards/${body.id}`)
+        })
+      })
+    })
+
+    cy.getByTestID('add-cell--button')
+      .click()
+      .then(() => {
+        cy.get('.view-options').should('not.exist')
+        cy.getByTestID('cog-cell--button')
+          .should('have.length', 1)
+          .click()
+        // should toggle the view options
+        cy.get('.view-options').should('exist')
+        cy.getByTestID('dropdown--button')
+          .contains('Graph')
+          .click()
+          .then(() => {
+            cy.getByTestID('dropdown-item')
+              .contains('Table')
+              .should('have.length', 1)
+              .click()
+
+            cy.getByTestID('empty-state--text')
+              .contains('This query returned no columns')
+              .should('exist')
+          })
+      })
+  })
 })
