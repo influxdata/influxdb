@@ -6,7 +6,7 @@ If you are looking for the [InfluxDB 1.x Go Client, we've created a new repo](ht
 
 ## State of the Project
 
-The latest InfluxDB 1.x is the stable release and recommended for production use. InfluxDB 2.0 (what's in the master branch) is currently in the alpha stage. This means that it is **not** recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to delete all your data, and significant changes to the UI. The alpha is intended for feature exploration and gathering feedback on the available feature set. It **should not** be used for performance testing, benchmarks, or other stress tests.
+The latest InfluxDB 1.x is the stable release and recommended for production use. InfluxDB 2.0 (what's in the master branch) is currently in the alpha stage. Therefore, it is **not** recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to delete all your data, and significant changes to the UI. The alpha is intended for feature exploration and gathering feedback on the available feature set. It **should not** be used for performance testing, benchmarks, or other stress tests.
 
 Additional features will arrive during the weekly alpha updates. We will be cutting versioned releases every week starting in the first week of February. There will also be nightly builds.
 
