@@ -4,25 +4,24 @@
 */
 
 $dashboarding-graphic-anim-time: 0.5s;
+$dashboarding-bar-graph-anim: 0.15s;
 
 .dashboarding-graphic--bg {
-  transition: fill 0.25s ease;
   fill: $g2-kevlar;
 }
 
 .dashboarding-graphic--cell {
-  fill: $g5-pepper;
+  fill: $g4-onyx;
   transition: fill 0.25s ease;
 }
 
 .dashboarding-graphic--single-stat {
   fill: $g5-pepper;
-  transition: fill $dashboarding-graphic-anim-time ease;
 }
 
 .dashboarding-graphic--axes {
   stroke-width: 1.5px;
-  stroke: $g5-pepper;
+  stroke: $g6-smoke;
   fill: transparent;
   transition: fill $dashboarding-graphic-anim-time ease, stroke $dashboarding-graphic-anim-time ease;
   stroke-linecap: round;
@@ -40,6 +39,148 @@ $dashboarding-graphic-anim-time: 0.5s;
   stroke-miterlimit: 10;
 }
 
+.dashboarding-graphic--bar {
+  fill: $c-pool;
+}
+
+.bar-a {
+  height: 15.2px;
+}
+.bar-b {
+  height: 32.2px;
+}
+.bar-c {
+  height: 25.8px;
+}
+.bar-d {
+  height: 4px;
+}
+.bar-e {
+  height: 2px;
+}
+.bar-f {
+  height: 7.6px;
+}
+.bar-g {
+  height: 4px;
+}
+
+@keyframes barGraphA {
+  0% {
+    height: 15.2px;
+  }
+  50% {
+    height: 15.2px + 3px;
+  }
+  100% {
+    height: 15.2px;
+  }
+}
+@keyframes barGraphB {
+  0% {
+    height: 32.2px;
+  }
+  50% {
+    height: 32.2px + 3px;
+  }
+  100% {
+    height: 32.2px;
+  }
+}
+@keyframes barGraphC {
+  0% {
+    height: 25.8px;
+  }
+  50% {
+    height: 25.8px + 3px;
+  }
+  100% {
+    height: 25.8px;
+  }
+}
+@keyframes barGraphDG {
+  0% {
+    height: 4px;
+  }
+  50% {
+    height: 4px + 3px;
+  }
+  100% {
+    height: 4px;
+  }
+}
+@keyframes barGraphE {
+  0% {
+    height: 2px;
+  }
+  50% {
+    height: 2px + 3px;
+  }
+  100% {
+    height: 2px;
+  }
+}
+@keyframes barGraphF {
+  0% {
+    height: 7.6px;
+  }
+  50% {
+    height: 7.6px + 3px;
+  }
+  100% {
+    height: 7.6px;
+  }
+}
+
+.single-stat-a {
+  fill: $c-pool;
+}
+.single-stat-b {
+  fill: $c-dreamsicle;
+}
+.single-stat-c {
+  fill: $c-honeydew;
+}
+.single-stat-d {
+  fill: $c-comet;
+}
+
+.table-a {
+  fill: $c-pool;
+}
+.table-b {
+  fill: $c-comet;
+}
+
+@keyframes tableCellA {
+  0% {
+    fill: $c-pool;
+  }
+  30% {
+    fill: transparent;
+  }
+  70% {
+    fill: transparent
+  }
+  100% {
+    fill: $c-pool;
+  }
+}
+@keyframes tableCellB {
+  0% {
+    fill: $c-comet;
+  }
+  30% {
+    fill: transparent;
+  }
+  70% {
+    fill: transparent
+  }
+  100% {
+    fill: $c-comet;
+  }
+}
+
 .line-a,
 .line-b,
 .line-c,
@@ -48,100 +189,155 @@ $dashboarding-graphic-anim-time: 0.5s;
 }
 
 .line-a {
+  stroke: $c-honeydew;
   stroke-dasharray: 122;
-  stroke-dashoffset: 122;
+  stroke-dashoffset: 0;
+}
+
+@keyframes graphLineA {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: 122;
+  }
+  100% {
+    stroke-dashoffset: 122 * 2;
+  }
 }
 
 .line-b {
+  stroke: $c-pool;
   stroke-dasharray: 161;
-  stroke-dashoffset: 161;
+  stroke-dashoffset: 0;
+}
+
+@keyframes graphLineB {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: 161;
+  }
+  100% {
+    stroke-dashoffset: 161 * 2;
+  }
 }
 
 .line-c {
+  stroke: $c-comet;
   stroke-dasharray: 102;
-  stroke-dashoffset: 102;
+  stroke-dashoffset: 0;
+}
+
+@keyframes graphLineC {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: 102;
+  }
+  100% {
+    stroke-dashoffset: 102 * 2;
+  }
 }
 
 .line-d {
+  stroke: $c-thunder;
   stroke-dasharray: 99;
-  stroke-dashoffset: 99;
+  stroke-dashoffset: 0;
 }
 
-.dashboarding-graphic--bar {
-  fill: $g5-pepper;
-  transition: all $dashboarding-graphic-anim-time ease;
-  height: 0;
+@keyframes graphLineD {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dashoffset: 99;
+  }
+  100% {
+    stroke-dashoffset: 99 * 2;
+  }
 }
 
 /* Hover State */
-.getting-started--card:hover {
-  .dashboarding-graphic--bg {
-    fill: $g3-castle;
-  }
+.getting-started--image__animating {
   .dashboarding-graphic--cell {
-    fill: $g6-smoke;
+    fill: $g5-pepper;
   }
-  .single-stat-a {
-    fill: $c-pool;
-  }
-  .single-stat-b {
-    fill: $c-dreamsicle;
-  }
-  .single-stat-c {
-    fill: $c-honeydew;
-  }
-  .single-stat-d {
-    fill: $c-comet;
-  }
-  .table-a {
-    fill: $c-pool;
-  }
-  .table-b {
-    fill: $c-comet;
+  .dashboarding-graphic--axes {
+    stroke: $g7-graphite;
   }
   .line-a,
   .line-b,
   .line-c,
   .line-d {
-    stroke-dashoffset: 0;
+    animation-iteration-count: infinite;
+    animation-duration: 1.5s;
+    animation-direction: reverse;
   }
   .line-a {
-    stroke: $c-honeydew;
+    animation-name: graphLineA;
   }
   .line-b {
-    stroke: $c-pool;
+    animation-name: graphLineB;
+    animation-delay: 0.2s;
   }
   .line-c {
-    stroke: $c-comet;
+    animation-name: graphLineC;
+    animation-delay: 0.2s;
   }
   .line-d {
-    stroke: $c-thunder;
+    animation-name: graphLineD;
   }
-  .dashboarding-graphic--axes {
-    stroke: $g7-graphite;
-  }
-  .dashboarding-graphic--bar {
-    fill: $c-pool;
+  .bar-a,
+  .bar-b,
+  .bar-c,
+  .bar-d,
+  .bar-e,
+  .bar-f,
+  .bar-g {
+    animation-iteration-count: infinite;
+    animation-duration: 0.5s;
   }
   .bar-a {
-    height: 15.2px;
+    animation-name: barGraphA;
+    animation-delay: 0 * $dashboarding-bar-graph-anim;
   }
   .bar-b {
-    height: 32.2px;
+    animation-name: barGraphB;
+    animation-delay: 1 * $dashboarding-bar-graph-anim;
   }
   .bar-c {
-    height: 25.8px;
+    animation-name: barGraphC;
+    animation-delay: 2 * $dashboarding-bar-graph-anim;
   }
   .bar-d {
-    height: 4px;
+    animation-name: barGraphDG;
+    animation-delay: 3 * $dashboarding-bar-graph-anim;
   }
   .bar-e {
-    height: 2px;
+    animation-name: barGraphE;
+    animation-delay: 4 * $dashboarding-bar-graph-anim;
   }
   .bar-f {
-    height: 7.6px;
+    animation-name: barGraphF;
+    animation-delay: 5 * $dashboarding-bar-graph-anim;
   }
   .bar-g {
-    height: 4px;
+    animation-name: barGraphDG;
+    animation-delay: 6 * $dashboarding-bar-graph-anim;
+  }
+  .table-a,
+  .table-b {
+    animation-iteration-count: infinite;
+    animation-duration: 1.5s;
+  }
+  .table-a {
+    animation-name: tableCellA;
+  }
+  .table-b {
+    animation-name: tableCellB;
+    animation-delay: 0.2s;
   }
 }
