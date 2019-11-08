@@ -1,14 +1,18 @@
 package tsdb
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
-	"sync"
+	"sync/atomic"
 
+	"github.com/influxdata/influxdb/models"
 	"go.uber.org/zap"
 )
 
@@ -20,8 +24,13 @@ type verifyResult struct {
 
 // Verify contains configuration for running verification of series files.
 type Verify struct {
-	Concurrent int
-	Logger     *zap.Logger
+	Recover         bool // If set to false then Verify will not recover panics
+	Concurrent      int  // the level of concurrency to process partitions
+	ContinueOnError bool // if true then Verify will continue to verify after hitting an error
+	Logger          *zap.Logger
+
+	SeriesFilePath string
+	sfile          *SeriesFile
 
 	done chan struct{}
 }
@@ -29,6 +38,7 @@ type Verify struct {
 // NewVerify constructs a Verify with good defaults.
 func NewVerify() Verify {
 	return Verify{
+		Recover:    true,
 		Concurrent: runtime.GOMAXPROCS(0),
 		Logger:     zap.NewNop(),
 	}
@@ -36,18 +46,27 @@ func NewVerify() Verify {
 
 // VerifySeriesFile performs verifications on a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the series file.
-func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
-	v.Logger = v.Logger.With(zap.String("path", filePath))
+func (v Verify) VerifySeriesFile() (valid bool, err error) {
+	v.Logger = v.Logger.With(zap.String("path", v.SeriesFilePath))
 	v.Logger.Info("Verifying series file")
 
+	// series file is used only for emitting more information on failure.
+	v.sfile = NewSeriesFile(v.SeriesFilePath)
+	if err := v.sfile.Open(context.Background()); err != nil {
+		return false, err
+	}
+	defer v.sfile.Close()
+
 	defer func() {
-		if rec := recover(); rec != nil {
+		if !v.Recover {
+			return
+		} else if rec := recover(); rec != nil {
 			v.Logger.Error("Panic verifying file", zap.String("recovered", fmt.Sprint(rec)))
 			valid = false
 		}
 	}()
 
-	partitionInfos, err := ioutil.ReadDir(filePath)
+	partitionDirs, err := ioutil.ReadDir(v.SeriesFilePath)
 	if os.IsNotExist(err) {
 		v.Logger.Error("Series file does not exist")
 		return false, nil
@@ -57,44 +76,31 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 	}
 
 	// Check every partition in concurrently.
-	concurrent := v.Concurrent
-	if concurrent <= 0 {
-		concurrent = 1
+	n := v.Concurrent
+	if n <= 0 {
+		n = 1
 	}
-	in := make(chan string, len(partitionInfos))
-	out := make(chan verifyResult, len(partitionInfos))
 
-	// Make sure all the workers are cleaned up when we return.
-	var wg sync.WaitGroup
-	defer wg.Wait()
-
-	// Set up cancellation. Any return will cause the workers to be cancelled.
-	v.done = make(chan struct{})
-	defer close(v.done)
-
-	for i := 0; i < concurrent; i++ {
-		wg.Add(1)
+	m := len(partitionDirs)
+	out := make(chan verifyResult, m)
+	var pidx uint32          // Index tracking progress of work towards m
+	for k := 0; k < n; k++ { // Create a worker pool of n workers
 		go func() {
-			defer wg.Done()
-
-			for partitionPath := range in {
-				valid, err := v.VerifyPartition(partitionPath)
-				select {
-				case out <- verifyResult{valid: valid, err: err}:
-				case <-v.done:
-					return
+			for { // Each worker continues doing work until m work has been done.
+				idx := int(atomic.AddUint32(&pidx, 1) - 1)
+				if idx >= m {
+					return // No more work.
 				}
+
+				// Work
+				path := filepath.Join(v.SeriesFilePath, partitionDirs[idx].Name())
+				valid, err := v.VerifyPartition(path)
+				out <- verifyResult{valid: valid, err: err}
 			}
 		}()
 	}
 
-	// send off the work and read the results.
-	for _, partitionInfo := range partitionInfos {
-		in <- filepath.Join(filePath, partitionInfo.Name())
-	}
-	close(in)
-
-	for range partitionInfos {
+	for i := 0; i < m; i++ {
 		result := <-out
 		if result.err != nil {
 			return false, err
@@ -102,7 +108,6 @@ func (v Verify) VerifySeriesFile(filePath string) (valid bool, err error) {
 			return false, nil
 		}
 	}
-
 	return true, nil
 }
 
@@ -113,7 +118,9 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 	v.Logger.Info("Verifying partition")
 
 	defer func() {
-		if rec := recover(); rec != nil {
+		if !v.Recover {
+			return
+		} else if rec := recover(); rec != nil {
 			v.Logger.Error("Panic verifying partition", zap.String("recovered", fmt.Sprint(rec)))
 			valid = false
 		}
@@ -234,6 +241,9 @@ entries:
 					zap.Uint64("prev_id", currentID.RawID()),
 					zap.Uint64("id", id.RawID()),
 					zap.Int64("offset", buf.offset))
+				if v.ContinueOnError {
+					break
+				}
 				return false, nil
 			}
 
@@ -290,7 +300,7 @@ entries:
 				ParseSeriesKey(key)
 				parsed = true
 			}()
-			if !parsed {
+			if !parsed && !v.ContinueOnError {
 				return false, nil
 			}
 		}
@@ -314,7 +324,9 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map
 	v.Logger.Info("Verifying index")
 
 	defer func() {
-		if rec := recover(); rec != nil {
+		if !v.Recover {
+			return
+		} else if rec := recover(); rec != nil {
 			v.Logger.Error("Panic verifying index", zap.String("recovered", fmt.Sprint(rec)))
 			valid = false
 		}
@@ -342,6 +354,7 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map
 		return idsList[i].RawID() < idsList[j].RawID()
 	})
 
+	var success = true
 	for _, id := range idsList {
 		select {
 		default:
@@ -352,14 +365,42 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map
 		IDData := ids[id]
 
 		if gotDeleted := index.IsDeleted(id.SeriesID()); gotDeleted != IDData.Deleted {
-			offset := index.FindOffsetByID(id.SeriesID())
-			index.SeriesKey(id.SeriesID())
+			// Get measurement name and tags from original segment entry
+			var name []byte
+			var tags models.Tags
+			if IDData.Key != nil {
+				name, tags, err = v.processSeriesKey(IDData.Key)
+				if err != nil {
+					return false, err // This should never happen
+				}
+			}
+
+			// Get the key again from the ID that's in the index..
+			name2, tags2, err := v.seriesKeyFromID(id.SeriesID())
+			if err != nil {
+				v.Logger.Error("Index inconsistent", zap.Error(err))
+				if !v.ContinueOnError {
+					return false, err
+				}
+				success = false
+				continue
+			}
+
 			v.Logger.Error("Index inconsistency",
 				zap.Uint64("id_typed", id.RawID()),
 				zap.Uint64("id", id.SeriesID().RawID()),
 				zap.Bool("got_deleted", gotDeleted),
-				zap.Bool("expected_deleted", IDData.Deleted))
-			return false, nil
+				zap.Bool("expected_deleted", IDData.Deleted),
+				zap.String("measurement_from_entry", string(name)),
+				zap.String("tags_from_entry", tags.String()),
+				zap.String("measurement_from_index_id", string(name2)),
+				zap.String("tags_from_index_id", tags2.String()),
+			)
+			if !v.ContinueOnError {
+				return false, nil
+			}
+			success = false
+			continue
 		}
 
 		// do not perform any other checks if the id is deleted.
@@ -374,7 +415,11 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map
 				zap.Uint64("id", id.SeriesID().RawID()),
 				zap.Int64("got_offset", gotOffset),
 				zap.Int64("expected_offset", IDData.Offset))
-			return false, nil
+			if !v.ContinueOnError {
+				return false, nil
+			}
+			success = false
+			continue
 		}
 
 		if gotID := index.FindIDBySeriesKey(segments, IDData.Key); gotID != id {
@@ -383,11 +428,52 @@ func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map
 				zap.Uint64("id", id.SeriesID().RawID()),
 				zap.Uint64("got_id", gotID.RawID()),
 				zap.Uint64("expected_id_typed", id.RawID()))
-			return false, nil
+			if !v.ContinueOnError {
+				return false, nil
+			}
+			success = false
+			continue
 		}
 	}
 
-	return true, nil
+	return success, nil
+}
+
+// seriesKeyFromID retrieves the series key for the provided id, converting the
+// measurement name into base-16 and replacing the special-case tag keys _measurement
+// and _field.
+func (v Verify) seriesKeyFromID(id SeriesID) ([]byte, models.Tags, error) {
+	// Attempt to get the series key for debugging.
+	key, _ := ReadSeriesKey(v.sfile.SeriesKey(id))
+	if key == nil {
+		return nil, nil, nil
+	}
+	return v.processSeriesKey(key)
+}
+
+func (v Verify) processSeriesKey(key []byte) ([]byte, models.Tags, error) {
+	name, tags := ParseSeriesKey(key)
+
+	if len(tags) < 2 || !bytes.Equal(tags[0].Key, models.MeasurementTagKeyBytes) || !bytes.Equal(tags[len(tags)-1].Key, models.FieldKeyTagKeyBytes) {
+		v.Logger.Error("Invalid series key",
+			zap.String("key", string(key)),
+			zap.String("key_base_16", fmt.Sprintf("%x", key)),
+		)
+		return nil, nil, errors.New("unable to parse series key")
+	}
+
+	for i, tag := range tags {
+		if i == 0 {
+			tag.Key = []byte("_measurement")
+			tags[i] = tag
+		} else if i == len(tags)-1 {
+			tag.Key = []byte("_field")
+			tags[i] = tag
+		}
+	}
+
+	nameHex := []byte(fmt.Sprintf("%x", name))
+	return nameHex, tags, nil
 }
 
 // buffer allows one to safely advance a byte slice and keep track of how many bytes were advanced.
