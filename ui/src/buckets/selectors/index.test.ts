@@ -13,9 +13,7 @@ describe('Bucket Selector', () => {
     expect(isSystemBucket(`naming_${SYSTEM}`)).toEqual(false)
     expect(isSystemBucket('SYSTEM')).toEqual(false)
   })
-  // skipping this test for now as it's flakey. Issue has been raise:
-  // https://github.com/influxdata/influxdb/issues/15798
-  it.skip('should sort the bucket names alphabetically', () => {
+  it('should sort the bucket names alphabetically', () => {
     const buckets: Bucket[] = [
       {
         id: '7902bd683453c00c',

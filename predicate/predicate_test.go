@@ -21,7 +21,7 @@ func TestDataTypeConversion(t *testing.T) {
 			name: "empty node",
 		},
 		{
-			name: "tag rule",
+			name: "equal tag rule",
 			node: &TagRuleNode{
 				Operator: influxdb.Equal,
 				Tag: influxdb.Tag{
@@ -47,7 +47,33 @@ func TestDataTypeConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "measurement tag rule",
+			name: "not equal tag rule",
+			node: &TagRuleNode{
+				Operator: influxdb.NotEqual,
+				Tag: influxdb.Tag{
+					Key:   "k1",
+					Value: "v1",
+				},
+			},
+			dataType: &datatypes.Node{
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonNotEqual},
+				Children: []*datatypes.Node{
+					{
+						NodeType: datatypes.NodeTypeTagRef,
+						Value:    &datatypes.Node_TagRefValue{TagRefValue: "k1"},
+					},
+					{
+						NodeType: datatypes.NodeTypeLiteral,
+						Value: &datatypes.Node_StringValue{
+							StringValue: "v1",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "measurement equal tag rule",
 			node: &TagRuleNode{
 				Operator: influxdb.Equal,
 				Tag: influxdb.Tag{
@@ -73,7 +99,33 @@ func TestDataTypeConversion(t *testing.T) {
 			},
 		},
 		{
-			name: "field tag rule",
+			name: "measurement not equal tag rule",
+			node: &TagRuleNode{
+				Operator: influxdb.NotEqual,
+				Tag: influxdb.Tag{
+					Key:   "_measurement",
+					Value: "cpu",
+				},
+			},
+			dataType: &datatypes.Node{
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonNotEqual},
+				Children: []*datatypes.Node{
+					{
+						NodeType: datatypes.NodeTypeTagRef,
+						Value:    &datatypes.Node_TagRefValue{TagRefValue: models.MeasurementTagKey},
+					},
+					{
+						NodeType: datatypes.NodeTypeLiteral,
+						Value: &datatypes.Node_StringValue{
+							StringValue: "cpu",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "equal field tag rule",
 			node: &TagRuleNode{
 				Operator: influxdb.Equal,
 				Tag: influxdb.Tag{
@@ -84,6 +136,32 @@ func TestDataTypeConversion(t *testing.T) {
 			dataType: &datatypes.Node{
 				NodeType: datatypes.NodeTypeComparisonExpression,
 				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonEqual},
+				Children: []*datatypes.Node{
+					{
+						NodeType: datatypes.NodeTypeTagRef,
+						Value:    &datatypes.Node_TagRefValue{TagRefValue: models.FieldKeyTagKey},
+					},
+					{
+						NodeType: datatypes.NodeTypeLiteral,
+						Value: &datatypes.Node_StringValue{
+							StringValue: "cpu",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "not equal field tag rule",
+			node: &TagRuleNode{
+				Operator: influxdb.NotEqual,
+				Tag: influxdb.Tag{
+					Key:   "_field",
+					Value: "cpu",
+				},
+			},
+			dataType: &datatypes.Node{
+				NodeType: datatypes.NodeTypeComparisonExpression,
+				Value:    &datatypes.Node_Comparison_{Comparison: datatypes.ComparisonNotEqual},
 				Children: []*datatypes.Node{
 					{
 						NodeType: datatypes.NodeTypeTagRef,

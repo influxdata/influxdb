@@ -6314,7 +6314,7 @@ components:
           type: string
         predicate:
           description: sql where like delete statement
-          example: tag1="value1" and (tag2="value2" and tag3="value3")
+          example: tag1="value1" and (tag2="value2" and tag3!="value3")
           type: string
     Node:
       oneOf:

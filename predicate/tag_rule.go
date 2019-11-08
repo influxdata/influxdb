@@ -44,7 +44,7 @@ func NodeComparison(op influxdb.Operator) (datatypes.Node_Comparison, error) {
 	case influxdb.Equal:
 		return datatypes.ComparisonEqual, nil
 	case influxdb.NotEqual:
-		fallthrough
+		return datatypes.ComparisonNotEqual, nil
 	case influxdb.RegexEqual:
 		fallthrough
 	case influxdb.NotRegexEqual:
