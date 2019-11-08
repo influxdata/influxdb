@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -99,36 +100,117 @@ func NewService(opts ...ServiceSetterFn) *Service {
 }
 
 // CreatePkgSetFn is a functional input for setting the pkg fields.
-type CreatePkgSetFn func(ctx context.Context, pkg *Pkg) error
+type CreatePkgSetFn func(opt *createOpt) error
+
+type createOpt struct {
+	metadata  Metadata
+	resources []ResourceToClone
+}
 
 // WithMetadata sets the metadata on the pkg in a CreatePkg call.
 func WithMetadata(meta Metadata) CreatePkgSetFn {
-	return func(ctx context.Context, pkg *Pkg) error {
-		pkg.Metadata = meta
+	return func(opt *createOpt) error {
+		opt.metadata = meta
+		return nil
+	}
+}
+
+// WithResourceClones allows the create method to clone existing resources.
+func WithResourceClones(resources ...ResourceToClone) CreatePkgSetFn {
+	return func(opt *createOpt) error {
+		for _, r := range resources {
+			if err := r.OK(); err != nil {
+				return err
+			}
+		}
+		opt.resources = append(opt.resources, resources...)
 		return nil
 	}
 }
 
 // CreatePkg will produce a pkg from the parameters provided.
 func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	pkg := &Pkg{
-		APIVersion: APIVersion,
-		Kind:       kindPackage.String(),
-		Spec: struct {
-			Resources []Resource `yaml:"resources" json:"resources"`
-		}{
-			Resources: []Resource{},
-		},
-	}
-
+	opt := new(createOpt)
 	for _, setter := range setters {
-		err := setter(ctx, pkg)
-		if err != nil {
+		if err := setter(opt); err != nil {
 			return nil, err
 		}
 	}
 
+	pkg := &Pkg{
+		APIVersion: APIVersion,
+		Kind:       KindPackage.String(),
+		Metadata:   opt.metadata,
+		Spec: struct {
+			Resources []Resource `yaml:"resources" json:"resources"`
+		}{
+			Resources: make([]Resource, 0, len(opt.resources)),
+		},
+	}
+	if pkg.Metadata.Name == "" {
+		// sudo randomness, this is not an attempt at making charts unique
+		// that is a problem for the consumer.
+		pkg.Metadata.Name = fmt.Sprintf("new_%7d", rand.Int())
+	}
+	if pkg.Metadata.Version == "" {
+		pkg.Metadata.Version = "v1"
+	}
+
+	for _, r := range opt.resources {
+		newResource, err := s.resourceCloneToResource(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		pkg.Spec.Resources = append(pkg.Spec.Resources, newResource)
+	}
+
+	if err := pkg.Validate(); err != nil {
+		return nil, err
+	}
+
 	return pkg, nil
+}
+
+func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone) (Resource, error) {
+	switch {
+	case r.Kind.is(KindBucket):
+		bkt, err := s.bucketSVC.FindBucketByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		return bucketToResource(*bkt, r.Name), nil
+	case r.Kind.is(KindDashboard):
+		dash, err := s.dashSVC.FindDashboardByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		var cellViews []cellView
+		for _, cell := range dash.Cells {
+			v, err := s.dashSVC.GetDashboardCellView(ctx, r.ID, cell.ID)
+			if err != nil {
+				return nil, err
+			}
+			cellViews = append(cellViews, cellView{
+				c: *cell,
+				v: *v,
+			})
+		}
+		return dashboardToResource(*dash, cellViews, r.Name), nil
+	case r.Kind.is(KindLabel):
+		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		return labelToResource(*l, r.Name), nil
+	case r.Kind.is(KindVariable):
+		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		return variableToResource(*v, r.Name), nil
+	default:
+		return nil, errors.New("unsupported kind provided: " + string(r.Kind))
+	}
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
@@ -657,6 +739,8 @@ func convertChartsToCells(ch []chart) ([]*influxdb.Cell, map[*influxdb.Cell]int)
 	for i, c := range ch {
 		icell := &influxdb.Cell{
 			CellProperty: influxdb.CellProperty{
+				X: int32(c.XPos),
+				Y: int32(c.YPos),
 				H: int32(c.Height),
 				W: int32(c.Width),
 			},

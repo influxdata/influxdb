@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb"
 	fluxTTP "github.com/influxdata/influxdb/http"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/jsteenb2/testttp"
 	"github.com/stretchr/testify/assert"
@@ -21,13 +22,27 @@ import (
 func TestPkgerHTTPServer(t *testing.T) {
 	t.Run("create pkg", func(t *testing.T) {
 		t.Run("should successfully return with valid req body", func(t *testing.T) {
-			pkgHandler := fluxTTP.NewHandlerPkg(fluxTTP.ErrorHandler(0), new(pkger.Service))
+			fakeLabelSVC := mock.NewLabelService()
+			fakeLabelSVC.FindLabelByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+				return &influxdb.Label{
+					ID: id,
+				}, nil
+			}
+			svc := pkger.NewService(pkger.WithLabelSVC(fakeLabelSVC))
+			pkgHandler := fluxTTP.NewHandlerPkg(fluxTTP.ErrorHandler(0), svc)
 			svr := newMountedHandler(pkgHandler)
 
 			body := newReqBody(t, fluxTTP.ReqCreatePkg{
 				PkgName:        "name1",
 				PkgDescription: "desc1",
 				PkgVersion:     "v1",
+				Resources: []pkger.ResourceToClone{
+					{
+						Kind: pkger.KindLabel,
+						ID:   1,
+						Name: "new name",
+					},
+				},
 			})
 
 			testttp.Post("/api/v2/packages", body).
@@ -38,7 +53,8 @@ func TestPkgerHTTPServer(t *testing.T) {
 					var resp fluxTTP.RespCreatePkg
 					decodeBody(t, buf, &resp)
 
-					pkg := resp.Package
+					pkg := resp.Pkg
+					require.NoError(t, pkg.Validate())
 					assert.Equal(t, pkger.APIVersion, pkg.APIVersion)
 					assert.Equal(t, "package", pkg.Kind)
 
@@ -47,7 +63,8 @@ func TestPkgerHTTPServer(t *testing.T) {
 					assert.Equal(t, "desc1", meta.Description)
 					assert.Equal(t, "v1", meta.Version)
 
-					assert.NotNil(t, pkg.Spec.Resources)
+					assert.Len(t, pkg.Spec.Resources, 1)
+					assert.Len(t, pkg.Summary().Labels, 1)
 				})
 
 		})
