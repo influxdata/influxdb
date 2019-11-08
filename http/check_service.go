@@ -133,6 +133,7 @@ type checkLinks struct {
 	Labels  string `json:"labels"`
 	Members string `json:"members"`
 	Owners  string `json:"owners"`
+	Query   string `json:"query"`
 }
 
 type checkResponse struct {
@@ -195,6 +196,7 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 			Labels:  fmt.Sprintf("/api/v2/checks/%s/labels", chk.GetID()),
 			Members: fmt.Sprintf("/api/v2/checks/%s/members", chk.GetID()),
 			Owners:  fmt.Sprintf("/api/v2/checks/%s/owners", chk.GetID()),
+			Query:   fmt.Sprintf("/api/v2/checks/%s/query", chk.GetID()),
 		},
 		Labels: []influxdb.Label{},
 	}

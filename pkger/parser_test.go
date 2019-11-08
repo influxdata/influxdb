@@ -1,6 +1,8 @@
 package pkger
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,25 +18,10 @@ func TestParse(t *testing.T) {
 		})
 
 		t.Run("malformed required metadata", func(t *testing.T) {
-			containsField := func(t *testing.T, expected []string, actual string) {
-				t.Helper()
-
-				for _, e := range expected {
-					if e == actual {
-						return
-					}
-				}
-				assert.Fail(t, "did not find field: "+actual)
-			}
-
-			tests := []struct {
-				name           string
-				in             string
-				expectedFields []string
-			}{
+			tests := []testPkgResourceError{
 				{
 					name: "missing apiVersion",
-					in: `kind: Package
+					pkgStr: `kind: Package
 meta:
   pkgName:      first_bucket_package
   pkgVersion:   1
@@ -44,11 +31,11 @@ spec:
       name: buck_1
       retention_period: 1h
 `,
-					expectedFields: []string{"apiVersion"},
+					valFields: []string{"apiVersion"},
 				},
 				{
 					name: "apiVersion is invalid version",
-					in: `apiVersion: 222.2 #invalid apiVersion
+					pkgStr: `apiVersion: 222.2 #invalid apiVersion
 kind: Package
 meta:
   pkgName:      first_bucket_package
@@ -59,11 +46,11 @@ spec:
       name: buck_1
       retention_period: 1h
 `,
-					expectedFields: []string{"apiVersion"},
+					valFields: []string{"apiVersion"},
 				},
 				{
 					name: "missing kind",
-					in: `apiVersion: 0.1.0
+					pkgStr: `apiVersion: 0.1.0
 meta:
   pkgName:   first_bucket_package
   pkgVersion:   1
@@ -73,11 +60,11 @@ spec:
       name: buck_1
       retention_period: 1h
 `,
-					expectedFields: []string{"kind"},
+					valFields: []string{"kind"},
 				},
 				{
 					name: "missing pkgName",
-					in: `apiVersion: 0.1.0
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgVersion:   1
@@ -87,11 +74,11 @@ spec:
       name: buck_1
       retention_period: 1h
 `,
-					expectedFields: []string{"pkgName"},
+					valFields: []string{"pkgName"},
 				},
 				{
 					name: "missing pkgVersion",
-					in: `apiVersion: 0.1.0
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:   foo_name
@@ -101,46 +88,27 @@ spec:
       name: buck_1
       retention_period: 1h
 `,
-					expectedFields: []string{"pkgVersion"},
+					valFields: []string{"pkgVersion"},
 				},
 				{
 					name: "missing multiple",
-					in: `spec:
+					pkgStr: `spec:
   resources:
     - kind: Bucket
       name: buck_1
       retention_period: 1h
 `,
-					expectedFields: []string{"pkgVersion", "pkgName", "kind", "apiVersion"},
+					valFields: []string{"apiVersion", "kind", "pkgVersion", "pkgName"},
 				},
 			}
 
 			for _, tt := range tests {
-				fn := func(t *testing.T) {
-					_, err := Parse(EncodingYAML, FromString(tt.in))
-					require.Error(t, err)
-
-					pErr, ok := IsParseErr(err)
-					require.True(t, ok)
-
-					require.Len(t, pErr.Resources, 1)
-
-					failedResource := pErr.Resources[0]
-					assert.Equal(t, "Package", failedResource.Kind)
-
-					require.Len(t, failedResource.ValidationFails, len(tt.expectedFields))
-
-					for _, f := range failedResource.ValidationFails {
-						containsField(t, tt.expectedFields, f.Field)
-					}
-				}
-
-				t.Run(tt.name, fn)
+				testPkgErrors(t, kindPackage, tt)
 			}
 		})
 	})
 
-	t.Run("pkg with just a bucket", func(t *testing.T) {
+	t.Run("pkg with a bucket", func(t *testing.T) {
 		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
 				buckets := pkg.buckets()
@@ -156,16 +124,13 @@ spec:
 			})
 		})
 
-		t.Run("with missing bucket name should error", func(t *testing.T) {
-			tests := []struct {
-				name    string
-				numErrs int
-				in      string
-			}{
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []testPkgResourceError{
 				{
-					name:    "missing name",
-					numErrs: 1,
-					in: `apiVersion: 1
+					name:           "missing name",
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      first_bucket_package
@@ -175,10 +140,12 @@ spec:
     - kind: Bucket
       retention_period: 1h
 `,
-				}, {
-					name:    "mixed valid and missing name",
-					numErrs: 1,
-					in: `apiVersion: 1
+				},
+				{
+					name:           "mixed valid and missing name",
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      first_bucket_package
@@ -191,10 +158,13 @@ spec:
     - kind: Bucket
       retention_period: 1h
 `,
-				}, {
-					name:    "mixed valid and multiple bad names",
-					numErrs: 2,
-					in: `apiVersion: 0.1.0
+				},
+				{
+					name:           "mixed valid and multiple bad names",
+					resourceErrs:   2,
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      first_bucket_package
@@ -210,22 +180,12 @@ spec:
       retention_period: 1h
 `,
 				},
-			}
-
-			for _, tt := range tests {
-				fn := func(t *testing.T) {
-					_, err := Parse(EncodingYAML, FromString(tt.in))
-					pErr, ok := IsParseErr(err)
-					require.True(t, ok)
-					assert.Len(t, pErr.Resources, tt.numErrs)
-				}
-
-				t.Run(tt.name, fn)
-			}
-		})
-
-		t.Run("with duplicate buckets should error", func(t *testing.T) {
-			yamlFile := `apiVersion: 0.1.0
+				{
+					name:           "duplicate bucket names",
+					resourceErrs:   1,
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      first_bucket_package
@@ -238,21 +198,17 @@ spec:
     - kind: Bucket
       retention_period: 1h
       name: valid name
-`
-			_, err := Parse(EncodingYAML, FromString(yamlFile))
-			require.Error(t, err)
+`,
+				},
+			}
 
-			pErr, ok := IsParseErr(err)
-			require.True(t, ok)
-			assert.Len(t, pErr.Resources, 1)
-
-			fields := pErr.Resources[0].ValidationFails
-			require.Len(t, fields, 1)
-			assert.Equal(t, "name", fields[0].Field)
+			for _, tt := range tests {
+				testPkgErrors(t, kindBucket, tt)
+			}
 		})
 	})
 
-	t.Run("pkg with just a label", func(t *testing.T) {
+	t.Run("pkg with a label", func(t *testing.T) {
 		t.Run("with valid label pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
 				labels := pkg.labels()
@@ -275,15 +231,12 @@ spec:
 		})
 
 		t.Run("with missing label name should error", func(t *testing.T) {
-			tests := []struct {
-				name    string
-				numErrs int
-				in      string
-			}{
+			tests := []testPkgResourceError{
 				{
-					name:    "missing name",
-					numErrs: 1,
-					in: `apiVersion: 0.1.0
+					name:           "missing name",
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: first_label_pkg 
@@ -294,9 +247,10 @@ spec:
 `,
 				},
 				{
-					name:    "mixed valid and missing name",
-					numErrs: 1,
-					in: `apiVersion: 0.1.0
+					name:           "mixed valid and missing name",
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -309,9 +263,11 @@ spec:
 `,
 				},
 				{
-					name:    "multiple labels with missing name",
-					numErrs: 2,
-					in: `apiVersion: 0.1.0
+					name:           "multiple labels with missing name",
+					resourceErrs:   2,
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -325,14 +281,7 @@ spec:
 			}
 
 			for _, tt := range tests {
-				fn := func(t *testing.T) {
-					_, err := Parse(EncodingYAML, FromString(tt.in))
-					pErr, ok := IsParseErr(err)
-					require.True(t, ok)
-					assert.Len(t, pErr.Resources, tt.numErrs)
-				}
-
-				t.Run(tt.name, fn)
+				testPkgErrors(t, kindLabel, tt)
 			}
 		})
 	})
@@ -398,17 +347,12 @@ spec:
 		})
 
 		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
-			tests := []struct {
-				name    string
-				numErrs int
-				in      string
-				errIdxs []int
-			}{
+			tests := []testPkgResourceError{
 				{
 					name:    "no labels provided",
-					numErrs: 1,
-					errIdxs: []int{0},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{0},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -424,9 +368,9 @@ spec:
 				},
 				{
 					name:    "mixed found and not found",
-					numErrs: 1,
-					errIdxs: []int{1},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{1},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -446,9 +390,9 @@ spec:
 				},
 				{
 					name:    "multiple not found",
-					numErrs: 1,
-					errIdxs: []int{0, 1},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{0, 1},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -468,9 +412,9 @@ spec:
 				},
 				{
 					name:    "duplicate valid nested labels",
-					numErrs: 1,
-					errIdxs: []int{1},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{1},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -491,23 +435,7 @@ spec:
 			}
 
 			for _, tt := range tests {
-				fn := func(t *testing.T) {
-					_, err := Parse(EncodingYAML, FromString(tt.in))
-
-					pErr, ok := IsParseErr(err)
-					require.True(t, ok)
-					require.Len(t, pErr.Resources, tt.numErrs)
-
-					assFails := pErr.Resources[0].AssociationFails
-					require.Len(t, assFails, len(tt.errIdxs))
-					assert.Equal(t, "associations", assFails[0].Field)
-
-					for i, f := range assFails {
-						assert.Equal(t, tt.errIdxs[i], f.Index)
-					}
-				}
-
-				t.Run(tt.name, fn)
+				testPkgErrors(t, kindBucket, tt)
 			}
 		})
 	})
@@ -524,7 +452,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindSingleStat, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
@@ -556,17 +483,12 @@ spec:
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []struct {
-					name      string
-					ymlStr    string
-					numErrs   int
-					errFields []string
-				}{
+				tests := []testPkgResourceError{
 					{
-						name:      "color missing hex value",
-						numErrs:   1,
-						errFields: []string{"charts[0].colors[0].hex"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "color missing hex value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -593,10 +515,10 @@ spec:
 `,
 					},
 					{
-						name:      "no colors provided",
-						numErrs:   2,
-						errFields: []string{"charts[0].colors", "charts[0].colors"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no colors provided",
+						validationErrs: 2,
+						valFields:      []string{"charts[0].colors", "charts[0].colors"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -620,10 +542,10 @@ spec:
 `,
 					},
 					{
-						name:      "query missing text value",
-						numErrs:   1,
-						errFields: []string{"charts[0].queries[0].query"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "query missing text value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -650,10 +572,10 @@ spec:
 `,
 					},
 					{
-						name:      "no queries provided",
-						numErrs:   1,
-						errFields: []string{"charts[0].queries"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no queries provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -678,10 +600,10 @@ spec:
 `,
 					},
 					{
-						name:      "no width provided",
-						numErrs:   1,
-						errFields: []string{"charts[0].width"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no width provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].width"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -708,10 +630,10 @@ spec:
 `,
 					},
 					{
-						name:      "no height provided",
-						numErrs:   1,
-						errFields: []string{"charts[0].height"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no height provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].height"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -740,24 +662,7 @@ spec:
 				}
 
 				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						_, err := Parse(EncodingYAML, FromString(tt.ymlStr))
-						require.Error(t, err)
-
-						pErr, ok := IsParseErr(err)
-						require.True(t, ok, err)
-
-						require.Len(t, pErr.Resources, 1)
-
-						resErr := pErr.Resources[0]
-						assert.Equal(t, "dashboard", resErr.Kind)
-
-						require.Len(t, resErr.ValidationFails, tt.numErrs)
-						for i, vFail := range resErr.ValidationFails {
-							assert.Equal(t, tt.errFields[i], vFail.Field)
-						}
-					}
-					t.Run(tt.name, fn)
+					testPkgErrors(t, kindDashboard, tt)
 				}
 			})
 		})
@@ -773,7 +678,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindSingleStatPlusLine, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
@@ -823,17 +727,12 @@ spec:
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []struct {
-					name      string
-					ymlStr    string
-					numErrs   int
-					errFields []string
-				}{
+				tests := []testPkgResourceError{
 					{
-						name:      "color missing hex value",
-						numErrs:   1,
-						errFields: []string{"charts[0].colors[0].hex"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "color missing hex value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -870,10 +769,10 @@ spec:
 `,
 					},
 					{
-						name:      "no colors provided",
-						numErrs:   3,
-						errFields: []string{"charts[0].colors", "charts[0].colors", "charts[0].colors"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no colors provided",
+						validationErrs: 3,
+						valFields:      []string{"charts[0].colors", "charts[0].colors", "charts[0].colors"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -904,10 +803,10 @@ spec:
 `,
 					},
 					{
-						name:      "missing query value",
-						numErrs:   1,
-						errFields: []string{"charts[0].queries[0].query"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "missing query value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -944,10 +843,10 @@ spec:
 `,
 					},
 					{
-						name:      "no queries provided",
-						numErrs:   1,
-						errFields: []string{"charts[0].queries"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no queries provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -981,10 +880,10 @@ spec:
               scale: linear`,
 					},
 					{
-						name:      "no width provided",
-						numErrs:   1,
-						errFields: []string{"charts[0].width"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no width provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].width"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -1020,10 +919,10 @@ spec:
               scale: linear`,
 					},
 					{
-						name:      "no height provided",
-						numErrs:   1,
-						errFields: []string{"charts[0].height"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "no height provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].height"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -1059,10 +958,10 @@ spec:
               scale: linear`,
 					},
 					{
-						name:      "missing text color but has scale color",
-						numErrs:   1,
-						errFields: []string{"charts[0].colors"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "missing text color but has scale color",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -1096,10 +995,10 @@ spec:
               scale: linear`,
 					},
 					{
-						name:      "missing x axis",
-						numErrs:   1,
-						errFields: []string{"charts[0].axes"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "missing x axis",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -1132,10 +1031,10 @@ spec:
               scale: linear`,
 					},
 					{
-						name:      "missing y axis",
-						numErrs:   1,
-						errFields: []string{"charts[0].axes"},
-						ymlStr: `apiVersion: 0.1.0
+						name:           "missing y axis",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes"},
+						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -1169,82 +1068,59 @@ spec:
 				}
 
 				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						_, err := Parse(EncodingYAML, FromString(tt.ymlStr))
-						require.Error(t, err)
-
-						pErr, ok := IsParseErr(err)
-						require.True(t, ok, err)
-
-						require.Len(t, pErr.Resources, 1)
-
-						resErr := pErr.Resources[0]
-						assert.Equal(t, "dashboard", resErr.Kind)
-
-						require.Len(t, resErr.ValidationFails, tt.numErrs)
-						for i, vFail := range resErr.ValidationFails {
-							assert.Equal(t, tt.errFields[i], vFail.Field)
-						}
-					}
-					t.Run(tt.name, fn)
+					testPkgErrors(t, kindDashboard, tt)
 				}
 			})
 		})
-	})
 
-	t.Run("pkg with single dashboard xy chart", func(t *testing.T) {
-		t.Run("xy chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
+		t.Run("pkg with single dashboard xy chart", func(t *testing.T) {
+			t.Run("xy chart", func(t *testing.T) {
+				testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
+					sum := pkg.Summary()
+					require.Len(t, sum.Dashboards, 1)
 
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash_1", actual.Name)
-				assert.Equal(t, "desc1", actual.Description)
+					actual := sum.Dashboards[0]
+					assert.Equal(t, "dash_1", actual.Name)
+					assert.Equal(t, "desc1", actual.Description)
 
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindXY, actualChart.Kind)
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
+					require.Len(t, actual.Charts, 1)
+					actualChart := actual.Charts[0]
+					assert.Equal(t, 3, actualChart.Height)
+					assert.Equal(t, 6, actualChart.Width)
+					assert.Equal(t, 1, actualChart.XPosition)
+					assert.Equal(t, 2, actualChart.YPosition)
 
-				props, ok := actualChart.Properties.(influxdb.XYViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "xy", props.GetType())
-				assert.Equal(t, true, props.ShadeBelow)
-				assert.Equal(t, "xy chart note", props.Note)
-				assert.True(t, props.ShowNoteWhenEmpty)
+					props, ok := actualChart.Properties.(influxdb.XYViewProperties)
+					require.True(t, ok)
+					assert.Equal(t, "xy", props.GetType())
+					assert.Equal(t, true, props.ShadeBelow)
+					assert.Equal(t, "xy chart note", props.Note)
+					assert.True(t, props.ShowNoteWhenEmpty)
 
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
-				assert.Equal(t, queryText, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
+					require.Len(t, props.Queries, 1)
+					q := props.Queries[0]
+					queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+					assert.Equal(t, queryText, q.Text)
+					assert.Equal(t, "advanced", q.EditMode)
 
-				require.Len(t, props.ViewColors, 1)
-				c := props.ViewColors[0]
-				assert.NotZero(t, c.ID)
-				assert.Equal(t, "laser", c.Name)
-				assert.Equal(t, "scale", c.Type)
-				assert.Equal(t, "#8F8AF4", c.Hex)
-				assert.Equal(t, 3.0, c.Value)
+					require.Len(t, props.ViewColors, 1)
+					c := props.ViewColors[0]
+					assert.NotZero(t, c.ID)
+					assert.Equal(t, "laser", c.Name)
+					assert.Equal(t, "scale", c.Type)
+					assert.Equal(t, "#8F8AF4", c.Hex)
+					assert.Equal(t, 3.0, c.Value)
+				})
 			})
-		})
 
-		t.Run("handles invalid config", func(t *testing.T) {
-			tests := []struct {
-				name      string
-				jsonStr   string
-				numErrs   int
-				errFields []string
-			}{
-				{
-					name:      "color missing hex value",
-					numErrs:   1,
-					errFields: []string{"charts[0].colors[0].hex"},
-					jsonStr: `{
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:           "color missing hex value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						pkgStr: `{
 						"apiVersion": "0.1.0",
 						"kind": "Package",
 						"meta": {
@@ -1312,12 +1188,13 @@ spec:
 						}
 					  }		  
 `,
-				},
-				{
-					name:      "invalid geom flag",
-					numErrs:   1,
-					errFields: []string{"charts[0].geom"},
-					jsonStr: `
+					},
+					{
+						name:           "invalid geom flag",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].geom"},
+						pkgStr: `
 					{
 						"apiVersion": "0.1.0",
 						"kind": "Package",
@@ -1387,34 +1264,16 @@ spec:
 						}
 					  }  
 `,
-				},
-			}
-
-			for _, tt := range tests {
-				fn := func(t *testing.T) {
-					_, err := Parse(EncodingJSON, FromString(tt.jsonStr))
-					require.Error(t, err)
-
-					pErr, ok := IsParseErr(err)
-					require.True(t, ok, err)
-
-					require.Len(t, pErr.Resources, 1)
-
-					resErr := pErr.Resources[0]
-					assert.Equal(t, "dashboard", resErr.Kind)
-
-					require.Len(t, resErr.ValidationFails, tt.numErrs)
-					for i, vFail := range resErr.ValidationFails {
-						assert.Equal(t, tt.errFields[i], vFail.Field)
-					}
+					},
 				}
-				t.Run(tt.name, fn)
-			}
-		})
-	})
 
-	t.Run("pkg with single dashboard gauge chart", func(t *testing.T) {
-		t.Run("gauge chart", func(t *testing.T) {
+				for _, tt := range tests {
+					testPkgErrors(t, kindDashboard, tt)
+				}
+			})
+		})
+
+		t.Run("pkg with single dashboard gauge chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -1425,7 +1284,6 @@ spec:
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
-				assert.Equal(t, ChartKindGauge, actualChart.Kind)
 				assert.Equal(t, 3, actualChart.Height)
 				assert.Equal(t, 6, actualChart.Width)
 				assert.Equal(t, 1, actualChart.XPosition)
@@ -1453,17 +1311,13 @@ spec:
 			})
 
 			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []struct {
-					name      string
-					jsonStr   string
-					numErrs   int
-					errFields []string
-				}{
+				tests := []testPkgResourceError{
 					{
-						name:      "color a gauge type",
-						numErrs:   1,
-						errFields: []string{"charts[0].colors"},
-						jsonStr: `
+						name:           "color a gauge type",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors"},
+						pkgStr: `
 {
 	"apiVersion": "0.1.0",
 	"kind": "Package",
@@ -1521,10 +1375,11 @@ spec:
 `,
 					},
 					{
-						name:      "color mixing a hex value",
-						numErrs:   1,
-						errFields: []string{"charts[0].colors[0].hex"},
-						jsonStr: `
+						name:           "color mixing a hex value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						pkgStr: `
 {
 	"apiVersion": "0.1.0",
 	"kind": "Package",
@@ -1587,10 +1442,11 @@ spec:
 `,
 					},
 					{
-						name:      "missing a query value",
-						numErrs:   1,
-						errFields: []string{"charts[0].queries[0].query"},
-						jsonStr: `
+						name:           "missing a query value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `
 {
 	"apiVersion": "0.1.0",
 	"kind": "Package",
@@ -1656,24 +1512,7 @@ spec:
 				}
 
 				for _, tt := range tests {
-					fn := func(t *testing.T) {
-						_, err := Parse(EncodingJSON, FromString(tt.jsonStr))
-						require.Error(t, err)
-
-						pErr, ok := IsParseErr(err)
-						require.True(t, ok, err)
-
-						require.Len(t, pErr.Resources, 1)
-
-						resErr := pErr.Resources[0]
-						assert.Equal(t, "dashboard", resErr.Kind)
-
-						require.Len(t, resErr.ValidationFails, tt.numErrs)
-						for i, vFail := range resErr.ValidationFails {
-							assert.Equal(t, tt.errFields[i], vFail.Field)
-						}
-					}
-					t.Run(tt.name, fn)
+					testPkgErrors(t, kindDashboard, tt)
 				}
 			})
 		})
@@ -1707,17 +1546,12 @@ spec:
 		})
 
 		t.Run("association doesn't exist then provides an error", func(t *testing.T) {
-			tests := []struct {
-				name    string
-				numErrs int
-				in      string
-				errIdxs []int
-			}{
+			tests := []testPkgResourceError{
 				{
 					name:    "no labels provided",
-					numErrs: 1,
-					errIdxs: []int{0},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{0},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -1733,9 +1567,9 @@ spec:
 				},
 				{
 					name:    "mixed found and not found",
-					numErrs: 1,
-					errIdxs: []int{1},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{1},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -1755,9 +1589,9 @@ spec:
 				},
 				{
 					name:    "multiple not found",
-					numErrs: 1,
-					errIdxs: []int{0, 1},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{0, 1},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -1777,9 +1611,9 @@ spec:
 				},
 				{
 					name:    "duplicate valid nested labels",
-					numErrs: 1,
-					errIdxs: []int{1},
-					in: `apiVersion: 0.1.0
+					assErrs: 1,
+					assIdxs: []int{1},
+					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName: label_pkg
@@ -1800,26 +1634,304 @@ spec:
 			}
 
 			for _, tt := range tests {
-				fn := func(t *testing.T) {
-					_, err := Parse(EncodingYAML, FromString(tt.in))
-
-					pErr, ok := IsParseErr(err)
-					require.True(t, ok)
-					require.Len(t, pErr.Resources, tt.numErrs)
-
-					assFails := pErr.Resources[0].AssociationFails
-					require.Len(t, assFails, len(tt.errIdxs))
-					assert.Equal(t, "associations", assFails[0].Field)
-
-					for i, f := range assFails {
-						assert.Equal(t, tt.errIdxs[i], f.Index)
-					}
-				}
-
-				t.Run(tt.name, fn)
+				testPkgErrors(t, kindDashboard, tt)
 			}
 		})
 	})
+
+	t.Run("pkg with a variable", func(t *testing.T) {
+		t.Run("with valid fields should produce summary", func(t *testing.T) {
+			testfileRunner(t, "testdata/variables", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+
+				require.Len(t, sum.Variables, 4)
+
+				varEquals := func(t *testing.T, name, vType string, vals interface{}, v SummaryVariable) {
+					t.Helper()
+
+					assert.Equal(t, name, v.Name)
+					assert.Equal(t, name+" desc", v.Description)
+					require.NotNil(t, v.Arguments)
+					assert.Equal(t, vType, v.Arguments.Type)
+					assert.Equal(t, vals, v.Arguments.Values)
+				}
+
+				// validates we support all known variable types
+				varEquals(t,
+					"var_const",
+					"constant",
+					influxdb.VariableConstantValues([]string{"first val"}),
+					sum.Variables[0],
+				)
+
+				varEquals(t,
+					"var_map",
+					"map",
+					influxdb.VariableMapValues{"k1": "v1"},
+					sum.Variables[1],
+				)
+
+				varEquals(t,
+					"var_query_1",
+					"query",
+					influxdb.VariableQueryValues{
+						Query:    `buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])`,
+						Language: "flux",
+					},
+					sum.Variables[2],
+				)
+
+				varEquals(t,
+					"var_query_2",
+					"query",
+					influxdb.VariableQueryValues{
+						Query:    "an influxql query of sorts",
+						Language: "influxql",
+					},
+					sum.Variables[3],
+				)
+			})
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []testPkgResourceError{
+				{
+					name:           "name missing",
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      type: map
+      values:
+        k1: v1
+`,
+				},
+				{
+					name:           "map var missing values",
+					validationErrs: 1,
+					valFields:      []string{"values"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var
+      type: map
+`,
+				},
+				{
+					name:           "const var missing values",
+					validationErrs: 1,
+					valFields:      []string{"values"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var
+      type: constant
+`,
+				},
+				{
+					name:           "query var missing query",
+					validationErrs: 1,
+					valFields:      []string{"query"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var
+      type: query
+      language: influxql
+`,
+				},
+				{
+					name:           "query var missing query language",
+					validationErrs: 1,
+					valFields:      []string{"language"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var
+      type: query
+      query: from(v.bucket) |> count()
+`,
+				},
+				{
+					name:           "query var provides incorrect query language",
+					validationErrs: 1,
+					valFields:      []string{"language"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var
+      type: query
+      query: from(v.bucket) |> count()
+      language: wrongo language
+`,
+				},
+				{
+					name:           "duplicate var names",
+					validationErrs: 1,
+					valFields:      []string{"name"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Variable
+      name: var
+      type: query
+      query: from(v.bucket) |> count()
+      language: flux
+    - kind: Variable
+      name: var
+      type: query
+      query: from(v.bucket) |> mean()
+      language: flux
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, kindVariable, tt)
+			}
+		})
+	})
+
+	t.Run("pkg with variable and labels associated", func(t *testing.T) {
+		testfileRunner(t, "testdata/variables_associates_label.yml", func(t *testing.T, pkg *Pkg) {
+			sum := pkg.Summary()
+			require.Len(t, sum.Labels, 1)
+
+			vars := sum.Variables
+			require.Len(t, vars, 1)
+
+			expectedLabelMappings := []struct {
+				varName string
+				labels  []string
+			}{
+				{
+					varName: "var_1",
+					labels:  []string{"label_1"},
+				},
+			}
+			for i, expected := range expectedLabelMappings {
+				v := vars[i]
+				require.Len(t, v.LabelAssociations, len(expected.labels))
+
+				for j, label := range expected.labels {
+					assert.Equal(t, label, v.LabelAssociations[j].Name)
+				}
+			}
+
+			expectedMappings := []SummaryLabelMapping{
+				{
+					ResourceName: "var_1",
+					LabelName:    "label_1",
+				},
+			}
+
+			require.Len(t, sum.LabelMappings, len(expectedMappings))
+			for i, expected := range expectedMappings {
+				expected.LabelMapping.ResourceType = influxdb.VariablesResourceType
+				assert.Equal(t, expected, sum.LabelMappings[i])
+			}
+		})
+	})
+}
+
+type testPkgResourceError struct {
+	name           string
+	encoding       Encoding
+	pkgStr         string
+	resourceErrs   int
+	validationErrs int
+	valFields      []string
+	assErrs        int
+	assIdxs        []int
+}
+
+// defaults to yaml encoding if encoding not provided
+// defaults num resources to 1 if resource errs not provided.
+func testPkgErrors(t *testing.T, k kind, tt testPkgResourceError) {
+	t.Helper()
+	encoding := EncodingYAML
+	if tt.encoding != EncodingUnknown {
+		encoding = tt.encoding
+	}
+
+	resErrs := 1
+	if tt.resourceErrs > 0 {
+		resErrs = tt.resourceErrs
+	}
+
+	fn := func(t *testing.T) {
+		t.Helper()
+
+		_, err := Parse(encoding, FromString(tt.pkgStr))
+		require.Error(t, err)
+
+		pErr, ok := IsParseErr(err)
+		require.True(t, ok, err)
+
+		require.Len(t, pErr.Resources, resErrs)
+
+		resErr := pErr.Resources[0]
+		assert.Equal(t, k.String(), resErr.Kind)
+
+		require.Len(t, resErr.ValidationFails, len(tt.valFields))
+		for i, vFail := range resErr.ValidationFails {
+			assert.Equal(t, tt.valFields[i], vFail.Field)
+		}
+
+		assFails := pErr.Resources[0].AssociationFails
+		require.Len(t, assFails, len(tt.assIdxs))
+		if tt.assErrs == 0 {
+			return
+		}
+
+		for i, f := range assFails {
+			assert.Equal(t, "associations", assFails[i].Field)
+			assert.Equal(t, tt.assIdxs[i], f.Index)
+		}
+	}
+	t.Run(tt.name, fn)
 }
 
 type baseAsserts struct {
@@ -1841,6 +1953,7 @@ func validParsedPkg(t *testing.T, path string, encoding Encoding, expected baseA
 	require.Equal(t, expected.description, pkg.Metadata.Description)
 	require.Equal(t, expected.metaName, pkg.Metadata.Name)
 	require.Equal(t, expected.metaVersion, pkg.Metadata.Version)
+	require.True(t, pkg.isParsed)
 
 	return pkg
 }
@@ -1855,21 +1968,31 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 	}{
 		{
 			name:      "yaml",
-			extension: "yml",
+			extension: ".yml",
 			encoding:  EncodingYAML,
 		},
 		{
 			name:      "json",
-			extension: "json",
+			extension: ".json",
 			encoding:  EncodingJSON,
 		},
 	}
+
+	ext := filepath.Ext(path)
+	switch ext {
+	case ".yml":
+		tests = tests[:1]
+	case ".json":
+		tests = tests[1:]
+	}
+
+	path = strings.TrimSuffix(path, ext)
 
 	for _, tt := range tests {
 		fn := func(t *testing.T) {
 			t.Helper()
 
-			pkg := validParsedPkg(t, path+"."+tt.extension, tt.encoding, baseAsserts{
+			pkg := validParsedPkg(t, path+tt.extension, tt.encoding, baseAsserts{
 				version:     "0.1.0",
 				kind:        "Package",
 				description: "pack description",
@@ -1882,5 +2005,4 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 		}
 		t.Run(tt.name, fn)
 	}
-
 }

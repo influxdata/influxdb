@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -17,7 +18,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
-	"go.uber.org/zap"
 )
 
 func pkgCmd() *cobra.Command {
@@ -107,7 +107,17 @@ func newPkgerSVC(f Flags) (*pkger.Service, error) {
 		return nil, err
 	}
 
-	return pkger.NewService(zap.NewNop(), bucketSVC, labelSVC, dashSVC), nil
+	varSVC, err := newVariableService(f)
+	if err != nil {
+		return nil, err
+	}
+
+	return pkger.NewService(
+		pkger.WithBucketSVC(bucketSVC),
+		pkger.WithDashboardSVC(dashSVC),
+		pkger.WithLabelSVC(labelSVC),
+		pkger.WithVariableSVC(varSVC),
+	), nil
 }
 
 func newDashboardService(f Flags) (influxdb.DashboardService, error) {
@@ -125,6 +135,16 @@ func newLabelService(f Flags) (influxdb.LabelService, error) {
 		return newLocalKVService()
 	}
 	return &http.LabelService{
+		Addr:  f.host,
+		Token: f.token,
+	}, nil
+}
+
+func newVariableService(f Flags) (influxdb.VariableService, error) {
+	if f.local {
+		return newLocalKVService()
+	}
+	return &http.VariableService{
 		Addr:  f.host,
 		Token: f.token,
 	}, nil
@@ -184,9 +204,10 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 		return fmt.Sprintf("%s\n%s", red(o), green(n))
 	}
 
+	tablePrintFn := tablePrinterGen(hasColor, hasTableBorders)
 	if labels := diff.Labels; len(labels) > 0 {
 		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrinter("LABELS", headers, len(labels), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
 			for _, l := range labels {
 				w.Append([]string{
 					boolDiff(l.IsNew()),
@@ -201,7 +222,7 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
 		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrinter("BUCKETS", headers, len(bkts), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("BUCKETS", headers, len(bkts), func(w *tablewriter.Table) {
 			for _, b := range bkts {
 				w.Append([]string{
 					boolDiff(b.IsNew()),
@@ -216,7 +237,7 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		headers := []string{"New", "Name", "Description", "Num Charts"}
-		tablePrinter("DASHBOARDS", headers, len(dashes), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("DASHBOARDS", headers, len(dashes), func(w *tablewriter.Table) {
 			for _, d := range dashes {
 				w.Append([]string{
 					boolDiff(true),
@@ -228,9 +249,33 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 		})
 	}
 
+	if vars := diff.Variables; len(vars) > 0 {
+		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
+		tablePrintFn("VARIABLES", headers, len(vars), func(w *tablewriter.Table) {
+			for _, v := range vars {
+				var oldArgType string
+				if v.OldArgs != nil {
+					oldArgType = v.OldArgs.Type
+				}
+				var newArgType string
+				if v.NewArgs != nil {
+					newArgType = v.NewArgs.Type
+				}
+				w.Append([]string{
+					boolDiff(v.IsNew()),
+					v.ID.String(),
+					v.Name,
+					strDiff(v.IsNew(), v.OldDesc, v.NewDesc),
+					strDiff(v.IsNew(), oldArgType, newArgType),
+					strDiff(v.IsNew(), printVarArgs(v.OldArgs), printVarArgs(v.NewArgs)),
+				})
+			}
+		})
+	}
+
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrinter("LABEL MAPPINGS", headers, len(diff.LabelMappings), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(w *tablewriter.Table) {
 			for _, m := range diff.LabelMappings {
 				w.Append([]string{
 					boolDiff(m.IsNew),
@@ -245,10 +290,43 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 	}
 }
 
+func printVarArgs(a *influxdb.VariableArguments) string {
+	if a == nil {
+		return "<nil>"
+	}
+	if a.Type == "map" {
+		b, err := json.Marshal(a.Values)
+		if err != nil {
+			return "{}"
+		}
+		return string(b)
+	}
+	if a.Type == "constant" {
+		vals, ok := a.Values.(influxdb.VariableConstantValues)
+		if !ok {
+			return "[]"
+		}
+		var out []string
+		for _, s := range vals {
+			out = append(out, fmt.Sprintf("%q", s))
+		}
+		return fmt.Sprintf("[%s]", strings.Join(out, " "))
+	}
+	if a.Type == "query" {
+		qVal, ok := a.Values.(influxdb.VariableQueryValues)
+		if !ok {
+			return ""
+		}
+		return fmt.Sprintf("language=%q query=%q", qVal.Language, qVal.Query)
+	}
+	return "unknown variable argument"
+}
+
 func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
+	tablePrintFn := tablePrinterGen(hasColor, hasTableBorders)
 	if labels := sum.Labels; len(labels) > 0 {
 		headers := []string{"ID", "Name", "Description", "Color"}
-		tablePrinter("LABELS", headers, len(labels), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
 			for _, l := range labels {
 				w.Append([]string{
 					l.ID.String(),
@@ -262,7 +340,7 @@ func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
 		headers := []string{"ID", "Name", "Retention", "Description"}
-		tablePrinter("BUCKETS", headers, len(buckets), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("BUCKETS", headers, len(buckets), func(w *tablewriter.Table) {
 			for _, bucket := range buckets {
 				w.Append([]string{
 					bucket.ID.String(),
@@ -276,7 +354,7 @@ func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
 
 	if dashes := sum.Dashboards; len(dashes) > 0 {
 		headers := []string{"ID", "Name", "Description"}
-		tablePrinter("DASHBOARDS", headers, len(dashes), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("DASHBOARDS", headers, len(dashes), func(w *tablewriter.Table) {
 			for _, d := range dashes {
 				w.Append([]string{
 					d.ID.String(),
@@ -287,9 +365,25 @@ func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
 		})
 	}
 
+	if vars := sum.Variables; len(vars) > 0 {
+		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
+		tablePrintFn("VARIABLES", headers, len(vars), func(w *tablewriter.Table) {
+			for _, v := range vars {
+				args := v.Arguments
+				w.Append([]string{
+					v.ID.String(),
+					v.Name,
+					v.Description,
+					args.Type,
+					printVarArgs(args),
+				})
+			}
+		})
+	}
+
 	if mappings := sum.LabelMappings; len(mappings) > 0 {
 		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrinter("LABEL MAPPINGS", headers, len(mappings), hasColor, hasTableBorders, func(w *tablewriter.Table) {
+		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(w *tablewriter.Table) {
 			for _, m := range mappings {
 				w.Append([]string{
 					string(m.ResourceType),
@@ -300,6 +394,12 @@ func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
 				})
 			}
 		})
+	}
+}
+
+func tablePrinterGen(hasColor, hasTableBorder bool) func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
+	return func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
+		tablePrinter(table, headers, count, hasColor, hasTableBorder, appendFn)
 	}
 }
 
@@ -321,7 +421,6 @@ func tablePrinter(table string, headers []string, count int, hasColor, hasTableB
 		alignments = append(alignments, tablewriter.ALIGN_CENTER)
 	}
 	if descrCol != -1 {
-		w.SetAutoWrapText(false)
 		w.SetColMinWidth(descrCol, 30)
 		alignments[descrCol] = tablewriter.ALIGN_LEFT
 	}

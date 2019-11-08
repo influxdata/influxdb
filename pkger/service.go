@@ -12,6 +12,63 @@ import (
 	"go.uber.org/zap"
 )
 
+// APIVersion marks the current APIVersion for influx packages.
+const APIVersion = "0.1.0"
+
+// SVC is the packages service interface.
+type SVC interface {
+	CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error)
+	DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error)
+	Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, error)
+}
+
+type serviceOpt struct {
+	logger *zap.Logger
+
+	labelSVC  influxdb.LabelService
+	bucketSVC influxdb.BucketService
+	dashSVC   influxdb.DashboardService
+	varSVC    influxdb.VariableService
+}
+
+// ServiceSetterFn is a means of setting dependencies on the Service type.
+type ServiceSetterFn func(opt *serviceOpt)
+
+// WithLogger sets the service logger.
+func WithLogger(logger *zap.Logger) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.logger = logger
+	}
+}
+
+// WithBucketSVC sets the bucket service.
+func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.bucketSVC = bktSVC
+	}
+}
+
+// WithDashboardSVC sets the dashboard service.
+func WithDashboardSVC(dashSVC influxdb.DashboardService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.dashSVC = dashSVC
+	}
+}
+
+// WithLabelSVC sets the label service.
+func WithLabelSVC(labelSVC influxdb.LabelService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.labelSVC = labelSVC
+	}
+}
+
+// WithVariableSVC sets the variable service.
+func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.varSVC = varSVC
+	}
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
@@ -20,27 +77,70 @@ type Service struct {
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
 	dashSVC   influxdb.DashboardService
+	varSVC    influxdb.VariableService
 }
 
 // NewService is a constructor for a pkger Service.
-func NewService(l *zap.Logger, bucketSVC influxdb.BucketService, labelSVC influxdb.LabelService, dashSVC influxdb.DashboardService) *Service {
-	svc := Service{
-		logger:    zap.NewNop(),
-		bucketSVC: bucketSVC,
-		labelSVC:  labelSVC,
-		dashSVC:   dashSVC,
+func NewService(opts ...ServiceSetterFn) *Service {
+	opt := &serviceOpt{
+		logger: zap.NewNop(),
+	}
+	for _, o := range opts {
+		o(opt)
 	}
 
-	if l != nil {
-		svc.logger = l
+	return &Service{
+		logger:    opt.logger,
+		bucketSVC: opt.bucketSVC,
+		labelSVC:  opt.labelSVC,
+		dashSVC:   opt.dashSVC,
+		varSVC:    opt.varSVC,
 	}
-	return &svc
+}
+
+// CreatePkgSetFn is a functional input for setting the pkg fields.
+type CreatePkgSetFn func(ctx context.Context, pkg *Pkg) error
+
+// WithMetadata sets the metadata on the pkg in a CreatePkg call.
+func WithMetadata(meta Metadata) CreatePkgSetFn {
+	return func(ctx context.Context, pkg *Pkg) error {
+		pkg.Metadata = meta
+		return nil
+	}
+}
+
+// CreatePkg will produce a pkg from the parameters provided.
+func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
+	pkg := &Pkg{
+		APIVersion: APIVersion,
+		Kind:       kindPackage.String(),
+		Spec: struct {
+			Resources []Resource `yaml:"resources" json:"resources"`
+		}{
+			Resources: []Resource{},
+		},
+	}
+
+	for _, setter := range setters {
+		err := setter(ctx, pkg)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return pkg, nil
 }
 
 // DryRun provides a dry run of the pkg application. The pkg will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+	if !pkg.isParsed {
+		if err := pkg.Validate(); err != nil {
+			return Summary{}, Diff{}, err
+		}
+	}
+
 	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -52,6 +152,11 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 	}
 
 	diffLabels, err := s.dryRunLabels(ctx, orgID, pkg)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
+	diffVars, err := s.dryRunVariables(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
 	}
@@ -71,6 +176,7 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 		Dashboards:    diffDashes,
 		Labels:        diffLabels,
 		LabelMappings: diffLabelMappings,
+		Variables:     diffVars,
 	}
 	return pkg.Summary(), diff, nil
 }
@@ -120,9 +226,9 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	mExistingLabels := make(map[string]DiffLabel)
 	labels := pkg.labels()
 	for i := range labels {
-		l := labels[i]
+		pkgLabel := labels[i]
 		existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
-			Name:  l.Name,
+			Name:  pkgLabel.Name,
 			OrgID: &orgID,
 		}, influxdb.FindOptions{Limit: 1})
 		switch {
@@ -130,14 +236,57 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		//  err isn't a not found (some other error)
 		case err == nil && len(existingLabels) > 0:
 			existingLabel := existingLabels[0]
-			l.existing = existingLabel
-			mExistingLabels[l.Name] = newDiffLabel(l, *existingLabel)
+			pkgLabel.existing = existingLabel
+			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, *existingLabel)
 		default:
-			mExistingLabels[l.Name] = newDiffLabel(l, influxdb.Label{})
+			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, influxdb.Label{})
 		}
 	}
 
 	diffs := make([]DiffLabel, 0, len(mExistingLabels))
+	for _, diff := range mExistingLabels {
+		diffs = append(diffs, diff)
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].Name < diffs[j].Name
+	})
+
+	return diffs, nil
+}
+
+func (s *Service) dryRunVariables(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffVariable, error) {
+	mExistingLabels := make(map[string]DiffVariable)
+	variables := pkg.variables()
+
+VarLoop:
+	for i := range variables {
+		pkgVar := variables[i]
+		existingLabels, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
+			OrganizationID: &orgID,
+			// TODO: would be ideal to extend find variables to allow for a name matcher
+			//  since names are unique for vars within an org, meanwhile, make large limit
+			// 	returned vars, should be more than enough for the time being.
+		}, influxdb.FindOptions{Limit: 10000})
+		switch {
+		case err == nil && len(existingLabels) > 0:
+			for i := range existingLabels {
+				existingVar := existingLabels[i]
+				if existingVar.Name != pkgVar.Name {
+					continue
+				}
+				pkgVar.existing = existingVar
+				mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, *existingVar)
+				continue VarLoop
+			}
+			// fallthrough here for when the variable is not found, it'll fall to the
+			// default case and add it as new.
+			fallthrough
+		default:
+			mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, influxdb.Variable{})
+		}
+	}
+
+	diffs := make([]DiffVariable, 0, len(mExistingLabels))
 	for _, diff := range mExistingLabels {
 		diffs = append(diffs, diff)
 	}
@@ -166,9 +315,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   b.ResourceType(),
-				ResID:     b.ID(),
+				ResID:     SafeID(b.ID()),
 				ResName:   b.Name,
-				LabelID:   labelID,
+				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
 		})
@@ -183,9 +332,26 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   d.ResourceType(),
-				ResID:     d.ID(),
+				ResID:     SafeID(d.ID()),
 				ResName:   d.Name,
-				LabelID:   labelID,
+				LabelID:   SafeID(labelID),
+				LabelName: labelName,
+			})
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	for _, v := range pkg.variables() {
+		err := s.dryRunResourceLabelMapping(ctx, v, v.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
+			pkg.mLabels[labelName].setVariableMapping(v, !isNew)
+			diffs = append(diffs, DiffLabelMapping{
+				IsNew:     isNew,
+				ResType:   v.ResourceType(),
+				ResID:     SafeID(v.ID()),
+				ResName:   v.Name,
+				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
 		})
@@ -222,6 +388,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 		}
 		return nil
 	}
+
 	// loop through and hit api for all labels associated with a bkt
 	// lookup labels in pkg, add it to the label mapping, if exists in
 	// the results from API, mark it exists
@@ -261,6 +428,12 @@ func labelSlcToMap(labels []*label) map[string]*label {
 // in its entirety. If a failure happens midway then the entire pkg will be rolled back to the state
 // from before the pkg were applied.
 func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum Summary, e error) {
+	if !pkg.isParsed {
+		if err := pkg.Validate(); err != nil {
+			return Summary{}, err
+		}
+	}
+
 	if !pkg.isVerified {
 		_, _, err := s.DryRun(ctx, orgID, pkg)
 		if err != nil {
@@ -283,6 +456,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 		{
 			// primary resources
 			s.applyLabels(pkg.labels()),
+			s.applyVariables(pkg.variables()),
 			s.applyBuckets(pkg.buckets()),
 			s.applyDashboards(pkg.dashboards()),
 		},
@@ -534,7 +708,17 @@ func (s *Service) applyLabels(labels []*label) applier {
 func (s *Service) rollbackLabels(labels []*label) error {
 	var errs []string
 	for _, l := range labels {
-		err := s.labelSVC.DeleteLabel(context.Background(), l.ID())
+		if l.existing == nil {
+			err := s.labelSVC.DeleteLabel(context.Background(), l.ID())
+			if err != nil {
+				errs = append(errs, l.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.labelSVC.UpdateLabel(context.Background(), l.ID(), influxdb.LabelUpdate{
+			Properties: l.existing.Properties,
+		})
 		if err != nil {
 			errs = append(errs, l.ID().String())
 		}
@@ -569,6 +753,97 @@ func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, err
 	}
 
 	return influxLabel, nil
+}
+
+func (s *Service) applyVariables(vars []*variable) applier {
+	const resource = "variable"
+
+	rollBackVars := make([]*variable, 0, len(vars))
+	createFn := func(ctx context.Context, orgID influxdb.ID) error {
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+
+		var errs applyErrs
+		for i, v := range vars {
+			vars[i].OrgID = orgID
+			if !v.shouldApply() {
+				continue
+			}
+			influxVar, err := s.applyVariable(ctx, v)
+			if err != nil {
+				errs = append(errs, applyErrBody{
+					name: v.Name,
+					msg:  err.Error(),
+				})
+				continue
+			}
+			vars[i].id = influxVar.ID
+			rollBackVars = append(rollBackVars, vars[i])
+		}
+
+		return errs.toError(resource, "failed to create variable")
+	}
+
+	return applier{
+		creater: createFn,
+		rollbacker: rollbacker{
+			resource: resource,
+			fn:       func() error { return s.rollbackVariables(rollBackVars) },
+		},
+	}
+}
+
+func (s *Service) rollbackVariables(variables []*variable) error {
+	var errs []string
+	for _, v := range variables {
+		if v.existing == nil {
+			err := s.varSVC.DeleteVariable(context.Background(), v.ID())
+			if err != nil {
+				errs = append(errs, v.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.varSVC.UpdateVariable(context.Background(), v.ID(), &influxdb.VariableUpdate{
+			Description: v.existing.Description,
+			Arguments:   v.existing.Arguments,
+		})
+		if err != nil {
+			errs = append(errs, v.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(`variable_ids=[%s] err="unable to delete variable"`, strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Variable, error) {
+	if v.existing != nil {
+		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
+			Description: v.Description,
+			Arguments:   v.influxVarArgs(),
+		})
+		if err != nil {
+			return influxdb.Variable{}, err
+		}
+		return *updatedVar, nil
+	}
+
+	influxVar := influxdb.Variable{
+		OrganizationID: v.OrgID,
+		Name:           v.Name,
+		Description:    v.Description,
+		Arguments:      v.influxVarArgs(),
+	}
+	err := s.varSVC.CreateVariable(ctx, &influxVar)
+	if err != nil {
+		return influxdb.Variable{}, err
+	}
+
+	return influxVar, nil
 }
 
 func (s *Service) applyLabelMappings(pkg *Pkg) applier {

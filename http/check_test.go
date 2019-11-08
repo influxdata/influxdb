@@ -131,6 +131,7 @@ func TestService_handleGetChecks(t *testing.T) {
       "links": {
         "self": "/api/v2/checks/0b501e7e557ab1ed",
         "labels": "/api/v2/checks/0b501e7e557ab1ed/labels",
+        "query": "/api/v2/checks/0b501e7e557ab1ed/query",
         "owners": "/api/v2/checks/0b501e7e557ab1ed/owners",
         "members": "/api/v2/checks/0b501e7e557ab1ed/members"
       },
@@ -173,7 +174,8 @@ func TestService_handleGetChecks(t *testing.T) {
         "self": "/api/v2/checks/c0175f0077a77005",
         "labels": "/api/v2/checks/c0175f0077a77005/labels",
         "members": "/api/v2/checks/c0175f0077a77005/members",
-        "owners": "/api/v2/checks/c0175f0077a77005/owners"
+        "owners": "/api/v2/checks/c0175f0077a77005/owners",
+        "query": "/api/v2/checks/c0175f0077a77005/query"
       },
 			"createdAt": "0001-01-01T00:00:00Z",
 			"updatedAt": "0001-01-01T00:00:00Z",
@@ -513,7 +515,8 @@ func TestService_handleGetCheck(t *testing.T) {
 		    "self": "/api/v2/checks/020f755c3c082000",
 		    "labels": "/api/v2/checks/020f755c3c082000/labels",
 		    "members": "/api/v2/checks/020f755c3c082000/members",
-		    "owners": "/api/v2/checks/020f755c3c082000/owners"
+		    "owners": "/api/v2/checks/020f755c3c082000/owners",
+		    "query": "/api/v2/checks/020f755c3c082000/query"
 		  },
 		  "labels": [],
 		  "level": "CRIT",
@@ -684,7 +687,8 @@ func TestService_handlePostCheck(t *testing.T) {
     "self": "/api/v2/checks/020f755c3c082000",
     "labels": "/api/v2/checks/020f755c3c082000/labels",
     "members": "/api/v2/checks/020f755c3c082000/members",
-    "owners": "/api/v2/checks/020f755c3c082000/owners"
+    "owners": "/api/v2/checks/020f755c3c082000/owners",
+    "query": "/api/v2/checks/020f755c3c082000/query"
   },
   "reportZero": true,
   "statusMessageTemplate": "msg1",
@@ -942,7 +946,8 @@ func TestService_handlePatchCheck(t *testing.T) {
 		    "self": "/api/v2/checks/020f755c3c082000",
 		    "labels": "/api/v2/checks/020f755c3c082000/labels",
 		    "members": "/api/v2/checks/020f755c3c082000/members",
-		    "owners": "/api/v2/checks/020f755c3c082000/owners"
+		    "owners": "/api/v2/checks/020f755c3c082000/owners",
+		    "query": "/api/v2/checks/020f755c3c082000/query"
 		  },
 		  "createdAt": "0001-01-01T00:00:00Z",
 		  "updatedAt": "0001-01-01T00:00:00Z",
@@ -1121,7 +1126,8 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		    "self": "/api/v2/checks/020f755c3c082000",
 		    "labels": "/api/v2/checks/020f755c3c082000/labels",
 		    "members": "/api/v2/checks/020f755c3c082000/members",
-		    "owners": "/api/v2/checks/020f755c3c082000/owners"
+		    "owners": "/api/v2/checks/020f755c3c082000/owners",
+		    "query": "/api/v2/checks/020f755c3c082000/query"
 		  },
 		  "createdAt": "0001-01-01T00:00:00Z",
 		  "updatedAt": "0001-01-01T00:00:00Z",

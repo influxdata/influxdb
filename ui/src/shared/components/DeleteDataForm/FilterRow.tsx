@@ -8,7 +8,6 @@ import {
   Input,
   SelectDropdown,
 } from '@influxdata/clockface'
-import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Types
 import {Filter} from 'src/types'
@@ -46,20 +45,17 @@ const FilterRow: FC<Props> = ({
       >
         <Input onChange={onChangeKey} value={key} testID="key-input" />
       </Form.Element>
-      <div className="delete-data-filter--equals">==</div>
-      <FeatureFlag name="deleteWithPredicateEquality">
-        <Form.Element
-          label="Equality Filter"
-          required={true}
-          errorMessage={equalityErrorMessage}
-        >
-          <SelectDropdown
-            options={['=', '!=']}
-            selectedOption={equality}
-            onSelect={onChangeEquality}
-          />
-        </Form.Element>
-      </FeatureFlag>
+      <Form.Element
+        label="Equality Filter"
+        required={true}
+        errorMessage={equalityErrorMessage}
+      >
+        <SelectDropdown
+          options={['=', '!=']}
+          selectedOption={equality}
+          onSelect={onChangeEquality}
+        />
+      </Form.Element>
       <Form.Element
         label="Tag Value"
         required={true}

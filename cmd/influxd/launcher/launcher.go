@@ -32,6 +32,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/nats"
+	"github.com/influxdata/influxdb/pkger"
 	infprom "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
@@ -836,13 +837,30 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	m.reg.MustRegister(m.apibackend.PrometheusCollectors()...)
 
+	var pkgSVC pkger.SVC
+	{
+		b := m.apibackend
+		pkgSVC = pkger.NewService(
+			pkger.WithLogger(m.logger.With(zap.String("service", "pkger"))),
+			pkger.WithBucketSVC(b.BucketService),
+			pkger.WithDashboardSVC(b.DashboardService),
+			pkger.WithLabelSVC(b.LabelService),
+			pkger.WithVariableSVC(b.VariableService),
+		)
+	}
+
+	var pkgHTTPServer *http.HandlerPkg
+	{
+		pkgHTTPServer = http.NewHandlerPkg(m.apibackend.HTTPErrorHandler, pkgSVC)
+	}
+
 	// HTTP server
-	httpLogger := m.logger.With(zap.String("service", "http"))
-	platformHandler := http.NewPlatformHandler(m.apibackend)
+	platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
 	m.reg.MustRegister(platformHandler.PrometheusCollectors()...)
 
 	h := http.NewHandlerFromRegistry("platform", m.reg)
 	h.Handler = platformHandler
+	httpLogger := m.logger.With(zap.String("service", "http"))
 	if logconf.Level == zap.DebugLevel {
 		h.Handler = http.LoggingMW(httpLogger)(h.Handler)
 	}

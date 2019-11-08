@@ -13,17 +13,43 @@ const (
 	kindDashboard kind = "dashboard"
 	kindLabel     kind = "label"
 	kindPackage   kind = "package"
+	kindVariable  kind = "variable"
 )
+
+var kinds = map[kind]bool{
+	kindBucket:    true,
+	kindDashboard: true,
+	kindLabel:     true,
+	kindPackage:   true,
+	kindVariable:  true,
+}
 
 type kind string
 
 func (k kind) String() string {
-	switch k {
-	case kindBucket, kindLabel, kindDashboard, kindPackage:
+	if kinds[k] {
 		return string(k)
-	default:
+	}
+	if k == kindUnknown {
 		return "unknown"
 	}
+	return string(k)
+}
+
+// SafeID is an equivalent influxdb.ID that encodes safely with
+// zero values (influxdb.ID == 0).
+type SafeID influxdb.ID
+
+// Encode will safely encode the id.
+func (s SafeID) Encode() ([]byte, error) {
+	id := influxdb.ID(s)
+	b, _ := id.Encode()
+	return b, nil
+}
+
+// String prints a encoded string representation of the id.
+func (s SafeID) String() string {
+	return influxdb.ID(s).String()
 }
 
 // Metadata is the pkg metadata. This data describes the user
@@ -37,28 +63,31 @@ type Metadata struct {
 // Diff is the result of a service DryRun call. The diff outlines
 // what is new and or updated from the current state of the platform.
 type Diff struct {
-	Buckets       []DiffBucket
-	Dashboards    []DiffDashboard
-	Labels        []DiffLabel
-	LabelMappings []DiffLabelMapping
+	Buckets       []DiffBucket       `json:"buckets"`
+	Dashboards    []DiffDashboard    `json:"dashboards"`
+	Labels        []DiffLabel        `json:"labels"`
+	LabelMappings []DiffLabelMapping `json:"labelMappings"`
+	Variables     []DiffVariable     `json:"variables"`
 }
 
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
-	ID                         influxdb.ID
-	Name                       string
-	OldDesc, NewDesc           string
-	OldRetention, NewRetention time.Duration
+	ID           SafeID        `json:"id"`
+	Name         string        `json:"name"`
+	OldDesc      string        `json:"oldDescription"`
+	NewDesc      string        `json:"newDescription"`
+	OldRetention time.Duration `json:"oldRP"`
+	NewRetention time.Duration `json:"newRP"`
 }
 
 // IsNew indicates whether a pkg bucket is going to be new to the platform.
 func (d DiffBucket) IsNew() bool {
-	return d.ID == influxdb.ID(0)
+	return d.ID == SafeID(0)
 }
 
 func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
 	return DiffBucket{
-		ID:           i.ID,
+		ID:           SafeID(i.ID),
 		Name:         b.Name,
 		OldDesc:      i.Description,
 		NewDesc:      b.Description,
@@ -69,9 +98,9 @@ func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
 
 // DiffDashboard is a diff of an individual dashboard.
 type DiffDashboard struct {
-	Name   string
-	Desc   string
-	Charts []DiffChart
+	Name   string      `json:"name"`
+	Desc   string      `json:"description"`
+	Charts []DiffChart `json:"charts"`
 }
 
 func newDiffDashboard(d *dashboard) DiffDashboard {
@@ -82,7 +111,6 @@ func newDiffDashboard(d *dashboard) DiffDashboard {
 
 	for _, c := range d.Charts {
 		diff.Charts = append(diff.Charts, DiffChart{
-			Kind:       c.Kind,
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
@@ -98,20 +126,22 @@ type DiffChart SummaryChart
 
 // DiffLabel is a diff of an individual label.
 type DiffLabel struct {
-	ID                 influxdb.ID
-	Name               string
-	OldColor, NewColor string
-	OldDesc, NewDesc   string
+	ID       SafeID `json:"id"`
+	Name     string `json:"name"`
+	OldColor string `json:"oldColor"`
+	NewColor string `json:"newColor"`
+	OldDesc  string `json:"oldDescription"`
+	NewDesc  string `json:"newDescription"`
 }
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
 func (d DiffLabel) IsNew() bool {
-	return d.ID == influxdb.ID(0)
+	return d.ID == SafeID(0)
 }
 
 func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
 	return DiffLabel{
-		ID:       i.ID,
+		ID:       SafeID(i.ID),
 		Name:     l.Name,
 		OldColor: i.Properties["color"],
 		NewColor: l.Color,
@@ -124,59 +154,88 @@ func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
 // single resource may have multiple mappings to multiple labels.
 // A label can have many mappings to other resources.
 type DiffLabelMapping struct {
-	IsNew bool
+	IsNew bool `json:"isNew"`
 
-	ResType influxdb.ResourceType
-	ResID   influxdb.ID
-	ResName string
+	ResType influxdb.ResourceType `json:"resourceType"`
+	ResID   SafeID                `json:"resourceID"`
+	ResName string                `json:"resourceName"`
 
-	LabelID   influxdb.ID
-	LabelName string
+	LabelID   SafeID `json:"labelID"`
+	LabelName string `json:"labelName"`
+}
+
+// DiffVariable is a diff of an individual variable.
+type DiffVariable struct {
+	ID      SafeID `json:"id"`
+	Name    string `json:"name"`
+	OldDesc string `json:"oldDescription"`
+	NewDesc string `json:"newDescription"`
+
+	OldArgs *influxdb.VariableArguments `json:"oldArgs"`
+	NewArgs *influxdb.VariableArguments `json:"newArgs"`
+}
+
+func newDiffVariable(v *variable, iv influxdb.Variable) DiffVariable {
+	return DiffVariable{
+		ID:      SafeID(iv.ID),
+		Name:    v.Name,
+		OldDesc: iv.Description,
+		NewDesc: v.Description,
+		OldArgs: iv.Arguments,
+		NewArgs: v.influxVarArgs(),
+	}
+}
+
+// IsNew indicates whether a pkg variable is going to be new to the platform.
+func (d DiffVariable) IsNew() bool {
+	return d.ID == SafeID(0)
 }
 
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets       []SummaryBucket
-	Dashboards    []SummaryDashboard
-	Labels        []SummaryLabel
-	LabelMappings []SummaryLabelMapping
+	Buckets       []SummaryBucket       `json:"buckets"`
+	Dashboards    []SummaryDashboard    `json:"dashboards"`
+	Labels        []SummaryLabel        `json:"labels"`
+	LabelMappings []SummaryLabelMapping `json:"labelMappings"`
+	Variables     []SummaryVariable     `json:"variables"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
 type SummaryBucket struct {
 	influxdb.Bucket
-	LabelAssociations []influxdb.Label
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
 // SummaryDashboard provides a summary of a pkg dashboard.
 type SummaryDashboard struct {
-	ID          influxdb.ID
-	OrgID       influxdb.ID
-	Name        string
-	Description string
-	Charts      []SummaryChart
+	ID          SafeID         `json:"id"`
+	OrgID       SafeID         `json:"orgID"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Charts      []SummaryChart `json:"charts"`
 
-	LabelAssociations []influxdb.Label
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
-// ChartKind identifies what kind of chart is eluded too. Each
+// chartKind identifies what kind of chart is eluded too. Each
 // chart kind has their own requirements for what constitutes
 // a chart.
-type ChartKind string
+type chartKind string
 
 // available chart kinds
 const (
-	ChartKindUnknown            ChartKind = ""
-	ChartKindSingleStat         ChartKind = "single_stat"
-	ChartKindSingleStatPlusLine ChartKind = "single_stat_plus_line"
-	ChartKindXY                 ChartKind = "xy"
-	ChartKindGauge              ChartKind = "gauge"
+	chartKindUnknown            chartKind = ""
+	chartKindGauge              chartKind = "gauge"
+	chartKindSingleStat         chartKind = "single_stat"
+	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
+	chartKindXY                 chartKind = "xy"
 )
 
-func (c ChartKind) ok() bool {
+func (c chartKind) ok() bool {
 	switch c {
-	case ChartKindSingleStat, ChartKindSingleStatPlusLine, ChartKindXY, ChartKindGauge:
+	case chartKindSingleStat, chartKindSingleStatPlusLine, chartKindXY,
+		chartKindGauge:
 		return true
 	default:
 		return false
@@ -185,11 +244,12 @@ func (c ChartKind) ok() bool {
 
 // SummaryChart provides a summary of a pkg dashboard's chart.
 type SummaryChart struct {
-	Kind       ChartKind
-	Properties influxdb.ViewProperties
+	Properties influxdb.ViewProperties `json:"properties"`
 
-	XPosition, YPosition int
-	Height, Width        int
+	XPosition int `json:"xPos"`
+	YPosition int `json:"yPos"`
+	Height    int `json:"height"`
+	Width     int `json:"width"`
 }
 
 // SummaryLabel provides a summary of a pkg label.
@@ -200,9 +260,15 @@ type SummaryLabel struct {
 // SummaryLabelMapping provides a summary of a label mapped with a single resource.
 type SummaryLabelMapping struct {
 	exists       bool
-	ResourceName string
-	LabelName    string
+	ResourceName string `json:"resourceName"`
+	LabelName    string `json:"labelName"`
 	influxdb.LabelMapping
+}
+
+// SummaryVariable provides a summary of a pkg variable.
+type SummaryVariable struct {
+	influxdb.Variable
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
 type bucket struct {
@@ -254,17 +320,17 @@ func (b *bucket) shouldApply() bool {
 		b.RetentionPeriod != b.existing.RetentionPeriod
 }
 
-type labelMapKey struct {
+type assocMapKey struct {
 	resType influxdb.ResourceType
 	name    string
 }
 
-type labelMapVal struct {
+type assocMapVal struct {
 	exists bool
 	v      interface{}
 }
 
-func (l labelMapVal) bucket() (*bucket, bool) {
+func (l assocMapVal) bucket() (*bucket, bool) {
 	if l.v == nil {
 		return nil, false
 	}
@@ -272,12 +338,67 @@ func (l labelMapVal) bucket() (*bucket, bool) {
 	return b, ok
 }
 
-func (l labelMapVal) dashboard() (*dashboard, bool) {
+func (l assocMapVal) dashboard() (*dashboard, bool) {
 	if l.v == nil {
 		return nil, false
 	}
 	d, ok := l.v.(*dashboard)
 	return d, ok
+}
+
+func (l assocMapVal) variable() (*variable, bool) {
+	if l.v == nil {
+		return nil, false
+	}
+	v, ok := l.v.(*variable)
+	return v, ok
+}
+
+type associationMapping struct {
+	mappings map[assocMapKey]assocMapVal
+}
+
+func (l *associationMapping) setMapping(k assocMapKey, v assocMapVal) {
+	if l == nil {
+		return
+	}
+	if l.mappings == nil {
+		l.mappings = make(map[assocMapKey]assocMapVal)
+	}
+	l.mappings[k] = v
+}
+
+func (l *associationMapping) setBucketMapping(b *bucket, exists bool) {
+	key := assocMapKey{
+		resType: b.ResourceType(),
+		name:    b.Name,
+	}
+	val := assocMapVal{
+		exists: exists,
+		v:      b,
+	}
+	l.setMapping(key, val)
+}
+
+func (l *associationMapping) setDashboardMapping(d *dashboard) {
+	key := assocMapKey{
+		resType: d.ResourceType(),
+		name:    d.Name,
+	}
+	val := assocMapVal{v: d}
+	l.setMapping(key, val)
+}
+
+func (l *associationMapping) setVariableMapping(v *variable, exists bool) {
+	key := assocMapKey{
+		resType: v.ResourceType(),
+		name:    v.Name,
+	}
+	val := assocMapVal{
+		exists: exists,
+		v:      v,
+	}
+	l.setMapping(key, val)
 }
 
 type label struct {
@@ -286,8 +407,7 @@ type label struct {
 	Name        string
 	Color       string
 	Description string
-
-	mappings map[labelMapKey]labelMapVal
+	associationMapping
 
 	// exists provides context for a resource that already
 	// exists in the platform. If a resource already exists(exists=true)
@@ -338,7 +458,7 @@ func (l *label) mappingSummary() []SummaryLabelMapping {
 	return mappings
 }
 
-func (l *label) getMappedResourceID(k labelMapKey) influxdb.ID {
+func (l *label) getMappedResourceID(k assocMapKey) influxdb.ID {
 	switch k.resType {
 	case influxdb.BucketsResourceType:
 		b, ok := l.mappings[k].bucket()
@@ -350,41 +470,13 @@ func (l *label) getMappedResourceID(k labelMapKey) influxdb.ID {
 		if ok {
 			return d.ID()
 		}
+	case influxdb.VariablesResourceType:
+		v, ok := l.mappings[k].variable()
+		if ok {
+			return v.ID()
+		}
 	}
 	return 0
-}
-
-func (l *label) setBucketMapping(b *bucket, exists bool) {
-	if l == nil {
-		return
-	}
-	if l.mappings == nil {
-		l.mappings = make(map[labelMapKey]labelMapVal)
-	}
-
-	key := labelMapKey{
-		resType: influxdb.BucketsResourceType,
-		name:    b.Name,
-	}
-	l.mappings[key] = labelMapVal{
-		exists: exists,
-		v:      b,
-	}
-}
-
-func (l *label) setDashboardMapping(d *dashboard) {
-	if l == nil {
-		return
-	}
-	if l.mappings == nil {
-		l.mappings = make(map[labelMapKey]labelMapVal)
-	}
-
-	key := labelMapKey{
-		resType: d.ResourceType(),
-		name:    d.Name,
-	}
-	l.mappings[key] = labelMapVal{v: d}
 }
 
 func (l *label) properties() map[string]string {
@@ -405,6 +497,110 @@ func toInfluxLabels(labels ...*label) []influxdb.Label {
 		})
 	}
 	return iLabels
+}
+
+type variable struct {
+	id          influxdb.ID
+	OrgID       influxdb.ID
+	Name        string
+	Description string
+	Type        string
+	Query       string
+	Language    string
+	ConstValues []string
+	MapValues   map[string]string
+
+	labels []*label
+
+	existing *influxdb.Variable
+}
+
+func (v *variable) ID() influxdb.ID {
+	if v.existing != nil {
+		return v.existing.ID
+	}
+	return v.id
+}
+
+func (v *variable) Exists() bool {
+	return v.existing != nil
+}
+
+func (v *variable) ResourceType() influxdb.ResourceType {
+	return influxdb.VariablesResourceType
+}
+
+func (v *variable) shouldApply() bool {
+	return v.existing == nil ||
+		v.existing.Description != v.Description ||
+		v.existing.Arguments == nil ||
+		v.existing.Arguments.Type != v.Type
+}
+
+func (v *variable) summarize() SummaryVariable {
+	return SummaryVariable{
+		Variable: influxdb.Variable{
+			ID:             v.ID(),
+			OrganizationID: v.OrgID,
+			Name:           v.Name,
+			Description:    v.Description,
+			Arguments:      v.influxVarArgs(),
+		},
+		LabelAssociations: toInfluxLabels(v.labels...),
+	}
+}
+
+func (v *variable) influxVarArgs() *influxdb.VariableArguments {
+	args := &influxdb.VariableArguments{
+		Type: v.Type,
+	}
+	switch args.Type {
+	case "query":
+		args.Values = influxdb.VariableQueryValues{
+			Query:    v.Query,
+			Language: v.Language,
+		}
+	case "constant":
+		args.Values = influxdb.VariableConstantValues(v.ConstValues)
+	case "map":
+		args.Values = influxdb.VariableMapValues(v.MapValues)
+	}
+	return args
+}
+
+func (v *variable) valid() []failure {
+	var failures []failure
+	switch v.Type {
+	case "map":
+		if len(v.MapValues) == 0 {
+			failures = append(failures, failure{
+				Field: "values",
+				Msg:   "map variable must have at least 1 key/val pair",
+			})
+		}
+	case "constant":
+		if len(v.ConstValues) == 0 {
+			failures = append(failures, failure{
+				Field: "values",
+				Msg:   "constant variable must have a least 1 value provided",
+			})
+		}
+	case "query":
+		if v.Query == "" {
+			failures = append(failures, failure{
+				Field: "query",
+				Msg:   "query variable must provide a query string",
+			})
+		}
+		if v.Language != "influxql" && v.Language != "flux" {
+			const msgFmt = "query variable language must be either %q or %q; got %q"
+			failures = append(failures, failure{
+				Field: "language",
+				Msg:   fmt.Sprintf(msgFmt, "influxql", "flux", v.Language),
+			})
+		}
+	}
+	return failures
 }
 
 type dashboard struct {
@@ -431,15 +627,14 @@ func (d *dashboard) Exists() bool {
 
 func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
-		ID:                d.ID(),
-		OrgID:             d.OrgID,
+		ID:                SafeID(d.ID()),
+		OrgID:             SafeID(d.OrgID),
 		Name:              d.Name,
 		Description:       d.Description,
 		LabelAssociations: toInfluxLabels(d.labels...),
 	}
 	for _, c := range d.Charts {
 		iDash.Charts = append(iDash.Charts, SummaryChart{
-			Kind:       c.Kind,
 			Properties: c.properties(),
 			Height:     c.Height,
 			Width:      c.Width,
@@ -451,7 +646,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 }
 
 type chart struct {
-	Kind            ChartKind
+	Kind            chartKind
 	Name            string
 	Prefix          string
 	Suffix          string
@@ -473,7 +668,7 @@ type chart struct {
 
 func (c chart) properties() influxdb.ViewProperties {
 	switch c.Kind {
-	case ChartKindSingleStat:
+	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
 			Type:   "single-stat",
 			Prefix: c.Prefix,
@@ -487,7 +682,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
 		}
-	case ChartKindSingleStatPlusLine:
+	case chartKindSingleStatPlusLine:
 		return influxdb.LinePlusSingleStatProperties{
 			Type:   "line-plus-single-stat",
 			Prefix: c.Prefix,
@@ -506,7 +701,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
 		}
-	case ChartKindXY:
+	case chartKindXY:
 		return influxdb.XYViewProperties{
 			Type:              "xy",
 			Note:              c.Note,
@@ -520,7 +715,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
 		}
-	case ChartKindGauge:
+	case chartKindGauge:
 		return influxdb.GaugeViewProperties{
 			Type:       "gauge",
 			Queries:    c.Queries.influxDashQueries(),
@@ -553,17 +748,17 @@ func (c chart) validProperties() []failure {
 
 	// chart kind specific validations
 	switch c.Kind {
-	case ChartKindSingleStat:
+	case chartKindGauge:
+		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
+	case chartKindSingleStat:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
-	case ChartKindSingleStatPlusLine:
+	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText, colorTypeScale)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
-	case ChartKindXY:
+	case chartKindXY:
 		fails = append(fails, c.Colors.hasTypes(colorTypeScale)...)
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
-	case ChartKindGauge:
-		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
 	}
 
 	return fails
@@ -606,11 +801,11 @@ func (c chart) validBaseProps() []failure {
 }
 
 const (
-	colorTypeText      = "text"
-	colorTypeScale     = "scale"
 	colorTypeMin       = "min"
-	colorTypeThreshold = "threshold"
 	colorTypeMax       = "max"
+	colorTypeScale     = "scale"
+	colorTypeText      = "text"
+	colorTypeThreshold = "threshold"
 )
 
 type color struct {
