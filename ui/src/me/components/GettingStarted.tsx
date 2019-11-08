@@ -1,6 +1,7 @@
 // Libraries
 import React, {FunctionComponent, useState} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
+import {connect} from 'react-redux'
 
 // Components
 import {
@@ -15,10 +16,16 @@ import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 import DashboardingGraphic from 'src/me/graphics/DashboardingGraphic'
 import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
 
-const GettingStarted: FunctionComponent<WithRouterProps> = ({
-  params: {orgID},
-  router,
-}) => {
+// Types
+import {AppState} from 'src/types'
+
+interface StateProps {
+  orgID: string
+}
+
+type Props = WithRouterProps & StateProps
+
+const GettingStarted: FunctionComponent<Props> = ({orgID, router}) => {
   const [loadDataAnimating, setLoadDataAnimation] = useState<boolean>(false)
   const handleLoadDataClick = (): void => {
     router.push(`/orgs/${orgID}/load-data/telegrafs`)
@@ -117,4 +124,19 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
   )
 }
 
-export default withRouter<{}>(GettingStarted)
+const mstp = ({
+  orgs: {
+    org: {id},
+  },
+}: AppState): StateProps => {
+  return {
+    orgID: id,
+  }
+}
+
+export default withRouter<{}>(
+  connect(
+    mstp,
+    null
+  )(GettingStarted)
+)
