@@ -9821,6 +9821,7 @@ components:
             labels: "/api/v2/checks/1/labels"
             members: "/api/v2/checks/1/members"
             owners: "/api/v2/checks/1/owners"
+            query: "/api/v2/checks/1/query"
           properties:
             self:
               description: URL for this check
@@ -10062,6 +10063,7 @@ components:
             labels: "/api/v2/notificationRules/1/labels"
             members: "/api/v2/notificationRules/1/members"
             owners: "/api/v2/notificationRules/1/owners"
+            query: "/api/v2/notificationRules/1/query"
           properties:
             self:
               description: URL for this endpoint.

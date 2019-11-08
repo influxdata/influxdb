@@ -141,6 +141,7 @@ type notificationRuleLinks struct {
 	Labels  string `json:"labels"`
 	Members string `json:"members"`
 	Owners  string `json:"owners"`
+	Query   string `json:"query"`
 }
 
 type notificationRuleResponse struct {
@@ -192,6 +193,7 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 			Labels:  fmt.Sprintf("/api/v2/notificationRules/%s/labels", nr.GetID()),
 			Members: fmt.Sprintf("/api/v2/notificationRules/%s/members", nr.GetID()),
 			Owners:  fmt.Sprintf("/api/v2/notificationRules/%s/owners", nr.GetID()),
+			Query:   fmt.Sprintf("/api/v2/notificationRules/%s/query", nr.GetID()),
 		},
 		Labels: []influxdb.Label{},
 		Status: t.Status,
