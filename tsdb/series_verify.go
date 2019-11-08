@@ -12,6 +12,7 @@ import (
 	"sort"
 	"sync/atomic"
 
+	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"go.uber.org/zap"
 )
@@ -47,8 +48,11 @@ func NewVerify() Verify {
 // VerifySeriesFile performs verifications on a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the series file.
 func (v Verify) VerifySeriesFile() (valid bool, err error) {
-	v.Logger = v.Logger.With(zap.String("path", v.SeriesFilePath))
-	v.Logger.Info("Verifying series file")
+	log, logEnd := logger.NewOperation(context.Background(), v.Logger, "Beginning Series File verification", "sfile_verification",
+		zap.String("path", v.SeriesFilePath),
+	)
+	v.Logger = log
+	defer logEnd()
 
 	// series file is used only for emitting more information on failure.
 	v.sfile = NewSeriesFile(v.SeriesFilePath)
@@ -114,8 +118,9 @@ func (v Verify) VerifySeriesFile() (valid bool, err error) {
 // VerifyPartition performs verifications on a partition of a series file. The error is only returned
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
-	v.Logger = v.Logger.With(zap.String("partition", filepath.Base(partitionPath)))
-	v.Logger.Info("Verifying partition")
+	log, logEnd := logger.NewOperation(context.Background(), v.Logger, "Beginning partition verification", "partition_verification", zap.String("partition", filepath.Base(partitionPath)))
+	v.Logger = log
+	defer logEnd()
 
 	defer func() {
 		if !v.Recover {
@@ -187,12 +192,18 @@ type IDData struct {
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map is populated with information about the ids stored in the segment.
 func (v Verify) VerifySegment(segmentPath string, ids map[SeriesIDTyped]IDData) (valid bool, err error) {
-	segmentName := filepath.Base(segmentPath)
-	v.Logger = v.Logger.With(zap.String("segment", segmentName))
-	v.Logger.Info("Verifying segment")
+	var insertEntries, deleteEntries int64
+	log, logEnd := logger.NewOperation(context.Background(), v.Logger, "Beginning segment verification", "segment_verification",
+		zap.String("segment_path", segmentPath),
+	)
+	v.Logger = log
+	defer func() {
+		v.Logger.Info("Processed entries", zap.Int64("insertions", insertEntries), zap.Int64("deletions", deleteEntries))
+	}()
+	defer logEnd()
 
 	// Open up the segment and grab it's data.
-	segmentID, err := ParseSeriesSegmentFilename(segmentName)
+	segmentID, err := ParseSeriesSegmentFilename(filepath.Base(segmentPath))
 	if err != nil {
 		return false, err
 	}
@@ -236,6 +247,7 @@ entries:
 		hasKey := true
 		switch flag {
 		case SeriesEntryInsertFlag:
+			insertEntries++
 			if !firstID && currentID.SeriesID().Greater(id.SeriesID()) {
 				v.Logger.Error("ID is not monotonically increasing",
 					zap.Uint64("prev_id", currentID.RawID()),
@@ -261,6 +273,7 @@ entries:
 			}
 
 		case SeriesEntryTombstoneFlag:
+			deleteEntries++
 			hasKey = false
 			if ids != nil {
 				data := ids[currentID]
@@ -321,7 +334,11 @@ entries:
 // if there was some fatal problem with operating, not if there was a problem with the partition.
 // The ids map must be built from verifying the passed in segments.
 func (v Verify) VerifyIndex(indexPath string, segments []*SeriesSegment, ids map[SeriesIDTyped]IDData) (valid bool, err error) {
-	v.Logger.Info("Verifying index")
+	log, logEnd := logger.NewOperation(context.Background(), v.Logger, "Beginning index verification", "segment_index",
+		zap.String("index_path", indexPath),
+	)
+	v.Logger = log
+	defer logEnd()
 
 	defer func() {
 		if !v.Recover {
