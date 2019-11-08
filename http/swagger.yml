@@ -7104,6 +7104,21 @@ components:
           type: string
         pkgVersion:
           type: string
+        resources:
+          type: object
+          properties:
+            id:
+              type: string
+            kind:
+              type: string
+              enum:
+                - bucket
+                - dashboard
+                - label
+                - variable
+            name:
+              type: string
+          required: [id, kind]
     Pkg:
       type: object
       properties:

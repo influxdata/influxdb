@@ -659,19 +659,453 @@ func TestService(t *testing.T) {
 
 	t.Run("CreatePkg", func(t *testing.T) {
 		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
-			svc := new(Service)
+			bktSVC := mock.NewBucketService()
+			bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+				return &influxdb.Bucket{ID: 1, Name: "name"}, nil
+			}
+			svc := NewService(WithBucketSVC(bktSVC))
 
 			expectedMeta := Metadata{
 				Description: "desc",
 				Name:        "name",
 				Version:     "v1",
 			}
-			pkg, err := svc.CreatePkg(context.TODO(), WithMetadata(expectedMeta))
+			pkg, err := svc.CreatePkg(context.TODO(),
+				WithMetadata(expectedMeta),
+				WithResourceClones(ResourceToClone{ // sets stub resource to pass validation
+					Kind: KindBucket,
+					ID:   1,
+					Name: "name",
+				}),
+			)
 			require.NoError(t, err)
 
 			assert.Equal(t, APIVersion, pkg.APIVersion)
 			assert.Equal(t, expectedMeta, pkg.Metadata)
 			assert.NotNil(t, pkg.Spec.Resources)
+		})
+
+		t.Run("with existing resources", func(t *testing.T) {
+			t.Run("bucket", func(t *testing.T) {
+				tests := []struct {
+					name    string
+					newName string
+				}{
+					{
+						name: "without new name",
+					},
+					{
+						name:    "with new name",
+						newName: "new name",
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						expected := &influxdb.Bucket{
+							ID:              3,
+							Name:            "bucket name",
+							Description:     "desc",
+							RetentionPeriod: time.Hour,
+						}
+
+						bktSVC := mock.NewBucketService()
+						bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+							if id != expected.ID {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return expected, nil
+						}
+
+						svc := NewService(WithBucketSVC(bktSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindBucket,
+							ID:   expected.ID,
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						require.NoError(t, err)
+
+						bkts := pkg.Summary().Buckets
+						require.Len(t, bkts, 1)
+
+						actual := bkts[0]
+						expectedName := expected.Name
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.Name)
+						assert.Equal(t, expected.Description, actual.Description)
+						assert.Equal(t, expected.RetentionPeriod, actual.RetentionPeriod)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			newQuery := func() influxdb.DashboardQuery {
+				q := influxdb.DashboardQuery{
+					Text:     "from(v.bucket) |> count()",
+					EditMode: "advanced",
+				}
+				// TODO: remove this when issue that forced the builder tag to be here to render in UI.
+				q.BuilderConfig.Tags = append(q.BuilderConfig.Tags, influxdb.NewBuilderTag("_measurement"))
+				return q
+			}
+
+			newAxes := func() map[string]influxdb.Axis {
+				return map[string]influxdb.Axis{
+					"x": {
+						Bounds: []string{},
+						Label:  "labx",
+						Prefix: "pre",
+						Suffix: "suf",
+						Base:   "base",
+						Scale:  "linear",
+					},
+					"y": {
+						Bounds: []string{},
+						Label:  "laby",
+						Prefix: "pre",
+						Suffix: "suf",
+						Base:   "base",
+						Scale:  "linear",
+					},
+				}
+			}
+
+			newColors := func(types ...string) []influxdb.ViewColor {
+				var out []influxdb.ViewColor
+				for _, t := range types {
+					out = append(out, influxdb.ViewColor{
+						Type:  t,
+						Hex:   time.Now().Format(time.RFC3339),
+						Name:  time.Now().Format(time.RFC3339),
+						Value: float64(time.Now().Unix()),
+					})
+				}
+				return out
+			}
+
+			t.Run("dashboard", func(t *testing.T) {
+				tests := []struct {
+					name         string
+					newName      string
+					expectedView influxdb.View
+				}{
+					{
+						name: "without new name single stat",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.SingleStatViewProperties{
+								Type:              influxdb.ViewPropertyTypeSingleStat,
+								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+								Note:              "a note",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								Prefix:            "pre",
+								ShowNoteWhenEmpty: true,
+								Suffix:            "suf",
+								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+							},
+						},
+					},
+					{
+						name:    "with new name single stat",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.SingleStatViewProperties{
+								Type:              influxdb.ViewPropertyTypeSingleStat,
+								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+								Note:              "a note",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								Prefix:            "pre",
+								ShowNoteWhenEmpty: true,
+								Suffix:            "suf",
+								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+							},
+						},
+					},
+					{
+						name:    "guage",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.GaugeViewProperties{
+								Type:              influxdb.ViewPropertyTypeGauge,
+								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+								Note:              "a note",
+								Prefix:            "pre",
+								Suffix:            "suf",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShowNoteWhenEmpty: true,
+								ViewColors:        newColors("min", "max", "threshold"),
+							},
+						},
+					}, {
+						name:    "single stat plus line",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.LinePlusSingleStatProperties{
+								Type:              influxdb.ViewPropertyTypeSingleStatPlusLine,
+								Axes:              newAxes(),
+								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+								Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+								Note:              "a note",
+								Prefix:            "pre",
+								Suffix:            "suf",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShadeBelow:        true,
+								ShowNoteWhenEmpty: true,
+								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+								XColumn:           "x",
+								YColumn:           "y",
+							},
+						},
+					},
+					{
+						name:    "xy",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.XYViewProperties{
+								Type:              influxdb.ViewPropertyTypeXY,
+								Axes:              newAxes(),
+								Geom:              "step",
+								Legend:            influxdb.Legend{Type: "type", Orientation: "horizontal"},
+								Note:              "a note",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShadeBelow:        true,
+								ShowNoteWhenEmpty: true,
+								ViewColors:        []influxdb.ViewColor{{Type: "text", Hex: "red"}},
+								XColumn:           "x",
+								YColumn:           "y",
+							},
+						},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						expectedCell := &influxdb.Cell{
+							ID:           5,
+							CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
+						}
+						expected := &influxdb.Dashboard{
+							ID:          3,
+							Name:        "bucket name",
+							Description: "desc",
+							Cells:       []*influxdb.Cell{expectedCell},
+						}
+
+						dashSVC := mock.NewDashboardService()
+						dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+							if id != expected.ID {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return expected, nil
+						}
+						dashSVC.GetDashboardCellViewF = func(_ context.Context, id influxdb.ID, cID influxdb.ID) (*influxdb.View, error) {
+							if id == expected.ID && cID == expectedCell.ID {
+								return &tt.expectedView, nil
+							}
+							return nil, errors.New("wrongo ids")
+						}
+
+						svc := NewService(WithDashboardSVC(dashSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindDashboard,
+							ID:   expected.ID,
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						require.NoError(t, err)
+
+						dashs := pkg.Summary().Dashboards
+						require.Len(t, dashs, 1)
+
+						actual := dashs[0]
+						expectedName := expected.Name
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.Name)
+						assert.Equal(t, expected.Description, actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						ch := actual.Charts[0]
+						assert.Equal(t, int(expectedCell.X), ch.XPosition)
+						assert.Equal(t, int(expectedCell.Y), ch.YPosition)
+						assert.Equal(t, int(expectedCell.H), ch.Height)
+						assert.Equal(t, int(expectedCell.W), ch.Width)
+						assert.Equal(t, tt.expectedView.Properties, ch.Properties)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			t.Run("label", func(t *testing.T) {
+				tests := []struct {
+					name    string
+					newName string
+				}{
+					{
+						name: "without new name",
+					},
+					{
+						name:    "with new name",
+						newName: "new name",
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						expectedLabel := &influxdb.Label{
+							ID:   3,
+							Name: "bucket name",
+							Properties: map[string]string{
+								"description": "desc",
+								"color":       "red",
+							},
+						}
+
+						labelSVC := mock.NewLabelService()
+						labelSVC.FindLabelByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Label, error) {
+							if id != expectedLabel.ID {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return expectedLabel, nil
+						}
+
+						svc := NewService(WithLabelSVC(labelSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindLabel,
+							ID:   expectedLabel.ID,
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						require.NoError(t, err)
+
+						newLabels := pkg.Summary().Labels
+						require.Len(t, newLabels, 1)
+
+						actual := newLabels[0]
+						expectedName := expectedLabel.Name
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.Name)
+						assert.Equal(t, expectedLabel.Properties, actual.Properties)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
+
+			t.Run("variable", func(t *testing.T) {
+				tests := []struct {
+					name        string
+					newName     string
+					expectedVar influxdb.Variable
+				}{
+					{
+						name: "without new name",
+						expectedVar: influxdb.Variable{
+							ID:          1,
+							Name:        "old name",
+							Description: "desc",
+							Arguments: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: influxdb.VariableConstantValues{"val"},
+							},
+						},
+					},
+					{
+						name:    "with new name",
+						newName: "new name",
+						expectedVar: influxdb.Variable{
+							ID:   1,
+							Name: "old name",
+							Arguments: &influxdb.VariableArguments{
+								Type:   "constant",
+								Values: influxdb.VariableConstantValues{"val"},
+							},
+						},
+					},
+					{
+						name: "with map arg",
+						expectedVar: influxdb.Variable{
+							ID:   1,
+							Name: "old name",
+							Arguments: &influxdb.VariableArguments{
+								Type:   "map",
+								Values: influxdb.VariableMapValues{"k": "v"},
+							},
+						},
+					},
+					{
+						name: "with query arg",
+						expectedVar: influxdb.Variable{
+							ID:   1,
+							Name: "old name",
+							Arguments: &influxdb.VariableArguments{
+								Type: "query",
+								Values: influxdb.VariableQueryValues{
+									Query:    "query",
+									Language: "flux",
+								},
+							},
+						},
+					},
+				}
+
+				for _, tt := range tests {
+					fn := func(t *testing.T) {
+						varSVC := mock.NewVariableService()
+						varSVC.FindVariableByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+							if id != tt.expectedVar.ID {
+								return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+							}
+							return &tt.expectedVar, nil
+						}
+
+						svc := NewService(WithVariableSVC(varSVC))
+
+						resToClone := ResourceToClone{
+							Kind: KindVariable,
+							ID:   tt.expectedVar.ID,
+							Name: tt.newName,
+						}
+						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						require.NoError(t, err)
+
+						newVars := pkg.Summary().Variables
+						require.Len(t, newVars, 1)
+
+						actual := newVars[0]
+						expectedName := tt.expectedVar.Name
+						if tt.newName != "" {
+							expectedName = tt.newName
+						}
+						assert.Equal(t, expectedName, actual.Name)
+						assert.Equal(t, tt.expectedVar.Description, actual.Description)
+						assert.Equal(t, tt.expectedVar.Arguments, actual.Arguments)
+					}
+					t.Run(tt.name, fn)
+				}
+			})
 		})
 	})
 }
