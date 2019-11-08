@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useState} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
@@ -11,22 +11,47 @@ import {
   ComponentColor,
   ComponentSize,
 } from '@influxdata/clockface'
+import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 import DashboardingGraphic from 'src/me/graphics/DashboardingGraphic'
 import ExploreGraphic from 'src/me/graphics/ExploreGraphic'
-import CollectorGraphic from 'src/me/graphics/CollectorGraphic'
 
 const GettingStarted: FunctionComponent<WithRouterProps> = ({
   params: {orgID},
   router,
 }) => {
+  const [loadDataAnimating, setLoadDataAnimation] = useState<boolean>(false)
   const handleLoadDataClick = (): void => {
     router.push(`/orgs/${orgID}/load-data/telegrafs`)
   }
+  const handleLoadDataMouseOver = (): void => {
+    setLoadDataAnimation(true)
+  }
+  const handleLoadDataMouseOut = (): void => {
+    setLoadDataAnimation(false)
+  }
+
+  const [dashboardingAnimating, setDashboardingAnimation] = useState<boolean>(
+    false
+  )
   const handleDashboardsClick = (): void => {
     router.push(`/orgs/${orgID}/dashboards`)
   }
+  const handleDashboardsMouseOver = (): void => {
+    setDashboardingAnimation(true)
+  }
+  const handleDashboardsMouseOut = (): void => {
+    setDashboardingAnimation(false)
+  }
+
+  const [alertsAnimating, setAlertsAnimation] = useState<boolean>(false)
   const handleAlertsClick = (): void => {
     router.push(`/orgs/${orgID}/alerting`)
+  }
+  const handleAlertsMouseOver = (): void => {
+    setAlertsAnimation(true)
+  }
+  const handleAlertsMouseOut = (): void => {
+    setAlertsAnimation(false)
   }
 
   return (
@@ -37,7 +62,7 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
       >
         <div className="getting-started--card-digit">1</div>
         <Panel.Body>
-          <CollectorGraphic />
+          <CollectorGraphic animate={loadDataAnimating} />
         </Panel.Body>
         <Panel.Footer>
           <Button
@@ -45,6 +70,8 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
             color={ComponentColor.Primary}
             size={ComponentSize.Large}
             onClick={handleLoadDataClick}
+            onMouseOver={handleLoadDataMouseOver}
+            onMouseOut={handleLoadDataMouseOut}
           />
         </Panel.Footer>
       </Panel>
@@ -54,7 +81,7 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
       >
         <div className="getting-started--card-digit">2</div>
         <Panel.Body>
-          <DashboardingGraphic />
+          <DashboardingGraphic animate={dashboardingAnimating} />
         </Panel.Body>
         <Panel.Footer>
           <Button
@@ -62,6 +89,8 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
             color={ComponentColor.Primary}
             size={ComponentSize.Large}
             onClick={handleDashboardsClick}
+            onMouseOver={handleDashboardsMouseOver}
+            onMouseOut={handleDashboardsMouseOut}
           />
         </Panel.Footer>
       </Panel>
@@ -71,7 +100,7 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
       >
         <div className="getting-started--card-digit">3</div>
         <Panel.Body>
-          <ExploreGraphic />
+          <ExploreGraphic animate={alertsAnimating} />
         </Panel.Body>
         <Panel.Footer>
           <Button
@@ -79,6 +108,8 @@ const GettingStarted: FunctionComponent<WithRouterProps> = ({
             color={ComponentColor.Primary}
             size={ComponentSize.Large}
             onClick={handleAlertsClick}
+            onMouseOver={handleAlertsMouseOver}
+            onMouseOut={handleAlertsMouseOut}
           />
         </Panel.Footer>
       </Panel>

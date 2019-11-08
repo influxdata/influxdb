@@ -130,7 +130,7 @@ $collector-graphic-anim-time: 0.1s;
 }
 
 /* Hover State */
-.getting-started--card:hover {
+.getting-started--image__animating{
   .collector-graphic--bucket {
     fill: $g20-white;
   }

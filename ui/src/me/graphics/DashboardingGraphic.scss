@@ -261,7 +261,7 @@ $dashboarding-bar-graph-anim: 0.15s;
 }
 
 /* Hover State */
-.getting-started--card:hover {
+.getting-started--image__animating {
   .dashboarding-graphic--cell {
     fill: $g5-pepper;
   }
