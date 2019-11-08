@@ -6,6 +6,9 @@
 1. [15713](https://github.com/influxdata/influxdb/pull/15713): Mock missing Flux dependencies when creating tasks
 1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
 
+### UI Improvements
+1. [15809](https://github.com/influxdata/influxdb/pull/15809): Redesign cards and animations on getting started page
+
 ## v2.0.0-alpha.19 [2019-10-30]
 
 ### Features
