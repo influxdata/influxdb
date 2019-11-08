@@ -20,7 +20,7 @@
     "start:docker": "yarn generate && yarn build:vendor && yarn run start:dev",
     "start:dev": "webpack-dev-server --config ./webpack.dev.ts",
     "build": "yarn install --silent && yarn build:ci",
-    "build:ci": "yarn generate && webpack --config webpack.prod.ts",
+    "build:ci": "yarn generate && yarn build:vendor && webpack --config webpack.prod.ts",
     "build:vendor": "webpack --config webpack.vendor.ts",
     "clean": "rm -rf ./build && rm -rf ./.cache && rm -rf node_modules && rm -rf cypress/screenshots && rm -rf cypress/videos && rm -f junit-results/* ",
     "test": "jest --maxWorkers=2",
