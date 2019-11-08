@@ -60,6 +60,23 @@ from(bucket: "${name}")
       .and('contain', taskName)
   })
 
+  it('can create a task using http.post', () => {
+    const taskName = 'Task'
+    createFirstTask(taskName, () => {
+      return `import "http"
+http.post(
+  url: "https://foo.bar/baz",
+  data: bytes(v: "body")
+)`
+    })
+
+    cy.contains('Save').click()
+
+    cy.getByTestID('task-card')
+      .should('have.length', 1)
+      .and('contain', taskName)
+  })
+
   describe('When tasks already exist', () => {
     beforeEach(() => {
       cy.get('@org').then(({id}: Organization) => {

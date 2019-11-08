@@ -47,6 +47,234 @@ describe('NotificationRules', () => {
     })
   })
 
+  describe('numeric input validation in Theshold Checks', () => {
+    beforeEach(() => {
+      cy.getByTestID('page-contents').within(() => {
+        cy.getByTestID('dropdown')
+          .click()
+          .then(() => {
+            cy.getByTestID('create-threshold-check').click()
+          })
+      })
+    })
+    describe('when threshold is above', () => {
+      it('should allow "20" to be deleted to temporarily become a text input field in error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('input-field')
+                      .click()
+                      .type('{backspace}{backspace}')
+                      .invoke('attr', 'type')
+                      .should('equal', 'text')
+                      .getByTestID('input-field--error')
+                      .should('have.length', 1)
+                  })
+                })
+              })
+          })
+      })
+      it('should allow "20" to be deleted to become a blank input field in error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('input-field')
+                      .click()
+                      .type('{backspace}{backspace}')
+                      .invoke('val')
+                      .should('equal', '')
+                      .getByTestID('input-field--error')
+                      .should('have.length', 1)
+                  })
+                })
+              })
+          })
+      })
+      it('should allow "20" to be deleted to temporarily become a text input field but does NOT allow text input and remains in error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('input-field')
+                      .click()
+                      .type('{backspace}{backspace}somerange')
+                      .invoke('val')
+                      .should('equal', '')
+                      .getByTestID('input-field--error')
+                      .should('have.length', 1)
+                  })
+                })
+              })
+          })
+      })
+      it('should allow "20" to be deleted and then allow numeric input to get out of error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('input-field')
+                      .click()
+                      .type('{backspace}{backspace}9')
+                      .invoke('val')
+                      .should('equal', '9')
+                      .getByTestID('input-field--error')
+                      .should('have.length', 0)
+                  })
+                })
+              })
+          })
+      })
+    })
+    describe('when threshold is inside range', () => {
+      it('should allow "20" to be deleted to temporarily become a text input field in error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('dropdown--button')
+                      .click()
+                      .then(() => {
+                        cy.get(
+                          '.cf-dropdown-item--children:contains("is inside range")'
+                        )
+                          .click()
+                          .then(() => {
+                            cy.getByTestID('input-field')
+                              .first()
+                              .click()
+                              .type('{backspace}{backspace}')
+                              .invoke('attr', 'type')
+                              .should('equal', 'text')
+                              .getByTestID('input-field--error')
+                              .should('have.length', 1)
+                          })
+                      })
+                  })
+                })
+              })
+          })
+      })
+      it('should allow "20" to be deleted to become a blank input field in error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('dropdown--button')
+                      .click()
+                      .then(() => {
+                        cy.get(
+                          '.cf-dropdown-item--children:contains("is inside range")'
+                        )
+                          .click()
+                          .then(() => {
+                            cy.getByTestID('input-field')
+                              .first()
+                              .click()
+                              .type('{backspace}{backspace}')
+                              .invoke('val')
+                              .should('equal', '')
+                              .getByTestID('input-field--error')
+                              .should('have.length', 1)
+                          })
+                      })
+                  })
+                })
+              })
+          })
+      })
+      it('should allow "20" to be deleted to temporarily become a text input field but does NOT allow text input and remains in error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('dropdown--button')
+                      .click()
+                      .then(() => {
+                        cy.get(
+                          '.cf-dropdown-item--children:contains("is inside range")'
+                        )
+                          .click()
+                          .then(() => {
+                            cy.getByTestID('input-field')
+                              .first()
+                              .click()
+                              .type('{backspace}{backspace}hhhhhhhhhhhh')
+                              .invoke('val')
+                              .should('equal', '')
+                              .getByTestID('input-field--error')
+                              .should('have.length', 1)
+                          })
+                      })
+                  })
+                })
+              })
+          })
+      })
+      it('should allow "20" to be deleted and then allow numeric input to get out of error status', () => {
+        cy.getByTestID('checkeo--header alerting-tab')
+          .click()
+          .then(() => {
+            cy.getByTestID('add-threshold-condition-CRIT')
+              .click()
+              .then(() => {
+                cy.getByTestID('builder-conditions').within(() => {
+                  cy.getByTestID('panel').within(() => {
+                    cy.getByTestID('dropdown--button')
+                      .click()
+                      .then(() => {
+                        cy.get(
+                          '.cf-dropdown-item--children:contains("is inside range")'
+                        )
+                          .click()
+                          .then(() => {
+                            cy.getByTestID('input-field')
+                              .first()
+                              .click()
+                              .type('{backspace}{backspace}7')
+                              .invoke('val')
+                              .should('equal', '7')
+                              .getByTestID('input-field--error')
+                              .should('have.length', 0)
+                          })
+                      })
+                  })
+                })
+              })
+          })
+      })
+    })
+  })
+
   // TODO(desa): this needs to be skipped until https://github.com/influxdata/influxdb/issues/14799
   it.skip('can create a notification rule', () => {
     const ruleName = 'my-new-rule'

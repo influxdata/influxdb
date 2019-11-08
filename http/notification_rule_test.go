@@ -115,6 +115,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
         "labels": "/api/v2/notificationRules/0000000000000001/labels",
         "members": "/api/v2/notificationRules/0000000000000001/members",
         "owners": "/api/v2/notificationRules/0000000000000001/owners",
+        "query": "/api/v2/notificationRules/0000000000000001/query",
         "self": "/api/v2/notificationRules/0000000000000001"
       },
       "messageTemplate": "message 1{var1}",
@@ -160,6 +161,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
         "labels": "/api/v2/notificationRules/000000000000000b/labels",
         "members": "/api/v2/notificationRules/000000000000000b/members",
         "owners": "/api/v2/notificationRules/000000000000000b/owners",
+        "query": "/api/v2/notificationRules/000000000000000b/query",
         "self": "/api/v2/notificationRules/000000000000000b"
       },
       "messageTemplate": "body 2{var2}",
@@ -253,6 +255,7 @@ func Test_newNotificationRuleResponse(t *testing.T) {
    "labels": "/api/v2/notificationRules/0000000000000001/labels",
    "members": "/api/v2/notificationRules/0000000000000001/members",
    "owners": "/api/v2/notificationRules/0000000000000001/owners",
+   "query": "/api/v2/notificationRules/0000000000000001/query",
    "self": "/api/v2/notificationRules/0000000000000001"
  },
  "messageTemplate": "message 1{var1}",

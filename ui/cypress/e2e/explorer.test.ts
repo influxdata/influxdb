@@ -34,6 +34,150 @@ describe('DataExplorer', () => {
     })
   })
 
+  describe('numeric input validation when changing bin sizes in Heat Maps', () => {
+    beforeEach(() => {
+      cy.getByTestID('page-header--right').within(() => {
+        cy.getByTestID('dropdown')
+          .click()
+          .then(() => {
+            cy.get('#heatmap')
+              .click()
+              .then(() => {
+                cy.getByTestID('cog-cell--button').click()
+              })
+          })
+      })
+    })
+    it('should put input field in error status when "10" gets one character deleted and becomes "1"', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('grid--column').within(() => {
+          cy.getByTestID('input-field')
+            .first()
+            .click()
+            .type('{backspace}')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should put input field in error status when "10" gets all characters deleted and becomes empty', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('grid--column').within(() => {
+          cy.getByTestID('input-field')
+            .first()
+            .click()
+            .type('{backspace}{backspace}')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should keep input field in error status when "10" becomes "4"', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('grid--column').within(() => {
+          cy.getByTestID('input-field')
+            .first()
+            .click()
+            .type('{backspace}{backspace}4')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should keep input field in error status when non-numeric characters are typed', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('grid--column').within(() => {
+          cy.getByTestID('input-field')
+            .first()
+            .click()
+            .type('{backspace}{backspace}abcdefg')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should not have input field in error status when "10" becomes valid input such as "5"', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('grid--column').within(() => {
+          cy.getByTestID('input-field')
+            .first()
+            .click()
+            .type('{backspace}{backspace}5')
+            .getByTestID('input-field--error')
+            .should('have.length', 0)
+        })
+      })
+    })
+  })
+
+  describe('numeric input validation when changing number of decimal places in Single Stat', () => {
+    beforeEach(() => {
+      cy.getByTestID('page-header--right').within(() => {
+        cy.getByTestID('dropdown')
+          .click()
+          .then(() => {
+            cy.get('#single-stat')
+              .click()
+              .then(() => {
+                cy.getByTestID('cog-cell--button').click()
+              })
+          })
+      })
+    })
+    it('should allow "2" to be deleted to temporarily become a text input field in error status', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('auto-input--input').within(() => {
+          cy.getByTestID('input-field')
+            .click()
+            .type('{backspace}')
+            .invoke('attr', 'type')
+            .should('equal', 'text')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should allow "2" to be deleted to become a blank input field in error status', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('auto-input--input').within(() => {
+          cy.getByTestID('input-field')
+            .click()
+            .type('{backspace}')
+            .invoke('val')
+            .should('equal', '')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should allow "2" to be deleted to temporarily become a text input field but does NOT allow text input and remains in error status', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('auto-input--input').within(() => {
+          cy.getByTestID('input-field')
+            .click()
+            .type('{backspace}abcdefg')
+            .invoke('val')
+            .should('equal', '')
+            .getByTestID('input-field--error')
+            .should('have.length', 1)
+        })
+      })
+    })
+    it('should allow "2" to be deleted and then allow numeric input to get out of error status', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('auto-input--input').within(() => {
+          cy.getByTestID('input-field')
+            .click()
+            .type('{backspace}3')
+            .invoke('val')
+            .should('equal', '3')
+            .getByTestID('input-field--error')
+            .should('have.length', 0)
+        })
+      })
+    })
+  })
+
   describe('select time range to query', () => {
     it('can select different time ranges', () => {
       // find initial value
