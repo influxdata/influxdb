@@ -25,15 +25,15 @@ type verifyResult struct {
 
 // Verify contains configuration for running verification of series files.
 type Verify struct {
-	Recover         bool // If set to false then Verify will not recover panics
-	Concurrent      int  // the level of concurrency to process partitions
-	ContinueOnError bool // if true then Verify will continue to verify after hitting an error
-	Logger          *zap.Logger
+	Recover           bool   // If set to false then Verify will not recover panics
+	Concurrent        int    // the level of concurrency to process partitions
+	ContinueOnError   bool   // if true then Verify will continue to verify after hitting an error
+	MeasurementPrefix []byte // a prefix to filter series by. If set then only matching series will be processed
+	Logger            *zap.Logger
 
 	SeriesFilePath string
 	sfile          *SeriesFile
-
-	done chan struct{}
+	done           chan struct{}
 }
 
 // NewVerify constructs a Verify with good defaults.
@@ -106,13 +106,17 @@ func (v Verify) VerifySeriesFile() (valid bool, err error) {
 
 	for i := 0; i < m; i++ {
 		result := <-out
+		if valid {
+			valid = result.valid
+		}
+
 		if result.err != nil {
 			return false, err
-		} else if !result.valid {
+		} else if !result.valid && !v.ContinueOnError {
 			return false, nil
 		}
 	}
-	return true, nil
+	return valid, nil
 }
 
 // VerifyPartition performs verifications on a partition of a series file. The error is only returned
@@ -171,14 +175,7 @@ func (v Verify) VerifyPartition(partitionPath string) (valid bool, err error) {
 	}
 
 	// check the index
-	indexPath := filepath.Join(partitionPath, "index")
-	if valid, err := v.VerifyIndex(indexPath, segments, ids); err != nil {
-		return false, err
-	} else if !valid {
-		return false, nil
-	}
-
-	return true, nil
+	return v.VerifyIndex(filepath.Join(partitionPath, "index"), segments, ids)
 }
 
 // IDData keeps track of data about a series ID.
@@ -245,8 +242,37 @@ entries:
 
 		// Check the flag is valid and for id monotonicity.
 		hasKey := true
+		parsed := false
 		switch flag {
 		case SeriesEntryInsertFlag:
+			var skip bool
+			if v.MeasurementPrefix != nil {
+				skip = func() bool {
+					defer func() {
+						if rec := recover(); rec != nil {
+							v.Logger.Error("Panic parsing key",
+								zap.String("key", fmt.Sprintf("%x", key)),
+								zap.Int64("offset", buf.offset),
+								zap.String("recovered", fmt.Sprint(rec)))
+						}
+					}()
+
+					parsed = true
+					// This is more efficient than ParseSeriesKey if you just need the measurement.
+					_, data := ReadSeriesKeyLen(key)
+					name, _ := ReadSeriesKeyMeasurement(data)
+					return !bytes.HasPrefix(name, v.MeasurementPrefix)
+				}()
+
+				if !parsed && !v.ContinueOnError {
+					return false, nil
+				}
+			}
+
+			if skip {
+				break // measurement prefix did not match series key
+			}
+
 			insertEntries++
 			if !firstID && currentID.SeriesID().Greater(id.SeriesID()) {
 				v.Logger.Error("ID is not monotonically increasing",
@@ -266,6 +292,14 @@ entries:
 				keyCopy := make([]byte, len(key))
 				copy(keyCopy, key)
 
+				if _, ok := ids[currentID]; ok {
+					v.Logger.Error("Insert before Delete", zap.Uint64("id", currentID.SeriesID().RawID()),
+						zap.Int64("offset", buf.offset),
+					)
+					if !v.ContinueOnError {
+						return false, nil
+					}
+				}
 				ids[currentID] = IDData{
 					Offset: JoinSeriesOffset(segment.ID(), uint32(buf.offset)),
 					Key:    keyCopy,
@@ -276,9 +310,19 @@ entries:
 			deleteEntries++
 			hasKey = false
 			if ids != nil {
-				data := ids[currentID]
-				data.Deleted = true
-				ids[currentID] = data
+				data, ok := ids[currentID]
+				if ok {
+					data.Deleted = true
+					ids[currentID] = data
+				} else if v.MeasurementPrefix == nil {
+					// A tombstone entry was found before the insert...
+					v.Logger.Error("Delete before Insert", zap.Uint64("id", currentID.SeriesID().RawID()),
+						zap.Int64("offset", buf.offset),
+					)
+					if !v.ContinueOnError {
+						return false, nil
+					}
+				}
 			}
 
 		case 0: // if zero, there are no more entries
@@ -299,8 +343,8 @@ entries:
 
 		// Ensure the key parses. This may panic, but our defer handler should
 		// make the error message more usable by providing the key.
-		if hasKey {
-			parsed := false
+		// If measurement prefix checking enabled then we don't need to do this again.
+		if hasKey && !parsed {
 			func() {
 				defer func() {
 					if rec := recover(); rec != nil {
