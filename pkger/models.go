@@ -57,6 +57,10 @@ func (k Kind) OK() error {
 	return nil
 }
 
+func (k Kind) title() string {
+	return strings.Title(k.String())
+}
+
 func (k Kind) is(comp Kind) bool {
 	normed := Kind(strings.TrimSpace(strings.ToLower(string(k))))
 	return normed == comp
@@ -266,6 +270,11 @@ func (c chartKind) ok() bool {
 	default:
 		return false
 	}
+}
+
+func (c chartKind) title() string {
+	spacedKind := strings.ReplaceAll(string(c), "_", " ")
+	return strings.ReplaceAll(strings.Title(spacedKind), " ", "_")
 }
 
 // SummaryChart provides a summary of a pkg dashboard's chart.

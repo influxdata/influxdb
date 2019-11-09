@@ -174,13 +174,37 @@ func (p *Pkg) Summary() Summary {
 	return sum
 }
 
+type (
+	validateOpt struct {
+		minResources bool
+	}
+
+	// ValidateOptFn provides a means to disable desired validation checks.
+	ValidateOptFn func(*validateOpt)
+)
+
+// ValidWithoutResources ignores the validation check for minimum number
+// of resources. This is useful for the service Create to ignore this and
+// allow the creation of a pkg without resources.
+func ValidWithoutResources() ValidateOptFn {
+	return func(opt *validateOpt) {
+		opt.minResources = false
+	}
+}
+
 // Validate will graph all resources and validate every thing is in a useful form.
-func (p *Pkg) Validate() error {
+func (p *Pkg) Validate(opts ...ValidateOptFn) error {
+	opt := &validateOpt{minResources: true}
+	for _, o := range opts {
+		o(opt)
+	}
 	setupFns := []func() error{
 		p.validMetadata,
-		p.validResources,
-		p.graphResources,
 	}
+	if opt.minResources {
+		setupFns = append(setupFns, p.validResources)
+	}
+	setupFns = append(setupFns, p.graphResources)
 
 	for _, fn := range setupFns {
 		if err := fn(); err != nil {

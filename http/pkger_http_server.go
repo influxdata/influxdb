@@ -72,12 +72,12 @@ func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	newPkg, err := s.svc.CreatePkg(r.Context(),
-		pkger.WithMetadata(pkger.Metadata{
+		pkger.CreateWithMetadata(pkger.Metadata{
 			Description: reqBody.PkgDescription,
 			Name:        reqBody.PkgName,
 			Version:     reqBody.PkgVersion,
 		}),
-		pkger.WithResourceClones(reqBody.Resources...),
+		pkger.CreateWithExistingResources(reqBody.Resources...),
 	)
 	if err != nil {
 		s.HandleHTTPError(r.Context(), err, w)
