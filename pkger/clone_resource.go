@@ -30,7 +30,7 @@ func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 		name = bkt.Name
 	}
 	return Resource{
-		fieldKind:                  KindBucket.String(),
+		fieldKind:                  KindBucket.title(),
 		fieldName:                  name,
 		fieldDescription:           bkt.Description,
 		fieldBucketRetentionPeriod: bkt.RetentionPeriod.String(),
@@ -103,7 +103,7 @@ func convertCellView(cv cellView) chart {
 
 func convertChartToResource(ch chart) Resource {
 	r := Resource{
-		fieldKind:         string(ch.Kind),
+		fieldKind:         ch.Kind.title(),
 		fieldName:         ch.Name,
 		fieldChartQueries: ch.Queries,
 		fieldChartHeight:  ch.Height,
@@ -222,7 +222,7 @@ func dashboardToResource(dash influxdb.Dashboard, cellViews []cellView, name str
 	}
 
 	return Resource{
-		fieldKind:        KindDashboard.String(),
+		fieldKind:        KindDashboard.title(),
 		fieldName:        name,
 		fieldDescription: dash.Description,
 		fieldDashCharts:  charts,
@@ -234,7 +234,7 @@ func labelToResource(l influxdb.Label, name string) Resource {
 		name = l.Name
 	}
 	return Resource{
-		fieldKind:        KindLabel.String(),
+		fieldKind:        KindLabel.title(),
 		fieldName:        name,
 		fieldLabelColor:  l.Properties["color"],
 		fieldDescription: l.Properties["description"],
@@ -247,7 +247,7 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	}
 
 	r := Resource{
-		fieldKind:        KindVariable.String(),
+		fieldKind:        KindVariable.title(),
 		fieldName:        name,
 		fieldDescription: v.Description,
 	}

@@ -3,6 +3,7 @@ package pkger
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -659,25 +660,14 @@ func TestService(t *testing.T) {
 
 	t.Run("CreatePkg", func(t *testing.T) {
 		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
-			bktSVC := mock.NewBucketService()
-			bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
-				return &influxdb.Bucket{ID: 1, Name: "name"}, nil
-			}
-			svc := NewService(WithBucketSVC(bktSVC))
+			svc := NewService()
 
 			expectedMeta := Metadata{
 				Description: "desc",
 				Name:        "name",
 				Version:     "v1",
 			}
-			pkg, err := svc.CreatePkg(context.TODO(),
-				WithMetadata(expectedMeta),
-				WithResourceClones(ResourceToClone{ // sets stub resource to pass validation
-					Kind: KindBucket,
-					ID:   1,
-					Name: "name",
-				}),
-			)
+			pkg, err := svc.CreatePkg(context.TODO(), CreateWithMetadata(expectedMeta))
 			require.NoError(t, err)
 
 			assert.Equal(t, APIVersion, pkg.APIVersion)
@@ -717,14 +707,14 @@ func TestService(t *testing.T) {
 							return expected, nil
 						}
 
-						svc := NewService(WithBucketSVC(bktSVC))
+						svc := NewService(WithBucketSVC(bktSVC), WithLabelSVC(mock.NewLabelService()))
 
 						resToClone := ResourceToClone{
 							Kind: KindBucket,
 							ID:   expected.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						bkts := pkg.Summary().Buckets
@@ -923,14 +913,14 @@ func TestService(t *testing.T) {
 							return nil, errors.New("wrongo ids")
 						}
 
-						svc := NewService(WithDashboardSVC(dashSVC))
+						svc := NewService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
 
 						resToClone := ResourceToClone{
 							Kind: KindDashboard,
 							ID:   expected.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						dashs := pkg.Summary().Dashboards
@@ -996,7 +986,7 @@ func TestService(t *testing.T) {
 							ID:   expectedLabel.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newLabels := pkg.Summary().Labels
@@ -1081,14 +1071,14 @@ func TestService(t *testing.T) {
 							return &tt.expectedVar, nil
 						}
 
-						svc := NewService(WithVariableSVC(varSVC))
+						svc := NewService(WithVariableSVC(varSVC), WithLabelSVC(mock.NewLabelService()))
 
 						resToClone := ResourceToClone{
 							Kind: KindVariable,
 							ID:   tt.expectedVar.ID,
 							Name: tt.newName,
 						}
-						pkg, err := svc.CreatePkg(context.TODO(), WithResourceClones(resToClone))
+						pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
 						require.NoError(t, err)
 
 						newVars := pkg.Summary().Variables
@@ -1105,6 +1095,127 @@ func TestService(t *testing.T) {
 					}
 					t.Run(tt.name, fn)
 				}
+			})
+
+			t.Run("includes resource associations", func(t *testing.T) {
+				t.Run("single resource with single association", func(t *testing.T) {
+					expected := &influxdb.Bucket{
+						ID:              3,
+						Name:            "bucket name",
+						Description:     "desc",
+						RetentionPeriod: time.Hour,
+					}
+
+					bktSVC := mock.NewBucketService()
+					bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						if id != expected.ID {
+							return nil, errors.New("uh ohhh, wrong id here: " + id.String())
+						}
+						return expected, nil
+					}
+
+					labelSVC := mock.NewLabelService()
+					labelSVC.FindResourceLabelsFn = func(_ context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						if f.ResourceID != expected.ID {
+							return nil, errors.New("uh ohs wrong id: " + f.ResourceID.String())
+						}
+						return []*influxdb.Label{
+							{Name: "label_1"},
+						}, nil
+					}
+
+					svc := NewService(WithBucketSVC(bktSVC), WithLabelSVC(labelSVC))
+
+					resToClone := ResourceToClone{
+						Kind: KindBucket,
+						ID:   expected.ID,
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+					require.NoError(t, err)
+
+					bkts := pkg.Summary().Buckets
+					require.Len(t, bkts, 1)
+
+					actual := bkts[0]
+					expectedName := expected.Name
+					assert.Equal(t, expectedName, actual.Name)
+					assert.Equal(t, expected.Description, actual.Description)
+					assert.Equal(t, expected.RetentionPeriod, actual.RetentionPeriod)
+					require.Len(t, actual.LabelAssociations, 1)
+					assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+
+					labels := pkg.Summary().Labels
+					require.Len(t, labels, 1)
+					assert.Equal(t, "label_1", labels[0].Name)
+				})
+
+				t.Run("multiple resources with same associations", func(t *testing.T) {
+					bktSVC := mock.NewBucketService()
+					bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+						return &influxdb.Bucket{ID: id, Name: strconv.Itoa(int(id))}, nil
+					}
+
+					labelSVC := mock.NewLabelService()
+					labelSVC.FindResourceLabelsFn = func(_ context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						return []*influxdb.Label{
+							{Name: "label_1"},
+							{Name: "label_2"},
+						}, nil
+					}
+
+					svc := NewService(WithBucketSVC(bktSVC), WithLabelSVC(labelSVC))
+
+					resourcesToClone := []ResourceToClone{
+						{
+							Kind: KindBucket,
+							ID:   1,
+						},
+						{
+							Kind: KindBucket,
+							ID:   2,
+						},
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
+					require.NoError(t, err)
+
+					bkts := pkg.Summary().Buckets
+					require.Len(t, bkts, 2)
+
+					for i, actual := range bkts {
+						assert.Equal(t, strconv.Itoa(i+1), actual.Name)
+						require.Len(t, actual.LabelAssociations, 2)
+						assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+						assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)
+					}
+
+					labels := pkg.Summary().Labels
+					require.Len(t, labels, 2)
+					assert.Equal(t, "label_1", labels[0].Name)
+					assert.Equal(t, "label_2", labels[1].Name)
+				})
+
+				t.Run("labels do not fetch associations", func(t *testing.T) {
+					labelSVC := mock.NewLabelService()
+					labelSVC.FindLabelByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Label, error) {
+						return &influxdb.Label{ID: id, Name: "label_1"}, nil
+					}
+					labelSVC.FindResourceLabelsFn = func(_ context.Context, f influxdb.LabelMappingFilter) ([]*influxdb.Label, error) {
+						return nil, errors.New("should not get here")
+					}
+
+					svc := NewService(WithLabelSVC(labelSVC))
+
+					resToClone := ResourceToClone{
+						Kind: KindLabel,
+						ID:   1,
+					}
+					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resToClone))
+					require.NoError(t, err)
+
+					labels := pkg.Summary().Labels
+					require.Len(t, labels, 1)
+					assert.Equal(t, "label_1", labels[0].Name)
+				})
 			})
 		})
 	})
