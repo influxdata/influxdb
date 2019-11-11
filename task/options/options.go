@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	flux_deps "github.com/influxdata/flux/dependencies/dependenciestest"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
@@ -200,15 +201,6 @@ func grabTaskOptionAST(p *ast.Package, keys ...string) map[string]ast.Expression
 	return res
 }
 
-func newDeps() flux.Dependencies {
-	deps := flux.NewDefaultDependencies()
-	deps.Deps.HTTPClient = httpClient{}
-	deps.Deps.URLValidator = urlValidator{}
-	deps.Deps.SecretService = secretService{}
-	deps.Deps.FilesystemService = fileSystem{}
-	return deps
-}
-
 // FromScript extracts Options from a Flux script.
 func FromScript(script string) (Options, error) {
 	opt := Options{Retry: pointer.Int64(1), Concurrency: pointer.Int64(1)}
@@ -219,7 +211,7 @@ func FromScript(script string) (Options, error) {
 	}
 	durTypes := grabTaskOptionAST(fluxAST, optEvery, optOffset)
 	// TODO(desa): should be dependencies.NewEmpty(), but for now we'll hack things together
-	ctx := newDeps().Inject(context.Background())
+	ctx := flux_deps.Default().Inject(context.Background())
 	_, scope, err := flux.EvalAST(ctx, fluxAST)
 	if err != nil {
 		return opt, err
