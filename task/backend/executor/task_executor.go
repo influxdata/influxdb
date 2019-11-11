@@ -352,8 +352,9 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 		w.te.logger.Debug("Completed successfully", zap.String("taskID", p.task.ID.String()))
 	}
 
-	w.te.tcs.FinishRun(icontext.SetAuthorizer(p.ctx, p.auth), p.task.ID, p.run.ID)
-
+	if _, err := w.te.tcs.FinishRun(icontext.SetAuthorizer(p.ctx, p.auth), p.task.ID, p.run.ID); err != nil {
+		w.te.logger.Error("Failed to finish run", zap.String("taskID", p.task.ID.String()), zap.String("runID", p.run.ID.String()), zap.Error(err))
+	}
 }
 
 func (w *worker) executeQuery(p *promise) {
