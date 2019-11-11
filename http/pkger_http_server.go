@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -111,7 +112,10 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), err, w)
+		s.HandleHTTPError(r.Context(), &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
+		}, w)
 		return
 	}
 
@@ -187,7 +191,65 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 }
 
 func httpParseErr(err error) error {
-	return err
+	errOpts := []func(*influxdb.Error){
+		influxdb.WithErrorErr(err),
+	}
+	if pErr, ok := pkger.IsParseErr(err); ok {
+		errOpts = []func(*influxdb.Error){
+			influxdb.WithErrorCode(influxdb.EUnprocessableEntity),
+			influxdb.WithErrDetails(pkgerParseErrDetails(pErr)...),
+			influxdb.WithErrorMsg("package failed validation"),
+		}
+	}
+	return influxdb.NewError(errOpts...)
+}
+
+func pkgerParseErrDetails(p *pkger.ParseErr) []influxdb.ErrDetail {
+	var deets []influxdb.ErrDetail
+	for i := range p.Resources {
+		r := p.Resources[i]
+		d := influxdb.ErrDetail{
+			Idx:   &r.Idx,
+			Field: r.Kind,
+		}
+		for _, ass := range r.AssociationErrs {
+			d.Nested = append(d.Nested, pkgVErrToDeet(ass))
+		}
+		for _, vErr := range r.ValidationErrs {
+			d.Nested = append(d.Nested, pkgVErrToDeet(vErr))
+		}
+		sortErrDeets(d.Nested)
+		deets = append(deets, d)
+	}
+
+	return deets
+}
+
+func pkgVErrToDeet(v pkger.ValidationErr) influxdb.ErrDetail {
+	d := influxdb.ErrDetail{
+		Field:  v.Field,
+		Reason: v.Msg,
+		Idx:    v.Index,
+	}
+	for _, nested := range v.Nested {
+		d.Nested = append(d.Nested, pkgVErrToDeet(nested))
+	}
+	sortErrDeets(d.Nested)
+	return d
+}
+
+func sortErrDeets(deets []influxdb.ErrDetail) {
+	grtPtr := func(i, j *int) bool {
+		return (i != nil && j == nil) || !(j != nil && i == nil) || *i < *j
+	}
+
+	sort.Slice(deets, func(i, j int) bool {
+		ii, jj := deets[i], deets[j]
+		if ii.Field == jj.Field {
+			return grtPtr(ii.Idx, jj.Idx)
+		}
+		return deets[i].Field < deets[j].Field
+	})
 }
 
 func traceMW(next http.Handler) http.Handler {

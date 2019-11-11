@@ -56,10 +56,21 @@ const (
 //         Err: err,
 //     }.
 type Error struct {
-	Code string
-	Msg  string
-	Op   string
-	Err  error
+	Code    string
+	Msg     string
+	Op      string
+	Err     error
+	Details []ErrDetail
+}
+
+// ErrDetail provides a means for describing an error with
+// fine grained details of the cause. Useful for validation
+// errors.
+type ErrDetail struct {
+	Field  string      `json:"field"`
+	Reason string      `json:"reason,omitempty"`
+	Idx    *int        `json:"idx,omitempty"`
+	Nested []ErrDetail `json:"nested,omitempty"`
 }
 
 // NewError returns an instance of an error.
@@ -90,6 +101,13 @@ func WithErrorCode(code string) func(*Error) {
 func WithErrorMsg(msg string) func(*Error) {
 	return func(e *Error) {
 		e.Msg = msg
+	}
+}
+
+// WithErrDetails sets the validation error body.
+func WithErrDetails(details ...ErrDetail) func(*Error) {
+	return func(e *Error) {
+		e.Details = append(e.Details, details...)
 	}
 }
 
@@ -197,10 +215,11 @@ func ErrorMessage(err error) string {
 
 // errEncode an JSON encoding helper that is needed to handle the recursive stack of errors.
 type errEncode struct {
-	Code string      `json:"code"`              // Code is the machine-readable error code.
-	Msg  string      `json:"message,omitempty"` // Msg is a human-readable message.
-	Op   string      `json:"op,omitempty"`      // Op describes the logical code operation during error.
-	Err  interface{} `json:"error,omitempty"`   // Err is a stack of additional errors.
+	Code    string      `json:"code"`              // Code is the machine-readable error code.
+	Msg     string      `json:"message,omitempty"` // Msg is a human-readable message.
+	Op      string      `json:"op,omitempty"`      // Op describes the logical code operation during error.
+	Err     interface{} `json:"error,omitempty"`   // Err is a stack of additional errors.
+	Details []ErrDetail `json:"details,omitempty"`
 }
 
 // MarshalJSON recursively marshals the stack of Err.
@@ -231,6 +250,7 @@ func (e *Error) UnmarshalJSON(b []byte) (err error) {
 	e.Code = ee.Code
 	e.Msg = ee.Msg
 	e.Op = ee.Op
+	e.Details = ee.Details
 	e.Err = decodeInternalError(ee.Err)
 	return err
 }
@@ -249,6 +269,9 @@ func decodeInternalError(target interface{}) error {
 		}
 		if op, ok := internalErrMap["op"].(string); ok {
 			internalErr.Op = op
+		}
+		if deets, ok := internalErrMap["details"].([]ErrDetail); ok {
+			internalErr.Details = deets
 		}
 		internalErr.Err = decodeInternalError(internalErrMap["error"])
 		return internalErr

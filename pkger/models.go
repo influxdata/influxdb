@@ -632,35 +632,34 @@ func (v *variable) influxVarArgs() *influxdb.VariableArguments {
 	return args
 }
 
-func (v *variable) valid() []failure {
-	var failures []failure
+func (v *variable) valid() []ValidationErr {
+	var failures []ValidationErr
 	switch v.Type {
 	case "map":
 		if len(v.MapValues) == 0 {
-			failures = append(failures, failure{
+			failures = append(failures, ValidationErr{
 				Field: "values",
 				Msg:   "map variable must have at least 1 key/val pair",
 			})
 		}
 	case "constant":
 		if len(v.ConstValues) == 0 {
-			failures = append(failures, failure{
+			failures = append(failures, ValidationErr{
 				Field: "values",
 				Msg:   "constant variable must have a least 1 value provided",
 			})
 		}
 	case "query":
 		if v.Query == "" {
-			failures = append(failures, failure{
+			failures = append(failures, ValidationErr{
 				Field: "query",
 				Msg:   "query variable must provide a query string",
 			})
 		}
 		if v.Language != "influxql" && v.Language != "flux" {
-			const msgFmt = "query variable language must be either %q or %q; got %q"
-			failures = append(failures, failure{
+			failures = append(failures, ValidationErr{
 				Field: "language",
-				Msg:   fmt.Sprintf(msgFmt, "influxql", "flux", v.Language),
+				Msg:   fmt.Sprintf(`query variable language must be either "influxql" or "flux"; got %q`, v.Language),
 			})
 		}
 	}
@@ -837,10 +836,10 @@ func (c chart) properties() influxdb.ViewProperties {
 	}
 }
 
-func (c chart) validProperties() []failure {
-	var fails []failure
+func (c chart) validProperties() []ValidationErr {
+	var fails []ValidationErr
 
-	validatorFns := []func() []failure{
+	validatorFns := []func() []ValidationErr{
 		c.validBaseProps,
 		c.Queries.valid,
 		c.Colors.valid,
@@ -875,13 +874,13 @@ var geometryTypes = map[string]bool{
 	"bar":     true,
 }
 
-func validGeometry(geom string) []failure {
+func validGeometry(geom string) []ValidationErr {
 	if !geometryTypes[geom] {
 		msg := "type not found"
 		if geom != "" {
 			msg = "type provided is not supported"
 		}
-		return []failure{{
+		return []ValidationErr{{
 			Field: "geom",
 			Msg:   fmt.Sprintf("%s: %q", msg, geom),
 		}}
@@ -890,17 +889,17 @@ func validGeometry(geom string) []failure {
 	return nil
 }
 
-func (c chart) validBaseProps() []failure {
-	var fails []failure
+func (c chart) validBaseProps() []ValidationErr {
+	var fails []ValidationErr
 	if c.Width <= 0 {
-		fails = append(fails, failure{
+		fails = append(fails, ValidationErr{
 			Field: "width",
 			Msg:   "must be greater than 0",
 		})
 	}
 
 	if c.Height <= 0 {
-		fails = append(fails, failure{
+		fails = append(fails, ValidationErr{
 			Field: "height",
 			Msg:   "must be greater than 0",
 		})
@@ -972,16 +971,16 @@ func (c colors) strings() []string {
 // TODO: looks like much of these are actually getting defaults in
 //  the UI. looking at sytem charts, seeign lots of failures for missing
 //  color types or no colors at all.
-func (c colors) hasTypes(types ...string) []failure {
+func (c colors) hasTypes(types ...string) []ValidationErr {
 	tMap := make(map[string]bool)
 	for _, cc := range c {
 		tMap[cc.Type] = true
 	}
 
-	var failures []failure
+	var failures []ValidationErr
 	for _, t := range types {
 		if !tMap[t] {
-			failures = append(failures, failure{
+			failures = append(failures, ValidationErr{
 				Field: "colors",
 				Msg:   fmt.Sprintf("type not found: %q", t),
 			})
@@ -991,14 +990,21 @@ func (c colors) hasTypes(types ...string) []failure {
 	return failures
 }
 
-func (c colors) valid() []failure {
-	var fails []failure
+func (c colors) valid() []ValidationErr {
+	var fails []ValidationErr
 	for i, cc := range c {
+		cErr := ValidationErr{
+			Field: "colors",
+			Index: intPtr(i),
+		}
 		if cc.Hex == "" {
-			fails = append(fails, failure{
-				Field: fmt.Sprintf("colors[%d].hex", i),
+			cErr.Nested = append(cErr.Nested, ValidationErr{
+				Field: "hex",
 				Msg:   "a color must have a hex value provided",
 			})
+		}
+		if len(cErr.Nested) > 0 {
+			fails = append(fails, cErr)
 		}
 	}
 
@@ -1025,21 +1031,28 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 	return iQueries
 }
 
-func (q queries) valid() []failure {
-	var fails []failure
+func (q queries) valid() []ValidationErr {
+	var fails []ValidationErr
 	if len(q) == 0 {
-		fails = append(fails, failure{
+		fails = append(fails, ValidationErr{
 			Field: "queries",
 			Msg:   "at least 1 query must be provided",
 		})
 	}
 
 	for i, qq := range q {
+		qErr := ValidationErr{
+			Field: "queries",
+			Index: intPtr(i),
+		}
 		if qq.Query == "" {
-			fails = append(fails, failure{
-				Field: fmt.Sprintf("queries[%d].query", i),
+			qErr.Nested = append(fails, ValidationErr{
+				Field: "query",
 				Msg:   "a query must be provided",
 			})
+		}
+		if len(qErr.Nested) > 0 {
+			fails = append(fails, qErr)
 		}
 	}
 
@@ -1078,16 +1091,16 @@ func (a axes) influxAxes() map[string]influxdb.Axis {
 	return m
 }
 
-func (a axes) hasAxes(expectedAxes ...string) []failure {
+func (a axes) hasAxes(expectedAxes ...string) []ValidationErr {
 	mAxes := make(map[string]bool)
 	for _, ax := range a {
 		mAxes[ax.Name] = true
 	}
 
-	var failures []failure
+	var failures []ValidationErr
 	for _, expected := range expectedAxes {
 		if !mAxes[expected] {
-			failures = append(failures, failure{
+			failures = append(failures, ValidationErr{
 				Field: "axes",
 				Msg:   fmt.Sprintf("axis not found: %q", expected),
 			})
@@ -1119,4 +1132,8 @@ func flt64Ptr(f float64) *float64 {
 		return &f
 	}
 	return nil
+}
+
+func intPtr(i int) *int {
+	return &i
 }

@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -2431,23 +2432,77 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 		resErr := pErr.Resources[0]
 		assert.Equal(t, k.String(), resErr.Kind)
 
-		require.Len(t, resErr.ValidationFails, len(tt.valFields))
-		for i, vFail := range resErr.ValidationFails {
-			assert.Equal(t, tt.valFields[i], vFail.Field)
+		for i, vFail := range resErr.ValidationErrs {
+			if len(tt.valFields) == i {
+				break
+			}
+			expectedField := tt.valFields[i]
+			findErr(t, expectedField, vFail)
 		}
 
-		assFails := pErr.Resources[0].AssociationFails
-		require.Len(t, assFails, len(tt.assIdxs))
 		if tt.assErrs == 0 {
 			return
 		}
 
-		for i, f := range assFails {
-			assert.Equal(t, "associations", assFails[i].Field)
-			assert.Equal(t, tt.assIdxs[i], f.Index)
+		assFails := pErr.Resources[0].AssociationErrs
+		for i, assFail := range assFails {
+			if len(tt.valFields) == i {
+				break
+			}
+			expectedField := tt.valFields[i]
+			findErr(t, expectedField, assFail)
 		}
 	}
 	t.Run(tt.name, fn)
+}
+
+func findErr(t *testing.T, expectedField string, vErr ValidationErr) ValidationErr {
+	t.Helper()
+
+	fields := strings.Split(expectedField, ".")
+	if len(fields) == 1 {
+		require.Equal(t, expectedField, vErr.Field)
+		return vErr
+	}
+
+	currentFieldName, idx := nextField(t, fields[0])
+	if idx > -1 {
+		require.NotNil(t, vErr.Index)
+		require.Equal(t, idx, *vErr.Index)
+	}
+	require.Equal(t, currentFieldName, vErr.Field)
+
+	next := strings.Join(fields[1:], ".")
+	nestedField, _ := nextField(t, next)
+	for _, n := range vErr.Nested {
+		if n.Field == nestedField {
+			return findErr(t, next, n)
+		}
+	}
+	assert.Fail(t, "did not find field: "+expectedField)
+
+	return vErr
+}
+
+func nextField(t *testing.T, field string) (string, int) {
+	t.Helper()
+
+	fields := strings.Split(field, ".")
+	if len(fields) == 1 && !strings.HasSuffix(fields[0], "]") {
+		return field, -1
+	}
+	parts := strings.Split(fields[0], "[")
+	if len(parts) == 1 {
+		return "", 0
+	}
+	fieldName := parts[0]
+
+	if strIdx := strings.Index(parts[1], "]"); strIdx > -1 {
+		idx, err := strconv.Atoi(parts[1][:strIdx])
+		require.NoError(t, err)
+		return fieldName, idx
+	}
+	return "", -1
 }
 
 type baseAsserts struct {
