@@ -468,6 +468,8 @@ func Decode(dst *[240]uint64, v uint64) (n int, err error) {
 
 // Decode writes the uncompressed values from src to dst.  It returns the number
 // of values written or an error.
+//go:nocheckptr
+// nocheckptr while the underlying struct layout doesn't change
 func DecodeAll(dst, src []uint64) (value int, err error) {
 	j := 0
 	for _, v := range src {
@@ -480,6 +482,8 @@ func DecodeAll(dst, src []uint64) (value int, err error) {
 
 // DecodeBytesBigEndian writes the compressed, big-endian values from src to dst.  It returns the number
 // of values written or an error.
+//go:nocheckptr
+// nocheckptr while the underlying struct layout doesn't change
 func DecodeBytesBigEndian(dst []uint64, src []byte) (value int, err error) {
 	if len(src)&7 != 0 {
 		return 0, errors.New("src length is not multiple of 8")
