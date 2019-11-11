@@ -441,6 +441,827 @@ spec:
 	})
 
 	t.Run("pkg with single dashboard and single chart", func(t *testing.T) {
+		t.Run("single gauge chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dash_1", actual.Name)
+				assert.Equal(t, "desc1", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.GaugeViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "gauge", props.GetType())
+				assert.Equal(t, "gauge note", props.Note)
+				assert.True(t, props.ShowNoteWhenEmpty)
+
+				require.Len(t, props.Queries, 1)
+				q := props.Queries[0]
+				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				require.Len(t, props.ViewColors, 3)
+				c := props.ViewColors[0]
+				assert.NotZero(t, c.ID)
+				assert.Equal(t, "laser", c.Name)
+				assert.Equal(t, "min", c.Type)
+				assert.Equal(t, "#8F8AF4", c.Hex)
+				assert.Equal(t, 0.0, c.Value)
+			})
+
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:           "color a gauge type",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dash_1",
+			"description": "desc1",
+			"charts": [
+			{
+				"kind": "gauge",
+				"name": "gauge",
+				"prefix": "prefix",
+				"suffix": "suffix",
+				"note": "gauge note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"decimalPlaces": 1,
+				"xColumn": "_time",
+				"yColumn": "_value",
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
+				}
+				],
+				"colors": [
+				{
+					"name": "laser",
+					"type": "min",
+					"hex": "#8F8AF4",
+					"value": 0
+				},
+				{
+					"name": "comet",
+					"type": "max",
+					"hex": "#F4CF31",
+					"value": 5000
+					}
+				]
+			}
+			]
+		}
+		]
+	}
+}  
+`,
+					},
+					{
+						name:           "color mixing a hex value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dash_1",
+			"description": "desc1",
+			"charts": [
+			{
+				"kind": "gauge",
+				"name": "gauge",
+				"prefix": "prefix",
+				"suffix": "suffix",
+				"note": "gauge note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"decimalPlaces": 1,
+				"xColumn": "_time",
+				"yColumn": "_value",
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
+				}
+				],
+				"colors": [
+				{
+					"name": "laser",
+					"type": "min",
+					"value": 0
+				},
+				{
+					"name": "pool",
+					"type": "threshold",
+					"hex": "#F4CF31",
+					"value": 700
+				},
+				{
+					"name": "comet",
+					"type": "max",
+					"hex": "#F4CF31",
+					"value": 5000
+					}
+				]
+			}
+			]
+		}
+		]
+	}
+}
+`,
+					},
+					{
+						name:           "missing a query value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dash_1",
+			"description": "desc1",
+			"charts": [
+			{
+				"kind": "gauge",
+				"name": "gauge",
+				"prefix": "prefix",
+				"suffix": "suffix",
+				"note": "gauge note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"decimalPlaces": 1,
+				"xColumn": "_time",
+				"yColumn": "_value",
+				"queries": [
+					{
+						"query": null
+					}
+				],
+				"colors": [
+				{
+					"name": "laser",
+					"type": "min",
+					"hex": "#FFF000",
+					"value": 0
+				},
+				{
+					"name": "pool",
+					"type": "threshold",
+					"hex": "#F4CF31",
+					"value": 700
+				},
+				{
+					"name": "comet",
+					"type": "max",
+					"hex": "#F4CF31",
+					"value": 5000
+					}
+				]
+			}
+			]
+		}
+		]
+	}
+}
+`,
+					},
+				}
+
+				for _, tt := range tests {
+					testPkgErrors(t, KindDashboard, tt)
+				}
+			})
+		})
+
+		t.Run("single scatter chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dashboard w/ single scatter chart", actual.Name)
+				assert.Equal(t, "a dashboard w/ single scatter chart", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.ScatterViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "scatter note", props.Note)
+				assert.True(t, props.ShowNoteWhenEmpty)
+
+				require.Len(t, props.Queries, 1)
+				q := props.Queries[0]
+				expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+				assert.Equal(t, expectedQuery, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				assert.Equal(t, "x_label", props.XAxisLabel)
+				assert.Equal(t, "y_label", props.YAxisLabel)
+				assert.Equal(t, "x_prefix", props.XPrefix)
+				assert.Equal(t, "y_prefix", props.YPrefix)
+				assert.Equal(t, "x_suffix", props.XSuffix)
+				assert.Equal(t, "y_suffix", props.YSuffix)
+			})
+
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:           "missing axes",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes", "charts[0].axes"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single scatter chart",
+			"description": "a dashboard w/ single scatter chart",
+			"charts": [
+			{
+				"kind": "scatter",
+				"name": "scatter chart",
+				"note": "scatter note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"queries": [
+					{
+						"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+					}
+				],
+				"colors": [
+					{
+						"hex": "#8F8AF4"
+					},
+					{
+						"hex": "#F4CF31"
+					},
+					{
+						"hex": "#FFFFFF"
+					}
+				]
+			}
+			]
+		}
+		]
+	}
+	}`,
+					},
+					{
+						name:           "missing query value",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single scatter chart",
+			"description": "a dashboard w/ single scatter chart",
+			"charts": [
+			{
+				"kind": "scatter",
+				"name": "scatter chart",
+				"note": "scatter note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"queries": [
+				{
+					"query": null
+				}
+				],
+				"axes":[
+				{
+					"name": "x",
+					"label": "x_label",
+					"prefix": "x_prefix",
+					"suffix": "x_suffix"
+				},
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}				  
+						`,
+					},
+					{
+						name:           "no queries provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single scatter chart",
+			"description": "a dashboard w/ single scatter chart",
+			"charts": [
+			{
+				"kind": "scatter",
+				"name": "scatter chart",
+				"note": "scatter note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"queries": [],
+				"axes":[
+				{
+					"name": "x",
+					"label": "x_label",
+					"prefix": "x_prefix",
+					"suffix": "x_suffix"
+				},
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+						  
+						`,
+					},
+					{
+						name:           "no width provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].width"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+						{
+							"apiVersion": "0.1.0",
+							"kind": "Package",
+							"meta": {
+							  "pkgName": "pkg_name",
+							  "pkgVersion": "1",
+							  "description": "pack description"
+							},
+							"spec": {
+							  "resources": [
+								{
+								  "kind": "Dashboard",
+								  "name": "dashboard w/ single scatter chart",
+								  "description": "a dashboard w/ single scatter chart",
+								  "charts": [
+									{
+									  "kind": "scatter",
+									  "name": "scatter chart",
+									  "note": "scatter note",
+									  "noteOnEmpty": true,
+									  "xPos": 1,
+									  "yPos": 2,
+									  "height": 3,
+									  "xCol": "_time",
+									  "yCol": "_value",
+									  "queries": [
+										{
+										  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+										}
+									  ],
+									  "axes":[
+										{
+										  "name": "x",
+										  "label": "x_label",
+										  "prefix": "x_prefix",
+										  "suffix": "x_suffix"
+										},
+										{
+										  "name": "y",
+										  "label": "y_label",
+										  "prefix": "y_prefix",
+										  "suffix": "y_suffix"
+										}
+									  ],
+									  "colors": [
+										{
+										  "hex": "#8F8AF4"
+										},
+										{
+										  "hex": "#F4CF31"
+										},
+										{
+										  "hex": "#FFFFFF"
+										}
+									  ]
+									}
+								  ]
+								}
+							  ]
+							}
+						  }
+					  
+						`,
+					},
+					{
+						name:           "no height provided",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].height"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+						{
+							"apiVersion": "0.1.0",
+							"kind": "Package",
+							"meta": {
+							  "pkgName": "pkg_name",
+							  "pkgVersion": "1",
+							  "description": "pack description"
+							},
+							"spec": {
+							  "resources": [
+								{
+								  "kind": "Dashboard",
+								  "name": "dashboard w/ single scatter chart",
+								  "description": "a dashboard w/ single scatter chart",
+								  "charts": [
+									{
+									  "kind": "scatter",
+									  "name": "scatter chart",
+									  "note": "scatter note",
+									  "noteOnEmpty": true,
+									  "xPos": 1,
+									  "yPos": 2,
+									  "width": 6,
+									  "xCol": "_time",
+									  "yCol": "_value",
+									  "queries": [
+										{
+										  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+										}
+									  ],
+									  "axes":[
+										{
+										  "name": "x",
+										  "label": "x_label",
+										  "prefix": "x_prefix",
+										  "suffix": "x_suffix"
+										},
+										{
+										  "name": "y",
+										  "label": "y_label",
+										  "prefix": "y_prefix",
+										  "suffix": "y_suffix"
+										}
+									  ],
+									  "colors": [
+										{
+										  "hex": "#8F8AF4"
+										},
+										{
+										  "hex": "#F4CF31"
+										},
+										{
+										  "hex": "#FFFFFF"
+										}
+									  ]
+									}
+								  ]
+								}
+							  ]
+							}
+						  }
+						  
+`,
+					},
+					{
+						name:           "missing hex color",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[0].hex"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+						{
+							"apiVersion": "0.1.0",
+							"kind": "Package",
+							"meta": {
+							  "pkgName": "pkg_name",
+							  "pkgVersion": "1",
+							  "description": "pack description"
+							},
+							"spec": {
+							  "resources": [
+								{
+								  "kind": "Dashboard",
+								  "name": "dashboard w/ single scatter chart",
+								  "description": "a dashboard w/ single scatter chart",
+								  "charts": [
+									{
+									  "kind": "scatter",
+									  "name": "scatter chart",
+									  "note": "scatter note",
+									  "noteOnEmpty": true,
+									  "xPos": 1,
+									  "yPos": 2,
+									  "width": 6,
+									  "height": 3,
+									  "xCol": "_time",
+									  "yCol": "_value",
+									  "queries": [
+										{
+										  "query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+										}
+									  ],
+									  "axes":[
+										{
+										  "name": "x",
+										  "label": "x_label",
+										  "prefix": "x_prefix",
+										  "suffix": "x_suffix"
+										},
+										{
+										  "name": "y",
+										  "label": "y_label",
+										  "prefix": "y_prefix",
+										  "suffix": "y_suffix"
+										}
+									  ],
+									  "colors": [
+										{
+
+										},
+										{
+										  "hex": "#F4CF31"
+										},
+										{
+										  "hex": "#FFFFFF"
+										}
+									  ]
+									}
+								  ]
+								}
+							  ]
+							}
+						  }
+						  
+`,
+					},
+					{
+						name:           "missing x axis",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single scatter chart",
+			"description": "a dashboard w/ single scatter chart",
+			"charts": [
+			{
+				"kind": "scatter",
+				"name": "scatter chart",
+				"note": "scatter note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+				}
+				],
+				"axes":[
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+						  
+						`,
+					},
+					{
+						name:           "missing y axis",
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes"},
+						encoding:       EncodingJSON,
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single scatter chart",
+			"description": "a dashboard w/ single scatter chart",
+			"charts": [
+			{
+				"kind": "scatter",
+				"name": "scatter chart",
+				"note": "scatter note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+				}
+				],
+				"axes":[
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+`,
+					},
+				}
+
+				for _, tt := range tests {
+					testPkgErrors(t, KindDashboard, tt)
+				}
+			})
+		})
+
 		t.Run("single stat chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
@@ -1012,7 +1833,7 @@ spec:
 			})
 		})
 
-		t.Run("pkg with single dashboard xy chart", func(t *testing.T) {
+		t.Run("single xy chart", func(t *testing.T) {
 			t.Run("xy chart", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard_xy", func(t *testing.T, pkg *Pkg) {
 					sum := pkg.Summary()
@@ -1202,250 +2023,6 @@ spec:
 						  ]
 						}
 					  }  
-`,
-					},
-				}
-
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
-			})
-		})
-
-		t.Run("pkg with single dashboard gauge chart", func(t *testing.T) {
-			testfileRunner(t, "testdata/dashboard_gauge", func(t *testing.T, pkg *Pkg) {
-				sum := pkg.Summary()
-				require.Len(t, sum.Dashboards, 1)
-
-				actual := sum.Dashboards[0]
-				assert.Equal(t, "dash_1", actual.Name)
-				assert.Equal(t, "desc1", actual.Description)
-
-				require.Len(t, actual.Charts, 1)
-				actualChart := actual.Charts[0]
-				assert.Equal(t, 3, actualChart.Height)
-				assert.Equal(t, 6, actualChart.Width)
-				assert.Equal(t, 1, actualChart.XPosition)
-				assert.Equal(t, 2, actualChart.YPosition)
-
-				props, ok := actualChart.Properties.(influxdb.GaugeViewProperties)
-				require.True(t, ok)
-				assert.Equal(t, "gauge", props.GetType())
-				assert.Equal(t, "gauge note", props.Note)
-				assert.True(t, props.ShowNoteWhenEmpty)
-
-				require.Len(t, props.Queries, 1)
-				q := props.Queries[0]
-				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")`
-				assert.Equal(t, queryText, q.Text)
-				assert.Equal(t, "advanced", q.EditMode)
-
-				require.Len(t, props.ViewColors, 3)
-				c := props.ViewColors[0]
-				assert.NotZero(t, c.ID)
-				assert.Equal(t, "laser", c.Name)
-				assert.Equal(t, "min", c.Type)
-				assert.Equal(t, "#8F8AF4", c.Hex)
-				assert.Equal(t, 0.0, c.Value)
-			})
-
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "color a gauge type",
-						encoding:       EncodingJSON,
-						validationErrs: 1,
-						valFields:      []string{"charts[0].colors"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dash_1",
-			"description": "desc1",
-			"charts": [
-			{
-				"kind": "gauge",
-				"name": "gauge",
-				"prefix": "prefix",
-				"suffix": "suffix",
-				"note": "gauge note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"decimalPlaces": 1,
-				"xColumn": "_time",
-				"yColumn": "_value",
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
-				}
-				],
-				"colors": [
-				{
-					"name": "laser",
-					"type": "min",
-					"hex": "#8F8AF4",
-					"value": 0
-				},
-				{
-					"name": "comet",
-					"type": "max",
-					"hex": "#F4CF31",
-					"value": 5000
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-}  
-`,
-					},
-					{
-						name:           "color mixing a hex value",
-						encoding:       EncodingJSON,
-						validationErrs: 1,
-						valFields:      []string{"charts[0].colors[0].hex"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dash_1",
-			"description": "desc1",
-			"charts": [
-			{
-				"kind": "gauge",
-				"name": "gauge",
-				"prefix": "prefix",
-				"suffix": "suffix",
-				"note": "gauge note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"decimalPlaces": 1,
-				"xColumn": "_time",
-				"yColumn": "_value",
-				"queries": [
-				{
-					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == \"boltdb_writes_total\")  |> filter(fn: (r) => r._field == \"counter\")"
-				}
-				],
-				"colors": [
-				{
-					"name": "laser",
-					"type": "min",
-					"value": 0
-				},
-				{
-					"name": "pool",
-					"type": "threshold",
-					"hex": "#F4CF31",
-					"value": 700
-				},
-				{
-					"name": "comet",
-					"type": "max",
-					"hex": "#F4CF31",
-					"value": 5000
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-}
-`,
-					},
-					{
-						name:           "missing a query value",
-						encoding:       EncodingJSON,
-						validationErrs: 1,
-						valFields:      []string{"charts[0].queries[0].query"},
-						pkgStr: `
-{
-	"apiVersion": "0.1.0",
-	"kind": "Package",
-	"meta": {
-		"pkgName": "pkg_name",
-		"pkgVersion": "1",
-		"description": "pack description"
-	},
-	"spec": {
-		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dash_1",
-			"description": "desc1",
-			"charts": [
-			{
-				"kind": "gauge",
-				"name": "gauge",
-				"prefix": "prefix",
-				"suffix": "suffix",
-				"note": "gauge note",
-				"noteOnEmpty": true,
-				"xPos": 1,
-				"yPos": 2,
-				"width": 6,
-				"height": 3,
-				"decimalPlaces": 1,
-				"xColumn": "_time",
-				"yColumn": "_value",
-				"queries": [
-					{
-						"query": null
-					}
-				],
-				"colors": [
-				{
-					"name": "laser",
-					"type": "min",
-					"hex": "#FFF000",
-					"value": 0
-				},
-				{
-					"name": "pool",
-					"type": "threshold",
-					"hex": "#F4CF31",
-					"value": 700
-				},
-				{
-					"name": "comet",
-					"type": "max",
-					"hex": "#F4CF31",
-					"value": 5000
-					}
-				]
-			}
-			]
-		}
-		]
-	}
-}
 `,
 					},
 				}
