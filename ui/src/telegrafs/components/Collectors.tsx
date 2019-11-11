@@ -126,7 +126,11 @@ class Collectors extends PureComponent<Props, State> {
               <GetResources resources={[ResourceType.Labels]}>
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}
-                  searchKeys={['plugins.0.config.bucket', 'name']}
+                  searchKeys={[
+                    'plugins.0.config.bucket',
+                    'name',
+                    'labels[].name',
+                  ]}
                   list={collectors}
                 >
                   {cs => (
@@ -264,11 +268,13 @@ class Collectors extends PureComponent<Props, State> {
     this.setState({searchTerm})
   }
 }
-const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => ({
-  collectors: telegrafs.list,
-  orgName: org.name,
-  buckets: buckets.list,
-})
+const mstp = ({telegrafs, orgs: {org}, buckets}: AppState): StateProps => {
+  return {
+    collectors: telegrafs.list,
+    orgName: org.name,
+    buckets: buckets.list,
+  }
+}
 
 const mdtp: DispatchProps = {
   onSetBucketInfo: setBucketInfo,
