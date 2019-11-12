@@ -7,6 +7,7 @@ import {Provider} from 'react-redux'
 import {Router, Route, useRouterHistory, IndexRoute} from 'react-router'
 import {createHistory, History} from 'history'
 
+import {CLOUD} from 'src/shared/constants'
 import configureStore from 'src/store/configureStore'
 import {loadLocalStorage} from 'src/localStorage'
 
@@ -349,10 +350,20 @@ class Root extends PureComponent {
                             </Route>
                           </Route>
                           <Route path="settings">
-                            <IndexRoute component={MembersIndex} />
-                            <Route path="members" component={MembersIndex}>
-                              <Route path="new" component={AddMembersOverlay} />
-                            </Route>
+                            {CLOUD ? (
+                              <IndexRoute component={VariablesIndex} />
+                            ) : (
+                              <>
+                                <IndexRoute component={MembersIndex} />
+                                <Route path="members" component={MembersIndex}>
+                                  <Route
+                                    path="new"
+                                    component={AddMembersOverlay}
+                                  />
+                                </Route>
+                              </>
+                            )}
+
                             <Route path="templates" component={TemplatesIndex}>
                               <Route
                                 path="import"
