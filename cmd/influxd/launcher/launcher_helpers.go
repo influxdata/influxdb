@@ -329,6 +329,18 @@ func (tl *TestLauncher) BucketService() *http.BucketService {
 	return &http.BucketService{Addr: tl.URL(), Token: tl.Auth.Token, OpPrefix: kv.OpPrefix}
 }
 
+func (tl *TestLauncher) DashboardService() *http.DashboardService {
+	return &http.DashboardService{Addr: tl.URL(), Token: tl.Auth.Token}
+}
+
+func (tl *TestLauncher) LabelService() *http.LabelService {
+	return &http.LabelService{Addr: tl.URL(), Token: tl.Auth.Token}
+}
+
+func (tl *TestLauncher) VariableService() *http.VariableService {
+	return &http.VariableService{Addr: tl.URL(), Token: tl.Auth.Token}
+}
+
 func (tl *TestLauncher) AuthorizationService() *http.AuthorizationService {
 	return &http.AuthorizationService{Addr: tl.URL(), Token: tl.Auth.Token}
 }

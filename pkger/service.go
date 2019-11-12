@@ -166,6 +166,8 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 		pkg.Spec.Resources = append(pkg.Spec.Resources, newResources...)
 	}
 
+	pkg.Spec.Resources = uniqResources(pkg.Spec.Resources)
+
 	if err := pkg.Validate(ValidWithoutResources()); err != nil {
 		return nil, err
 	}
