@@ -983,6 +983,29 @@ func ifaceToStr(v interface{}) (string, bool) {
 	return "", false
 }
 
+func uniqResources(resources []Resource) []Resource {
+	type key struct {
+		kind Kind
+		name string
+	}
+	m := make(map[key]bool)
+
+	out := make([]Resource, 0, len(resources))
+	for _, r := range resources {
+		k, err := r.kind()
+		if err != nil {
+			continue
+		}
+		rKey := key{kind: k, name: r.Name()}
+		if m[rKey] {
+			continue
+		}
+		m[rKey] = true
+		out = append(out, r)
+	}
+	return out
+}
+
 // ParseErr is a error from parsing the given package. The ParseErr
 // provides a list of resources that failed and all validations
 // that failed for that resource. A resource can multiple errors,
