@@ -140,6 +140,7 @@ v1.6.0 [2018-07-05]
 -	[#14444](https://github.com/influxdata/influxdb/pull/14444): fix(query): make show series exact cardinality count only distinct series.
 -	[#14656](https://github.com/influxdata/influxdb/pull/14656): fix(query/compile.go): time range was exceeding min/max bounds under ….
 -	[#12568](https://github.com/influxdata/influxdb/pull/12568): Expose debug pprof port 6060.
+-	[#15878](https://github.com/influxdata/influxdb/pull/15878): fix(tsm1): make digest safe for concurrent use.
 
 v1.5.4 [2018-06-21]
 -------------------
