@@ -2,7 +2,9 @@ package tsi1_test
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -27,6 +29,54 @@ func TestCreateIndexFile(t *testing.T) {
 		t.Fatal("expected element")
 	} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n != 1 {
 		t.Fatalf("unexpected series count: %d", n)
+	}
+}
+
+func TestIndexFile_TagKeySeriesIDIterator(t *testing.T) {
+	sfile := MustOpenSeriesFile()
+	defer sfile.Close()
+
+	f, err := CreateIndexFile(sfile.SeriesFile, []Series{
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	itr, err := f.TagKeySeriesIDIterator([]byte("cpu"), []byte("region"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer itr.Close()
+
+	// NOTE(edd): the series keys end up being emitted in this order because the
+	// series were written to different partitons in the _series file_. As such,
+	// the key with region=west ends up with a lower series ID than the region=east
+	// series, even though it was written later. When the series id sets for each
+	// tag block in the index file are merged together and iterated, the roaring
+	// bitmap library sorts the series ids, resulting the the series keys being
+	// emitted in a different order to that which they were written.
+	exp := []string{"cpu,region=west", "cpu,region=east"}
+	var got []string
+	for {
+		e, err := itr.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if e.SeriesID == 0 {
+			break
+		}
+
+		name, tags := tsdb.ParseSeriesKey(sfile.SeriesKey(e.SeriesID))
+		got = append(got, string(models.MustNewPoint(string(name), tags, models.Fields{"a": "a"}, time.Time{}).Key()))
+	}
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got keys %v, expected %v", got, exp)
 	}
 }
 
