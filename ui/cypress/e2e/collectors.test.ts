@@ -387,5 +387,31 @@ describe('Collectors', () => {
           })
       })
     })
+    describe('Label creation and searching', () => {
+      beforeEach(() => {
+        const description = 'Config Description'
+        cy.get('@org').then(({id}: Organization) => {
+          cy.createTelegraf('newteleg', description, id, 'newbucket')
+        })
+        cy.reload()
+      })
+      it('Can add label', () => {
+        cy.getByTestID('inline-labels--add').click()
+        cy.getByTestID('inline-labels--popover-field').type('zoe')
+        cy.getByTestID('inline-labels--create-new').click()
+        cy.getByTestID('overlay--container').should('exist')
+        cy.getByTestID('create-label-form--submit').click()
+        cy.getByTestID('label--pill zoe').should('exist')
+        //can search by label
+        cy.getByTestID('search-widget')
+          .clear()
+          .type('zoe')
+
+        cy.getByTestID('resource-card').should('have.length', 1)
+        cy.getByTestID('resource-card').should('contain', 'newteleg')
+      })
+
+      it('can search by label', () => {})
+    })
   })
 })
