@@ -4,11 +4,11 @@ import {connect} from 'react-redux'
 
 // Components
 import {
-  Input,
-  FlexBox,
-  ComponentSize,
-  FlexDirection,
   AlignItems,
+  ComponentSize,
+  FlexBox,
+  FlexDirection,
+  Input,
 } from '@influxdata/clockface'
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 import WaitingText from 'src/shared/components/WaitingText'

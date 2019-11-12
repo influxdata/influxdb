@@ -10,16 +10,20 @@ import {Filter} from 'src/types'
 
 interface Props {
   filters: Filter[]
+  keys: string[]
   onSetFilter: (filter: Filter, index: number) => any
   onDeleteFilter: (index: number) => any
   shouldValidate: boolean
+  values: (string | number)[]
 }
 
 const FilterEditor: FunctionComponent<Props> = ({
   filters,
+  keys,
   onSetFilter,
   onDeleteFilter,
   shouldValidate,
+  values,
 }) => {
   return (
     <div className="delete-data-filters">
@@ -38,10 +42,12 @@ const FilterEditor: FunctionComponent<Props> = ({
           {filters.map((filter, i) => (
             <FilterRow
               key={i}
+              keys={keys}
               filter={filter}
               onChange={filter => onSetFilter(filter, i)}
               onDelete={() => onDeleteFilter(i)}
               shouldValidate={shouldValidate}
+              values={values}
             />
           ))}
         </div>

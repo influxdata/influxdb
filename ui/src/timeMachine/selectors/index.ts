@@ -53,6 +53,28 @@ export const getActiveQuery = (state: AppState): DashboardDraftQuery => {
   return draftQueries[activeQueryIndex]
 }
 
+export const getTagKeys = (tags: {key: string; values: string | number}[]) => {
+  const keys = []
+  tags.forEach(tag => {
+    if (tag.key !== undefined) {
+      keys.push(tag.key)
+    }
+  })
+  return keys
+}
+
+export const getTagValues = (
+  tags: {key: string; values: string | number}[]
+) => {
+  let results = []
+  tags.forEach(tag => {
+    if (tag.values !== undefined) {
+      results = results.concat(tag.values)
+    }
+  })
+  return results
+}
+
 export const getVariableAssignments = (
   state: AppState
 ): VariableAssignment[] => {
