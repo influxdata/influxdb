@@ -42,6 +42,7 @@ func NewVerify() Verify {
 		Recover:    true,
 		Concurrent: runtime.GOMAXPROCS(0),
 		Logger:     zap.NewNop(),
+		done:       make(chan struct{}),
 	}
 }
 
@@ -96,6 +97,13 @@ func (v Verify) VerifySeriesFile() (valid bool, err error) {
 					return // No more work.
 				}
 
+				select { // Error elsewhere. Early exit.
+				default:
+				case <-v.done:
+					out <- verifyResult{}
+					return
+				}
+
 				// Work
 				path := filepath.Join(v.SeriesFilePath, partitionDirs[idx].Name())
 				valid, err := v.VerifyPartition(path)
@@ -104,7 +112,19 @@ func (v Verify) VerifySeriesFile() (valid bool, err error) {
 		}()
 	}
 
+	defer func() {
+		if !valid {
+			close(v.done)
+		}
+	}()
+
 	for i := 0; i < m; i++ {
+		select {
+		default:
+		case <-v.done:
+			return false, nil
+		}
+
 		result := <-out
 		if valid {
 			valid = result.valid
