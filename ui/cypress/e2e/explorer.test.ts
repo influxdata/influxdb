@@ -34,6 +34,57 @@ describe('DataExplorer', () => {
     })
   })
 
+  describe('numeric input using custom bin sizes in Histograms', () => {
+    beforeEach(() => {
+      cy.getByTestID('page-header--right').within(() => {
+        cy.getByTestID('dropdown')
+          .click()
+          .then(() => {
+            cy.get('#histogram')
+              .click()
+              .then(() => {
+                cy.getByTestID('cog-cell--button').click()
+              })
+          })
+      })
+    })
+    it('should keep the user on the Custom field and in error status after all input has been deleted even if non-numeric input is typed', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('auto-input').within(() => {
+          cy.getByTestID('input-field')
+            .click()
+            .type('{backspace}{backspace}')
+            .then(() => {
+              cy.getByTestID('auto-input--custom').should(
+                'have.class',
+                'active'
+              )
+              cy.getByTestID('input-field--error').should('have.length', 1)
+            })
+            .then(() => {
+              cy.getByTestID('input-field')
+                .type('adfuiopbvmc')
+                .then(() => {
+                  cy.getByTestID('input-field--error').should('have.length', 1)
+                })
+            })
+        })
+      })
+    })
+    it('should not have the input field in error status when input becomes valid', () => {
+      cy.get('.view-options').within(() => {
+        cy.getByTestID('auto-input').within(() => {
+          cy.getByTestID('input-field')
+            .click()
+            .type('{backspace}{backspace}3')
+            .then(() => {
+              cy.getByTestID('input-field--error').should('have.length', 0)
+            })
+        })
+      })
+    })
+  })
+
   describe('numeric input validation when changing bin sizes in Heat Maps', () => {
     beforeEach(() => {
       cy.getByTestID('page-header--right').within(() => {
