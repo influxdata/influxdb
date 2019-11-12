@@ -257,6 +257,7 @@ type chartKind string
 const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
+	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
 	chartKindXY                 chartKind = "xy"
@@ -265,7 +266,7 @@ const (
 func (c chartKind) ok() bool {
 	switch c {
 	case chartKindSingleStat, chartKindSingleStatPlusLine, chartKindXY,
-		chartKindGauge:
+		chartKindGauge, chartKindScatter:
 		return true
 	default:
 		return false
@@ -767,6 +768,23 @@ func (c chart) properties() influxdb.ViewProperties {
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
+	case chartKindScatter:
+		ia := c.Axes.influxAxes()
+		return influxdb.ScatterViewProperties{
+			Type:              influxdb.ViewPropertyTypeScatter,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.strings(),
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			XAxisLabel:        ia["x"].Label,
+			XPrefix:           ia["x"].Prefix,
+			XSuffix:           ia["x"].Suffix,
+			YAxisLabel:        ia["y"].Label,
+			YPrefix:           ia["y"].Prefix,
+			YSuffix:           ia["y"].Suffix,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
 	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
 			Type:   influxdb.ViewPropertyTypeSingleStat,
@@ -835,6 +853,8 @@ func (c chart) validProperties() []failure {
 	switch c.Kind {
 	case chartKindGauge:
 		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
+	case chartKindScatter:
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindSingleStat:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 	case chartKindSingleStatPlusLine:
@@ -937,6 +957,16 @@ func (c colors) influxViewColors() []influxdb.ViewColor {
 		})
 	}
 	return iColors
+}
+
+func (c colors) strings() []string {
+	clrs := []string{}
+
+	for _, clr := range c {
+		clrs = append(clrs, clr.Hex)
+	}
+
+	return clrs
 }
 
 // TODO: looks like much of these are actually getting defaults in
