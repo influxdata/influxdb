@@ -72,9 +72,9 @@ class DashboardsTable extends PureComponent<Props, State> {
         </ResourceList.Header>
         <ResourceList.Body
           emptyState={this.emptyState}
-          className="dashboards-card-grid"
+          className={dashboards.length ? 'dashboards-card-grid' : ''}
         >
-          {!!dashboards.length && (
+          {dashboards.length ? (
             <DashboardCards
               dashboards={dashboards}
               sortKey={sortKey}
@@ -85,7 +85,7 @@ class DashboardsTable extends PureComponent<Props, State> {
               onUpdateDashboard={onUpdateDashboard}
               onFilterChange={onFilterChange}
             />
-          )}
+          ) : null}
         </ResourceList.Body>
       </ResourceList>
     )
@@ -129,7 +129,7 @@ class DashboardsTable extends PureComponent<Props, State> {
     return (
       <EmptyState size={ComponentSize.Large} testID="empty-dashboards-list">
         <EmptyState.Text>
-          Looks like you don’t have any <b>Dashboards</b>, why not create one?
+          Looks like you don't have any <b>Dashboards</b>, why not create one?
         </EmptyState.Text>
         <AddResourceDropdown
           onSelectNew={onCreateDashboard}
