@@ -118,6 +118,7 @@ func (v Verify) VerifySeriesFile() (valid bool, err error) {
 		}
 	}()
 
+	valid = true
 	for i := 0; i < m; i++ {
 		select {
 		default:

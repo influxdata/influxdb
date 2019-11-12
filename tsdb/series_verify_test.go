@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -23,7 +22,8 @@ func TestVerifies_Valid(t *testing.T) {
 	if testing.Verbose() {
 		verify.Logger, _ = zap.NewDevelopment()
 	}
-	passed, err := verify.VerifySeriesFile(test.Path)
+	verify.SeriesFilePath = test.Path
+	passed, err := verify.VerifySeriesFile()
 	test.AssertNoError(err)
 	test.Assert(passed)
 }
@@ -51,8 +51,12 @@ func TestVerifies_Invalid(t *testing.T) {
 		test.AssertNoError(err)
 		test.AssertNoError(fh.Close())
 
-		passed, err := tsdb.NewVerify().VerifySeriesFile(test.Path)
-		test.AssertNoError(err)
+		verify := tsdb.NewVerify()
+		verify.SeriesFilePath = test.Path
+		passed, err := verify.VerifySeriesFile()
+		if err == nil {
+			t.Fatal("expected error")
+		}
 		test.Assert(!passed)
 
 		return nil
@@ -95,35 +99,26 @@ func NewTest(t *testing.T) *Test {
 		}
 
 		var names [][]byte
-		var tagsSlice []models.Tags
+		var tags []models.Tags
 
+		var collection tsdb.SeriesCollection
 		for i := 0; i < numSeries; i++ {
 			names = append(names, []byte(fmt.Sprintf("series%d", i)))
-			tagsSlice = append(tagsSlice, nil)
+			tags = append(tags, models.NewTags(
+				map[string]string{
+					string(models.MeasurementTagKeyBytes): "a",
+					string(models.FieldKeyTagKeyBytes):    "b",
+				}),
+			)
+			collection.Types = append(collection.Types, models.Integer)
 		}
 
-		keys := tsdb.GenerateSeriesKeys(names, tagsSlice)
-		//keyPartitionIDs := seriesFile.SeriesKeysPartitionIDs(keys)
-		ids := make([]uint64, len(keys))
+		collection.Names = names
+		collection.Tags = append(collection.Tags, tags...)
 
-		//ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
+		err := seriesFile.CreateSeriesListIfNotExists(&collection)
 		if err != nil {
 			return err
-		}
-
-		// delete one series
-		if err := seriesFile.DeleteSeriesID(tsdb.NewSeriesID(ids[0])); err != nil {
-			return err
-		}
-
-		// wait for compaction to make sure we detect issues with the index
-		partitions := seriesFile.Partitions()
-	wait:
-		for _, partition := range partitions {
-			if partition.Compacting() {
-				time.Sleep(100 * time.Millisecond)
-				goto wait
-			}
 		}
 
 		return seriesFile.Close()
