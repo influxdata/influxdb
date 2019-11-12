@@ -58,7 +58,14 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
           if (ENABLE_MONACO) {
             const FluxMonacoEditor = require('src/shared/components/FluxMonacoEditor')
               .default
-            return <FluxMonacoEditor script={activeQueryText} />
+            return (
+              <FluxMonacoEditor
+                script={activeQueryText}
+                onChangeScript={onSetActiveQueryText}
+                onSubmitScript={onSubmitQueries}
+                onCursorChange={this.handleCursorPosition}
+              />
+            )
           }
           return (
             <FluxEditor
