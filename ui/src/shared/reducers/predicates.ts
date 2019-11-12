@@ -23,6 +23,9 @@ export const predicatesReducer = (
   action: Action
 ): PredicatesState => {
   switch (action.type) {
+    case 'RESET_FILTERS':
+      return {...state, filters: []}
+
     case 'SET_IS_SERIOUS':
       return {...state, isSerious: action.isSerious}
 

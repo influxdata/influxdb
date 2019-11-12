@@ -17,13 +17,14 @@ import {
 import {RemoteDataState, Filter} from 'src/types'
 
 export type Action =
-  | SetIsSerious
-  | SetBucketName
-  | SetTimeRange
-  | SetFilter
   | DeleteFilter
+  | ResetFilters
+  | SetBucketName
   | SetDeletionStatus
+  | SetFilter
+  | SetIsSerious
   | SetPredicateToDefault
+  | SetTimeRange
 
 interface SetIsSerious {
   type: 'SET_IS_SERIOUS'
@@ -33,6 +34,14 @@ interface SetIsSerious {
 export const setIsSerious = (isSerious: boolean): SetIsSerious => ({
   type: 'SET_IS_SERIOUS',
   isSerious,
+})
+
+interface ResetFilters {
+  type: 'RESET_FILTERS'
+}
+
+export const resetFilters = (): ResetFilters => ({
+  type: 'RESET_FILTERS',
 })
 
 interface SetBucketName {

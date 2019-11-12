@@ -16,23 +16,28 @@ import {Filter, RemoteDataState} from 'src/types'
 
 // Selectors
 import {setCanDelete} from 'src/shared/selectors/canDelete'
+// import {setCanDelete} from 'src/shared/selectors/canDelete'
 
-// action
+// Actions
 import {
   deleteFilter,
   deleteWithPredicate,
+  resetFilters,
   setBucketName,
   setDeletionStatus,
   setFilter,
   setIsSerious,
   setTimeRange,
 } from 'src/shared/actions/predicates'
+import {selectBucket} from 'src/timeMachine/actions/queryBuilder'
 
 interface OwnProps {
   orgID: string
   handleDismiss: () => void
   initialBucketName?: string
   initialTimeRange?: [number, number]
+  keys: string[]
+  values: (string | number)[]
 }
 
 interface StateProps {
@@ -45,13 +50,15 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  deleteFilter: typeof deleteFilter
+  deleteFilter: (index: number) => void
   deleteWithPredicate: typeof deleteWithPredicate
-  setBucketName: typeof setBucketName
-  setDeletionStatus: typeof setDeletionStatus
+  onSelectBucket: (bucket: string, resetSelections: boolean) => void
+  resetFilters: () => void
+  setBucketName: (bucket: string) => void
+  setDeletionStatus: (status: RemoteDataState) => void
   setFilter: typeof setFilter
-  setIsSerious: typeof setIsSerious
-  setTimeRange: typeof setTimeRange
+  setIsSerious: (isSerious: boolean) => void
+  setTimeRange: (timeRange: [number, number]) => void
 }
 
 export type Props = StateProps & DispatchProps & OwnProps
@@ -67,13 +74,17 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   initialBucketName,
   initialTimeRange,
   isSerious,
+  keys,
+  onSelectBucket,
   orgID,
+  resetFilters,
   setBucketName,
   setDeletionStatus,
   setFilter,
   setIsSerious,
   setTimeRange,
   timeRange,
+  values,
 }) => {
   const name = bucketName || initialBucketName
 
@@ -114,6 +125,12 @@ const DeleteDataForm: FunctionComponent<Props> = ({
     handleDismiss()
   }
 
+  const handleBucketClick = selectedBucket => {
+    onSelectBucket(selectedBucket, true)
+    resetFilters()
+    setBucketName(selectedBucket)
+  }
+
   return (
     <Form className="delete-data-form">
       <Grid>
@@ -122,7 +139,7 @@ const DeleteDataForm: FunctionComponent<Props> = ({
             <Form.Element label="Target Bucket">
               <BucketsDropdown
                 bucketName={name}
-                onSetBucketName={bucketName => setBucketName(bucketName)}
+                onSetBucketName={bucketName => handleBucketClick(bucketName)}
               />
             </Form.Element>
           </Grid.Column>
@@ -139,9 +156,11 @@ const DeleteDataForm: FunctionComponent<Props> = ({
           <Grid.Column widthXS={Columns.Twelve}>
             <FilterEditor
               filters={filters}
+              keys={keys}
               onSetFilter={(filter, index) => setFilter(filter, index)}
               onDeleteFilter={index => deleteFilter(index)}
               shouldValidate={isSerious}
+              values={values}
             />
           </Grid.Column>
         </Grid.Row>
@@ -174,7 +193,6 @@ const DeleteDataForm: FunctionComponent<Props> = ({
 
 const mstp = ({predicates}) => {
   const {bucketName, deletionStatus, filters, isSerious, timeRange} = predicates
-
   return {
     bucketName,
     canDelete: setCanDelete(predicates),
@@ -188,6 +206,8 @@ const mstp = ({predicates}) => {
 const mdtp = {
   deleteFilter,
   deleteWithPredicate,
+  onSelectBucket: selectBucket,
+  resetFilters,
   setBucketName,
   setDeletionStatus,
   setFilter,
