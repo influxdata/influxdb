@@ -89,10 +89,7 @@ func NewSchedulableTask(task *influxdb.Task) (SchedulableTask, error) {
 	if task.Cron == "" && task.Every == "" {
 		return SchedulableTask{}, errors.New("invalid cron or every")
 	}
-	effCron, err := task.TaskEffectiveCron()
-	if err != nil {
-		return SchedulableTask{}, err
-	}
+	effCron := task.EffectiveCron()
 	sch, err := scheduler.NewSchedule(effCron)
 	if err != nil {
 		return SchedulableTask{}, err
