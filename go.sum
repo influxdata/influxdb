@@ -239,10 +239,10 @@ github.com/inconshreveable/mousetrap v1.0.0 h1:Z8tu5sraLXCXIcARxBp/8cbvlwVa7Z1NH
 github.com/inconshreveable/mousetrap v1.0.0/go.mod h1:PxqpIevigyE2G7u3NXJIT2ANytuPF1OarO4DADm73n8=
 github.com/influxdata/changelog v1.1.0 h1:HXhmLZDrbuC+Ca5YX7g8B8cH5DmJpaOjd844d9Y7aTQ=
 github.com/influxdata/changelog v1.1.0/go.mod h1:uzpGWE/qehT8L426YuXwpMQub+a63vIINhIeEI9mnSM=
-github.com/influxdata/flux v0.54.0 h1:DjAkGoPkgHLDPEn1jSuOpsH4QgcjmSBkRuxSAaQCj1Q=
-github.com/influxdata/flux v0.54.0/go.mod h1:ZFf4F0c8ACFP/5BkfCwk9I/vUwcByr0vMdLxwgOk57E=
 github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62 h1:YipnPuvJKPAzyBhr7eXIMA49L2Eooga/NSytWdLLI8U=
 github.com/influxdata/cron v0.0.0-20191112133922-ad5847cfab62/go.mod h1:XabtPPW2qsCg0tl+kjaPU+cFS+CjQXEXbT1VJvHT4og=
+github.com/influxdata/flux v0.54.0 h1:DjAkGoPkgHLDPEn1jSuOpsH4QgcjmSBkRuxSAaQCj1Q=
+github.com/influxdata/flux v0.54.0/go.mod h1:ZFf4F0c8ACFP/5BkfCwk9I/vUwcByr0vMdLxwgOk57E=
 github.com/influxdata/goreleaser v0.97.0-influx h1:jT5OrcW7WfS0e2QxfwmTBjhLvpIC9CDLRhNgZJyhj8s=
 github.com/influxdata/goreleaser v0.97.0-influx/go.mod h1:MnjA0e0Uq6ISqjG1WxxMAl+3VS1QYjILSWVnMYDxasE=
 github.com/influxdata/influxql v0.0.0-20180925231337-1cbfca8e56b6 h1:CFx+pP90q/qg3spoiZjf8donE4WpAdjeJfPOcoNqkWo=
@@ -262,8 +262,6 @@ github.com/jmespath/go-jmespath v0.0.0-20160202185014-0b12d6b521d8/go.mod h1:Nht
 github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af h1:pmfjZENx5imkbgOkpRUYLnmbU7UEFbjtDA2hxJ1ichM=
 github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af/go.mod h1:Nht3zPeWKUH0NzdCt2Blrr5ys8VGpn0CEB0cQHVjt7k=
 github.com/json-iterator/go v1.1.6/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
-github.com/jsteenb2/testttp v0.0.0-20191106182320-3a9029951f41 h1:x4CmjEFDJd2LVNwfd35xxBsNHOySHAeTzdZuwV/CuXs=
-github.com/jsteenb2/testttp v0.0.0-20191106182320-3a9029951f41/go.mod h1:Bpl/IMLYUekm9vMu/EA8SwzUtmH+rGBPKeY4xLswom8=
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jsternberg/zap-logfmt v1.2.0 h1:1v+PK4/B48cy8cfQbxL4FmmNZrjnIMr2BsnyEmXqv2o=
 github.com/jsternberg/zap-logfmt v1.2.0/go.mod h1:kz+1CUmCutPWABnNkOu9hOHKdT2q3TDYCcsFy9hpqb0=
