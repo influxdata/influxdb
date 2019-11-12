@@ -220,7 +220,7 @@ $cell--header-button-active-color: $c-pool;
   cursor: default;
   color: $cell--header-button-color;
   transition: color 0.25s ease, opacity 0.25s ease;
-  
+
   & > .cf-icon {
     position: absolute;
     top: 50%;
@@ -247,6 +247,7 @@ $cell--header-button-active-color: $c-pool;
 
   &.time-series-container--alert-check {
     padding-right: $ix-marg-b + 30px;
+    padding-bottom: $ix-marg-b + 17px;
     overflow: hidden;
   }
 }

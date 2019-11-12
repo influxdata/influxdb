@@ -85,3 +85,15 @@ $event-marker-z-index: 2;
 .event-marker--line__unknown {
   @include eventMarkerColorizer($c-amethyst);
 }
+.event-marker--vis-selector {
+  position: absolute;
+  cursor: default;
+  right: -30px;
+  bottom: -45px;
+  font-weight: bold;
+  font-size: 20px;
+}
+
+.event-marker--vis-icon {
+  margin: 4px;
+}
