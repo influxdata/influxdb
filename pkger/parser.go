@@ -693,6 +693,7 @@ func parseChart(r Resource) (chart, []failure) {
 		Height:      r.intShort(fieldChartHeight),
 		Width:       r.intShort(fieldChartWidth),
 		Geom:        r.stringShort(fieldChartGeom),
+		BinSize:     r.intShort(fieldChartBinSize),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {

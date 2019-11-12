@@ -257,6 +257,7 @@ type chartKind string
 const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
+	chartKindHeatMap            chartKind = "heatmap"
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
@@ -265,8 +266,9 @@ const (
 
 func (c chartKind) ok() bool {
 	switch c {
-	case chartKindSingleStat, chartKindSingleStatPlusLine, chartKindXY,
-		chartKindGauge, chartKindScatter:
+	case chartKindGauge, chartKindHeatMap,
+		chartKindScatter, chartKindSingleStat,
+		chartKindSingleStatPlusLine, chartKindXY:
 		return true
 	default:
 		return false
@@ -729,6 +731,7 @@ const (
 	fieldChartXPos          = "xPos"
 	fieldChartYCol          = "yCol"
 	fieldChartYPos          = "yPos"
+	fieldChartBinSize       = "binSize"
 )
 
 type chart struct {
@@ -750,6 +753,8 @@ type chart struct {
 	XCol, YCol    string
 	XPos, YPos    int
 	Height, Width int
+
+	BinSize int
 }
 
 func (c chart) properties() influxdb.ViewProperties {
@@ -774,6 +779,24 @@ func (c chart) properties() influxdb.ViewProperties {
 			Type:              influxdb.ViewPropertyTypeScatter,
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.strings(),
+			XColumn:           c.XCol,
+			YColumn:           c.YCol,
+			XAxisLabel:        ia["x"].Label,
+			XPrefix:           ia["x"].Prefix,
+			XSuffix:           ia["x"].Suffix,
+			YAxisLabel:        ia["y"].Label,
+			YPrefix:           ia["y"].Prefix,
+			YSuffix:           ia["y"].Suffix,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
+	case chartKindHeatMap:
+		ia := c.Axes.influxAxes()
+		return influxdb.HeatmapViewProperties{
+			Type:              influxdb.ViewPropertyTypeHeatMap,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.strings(),
+			BinSize:           int32(c.BinSize),
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
 			XAxisLabel:        ia["x"].Label,
@@ -854,6 +877,8 @@ func (c chart) validProperties() []failure {
 	case chartKindGauge:
 		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
 	case chartKindScatter:
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+	case chartKindHeatMap:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindSingleStat:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)

@@ -685,6 +685,251 @@ spec:
 			})
 		})
 
+		t.Run("single dashboard heatmap chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dashboard w/ single heatmap chart", actual.Name)
+				assert.Equal(t, "a dashboard w/ heatmap scatter chart", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.HeatmapViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "heatmap", props.GetType())
+				assert.Equal(t, "heatmap note", props.Note)
+				assert.Equal(t, int32(10), props.BinSize)
+				assert.True(t, props.ShowNoteWhenEmpty)
+
+				require.Len(t, props.Queries, 1)
+				q := props.Queries[0]
+				queryText := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				require.Len(t, props.ViewColors, 12)
+				c := props.ViewColors[0]
+				assert.Equal(t, "#000004", c)
+			})
+
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:           "a color is missing a hex value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].colors[2].hex"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single heatmap chart",
+			"description": "a dashboard w/ heatmap scatter chart",
+			"charts": [
+			{
+				"kind": "heatmap",
+				"name": "heatmap chart",
+				"note": "heatmap note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"binSize": 10,
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+				}
+				],
+				"axes":[
+				{
+					"name": "x",
+					"label": "x_label",
+					"prefix": "x_prefix",
+					"suffix": "x_suffix"
+				},
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": null
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+						  
+			`,
+					},
+					{
+						name:           "missing axes",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes", "charts[0].axes"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single heatmap chart",
+			"description": "a dashboard w/ heatmap scatter chart",
+			"charts": [
+			{
+				"kind": "heatmap",
+				"name": "heatmap chart",
+				"note": "heatmap note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"binSize": 10,
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}				  
+			`,
+					},
+					{
+						name:           "missing a query value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single heatmap chart",
+			"description": "a dashboard w/ heatmap scatter chart",
+			"charts": [
+			{
+				"kind": "heatmap",
+				"name": "heatmap chart",
+				"note": "heatmap note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"binSize": 10,
+				"queries": [
+				{
+					"query": null
+				}
+				],
+				"axes":[
+				{
+					"name": "x",
+					"label": "x_label",
+					"prefix": "x_prefix",
+					"suffix": "x_suffix"
+				},
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+						  
+`,
+					},
+				}
+
+				for _, tt := range tests {
+					testPkgErrors(t, KindDashboard, tt)
+				}
+			})
+		})
+
 		t.Run("single scatter chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
