@@ -37,11 +37,9 @@ describe('DataExplorer', () => {
 
   describe('numeric input using custom bin sizes in Histograms', () => {
     beforeEach(() => {
-      cy.getByTestID('page-header--right').within(() => {
-        cy.getByTestID('dropdown').click()
-        cy.get('#histogram').click()
-        cy.getByTestID('cog-cell--button').click()
-      })
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--histogram`).click()
+      cy.getByTestID('cog-cell--button').click()
     })
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
@@ -70,11 +68,9 @@ describe('DataExplorer', () => {
 
   describe('numeric input validation when changing bin sizes in Heat Maps', () => {
     beforeEach(() => {
-      cy.getByTestID('page-header--right').within(() => {
-        cy.getByTestID('dropdown').click()
-        cy.get('#heatmap').click()
-        cy.getByTestID('cog-cell--button').click()
-      })
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--heatmap`).click()
+      cy.getByTestID('cog-cell--button').click()
     })
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
@@ -122,11 +118,9 @@ describe('DataExplorer', () => {
 
   describe('numeric input validation when changing number of decimal places in Single Stat', () => {
     beforeEach(() => {
-      cy.getByTestID('page-header--right').within(() => {
-        cy.getByTestID('dropdown').click()
-        cy.get('#single-stat').click()
-        cy.getByTestID('cog-cell--button').click()
-      })
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--single-stat`).click()
+      cy.getByTestID('cog-cell--button').click()
     })
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
