@@ -70,6 +70,7 @@ const FluxEditorMonaco: FC<Props> = props => {
             renderCharacters: false,
           },
           overviewRulerBorder: false,
+          automaticLayout: true,
         }}
         editorWillMount={editorWillMount}
         editorDidMount={editorDidMount}
