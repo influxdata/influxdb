@@ -28,6 +28,7 @@ const LatestValueTransform: FunctionComponent<Props> = ({
     return null
   }
 
+  console.log(latestValues)
   if (latestValues.length === 0) {
     return <EmptyGraphMessage message="No latest value found" />
   }
