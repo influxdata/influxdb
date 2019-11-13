@@ -5,6 +5,7 @@ export default function(monaco) {
     inherit: false,
     rules: [{
       token: '',
+      foreground: '#f8f8f8',
       background: '#202028'
     }],
     colors: {

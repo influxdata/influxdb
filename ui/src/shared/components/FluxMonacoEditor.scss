@@ -17,16 +17,16 @@
     border-left: 2px solid #25252e;
 
     .minimap-slider {
-      background: rgba(53, 54, 64, 0.2);
+      background: rgba(53, 54, 64, 0.4);
 
       .minimap-slider-horizontal {
-        background: rgba(53, 54, 64, 0.2);
+        background: rgba(53, 54, 64, 0.4);
       }
 
       &:hover {
-        background: rgba(53, 54, 64, 0.2);
+        background: rgba(53, 54, 64, 0.4);
         .minimap-slider-horizontal {
-          background: rgba(53, 54, 64, 0.2);
+          background: rgba(53, 54, 64, 0.4);
         }
       }
     }
