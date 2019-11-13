@@ -258,6 +258,7 @@ const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
 	chartKindHeatMap            chartKind = "heatmap"
+	chartKindMarkdown           chartKind = "markdown"
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
 	chartKindSingleStatPlusLine chartKind = "single_stat_plus_line"
@@ -266,7 +267,7 @@ const (
 
 func (c chartKind) ok() bool {
 	switch c {
-	case chartKindGauge, chartKindHeatMap,
+	case chartKindGauge, chartKindHeatMap, chartKindMarkdown,
 		chartKindScatter, chartKindSingleStat,
 		chartKindSingleStatPlusLine, chartKindXY:
 		return true
@@ -773,12 +774,13 @@ func (c chart) properties() influxdb.ViewProperties {
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
-	case chartKindScatter:
+	case chartKindHeatMap:
 		ia := c.Axes.influxAxes()
-		return influxdb.ScatterViewProperties{
-			Type:              influxdb.ViewPropertyTypeScatter,
+		return influxdb.HeatmapViewProperties{
+			Type:              influxdb.ViewPropertyTypeHeatMap,
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.strings(),
+			BinSize:           int32(c.BinSize),
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
 			XAxisLabel:        ia["x"].Label,
@@ -790,13 +792,17 @@ func (c chart) properties() influxdb.ViewProperties {
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
-	case chartKindHeatMap:
+	case chartKindMarkdown:
+		return influxdb.MarkdownViewProperties{
+			Type: influxdb.ViewPropertyTypeMarkdown,
+			Note: c.Note,
+		}
+	case chartKindScatter:
 		ia := c.Axes.influxAxes()
-		return influxdb.HeatmapViewProperties{
-			Type:              influxdb.ViewPropertyTypeHeatMap,
+		return influxdb.ScatterViewProperties{
+			Type:              influxdb.ViewPropertyTypeScatter,
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.strings(),
-			BinSize:           int32(c.BinSize),
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
 			XAxisLabel:        ia["x"].Label,
@@ -861,6 +867,11 @@ func (c chart) properties() influxdb.ViewProperties {
 }
 
 func (c chart) validProperties() []failure {
+	if c.Kind == chartKindMarkdown {
+		// at the time of writing, there's nothing to validate for markdown types
+		return nil
+	}
+
 	var fails []failure
 
 	validatorFns := []func() []failure{
@@ -868,6 +879,7 @@ func (c chart) validProperties() []failure {
 		c.Queries.valid,
 		c.Colors.valid,
 	}
+
 	for _, validatorFn := range validatorFns {
 		fails = append(fails, validatorFn()...)
 	}

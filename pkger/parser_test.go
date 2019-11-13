@@ -930,6 +930,57 @@ spec:
 			})
 		})
 
+		t.Run("single dashboard markdown chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dashboard w/ single markdown chart", actual.Name)
+				assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+
+				props, ok := actualChart.Properties.(influxdb.MarkdownViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "markdown", props.GetType())
+				assert.Equal(t, "## markdown note", props.Note)
+			})
+
+			t.Run("handles empty markdown note", func(t *testing.T) {
+				pkgStr := `{
+					"apiVersion": "0.1.0",
+					"kind": "Package",
+					"meta": {
+						"pkgName": "pkg_name",
+						"pkgVersion": "1",
+						"description": "pack description"
+					},
+					"spec": {
+						"resources": [
+							{
+								"kind": "Dashboard",
+								"name": "dashboard w/ single markdown chart",
+								"description": "a dashboard w/ markdown chart",
+								"charts": [
+									{
+										"kind": "markdown",
+										"name": "markdown chart"
+									}
+								]
+							}
+						]
+					}
+				}`
+
+				pkg, _ := Parse(EncodingJSON, FromString(pkgStr))
+				props, ok := pkg.Summary().Dashboards[0].Charts[0].Properties.(influxdb.MarkdownViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "", props.Note)
+			})
+		})
+
 		t.Run("single scatter chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()

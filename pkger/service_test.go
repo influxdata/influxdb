@@ -884,6 +884,19 @@ func TestService(t *testing.T) {
 							},
 						},
 					},
+					{
+						name:    "markdown",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.MarkdownViewProperties{
+								Type: influxdb.ViewPropertyTypeMarkdown,
+								Note: "a note",
+							},
+						},
+					},
 				}
 
 				for _, tt := range tests {
