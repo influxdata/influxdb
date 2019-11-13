@@ -336,15 +336,17 @@ func (fs *FileSet) tagKeysByFilter(name []byte, op influxql.Token, val []byte, r
 }
 
 // TagKeySeriesIDIterator returns a series iterator for all values across a single key.
-func (fs *FileSet) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
+func (fs *FileSet) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
 	a := make([]tsdb.SeriesIDIterator, 0, len(fs.files))
 	for _, f := range fs.files {
-		itr := f.TagKeySeriesIDIterator(name, key)
-		if itr != nil {
+		itr, err := f.TagKeySeriesIDIterator(name, key)
+		if err != nil {
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
-	return tsdb.MergeSeriesIDIterators(a...)
+	return tsdb.MergeSeriesIDIterators(a...), nil
 }
 
 // HasTagKey returns true if the tag key exists.
@@ -458,7 +460,7 @@ type File interface {
 
 	// Series iteration.
 	MeasurementSeriesIDIterator(name []byte) tsdb.SeriesIDIterator
-	TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
+	TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error)
 	TagValueSeriesIDSet(name, key, value []byte) (*tsdb.SeriesIDSet, error)
 
 	// Sketches for cardinality estimation

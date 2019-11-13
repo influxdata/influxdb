@@ -323,18 +323,18 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 }
 
 // TagKeySeriesIDIterator returns a series iterator for a tag key.
-func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator {
+func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	// Combine iterators across all tag keys.
@@ -348,7 +348,7 @@ func (f *LogFile) TagKeySeriesIDIterator(name, key []byte) tsdb.SeriesIDIterator
 		}
 	}
 
-	return tsdb.MergeSeriesIDIterators(itrs...)
+	return tsdb.MergeSeriesIDIterators(itrs...), nil
 }
 
 // TagKeyIterator returns a value iterator for a measurement.
