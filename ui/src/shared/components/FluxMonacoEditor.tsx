@@ -61,7 +61,7 @@ const FluxEditorMonaco: FC<Props> = props => {
         value={script}
         onChange={onChangeScript}
         options={{
-          fontSize: '13px',
+          fontSize: 13,
           fontFamily: '"RobotoMono", monospace',
           cursorWidth: 2,
           lineNumbersMinChars: 4,
