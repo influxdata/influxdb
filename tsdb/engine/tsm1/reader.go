@@ -198,6 +198,7 @@ func (b *BlockIterator) Read() (key []byte, minTime int64, maxTime int64, typ by
 	}
 	checksum, buf, err = b.r.ReadBytes(&b.entries[0], nil)
 	if err != nil {
+		b.err = err
 		return nil, 0, 0, 0, 0, nil, err
 	}
 	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, b.typ, checksum, buf, err
