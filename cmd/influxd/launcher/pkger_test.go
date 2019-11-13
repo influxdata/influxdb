@@ -2,6 +2,7 @@ package launcher_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -39,6 +40,45 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "v1.0.0", newPkg.Metadata.Version)
 	})
 
+	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
+		svc := pkger.NewService(
+			pkger.WithBucketSVC(l.BucketService()),
+			pkger.WithDashboardSVC(l.DashboardService()),
+			pkger.WithLabelSVC(&fakeLabelSVC{
+				LabelService: l.LabelService(),
+				killCount:    2, // hits error on 3rd attempt at creating a mapping
+			}),
+			pkger.WithVariableSVC(l.VariableService()),
+		)
+
+		_, err := svc.Apply(ctx, l.Org.ID, newPkg(t))
+		require.Error(t, err)
+
+		bkts, _, err := l.BucketService().FindBuckets(ctx, influxdb.BucketFilter{OrganizationID: &l.Org.ID})
+		require.NoError(t, err)
+		for _, b := range bkts {
+			if influxdb.BucketTypeSystem == b.Type {
+				continue
+			}
+			// verify system buckets and org bucket are the buckets available
+			assert.Equal(t, l.Bucket.Name, b.Name)
+		}
+
+		labels, err := l.LabelService().FindLabels(ctx, influxdb.LabelFilter{OrgID: &l.Org.ID})
+		require.NoError(t, err)
+		assert.Empty(t, labels)
+
+		dashs, _, err := l.DashboardService().FindDashboards(ctx, influxdb.DashboardFilter{
+			OrganizationID: &l.Org.ID,
+		}, influxdb.DefaultDashboardFindOptions)
+		require.NoError(t, err)
+		assert.Empty(t, dashs)
+
+		vars, err := l.VariableService().FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
+		require.NoError(t, err)
+		assert.Empty(t, vars)
+	})
+
 	hasLabelAssociations := func(t *testing.T, associations []influxdb.Label, numAss int, expectedNames ...string) {
 		t.Helper()
 
@@ -71,10 +111,7 @@ func TestLauncher_Pkger(t *testing.T) {
 	}
 
 	t.Run("dry run a package with no existing resources", func(t *testing.T) {
-		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgYMLStr))
-		require.NoError(t, err)
-
-		sum, diff, err := svc.DryRun(ctx, l.Org.ID, pkg)
+		sum, diff, err := svc.DryRun(ctx, l.Org.ID, newPkg(t))
 		require.NoError(t, err)
 
 		diffBkts := diff.Buckets
@@ -121,11 +158,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	t.Run("apply a package of all new resources", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
-
-		pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgYMLStr))
-		require.NoError(t, err)
-
-		sum1, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, pkg)
+		sum1, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, newPkg(t))
 		require.NoError(t, err)
 
 		labels := sum1.Labels
@@ -175,15 +208,12 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.Len(t, mappings, 3)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(influxdb.ID(dashs[0].ID), dashs[0].Name, influxdb.DashboardsResourceType))
-		hasMapping(t, mappings, newSumMapping(influxdb.ID(vars[0].ID), vars[0].Name, influxdb.VariablesResourceType))
-
-		pkg, err = pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgYMLStr))
-		require.NoError(t, err)
+		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
 			// since names collide.
-			sum2, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, pkg)
+			sum2, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, newPkg(t))
 			require.NoError(t, err)
 
 			require.Equal(t, sum1.Buckets, sum2.Buckets)
@@ -265,6 +295,37 @@ func TestLauncher_Pkger(t *testing.T) {
 				Language: "flux",
 			}, varArgs.Values)
 		})
+
+		t.Run("error incurs during package application when resources already exist rollsback to prev state", func(t *testing.T) {
+			updatePkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(updatePkgYMLStr))
+			require.NoError(t, err)
+
+			svc := pkger.NewService(
+				pkger.WithBucketSVC(&fakeBucketSVC{
+					BucketService: l.BucketService(),
+					killCount:     0, // kill on first update for bucket
+				}),
+				pkger.WithDashboardSVC(l.DashboardService()),
+				pkger.WithLabelSVC(l.LabelService()),
+				pkger.WithVariableSVC(l.VariableService()),
+			)
+
+			_, err = svc.Apply(ctx, l.Org.ID, updatePkg)
+			require.Error(t, err)
+
+			bkt, err := l.BucketService().FindBucketByID(ctx, bkts[0].ID)
+			require.NoError(t, err)
+			// make sure the desc change is not applied and is rolled back to prev desc
+			assert.Equal(t, bkt.Description, bkts[0].Description)
+
+			label, err := l.LabelService().FindLabelByID(ctx, labels[0].ID)
+			require.NoError(t, err)
+			assert.Equal(t, label.Properties["description"], labels[0].Properties["description"])
+
+			v, err := l.VariableService().FindVariableByID(ctx, vars[0].ID)
+			require.NoError(t, err)
+			assert.Equal(t, v.Description, vars[0].Description)
+		})
 	})
 }
 
@@ -272,6 +333,14 @@ func timedCtx(d time.Duration) context.Context {
 	ctx, cancel := context.WithTimeout(ctx, d)
 	var _ = cancel
 	return ctx
+}
+
+func newPkg(t *testing.T) *pkger.Pkg {
+	t.Helper()
+
+	pkg, err := pkger.Parse(pkger.EncodingYAML, pkger.FromString(pkgYMLStr))
+	require.NoError(t, err)
+	return pkg
 }
 
 const pkgYMLStr = `apiVersion: 0.1.0
@@ -319,3 +388,59 @@ spec:
       associations:
         - kind: Label
           name: label_1`
+
+const updatePkgYMLStr = `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Label
+      name: label_1
+      description: new desc
+    - kind: Bucket
+      name: rucket_1
+      description: new desc
+      associations:
+        - kind: Label
+          name: label_1
+    - kind: Variable
+      name: var_query_1
+      description: new desc
+      type: query
+      language: flux
+      query: |
+        buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
+      associations:
+        - kind: Label
+          name: label_1`
+
+type fakeBucketSVC struct {
+	influxdb.BucketService
+	callCount int
+	killCount int
+}
+
+func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+	if f.callCount == f.killCount {
+		return nil, errors.New("reached kill count")
+	}
+	f.callCount++
+	return f.BucketService.UpdateBucket(ctx, id, upd)
+}
+
+type fakeLabelSVC struct {
+	influxdb.LabelService
+	callCount int
+	killCount int
+}
+
+func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
+	if f.callCount == f.killCount {
+		return errors.New("reached kill count")
+	}
+	f.callCount++
+	return f.LabelService.CreateLabelMapping(ctx, m)
+}
