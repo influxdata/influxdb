@@ -35,6 +35,7 @@ class TimeMachineQueries extends PureComponent<Props> {
           active={isViewingRawData}
           onChange={this.handleToggleIsViewingRawData}
           size={ComponentSize.ExtraSmall}
+          testID="raw-data--toggle"
         />
       </div>
     )

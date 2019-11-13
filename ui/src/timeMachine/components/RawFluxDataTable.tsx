@@ -34,7 +34,7 @@ class RawFluxDataTable extends PureComponent<Props, State> {
     const tableHeight = height
 
     return (
-      <div className="raw-flux-data-table">
+      <div className="raw-flux-data-table" data-testid="raw-data-table">
         <FancyScrollbar
           style={{
             overflowY: 'hidden',
