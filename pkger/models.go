@@ -870,7 +870,8 @@ func (c chart) validProperties() []failure {
 	var fails []failure
 
 	if c.Kind == chartKindMarkdown {
-		return append(fails, c.validNote()...)
+		// at the time of writing, there's nothing to validate for markdown types
+		return fails
 	}
 
 	validatorFns := []func() []failure{
@@ -942,19 +943,6 @@ func (c chart) validBaseProps() []failure {
 		})
 	}
 	return fails
-}
-
-func (c chart) validNote() []failure {
-	if c.Note != "" {
-		return nil
-	}
-
-	return []failure{
-		{
-			Field: "note",
-			Msg:   "must provide a note",
-		},
-	}
 }
 
 const (
