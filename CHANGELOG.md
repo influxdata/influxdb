@@ -1,9 +1,10 @@
 v1.7.10 [unreleased]
---------------------
+-------------------
 
 ### Bugfixes
 
 -	[#15881](https://github.com/influxdata/influxdb/pull/15881): fix(tsm1): make digest safe for concurrent use.
+-	[#15863](https://github.com/influxdata/influxdb/pull/15863): fix(tsi1): index defect with negated equality filters
 
 v1.7.9 [2019-10-27]
 -------------------

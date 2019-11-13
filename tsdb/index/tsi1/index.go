@@ -982,8 +982,10 @@ func (i *Index) TagValueIterator(name, key []byte) (tsdb.TagValueIterator, error
 func (i *Index) TagKeySeriesIDIterator(name, key []byte) (tsdb.SeriesIDIterator, error) {
 	a := make([]tsdb.SeriesIDIterator, 0, len(i.partitions))
 	for _, p := range i.partitions {
-		itr := p.TagKeySeriesIDIterator(name, key)
-		if itr != nil {
+		itr, err := p.TagKeySeriesIDIterator(name, key)
+		if err != nil {
+			return nil, err
+		} else if itr != nil {
 			a = append(a, itr)
 		}
 	}
