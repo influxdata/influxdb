@@ -4,7 +4,6 @@ import {connect} from 'react-redux'
 
 // Components
 import {Form, ComponentSize, ComponentColor, Grid} from '@influxdata/clockface'
-import {Input} from '@influxdata/clockface'
 import DashedButton from 'src/shared/components/dashed_button/DashedButton'
 import CheckTagRow from 'src/alerting/components/builder/CheckTagRow'
 import DurationSelector from 'src/shared/components/DurationSelector'
@@ -37,12 +36,6 @@ const CheckMetaCard: FC<Props> = ({
   onUpdateTimeMachineCheck,
   onSelectCheckEvery,
 }) => {
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    onUpdateTimeMachineCheck({[e.target.name]: e.target.value})
-  }
-
   const addTagsRow = () => {
     const tags = check.tags || []
     onUpdateTimeMachineCheck({tags: [...tags, {key: '', value: ''}]})
@@ -67,16 +60,6 @@ const CheckMetaCard: FC<Props> = ({
     >
       <BuilderCard.Header title="Properties" />
       <BuilderCard.Body addPadding={true} autoHideScrollbars={true}>
-        <Form.Element label="Name">
-          <Input
-            autoFocus={true}
-            name="name"
-            onChange={handleChange}
-            placeholder="Name this check"
-            size={ComponentSize.Small}
-            value={check.name}
-          />
-        </Form.Element>
         <Grid>
           <Grid.Row>
             <Grid.Column widthSM={6}>

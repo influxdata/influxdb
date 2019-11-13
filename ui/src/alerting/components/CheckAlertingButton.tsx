@@ -36,7 +36,7 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
         active={activeTab === 'queries'}
         onClick={handleClick('queries')}
       >
-        1. Query
+        1. Define Query
       </Radio.Button>
 
       <Radio.Button
@@ -48,7 +48,7 @@ const CheckAlertingButton: FunctionComponent<Props> = ({
         active={activeTab === 'alerting'}
         onClick={handleClick('alerting')}
       >
-        2. Check
+        2. Configure Check
       </Radio.Button>
     </Radio>
   )
