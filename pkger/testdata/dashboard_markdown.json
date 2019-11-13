@@ -8,18 +8,18 @@
 	},
 	"spec": {
 		"resources": [
-		{
-			"kind": "Dashboard",
-			"name": "dashboard w/ single markdown chart",
-			"description": "a dashboard w/ single markdown chart",
-			"charts": [
-                {
-                    "kind": "markdown",
-                    "name": "markdown chart",
-                    "note": "## markdown note"
-                }
-			]
-		}
+			{
+				"kind": "Dashboard",
+				"name": "dashboard w/ single markdown chart",
+				"description": "a dashboard w/ single markdown chart",
+				"charts": [
+					{
+						"kind": "markdown",
+						"name": "markdown chart",
+						"note": "## markdown note"
+					}
+				]
+			}
 		]
 	}
 }

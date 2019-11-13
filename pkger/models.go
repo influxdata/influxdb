@@ -867,12 +867,12 @@ func (c chart) properties() influxdb.ViewProperties {
 }
 
 func (c chart) validProperties() []failure {
-	var fails []failure
-
 	if c.Kind == chartKindMarkdown {
 		// at the time of writing, there's nothing to validate for markdown types
-		return fails
+		return nil
 	}
+
+	var fails []failure
 
 	validatorFns := []func() []failure{
 		c.validBaseProps,

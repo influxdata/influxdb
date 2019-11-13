@@ -948,51 +948,36 @@ spec:
 				assert.Equal(t, "## markdown note", props.Note)
 			})
 
-			t.Run("handles invalid config", func(t *testing.T) {
-				tests := []testPkgResourceError{
-					{
-						name:           "missing a note",
-						encoding:       EncodingJSON,
-						validationErrs: 1,
-						valFields:      []string{"charts[0].note"},
-						pkgStr: `
-					{
-						"apiVersion": "0.1.0",
-						"kind": "Package",
-						"meta": {
-							"pkgName": "pkg_name",
-							"pkgVersion": "1",
-							"description": "pack description"
-						},
-						"spec": {
-							"resources": [
+			t.Run("handles empty markdown note", func(t *testing.T) {
+				pkgStr := `{
+					"apiVersion": "0.1.0",
+					"kind": "Package",
+					"meta": {
+						"pkgName": "pkg_name",
+						"pkgVersion": "1",
+						"description": "pack description"
+					},
+					"spec": {
+						"resources": [
 							{
 								"kind": "Dashboard",
 								"name": "dashboard w/ single markdown chart",
 								"description": "a dashboard w/ markdown chart",
 								"charts": [
-								{
-									"kind": "markdown",
-									"name": "markdown chart",
-									"note": null,
-									"xPos": 1,
-									"yPos": 2,
-									"width": 6,
-									"height": 3
-								}
+									{
+										"kind": "markdown",
+										"name": "markdown chart"
+									}
 								]
 							}
-							]
-						}
-						}
+						]
+					}
+				}`
 
-								`,
-					},
-				}
-
-				for _, tt := range tests {
-					testPkgErrors(t, KindDashboard, tt)
-				}
+				pkg, _ := Parse(EncodingJSON, FromString(pkgStr))
+				props, ok := pkg.Summary().Dashboards[0].Charts[0].Properties.(influxdb.MarkdownViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "", props.Note)
 			})
 		})
 
