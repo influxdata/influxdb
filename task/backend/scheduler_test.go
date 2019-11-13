@@ -34,11 +34,13 @@ func TestScheduler_Cancelation(t *testing.T) {
 	defer o.Stop()
 
 	const orgID = 2
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:04Z")
+
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		OrganizationID:  orgID,
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:04Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 	tcs.SetTask(task)
@@ -78,10 +80,11 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	o.Start(context.Background())
 	defer o.Stop()
 
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:03Z")
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Cron:            "* * * * *",
-		LatestCompleted: "1970-01-01T00:00:03Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -99,7 +102,7 @@ func TestScheduler_StartScriptOnClaim(t *testing.T) {
 	task = &platform.Task{
 		ID:              platform.ID(2),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:03Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -145,11 +148,12 @@ func TestScheduler_DontRunInactiveTasks(t *testing.T) {
 	o := backend.NewScheduler(tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Status:          "inactive",
 		Flux:            `option task = {concurrency: 2, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
@@ -177,11 +181,12 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 	o := backend.NewScheduler(tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 2, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -252,12 +257,13 @@ func TestScheduler_LogStatisticsOnSuccess(t *testing.T) {
 
 	const taskID = 0x12345
 	const orgID = 0x54321
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              taskID,
 		OrganizationID:  orgID,
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -315,11 +321,12 @@ func TestScheduler_Release(t *testing.T) {
 	o := backend.NewScheduler(tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -351,11 +358,12 @@ func TestScheduler_UpdateTask(t *testing.T) {
 	s := backend.NewScheduler(tcs, e, 3059, backend.WithLogger(zaptest.NewLogger(t)))
 	s.Start(context.Background())
 	defer s.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:50:00Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Cron:            "* * * * *",
-		LatestCompleted: "1970-01-01T00:50:00Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -402,11 +410,12 @@ func TestScheduler_Queue(t *testing.T) {
 	o := backend.NewScheduler(tcs, e, 3059, backend.WithLogger(zaptest.NewLogger(t)))
 	o.Start(context.Background())
 	defer o.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:50:00Z")
 
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Cron:            "* * * * *",
-		LatestCompleted: "1970-01-01T00:50:00Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 	t1, _ := time.Parse(time.RFC3339, "1970-01-01T00:02:00Z")
@@ -639,13 +648,14 @@ func TestScheduler_RunStatus(t *testing.T) {
 	s := backend.NewScheduler(rl, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
 	s.Start(context.Background())
 	defer s.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	// Claim a task that starts later.
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		OrganizationID:  platform.ID(2),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -739,12 +749,13 @@ func TestScheduler_RunFailureCleanup(t *testing.T) {
 	s := backend.NewScheduler(ll, e, 5, backend.WithLogger(zaptest.NewLogger(t)))
 	s.Start(context.Background())
 	defer s.Stop()
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 
 	// Task with concurrency 1 should continue after one run fails.
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -829,10 +840,11 @@ func TestScheduler_Metrics(t *testing.T) {
 	reg.MustRegister(s.PrometheusCollectors()...)
 
 	// Claim a task that starts later.
+	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
-		LatestCompleted: "1970-01-01T00:00:05Z",
+		LatestCompleted: latestCompleted,
 		Flux:            `option task = {concurrency: 99, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
 	}
 
@@ -1008,12 +1020,12 @@ func TestScheduler_WithTicker(t *testing.T) {
 
 	o.Start(ctx)
 	defer o.Stop()
-	createdAt := time.Now()
+	createdAt := time.Now().UTC()
 	task := &platform.Task{
 		ID:              platform.ID(1),
 		Every:           "1s",
 		Flux:            `option task = {concurrency: 5, name:"x", every:1m} from(bucket:"a") |> to(bucket:"b", org: "o")`,
-		LatestCompleted: createdAt.Format(time.RFC3339Nano),
+		LatestCompleted: createdAt,
 	}
 
 	tcs.SetTask(task)

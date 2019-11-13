@@ -100,7 +100,7 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		one   = influxdb.ID(1)
 		two   = influxdb.ID(2)
 		three = influxdb.ID(3)
-		now   = time.Now().Format(time.RFC3339Nano)
+		now   = time.Now().UTC()
 
 		taskOne           = &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *"}
 		taskTwo           = &influxdb.Task{ID: two, Status: "active", CreatedAt: now, Cron: "* * * * *"}

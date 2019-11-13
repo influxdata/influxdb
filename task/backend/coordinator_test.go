@@ -16,8 +16,7 @@ var (
 	three = influxdb.ID(3)
 	four  = influxdb.ID(4)
 
-	aTime      = time.Now()
-	aTimeStamp = aTime.Format(time.RFC3339)
+	aTime = time.Now().UTC()
 
 	taskOne   = &influxdb.Task{ID: one}
 	taskTwo   = &influxdb.Task{ID: two, Status: "active"}
@@ -56,7 +55,7 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 	}
 
 	if diff := cmp.Diff([]update{
-		{two, influxdb.TaskUpdate{LatestCompleted: &aTimeStamp}},
+		{two, influxdb.TaskUpdate{LatestCompleted: &aTime}},
 	}, tasks.updates); diff != "" {
 		t.Errorf("unexpected updates to task service %v", diff)
 	}

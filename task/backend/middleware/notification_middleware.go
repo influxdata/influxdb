@@ -80,7 +80,7 @@ func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
 	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
-		toTask.LatestCompleted = ns.Now().Format(time.RFC3339)
+		toTask.LatestCompleted = ns.Now()
 	}
 
 	return to, ns.coordinator.TaskUpdated(ctx, fromTask, toTask)
@@ -111,7 +111,7 @@ func (ns *CoordinatingNotificationRuleStore) PatchNotificationRule(ctx context.C
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
 	if fromTask.Status == string(backend.TaskInactive) && toTask.Status == string(backend.TaskActive) {
-		toTask.LatestCompleted = ns.Now().Format(time.RFC3339)
+		toTask.LatestCompleted = ns.Now()
 	}
 
 	return to, ns.coordinator.TaskUpdated(ctx, fromTask, toTask)

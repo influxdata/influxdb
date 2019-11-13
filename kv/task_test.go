@@ -159,7 +159,7 @@ func TestNextRunDue(t *testing.T) {
 
 		// +20 to account for the 20 second offset in the flux script
 		oldNextDue := run.Created.Now
-		if task.Offset != "" {
+		if task.Offset != 0 {
 			oldNextDue += 20
 		}
 		if oldNextDue != nd {
