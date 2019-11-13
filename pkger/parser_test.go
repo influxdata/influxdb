@@ -693,7 +693,7 @@ spec:
 
 				actual := sum.Dashboards[0]
 				assert.Equal(t, "dashboard w/ single heatmap chart", actual.Name)
-				assert.Equal(t, "a dashboard w/ heatmap scatter chart", actual.Description)
+				assert.Equal(t, "a dashboard w/ heatmap chart", actual.Description)
 
 				require.Len(t, actual.Charts, 1)
 				actualChart := actual.Charts[0]
@@ -708,6 +708,9 @@ spec:
 				assert.Equal(t, "heatmap note", props.Note)
 				assert.Equal(t, int32(10), props.BinSize)
 				assert.True(t, props.ShowNoteWhenEmpty)
+
+				assert.Equal(t, []float64{0, 10}, props.XDomain)
+				assert.Equal(t, []float64{0, 100}, props.YDomain)
 
 				require.Len(t, props.Queries, 1)
 				q := props.Queries[0]
@@ -741,7 +744,7 @@ spec:
 		{
 			"kind": "Dashboard",
 			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap scatter chart",
+			"description": "a dashboard w/ heatmap chart",
 			"charts": [
 			{
 				"kind": "heatmap",
@@ -813,7 +816,7 @@ spec:
 		{
 			"kind": "Dashboard",
 			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap scatter chart",
+			"description": "a dashboard w/ heatmap chart",
 			"charts": [
 			{
 				"kind": "heatmap",
@@ -870,7 +873,7 @@ spec:
 		{
 			"kind": "Dashboard",
 			"name": "dashboard w/ single heatmap chart",
-			"description": "a dashboard w/ heatmap scatter chart",
+			"description": "a dashboard w/ heatmap chart",
 			"charts": [
 			{
 				"kind": "heatmap",
@@ -1009,6 +1012,8 @@ spec:
 				assert.Equal(t, expectedQuery, q.Text)
 				assert.Equal(t, "advanced", q.EditMode)
 
+				assert.Equal(t, []float64{0, 10}, props.XDomain)
+				assert.Equal(t, []float64{0, 100}, props.YDomain)
 				assert.Equal(t, "x_label", props.XAxisLabel)
 				assert.Equal(t, "y_label", props.YAxisLabel)
 				assert.Equal(t, "x_prefix", props.XPrefix)

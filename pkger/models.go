@@ -732,6 +732,7 @@ const (
 	fieldChartYCol          = "yCol"
 	fieldChartYPos          = "yPos"
 	fieldChartBinSize       = "binSize"
+	fieldChartDomain        = "domain"
 )
 
 type chart struct {
@@ -749,12 +750,10 @@ type chart struct {
 	Queries         queries
 	Axes            axes
 	Geom            string
-
-	XCol, YCol    string
-	XPos, YPos    int
-	Height, Width int
-
-	BinSize int
+	XCol, YCol      string
+	XPos, YPos      int
+	Height, Width   int
+	BinSize         int
 }
 
 func (c chart) properties() influxdb.ViewProperties {
@@ -774,7 +773,6 @@ func (c chart) properties() influxdb.ViewProperties {
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
 	case chartKindHeatMap:
-		ia := c.Axes.influxAxes()
 		return influxdb.HeatmapViewProperties{
 			Type:              influxdb.ViewPropertyTypeHeatMap,
 			Queries:           c.Queries.influxDashQueries(),
@@ -782,12 +780,14 @@ func (c chart) properties() influxdb.ViewProperties {
 			BinSize:           int32(c.BinSize),
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
-			XAxisLabel:        ia["x"].Label,
-			XPrefix:           ia["x"].Prefix,
-			XSuffix:           ia["x"].Suffix,
-			YAxisLabel:        ia["y"].Label,
-			YPrefix:           ia["y"].Prefix,
-			YSuffix:           ia["y"].Suffix,
+			XDomain:           c.Axes.get("x").Domain,
+			YDomain:           c.Axes.get("y").Domain,
+			XPrefix:           c.Axes.get("x").Prefix,
+			YPrefix:           c.Axes.get("y").Prefix,
+			XSuffix:           c.Axes.get("x").Suffix,
+			YSuffix:           c.Axes.get("y").Suffix,
+			XAxisLabel:        c.Axes.get("x").Label,
+			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
@@ -797,19 +797,20 @@ func (c chart) properties() influxdb.ViewProperties {
 			Note: c.Note,
 		}
 	case chartKindScatter:
-		ia := c.Axes.influxAxes()
 		return influxdb.ScatterViewProperties{
 			Type:              influxdb.ViewPropertyTypeScatter,
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.strings(),
 			XColumn:           c.XCol,
 			YColumn:           c.YCol,
-			XAxisLabel:        ia["x"].Label,
-			XPrefix:           ia["x"].Prefix,
-			XSuffix:           ia["x"].Suffix,
-			YAxisLabel:        ia["y"].Label,
-			YPrefix:           ia["y"].Prefix,
-			YSuffix:           ia["y"].Suffix,
+			XDomain:           c.Axes.get("x").Domain,
+			YDomain:           c.Axes.get("y").Domain,
+			XPrefix:           c.Axes.get("x").Prefix,
+			YPrefix:           c.Axes.get("y").Prefix,
+			XSuffix:           c.Axes.get("x").Suffix,
+			YSuffix:           c.Axes.get("y").Suffix,
+			XAxisLabel:        c.Axes.get("x").Label,
+			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
@@ -1102,15 +1103,25 @@ const (
 )
 
 type axis struct {
-	Base   string `json:"base,omitempty" yaml:"base,omitempty"`
-	Label  string `json:"label,omitempty" yaml:"label,omitempty"`
-	Name   string `json:"name,omitempty" yaml:"name,omitempty"`
-	Prefix string `json:"prefix,omitempty" yaml:"prefix,omitempty"`
-	Scale  string `json:"scale,omitempty" yaml:"scale,omitempty"`
-	Suffix string `json:"suffix,omitempty" yaml:"suffix,omitempty"`
+	Base   string    `json:"base,omitempty" yaml:"base,omitempty"`
+	Label  string    `json:"label,omitempty" yaml:"label,omitempty"`
+	Name   string    `json:"name,omitempty" yaml:"name,omitempty"`
+	Prefix string    `json:"prefix,omitempty" yaml:"prefix,omitempty"`
+	Scale  string    `json:"scale,omitempty" yaml:"scale,omitempty"`
+	Suffix string    `json:"suffix,omitempty" yaml:"suffix,omitempty"`
+	Domain []float64 `json:"domain,omitempty" yaml:"domain,omitempty"`
 }
 
 type axes []axis
+
+func (a axes) get(name string) axis {
+	for _, ax := range a {
+		if name == ax.Name {
+			return ax
+		}
+	}
+	return axis{}
+}
 
 func (a axes) influxAxes() map[string]influxdb.Axis {
 	m := make(map[string]influxdb.Axis)
