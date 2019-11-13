@@ -214,6 +214,57 @@ type span struct {
 	tspan *tsm1.DigestTimeSpan
 }
 
+// Ensure engine handles concurrent calls to Digest().
+func TestEngine_Digest_Concurrent(t *testing.T) {
+	e := MustOpenEngine(inmem.IndexName)
+	defer e.Close()
+
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	// Create a few points.
+	points := []models.Point{
+		MustParsePointString("cpu,host=A value=1.1 1000000000"),
+		MustParsePointString("cpu,host=B value=1.2 2000000000"),
+	}
+
+	if err := e.WritePoints(points); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	// Force a compaction.
+	e.ScheduleFullCompaction()
+
+	// Start multiple waiting goroutines, ready to call Digest().
+	start := make(chan struct{})
+	errs := make(chan error)
+	wg := &sync.WaitGroup{}
+	for n := 0; n < 100; n++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, _, err := e.Digest(); err != nil {
+				errs <- err
+			}
+		}()
+	}
+
+	// Goroutine to close errs channel after all routines have finished.
+	go func() { wg.Wait(); close(errs) }()
+
+	// Signal all goroutines to call Digest().
+	close(start)
+
+	// Check for digest errors.
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // Ensure that the engine will backup any TSM files created since the passed in time
 func TestEngine_Backup(t *testing.T) {
 	sfile := MustOpenSeriesFile()

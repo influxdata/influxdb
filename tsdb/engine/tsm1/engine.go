@@ -196,6 +196,9 @@ type Engine struct {
 
 	// seriesTypeMap maps a series key to field type
 	seriesTypeMap *radix.Tree
+
+	// muDigest ensures only one goroutine can generate a digest at a time.
+	muDigest sync.RWMutex
 }
 
 // NewEngine returns a new instance of Engine.
@@ -283,6 +286,9 @@ func (e *Engine) WithParseFileNameFunc(parseFileNameFunc ParseFileNameFunc) {
 
 // Digest returns a reader for the shard's digest.
 func (e *Engine) Digest() (io.ReadCloser, int64, error) {
+	e.muDigest.Lock()
+	defer e.muDigest.Unlock()
+
 	log, logEnd := logger.NewOperation(e.logger, "Engine digest", "tsm1_digest")
 	defer logEnd()
 
