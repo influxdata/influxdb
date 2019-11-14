@@ -148,8 +148,10 @@ export const timeMachinesReducer = (
 ): TimeMachinesState => {
   if (action.type === 'SET_ACTIVE_TIME_MACHINE') {
     const {activeTimeMachineID, initialState} = action.payload
+    initialState.view = Object.assign({}, initialState.view)
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
-    const view = initialState.view || activeTimeMachine.view
+    // const view = initialState.view || activeTimeMachine.view
+    const view = initialState.view
     const draftQueries = map(cloneDeep(view.properties.queries), q => ({
       ...q,
       hidden: false,
@@ -159,7 +161,7 @@ export const timeMachinesReducer = (
     const timeRange =
       activeTimeMachineID === 'alerting' ? null : activeTimeMachine.timeRange
 
-    return {
+    const out = {
       ...state,
       activeTimeMachineID,
       timeMachines: {
@@ -177,6 +179,8 @@ export const timeMachinesReducer = (
         },
       },
     }
+
+    return out
   }
 
   // All other actions act upon whichever single `TimeMachineState` is
@@ -811,13 +815,25 @@ export const timeMachineReducer = (
         typeof action.payload
       >
       const {fieldOptions} = action.payload
-      const {fieldOptions: prevOptions} = workingView.properties
-      const properties = {
-        ...workingView.properties,
-        fieldOptions: trueFieldOptions(fieldOptions, prevOptions),
-      }
+      const properties = {...workingView.properties, fieldOptions}
       const view = {...state.view, properties}
+
       return {...state, view}
+    }
+
+    case 'UPDATE_FIELD_OPTION': {
+      const props = state.view.properties.fieldOptions.slice(0)
+      const {option} = action.payload
+      const idx = props.findIndex(ni => ni.internalName === option.internalName)
+      if (idx > -1) {
+        props[idx] = option
+      } else {
+        props.push(option)
+      }
+
+      const _state = Object.assign({}, state)
+      _state.view.properties.fieldOptions = props
+      return _state
     }
 
     case 'SET_TABLE_OPTIONS': {

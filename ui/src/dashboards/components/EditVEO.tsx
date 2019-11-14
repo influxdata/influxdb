@@ -48,7 +48,7 @@ const EditViewVEO: FunctionComponent<Props> = ({
   useEffect(() => {
     getViewForTimeMachine(dashboardID, cellID, 'veo')
     onExecuteQueries(dashboardID)
-  }, [cellID, dashboardID])
+  }, [])
 
   const handleClose = () => {
     router.push(`/orgs/${orgID}/dashboards/${dashboardID}`)
@@ -95,6 +95,12 @@ const mstp = (state: AppState): StateProps => {
   const {activeTimeMachineID} = state.timeMachines
 
   const {view} = getActiveTimeMachine(state)
+  /*
+  if (view && view.properties && view.properties.fieldOptions && view.properties.fieldOptions[11].visible) {
+    console.trace()
+    debugger
+  }
+   */
   return {view, activeTimeMachineID}
 }
 

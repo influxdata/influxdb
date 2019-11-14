@@ -465,6 +465,20 @@ export const setFieldOptions = (
   payload: {fieldOptions},
 })
 
+interface UpdateFieldOption {
+  type: 'UPDATE_FIELD_OPTION'
+  payload: {
+    option: FieldOption
+  }
+}
+
+export const updateFieldOption = (
+  option: FieldOption
+): SetFieldOptionsAction => ({
+  type: 'UPDATE_FIELD_OPTION',
+  payload: {option},
+})
+
 interface SetTableOptionsAction {
   type: 'SET_TABLE_OPTIONS'
   payload: {
