@@ -7,6 +7,7 @@ import {
   IconFont,
   SelectDropdown,
 } from '@influxdata/clockface'
+import {connect} from 'react-redux'
 
 // Components
 import SearchableDropdown from 'src/shared/components/SearchableDropdown'
@@ -14,20 +15,32 @@ import SearchableDropdown from 'src/shared/components/SearchableDropdown'
 // Types
 import {Filter} from 'src/types'
 
+// Actions
+import {setValuesByKey} from 'src/shared/actions/predicates'
+
 interface Props {
+  bucket: string
   filter: Filter
   keys: string[]
   onChange: (filter: Filter) => any
   onDelete: () => any
+  orgID: string
   shouldValidate: boolean
   values: (string | number)[]
 }
 
-const FilterRow: FC<Props> = ({
+interface DispatchProps {
+  setValuesByKey: (orgID: string, bucketName: string, keyName: string) => void
+}
+
+const FilterRow: FC<Props & DispatchProps> = ({
+  bucket,
   filter: {key, equality, value},
   keys,
   onChange,
   onDelete,
+  orgID,
+  setValuesByKey,
   shouldValidate,
   values,
 }) => {
@@ -39,6 +52,10 @@ const FilterRow: FC<Props> = ({
     shouldValidate && value.trim() === '' ? 'Value cannot be empty' : null
 
   const onChangeKey = input => onChange({key: input, equality, value})
+  const onKeySelect = input => {
+    setValuesByKey(orgID, bucket, input)
+    onChange({key: input, equality, value})
+  }
   const onChangeValue = input => onChange({key, equality, value: input})
   const onChangeEquality = e => onChange({key, equality: e, value})
 
@@ -54,7 +71,7 @@ const FilterRow: FC<Props> = ({
           emptyText="No Tags Found"
           searchPlaceholder="Search keys..."
           selectedOption={key}
-          onSelect={onChangeKey}
+          onSelect={onKeySelect}
           onChangeSearchTerm={onChangeKey}
           testID="key-input"
           buttonTestID="tag-selector--dropdown-button"
@@ -101,4 +118,9 @@ const FilterRow: FC<Props> = ({
   )
 }
 
-export default FilterRow
+const mdtp = {setValuesByKey}
+
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(FilterRow)

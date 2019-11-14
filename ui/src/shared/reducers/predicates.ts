@@ -12,10 +12,12 @@ export const HOUR_MS = 1000 * 60 * 60
 
 export const initialState: PredicatesState = {
   bucketName: '',
-  timeRange: [recently - HOUR_MS, recently],
+  deletionStatus: RemoteDataState.NotStarted,
   filters: [],
   isSerious: false,
-  deletionStatus: RemoteDataState.NotStarted,
+  keys: [],
+  timeRange: [recently - HOUR_MS, recently],
+  values: [],
 }
 
 export const predicatesReducer = (
@@ -56,13 +58,21 @@ export const predicatesReducer = (
     case 'SET_DELETION_STATUS':
       return {...state, deletionStatus: action.deletionStatus}
 
+    case 'SET_KEYS_BY_BUCKET':
+      return {...state, keys: action.keys}
+
+    case 'SET_VALUES_BY_KEY':
+      return {...state, values: action.values}
+
     case 'SET_PREDICATE_DEFAULT':
       return {
         bucketName: '',
-        timeRange: [recently - HOUR_MS, recently],
+        deletionStatus: RemoteDataState.NotStarted,
         filters: [],
         isSerious: false,
-        deletionStatus: RemoteDataState.NotStarted,
+        keys: [],
+        timeRange: [recently - HOUR_MS, recently],
+        values: [],
       }
 
     default:

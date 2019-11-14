@@ -2,8 +2,10 @@ import {Filter, RemoteDataState} from 'src/types'
 
 export interface PredicatesState {
   bucketName: string
-  timeRange: [number, number]
+  deletionStatus: RemoteDataState
   filters: Filter[]
   isSerious: boolean
-  deletionStatus: RemoteDataState
+  keys: string[]
+  timeRange: [number, number]
+  values: string[]
 }
