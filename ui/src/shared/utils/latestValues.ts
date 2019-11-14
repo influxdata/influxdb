@@ -1,4 +1,4 @@
-import {range, flatMap, isFinite} from 'lodash'
+import {range, flatMap, isFinite, isString} from 'lodash'
 import {Table, NumericColumnData} from '@influxdata/giraffe'
 
 /*
@@ -40,7 +40,9 @@ const isValueCol = (table: Table, colKey: string): boolean => {
   const columnName = table.getColumnName(colKey)
 
   return (
-    (columnType === 'number' || columnType === 'time' || columnType === 'string') &&
+    (columnType === 'number' ||
+      columnType === 'time' ||
+      columnType === 'string') &&
     !EXCLUDED_COLUMNS.has(columnName)
   )
 }
@@ -70,19 +72,14 @@ const sortTableKeys = (keyA: string, keyB: string): number => {
   If the table only has one row, then a time column is not needed.
 */
 export const latestValues = (table: Table): number[] => {
-  console.log('CONSOLE 1', {table})
   const valueColsData = table.columnKeys
     .sort((a, b) => sortTableKeys(a, b))
     .filter(k => isValueCol(table, k))
     .map(k => table.getColumn(k)) as number[][]
-    console.log('CONSOLE 2', {valueColsData})
 
   if (!valueColsData.length) {
     return []
   }
-
-  console.log('CONSOLE 3', {valueColsData})
-
 
   const columnKeys = table.columnKeys
 
@@ -99,33 +96,31 @@ export const latestValues = (table: Table): number[] => {
     return []
   }
 
-
   const d = (i: number) => {
     const time = timeColData[i]
 
-    if (time && valueColsData.some(colData => isFinite(colData[i]))) {
-    if (time && valueColsData.some(colData => { return isFinite(colData[i]) || }
-      
-    )) {
-
+    if (
+      time &&
+      valueColsData.some(colData => {
+        return isFinite(colData[i]) || isString(colData[i])
+      })
+    ) {
       return time
     }
 
     return -Infinity
   }
 
-
   const latestRowIndices =
     table.length === 1 ? [0] : maxesBy(range(table.length), d)
-    console.log('CONSOLE 6', {latestRowIndices})
 
   const latestValues = flatMap(latestRowIndices, i =>
     valueColsData.map(colData => colData[i])
   )
-  console.log('CONSOLE 7', {latestValues})
 
-
-  const definedLatestValues = latestValues.filter(x => isFinite(x))
+  const definedLatestValues = latestValues.filter(
+    x => isFinite(x) || isString(x)
+  )
 
   return definedLatestValues
 }
