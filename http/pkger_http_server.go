@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -32,12 +33,13 @@ func NewHandlerPkg(errHandler influxdb.HTTPErrorHandler, svc pkger.SVC) *Handler
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(traceMW)
-	r.Use(middleware.SetHeader("Content-Type", "application/json; charset=utf-8"))
 	r.Use(middleware.Recoverer)
 
 	{
-		r.Post("/", svr.createPkg)
-		r.Post("/apply", svr.applyPkg)
+		r.With(middleware.AllowContentType("text/yml", "application/x-yaml", "application/json")).
+			Post("/", svr.createPkg)
+		r.With(middleware.SetHeader("Content-Type", "application/json; charset=utf-8")).
+			Post("/apply", svr.applyPkg)
 	}
 
 	svr.Router = r
@@ -49,24 +51,27 @@ func (s *HandlerPkg) Prefix() string {
 	return "/api/v2/packages"
 }
 
-// ReqCreatePkg is a request body for the create pkg endpoint.
-type ReqCreatePkg struct {
-	PkgName        string `json:"pkgName"`
-	PkgDescription string `json:"pkgDescription"`
-	PkgVersion     string `json:"pkgVersion"`
+type (
+	// ReqCreatePkg is a request body for the create pkg endpoint.
+	ReqCreatePkg struct {
+		PkgName        string `json:"pkgName"`
+		PkgDescription string `json:"pkgDescription"`
+		PkgVersion     string `json:"pkgVersion"`
 
-	Resources []pkger.ResourceToClone `json:"resources"`
-}
+		Resources []pkger.ResourceToClone `json:"resources"`
+	}
 
-// RespCreatePkg is a response body for the create pkg endpoint.
-type RespCreatePkg struct {
-	*pkger.Pkg
-}
+	// RespCreatePkg is a response body for the create pkg endpoint.
+	RespCreatePkg struct {
+		*pkger.Pkg
+	}
+)
 
 func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 	var reqBody ReqCreatePkg
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		s.HandleHTTPError(r.Context(), newDecodeErr("json", err), w)
+	encoding, err := decodeWithEncoding(r, &reqBody)
+	if err != nil {
+		s.HandleHTTPError(r.Context(), newDecodeErr(encoding.String(), err), w)
 		return
 	}
 	defer r.Body.Close()
@@ -84,47 +89,80 @@ func (s *HandlerPkg) createPkg(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.encResp(r.Context(), w, http.StatusOK, RespCreatePkg{
+	var enc encoder
+	switch encoding {
+	case pkger.EncodingYAML:
+		enc = yaml.NewEncoder(w)
+		w.Header().Set("Content-Type", "application/x-yaml")
+	default:
+		enc = newJSONEnc(w)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	}
+	s.encResp(r.Context(), w, enc, http.StatusOK, RespCreatePkg{
 		Pkg: newPkg,
 	})
 }
 
-// ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
-type ReqApplyPkg struct {
-	DryRun bool       `yaml:"dryRun" json:"dryRun"`
-	OrgID  string     `yaml:"orgID" json:"orgID"`
-	Pkg    *pkger.Pkg `yaml:"package" json:"package"`
-}
+type (
+	// ReqApplyPkg is the request body for a json or yaml body for the apply pkg endpoint.
+	ReqApplyPkg struct {
+		DryRun bool       `json:"dryRun" yaml:"dryRun"`
+		OrgID  string     `json:"orgID" yaml:"orgID"`
+		Pkg    *pkger.Pkg `json:"package" yaml:"package"`
+	}
 
-// RespApplyPkg is the response body for the apply pkg endpoint.
-type RespApplyPkg struct {
-	Diff    pkger.Diff    `yaml:"diff" json:"diff"`
-	Summary pkger.Summary `yaml:"summary" json:"summary"`
-}
+	// RespApplyPkg is the response body for the apply pkg endpoint.
+	RespApplyPkg struct {
+		Diff    pkger.Diff    `json:"diff" yaml:"diff"`
+		Summary pkger.Summary `json:"summary" yaml:"summary"`
+
+		Errors []PkgValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
+	}
+
+	// PkgValidationErr is a single
+	PkgValidationErr struct {
+		Kind    string   `json:"kind" yaml:"kind"`
+		Fields  []string `json:"fields" yaml:"fields"`
+		Indexes []*int   `json:"idxs" yaml:"idxs"`
+		Reason  string   `json:"reason" yaml:"reason"`
+	}
+)
 
 func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
-	reqBody, err := decodeApplyReq(r)
+	var reqBody ReqApplyPkg
+	encoding, err := decodeWithEncoding(r, &reqBody)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), err, w)
+		s.HandleHTTPError(r.Context(), newDecodeErr(encoding.String(), err), w)
 		return
 	}
 
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), err, w)
+		s.HandleHTTPError(r.Context(), &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
+		}, w)
 		return
 	}
 
 	parsedPkg := reqBody.Pkg
 	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, parsedPkg)
+	if pkger.IsParseErr(err) {
+		s.encJSONResp(r.Context(), w, http.StatusUnprocessableEntity, RespApplyPkg{
+			Diff:    diff,
+			Summary: sum,
+			Errors:  convertParseErr(err),
+		})
+		return
+	}
 	if err != nil {
-		s.HandleHTTPError(r.Context(), httpParseErr(err), w)
+		s.HandleHTTPError(r.Context(), err, w)
 		return
 	}
 
 	// if only a dry run, then we exit before anything destructive
 	if reqBody.DryRun {
-		s.encResp(r.Context(), w, http.StatusOK, RespApplyPkg{
+		s.encJSONResp(r.Context(), w, http.StatusOK, RespApplyPkg{
 			Diff:    diff,
 			Summary: sum,
 		})
@@ -132,50 +170,94 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sum, err = s.svc.Apply(r.Context(), *orgID, parsedPkg)
-	if err != nil {
-		s.HandleHTTPError(r.Context(), httpParseErr(err), w)
+	if err != nil && !pkger.IsParseErr(err) {
+		s.HandleHTTPError(r.Context(), err, w)
 		return
 	}
 
-	s.encResp(r.Context(), w, http.StatusCreated, RespApplyPkg{
+	s.encJSONResp(r.Context(), w, http.StatusCreated, RespApplyPkg{
 		Diff:    diff,
 		Summary: sum,
 	})
 }
 
-func decodeApplyReq(r *http.Request) (ReqApplyPkg, error) {
-	var (
-		reqBody  ReqApplyPkg
-		encoding pkger.Encoding
-		err      error
-	)
+type encoder interface {
+	Encode(interface{}) error
+}
 
+func decodeWithEncoding(r *http.Request, v interface{}) (pkger.Encoding, error) {
+	var (
+		encoding pkger.Encoding
+		dec      interface{ Decode(interface{}) error }
+	)
 	switch contentType := r.Header.Get("Content-Type"); contentType {
 	case "text/yml", "application/x-yaml":
 		encoding = pkger.EncodingYAML
-		err = yaml.NewDecoder(r.Body).Decode(&reqBody)
+		dec = yaml.NewDecoder(r.Body)
 	default:
 		encoding = pkger.EncodingJSON
-		err = json.NewDecoder(r.Body).Decode(&reqBody)
-	}
-	if err != nil {
-		return ReqApplyPkg{}, newDecodeErr(encoding.String(), err)
+		dec = json.NewDecoder(r.Body)
 	}
 
-	return reqBody, nil
+	return encoding, dec.Decode(v)
 }
 
-func (s *HandlerPkg) encResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
-	w.WriteHeader(code)
+func newJSONEnc(w io.Writer) encoder {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
+	return enc
+}
+
+func (s *HandlerPkg) encResp(ctx context.Context, w http.ResponseWriter, enc encoder, code int, res interface{}) {
+	w.WriteHeader(code)
 	if err := enc.Encode(res); err != nil {
 		s.HandleHTTPError(ctx, &influxdb.Error{
-			Msg:  fmt.Sprintf("unable to marshal json; Err: %v", err),
+			Msg:  fmt.Sprintf("unable to marshal; Err: %v", err),
 			Code: influxdb.EInternal,
 			Err:  err,
 		}, w)
 	}
+}
+
+func (s *HandlerPkg) encJSONResp(ctx context.Context, w http.ResponseWriter, code int, res interface{}) {
+	s.encResp(ctx, w, newJSONEnc(w), code, res)
+}
+
+func convertParseErr(err error) []PkgValidationErr {
+	pErr, ok := err.(*pkger.ParseErr)
+	if !ok {
+		return nil
+	}
+
+	var errs []PkgValidationErr
+	for _, r := range pErr.Resources {
+		rootErr := PkgValidationErr{
+			Kind:    r.Kind,
+			Fields:  []string{"resources"},
+			Indexes: []*int{&r.Idx},
+		}
+
+		for _, v := range append(r.ValidationErrs, r.AssociationErrs...) {
+			errs = append(errs, traverseErrs(rootErr, v)...)
+		}
+	}
+
+	return errs
+}
+
+func traverseErrs(root PkgValidationErr, vErr pkger.ValidationErr) []PkgValidationErr {
+	root.Fields = append(root.Fields, vErr.Field)
+	root.Indexes = append(root.Indexes, vErr.Index)
+	if len(vErr.Nested) == 0 {
+		root.Reason = vErr.Msg
+		return []PkgValidationErr{root}
+	}
+
+	var errs []PkgValidationErr
+	for _, n := range vErr.Nested {
+		errs = append(errs, traverseErrs(root, n)...)
+	}
+	return errs
 }
 
 func newDecodeErr(encoding string, err error) *influxdb.Error {
@@ -184,10 +266,6 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 		Code: influxdb.EInvalid,
 		Err:  err,
 	}
-}
-
-func httpParseErr(err error) error {
-	return err
 }
 
 func traceMW(next http.Handler) http.Handler {

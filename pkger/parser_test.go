@@ -2,6 +2,7 @@ package pkger
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -927,6 +928,57 @@ spec:
 				for _, tt := range tests {
 					testPkgErrors(t, KindDashboard, tt)
 				}
+			})
+		})
+
+		t.Run("single dashboard markdown chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dashboard w/ single markdown chart", actual.Name)
+				assert.Equal(t, "a dashboard w/ single markdown chart", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+
+				props, ok := actualChart.Properties.(influxdb.MarkdownViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "markdown", props.GetType())
+				assert.Equal(t, "## markdown note", props.Note)
+			})
+
+			t.Run("handles empty markdown note", func(t *testing.T) {
+				pkgStr := `{
+					"apiVersion": "0.1.0",
+					"kind": "Package",
+					"meta": {
+						"pkgName": "pkg_name",
+						"pkgVersion": "1",
+						"description": "pack description"
+					},
+					"spec": {
+						"resources": [
+							{
+								"kind": "Dashboard",
+								"name": "dashboard w/ single markdown chart",
+								"description": "a dashboard w/ markdown chart",
+								"charts": [
+									{
+										"kind": "markdown",
+										"name": "markdown chart"
+									}
+								]
+							}
+						]
+					}
+				}`
+
+				pkg, _ := Parse(EncodingJSON, FromString(pkgStr))
+				props, ok := pkg.Summary().Dashboards[0].Charts[0].Properties.(influxdb.MarkdownViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "", props.Note)
 			})
 		})
 
@@ -2668,31 +2720,85 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 		_, err := Parse(encoding, FromString(tt.pkgStr))
 		require.Error(t, err)
 
-		pErr, ok := IsParseErr(err)
-		require.True(t, ok, err)
+		require.True(t, IsParseErr(err), err)
 
+		pErr := err.(*ParseErr)
 		require.Len(t, pErr.Resources, resErrs)
 
 		resErr := pErr.Resources[0]
 		assert.Equal(t, k.String(), resErr.Kind)
 
-		require.Len(t, resErr.ValidationFails, len(tt.valFields))
-		for i, vFail := range resErr.ValidationFails {
-			assert.Equal(t, tt.valFields[i], vFail.Field)
+		for i, vFail := range resErr.ValidationErrs {
+			if len(tt.valFields) == i {
+				break
+			}
+			expectedField := tt.valFields[i]
+			findErr(t, expectedField, vFail)
 		}
 
-		assFails := pErr.Resources[0].AssociationFails
-		require.Len(t, assFails, len(tt.assIdxs))
 		if tt.assErrs == 0 {
 			return
 		}
 
-		for i, f := range assFails {
-			assert.Equal(t, "associations", assFails[i].Field)
-			assert.Equal(t, tt.assIdxs[i], f.Index)
+		assFails := pErr.Resources[0].AssociationErrs
+		for i, assFail := range assFails {
+			if len(tt.valFields) == i {
+				break
+			}
+			expectedField := tt.valFields[i]
+			findErr(t, expectedField, assFail)
 		}
 	}
 	t.Run(tt.name, fn)
+}
+
+func findErr(t *testing.T, expectedField string, vErr ValidationErr) ValidationErr {
+	t.Helper()
+
+	fields := strings.Split(expectedField, ".")
+	if len(fields) == 1 {
+		require.Equal(t, expectedField, vErr.Field)
+		return vErr
+	}
+
+	currentFieldName, idx := nextField(t, fields[0])
+	if idx > -1 {
+		require.NotNil(t, vErr.Index)
+		require.Equal(t, idx, *vErr.Index)
+	}
+	require.Equal(t, currentFieldName, vErr.Field)
+
+	next := strings.Join(fields[1:], ".")
+	nestedField, _ := nextField(t, next)
+	for _, n := range vErr.Nested {
+		if n.Field == nestedField {
+			return findErr(t, next, n)
+		}
+	}
+	assert.Fail(t, "did not find field: "+expectedField)
+
+	return vErr
+}
+
+func nextField(t *testing.T, field string) (string, int) {
+	t.Helper()
+
+	fields := strings.Split(field, ".")
+	if len(fields) == 1 && !strings.HasSuffix(fields[0], "]") {
+		return field, -1
+	}
+	parts := strings.Split(fields[0], "[")
+	if len(parts) == 1 {
+		return "", 0
+	}
+	fieldName := parts[0]
+
+	if strIdx := strings.Index(parts[1], "]"); strIdx > -1 {
+		idx, err := strconv.Atoi(parts[1][:strIdx])
+		require.NoError(t, err)
+		return fieldName, idx
+	}
+	return "", -1
 }
 
 type baseAsserts struct {
