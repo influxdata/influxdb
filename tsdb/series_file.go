@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash"
+	errors2 "github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
@@ -224,7 +225,12 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(collection *SeriesCollection) e
 	var g errgroup.Group
 	for i := range f.partitions {
 		p := f.partitions[i]
-		g.Go(func() error {
+		g.Go(func() (err error) {
+			defer func() {
+				if e := recover(); e != nil {
+					err = errors2.Errorf(errors2.InternalError, "failed to read or create series list in file %q, partition id=%d", f.path, p.id)
+				}
+			}()
 			return p.CreateSeriesListIfNotExists(collection, keyPartitionIDs)
 		})
 	}

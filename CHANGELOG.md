@@ -6,6 +6,7 @@
 1. [15713](https://github.com/influxdata/influxdb/pull/15713): Mock missing Flux dependencies when creating tasks
 1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
 1. [15866](https://github.com/influxdata/influxdb/pull/15866): Do not show Members section in Cloud environments
+1. [15900](https://github.com/influxdata/influxdb/pull/15900): Error instead of crashing on corrupted series file
 
 ### UI Improvements
 1. [15809](https://github.com/influxdata/influxdb/pull/15809): Redesign cards and animations on getting started page
