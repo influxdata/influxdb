@@ -83,8 +83,9 @@ func taskCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	flux, err := repl.LoadQuery(args[0])
@@ -163,8 +164,9 @@ func init() {
 
 func taskFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	filter := platform.TaskFilter{}
@@ -265,8 +267,9 @@ func init() {
 
 func taskUpdateF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var id platform.ID
@@ -339,8 +342,9 @@ func init() {
 
 func taskDeleteF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var id platform.ID
@@ -408,8 +412,9 @@ func init() {
 
 func taskLogFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var filter platform.LogFilter
@@ -482,8 +487,9 @@ func init() {
 
 func taskRunFindF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	filter := platform.RunFilter{
@@ -570,8 +576,9 @@ func init() {
 
 func runRetryF(cmd *cobra.Command, args []string) error {
 	s := &http.TaskService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}
 
 	var taskID, runID platform.ID

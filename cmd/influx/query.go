@@ -80,7 +80,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 
 	flux.FinalizeBuiltIns()
 
-	r, err := getFluxREPL(flags.host, flags.token, orgID)
+	r, err := getFluxREPL(flags.host, flags.token, flags.skipVerify, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get the flux REPL: %v", err)
 	}
