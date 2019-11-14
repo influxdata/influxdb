@@ -228,24 +228,27 @@ describe('Buckets', () => {
     })
   })
 
-  describe('writing data to bucket', () => {
-    it('writing a well-formed line is accepted', () => {
+  describe('add data', () => {
+    it('writing data to buckets', () => {
+      // writing a well-formed line is accepted
       cy.getByTestID('add-data--button').click()
       cy.getByTestID('bucket-add-line-protocol').click()
       cy.getByTestID('Enter Manually').click()
       cy.getByTestID('line-protocol--text-area').type('m1,t1=v1 v=1.0')
       cy.getByTestID('next').click()
       cy.getByTestID('wizard-step--text-state success')
-    })
-    it('writing a poorly-formed line errors', () => {
+      cy.getByTestID('next').click()
+
+      // writing a poorly-formed line errors
       cy.getByTestID('add-data--button').click()
       cy.getByTestID('bucket-add-line-protocol').click()
       cy.getByTestID('Enter Manually').click()
       cy.getByTestID('line-protocol--text-area').type('invalid invalid')
       cy.getByTestID('next').click()
       cy.getByTestID('wizard-step--text-state error')
-    })
-    it('writing a well-formed line with millisecond precision is accepted', () => {
+      cy.getByTestID('next').click()
+
+      // writing a well-formed line with millisecond precision is accepted
       cy.getByTestID('add-data--button').click()
       cy.getByTestID('bucket-add-line-protocol').click()
       cy.getByTestID('Enter Manually').click()
@@ -255,6 +258,7 @@ describe('Buckets', () => {
       cy.getByTestID('line-protocol--text-area').type(`m2,t2=v2 v=2.0 ${now}`)
       cy.getByTestID('next').click()
       cy.getByTestID('wizard-step--text-state success')
+      cy.getByTestID('next').click()
     })
   })
 })
