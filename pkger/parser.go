@@ -300,33 +300,40 @@ func (p *Pkg) labelMappings() []SummaryLabelMapping {
 }
 
 func (p *Pkg) validMetadata() error {
-	var failures []*failure
+	var failures []ValidationErr
 	if p.APIVersion != APIVersion {
-		failures = append(failures, &failure{
+		failures = append(failures, ValidationErr{
 			Field: "apiVersion",
 			Msg:   "must be version " + APIVersion,
 		})
 	}
 
-	mKind := Kind(strings.TrimSpace(strings.ToLower(p.Kind)))
-	if mKind != KindPackage {
-		failures = append(failures, &failure{
+	if mKind := newKind(p.Kind); mKind != KindPackage {
+		failures = append(failures, ValidationErr{
 			Field: "kind",
 			Msg:   `must be of kind "Package"`,
 		})
 	}
 
+	var metaFails []ValidationErr
 	if p.Metadata.Version == "" {
-		failures = append(failures, &failure{
-			Field: "meta.pkgVersion",
+		metaFails = append(metaFails, ValidationErr{
+			Field: "pkgVersion",
 			Msg:   "version is required",
 		})
 	}
 
 	if p.Metadata.Name == "" {
-		failures = append(failures, &failure{
-			Field: "meta.pkgName",
+		metaFails = append(metaFails, ValidationErr{
+			Field: "pkgName",
 			Msg:   "must be at least 1 char",
+		})
+	}
+
+	if len(metaFails) > 0 {
+		failures = append(failures, ValidationErr{
+			Field:  "meta",
+			Nested: metaFails,
 		})
 	}
 
@@ -334,21 +341,12 @@ func (p *Pkg) validMetadata() error {
 		return nil
 	}
 
-	res := errResource{
-		Kind: KindPackage.String(),
-		Idx:  -1,
-	}
-	for _, f := range failures {
-		res.ValidationFails = append(res.ValidationFails, struct {
-			Field string
-			Msg   string
-		}{
-			Field: f.Field,
-			Msg:   f.Msg,
-		})
-	}
 	var err ParseErr
-	err.append(res)
+	err.append(errResource{
+		Kind:           KindPackage.String(),
+		Idx:            -1,
+		ValidationErrs: failures,
+	})
 	return &err
 }
 
@@ -361,10 +359,10 @@ func (p *Pkg) validResources() error {
 		Kind: "Package",
 		Idx:  -1,
 	}
-	res.ValidationFails = append(res.ValidationFails, struct {
-		Field string
-		Msg   string
-	}{Field: "resources", Msg: "at least 1 resource must be provided"})
+	res.ValidationErrs = append(res.ValidationErrs, ValidationErr{
+		Field: "resources",
+		Msg:   "at least 1 resource must be provided",
+	})
 	var err ParseErr
 	err.append(res)
 	return &err
@@ -379,10 +377,23 @@ func (p *Pkg) graphResources() error {
 		p.graphDashboards,
 	}
 
+	var parseErr ParseErr
 	for _, fn := range graphFns {
 		if err := fn(); err != nil {
+			if pErr, ok := IsParseErr(err); ok {
+				parseErr.append(pErr.Resources...)
+				continue
+			}
 			return err
 		}
+	}
+
+	if len(parseErr.Resources) > 0 {
+		sort.Slice(parseErr.Resources, func(i, j int) bool {
+			ir, jr := parseErr.Resources[i], parseErr.Resources[j]
+			return ir.Idx < jr.Idx
+		})
+		return &parseErr
 	}
 
 	return nil
@@ -390,16 +401,16 @@ func (p *Pkg) graphResources() error {
 
 func (p *Pkg) graphBuckets() error {
 	p.mBuckets = make(map[string]*bucket)
-	return p.eachResource(KindBucket, func(r Resource) []failure {
+	return p.eachResource(KindBucket, func(r Resource) []ValidationErr {
 		if r.Name() == "" {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "must be a string of at least 2 chars in length",
 			}}
 		}
 
 		if _, ok := p.mBuckets[r.Name()]; ok {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "duplicate name: " + r.Name(),
 			}}
@@ -431,16 +442,16 @@ func (p *Pkg) graphBuckets() error {
 
 func (p *Pkg) graphLabels() error {
 	p.mLabels = make(map[string]*label)
-	return p.eachResource(KindLabel, func(r Resource) []failure {
+	return p.eachResource(KindLabel, func(r Resource) []ValidationErr {
 		if r.Name() == "" {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "must be a string of at least 2 chars in length",
 			}}
 		}
 
 		if _, ok := p.mLabels[r.Name()]; ok {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "duplicate name: " + r.Name(),
 			}}
@@ -457,16 +468,16 @@ func (p *Pkg) graphLabels() error {
 
 func (p *Pkg) graphDashboards() error {
 	p.mDashboards = make(map[string]*dashboard)
-	return p.eachResource(KindDashboard, func(r Resource) []failure {
+	return p.eachResource(KindDashboard, func(r Resource) []ValidationErr {
 		if r.Name() == "" {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "must be a string of at least 2 chars in length",
 			}}
 		}
 
 		if _, ok := p.mDashboards[r.Name()]; ok {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "duplicate name: " + r.Name(),
 			}}
@@ -489,12 +500,11 @@ func (p *Pkg) graphDashboards() error {
 		for i, cr := range r.slcResource(fieldDashCharts) {
 			ch, fails := parseChart(cr)
 			if fails != nil {
-				for _, f := range fails {
-					failures = append(failures, failure{
-						Field: fmt.Sprintf("charts[%d].%s", i, f.Field),
-						Msg:   f.Msg,
-					})
-				}
+				failures = append(failures, ValidationErr{
+					Field:  "charts",
+					Index:  intPtr(i),
+					Nested: fails,
+				})
 				continue
 			}
 			dash.Charts = append(dash.Charts, ch)
@@ -512,16 +522,16 @@ func (p *Pkg) graphDashboards() error {
 
 func (p *Pkg) graphVariables() error {
 	p.mVariables = make(map[string]*variable)
-	return p.eachResource(KindVariable, func(r Resource) []failure {
+	return p.eachResource(KindVariable, func(r Resource) []ValidationErr {
 		if r.Name() == "" {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "must be provided",
 			}}
 		}
 
 		if _, ok := p.mVariables[r.Name()]; ok {
-			return []failure{{
+			return []ValidationErr{{
 				Field: "name",
 				Msg:   "duplicate name: " + r.Name(),
 			}}
@@ -560,7 +570,7 @@ func (p *Pkg) graphVariables() error {
 	})
 }
 
-func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []failure) error {
+func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []ValidationErr) error {
 	var parseErr ParseErr
 	for i, r := range p.Spec.Resources {
 		k, err := r.kind()
@@ -568,10 +578,7 @@ func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []failure) err
 			parseErr.append(errResource{
 				Kind: k.String(),
 				Idx:  i,
-				ValidationFails: []struct {
-					Field string
-					Msg   string
-				}{
+				ValidationErrs: []ValidationErr{
 					{
 						Field: "kind",
 						Msg:   err.Error(),
@@ -590,18 +597,17 @@ func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []failure) err
 				Idx:  i,
 			}
 			for _, f := range failures {
-				if f.fromAssociation {
-					err.AssociationFails = append(err.AssociationFails, struct {
-						Field string
-						Msg   string
-						Index int
-					}{Field: f.Field, Msg: f.Msg, Index: f.assIndex})
+				vErr := ValidationErr{
+					Field:  f.Field,
+					Msg:    f.Msg,
+					Index:  f.Index,
+					Nested: f.Nested,
+				}
+				if vErr.Field == "associations" {
+					err.AssociationErrs = append(err.AssociationErrs, vErr)
 					continue
 				}
-				err.ValidationFails = append(err.ValidationFails, struct {
-					Field string
-					Msg   string
-				}{Field: f.Field, Msg: f.Msg})
+				err.ValidationErrs = append(err.ValidationErrs, vErr)
 			}
 			parseErr.append(err)
 		}
@@ -613,12 +619,12 @@ func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []failure) err
 	return nil
 }
 
-func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []failure {
+func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []ValidationErr {
 	nestedLabels := make(map[string]*label)
 
-	var failures []failure
+	var failures []ValidationErr
 	for i, nr := range r.slcResource(fieldAssociations) {
-		fail := p.parseNestedLabel(i, nr, func(l *label) error {
+		fail := p.parseNestedLabel(nr, func(l *label) error {
 			if _, ok := nestedLabels[l.Name]; ok {
 				return fmt.Errorf("duplicate nested label: %q", l.Name)
 			}
@@ -627,6 +633,7 @@ func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []failure 
 			return fn(l)
 		})
 		if fail != nil {
+			fail.Index = intPtr(i)
 			failures = append(failures, *fail)
 		}
 	}
@@ -634,14 +641,17 @@ func (p *Pkg) parseNestedLabels(r Resource, fn func(lb *label) error) []failure 
 	return failures
 }
 
-func (p *Pkg) parseNestedLabel(idx int, nr Resource, fn func(lb *label) error) *failure {
+func (p *Pkg) parseNestedLabel(nr Resource, fn func(lb *label) error) *ValidationErr {
 	k, err := nr.kind()
 	if err != nil {
-		return &failure{
-			Field:           "kind",
-			Msg:             err.Error(),
-			fromAssociation: true,
-			assIndex:        idx,
+		return &ValidationErr{
+			Field: "associations",
+			Nested: []ValidationErr{
+				{
+					Field: "kind",
+					Msg:   err.Error(),
+				},
+			},
 		}
 	}
 	if !k.is(KindLabel) {
@@ -650,29 +660,25 @@ func (p *Pkg) parseNestedLabel(idx int, nr Resource, fn func(lb *label) error) *
 
 	lb, found := p.mLabels[nr.Name()]
 	if !found {
-		return &failure{
-			Field:           "associations",
-			Msg:             fmt.Sprintf("label %q does not exist in pkg", nr.Name()),
-			fromAssociation: true,
-			assIndex:        idx,
+		return &ValidationErr{
+			Field: "associations",
+			Msg:   fmt.Sprintf("label %q does not exist in pkg", nr.Name()),
 		}
 	}
 
 	if err := fn(lb); err != nil {
-		return &failure{
-			Field:           "associations",
-			Msg:             err.Error(),
-			fromAssociation: true,
-			assIndex:        idx,
+		return &ValidationErr{
+			Field: "associations",
+			Msg:   err.Error(),
 		}
 	}
 	return nil
 }
 
-func parseChart(r Resource) (chart, []failure) {
+func parseChart(r Resource) (chart, []ValidationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
-		return chart{}, []failure{{
+		return chart{}, []ValidationErr{{
 			Field: "kind",
 			Msg:   err.Error(),
 		}}
@@ -710,7 +716,7 @@ func parseChart(r Resource) (chart, []failure) {
 		c.DecimalPlaces = dp
 	}
 
-	var failures []failure
+	var failures []ValidationErr
 	if presentQueries, ok := r[fieldChartQueries].(queries); ok {
 		c.Queries = presentQueries
 	} else {
@@ -1006,26 +1012,32 @@ func uniqResources(resources []Resource) []Resource {
 	return out
 }
 
-// ParseErr is a error from parsing the given package. The ParseErr
-// provides a list of resources that failed and all validations
-// that failed for that resource. A resource can multiple errors,
-// and a ParseErr can have multiple resources which themselves can
-// have multiple validation failures.
-type ParseErr struct {
-	Resources []struct {
+type (
+	// ParseErr is a error from parsing the given package. The ParseErr
+	// provides a list of resources that failed and all validations
+	// that failed for that resource. A resource can multiple errors,
+	// and a ParseErr can have multiple resources which themselves can
+	// have multiple validation failures.
+	ParseErr struct {
+		Resources []errResource
+	}
+
+	errResource struct {
 		Kind            string
 		Idx             int
-		ValidationFails []struct {
-			Field string
-			Msg   string
-		}
-		AssociationFails []struct {
-			Field string
-			Msg   string
-			Index int
-		}
+		AssociationErrs []ValidationErr
+		ValidationErrs  []ValidationErr
 	}
-}
+
+	// ValidationErr represents an error during the parsing of a package.
+	ValidationErr struct {
+		Field string
+		Msg   string
+		Index *int
+
+		Nested []ValidationErr
+	}
+)
 
 // Error implements the error interface.
 func (e *ParseErr) Error() string {
@@ -1037,13 +1049,13 @@ func (e *ParseErr) Error() string {
 		}
 		err := fmt.Sprintf("resource_index=%s resource_kind=%q", resIndex, r.Kind)
 		errMsg = append(errMsg, err)
-		for _, f := range r.ValidationFails {
+		for _, f := range r.ValidationErrs {
 			// for time being we go to new line and indent them (mainly for CLI)
 			// other callers (i.e. HTTP client) can inspect the resource and print it out
 			// or we provide a format option of sorts. We'll see
 			errMsg = append(errMsg, fmt.Sprintf("\terr_type=%q field=%q reason=%q", "validation", f.Field, f.Msg))
 		}
-		for _, f := range r.AssociationFails {
+		for _, f := range r.AssociationErrs {
 			errMsg = append(errMsg, fmt.Sprintf("\terr_type=%q field=%q association_index=%d reason=%q", "association", f.Field, f.Index, f.Msg))
 		}
 	}
@@ -1051,8 +1063,8 @@ func (e *ParseErr) Error() string {
 	return strings.Join(errMsg, "\n")
 }
 
-func (e *ParseErr) append(err errResource) {
-	e.Resources = append(e.Resources, err)
+func (e *ParseErr) append(errs ...errResource) {
+	e.Resources = append(e.Resources, errs...)
 }
 
 // IsParseErr inspects a given error to determine if it is
@@ -1063,24 +1075,4 @@ func (e *ParseErr) append(err errResource) {
 func IsParseErr(err error) (*ParseErr, bool) {
 	pErr, ok := err.(*ParseErr)
 	return pErr, ok
-}
-
-type errResource struct {
-	Kind            string
-	Idx             int
-	ValidationFails []struct {
-		Field string
-		Msg   string
-	}
-	AssociationFails []struct {
-		Field string
-		Msg   string
-		Index int
-	}
-}
-
-type failure struct {
-	Field, Msg      string
-	fromAssociation bool
-	assIndex        int
 }

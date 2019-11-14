@@ -111,14 +111,17 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	orgID, err := influxdb.IDFromString(reqBody.OrgID)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), err, w)
+		s.HandleHTTPError(r.Context(), &influxdb.Error{
+			Code: influxdb.EConflict,
+			Msg:  fmt.Sprintf("invalid organization ID provided: %q", reqBody.OrgID),
+		}, w)
 		return
 	}
 
 	parsedPkg := reqBody.Pkg
 	sum, diff, err := s.svc.DryRun(r.Context(), *orgID, parsedPkg)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), httpParseErr(err), w)
+		s.HandleHTTPError(r.Context(), err, w)
 		return
 	}
 
@@ -133,7 +136,7 @@ func (s *HandlerPkg) applyPkg(w http.ResponseWriter, r *http.Request) {
 
 	sum, err = s.svc.Apply(r.Context(), *orgID, parsedPkg)
 	if err != nil {
-		s.HandleHTTPError(r.Context(), httpParseErr(err), w)
+		s.HandleHTTPError(r.Context(), err, w)
 		return
 	}
 
@@ -184,10 +187,6 @@ func newDecodeErr(encoding string, err error) *influxdb.Error {
 		Code: influxdb.EInvalid,
 		Err:  err,
 	}
-}
-
-func httpParseErr(err error) error {
-	return err
 }
 
 func traceMW(next http.Handler) http.Handler {
