@@ -301,10 +301,17 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
 func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summary, Diff, error) {
+	// so here's the deal, when we have issues with the parsing validation, we
+	// continue to do the diff anyhow. any resource that does not have a name
+	// will be skipped, and won't bleed into the dry run here. We can now return
+	// a error (parseErr) and valid diff/summary.
+	var parseErr error
 	if !pkg.isParsed {
-		if err := pkg.Validate(); err != nil {
+		err := pkg.Validate()
+		if err != nil && !IsParseErr(err) {
 			return Summary{}, Diff{}, err
 		}
+		parseErr = err
 	}
 
 	diffBuckets, err := s.dryRunBuckets(ctx, orgID, pkg)
@@ -344,7 +351,7 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 		LabelMappings: diffLabelMappings,
 		Variables:     diffVars,
 	}
-	return pkg.Summary(), diff, nil
+	return pkg.Summary(), diff, parseErr
 }
 
 func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffBucket, error) {
