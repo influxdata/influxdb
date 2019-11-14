@@ -9,8 +9,8 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/internal"
 )
 
-func membersListF(ctx context.Context, filter influxdb.UserResourceMappingFilter, flgs Flags) error {
-	mappingSvc, err := newUserResourceMappingService(flgs)
+func membersListF(ctx context.Context, filter influxdb.UserResourceMappingFilter) error {
+	mappingSvc, err := newUserResourceMappingService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize members service client: %v", err)
 	}
@@ -18,7 +18,7 @@ func membersListF(ctx context.Context, filter influxdb.UserResourceMappingFilter
 	if err != nil {
 		return fmt.Errorf("failed to find members: %v", err)
 	}
-	userSVC, err := newUserService(flgs)
+	userSVC, err := newUserService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize users service client: %v", err)
 	}
@@ -77,8 +77,8 @@ func membersListF(ctx context.Context, filter influxdb.UserResourceMappingFilter
 	return nil
 }
 
-func membersAddF(ctx context.Context, urm influxdb.UserResourceMapping, flgs Flags) error {
-	mappingSvc, err := newUserResourceMappingService(flgs)
+func membersAddF(ctx context.Context, urm influxdb.UserResourceMapping) error {
+	mappingSvc, err := newUserResourceMappingService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize members service client: %v", err)
 	}
@@ -90,8 +90,8 @@ func membersAddF(ctx context.Context, urm influxdb.UserResourceMapping, flgs Fla
 	return nil
 }
 
-func membersRemoveF(ctx context.Context, resourceID, userID influxdb.ID, flgs Flags) error {
-	mappingSvc, err := newUserResourceMappingService(flgs)
+func membersRemoveF(ctx context.Context, resourceID, userID influxdb.ID) error {
+	mappingSvc, err := newUserResourceMappingService()
 	if err != nil {
 		return fmt.Errorf("failed to initialize members service client: %v", err)
 	}

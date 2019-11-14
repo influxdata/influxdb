@@ -40,28 +40,30 @@ func init() {
 	userCmd.AddCommand(userUpdateCmd)
 }
 
-func newUserService(f Flags) (platform.UserService, error) {
+func newUserService() (platform.UserService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
 	return &http.UserService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}, nil
 }
 
-func newUserResourceMappingService(f Flags) (platform.UserResourceMappingService, error) {
+func newUserResourceMappingService() (platform.UserResourceMappingService, error) {
 	if flags.local {
 		return newLocalKVService()
 	}
 	return &http.UserResourceMappingService{
-		Addr:  flags.host,
-		Token: flags.token,
+		Addr:               flags.host,
+		Token:              flags.token,
+		InsecureSkipVerify: flags.skipVerify,
 	}, nil
 }
 
 func userUpdateF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	s, err := newUserService()
 	if err != nil {
 		return err
 	}
@@ -116,7 +118,7 @@ func init() {
 }
 
 func userCreateF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	s, err := newUserService()
 	if err != nil {
 		return err
 	}
@@ -165,7 +167,7 @@ func init() {
 }
 
 func userFindF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	s, err := newUserService()
 	if err != nil {
 		return err
 	}
@@ -224,7 +226,7 @@ func init() {
 }
 
 func userDeleteF(cmd *cobra.Command, args []string) error {
-	s, err := newUserService(flags)
+	s, err := newUserService()
 	if err != nil {
 		return err
 	}
