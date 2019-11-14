@@ -644,13 +644,11 @@ describe('DataExplorer', () => {
 })
 
 const lines = (numLines = 3) => {
-  // one point in the past and one now
+  // each line is 10 seconds before the previous line
   const offset_ms = 10_000
   const now = Date.now()
   const nanos_per_ms = '000000'
 
-  // ok, so, yeah...
-  // this is to build an incrementing number of lines
   const decendingValues = Array(numLines)
     .fill(0)
     .map((_, i) => i)
