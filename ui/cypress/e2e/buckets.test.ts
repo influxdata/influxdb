@@ -11,8 +11,8 @@ describe('Buckets', () => {
       } = body
       cy.wrap(body.org).as('org')
       cy.wrap(bucket).as('bucket')
-      cy.fixture('routes').then(({orgs}) => {
-        cy.visit(`${orgs}/${id}/load-data/buckets`)
+      cy.fixture('routes').then(({orgs, buckets}) => {
+        cy.visit(`${orgs}/${id}${buckets}`)
       })
     })
   })
@@ -204,30 +204,57 @@ describe('Buckets', () => {
   describe('Routing directly to the edit overlay', () => {
     it('reroutes to buckets view if bucket does not exist', () => {
       cy.get('@org').then(({id}: Organization) => {
-        cy.fixture('routes').then(({orgs}) => {
+        cy.fixture('routes').then(({orgs, buckets}) => {
           const idThatDoesntExist = '261234d1a7f932e4'
-          cy.visit(`${orgs}/${id}/load-data/buckets/${idThatDoesntExist}/edit`)
-          cy.location('pathname').should(
-            'be',
-            `${orgs}/${id}/load-data/buckets/`
-          )
+          cy.visit(`${orgs}/${id}${buckets}/${idThatDoesntExist}/edit`)
+          cy.location('pathname').should('be', `${orgs}/${id}${buckets}/`)
         })
       })
     })
 
     it('displays overlay if bucket exists', () => {
       cy.get('@org').then(({id: orgID}: Organization) => {
-        cy.fixture('routes').then(({orgs}) => {
+        cy.fixture('routes').then(({orgs, buckets}) => {
           cy.get('@bucket').then(({id: bucketID}: Bucket) => {
-            cy.visit(`${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`)
+            cy.visit(`${orgs}/${orgID}${buckets}/${bucketID}/edit`)
             cy.location('pathname').should(
               'be',
-              `${orgs}/${orgID}/load-data/buckets/${bucketID}/edit`
+              `${orgs}/${orgID}${buckets}/${bucketID}/edit`
             )
           })
           cy.getByTestID(`overlay`).should('exist')
         })
       })
+    })
+  })
+
+  describe('writing data to bucket', () => {
+    it('writing a well-formed line is accepted', () => {
+      cy.getByTestID('add-data--button').click()
+      cy.getByTestID('bucket-add-line-protocol').click()
+      cy.getByTestID('Enter Manually').click()
+      cy.getByTestID('line-protocol--text-area').type('m1,t1=v1 v=1.0')
+      cy.getByTestID('next').click()
+      cy.getByTestID('wizard-step--text-state success')
+    })
+    it('writing a poorly-formed line errors', () => {
+      cy.getByTestID('add-data--button').click()
+      cy.getByTestID('bucket-add-line-protocol').click()
+      cy.getByTestID('Enter Manually').click()
+      cy.getByTestID('line-protocol--text-area').type('invalid invalid')
+      cy.getByTestID('next').click()
+      cy.getByTestID('wizard-step--text-state error')
+    })
+    it('writing a well-formed line with millisecond precision is accepted', () => {
+      cy.getByTestID('add-data--button').click()
+      cy.getByTestID('bucket-add-line-protocol').click()
+      cy.getByTestID('Enter Manually').click()
+      cy.getByTestID('wizard-step--lp-precision--dropdown').click()
+      cy.getByTestID('wizard-step--lp-precision-ms').click()
+      const now = Date.now()
+      cy.getByTestID('line-protocol--text-area').type(`m2,t2=v2 v=2.0 ${now}`)
+      cy.getByTestID('next').click()
+      cy.getByTestID('wizard-step--text-state success')
     })
   })
 })
