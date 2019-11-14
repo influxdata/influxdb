@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FC, useEffect} from 'react'
 import moment from 'moment'
 import {connect} from 'react-redux'
 import {Form, Grid, Columns, Panel} from '@influxdata/clockface'
@@ -16,20 +16,18 @@ import {Filter, RemoteDataState} from 'src/types'
 
 // Selectors
 import {setCanDelete} from 'src/shared/selectors/canDelete'
-// import {setCanDelete} from 'src/shared/selectors/canDelete'
 
 // Actions
 import {
   deleteFilter,
   deleteWithPredicate,
   resetFilters,
-  setBucketName,
   setDeletionStatus,
   setFilter,
   setIsSerious,
+  setBucketAndKeys,
   setTimeRange,
 } from 'src/shared/actions/predicates'
-import {selectBucket} from 'src/timeMachine/actions/queryBuilder'
 
 interface OwnProps {
   orgID: string
@@ -43,27 +41,28 @@ interface OwnProps {
 interface StateProps {
   bucketName: string
   canDelete: boolean
-  filters: Filter[]
-  timeRange: [number, number]
-  isSerious: boolean
   deletionStatus: RemoteDataState
+  filters: Filter[]
+  isSerious: boolean
+  keys: string[]
+  timeRange: [number, number]
+  values: (string | number)[]
 }
 
 interface DispatchProps {
   deleteFilter: (index: number) => void
   deleteWithPredicate: typeof deleteWithPredicate
-  onSelectBucket: (bucket: string, resetSelections: boolean) => void
   resetFilters: () => void
-  setBucketName: (bucket: string) => void
   setDeletionStatus: (status: RemoteDataState) => void
   setFilter: typeof setFilter
   setIsSerious: (isSerious: boolean) => void
+  setBucketAndKeys: (orgID: string, bucketName: string) => void
   setTimeRange: (timeRange: [number, number]) => void
 }
 
 export type Props = StateProps & DispatchProps & OwnProps
 
-const DeleteDataForm: FunctionComponent<Props> = ({
+const DeleteDataForm: FC<Props> = ({
   bucketName,
   canDelete,
   deleteFilter,
@@ -75,18 +74,23 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   initialTimeRange,
   isSerious,
   keys,
-  onSelectBucket,
   orgID,
   resetFilters,
-  setBucketName,
   setDeletionStatus,
   setFilter,
   setIsSerious,
+  setBucketAndKeys,
   setTimeRange,
   timeRange,
   values,
 }) => {
   const name = bucketName || initialBucketName
+  // trigger the setBucketAndKeys if the bucketName hasn't been set
+  if (bucketName === '') {
+    useEffect(() => {
+      setBucketAndKeys(orgID, name)
+    })
+  }
 
   const realTimeRange = initialTimeRange || timeRange
 
@@ -126,9 +130,8 @@ const DeleteDataForm: FunctionComponent<Props> = ({
   }
 
   const handleBucketClick = selectedBucket => {
-    onSelectBucket(selectedBucket, true)
+    setBucketAndKeys(orgID, selectedBucket)
     resetFilters()
-    setBucketName(selectedBucket)
   }
 
   return (
@@ -155,10 +158,12 @@ const DeleteDataForm: FunctionComponent<Props> = ({
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <FilterEditor
+              bucket={name}
               filters={filters}
               keys={keys}
-              onSetFilter={(filter, index) => setFilter(filter, index)}
               onDeleteFilter={index => deleteFilter(index)}
+              onSetFilter={(filter, index) => setFilter(filter, index)}
+              orgID={orgID}
               shouldValidate={isSerious}
               values={values}
             />
@@ -192,26 +197,35 @@ const DeleteDataForm: FunctionComponent<Props> = ({
 }
 
 const mstp = ({predicates}) => {
-  const {bucketName, deletionStatus, filters, isSerious, timeRange} = predicates
+  const {
+    bucketName,
+    deletionStatus,
+    filters,
+    isSerious,
+    keys,
+    timeRange,
+    values,
+  } = predicates
   return {
     bucketName,
     canDelete: setCanDelete(predicates),
     deletionStatus,
     filters,
     isSerious,
+    keys,
     timeRange,
+    values,
   }
 }
 
 const mdtp = {
   deleteFilter,
   deleteWithPredicate,
-  onSelectBucket: selectBucket,
   resetFilters,
-  setBucketName,
   setDeletionStatus,
   setFilter,
   setIsSerious,
+  setBucketAndKeys,
   setTimeRange,
 }
 

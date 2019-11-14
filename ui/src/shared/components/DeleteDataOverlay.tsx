@@ -12,17 +12,11 @@ import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 import {Bucket, AppState} from 'src/types'
 
 // Utils
-import {
-  getActiveQuery,
-  getTagKeys,
-  getTagValues,
-} from 'src/timeMachine/selectors'
+import {getActiveQuery} from 'src/timeMachine/selectors'
 
 interface StateProps {
   buckets: Bucket[]
   selectedBucketName?: string
-  selectedKeys: string[]
-  selectedValues: (string | number)[]
 }
 
 const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
@@ -30,8 +24,6 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
   router,
   params: {orgID, bucketID},
   selectedBucketName,
-  selectedKeys,
-  selectedValues,
 }) => {
   const handleDismiss = () =>
     router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}`)
@@ -48,9 +40,7 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
           <DeleteDataForm
             handleDismiss={handleDismiss}
             initialBucketName={initialBucketName}
-            keys={selectedKeys}
             orgID={orgID}
-            values={selectedValues}
           />
         </Overlay.Body>
       </Overlay.Container>
@@ -61,14 +51,9 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
 const mstp = (state: AppState): StateProps => {
   const activeQuery = getActiveQuery(state)
   const selectedBucketName = get(activeQuery, 'builderConfig.buckets.0')
-  const selectedBucketTags = get(activeQuery, 'builderConfig.tags')
-  const selectedKeys = getTagKeys(selectedBucketTags)
-  const selectedValues = getTagValues(selectedBucketTags)
   return {
     buckets: state.buckets.list,
     selectedBucketName,
-    selectedKeys,
-    selectedValues,
   }
 }
 

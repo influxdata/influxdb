@@ -9,19 +9,23 @@ import FilterRow from 'src/shared/components/DeleteDataForm/FilterRow'
 import {Filter} from 'src/types'
 
 interface Props {
+  bucket: string
   filters: Filter[]
   keys: string[]
-  onSetFilter: (filter: Filter, index: number) => any
   onDeleteFilter: (index: number) => any
+  onSetFilter: (filter: Filter, index: number) => any
+  orgID: string
   shouldValidate: boolean
   values: (string | number)[]
 }
 
 const FilterEditor: FunctionComponent<Props> = ({
+  bucket,
   filters,
   keys,
-  onSetFilter,
   onDeleteFilter,
+  onSetFilter,
+  orgID,
   shouldValidate,
   values,
 }) => {
@@ -41,11 +45,13 @@ const FilterEditor: FunctionComponent<Props> = ({
         <div className="delete-data-filters--filters">
           {filters.map((filter, i) => (
             <FilterRow
+              bucket={bucket}
               key={i}
               keys={keys}
               filter={filter}
               onChange={filter => onSetFilter(filter, i)}
               onDelete={() => onDeleteFilter(i)}
+              orgID={orgID}
               shouldValidate={shouldValidate}
               values={values}
             />

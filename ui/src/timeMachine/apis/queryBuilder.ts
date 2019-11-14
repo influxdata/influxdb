@@ -105,7 +105,7 @@ export function findValues({
   return extractBoxedCol(runQuery(orgID, query), '_value')
 }
 
-function extractBoxedCol(
+export function extractBoxedCol(
   resp: CancelBox<RunQueryResult>,
   colName: string
 ): CancelBox<string[]> {
@@ -120,7 +120,7 @@ function extractBoxedCol(
   return {promise, cancel: resp.cancel}
 }
 
-function extractCol(csv: string, colName: string): string[] {
+export function extractCol(csv: string, colName: string): string[] {
   const tables = parseResponse(csv)
   const data = get(tables, '0.data', [])
 

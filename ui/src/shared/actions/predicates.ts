@@ -1,8 +1,10 @@
-// Redux
+// Libraries
 import {Dispatch} from 'redux-thunk'
+import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
 
 // API
 import * as api from 'src/client'
+import {runQuery} from 'src/shared/apis/query'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -23,8 +25,10 @@ export type Action =
   | SetDeletionStatus
   | SetFilter
   | SetIsSerious
+  | SetKeysByBucket
   | SetPredicateToDefault
   | SetTimeRange
+  | SetValuesByKey
 
 interface SetIsSerious {
   type: 'SET_IS_SERIOUS'
@@ -105,6 +109,46 @@ interface SetPredicateToDefault {
 export const resetPredicateState = (): SetPredicateToDefault => ({
   type: 'SET_PREDICATE_DEFAULT',
 })
+
+interface SetKeysByBucket {
+  type: 'SET_KEYS_BY_BUCKET'
+  keys: string[]
+}
+
+const setKeys = (keys: string[]): SetKeysByBucket => ({
+  type: 'SET_KEYS_BY_BUCKET',
+  keys,
+})
+
+export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
+  dispatch: Dispatch<Action>
+) => {
+  const query = `import "influxdata/influxdb/v1"
+  v1.tagKeys(bucket: "${bucketName}")`
+  const keys = await extractBoxedCol(runQuery(orgID, query), '_value').promise
+  dispatch(setBucketName(bucketName))
+  dispatch(setKeys(keys))
+}
+
+interface SetValuesByKey {
+  type: 'SET_VALUES_BY_KEY'
+  values: string[]
+}
+
+const setValues = (values: string[]): SetValuesByKey => ({
+  type: 'SET_VALUES_BY_KEY',
+  values,
+})
+
+export const setValuesByKey = (
+  orgID: string,
+  bucketName: string,
+  keyName: string
+) => async (dispatch: Dispatch<Action>) => {
+  const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`
+  const values = await extractBoxedCol(runQuery(orgID, query), '_value').promise
+  dispatch(setValues(values))
+}
 
 export const deleteWithPredicate = params => async (
   dispatch: Dispatch<Action>
