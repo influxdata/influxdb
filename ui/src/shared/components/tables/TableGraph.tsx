@@ -71,7 +71,9 @@ class TableGraph extends PureComponent<Props, State> {
       sortOptions.field = fieldName
       sortOptions.direction = DEFAULT_SORT_DIRECTION
     }
-    this.setState({sortOptions})
+
+    const newSortOptions = {...sortOptions}
+    this.setState({sortOptions: newSortOptions})
   }
 
   private get sortOptions(): SortOptions {
