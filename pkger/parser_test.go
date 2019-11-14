@@ -2720,9 +2720,9 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 		_, err := Parse(encoding, FromString(tt.pkgStr))
 		require.Error(t, err)
 
-		pErr, ok := IsParseErr(err)
-		require.True(t, ok, err)
+		require.True(t, IsParseErr(err), err)
 
+		pErr := err.(*ParseErr)
 		require.Len(t, pErr.Resources, resErrs)
 
 		resErr := pErr.Resources[0]

@@ -342,7 +342,7 @@ func (p *Pkg) validMetadata() error {
 	}
 
 	var err ParseErr
-	err.append(errResource{
+	err.append(ResourceErr{
 		Kind:           KindPackage.String(),
 		Idx:            -1,
 		ValidationErrs: failures,
@@ -355,7 +355,7 @@ func (p *Pkg) validResources() error {
 		return nil
 	}
 
-	res := errResource{
+	res := ResourceErr{
 		Kind: "Package",
 		Idx:  -1,
 	}
@@ -380,8 +380,8 @@ func (p *Pkg) graphResources() error {
 	var parseErr ParseErr
 	for _, fn := range graphFns {
 		if err := fn(); err != nil {
-			if pErr, ok := IsParseErr(err); ok {
-				parseErr.append(pErr.Resources...)
+			if IsParseErr(err) {
+				parseErr.append(err.(*ParseErr).Resources...)
 				continue
 			}
 			return err
@@ -427,9 +427,6 @@ func (p *Pkg) graphBuckets() error {
 			p.mLabels[l.Name].setBucketMapping(bkt, false)
 			return nil
 		})
-		if len(failures) > 0 {
-			return failures
-		}
 		sort.Slice(bkt.labels, func(i, j int) bool {
 			return bkt.labels[i].Name < bkt.labels[j].Name
 		})
@@ -510,13 +507,9 @@ func (p *Pkg) graphDashboards() error {
 			dash.Charts = append(dash.Charts, ch)
 		}
 
-		if len(failures) > 0 {
-			return failures
-		}
-
 		p.mDashboards[r.Name()] = dash
 
-		return nil
+		return failures
 	})
 }
 
@@ -558,14 +551,6 @@ func (p *Pkg) graphVariables() error {
 
 		p.mVariables[r.Name()] = newVar
 
-		// here we set the var on the var map and return fails
-		// reaons for this is we could end up providing bad
-		// errors to the user if we dont' set it b/c of a bad
-		// query or something, and its being referenced by a
-		// dashboard or something. The var exists, its just
-		// invalid. So the mapping is correct. So we keep this
-		// to validate that mapping is correct, and return fails
-		// to indicate fails from the var.
 		return append(failures, newVar.valid()...)
 	})
 }
@@ -575,7 +560,7 @@ func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []ValidationEr
 	for i, r := range p.Spec.Resources {
 		k, err := r.kind()
 		if err != nil {
-			parseErr.append(errResource{
+			parseErr.append(ResourceErr{
 				Kind: k.String(),
 				Idx:  i,
 				ValidationErrs: []ValidationErr{
@@ -592,7 +577,7 @@ func (p *Pkg) eachResource(resourceKind Kind, fn func(r Resource) []ValidationEr
 		}
 
 		if failures := fn(r); failures != nil {
-			err := errResource{
+			err := ResourceErr{
 				Kind: resourceKind.String(),
 				Idx:  i,
 			}
@@ -716,7 +701,6 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 		c.DecimalPlaces = dp
 	}
 
-	var failures []ValidationErr
 	if presentQueries, ok := r[fieldChartQueries].(queries); ok {
 		c.Queries = presentQueries
 	} else {
@@ -757,11 +741,7 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 		}
 	}
 
-	if fails := c.validProperties(); len(fails) > 0 {
-		failures = append(failures, fails...)
-	}
-
-	if len(failures) > 0 {
+	if failures := c.validProperties(); len(failures) > 0 {
 		return chart{}, failures
 	}
 
@@ -1019,10 +999,12 @@ type (
 	// and a ParseErr can have multiple resources which themselves can
 	// have multiple validation failures.
 	ParseErr struct {
-		Resources []errResource
+		Resources []ResourceErr
 	}
 
-	errResource struct {
+	// ResourceErr describes the error for a particular resource. In
+	// which it may have numerous validation and association errors.
+	ResourceErr struct {
 		Kind            string
 		Idx             int
 		AssociationErrs []ValidationErr
@@ -1063,7 +1045,7 @@ func (e *ParseErr) Error() string {
 	return strings.Join(errMsg, "\n")
 }
 
-func (e *ParseErr) append(errs ...errResource) {
+func (e *ParseErr) append(errs ...ResourceErr) {
 	e.Resources = append(e.Resources, errs...)
 }
 
@@ -1072,7 +1054,7 @@ func (e *ParseErr) append(errs ...errResource) {
 // with the confirmation boolean. If the error is not a ParseErr
 // it will return nil values for the ParseErr, making it unsafe
 // to use.
-func IsParseErr(err error) (*ParseErr, bool) {
-	pErr, ok := err.(*ParseErr)
-	return pErr, ok
+func IsParseErr(err error) bool {
+	_, ok := err.(*ParseErr)
+	return ok
 }

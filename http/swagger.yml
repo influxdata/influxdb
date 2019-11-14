@@ -7296,6 +7296,23 @@ components:
                     $ref: "#/components/schemas/VariableProperties"
                   newArgs:
                     $ref: "#/components/schemas/VariableProperties"
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                type: string
+              reason:
+                type: string
+              fields:
+                type: array
+                items:
+                  type: string
+              indexes:
+                type: array
+                items:
+                  type: integer
     PkgChart:
       type: object
       properties:
