@@ -86,6 +86,16 @@ func TestPredicate_Matches(t *testing.T) {
 		},
 
 		{
+			Name: "Logical And Matching Reduce (Simplify)",
+			Predicate: predicate(
+				andNode(
+					comparisonNode(datatypes.ComparisonEqual, tagNode("foo"), stringNode("bar")),
+					comparisonNode(datatypes.ComparisonNotEqual, tagNode("foo"), stringNode("bif")))),
+			Key:     "bucketorg,baz=bif,foo=bar,tag3=val3",
+			Matches: true,
+		},
+
+		{
 			Name: "Regex Matching",
 			Predicate: predicate(
 				comparisonNode(datatypes.ComparisonRegex, tagNode("tag3"), regexNode("...3"))),
