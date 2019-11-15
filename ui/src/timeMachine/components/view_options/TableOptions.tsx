@@ -156,12 +156,10 @@ export class TableOptions extends Component<Props, {}> {
       dragIndex,
       hoverIndex
     )
-    debugger
     this.props.onSetFieldOptions(fieldOptions)
   }
 
   private handleUpdateColumn = (fieldOption: FieldOption) => {
-    debugger
     this.props.onUpdateFieldOption(fieldOption)
   }
 

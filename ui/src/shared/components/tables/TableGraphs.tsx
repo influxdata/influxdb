@@ -14,10 +14,9 @@ import {setFieldOptions as setFieldOptionsAction} from 'src/timeMachine/actions'
 
 // Utils
 import {getDeep} from 'src/utils/wrappers'
-import {findTableNameHeaders} from 'src/dashboards/utils/tableGraph'
 
 // Types
-import {TableViewProperties, FieldOption, FluxTable, TimeZone} from 'src/types'
+import {TableViewProperties, FluxTable, TimeZone} from 'src/types'
 
 interface PassedProps {
   tables: FluxTable[]
@@ -39,25 +38,6 @@ interface State {
 class TableGraphs extends PureComponent<Props, State> {
   public state = {
     selectedTableName: getDeep<string>(this, 'props.tables[0].name', null),
-  }
-
-  public componentDidMount() {
-    this.updateFieldOptions()
-  }
-
-  public componentDidUpdate(prevProps: Props, prevState: State) {
-    const prevHeaders = findTableNameHeaders(
-      prevProps.tables,
-      prevState.selectedTableName
-    )
-    const rawHeaders = findTableNameHeaders(
-      this.props.tables,
-      this.state.selectedTableName
-    )
-
-    if (!_.isEqual(rawHeaders, prevHeaders)) {
-      this.updateFieldOptions()
-    }
   }
 
   public render() {
@@ -107,7 +87,6 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private handleSelectTable = (selectedTableName: string): void => {
     this.setState({selectedTableName})
-    this.updateFieldOptions()
   }
 
   private get showSidebar(): boolean {
@@ -126,22 +105,6 @@ class TableGraphs extends PureComponent<Props, State> {
   private get selectedTable(): FluxTable {
     const {tables} = this.props
     return tables.find(t => t.name === this.nameOfSelectedTable)
-  }
-
-  private updateFieldOptions() {
-    this.props.setFieldOptions(this.extractFieldOptions())
-  }
-
-  private extractFieldOptions(): FieldOption[] {
-    return this.headers.map(h => ({
-      internalName: h,
-      displayName: h,
-      visible: true,
-    }))
-  }
-
-  private get headers(): string[] {
-    return getDeep(this.selectedTable, 'data.0', [])
   }
 }
 

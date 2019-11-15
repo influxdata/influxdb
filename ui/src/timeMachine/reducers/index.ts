@@ -1,8 +1,6 @@
 // Libraries
 import {
   cloneDeep,
-  differenceWith,
-  isEqual,
   isNumber,
   get,
   map,
@@ -24,6 +22,7 @@ import {
   DEFAULT_THRESHOLD_CHECK,
   DEFAULT_DEADMAN_CHECK,
 } from 'src/alerting/constants'
+import { executeQueries } from 'src/timeMachine/actions/queries'
 
 // Types
 import {
@@ -31,6 +30,7 @@ import {
   Check,
   DeadmanCheck,
   StatusRow,
+  TableViewProperties,
   TimeRange,
   ThresholdCheck,
   View,
@@ -142,16 +142,51 @@ export const initialState = (): TimeMachinesState => ({
   },
 })
 
+const getTableProperties = (view, files) => {
+  const csv = files[0]
+  let pointer = 0,
+    ni
+
+  // cut off the first 3 lines
+  for(ni = 0; ni < 3; ni++) {
+    pointer = csv.indexOf('\r\n', pointer) + 2
+  }
+
+  const existing = (view.properties.fieldOptions || [])
+    .reduce((prev, curr) => {
+      prev[curr.internalName] = curr
+      return prev
+    }, {})
+
+  csv.slice(
+    pointer,
+    csv.indexOf('\r\n', pointer)
+  )
+  .split(',')
+  .filter((o) => !existing.hasOwnProperty(o))
+  .filter((o) => !['result', '', 'table', 'time'].includes(o))
+  .forEach((o) => {
+    existing[o] = {
+      internalName: o,
+      displayName: o,
+      visible: true
+    }
+  })
+
+  const fieldOptions = Object.keys(existing).map((e) => existing[e])
+  const properties = { ...view.properties, fieldOptions }
+
+  return properties
+}
+
 export const timeMachinesReducer = (
   state: TimeMachinesState = initialState(),
   action: Action
 ): TimeMachinesState => {
   if (action.type === 'SET_ACTIVE_TIME_MACHINE') {
     const {activeTimeMachineID, initialState} = action.payload
-    initialState.view = Object.assign({}, initialState.view)
     const activeTimeMachine = state.timeMachines[activeTimeMachineID]
-    // const view = initialState.view || activeTimeMachine.view
-    const view = initialState.view
+    const view = initialState.view || activeTimeMachine.view
     const draftQueries = map(cloneDeep(view.properties.queries), q => ({
       ...q,
       hidden: false,
@@ -161,7 +196,8 @@ export const timeMachinesReducer = (
     const timeRange =
       activeTimeMachineID === 'alerting' ? null : activeTimeMachine.timeRange
 
-    const out = {
+    executeQueries()
+    return {
       ...state,
       activeTimeMachineID,
       timeMachines: {
@@ -179,8 +215,6 @@ export const timeMachinesReducer = (
         },
       },
     }
-
-    return out
   }
 
   // All other actions act upon whichever single `TimeMachineState` is
@@ -236,7 +270,8 @@ export const timeMachineReducer = (
 
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
-      const view = convertView(state.view, type)
+
+      const view = convertView(state.view, state.queryResults.files, type)
 
       return {...state, view}
     }
@@ -267,6 +302,10 @@ export const timeMachineReducer = (
         draftState.queryResults.errorMessage = errorMessage
 
         if (files) {
+          if (state.view.properties.type === 'table') {
+            const properties = getTableProperties(state.view, files)
+            draftState.view = { ...state.view, properties }
+          }
           draftState.queryResults.files = files
           draftState.queryResults.isInitialFetch = false
         }
@@ -815,25 +854,36 @@ export const timeMachineReducer = (
         typeof action.payload
       >
       const {fieldOptions} = action.payload
-      const properties = {...workingView.properties, fieldOptions}
+      const properties = {
+        ...workingView.properties,
+        fieldOptions,
+      }
       const view = {...state.view, properties}
-
       return {...state, view}
     }
 
     case 'UPDATE_FIELD_OPTION': {
-      const props = state.view.properties.fieldOptions.slice(0)
-      const {option} = action.payload
-      const idx = props.findIndex(ni => ni.internalName === option.internalName)
-      if (idx > -1) {
-        props[idx] = option
-      } else {
-        props.push(option)
+      const workingView = state.view as ExtractWorkingView<
+        TableViewProperties
+      >
+      const { option } = action.payload
+      const field = option.internalName
+
+      const properties = {...workingView.properties}
+      properties.fieldOptions = properties.fieldOptions.slice(0)
+
+      const names = workingView.properties.fieldOptions
+        .map((o) => o.internalName)
+      const idx = names.indexOf(field)
+
+      if (idx < 0) {
+        return state
       }
 
-      const _state = Object.assign({}, state)
-      _state.view.properties.fieldOptions = props
-      return _state
+      properties.fieldOptions[idx] = option
+
+      state.view = { ...state.view, properties }
+      return {...state}
     }
 
     case 'SET_TABLE_OPTIONS': {
@@ -1005,13 +1055,13 @@ const updateCorrectColors = (
 
 const convertView = (
   view: QueryView,
+  files,
   outType: ViewType
 ): View<QueryViewProperties> => {
   const newView: any = createView(outType)
   newView.properties.queries = cloneDeep(view.properties.queries)
-  if (view.properties.type === 'table' && view.properties.fieldOptions) {
-    // prevents reselecting the table option from reseting the fieldOptions
-    newView.properties.fieldOptions = cloneDeep(view.properties.fieldOptions)
+  if (outType === 'table' && files) {
+    newView.properties = getTableProperties(newView, files)
   }
   newView.name = view.name
   newView.cellID = view.cellID
@@ -1079,36 +1129,3 @@ const resetBuilderState = (draftState: TimeMachineState) => {
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
 }
 
-export const trueFieldOptions = (defaultOptions = [], fieldOptions = []) => {
-  // get the difference b/w fieldOptions
-  const diff = differenceWith(fieldOptions, defaultOptions, isEqual)
-  // create a copy of the defaultOptions to mutate
-  const options = defaultOptions.slice()
-  diff.forEach(option => {
-    const {internalName} = option
-    // check to see if the defaultOptions have been changed
-    const matchingIndex = defaultOptions.findIndex(
-      o => o.internalName === internalName
-    )
-    // if the updated fieldOption exists in the default values
-    if (matchingIndex > -1) {
-      const matchingOption = defaultOptions[matchingIndex]
-      // check to see if the header values are set their initial values
-      // allows the defaultHeaders to be edited once they've loaded
-      if (matchingOption.internalName === matchingOption.displayName) {
-        // if the default option is set to false, set the option value to the default value
-        if (matchingOption.visible === false) {
-          options[matchingIndex] = matchingOption
-        } else {
-          // reassigns the fieldOption to the aliased one
-          options[matchingIndex] = option
-        }
-      }
-    } else {
-      // adds any extra fieldOption that has been aliased,
-      // even if it no longer exists in the headers
-      options.push(option)
-    }
-  })
-  return options
-}

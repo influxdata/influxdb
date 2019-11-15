@@ -16,6 +16,7 @@ import {
   Action as NotificationAction,
 } from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Types
 import {RemoteDataState, QueryView, GetState} from 'src/types'
@@ -117,6 +118,7 @@ export const getViewForTimeMachine = (
     }
 
     dispatch(setActiveTimeMachine(timeMachineID, {view}))
+    dispatch(executeQueries(dashboardID))
   } catch (e) {
     dispatch(notify(copy.getViewFailed(e.message)))
     dispatch(setView(cellID, null, RemoteDataState.Error))
