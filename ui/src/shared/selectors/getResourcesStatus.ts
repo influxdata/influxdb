@@ -9,20 +9,20 @@ export const getResourcesStatus = (
   const resourceExists = (state, resource): boolean =>
     state[resource] && state[resource].status
 
-  const done = resources.every((resource) => {
+  const done = resources.every(resource => {
     if (resourceExists(state, resource)) {
       return state[resource].status === 'Done'
     }
     return false
   })
 
-  const loading = resources.some((resource) => {
+  const loading = resources.some(resource => {
     if (resourceExists(state, resource)) {
       return state[resource].status === 'Loading'
     }
   })
 
-  const error = resources.some((resource) => {
+  const error = resources.some(resource => {
     if (resourceExists(state, resource)) {
       return state[resource].status === 'Error'
     }
