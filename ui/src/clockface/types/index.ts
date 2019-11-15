@@ -54,7 +54,7 @@ export enum ButtonType {
 
 export enum Greys {
   Obsidian = '#0f0e15',
-  Raven = '#1c1c21',
+  Raven = '#181820',
   Kevlar = '#202028',
   Castle = '#292933',
   Onyx = '#31313d',

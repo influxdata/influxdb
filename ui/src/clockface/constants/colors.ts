@@ -160,7 +160,7 @@ export const colors = [
     name: 'Smoke',
   },
   {
-    hex: '#1c1c21',
+    hex: '#181820',
     name: 'Raven',
   },
   // Row 5
