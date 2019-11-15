@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,30 +20,40 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
+	"gopkg.in/yaml.v3"
 )
 
 func pkgCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "pkg",
-		Short: "Create a reusable pkg to create resources in a declarative manner",
-	}
-
-	path := cmd.Flags().String("path", "", "path to manifest file")
-	cmd.MarkFlagFilename("path", "yaml", "yml", "json")
-	cmd.MarkFlagRequired("path")
-
-	orgID := cmd.Flags().String("org-id", "", "The ID of the organization that owns the bucket")
-	cmd.MarkFlagRequired("org-id")
-
-	hasColor := cmd.Flags().Bool("color", true, "Enable color in output, defaults true")
-	hasTableBorders := cmd.Flags().Bool("table-borders", true, "Enable table borders, defaults true")
-
-	cmd.RunE = pkgApply(orgID, path, hasColor, hasTableBorders)
+	cmd := pkgApplyCmd()
+	cmd.AddCommand(
+		pkgCreateCmd(),
+	)
 
 	return cmd
 }
 
-func pkgApply(orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
+func pkgApplyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "pkg",
+		Short: "Apply a pkg to create resources",
+	}
+
+	path := cmd.Flags().StringP("path", "p", "", "path to manifest file")
+	cmd.MarkFlagFilename("path", "yaml", "yml", "json")
+	cmd.MarkFlagRequired("path")
+
+	orgID := cmd.Flags().StringP("org-id", "o", "", "The ID of the organization that owns the bucket")
+	cmd.MarkFlagRequired("org-id")
+
+	hasColor := cmd.Flags().BoolP("color", "c", true, "Enable color in output, defaults true")
+	hasTableBorders := cmd.Flags().BoolP("table-borders", "tb", true, "Enable table borders, defaults true")
+
+	cmd.RunE = pkgApplyRunEFn(orgID, path, hasColor, hasTableBorders)
+
+	return cmd
+}
+
+func pkgApplyRunEFn(orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
 		if !*hasColor {
 			color.NoColor = true
@@ -88,6 +100,83 @@ func pkgApply(orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.
 		printPkgSummary(*hasColor, *hasTableBorders, summary)
 
 		return nil
+	}
+}
+
+func pkgCreateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "new",
+		Short: "Create a reusable pkg to create resources in a declarative manner",
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+
+	var opts pkgCreateRunOpts
+	cmd.Flags().StringVarP(&opts.outPath, "out", "o", filepath.Join(wd, "pkg.json"), "output file for created pkg; defaults to pkg.json; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false, "skip interactive mode")
+	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
+
+	cmd.RunE = pkgCreateRunEFn(&opts)
+
+	return cmd
+}
+
+type pkgCreateRunOpts struct {
+	quiet   bool
+	outPath string
+	meta    pkger.Metadata
+}
+
+func pkgCreateRunEFn(opt *pkgCreateRunOpts) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		if !opt.quiet {
+			ui := &input.UI{
+				Writer: os.Stdout,
+				Reader: os.Stdin,
+			}
+
+			if opt.meta.Name == "" {
+				opt.meta.Name = getInput(ui, "pkg name:", "")
+			}
+			if opt.meta.Description == "" {
+				opt.meta.Description = getInput(ui, "pkg description:", opt.meta.Description)
+			}
+			if opt.meta.Version == "" {
+				opt.meta.Version = getInput(ui, "pkg version:", opt.meta.Version)
+			}
+		}
+
+		pkgSVC := pkger.NewService()
+		newPkg, err := pkgSVC.CreatePkg(context.Background(), pkger.CreateWithMetadata(opt.meta))
+		if err != nil {
+			return err
+		}
+
+		var (
+			buf bytes.Buffer
+			enc interface {
+				Encode(interface{}) error
+			}
+		)
+
+		switch ext := filepath.Ext(opt.outPath); ext {
+		case ".yml":
+			enc = yaml.NewEncoder(&buf)
+		default:
+			jsonEnc := json.NewEncoder(&buf)
+			jsonEnc.SetIndent("", "\t")
+			enc = jsonEnc
+		}
+		if err := enc.Encode(newPkg); err != nil {
+			return err
+		}
+
+		return ioutil.WriteFile(opt.outPath, buf.Bytes(), os.ModePerm)
 	}
 }
 
