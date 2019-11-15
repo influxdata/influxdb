@@ -16,7 +16,6 @@ import {
   DEFAULT_THRESHOLD_CHECK,
   DEFAULT_DEADMAN_CHECK,
 } from 'src/alerting/constants'
-import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Types
 import {
@@ -187,7 +186,6 @@ export const timeMachinesReducer = (
     const timeRange =
       activeTimeMachineID === 'alerting' ? null : activeTimeMachine.timeRange
 
-    executeQueries()
     return {
       ...state,
       activeTimeMachineID,
@@ -870,8 +868,8 @@ export const timeMachineReducer = (
 
       properties.fieldOptions[idx] = option
 
-      state.view = {...state.view, properties}
-      return {...state}
+      const view = {...state.view, properties}
+      return {...state, view}
     }
 
     case 'SET_TABLE_OPTIONS': {
