@@ -89,6 +89,16 @@ func convertCellView(cv cellView) chart {
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinSize = int(p.BinSize)
+	case influxdb.HistogramViewProperties:
+		ch.Kind = chartKindHistogram
+		ch.Queries = convertQueries(p.Queries)
+		ch.Colors = convertColors(p.ViewColors)
+		ch.XCol = p.XColumn
+		ch.Axes = []axis{{Label: p.XAxisLabel, Name: "x", Domain: p.XDomain}}
+		ch.Note = p.Note
+		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.BinCount = p.BinCount
+		ch.Position = p.Position
 	case influxdb.MarkdownViewProperties:
 		ch.Kind = chartKindMarkdown
 		ch.Note = p.Note
@@ -151,10 +161,6 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartLegend] = ch.Legend
 	}
 
-	if ch.BinSize != 0 {
-		r[fieldChartBinSize] = ch.BinSize
-	}
-
 	ignoreFalseBools := map[string]bool{
 		fieldChartNoteOnEmpty: ch.NoteOnEmpty,
 		fieldChartShade:       ch.Shade,
@@ -166,12 +172,13 @@ func convertChartToResource(ch chart) Resource {
 	}
 
 	ignoreEmptyStrPairs := map[string]string{
-		fieldChartNote: ch.Note,
-		fieldPrefix:    ch.Prefix,
-		fieldSuffix:    ch.Suffix,
-		fieldChartGeom: ch.Geom,
-		fieldChartXCol: ch.XCol,
-		fieldChartYCol: ch.YCol,
+		fieldChartNote:     ch.Note,
+		fieldPrefix:        ch.Prefix,
+		fieldSuffix:        ch.Suffix,
+		fieldChartGeom:     ch.Geom,
+		fieldChartXCol:     ch.XCol,
+		fieldChartYCol:     ch.YCol,
+		fieldChartPosition: ch.Position,
 	}
 	for k, v := range ignoreEmptyStrPairs {
 		if v != "" {
@@ -180,8 +187,10 @@ func convertChartToResource(ch chart) Resource {
 	}
 
 	ignoreEmptyIntPairs := map[string]int{
-		fieldChartXPos: ch.XPos,
-		fieldChartYPos: ch.YPos,
+		fieldChartXPos:     ch.XPos,
+		fieldChartYPos:     ch.YPos,
+		fieldChartBinCount: ch.BinCount,
+		fieldChartBinSize:  ch.BinSize,
 	}
 	for k, v := range ignoreEmptyIntPairs {
 		if v != 0 {

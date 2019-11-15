@@ -934,6 +934,248 @@ spec:
 			})
 		})
 
+		t.Run("single dashboard histogram chart", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, "dashboard w/ single histogram chart", actual.Name)
+				assert.Equal(t, "a dashboard w/ single histogram chart", actual.Description)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+
+				props, ok := actualChart.Properties.(influxdb.HistogramViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "histogram", props.GetType())
+				assert.Equal(t, "histogram note", props.Note)
+				assert.Equal(t, 30, props.BinCount)
+				assert.True(t, props.ShowNoteWhenEmpty)
+				assert.Equal(t, []float64{0, 10}, props.XDomain)
+				assert.Equal(t, []string{}, props.FillColumns)
+				require.Len(t, props.Queries, 1)
+				q := props.Queries[0]
+				queryText := `from(bucket: v.bucket) |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == "boltdb_reads_total") |> filter(fn: (r) => r._field == "counter")`
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				require.Len(t, props.ViewColors, 3)
+				assert.Equal(t, "#8F8AF4", props.ViewColors[0].Hex)
+				assert.Equal(t, "#F4CF31", props.ViewColors[1].Hex)
+				assert.Equal(t, "#FFFFFF", props.ViewColors[2].Hex)
+			})
+
+			t.Run("handles invalid config", func(t *testing.T) {
+				tests := []testPkgResourceError{
+					{
+						name:           "missing x axis",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single histogram chart",
+			"description": "a dashboard w/ single histogram chart",
+			"charts": [
+			{
+				"kind": "histogram",
+				"name": "histogram chart",
+				"note": "histogram note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"position": "stacked",
+				"binCount": 30,
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+				}
+				],
+				"axes":[],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+						  
+			`,
+					},
+					{
+						name:           "missing x-axis",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].axes", "charts[0].axes"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single histogram chart",
+			"description": "a dashboard w/ single histogram chart",
+			"charts": [
+			{
+				"kind": "histogram",
+				"name": "histogram chart",
+				"note": "histogram note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"position": "stacked",
+				"binCount": 30,
+				"queries": [
+				{
+					"query": "from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == \"mem\")  |> filter(fn: (r) => r._field == \"used_percent\")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: \"mean\")"
+				}
+				],
+				"axes":[
+				{
+					"name": "y",
+					"label": "y_label",
+					"domain": [0, 10]
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+											
+			`,
+					},
+					{
+						name:           "missing a query value",
+						encoding:       EncodingJSON,
+						validationErrs: 1,
+						valFields:      []string{"charts[0].queries[0].query"},
+						pkgStr: `
+{
+	"apiVersion": "0.1.0",
+	"kind": "Package",
+	"meta": {
+		"pkgName": "pkg_name",
+		"pkgVersion": "1",
+		"description": "pack description"
+	},
+	"spec": {
+		"resources": [
+		{
+			"kind": "Dashboard",
+			"name": "dashboard w/ single heatmap chart",
+			"description": "a dashboard w/ heatmap chart",
+			"charts": [
+			{
+				"kind": "heatmap",
+				"name": "heatmap chart",
+				"note": "heatmap note",
+				"noteOnEmpty": true,
+				"xPos": 1,
+				"yPos": 2,
+				"width": 6,
+				"height": 3,
+				"xCol": "_time",
+				"yCol": "_value",
+				"binSize": 10,
+				"queries": [
+				{
+					"query": null
+				}
+				],
+				"axes":[
+				{
+					"name": "x",
+					"label": "x_label",
+					"prefix": "x_prefix",
+					"suffix": "x_suffix"
+				},
+				{
+					"name": "y",
+					"label": "y_label",
+					"prefix": "y_prefix",
+					"suffix": "y_suffix"
+				}
+				],
+				"colors": [
+				{
+					"hex": "#8F8AF4"
+				},
+				{
+					"hex": "#F4CF31"
+				},
+				{
+					"hex": "#FFFFFF"
+				}
+				]
+			}
+			]
+		}
+		]
+	}
+	}
+						  
+`,
+					},
+				}
+
+				for _, tt := range tests {
+					testPkgErrors(t, KindDashboard, tt)
+				}
+			})
+		})
+
 		t.Run("single dashboard markdown chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()

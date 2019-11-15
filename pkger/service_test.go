@@ -830,6 +830,28 @@ func TestService(t *testing.T) {
 						},
 					},
 					{
+						name:    "histogram",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.HistogramViewProperties{
+								Type:              influxdb.ViewPropertyTypeHistogram,
+								Note:              "a note",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShowNoteWhenEmpty: true,
+								ViewColors:        []influxdb.ViewColor{{Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}, {Type: "scale", Hex: "#8F8AF4", Value: 0}},
+								FillColumns:       []string{},
+								XColumn:           "_value",
+								XDomain:           []float64{0, 10},
+								XAxisLabel:        "x_label",
+								BinCount:          30,
+								Position:          "stacked",
+							},
+						},
+					},
+					{
 						name:    "scatter",
 						newName: "new name",
 						expectedView: influxdb.View{
