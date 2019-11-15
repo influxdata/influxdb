@@ -784,6 +784,78 @@ func TestService(t *testing.T) {
 					expectedView influxdb.View
 				}{
 					{
+						name:    "gauge",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.GaugeViewProperties{
+								Type:              influxdb.ViewPropertyTypeGauge,
+								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
+								Note:              "a note",
+								Prefix:            "pre",
+								Suffix:            "suf",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShowNoteWhenEmpty: true,
+								ViewColors:        newColors("min", "max", "threshold"),
+							},
+						},
+					},
+					{
+						name:    "heatmap",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.HeatmapViewProperties{
+								Type:              influxdb.ViewPropertyTypeHeatMap,
+								Note:              "a note",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShowNoteWhenEmpty: true,
+								ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+								XColumn:           "x",
+								YColumn:           "y",
+								XDomain:           []float64{0, 10},
+								YDomain:           []float64{0, 100},
+								XAxisLabel:        "x_label",
+								XPrefix:           "x_prefix",
+								XSuffix:           "x_suffix",
+								YAxisLabel:        "y_label",
+								YPrefix:           "y_prefix",
+								YSuffix:           "y_suffix",
+								BinSize:           10,
+							},
+						},
+					},
+					{
+						name:    "scatter",
+						newName: "new name",
+						expectedView: influxdb.View{
+							ViewContents: influxdb.ViewContents{
+								Name: "view name",
+							},
+							Properties: influxdb.ScatterViewProperties{
+								Type:              influxdb.ViewPropertyTypeScatter,
+								Note:              "a note",
+								Queries:           []influxdb.DashboardQuery{newQuery()},
+								ShowNoteWhenEmpty: true,
+								ViewColors:        []string{"#8F8AF4", "#8F8AF4", "#8F8AF4"},
+								XColumn:           "x",
+								YColumn:           "y",
+								XDomain:           []float64{0, 10},
+								YDomain:           []float64{0, 100},
+								XAxisLabel:        "x_label",
+								XPrefix:           "x_prefix",
+								XSuffix:           "x_suffix",
+								YAxisLabel:        "y_label",
+								YPrefix:           "y_prefix",
+								YSuffix:           "y_suffix",
+							},
+						},
+					},
+					{
 						name: "without new name single stat",
 						expectedView: influxdb.View{
 							ViewContents: influxdb.ViewContents{
@@ -821,24 +893,6 @@ func TestService(t *testing.T) {
 						},
 					},
 					{
-						name:    "guage",
-						newName: "new name",
-						expectedView: influxdb.View{
-							ViewContents: influxdb.ViewContents{
-								Name: "view name",
-							},
-							Properties: influxdb.GaugeViewProperties{
-								Type:              influxdb.ViewPropertyTypeGauge,
-								DecimalPlaces:     influxdb.DecimalPlaces{IsEnforced: true, Digits: 1},
-								Note:              "a note",
-								Prefix:            "pre",
-								Suffix:            "suf",
-								Queries:           []influxdb.DashboardQuery{newQuery()},
-								ShowNoteWhenEmpty: true,
-								ViewColors:        newColors("min", "max", "threshold"),
-							},
-						},
-					}, {
 						name:    "single stat plus line",
 						newName: "new name",
 						expectedView: influxdb.View{

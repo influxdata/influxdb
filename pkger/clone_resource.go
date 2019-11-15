@@ -76,6 +76,22 @@ func convertCellView(cv cellView) chart {
 	case influxdb.GaugeViewProperties:
 		setCommon(chartKindGauge, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
+	case influxdb.HeatmapViewProperties:
+		ch.Kind = chartKindHeatMap
+		ch.Queries = convertQueries(p.Queries)
+		ch.Colors = stringsToColors(p.ViewColors)
+		ch.XCol = p.XColumn
+		ch.YCol = p.YColumn
+		ch.Axes = []axis{
+			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
+			{Label: p.YAxisLabel, Prefix: p.YPrefix, Suffix: p.YSuffix, Name: "y", Domain: p.YDomain},
+		}
+		ch.Note = p.Note
+		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.BinSize = int(p.BinSize)
+	case influxdb.MarkdownViewProperties:
+		ch.Kind = chartKindMarkdown
+		ch.Note = p.Note
 	case influxdb.LinePlusSingleStatProperties:
 		setCommon(chartKindSingleStatPlusLine, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
@@ -87,9 +103,18 @@ func convertCellView(cv cellView) chart {
 	case influxdb.SingleStatViewProperties:
 		setCommon(chartKindSingleStat, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
-	case influxdb.MarkdownViewProperties:
-		ch.Kind = chartKindMarkdown
+	case influxdb.ScatterViewProperties:
+		ch.Kind = chartKindScatter
+		ch.Queries = convertQueries(p.Queries)
+		ch.Colors = stringsToColors(p.ViewColors)
+		ch.XCol = p.XColumn
+		ch.YCol = p.YColumn
+		ch.Axes = []axis{
+			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
+			{Label: p.YAxisLabel, Prefix: p.YPrefix, Suffix: p.YSuffix, Name: "y", Domain: p.YDomain},
+		}
 		ch.Note = p.Note
+		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
@@ -124,6 +149,10 @@ func convertChartToResource(ch chart) Resource {
 
 	if ch.Legend.Type != "" {
 		r[fieldChartLegend] = ch.Legend
+	}
+
+	if ch.BinSize != 0 {
+		r[fieldChartBinSize] = ch.BinSize
 	}
 
 	ignoreFalseBools := map[string]bool{
@@ -280,4 +309,12 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	}
 
 	return r
+}
+
+func stringsToColors(clrs []string) colors {
+	newColors := make(colors, 0)
+	for _, x := range clrs {
+		newColors = append(newColors, &color{Hex: x})
+	}
+	return newColors
 }

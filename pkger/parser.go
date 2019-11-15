@@ -730,6 +730,21 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 		c.Axes = presAxes
 	} else {
 		for _, ra := range r.slcResource(fieldChartAxes) {
+			domain := []float64{}
+
+			if _, ok := ra[fieldChartDomain]; ok {
+				for _, str := range ra.slcStr(fieldChartDomain) {
+					val, err := strconv.ParseFloat(str, 64)
+					if err != nil {
+						failures = append(failures, ValidationErr{
+							Field: "axes",
+							Msg:   err.Error(),
+						})
+					}
+					domain = append(domain, val)
+				}
+			}
+
 			c.Axes = append(c.Axes, axis{
 				Base:   ra.stringShort(fieldAxisBase),
 				Label:  ra.stringShort(fieldAxisLabel),
@@ -737,6 +752,7 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 				Prefix: ra.stringShort(fieldPrefix),
 				Scale:  ra.stringShort(fieldAxisScale),
 				Suffix: ra.stringShort(fieldSuffix),
+				Domain: domain,
 			})
 		}
 	}

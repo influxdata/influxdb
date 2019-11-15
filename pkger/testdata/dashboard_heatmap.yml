@@ -8,7 +8,7 @@ spec:
   resources:
     - kind: Dashboard
       name: dashboard w/ single heatmap chart
-      description: a dashboard w/ heatmap scatter chart
+      description: a dashboard w/ heatmap chart
       charts:
         - kind:   heatmap
           name:   heatmap
@@ -42,7 +42,13 @@ spec:
               label: x_label
               prefix: x_prefix
               suffix: x_suffix
+              domain:
+                - 0
+                - 10
             - name: y
               label: y_label
               prefix: y_prefix
               suffix: y_suffix
+              domain:
+                - 0
+                - 100
