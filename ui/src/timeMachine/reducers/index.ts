@@ -1,11 +1,5 @@
 // Libraries
-import {
-  cloneDeep,
-  isNumber,
-  get,
-  map,
-  omit,
-} from 'lodash'
+import {cloneDeep, isNumber, get, map, omit} from 'lodash'
 import {produce} from 'immer'
 
 // Utils
@@ -22,7 +16,7 @@ import {
   DEFAULT_THRESHOLD_CHECK,
   DEFAULT_DEADMAN_CHECK,
 } from 'src/alerting/constants'
-import { executeQueries } from 'src/timeMachine/actions/queries'
+import {executeQueries} from 'src/timeMachine/actions/queries'
 
 // Types
 import {
@@ -148,33 +142,30 @@ const getTableProperties = (view, files) => {
     ni
 
   // cut off the first 3 lines
-  for(ni = 0; ni < 3; ni++) {
+  for (ni = 0; ni < 3; ni++) {
     pointer = csv.indexOf('\r\n', pointer) + 2
   }
 
-  const existing = (view.properties.fieldOptions || [])
-    .reduce((prev, curr) => {
-      prev[curr.internalName] = curr
-      return prev
-    }, {})
+  const existing = (view.properties.fieldOptions || []).reduce((prev, curr) => {
+    prev[curr.internalName] = curr
+    return prev
+  }, {})
 
-  csv.slice(
-    pointer,
-    csv.indexOf('\r\n', pointer)
-  )
-  .split(',')
-  .filter((o) => !existing.hasOwnProperty(o))
-  .filter((o) => !['result', '', 'table', 'time'].includes(o))
-  .forEach((o) => {
-    existing[o] = {
-      internalName: o,
-      displayName: o,
-      visible: true
-    }
-  })
+  csv
+    .slice(pointer, csv.indexOf('\r\n', pointer))
+    .split(',')
+    .filter(o => !existing.hasOwnProperty(o))
+    .filter(o => !['result', '', 'table', 'time'].includes(o))
+    .forEach(o => {
+      existing[o] = {
+        internalName: o,
+        displayName: o,
+        visible: true,
+      }
+    })
 
-  const fieldOptions = Object.keys(existing).map((e) => existing[e])
-  const properties = { ...view.properties, fieldOptions }
+  const fieldOptions = Object.keys(existing).map(e => existing[e])
+  const properties = {...view.properties, fieldOptions}
 
   return properties
 }
@@ -304,7 +295,7 @@ export const timeMachineReducer = (
         if (files) {
           if (state.view.properties.type === 'table') {
             const properties = getTableProperties(state.view, files)
-            draftState.view = { ...state.view, properties }
+            draftState.view = {...state.view, properties}
           }
           draftState.queryResults.files = files
           draftState.queryResults.isInitialFetch = false
@@ -863,17 +854,14 @@ export const timeMachineReducer = (
     }
 
     case 'UPDATE_FIELD_OPTION': {
-      const workingView = state.view as ExtractWorkingView<
-        TableViewProperties
-      >
-      const { option } = action.payload
+      const workingView = state.view as ExtractWorkingView<TableViewProperties>
+      const {option} = action.payload
       const field = option.internalName
 
       const properties = {...workingView.properties}
       properties.fieldOptions = properties.fieldOptions.slice(0)
 
-      const names = workingView.properties.fieldOptions
-        .map((o) => o.internalName)
+      const names = workingView.properties.fieldOptions.map(o => o.internalName)
       const idx = names.indexOf(field)
 
       if (idx < 0) {
@@ -882,7 +870,7 @@ export const timeMachineReducer = (
 
       properties.fieldOptions[idx] = option
 
-      state.view = { ...state.view, properties }
+      state.view = {...state.view, properties}
       return {...state}
     }
 
@@ -1128,4 +1116,3 @@ const resetBuilderState = (draftState: TimeMachineState) => {
 
   draftState.queryBuilder = initialQueryBuilderState(newBuilderConfig)
 }
-
