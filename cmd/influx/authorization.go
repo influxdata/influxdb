@@ -10,15 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var authorizationCmd = &cobra.Command{
-	Use:     "auth",
-	Aliases: []string{"authorization"},
-	Short:   "Authorization management commands",
-	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Usage()
-	},
-}
-
 // AuthorizationCreateFlags are command line args used when creating a authorization
 type AuthorizationCreateFlags struct {
 	user string
@@ -55,51 +46,71 @@ type AuthorizationCreateFlags struct {
 	readNotificationEndpointPermission  bool
 }
 
-var authorizationCreateFlags AuthorizationCreateFlags
+var authCreateFlags AuthorizationCreateFlags
 
-func init() {
-	authorizationCreateCmd := &cobra.Command{
+func authCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "auth",
+		Aliases: []string{"authorization"},
+		Short:   "Authorization management commands",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Usage()
+		},
+	}
+	cmd.AddCommand(
+		authActiveCmd(),
+		authCreateCmd(),
+		authDeleteCmd(),
+		authFindCmd(),
+		authInactiveCmd(),
+	)
+
+	return cmd
+}
+
+func authCreateCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
 		RunE:  wrapCheckSetup(authorizationCreateF),
 	}
 
-	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.org, "org", "o", "", "The organization name (required)")
-	authorizationCreateCmd.MarkFlagRequired("org")
+	cmd.Flags().StringVarP(&authCreateFlags.org, "org", "o", "", "The organization name (required)")
+	cmd.MarkFlagRequired("org")
 
-	authorizationCreateCmd.Flags().StringVarP(&authorizationCreateFlags.user, "user", "u", "", "The user name")
+	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeUserPermission, "write-user", "", false, "Grants the permission to perform mutative actions against organization users")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readUserPermission, "read-user", "", false, "Grants the permission to perform read actions against organization users")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeUserPermission, "write-user", "", false, "Grants the permission to perform mutative actions against organization users")
+	cmd.Flags().BoolVarP(&authCreateFlags.readUserPermission, "read-user", "", false, "Grants the permission to perform read actions against organization users")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeBucketsPermission, "write-buckets", "", false, "Grants the permission to perform mutative actions against organization buckets")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readBucketsPermission, "read-buckets", "", false, "Grants the permission to perform read actions against organization buckets")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeBucketsPermission, "write-buckets", "", false, "Grants the permission to perform mutative actions against organization buckets")
+	cmd.Flags().BoolVarP(&authCreateFlags.readBucketsPermission, "read-buckets", "", false, "Grants the permission to perform read actions against organization buckets")
 
-	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
-	authorizationCreateCmd.Flags().StringArrayVarP(&authorizationCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "The bucket id")
+	cmd.Flags().StringArrayVarP(&authCreateFlags.writeBucketPermissions, "write-bucket", "", []string{}, "The bucket id")
+	cmd.Flags().StringArrayVarP(&authCreateFlags.readBucketPermissions, "read-bucket", "", []string{}, "The bucket id")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTasksPermission, "write-tasks", "", false, "Grants the permission to create tasks")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTasksPermission, "read-tasks", "", false, "Grants the permission to read tasks")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeTasksPermission, "write-tasks", "", false, "Grants the permission to create tasks")
+	cmd.Flags().BoolVarP(&authCreateFlags.readTasksPermission, "read-tasks", "", false, "Grants the permission to read tasks")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeTelegrafsPermission, "write-telegrafs", "", false, "Grants the permission to create telegraf configs")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readTelegrafsPermission, "read-telegrafs", "", false, "Grants the permission to read telegraf configs")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeTelegrafsPermission, "write-telegrafs", "", false, "Grants the permission to create telegraf configs")
+	cmd.Flags().BoolVarP(&authCreateFlags.readTelegrafsPermission, "read-telegrafs", "", false, "Grants the permission to read telegraf configs")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeOrganizationsPermission, "write-orgs", "", false, "Grants the permission to create organizations")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readOrganizationsPermission, "read-orgs", "", false, "Grants the permission to read organizations")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeOrganizationsPermission, "write-orgs", "", false, "Grants the permission to create organizations")
+	cmd.Flags().BoolVarP(&authCreateFlags.readOrganizationsPermission, "read-orgs", "", false, "Grants the permission to read organizations")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeDashboardsPermission, "write-dashboards", "", false, "Grants the permission to create dashboards")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readDashboardsPermission, "read-dashboards", "", false, "Grants the permission to read dashboards")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeDashboardsPermission, "write-dashboards", "", false, "Grants the permission to create dashboards")
+	cmd.Flags().BoolVarP(&authCreateFlags.readDashboardsPermission, "read-dashboards", "", false, "Grants the permission to read dashboards")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeNotificationRulePermission, "write-notificationRules", "", false, "Grants the permission to create notificationRules")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readNotificationRulePermission, "read-notificationRules", "", false, "Grants the permission to read notificationRules")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeNotificationRulePermission, "write-notificationRules", "", false, "Grants the permission to create notificationRules")
+	cmd.Flags().BoolVarP(&authCreateFlags.readNotificationRulePermission, "read-notificationRules", "", false, "Grants the permission to read notificationRules")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeNotificationEndpointPermission, "write-notificationEndpoints", "", false, "Grants the permission to create notificationEndpoints")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readNotificationEndpointPermission, "read-notificationEndpoints", "", false, "Grants the permission to read notificationEndpoints")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeNotificationEndpointPermission, "write-notificationEndpoints", "", false, "Grants the permission to create notificationEndpoints")
+	cmd.Flags().BoolVarP(&authCreateFlags.readNotificationEndpointPermission, "read-notificationEndpoints", "", false, "Grants the permission to read notificationEndpoints")
 
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.writeCheckPermission, "write-checks", "", false, "Grants the permission to create checks")
-	authorizationCreateCmd.Flags().BoolVarP(&authorizationCreateFlags.readCheckPermission, "read-checks", "", false, "Grants the permission to read checks")
+	cmd.Flags().BoolVarP(&authCreateFlags.writeCheckPermission, "write-checks", "", false, "Grants the permission to create checks")
+	cmd.Flags().BoolVarP(&authCreateFlags.readCheckPermission, "read-checks", "", false, "Grants the permission to read checks")
 
-	authorizationCmd.AddCommand(authorizationCreateCmd)
+	return cmd
 }
 
 func authorizationCreateF(cmd *cobra.Command, args []string) error {
@@ -110,181 +121,104 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	}
 
 	ctx := context.Background()
-	orgFilter := platform.OrganizationFilter{Name: &authorizationCreateFlags.org}
+	orgFilter := platform.OrganizationFilter{Name: &authCreateFlags.org}
 	o, err := orgSvc.FindOrganization(ctx, orgFilter)
 	if err != nil {
 		return err
 	}
 
-	if authorizationCreateFlags.writeUserPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.UsersResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
+	bucketPerms := []struct {
+		action platform.Action
+		perms  []string
+	}{
+		{action: platform.ReadAction, perms: authCreateFlags.readBucketPermissions},
+		{action: platform.WriteAction, perms: authCreateFlags.writeBucketPermissions},
 	}
 
-	if authorizationCreateFlags.readUserPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.UsersResourceType, o.ID)
-		if err != nil {
-			return err
+	for _, bp := range bucketPerms {
+		for _, p := range bp.perms {
+			var id platform.ID
+			if err := id.DecodeFromString(p); err != nil {
+				return err
+			}
+
+			p, err := platform.NewPermissionAtID(id, bp.action, platform.BucketsResourceType, o.ID)
+			if err != nil {
+				return err
+			}
+
+			permissions = append(permissions, *p)
 		}
-		permissions = append(permissions, *p)
 	}
 
-	if authorizationCreateFlags.writeBucketsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.BucketsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
+	providedPerm := []struct {
+		readPerm, writePerm bool
+		ResourceType        platform.ResourceType
+	}{
+		{
+			readPerm:     authCreateFlags.readBucketsPermission,
+			writePerm:    authCreateFlags.writeBucketsPermission,
+			ResourceType: platform.BucketsResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readCheckPermission,
+			writePerm:    authCreateFlags.writeCheckPermission,
+			ResourceType: platform.ChecksResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readDashboardsPermission,
+			writePerm:    authCreateFlags.writeDashboardsPermission,
+			ResourceType: platform.DashboardsResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readNotificationEndpointPermission,
+			writePerm:    authCreateFlags.writeNotificationEndpointPermission,
+			ResourceType: platform.NotificationEndpointResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readNotificationRulePermission,
+			writePerm:    authCreateFlags.writeNotificationRulePermission,
+			ResourceType: platform.NotificationRuleResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readOrganizationsPermission,
+			writePerm:    authCreateFlags.writeOrganizationsPermission,
+			ResourceType: platform.OrgsResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readTasksPermission,
+			writePerm:    authCreateFlags.writeTasksPermission,
+			ResourceType: platform.TasksResourceType,
+		},
+		{
+			readPerm:     authCreateFlags.readTelegrafsPermission,
+			writePerm:    authCreateFlags.writeTelegrafsPermission,
+			ResourceType: platform.TelegrafsResourceType,
+		},
+
+		{
+			readPerm:     authCreateFlags.readUserPermission,
+			writePerm:    authCreateFlags.writeUserPermission,
+			ResourceType: platform.UsersResourceType,
+		},
 	}
 
-	if authorizationCreateFlags.readBucketsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.BucketsResourceType, o.ID)
-		if err != nil {
-			return err
+	for _, provided := range providedPerm {
+		var actions []platform.Action
+		if provided.readPerm {
+			actions = append(actions, platform.ReadAction)
 		}
-		permissions = append(permissions, *p)
-	}
-
-	for _, p := range authorizationCreateFlags.writeBucketPermissions {
-		var id platform.ID
-		if err := id.DecodeFromString(p); err != nil {
-			return err
+		if provided.writePerm {
+			actions = append(actions, platform.WriteAction)
 		}
 
-		p, err := platform.NewPermissionAtID(id, platform.WriteAction, platform.BucketsResourceType, o.ID)
-		if err != nil {
-			return err
+		for _, action := range actions {
+			p, err := platform.NewPermission(action, provided.ResourceType, o.ID)
+			if err != nil {
+				return err
+			}
+			permissions = append(permissions, *p)
 		}
-
-		permissions = append(permissions, *p)
-	}
-
-	for _, p := range authorizationCreateFlags.readBucketPermissions {
-		var id platform.ID
-		if err := id.DecodeFromString(p); err != nil {
-			return err
-		}
-
-		p, err := platform.NewPermissionAtID(id, platform.ReadAction, platform.BucketsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeTasksPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.TasksResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readTasksPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.TasksResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeTelegrafsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.TelegrafsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readTelegrafsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.TelegrafsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeOrganizationsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.OrgsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readOrganizationsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.OrgsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeDashboardsPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.DashboardsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readDashboardsPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.DashboardsResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeNotificationRulePermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.NotificationRuleResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readNotificationRulePermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.NotificationRuleResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeNotificationEndpointPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.NotificationEndpointResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readNotificationEndpointPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.NotificationEndpointResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.writeCheckPermission {
-		p, err := platform.NewPermission(platform.WriteAction, platform.ChecksResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
-	}
-
-	if authorizationCreateFlags.readCheckPermission {
-		p, err := platform.NewPermission(platform.ReadAction, platform.ChecksResourceType, o.ID)
-		if err != nil {
-			return err
-		}
-		permissions = append(permissions, *p)
 	}
 
 	authorization := &platform.Authorization{
@@ -292,7 +226,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 		OrgID:       o.ID,
 	}
 
-	if userName := authorizationCreateFlags.user; userName != "" {
+	if userName := authCreateFlags.user; userName != "" {
 		userSvc, err := newUserService()
 		if err != nil {
 			return err
@@ -353,20 +287,20 @@ type AuthorizationFindFlags struct {
 
 var authorizationFindFlags AuthorizationFindFlags
 
-func init() {
-	authorizationFindCmd := &cobra.Command{
+func authFindCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "find",
 		Short: "Find authorization",
 		RunE:  wrapCheckSetup(authorizationFindF),
 	}
 
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.org, "org", "o", "", "The org")
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.orgID, "org-id", "", "", "The org ID")
-	authorizationFindCmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
+	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
+	cmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
+	cmd.Flags().StringVarP(&authorizationFindFlags.org, "org", "o", "", "The org")
+	cmd.Flags().StringVarP(&authorizationFindFlags.orgID, "org-id", "", "", "The org ID")
+	cmd.Flags().StringVarP(&authorizationFindFlags.id, "id", "i", "", "The authorization ID")
 
-	authorizationCmd.AddCommand(authorizationFindCmd)
+	return cmd
 }
 
 func newAuthorizationService(f Flags) (platform.AuthorizationService, error) {
@@ -457,17 +391,17 @@ type AuthorizationDeleteFlags struct {
 
 var authorizationDeleteFlags AuthorizationDeleteFlags
 
-func init() {
-	authorizationDeleteCmd := &cobra.Command{
+func authDeleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
 		RunE:  wrapCheckSetup(authorizationDeleteF),
 	}
 
-	authorizationDeleteCmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
-	authorizationDeleteCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&authorizationDeleteFlags.id, "id", "i", "", "The authorization ID (required)")
+	cmd.MarkFlagRequired("id")
 
-	authorizationCmd.AddCommand(authorizationDeleteCmd)
+	return cmd
 }
 
 func authorizationDeleteF(cmd *cobra.Command, args []string) error {
@@ -526,17 +460,17 @@ type AuthorizationActiveFlags struct {
 
 var authorizationActiveFlags AuthorizationActiveFlags
 
-func init() {
-	authorizationActiveCmd := &cobra.Command{
+func authActiveCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "active",
 		Short: "Active authorization",
 		RunE:  wrapCheckSetup(authorizationActiveF),
 	}
 
-	authorizationActiveCmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
-	authorizationActiveCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&authorizationActiveFlags.id, "id", "i", "", "The authorization ID (required)")
+	cmd.MarkFlagRequired("id")
 
-	authorizationCmd.AddCommand(authorizationActiveCmd)
+	return cmd
 }
 
 func authorizationActiveF(cmd *cobra.Command, args []string) error {
@@ -597,17 +531,17 @@ type AuthorizationInactiveFlags struct {
 
 var authorizationInactiveFlags AuthorizationInactiveFlags
 
-func init() {
-	authorizationInactiveCmd := &cobra.Command{
+func authInactiveCmd() *cobra.Command {
+	cmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "Inactive authorization",
 		RunE:  wrapCheckSetup(authorizationInactiveF),
 	}
 
-	authorizationInactiveCmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")
-	authorizationInactiveCmd.MarkFlagRequired("id")
+	cmd.Flags().StringVarP(&authorizationInactiveFlags.id, "id", "i", "", "The authorization ID (required)")
+	cmd.MarkFlagRequired("id")
 
-	authorizationCmd.AddCommand(authorizationInactiveCmd)
+	return cmd
 }
 
 func authorizationInactiveF(cmd *cobra.Command, args []string) error {
