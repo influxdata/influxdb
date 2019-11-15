@@ -113,7 +113,11 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         >
           {config => (
             <Plot config={config}>
-              <LatestValueTransform table={config.table} quiet={true} allowString={false}>
+              <LatestValueTransform
+                table={config.table}
+                quiet={true}
+                allowString={false}
+              >
                 {latestValue => (
                   <SingleStat
                     stat={latestValue}

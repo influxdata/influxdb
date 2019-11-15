@@ -41,7 +41,9 @@ const LatestValueTransform: FunctionComponent<Props> = ({
   }
 
   if (isString(latestValue) && !allowString) {
-    return <EmptyGraphMessage message="String value cannot be displayed in this graph type" />
+    return (
+      <EmptyGraphMessage message="String value cannot be displayed in this graph type" />
+    )
   }
 
   return children(latestValue)
