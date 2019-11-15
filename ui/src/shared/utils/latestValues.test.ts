@@ -97,7 +97,7 @@ describe('latestValues', () => {
     expect(result).toEqual([3, 4])
   })
 
-  test('returns no latest values if no numeric column exists', () => {
+  test('returns string values if no numeric column exists', () => {
     const resp = `#group,false,false,false,false
 #datatype,string,long,dateTime:RFC3339,string
 #default,1,,,
