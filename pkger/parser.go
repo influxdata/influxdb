@@ -701,6 +701,7 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 		c.DecimalPlaces = dp
 	}
 
+	var failures []ValidationErr
 	if presentQueries, ok := r[fieldChartQueries].(queries); ok {
 		c.Queries = presentQueries
 	} else {
@@ -757,7 +758,7 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 		}
 	}
 
-	if failures := c.validProperties(); len(failures) > 0 {
+	if failures = append(failures, c.validProperties()...); len(failures) > 0 {
 		return chart{}, failures
 	}
 
