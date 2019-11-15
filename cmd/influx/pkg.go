@@ -46,7 +46,7 @@ func pkgApplyCmd() *cobra.Command {
 	cmd.MarkFlagRequired("org-id")
 
 	hasColor := cmd.Flags().BoolP("color", "c", true, "Enable color in output, defaults true")
-	hasTableBorders := cmd.Flags().BoolP("table-borders", "tb", true, "Enable table borders, defaults true")
+	hasTableBorders := cmd.Flags().Bool("table-borders", true, "Enable table borders, defaults true")
 
 	cmd.RunE = pkgApplyRunEFn(orgID, path, hasColor, hasTableBorders)
 
