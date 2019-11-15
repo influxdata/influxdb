@@ -32,7 +32,7 @@ export const formatStatValue = (
   } else if (isString(value)) {
     localeFormattedValue = value
   } else {
-    return 'Data can not be displayed'
+    return 'Data cannot be displayed'
   }
 
   const formattedValue = `${prefix || ''}${localeFormattedValue}${suffix || ''}`
