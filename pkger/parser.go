@@ -668,6 +668,7 @@ func parseChart(r Resource) (chart, []ValidationErr) {
 			Msg:   err.Error(),
 		}}
 	}
+	var failures []ValidationErr
 
 	c := chart{
 		Kind:        ck,
