@@ -75,7 +75,15 @@ func NewProtobufPredicate(pred *datatypes.Predicate) (Predicate, error) {
 		if node.GetNodeType() == datatypes.NodeTypeTagRef {
 			switch value := node.GetValue().(type) {
 			case *datatypes.Node_TagRefValue:
-				locs[value.TagRefValue] = len(locs)
+				// Only add to the matcher locations the first time we encounter
+				// the tag key reference. This prevents problems with redundant
+				// predicates like:
+				//
+				//   foo = a AND foo = b
+				//   foo = c AND foo = d
+				if _, ok := locs[value.TagRefValue]; !ok {
+					locs[value.TagRefValue] = len(locs)
+				}
 			}
 		}
 	})
