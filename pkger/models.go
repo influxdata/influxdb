@@ -258,6 +258,7 @@ const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
 	chartKindHeatMap            chartKind = "heatmap"
+	chartKindHistogram          chartKind = "histogram"
 	chartKindMarkdown           chartKind = "markdown"
 	chartKindScatter            chartKind = "scatter"
 	chartKindSingleStat         chartKind = "single_stat"
@@ -267,8 +268,8 @@ const (
 
 func (c chartKind) ok() bool {
 	switch c {
-	case chartKindGauge, chartKindHeatMap, chartKindMarkdown,
-		chartKindScatter, chartKindSingleStat,
+	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
+		chartKindMarkdown, chartKindScatter, chartKindSingleStat,
 		chartKindSingleStatPlusLine, chartKindXY:
 		return true
 	default:
@@ -717,13 +718,17 @@ func (d *dashboard) summarize() SummaryDashboard {
 
 const (
 	fieldChartAxes          = "axes"
+	fieldChartBinCount      = "binCount"
+	fieldChartBinSize       = "binSize"
 	fieldChartColors        = "colors"
 	fieldChartDecimalPlaces = "decimalPlaces"
+	fieldChartDomain        = "domain"
 	fieldChartGeom          = "geom"
 	fieldChartHeight        = "height"
 	fieldChartLegend        = "legend"
 	fieldChartNote          = "note"
 	fieldChartNoteOnEmpty   = "noteOnEmpty"
+	fieldChartPosition      = "position"
 	fieldChartQueries       = "queries"
 	fieldChartShade         = "shade"
 	fieldChartWidth         = "width"
@@ -731,8 +736,6 @@ const (
 	fieldChartXPos          = "xPos"
 	fieldChartYCol          = "yCol"
 	fieldChartYPos          = "yPos"
-	fieldChartBinSize       = "binSize"
-	fieldChartDomain        = "domain"
 )
 
 type chart struct {
@@ -754,6 +757,8 @@ type chart struct {
 	XPos, YPos      int
 	Height, Width   int
 	BinSize         int
+	BinCount        int
+	Position        string
 }
 
 func (c chart) properties() influxdb.ViewProperties {
@@ -788,6 +793,20 @@ func (c chart) properties() influxdb.ViewProperties {
 			YSuffix:           c.Axes.get("y").Suffix,
 			XAxisLabel:        c.Axes.get("x").Label,
 			YAxisLabel:        c.Axes.get("y").Label,
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
+	case chartKindHistogram:
+		return influxdb.HistogramViewProperties{
+			Type:              influxdb.ViewPropertyTypeHistogram,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
+			FillColumns:       []string{},
+			XColumn:           c.XCol,
+			XDomain:           c.Axes.get("x").Domain,
+			XAxisLabel:        c.Axes.get("x").Label,
+			Position:          c.Position,
+			BinCount:          c.BinCount,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
@@ -887,9 +906,11 @@ func (c chart) validProperties() []ValidationErr {
 	switch c.Kind {
 	case chartKindGauge:
 		fails = append(fails, c.Colors.hasTypes(colorTypeMin, colorTypeThreshold, colorTypeMax)...)
-	case chartKindScatter:
-		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindHeatMap:
+		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+	case chartKindHistogram:
+		fails = append(fails, c.Axes.hasAxes("x")...)
+	case chartKindScatter:
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
 	case chartKindSingleStat:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
