@@ -155,7 +155,7 @@ func (e *TaskExecutor) ResumeCurrentRun(ctx context.Context, id influxdb.ID, run
 }
 
 func (e *TaskExecutor) createRun(ctx context.Context, id influxdb.ID, scheduledAt time.Time) (*promise, error) {
-	r, err := e.tcs.CreateRun(ctx, id, scheduledAt)
+	r, err := e.tcs.CreateRun(ctx, id, scheduledAt.UTC())
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (e *TaskExecutor) createPromise(ctx context.Context, run *influxdb.Run) (*p
 		run:        run,
 		task:       t,
 		auth:       t.Authorization,
-		createdAt:  time.Now(),
+		createdAt:  time.Now().UTC(),
 		done:       make(chan struct{}),
 		ctx:        ctx,
 		cancelFunc: cancel,
@@ -273,14 +273,14 @@ func (w *worker) work() {
 			}
 
 			// add to the run log
-			w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), fmt.Sprintf("Task limit reached: %s", err.Error()))
+			w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), fmt.Sprintf("Task limit reached: %s", err.Error()))
 
 			// sleep
 			select {
 			// If done the promise was canceled
 			case <-prom.ctx.Done():
-				w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), "Run canceled")
-				w.te.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now(), backend.RunCanceled)
+				w.te.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), "Run canceled")
+				w.te.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), backend.RunCanceled)
 				prom.err = influxdb.ErrRunCanceled
 				close(prom.done)
 				return
@@ -305,9 +305,9 @@ func (w *worker) start(p *promise) {
 	defer span.Finish()
 
 	// add to run log
-	w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
+	w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
 	// update run status
-	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), backend.RunStarted)
+	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), backend.RunStarted)
 
 	// add to metrics
 	w.te.metrics.StartRun(p.task, time.Since(p.createdAt))
@@ -321,9 +321,9 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	defer span.Finish()
 
 	// add to run log
-	w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Completed(%s)", rs.String()))
+	w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Completed(%s)", rs.String()))
 	// update run status
-	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now(), rs)
+	w.te.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), rs)
 
 	// add to metrics
 	rd := time.Since(p.startedAt)
@@ -331,7 +331,7 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 
 	// log error
 	if err != nil {
-		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), err.Error())
+		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), err.Error())
 		w.te.logger.Debug("execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
 		w.te.metrics.LogError(p.task.Type, err)
 
@@ -342,7 +342,7 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 			// w.te.ts.UpdateTask(p.ctx, p.task.ID, influxdb.TaskUpdate{Status: &inactive})
 
 			// and add to run logs
-			w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), fmt.Sprintf("Task encountered unrecoverable error, requires admin action: %v", err.Error()))
+			w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Task encountered unrecoverable error, requires admin action: %v", err.Error()))
 			// add to metrics
 			w.te.metrics.LogUnrecoverableError(p.task.ID, err)
 		}
@@ -405,7 +405,7 @@ func (w *worker) executeQuery(p *promise) {
 
 	b, err := json.Marshal(stats)
 	if err == nil {
-		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now(), string(b))
+		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), string(b))
 	}
 
 	if runErr != nil {
