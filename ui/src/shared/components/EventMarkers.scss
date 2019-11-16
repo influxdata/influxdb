@@ -89,11 +89,12 @@ $event-marker-z-index: 2;
   position: absolute;
   cursor: default;
   right: -30px;
-  bottom: -45px;
-  font-weight: bold;
-  font-size: 20px;
+  bottom: -$event-marker-height*2.1;
+  font-size: $ix-text-base;
 }
 
 .event-marker--vis-icon {
-  margin: 4px;
+  margin: $ix-marg-a;
+  font-weight: bold;
+  font-size: $event-marker-height;
 }

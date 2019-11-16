@@ -60,11 +60,12 @@ const EventMarkers: FunctionComponent<Props> = ({
   ])
 
   const iconGlyph = (visible: boolean) => {
-    return visible ? IconFont.Eye : IconFont.EyeClosed
+    return visible ? IconFont.EyeOpen : IconFont.EyeClosed
   }
 
-  const eventVisibilityIndicators = (
+  const eventVisToggle = (
     <div className="event-marker--vis-selector">
+      Toggle markers:
       <span onClick={() => setOkVisibility(!isOkVisible)}>
         <Icon
           className="event-marker--vis-icon"
@@ -118,7 +119,7 @@ const EventMarkers: FunctionComponent<Props> = ({
           )
         })}
       </div>
-      {eventVisibilityIndicators}
+      {eventVisToggle}
     </>
   )
 }

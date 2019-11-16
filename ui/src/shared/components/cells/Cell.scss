@@ -247,7 +247,7 @@ $cell--header-button-active-color: $c-pool;
 
   &.time-series-container--alert-check {
     padding-right: $ix-marg-b + 30px;
-    padding-bottom: $ix-marg-b + 17px;
+    padding-bottom: $ix-marg-b + $event-marker-height;
     overflow: hidden;
   }
 }
