@@ -47,7 +47,7 @@ export type LowercaseCheckStatusLevel =
   | 'warn'
   | 'info'
   | 'ok'
-  | 'unkown'
+  | 'unknown'
 
 // The data for a row in the status history table
 export interface StatusRow {

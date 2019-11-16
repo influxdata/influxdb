@@ -186,7 +186,7 @@ class TimeSeries extends Component<Props & WithRouterProps, State> {
       // Wait for new queries to complete
       const results = await Promise.all(this.pendingResults.map(r => r.promise))
 
-      let statuses = [[]] as StatusRow[][]
+      let statuses = [] as StatusRow[][]
       if (check && isFlagEnabled('eventMarkers')) {
         const extern = buildVarsOption(variables)
         this.pendingCheckStatuses = runStatusesQuery(orgID, check.id, extern)
