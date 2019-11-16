@@ -459,7 +459,7 @@ export const rateLimitReached = (secs?: number): Notification => {
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
+  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to support@influxdata.com.`,
   duration: FIVE_SECONDS,
   type: 'resourceLimitReached',
 })
