@@ -48,7 +48,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   switch (properties.type) {
     case 'single-stat':
       return (
-        <LatestValueTransform table={table}>
+        <LatestValueTransform table={table} allowString={true}>
           {latestValue => (
             <SingleStat stat={latestValue} properties={properties} />
           )}
@@ -70,7 +70,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
 
     case 'gauge':
       return (
-        <LatestValueTransform table={table}>
+        <LatestValueTransform table={table} allowString={false}>
           {latestValue => (
             <GaugeChart value={latestValue} properties={properties} />
           )}
@@ -113,7 +113,11 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         >
           {config => (
             <Plot config={config}>
-              <LatestValueTransform table={config.table} quiet={true}>
+              <LatestValueTransform
+                table={config.table}
+                quiet={true}
+                allowString={false}
+              >
                 {latestValue => (
                   <SingleStat
                     stat={latestValue}

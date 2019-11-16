@@ -35,7 +35,7 @@ export const createDashboardFromTemplate = async (
     content.data.type !== TemplateType.Dashboard ||
     template.meta.version !== '1'
   ) {
-    throw new Error('Can not create dashboard from this template')
+    throw new Error('Cannot create dashboard from this template')
   }
 
   const createdDashboard = await client.dashboards.create({
@@ -235,7 +235,7 @@ export const createTaskFromTemplate = async (
     content.data.type !== TemplateType.Task ||
     template.meta.version !== '1'
   ) {
-    throw new Error('Can not create task from this template')
+    throw new Error('Cannot create task from this template')
   }
 
   const flux = content.data.attributes.flux
@@ -276,7 +276,7 @@ export const createVariableFromTemplate = async (
     content.data.type !== TemplateType.Variable ||
     template.meta.version !== '1'
   ) {
-    throw new Error('Can not create variable from this template')
+    throw new Error('Cannot create variable from this template')
   }
 
   const createdVariable = await client.variables.create({
