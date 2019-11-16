@@ -17,6 +17,32 @@ interface Props {
   xFormatter: (x: number) => string
 }
 
+const filterEvents = (
+  eventsArray: StatusRow[][],
+  isOkVisible: boolean,
+  isInfoVisible: boolean,
+  isWarnVisible: boolean,
+  isCritVisible: boolean,
+  isUnknownVisible: boolean
+): StatusRow[][] => {
+  return eventsArray
+    .map(events => {
+      return (
+        events.length &&
+        events.filter(e => {
+          return (
+            (e.level === 'ok' && isOkVisible) ||
+            (e.level === 'info' && isInfoVisible) ||
+            (e.level === 'warn' && isWarnVisible) ||
+            (e.level === 'crit' && isCritVisible) ||
+            (e.level === 'unknown' && isUnknownVisible)
+          )
+        })
+      )
+    })
+    .filter(events => events && events.length)
+}
+
 const EventMarkers: FunctionComponent<Props> = ({
   xScale,
   xDomain,
@@ -29,26 +55,27 @@ const EventMarkers: FunctionComponent<Props> = ({
   const [isCritVisible, setCritVisibility] = useState(true)
   const [isUnknownVisible, setUnknownVisibility] = useState(true)
 
-  const [filteredEventsArray, setFilteredEventsArray] = useState(eventsArray)
+  const [filteredEventsArray, setFilteredEventsArray] = useState(
+    filterEvents(
+      eventsArray,
+      isOkVisible,
+      isInfoVisible,
+      isWarnVisible,
+      isCritVisible,
+      isUnknownVisible
+    )
+  )
 
   useEffect(() => {
     setFilteredEventsArray(
-      eventsArray
-        .map(events => {
-          return (
-            events.length &&
-            events.filter(e => {
-              return (
-                (e.level === 'ok' && isOkVisible) ||
-                (e.level === 'info' && isInfoVisible) ||
-                (e.level === 'warn' && isWarnVisible) ||
-                (e.level === 'crit' && isCritVisible) ||
-                (e.level === 'unknown' && isUnknownVisible)
-              )
-            })
-          )
-        })
-        .filter(events => events && events.length)
+      filterEvents(
+        eventsArray,
+        isOkVisible,
+        isInfoVisible,
+        isWarnVisible,
+        isCritVisible,
+        isUnknownVisible
+      )
     )
   }, [
     eventsArray,
@@ -66,35 +93,51 @@ const EventMarkers: FunctionComponent<Props> = ({
   const eventVisToggle = (
     <div className="event-marker--vis-selector">
       Toggle markers:
-      <span onClick={() => setOkVisibility(!isOkVisible)}>
+      <span
+        onClick={() => setOkVisibility(!isOkVisible)}
+        data-testid="event-marker-vis-toggle-ok"
+      >
         <Icon
           className="event-marker--vis-icon"
           style={{color: LEVEL_COLORS['OK']}}
           glyph={iconGlyph(isOkVisible)}
+          testID="event-marker-vis-icon-ok"
         />
       </span>
-      <span onClick={() => setWarnVisibility(!isWarnVisible)}>
+      <span
+        onClick={() => setWarnVisibility(!isWarnVisible)}
+        data-testid="event-marker-vis-toggle-warn"
+      >
         <Icon
           className="event-marker--vis-icon"
           style={{color: LEVEL_COLORS['WARN']}}
           glyph={iconGlyph(isWarnVisible)}
         />
       </span>
-      <span onClick={() => setInfoVisibility(!isInfoVisible)}>
+      <span
+        onClick={() => setInfoVisibility(!isInfoVisible)}
+        data-testid="event-marker-vis-toggle-info"
+      >
         <Icon
           className="event-marker--vis-icon"
           style={{color: LEVEL_COLORS['INFO']}}
           glyph={iconGlyph(isInfoVisible)}
         />
       </span>
-      <span onClick={() => setCritVisibility(!isCritVisible)}>
+      <span
+        onClick={() => setCritVisibility(!isCritVisible)}
+        data-testid="event-marker-vis-toggle-crit"
+      >
         <Icon
           className="event-marker--vis-icon"
           style={{color: LEVEL_COLORS['CRIT']}}
           glyph={iconGlyph(isCritVisible)}
         />
       </span>
-      <span onClick={() => setUnknownVisibility(!isUnknownVisible)}>
+      <span
+        onClick={() => setUnknownVisibility(!isUnknownVisible)}
+        data-testid="event-marker-vis-toggle-unknown"
+      >
         <Icon
           className="event-marker--vis-icon"
           style={{color: LEVEL_COLORS['UNKNOWN']}}
@@ -106,7 +149,7 @@ const EventMarkers: FunctionComponent<Props> = ({
 
   return (
     <>
-      <div className="event-markers">
+      <div className="event-markers" data-testid="event-markers">
         {filteredEventsArray.map((events, index) => {
           return (
             <EventMarker
