@@ -82,3 +82,8 @@ man/*.1.gz
 # vendored files
 /vendor
 /gen
+
+# 2.0 build artefacts
+/chronograf
+/http
+/ui
