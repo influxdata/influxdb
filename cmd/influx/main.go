@@ -37,7 +37,7 @@ func init() {
 		deleteCmd,
 		organizationCmd,
 		pingCmd,
-		pkgCmd(),
+		pkgCmd(newPkgerSVC),
 		queryCmd,
 		replCmd,
 		setupCmd,
@@ -84,6 +84,14 @@ type Flags struct {
 	host       string
 	local      bool
 	skipVerify bool
+}
+
+func (f Flags) httpClientOpts() httpClientOpts {
+	return httpClientOpts{
+		addr:       f.host,
+		token:      f.token,
+		skipVerify: f.skipVerify,
+	}
 }
 
 var flags Flags

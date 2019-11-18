@@ -48,7 +48,7 @@ var ErrInvalidEncoding = errors.New("invalid encoding provided")
 
 // Parse parses a pkg defined by the encoding and readerFns. As of writing this
 // we can parse both a YAML and JSON format of the Pkg model.
-func Parse(encoding Encoding, readerFn ReaderFn) (*Pkg, error) {
+func Parse(encoding Encoding, readerFn ReaderFn, opts ...ValidateOptFn) (*Pkg, error) {
 	r, err := readerFn()
 	if err != nil {
 		return nil, err
@@ -56,9 +56,9 @@ func Parse(encoding Encoding, readerFn ReaderFn) (*Pkg, error) {
 
 	switch encoding {
 	case EncodingYAML:
-		return parseYAML(r)
+		return parseYAML(r, opts...)
 	case EncodingJSON:
-		return parseJSON(r)
+		return parseJSON(r, opts...)
 	default:
 		return nil, ErrInvalidEncoding
 	}
@@ -93,25 +93,25 @@ func FromString(s string) ReaderFn {
 	}
 }
 
-func parseYAML(r io.Reader) (*Pkg, error) {
-	return parse(yaml.NewDecoder(r))
+func parseYAML(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+	return parse(yaml.NewDecoder(r), opts...)
 }
 
-func parseJSON(r io.Reader) (*Pkg, error) {
-	return parse(json.NewDecoder(r))
+func parseJSON(r io.Reader, opts ...ValidateOptFn) (*Pkg, error) {
+	return parse(json.NewDecoder(r), opts...)
 }
 
 type decoder interface {
 	Decode(interface{}) error
 }
 
-func parse(dec decoder) (*Pkg, error) {
+func parse(dec decoder, opts ...ValidateOptFn) (*Pkg, error) {
 	var pkg Pkg
 	if err := dec.Decode(&pkg); err != nil {
 		return nil, err
 	}
 
-	if err := pkg.Validate(); err != nil {
+	if err := pkg.Validate(opts...); err != nil {
 		return nil, err
 	}
 
