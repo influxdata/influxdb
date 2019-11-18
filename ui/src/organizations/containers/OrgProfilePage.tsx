@@ -32,7 +32,7 @@ class OrgProfilePage extends Component<StateProps> {
             <Grid>
               <Grid.Row>
                 <Grid.Column widthXS={Columns.Twelve} widthSM={Columns.Six}>
-                  <OrgProfileTab />
+                  <OrgProfileTab orgID={org.id} orgName={org.name} />
                 </Grid.Column>
               </Grid.Row>
             </Grid>
