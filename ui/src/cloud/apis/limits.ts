@@ -1,32 +1,30 @@
-import AJAX from 'src/utils/ajax'
+import {request} from 'src/client'
 import {Limits, LimitsStatus} from 'src/types'
 
 export const getReadWriteCardinalityLimits = async (
   orgID: string
 ): Promise<LimitsStatus> => {
-  try {
-    const {data} = await AJAX({
-      method: 'GET',
-      url: `/api/v2private/orgs/${orgID}/limits/status`,
-    })
+  const resp = await request(
+    'GET',
+    `/api/v2private/orgs/${orgID}/limits/status`,
+  )
 
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
   }
+
+  return resp.data
 }
 
 export const getLimits = async (orgID: string): Promise<Limits> => {
-  try {
-    const {data} = await AJAX({
-      method: 'GET',
-      url: `/api/v2private/orgs/${orgID}/limits`,
-    })
+  const resp = await request(
+    'GET',
+    `/api/v2private/orgs/${orgID}/limits`,
+  )
 
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
   }
+
+  return resp.data
 }

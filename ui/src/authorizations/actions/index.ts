@@ -2,7 +2,6 @@
 import {Dispatch} from 'react'
 
 // API
-import * as authAPI from 'src/authorizations/apis'
 import * as api from 'src/client'
 
 // Actions
@@ -135,8 +134,11 @@ export const createAuthorization = (auth: Authorization) => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   try {
-    const createdAuthorization = await authAPI.createAuthorization(auth)
-    dispatch(addAuthorization(createdAuthorization))
+    const response = await api.postAuthorization({data: auth})
+    if (response.status !== 201) {
+      throw new Error(response.data.message)
+    }
+    dispatch(addAuthorization(response.data))
     dispatch(notify(authorizationCreateSuccess()))
   } catch (e) {
     console.error(e)

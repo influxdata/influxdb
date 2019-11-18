@@ -8,8 +8,7 @@ import {
   PermissionResource,
   ILabelProperties,
 } from '@influxdata/influx'
-import {createAuthorization} from 'src/authorizations/apis'
-import {postWrite} from 'src/client'
+import {postWrite, postAuthorization} from 'src/client'
 
 // Utils
 import {createNewPlugin} from 'src/dataLoaders/utils/pluginConfigs'
@@ -47,6 +46,7 @@ import {
   TelegrafConfigCreationSuccess,
   readWriteCardinalityLimitReached,
 } from 'src/shared/copy/notifications'
+import { Authorization } from 'src/client'
 
 type GetState = () => AppState
 
@@ -429,15 +429,18 @@ const createTelegraf = async (dispatch, getState, plugins) => {
       },
     ]
 
-    const token = {
-      name: `${telegrafConfigName} token`,
+    const token: Authorization = {
       orgID: org.id,
       description: `WRITE ${bucket} bucket / READ ${telegrafConfigName} telegraf config`,
       permissions,
     }
 
     // create token
-    const createdToken = await createAuthorization(token)
+    const response = await postAuthorization({ data: token })
+    if (response.status !== 201) {
+      throw new Error(response.data.message)
+    }
+    const createdToken: Authorization = response.data
 
     // add token to data loader state
     dispatch(setToken(createdToken.token))

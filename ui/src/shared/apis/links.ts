@@ -1,15 +1,12 @@
-import {getAJAX} from 'src/utils/ajax'
+import { request } from 'src/client'
 import {Links} from 'src/types/links'
 
-const linksURI = '/api/v2'
-
 export const getLinks = async (): Promise<Links> => {
-  try {
-    const {data} = await getAJAX(linksURI)
+  const resp = await request('GET', '/api/v2')
 
-    return data
-  } catch (error) {
-    console.error(error)
-    throw error
+  if (resp.status !== 200) {
+    throw new Error(resp.data.message)
   }
+
+  return resp.data
 }

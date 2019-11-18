@@ -103,10 +103,6 @@ module.exports = {
       filename: `${STATIC_DIRECTORY}[contenthash:10].css`,
       chunkFilename: `${STATIC_DIRECTORY}[id].[contenthash:10].css`,
     }),
-    new webpack.DllReferencePlugin({
-      context: path.join(__dirname, 'build'),
-      manifest: require('./build/vendor-manifest.json'),
-    }),
     new ForkTsCheckerWebpackPlugin(),
     new webpack.ProgressPlugin(),
     new webpack.DefinePlugin({
