@@ -7,15 +7,26 @@ export const getResourcesStatus = (
   {resources}: Props
 ): RemoteDataState => {
   const done = resources.every(resource => {
-    return state[resource].status === 'Done'
+    if (state[resource] && state[resource].status) {
+      return state[resource].status === 'Done'
+    }
+    return false
   })
 
   const loading = resources.some(resource => {
-    return state[resource].status === 'Loading'
+    if (state[resource] && state[resource].status) {
+      return state[resource].status === 'Loading'
+    }
   })
 
   const error = resources.some(resource => {
-    return state[resource].status === 'Error'
+    if (state[resource] && state[resource].status) {
+      return state[resource].status === 'Error'
+    }
+    if (state[resource] && state[resource].status === false) {
+      // if the resource doesn't exist in the state return an error
+      return true
+    }
   })
 
   let status = RemoteDataState.NotStarted
