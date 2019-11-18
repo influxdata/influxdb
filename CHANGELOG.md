@@ -1,6 +1,6 @@
 ## v2.0.0-alpha.20 [unreleased]
 
-### Feaures
+### Features
 
 1. [15805](https://github.com/influxdata/influxdb/pull/15924) Add tls insecure skip verify to influx CLI.
 
@@ -13,6 +13,7 @@
 
 ### UI Improvements
 1. [15809](https://github.com/influxdata/influxdb/pull/15809): Redesign cards and animations on getting started page
+1. [15965](https://github.com/influxdata/influxdb/pull/15965): Display organization name and ID within the "Org Profile" settings tab
 
 ## v2.0.0-alpha.19 [2019-10-30]
 
