@@ -7,7 +7,7 @@ Before you file an issue, please search existing issues in case it has already b
 * Full details of your operating system (or distribution) e.g. 64-bit Ubuntu 14.04.
 * The version of InfluxDB you are running
 * Whether you installed it using a pre-built package, or built it from source.
-* A small test case, if applicable, that demonstrates the issues.
+* If applicable, a small test case or method to reproduce the issue described.
 
 Remember the golden rule of bug reports: **The easier you make it for us to reproduce the problem, the faster it will get fixed.**
 If you have never written a bug report before, or if you want to brush up on your bug reporting skills, we recommend reading [Simon Tatham's essay "How to Report Bugs Effectively."](http://www.chiark.greenend.org.uk/~sgtatham/bugs.html)
@@ -38,12 +38,12 @@ Please note that issues are *not the place to file general questions* such as "h
 
 Feature requests
 ---------------
-We really like to receive feature requests, as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.
+We really like to receive feature requests as it helps us prioritize our work. Please be clear about your requirements, as incomplete feature requests may simply be closed if we don't understand what you would like to see added to InfluxDB.  If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 Contributing to the source code
 ---------------
 
-InfluxDB follows standard Go project structure. This means that all your Go development are done in `$GOPATH/src`. GOPATH can be any directory under which InfluxDB and all its dependencies will be cloned. For full details on the project structure, follow along below.
+InfluxDB follows standard Go project structure. This means that all your Go development is done in `$GOPATH/src`. GOPATH can be any directory under which InfluxDB and all its dependencies will be cloned. For full details on the project structure, follow along below.
 
 You should also read our [coding guide](https://github.com/influxdata/influxdb/blob/master/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
 
@@ -79,7 +79,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.11.
+InfluxDB requires Go 1.12.
 
 At InfluxData we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -88,7 +88,7 @@ After installing gvm you can install and set the default go version by
 running the following:
 
     gvm install go1.11
-    gvm use go1.11 --default
+    gvm use go1.12 --default
 
 Installing Dep
 -------------
