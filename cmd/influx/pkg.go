@@ -23,16 +23,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func pkgCmd() *cobra.Command {
-	cmd := pkgApplyCmd()
+type pkgSVCFn func(cliReq httpClientOpts) (pkger.SVC, error)
+
+func pkgCmd(newSVCFn pkgSVCFn) *cobra.Command {
+	cmd := pkgApplyCmd(newSVCFn)
 	cmd.AddCommand(
-		pkgCreateCmd(),
+		pkgCreateCmd(newSVCFn),
 	)
 
 	return cmd
 }
 
-func pkgApplyCmd() *cobra.Command {
+func pkgApplyCmd(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pkg",
 		Short: "Apply a pkg to create resources",
@@ -48,12 +50,12 @@ func pkgApplyCmd() *cobra.Command {
 	hasColor := cmd.Flags().BoolP("color", "c", true, "Enable color in output, defaults true")
 	hasTableBorders := cmd.Flags().Bool("table-borders", true, "Enable table borders, defaults true")
 
-	cmd.RunE = pkgApplyRunEFn(orgID, path, hasColor, hasTableBorders)
+	cmd.RunE = pkgApplyRunEFn(newSVCFn, orgID, path, hasColor, hasTableBorders)
 
 	return cmd
 }
 
-func pkgApplyRunEFn(orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
+func pkgApplyRunEFn(newSVCFn pkgSVCFn, orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
 		if !*hasColor {
 			color.NoColor = true
@@ -64,7 +66,7 @@ func pkgApplyRunEFn(orgID, path *string, hasColor, hasTableBorders *bool) func(*
 			return err
 		}
 
-		svc, err := newPkgerSVC(flags)
+		svc, err := newSVCFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
@@ -103,7 +105,7 @@ func pkgApplyRunEFn(orgID, path *string, hasColor, hasTableBorders *bool) func(*
 	}
 }
 
-func pkgCreateCmd() *cobra.Command {
+func pkgCreateCmd(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "Create a reusable pkg to create resources in a declarative manner",
@@ -121,7 +123,7 @@ func pkgCreateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
 	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
 
-	cmd.RunE = pkgCreateRunEFn(&opts)
+	cmd.RunE = pkgCreateRunEFn(newSVCFn, &opts)
 
 	return cmd
 }
@@ -132,7 +134,7 @@ type pkgCreateRunOpts struct {
 	meta    pkger.Metadata
 }
 
-func pkgCreateRunEFn(opt *pkgCreateRunOpts) func(*cobra.Command, []string) error {
+func pkgCreateRunEFn(newSVCFn pkgSVCFn, opt *pkgCreateRunOpts) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if !opt.quiet {
 			ui := &input.UI{
@@ -151,7 +153,11 @@ func pkgCreateRunEFn(opt *pkgCreateRunOpts) func(*cobra.Command, []string) error
 			}
 		}
 
-		pkgSVC := pkger.NewService()
+		pkgSVC, err := newSVCFn(flags.httpClientOpts())
+		if err != nil {
+			return err
+		}
+
 		newPkg, err := pkgSVC.CreatePkg(context.Background(), pkger.CreateWithMetadata(opt.meta))
 		if err != nil {
 			return err
@@ -180,66 +186,34 @@ func pkgCreateRunEFn(opt *pkgCreateRunOpts) func(*cobra.Command, []string) error
 	}
 }
 
-func newPkgerSVC(f Flags) (*pkger.Service, error) {
-	bucketSVC, err := newBucketService(f)
-	if err != nil {
-		return nil, err
-	}
+type httpClientOpts struct {
+	token, addr string
+	skipVerify  bool
+}
 
-	labelSVC, err := newLabelService(f)
-	if err != nil {
-		return nil, err
-	}
-
-	dashSVC, err := newDashboardService(f)
-	if err != nil {
-		return nil, err
-	}
-
-	varSVC, err := newVariableService(f)
-	if err != nil {
-		return nil, err
-	}
-
+func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 	return pkger.NewService(
-		pkger.WithBucketSVC(bucketSVC),
-		pkger.WithDashboardSVC(dashSVC),
-		pkger.WithLabelSVC(labelSVC),
-		pkger.WithVariableSVC(varSVC),
+		pkger.WithBucketSVC(&http.BucketService{
+			Addr:               cliReqOpts.addr,
+			Token:              cliReqOpts.token,
+			InsecureSkipVerify: cliReqOpts.skipVerify,
+		}),
+		pkger.WithDashboardSVC(&http.DashboardService{
+			Addr:               cliReqOpts.addr,
+			Token:              cliReqOpts.token,
+			InsecureSkipVerify: cliReqOpts.skipVerify,
+		}),
+		pkger.WithLabelSVC(&http.LabelService{
+			Addr:               cliReqOpts.addr,
+			Token:              cliReqOpts.token,
+			InsecureSkipVerify: cliReqOpts.skipVerify,
+		}),
+		pkger.WithVariableSVC(&http.VariableService{
+			Addr:               cliReqOpts.addr,
+			Token:              cliReqOpts.token,
+			InsecureSkipVerify: cliReqOpts.skipVerify,
+		}),
 	), nil
-}
-
-func newDashboardService(f Flags) (influxdb.DashboardService, error) {
-	if f.local {
-		return newLocalKVService()
-	}
-	return &http.DashboardService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}, nil
-}
-
-func newLabelService(f Flags) (influxdb.LabelService, error) {
-	if f.local {
-		return newLocalKVService()
-	}
-	return &http.LabelService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}, nil
-}
-
-func newVariableService(f Flags) (influxdb.VariableService, error) {
-	if f.local {
-		return newLocalKVService()
-	}
-	return &http.VariableService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: flags.skipVerify,
-	}, nil
 }
 
 func pkgFromFile(path string) (*pkger.Pkg, error) {
