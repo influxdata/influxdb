@@ -71,7 +71,7 @@ describe('Dashboards.Actions.getViewForTimeMachine', () => {
     )
 
     expect(mocked(getView)).toHaveBeenCalledTimes(1)
-    expect(mockedDispatch).toHaveBeenCalledTimes(2)
+    expect(mockedDispatch).toHaveBeenCalledTimes(3)
 
     const [
       setViewDispatchArguments,
@@ -103,7 +103,7 @@ describe('Dashboards.Actions.getViewForTimeMachine', () => {
     )
 
     expect(mocked(getView)).toHaveBeenCalledTimes(0)
-    expect(mockedDispatch).toHaveBeenCalledTimes(1)
+    expect(mockedDispatch).toHaveBeenCalledTimes(2)
     expect(mockedDispatch).toHaveBeenCalledWith({
       type: 'SET_ACTIVE_TIME_MACHINE',
       payload: {
