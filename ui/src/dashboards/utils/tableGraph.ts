@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import {replace, findIndex, get, indexOf, drop, orderBy, unzip} from 'lodash'
 import {fastMap, fastReduce, fastFilter} from 'src/utils/fast'
 
 import {CELL_HORIZONTAL_PADDING} from 'src/shared/constants/tableGraph'
@@ -47,12 +47,12 @@ export const getInvalidDataMessage = (errorType: ErrorTypes): string => {
 
 const calculateTimeColumnWidth = (timeFormat: string): number => {
   // Force usage of longest format names for ideal measurement
-  timeFormat = _.replace(timeFormat, 'MMMM', 'September')
-  timeFormat = _.replace(timeFormat, 'dddd', 'Wednesday')
-  timeFormat = _.replace(timeFormat, 'A', 'AM')
-  timeFormat = _.replace(timeFormat, 'h', '00')
-  timeFormat = _.replace(timeFormat, 'X', '1522286058')
-  timeFormat = _.replace(timeFormat, 'x', '1536106867461')
+  timeFormat = replace(timeFormat, 'MMMM', 'September')
+  timeFormat = replace(timeFormat, 'dddd', 'Wednesday')
+  timeFormat = replace(timeFormat, 'A', 'AM')
+  timeFormat = replace(timeFormat, 'h', '00')
+  timeFormat = replace(timeFormat, 'X', '1522286058')
+  timeFormat = replace(timeFormat, 'x', '1536106867461')
 
   const width = calculateSize(timeFormat)
 
@@ -95,7 +95,7 @@ const updateMaxWidths = (
         : calculateSize(colValue.toString().trim()) + CELL_HORIZONTAL_PADDING
 
       const {widths: Widths} = maxColumnWidths
-      const maxWidth = _.get(Widths, `${columnLabel}`, 0)
+      const maxWidth = get(Widths, `${columnLabel}`, 0)
 
       if (isTopRow || currentWidth > maxWidth) {
         acc.widths[columnLabel] = currentWidth
@@ -189,7 +189,7 @@ export const orderTableColumns = (
   fieldOptions: FieldOption[]
 ): string[][] => {
   const fieldsSortOrder = fieldOptions.map(fieldOption => {
-    return _.findIndex(data[0], dataLabel => {
+    return findIndex(data[0], dataLabel => {
       return dataLabel === fieldOption.internalName
     })
   })
@@ -214,13 +214,13 @@ export const sortTableData = (
   let sortIndex = 0
 
   if (headerSet.has(sort.field)) {
-    sortIndex = _.indexOf(data[0], sort.field)
+    sortIndex = indexOf(data[0], sort.field)
   }
 
-  const dataValues = _.drop(data, 1)
+  const dataValues = drop(data, 1)
   const sortedData = [
     data[0],
-    ..._.orderBy<string[][]>(dataValues, sortIndex, [sort.direction]),
+    ...orderBy<string[][]>(dataValues, sortIndex, [sort.direction]),
   ] as string[][]
 
   const sortedTimeVals = fastMap<string[], string>(
@@ -266,7 +266,7 @@ export const transformTableData = (
 
   const orderedData = orderTableColumns(filteredData, resolvedFieldOptions)
 
-  const transformedData = verticalTimeAxis ? orderedData : _.unzip(orderedData)
+  const transformedData = verticalTimeAxis ? orderedData : unzip(orderedData)
 
   const columnWidths = calculateColumnWidths(
     transformedData,
@@ -336,7 +336,7 @@ export const getUnixISODiff = (unixMs: number, isoTime: string | number) => {
 export const findTableNameHeaders = (tables: FluxTable[], name: string) => {
   const foundTable = tables.find(t => t.name === name)
 
-  return _.get(foundTable, 'data.0', [])
+  return get(foundTable, 'data.0', [])
 }
 
 export const resolveTimeFormat = (timeFormat: string) => {

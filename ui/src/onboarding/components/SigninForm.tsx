@@ -2,7 +2,7 @@
 import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 import {connect} from 'react-redux'
-import _, {get} from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {Form, Input, Button, Grid} from '@influxdata/clockface'

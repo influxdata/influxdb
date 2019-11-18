@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {map} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -33,7 +33,7 @@ interface StaticTemplate {
   template: TemplateSummary
 }
 
-const staticTemplates: StaticTemplate[] = _.map(statics, (template, name) => ({
+const staticTemplates: StaticTemplate[] = map(statics, (template, name) => ({
   name,
   template,
 }))

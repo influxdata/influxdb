@@ -1,7 +1,9 @@
 // Libraries
 import React, {SFC} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {
+  capitalize
+} from 'lodash'
 
 // Components
 import {
@@ -131,7 +133,7 @@ const HistogramOptions: SFC<Props> = props => {
         <Dropdown
           button={(active, onClick) => (
             <Dropdown.Button active={active} onClick={onClick}>
-              {_.capitalize(position)}
+              {capitalize(position)}
             </Dropdown.Button>
           )}
           menu={onCollapse => (

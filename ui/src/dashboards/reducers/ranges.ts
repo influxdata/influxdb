@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import {unionBy} from 'lodash'
 
 import {TimeRange} from 'src/types'
 import {Action, ActionTypes} from 'src/dashboards/actions/ranges'
@@ -29,7 +29,7 @@ export default (state: RangeState = initialState, action: Action) => {
     case ActionTypes.SetDashboardTimeV1: {
       const {dashboardID, timeRange} = action.payload
       const newTimeRange = [{dashboardID, ...timeRange}]
-      const ranges = _.unionBy(newTimeRange, state, 'dashboardID')
+      const ranges = unionBy(newTimeRange, state, 'dashboardID')
 
       return ranges
     }

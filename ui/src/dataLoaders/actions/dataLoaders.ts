@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Apis
 import {client} from 'src/utils/api'
@@ -562,7 +562,7 @@ export const writeLineProtocolAction = (
       dispatch(notify(readWriteCardinalityLimitReached(resp.data.message)))
       dispatch(setLPStatus(RemoteDataState.Error))
     } else {
-      throw new Error(_.get(resp, 'data.message', 'Failed to write data'))
+      throw new Error(get(resp, 'data.message', 'Failed to write data'))
     }
   } catch (error) {
     console.error(error)

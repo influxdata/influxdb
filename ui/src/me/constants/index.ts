@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import {sample} from 'lodash'
 
 interface Greeting {
   text: string
@@ -153,5 +153,5 @@ const randomGreetings: Greeting[] = [
 ]
 
 export const generateRandomGreeting = (): Greeting => {
-  return _.sample(randomGreetings)
+  return sample(randomGreetings)
 }

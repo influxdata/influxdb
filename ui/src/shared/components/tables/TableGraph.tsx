@@ -1,5 +1,5 @@
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {get} from 'lodash'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 import {
@@ -25,7 +25,7 @@ interface State {
 class TableGraph extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
-    const sortField = _.get(
+    const sortField = get(
       props,
       'properties.tableOptions.sortBy.internalName'
     )

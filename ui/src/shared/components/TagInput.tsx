@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import Tags from 'src/shared/components/Tags'
@@ -77,7 +77,7 @@ class TagInput extends PureComponent<Props> {
   }
 
   private shouldAddToList(item: Item, tags: Item[]): boolean {
-    return !_.isEmpty(item) && !tags.find(l => l === item)
+    return !isEmpty(item) && !tags.find(l => l === item)
   }
 }
 

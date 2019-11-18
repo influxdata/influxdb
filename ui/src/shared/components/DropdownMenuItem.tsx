@@ -1,6 +1,6 @@
 import React, {SFC, MouseEvent} from 'react'
 
-import _ from 'lodash'
+import {isString} from 'lodash'
 import classnames from 'classnames'
 import {DropdownAction, DropdownItem} from 'src/types'
 
@@ -38,7 +38,7 @@ const DropdownMenuItem: SFC<ItemProps> = ({
   selected,
   index,
 }) => {
-  if (_.isString(item)) {
+  if (isString(item)) {
     item = {text: item}
   }
 

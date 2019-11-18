@@ -2,7 +2,7 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps, Link} from 'react-router'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {NavMenu, Icon} from '@influxdata/clockface'
@@ -336,7 +336,7 @@ const mstp = (state: AppState): StateProps => {
     orgs: {org},
   } = state
 
-  return {isHidden, me, orgs: orgs.items, orgName: _.get(org, 'name', '')}
+  return {isHidden, me, orgs: orgs.items, orgName: get(org, 'name', '')}
 }
 
 export default connect<StateProps>(mstp)(withRouter(SideNav))

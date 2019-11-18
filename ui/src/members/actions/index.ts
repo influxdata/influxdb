@@ -1,5 +1,9 @@
 // Libraries
-import _ from 'lodash'
+import {
+  get,
+  set,
+  omit,
+} from 'lodash'
 
 // API
 import {client} from 'src/utils/api'
@@ -138,7 +142,7 @@ export const addNewMember = (member: AddResourceMemberRequestBody) => async (
     dispatch(notify(memberAddSuccess(member.name)))
   } catch (e) {
     console.error(e)
-    const message = _.get(e, 'response.data.message', 'Unknown error')
+    const message = get(e, 'response.data.message', 'Unknown error')
     dispatch(notify(memberAddFailed(message)))
     throw e
   }
@@ -180,8 +184,8 @@ export const getUsers = () => async (
     } = getState()
 
     const apiUsers = await client.users.getAll()
-    const allUsers = apiUsers.reduce((acc, u) => _.set(acc, u.id, u), {})
-    const users = _.omit(allUsers, list.map(m => m.id))
+    const allUsers = apiUsers.reduce((acc, u) => set(acc, u.id, u), {})
+    const users = omit(allUsers, list.map(m => m.id))
 
     dispatch(setUsers(RemoteDataState.Done, users))
   } catch (e) {

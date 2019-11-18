@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
@@ -77,7 +77,7 @@ export default class DashboardHeader extends Component<Props> {
       <Page.Header fullWidth={true}>
         <Page.HeaderLeft>
           <RenamablePageTitle
-            prefix={_.get(org, 'name', '')}
+            prefix={get(org, 'name', '')}
             maxLength={DASHBOARD_NAME_MAX_LENGTH}
             onRename={onRenameDashboard}
             name={activeDashboard}

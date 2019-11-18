@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {isEmpty, get} from 'lodash'
 
 // Utils
 import {getSaveableView} from 'src/timeMachine/selectors'
@@ -147,7 +147,7 @@ class SaveAsCellForm extends PureComponent<Props, State> {
 
   private get isFormValid(): boolean {
     const {targetDashboardIDs} = this.state
-    return !_.isEmpty(targetDashboardIDs)
+    return !isEmpty(targetDashboardIDs)
   }
 
   private handleSubmit = () => {
@@ -239,7 +239,7 @@ const mstp = (state: AppState): StateProps => {
 
   const view = getSaveableView(state)
 
-  return {dashboards, view, orgID: _.get(org, 'id', '')}
+  return {dashboards, view, orgID: get(org, 'id', '')}
 }
 
 const mdtp: DispatchProps = {

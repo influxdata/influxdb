@@ -2,7 +2,7 @@
 import qs from 'qs'
 import {replace, RouterAction} from 'react-router-redux'
 import {Dispatch, Action} from 'redux'
-import _ from 'lodash'
+import {pickBy} from 'lodash'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -94,7 +94,7 @@ export const updateQueryParams = (updatedQueryParams: object): RouterAction => {
   const {search, pathname} = window.location
   const strippedPathname = stripPrefix(pathname)
 
-  const newQueryParams = _.pickBy(
+  const newQueryParams = pickBy(
     {
       ...qs.parse(search, {ignoreQueryPrefix: true}),
       ...updatedQueryParams,

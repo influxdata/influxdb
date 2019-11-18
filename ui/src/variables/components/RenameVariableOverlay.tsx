@@ -2,8 +2,6 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
-import _ from 'lodash'
-
 // Components
 import DangerConfirmationOverlay from 'src/shared/components/dangerConfirmation/DangerConfirmationOverlay'
 import RenameVariableForm from 'src/variables/components/RenameVariableForm'

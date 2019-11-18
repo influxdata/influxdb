@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
@@ -231,7 +231,7 @@ class Collectors extends PureComponent<Props, State> {
     const {orgName} = this.props
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Medium}>
           <EmptyState.Text>

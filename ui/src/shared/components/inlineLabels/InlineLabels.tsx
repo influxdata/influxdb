@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import _ from 'lodash'
 
 // Components
 import {Label as LabelComponent} from '@influxdata/clockface'

@@ -1,4 +1,4 @@
-import _ from 'lodash'
+import {trimEnd} from 'lodash'
 
 export interface TaskOptions {
   name: string
@@ -43,7 +43,7 @@ export const addDestinationToFluxScript = (
   const {toOrgName, toBucketName} = options
 
   if (toOrgName && toBucketName) {
-    const trimmedScript = _.trimEnd(script)
+    const trimmedScript = trimEnd(script)
     const trimmedOrgName = toOrgName.trim()
     const trimmedBucketName = toBucketName.trim()
     return `${trimmedScript}\n  |> to(bucket: "${trimmedBucketName}", org: "${trimmedOrgName}")`

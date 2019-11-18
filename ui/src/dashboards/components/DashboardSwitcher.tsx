@@ -1,6 +1,6 @@
 import React, {PureComponent} from 'react'
 import {Link, withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {sortBy} from 'lodash'
 import classnames from 'classnames'
 
 import {ClickOutside} from 'src/shared/components/ClickOutside'
@@ -69,7 +69,7 @@ class DashboardSwitcher extends PureComponent<Props & WithRouterProps, State> {
   private get links(): JSX.Element[] {
     const {links, active} = this.props.dashboardLinks
 
-    return _.sortBy(links, ['text', 'key']).map(link => {
+    return sortBy(links, ['text', 'key']).map(link => {
       return (
         <li
           key={link.key}

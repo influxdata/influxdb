@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 
 // Components
 import {Input, DapperScrollbars} from '@influxdata/clockface'
@@ -81,6 +81,6 @@ export default class TableSidebar extends PureComponent<Props, State> {
   }
 
   get isDataEmpty(): boolean {
-    return _.isEmpty(this.props.data)
+    return isEmpty(this.props.data)
   }
 }

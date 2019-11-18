@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {isObject, isString, isNull, isInteger} from 'lodash'
 
 // Types
 import {Range} from 'src/dashboards/reducers/ranges'
@@ -10,7 +10,7 @@ export const normalizeRanges = (ranges: Range[]): Range[] => {
   }
 
   const normalized = ranges.filter(r => {
-    if (!_.isObject(r)) {
+    if (!isObject(r)) {
       return false
     }
 
@@ -34,7 +34,7 @@ export const normalizeRanges = (ranges: Range[]): Range[] => {
     }
 
     const isCorrectType = bound =>
-      _.isString(bound) || _.isNull(bound) || _.isInteger(bound)
+      isString(bound) || isNull(bound) || isInteger(bound)
 
     if (!isCorrectType(lower) || !isCorrectType(upper)) {
       return false

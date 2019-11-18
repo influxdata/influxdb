@@ -1,6 +1,3 @@
-// Libraries
-import _ from 'lodash'
-
 // APIs
 import * as api from 'src/client'
 

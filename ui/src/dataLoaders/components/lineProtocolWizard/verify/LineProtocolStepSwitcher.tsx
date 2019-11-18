@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'

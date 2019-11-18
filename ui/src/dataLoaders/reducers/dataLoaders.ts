@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {sortBy, uniqBy, get, isEmpty} from 'lodash'
 
 // Utils
 import {
@@ -90,8 +90,8 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
     case 'ADD_TELEGRAF_PLUGINS':
       return {
         ...state,
-        telegrafPlugins: _.sortBy(
-          _.uniqBy(
+        telegrafPlugins: sortBy(
+          uniqBy(
             [...state.telegrafPlugins, ...action.payload.telegrafPlugins],
             'name'
           ),
@@ -117,7 +117,7 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         ...state,
         telegrafPlugins: state.telegrafPlugins.map(tp => {
           if (tp.name === action.payload.name) {
-            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+            const plugin = get(tp, 'plugin', createNewPlugin(tp.name))
 
             return {
               ...tp,
@@ -136,9 +136,9 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         ...state,
         telegrafPlugins: state.telegrafPlugins.map(tp => {
           if (tp.name === action.payload.pluginName) {
-            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+            const plugin = get(tp, 'plugin', createNewPlugin(tp.name))
 
-            const config = _.get(
+            const config = get(
               plugin,
               ['config', action.payload.fieldName],
               []
@@ -166,9 +166,9 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         ...state,
         telegrafPlugins: state.telegrafPlugins.map(tp => {
           if (tp.name === action.payload.pluginName) {
-            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
+            const plugin = get(tp, 'plugin', createNewPlugin(tp.name))
 
-            const configFieldValues = _.get(
+            const configFieldValues = get(
               plugin,
               `config.${action.payload.fieldName}`,
               []
@@ -194,8 +194,8 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
         ...state,
         telegrafPlugins: state.telegrafPlugins.map(tp => {
           if (tp.name === action.payload.pluginName) {
-            const plugin = _.get(tp, 'plugin', createNewPlugin(tp.name))
-            const configValues = _.get(
+            const plugin = get(tp, 'plugin', createNewPlugin(tp.name))
+            const configValues = get(
               plugin,
               `config.${action.payload.field}`,
               []
@@ -225,7 +225,7 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
       return {
         ...state,
         telegrafPlugins: state.telegrafPlugins.map(tp => {
-          const name = _.get(tp, 'name')
+          const name = get(tp, 'name')
           if (name === action.payload.telegrafPlugin) {
             const configFields = getConfigFields(name)
             if (!configFields) {
@@ -233,7 +233,7 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
             }
 
             const plugin = getDeep<Plugin>(tp, 'plugin', createNewPlugin(name))
-            const config = _.get(plugin, 'config', {})
+            const config = get(plugin, 'config', {})
 
             let isValidConfig = true
 
@@ -262,7 +262,7 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
               }
             )
 
-            if (!isValidConfig || _.isEmpty(config)) {
+            if (!isValidConfig || isEmpty(config)) {
               return {
                 ...tp,
                 configured: ConfigurationState.InvalidConfiguration,

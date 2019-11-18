@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import memoizeOne from 'memoize-one'
-// import _ from 'lodash'
 
 // Components
 import {ResourceList} from '@influxdata/clockface'

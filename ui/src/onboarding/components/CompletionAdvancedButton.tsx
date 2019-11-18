@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
@@ -33,7 +33,7 @@ class CompletionAdvancedButton extends PureComponent<Props> {
 
   private handleAdvanced = (): void => {
     const {router, orgs, onExit} = this.props
-    const id = _.get(orgs, '0.id', null)
+    const id = get(orgs, '0.id', null)
     if (id) {
       router.push(`/orgs/${id}/load-data/buckets`)
     } else {

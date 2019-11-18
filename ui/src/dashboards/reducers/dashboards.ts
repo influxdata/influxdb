@@ -1,6 +1,6 @@
 // Libraries
 import {produce} from 'immer'
-import _ from 'lodash'
+import {unionBy} from 'lodash'
 
 // Types
 import {Action, ActionTypes} from 'src/dashboards/actions'
@@ -42,7 +42,7 @@ export const dashboardsReducer = (
 
       case ActionTypes.SetDashboard: {
         const {dashboard} = action.payload
-        draftState.list = _.unionBy([dashboard], state.list, 'id')
+        draftState.list = unionBy([dashboard], state.list, 'id')
 
         return
       }

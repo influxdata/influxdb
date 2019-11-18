@@ -1,5 +1,3 @@
-import _ from 'lodash'
-
 // Utils
 import {templateToExport} from 'src/shared/utils/resourceToTemplate'
 

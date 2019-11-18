@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
 
 // Actions
@@ -38,7 +38,7 @@ class DashboardImportOverlay extends PureComponent<Props> {
     const {createDashboardFromTemplate, populateDashboards} = this.props
     const template = JSON.parse(uploadContent)
 
-    if (_.isEmpty(template)) {
+    if (isEmpty(template)) {
       this.onDismiss()
     }
 

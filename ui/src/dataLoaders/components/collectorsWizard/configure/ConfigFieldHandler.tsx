@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import ConfigFieldSwitcher from 'src/dataLoaders/components/configureStep/streaming/ConfigFieldSwitcher'
@@ -97,7 +97,7 @@ export class ConfigFieldHandler extends PureComponent<Props> {
     } else {
       defaultEmpty = []
     }
-    return _.get(telegrafPlugin, `plugin.config.${fieldName}`, defaultEmpty)
+    return get(telegrafPlugin, `plugin.config.${fieldName}`, defaultEmpty)
   }
 
   private handleUpdateConfigField = (e: ChangeEvent<HTMLInputElement>) => {

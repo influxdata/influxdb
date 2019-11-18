@@ -1,5 +1,5 @@
 // Libraries
-import _ from 'lodash'
+import {get} from 'lodash'
 import React from 'react'
 
 // Component
@@ -22,7 +22,7 @@ const SortBy = ({fieldOptions, onChange, selected}: Props) => {
           className="dropdown-stretch"
           button={(active, onClick) => (
             <Dropdown.Button active={active} onClick={onClick}>
-              {_.get(selected, 'displayName', 'Choose a sort field')}
+              {get(selected, 'displayName', 'Choose a sort field')}
             </Dropdown.Button>
           )}
           menu={onCollapse => (
@@ -37,7 +37,7 @@ const SortBy = ({fieldOptions, onChange, selected}: Props) => {
                     onClick={onChange}
                     selected={
                       field.internalName ===
-                      _.get(selected, 'internalName', null)
+                      get(selected, 'internalName', null)
                     }
                   >
                     {field.displayName}

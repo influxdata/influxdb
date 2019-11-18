@@ -1,5 +1,4 @@
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 
 // Components
 import FluxEditor from 'src/shared/components/FluxEditor'

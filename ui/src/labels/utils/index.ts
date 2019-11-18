@@ -1,9 +1,9 @@
-import _ from 'lodash'
+import {sample} from 'lodash'
 
 import {HEX_CODE_CHAR_LENGTH, PRESET_LABEL_COLORS} from 'src/labels/constants/'
 
 export const randomPresetColor = () =>
-  _.sample(PRESET_LABEL_COLORS.slice(1)).colorHex
+  sample(PRESET_LABEL_COLORS.slice(1)).colorHex
 
 // TODO: Accept a list of label objects instead of strings
 // Will have to wait until label types are standardized in the UI

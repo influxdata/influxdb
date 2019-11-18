@@ -1,7 +1,6 @@
 // Libraries
 import React, {Component, MouseEvent} from 'react'
 import classnames from 'classnames'
-import _ from 'lodash'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
 

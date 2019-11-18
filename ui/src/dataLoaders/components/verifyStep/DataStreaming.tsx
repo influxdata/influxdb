@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 
 // Components
 import TelegrafInstructions from 'src/dataLoaders/components/verifyStep/TelegrafInstructions'

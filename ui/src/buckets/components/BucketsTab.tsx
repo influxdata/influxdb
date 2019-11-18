@@ -1,6 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
+import {isEmpty} from 'lodash'
 import {connect} from 'react-redux'
 
 // Components
@@ -217,7 +217,7 @@ class BucketsTab extends PureComponent<Props, State> {
   private get emptyState(): JSX.Element {
     const {searchTerm} = this.state
 
-    if (_.isEmpty(searchTerm)) {
+    if (isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>

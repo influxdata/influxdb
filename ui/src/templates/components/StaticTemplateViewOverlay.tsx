@@ -1,6 +1,5 @@
 import React, {PureComponent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
 
 // Components
 import ViewOverlay from 'src/shared/components/ViewOverlay'

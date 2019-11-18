@@ -1,7 +1,7 @@
 import React, {Component, ReactElement, MouseEvent, CSSProperties} from 'react'
 import classnames from 'classnames'
 import uuid from 'uuid'
-import _ from 'lodash'
+import {isEqual, get, findIndex} from 'lodash'
 
 import Division from 'src/shared/components/threesizer/Division'
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -86,7 +86,7 @@ class Threesizer extends Component<Props, State> {
     const {dragEvent} = this.state
     const {orientation} = this.props
 
-    if (_.isEqual(dragEvent, prevState.dragEvent)) {
+    if (isEqual(dragEvent, prevState.dragEvent)) {
       return
     }
 
@@ -134,7 +134,7 @@ class Threesizer extends Component<Props, State> {
         ref={r => (this.containerRef = r)}
       >
         {divisions.map((d, i) => {
-          const headerOrientation = _.get(d, 'headerOrientation', orientation)
+          const headerOrientation = get(d, 'headerOrientation', orientation)
 
           return (
             <Division
@@ -337,7 +337,7 @@ class Threesizer extends Component<Props, State> {
   private get move() {
     const {activeHandleID} = this.state
 
-    const activePosition = _.findIndex(
+    const activePosition = findIndex(
       this.state.divisions,
       d => d.id === activeHandleID
     )
@@ -432,7 +432,7 @@ class Threesizer extends Component<Props, State> {
 
       if (after) {
         const leftIndex = i - 1
-        const left = _.get(divs, leftIndex, {size: 'none'})
+        const left = get(divs, leftIndex, {size: 'none'})
 
         if (left && left.size === 0) {
           return {...d, size: this.thinner(d.size)}

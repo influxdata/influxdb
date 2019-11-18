@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component, ChangeEvent} from 'react'
-import _ from 'lodash'
+import {differenceBy, isEmpty} from 'lodash'
 
 // Components
 import {SquareButton, IconFont, ComponentColor} from '@influxdata/clockface'
@@ -154,7 +154,7 @@ class InlineLabelsEditor extends Component<Props, State> {
     const {availableLabels} = this
     const {isPopoverVisible} = this.state
 
-    if (_.isEmpty(availableLabels) && !isPopoverVisible) {
+    if (isEmpty(availableLabels) && !isPopoverVisible) {
       return this.setState({
         isPopoverVisible: true,
         selectedItemID: null,
@@ -231,7 +231,7 @@ class InlineLabelsEditor extends Component<Props, State> {
   private get availableLabels(): Label[] {
     const {selectedLabels, labels} = this.props
 
-    return _.differenceBy(labels, selectedLabels, label => label.name)
+    return differenceBy(labels, selectedLabels, label => label.name)
   }
 
   private handleCreateLabel = async (label: Label) => {

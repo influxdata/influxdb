@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
 
 // Components
 import {Form} from '@influxdata/clockface'

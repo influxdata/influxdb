@@ -1,6 +1,6 @@
 // Libraries
 import React, {Component} from 'react'
-import _ from 'lodash'
+import {isNil} from 'lodash'
 import classnames from 'classnames'
 import {Scrollbars} from '@influxdata/react-custom-scrollbars'
 
@@ -42,11 +42,11 @@ class FancyScrollbar extends Component<Props> {
 
   public updateScroll() {
     const ref = this.ref.current
-    if (ref && !_.isNil(this.props.scrollTop)) {
+    if (ref && !isNil(this.props.scrollTop)) {
       ref.scrollTop(this.props.scrollTop)
     }
 
-    if (ref && !_.isNil(this.props.scrollLeft)) {
+    if (ref && !isNil(this.props.scrollLeft)) {
       ref.scrollLeft(this.props.scrollLeft)
     }
   }

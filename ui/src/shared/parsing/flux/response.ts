@@ -1,5 +1,5 @@
 import Papa from 'papaparse'
-import _ from 'lodash'
+import {isEmpty, groupBy, get} from 'lodash'
 import uuid from 'uuid'
 
 import {FluxTable} from 'src/types'
@@ -71,11 +71,11 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
     .join('\n')
     .trim()
 
-  if (_.isEmpty(annotationLines)) {
+  if (isEmpty(annotationLines)) {
     throw new Error('Unable to extract annotation data')
   }
 
-  if (_.isEmpty(nonAnnotationLines)) {
+  if (isEmpty(nonAnnotationLines)) {
     // A response may be truncated on an arbitrary line. This guards against
     // the case where a response is truncated on annotation data
     return []
@@ -93,7 +93,7 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
 
   // Group rows by their table id
   const tablesData = Object.values(
-    _.groupBy<TableGroup[]>(
+    groupBy<TableGroup[]>(
       nonAnnotationData.slice(1),
       row => row[tableColIndex]
     )
@@ -113,14 +113,14 @@ export const parseTables = (responseChunk: string): FluxTable[] => {
   }, [])
 
   const tables = tablesData.map(tableData => {
-    const dataRow = _.get(tableData, '0', defaultsRow)
+    const dataRow = get(tableData, '0', defaultsRow)
 
     const result: string =
-      _.get(dataRow, resultColIndex, '') ||
-      _.get(defaultsRow, resultColIndex, '')
+      get(dataRow, resultColIndex, '') ||
+      get(defaultsRow, resultColIndex, '')
 
     const groupKey = groupKeyIndices.reduce((acc, i) => {
-      return {...acc, [headerRow[i]]: _.get(dataRow, i, '')}
+      return {...acc, [headerRow[i]]: get(dataRow, i, '')}
     }, {})
 
     const name = Object.entries(groupKey)

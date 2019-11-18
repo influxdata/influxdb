@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent} from 'react'
-import _ from 'lodash'
 import {withRouter, WithRouterProps} from 'react-router'
 import chroma from 'chroma-js'
 

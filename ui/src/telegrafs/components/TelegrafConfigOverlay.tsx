@@ -1,7 +1,7 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
-import _ from 'lodash'
+import {get} from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -48,7 +48,7 @@ class TelegrafConfigOverlay extends PureComponent<Props> {
     return (
       <Overlay.Container maxWidth={1200}>
         <Overlay.Header
-          title={`Telegraf Configuration - ${_.get(telegraf, 'name', '')}`}
+          title={`Telegraf Configuration - ${get(telegraf, 'name', '')}`}
           onDismiss={this.handleDismiss}
         />
         <Overlay.Body>
