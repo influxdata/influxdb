@@ -5,15 +5,14 @@ import {Position} from 'codemirror'
 
 // Components
 const FluxEditor = React.lazy(() => import('src/shared/components/FluxEditor'))
-const FluxMonacoEditor = React.lazy(() => import('src/shared/components/FluxMonacoEditor'))
+const FluxMonacoEditor = React.lazy(() =>
+  import('src/shared/components/FluxMonacoEditor')
+)
 import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
-import {
-  FeatureFlag,
-  NegativeFeatureFlag
-} from 'src/shared/utils/featureFlag'
+import {FeatureFlag, NegativeFeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -45,9 +44,7 @@ interface State {
 
 type Props = StateProps & DispatchProps
 
-const spinner = (
-  <div className="time-machine-editor--loading" />
-)
+const spinner = <div className="time-machine-editor--loading" />
 
 class TimeMachineFluxEditor extends PureComponent<Props, State> {
   private cursorPosition: Position = {line: 0, ch: 0}
@@ -66,7 +63,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
         render: () => {
           return (
             <>
-              <Suspense fallback={spinner} >
+              <Suspense fallback={spinner}>
                 <FeatureFlag name="monacoEditor">
                   <FluxMonacoEditor
                     script={activeQueryText}

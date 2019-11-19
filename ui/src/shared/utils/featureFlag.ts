@@ -57,22 +57,22 @@ export const NegativeFeatureFlag: FunctionComponent<{name: string}> = ({
   return children as any
 }
 
+/* eslint-disable no-console */
 const list = () => {
-  console.log(
-    'Currently Available Feature Flags'
-  )
+  console.log('Currently Available Feature Flags')
   if (CLOUD) {
     console.table(CLOUD_FLAGS)
   } else {
     console.table(OSS_FLAGS)
   }
 }
+/* eslint-enable no-console */
 
 const reset = () => {
   const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
 
   if (CLOUD) {
-    Object.keys(featureFlags).forEach((k) => {
+    Object.keys(featureFlags).forEach(k => {
       if (!CLOUD_FLAGS.hasOwnProperty(k)) {
         delete featureFlags[k]
       } else {
@@ -80,7 +80,7 @@ const reset = () => {
       }
     })
   } else {
-    Object.keys(featureFlags).forEach((k) => {
+    Object.keys(featureFlags).forEach(k => {
       if (!CLOUD_FLAGS.hasOwnProperty(k)) {
         delete featureFlags[k]
       } else {
