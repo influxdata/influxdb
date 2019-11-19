@@ -16,21 +16,21 @@ TEST CASES SECTION NEEDS REVISION based on v2 API
 
 Test cases should be in the form of `curl` commands. For example:
 ```bash
-# create database
-curl -X POST http://localhost:8086/query --data-urlencode "q=CREATE DATABASE mydb"
-
-# create retention policy
-curl -X POST http://localhost:8086/query --data-urlencode "q=CREATE RETENTION POLICY myrp ON mydb DURATION 365d REPLICATION 1 DEFAULT"
-
 # write data
-curl -X POST http://localhost:8086/write?db=mydb --data-binary "cpu,region=useast,host=server_1,service=redis value=61"
+curl -XPOST "http://localhost:9999/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=s" \
+  --header "Authorization: Token YOURAUTHTOKEN" \
+  --data-raw "mem,host=host1 used_percent=23.43234543 1556896326"
 
-# Delete a Measurement
-curl -X POST http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=DROP MEASUREMENT cpu'
-
-# Query the Measurement
+# query data
 # Bug: expected it to return no data, but data comes back.
-curl -X POST http://localhost:8086/query  --data-urlencode 'db=mydb' --data-urlencode 'q=SELECT * from cpu'
+curl http://localhost:9999/api/v2/query?org=my-org -XPOST -sS \
+  -H 'Authorization: Token YOURAUTHTOKEN' \
+  -H 'Accept: application/csv' \
+  -H 'Content-type: application/vnd.flux' \
+  -d 'from(bucket:"example-bucket")
+        |> range(start:-1000h)
+        |> group(columns:["_measurement"], mode:"by")
+        |> sum()'
 ```
 **If you don't include a clear test case like this, your issue may not be investigated, and may even be closed**. If writing the data is too difficult, please zip up your data directory and include a link to it in your bug report.
 
@@ -90,12 +90,6 @@ running the following:
     gvm install go1.11
     gvm use go1.12 --default
 
-Installing Dep
--------------
-InfluxDB uses [dep](https://github.com/golang/dep) to manage dependencies.  Install it by running the following:
-
-    go get github.com/golang/dep/cmd/dep
-
 Revision Control Systems
 -------------
 Go has the ability to import remote packages via revision control systems with the `go get` command.  To ensure that you can retrieve any remote package, be sure to install the following rcs software to your system.
@@ -109,19 +103,23 @@ Getting the source
 Setup the project structure and fetch the repo like so:
 
 ```bash
-    mkdir $HOME/gocodez
-    export GOPATH=$HOME/gocodez
-    go get github.com/influxdata/influxdb
+    cd $GOPATH/src
+    git clone git@github.com:influxdata/influxdb.git
+    cd influxdb
+    export  GO111MODULE=on
+    go mod vendor
+    go install ./...
+    go test ./...
 ```
 
-You can add the line `export GOPATH=$HOME/gocodez` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
+You can add the line `export GOPATH=$HOME/go` to your bash/zsh file to be set for every shell instead of having to manually run it everytime.
 
 Cloning a fork
 -------------
 If you wish to work with fork of InfluxDB, your own fork for example, you must still follow the directory structure above. But instead of cloning the main repo, instead clone your fork. Follow the steps below to work with a fork:
 
 ```bash
-    export GOPATH=$HOME/gocodez
+    export GOPATH=$HOME/go
     mkdir -p $GOPATH/src/github.com/influxdata
     cd $GOPATH/src/github.com/influxdata
     git clone git@github.com:<username>/influxdb
@@ -136,32 +134,9 @@ Make sure you have Go installed and the project structure as shown above. To the
 
 ```bash
 cd $GOPATH/src/github.com/influxdata/influxdb
-dep ensure
-```
-
-To then build and install the binaries, run the following command.
-```bash
-go clean ./...
-go install ./...
+make
 ```
 The binaries will be located in `$GOPATH/bin`. Please note that the InfluxDB binary is named `influxd`, not `influxdb`.
-
-To set the version and commit flags during the build pass the following to the **install** command:
-
-```bash
--ldflags="-X main.version=$VERSION -X main.branch=$BRANCH -X main.commit=$COMMIT"
-```
-
-where `$VERSION` is the version, `$BRANCH` is the branch, and `$COMMIT` is the git commit hash.
-
-If you want to build packages, see `build.py` usage information:
-
-```bash
-python build.py --help
-
-# Or to build a package for your current system
-python build.py --package
-```
 
 To run the tests, execute the following command:
 
@@ -231,32 +206,6 @@ $ go generate ./...
 
 [tmpl]: https://github.com/benbjohnson/tmpl
 
-
-Pre-commit checks
--------------
-
-We have a pre-commit hook to make sure code is formatted properly and vetted before you commit any changes. We strongly recommend using the pre-commit hook to guard against accidentally committing unformatted code. To use the pre-commit hook, run the following:
-```bash
-    cd $GOPATH/src/github.com/influxdata/influxdb
-    cp .hooks/pre-commit .git/hooks/
-```
-In case the commit is rejected because it's not formatted you can run
-the following to format the code:
-
-```
-go fmt ./...
-go vet ./...
-```
-
-To install go vet, run the following command:
-```
-go get golang.org/x/tools/cmd/vet
-```
-
-NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
-
-For more information on `go vet`, [read the GoDoc](https://godoc.org/golang.org/x/tools/cmd/vet).
-
 Profiling
 -----
 When troubleshooting problems with CPU or memory the Go toolchain can be helpful. You can start InfluxDB with CPU and memory profiling turned on. For example:
@@ -284,9 +233,3 @@ func BenchmarkSomething(b *testing.B) {
   // do something that you want to profile...
 }
 ```
-
-Continuous Integration testing
------
-InfluxDB uses CircleCI for continuous integration testing. CircleCI executes [test.sh](https://github.com/influxdata/influxdb/blob/master/test.sh), so you may do the same on your local development environment before creating a pull request.
-
-The `test.sh` script executes a test suite with 5 variants (standard 64 bit, 64 bit with race detection, 32 bit, TSI, go version 1.11), each executes with a different arg, 0 through 4. Unless you know differently, `./test.sh 0` is probably all you need.
