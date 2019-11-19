@@ -8388,34 +8388,6 @@ components:
           enum: ['chronograf-v2']
         note:
           type: string
-    CheckViewProperties:
-      type: object
-      required:
-        - type
-        - shape
-        - checkID
-        - queries
-        - colors
-      properties:
-        type:
-          type: string
-          enum: [check]
-        shape:
-          type: string
-          enum: ['chronograf-v2']
-        checkID:
-          type: string
-        check:
-          $ref: '#/components/schemas/Check'
-        queries:
-          type: array
-          items:
-            $ref: "#/components/schemas/DashboardQuery"
-        colors:
-          description: Colors define color encoding of data into a visualization
-          type: array
-          items:
-            type: string
     Axes:
       description: The viewport for a View's visualizations
       type: object
@@ -8582,7 +8554,6 @@ components:
         - $ref: "#/components/schemas/GaugeViewProperties"
         - $ref: "#/components/schemas/TableViewProperties"
         - $ref: "#/components/schemas/MarkdownViewProperties"
-        - $ref: "#/components/schemas/CheckViewProperties"
         - $ref: "#/components/schemas/ScatterViewProperties"
         - $ref: "#/components/schemas/HeatmapViewProperties"
     View:

@@ -301,7 +301,6 @@ type ViewContents struct {
 
 // Values for all supported view property types.
 const (
-	ViewPropertyTypeCheck              = "check"
 	ViewPropertyTypeGauge              = "gauge"
 	ViewPropertyTypeHeatMap            = "heatmap"
 	ViewPropertyTypeHistogram          = "histogram"
@@ -355,12 +354,6 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 	switch t.Shape {
 	case "chronograf-v2":
 		switch t.Type {
-		case ViewPropertyTypeCheck:
-			var cv CheckViewProperties
-			if err := json.Unmarshal(v.B, &cv); err != nil {
-				return nil, err
-			}
-			vis = cv
 		case ViewPropertyTypeXY:
 			var xyv XYViewProperties
 			if err := json.Unmarshal(v.B, &xyv); err != nil {
@@ -528,15 +521,6 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape:             "chronograf-v2",
 			LogViewProperties: vis,
 		}
-	case CheckViewProperties:
-		s = struct {
-			Shape string `json:"shape"`
-			CheckViewProperties
-		}{
-			Shape: "chronograf-v2",
-
-			CheckViewProperties: vis,
-		}
 	default:
 		s = struct {
 			Shape string `json:"shape"`
@@ -639,14 +623,6 @@ type XYViewProperties struct {
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
-}
-
-// CheckViewProperties represents options for a view representing a check
-type CheckViewProperties struct {
-	Type       string           `json:"type"`
-	CheckID    string           `json:"checkID"`
-	Queries    []DashboardQuery `json:"queries"`
-	ViewColors []string         `json:"colors"`
 }
 
 // SingleStatViewProperties represents options for single stat view in Chronograf
@@ -777,7 +753,6 @@ func (GaugeViewProperties) viewProperties()          {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
 func (LogViewProperties) viewProperties()            {}
-func (CheckViewProperties) viewProperties()          {}
 
 func (v XYViewProperties) GetType() string             { return v.Type }
 func (v LinePlusSingleStatProperties) GetType() string { return v.Type }
@@ -789,7 +764,6 @@ func (v GaugeViewProperties) GetType() string          { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }
 func (v LogViewProperties) GetType() string            { return v.Type }
-func (v CheckViewProperties) GetType() string          { return v.Type }
 
 /////////////////////////////
 // Old Chronograf Types
