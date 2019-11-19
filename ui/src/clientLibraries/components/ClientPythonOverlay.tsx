@@ -18,7 +18,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
+const ClientPythonOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -29,9 +29,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
     writingDataPointCodeSnippet,
     writingDataBatchCodeSnippet,
   } = clientPythonLibrary
-  const {
-    org
-  } = props
+  const {org} = props
   const server = window.location.origin
 
   return (
@@ -56,7 +54,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
           token: 'token',
         }}
         values={{
-          server
+          server,
         }}
       />
       <h5>Write Data</h5>
@@ -69,7 +67,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <p>Option 2: Use a Data Point to write data</p>
@@ -81,7 +79,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <p>Option 3: Use a Batch Sequence to write data</p>
@@ -93,7 +91,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <h5>Execute a Flux query</h5>
@@ -105,7 +103,7 @@ const ClientPythonOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
     </ClientLibraryOverlay>
@@ -123,5 +121,5 @@ const mstp = (state: AppState): StateProps => {
 export {ClientPythonOverlay}
 export default connect<StateProps, {}, Props>(
   mstp,
-  null,
+  null
 )(ClientPythonOverlay)

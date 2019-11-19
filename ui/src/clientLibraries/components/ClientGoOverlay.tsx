@@ -18,16 +18,14 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientGoOverlay: FunctionComponent<Props> = (props) => {
+const ClientGoOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
     initializeClientCodeSnippet,
     writeDataCodeSnippet,
   } = clientGoLibrary
-  const {
-    org
-  } = props
+  const {org} = props
   const server = window.location.origin
 
   return (
@@ -47,7 +45,7 @@ const ClientGoOverlay: FunctionComponent<Props> = (props) => {
           server: 'myHTTPInfluxAddress',
         }}
         values={{
-          server
+          server,
         }}
       />
       <h5>Write Data</h5>
@@ -59,7 +57,7 @@ const ClientGoOverlay: FunctionComponent<Props> = (props) => {
           org: 'my-very-awesome-org',
         }}
         values={{
-          org
+          org,
         }}
       />
     </ClientLibraryOverlay>
@@ -77,5 +75,5 @@ const mstp = (state: AppState): StateProps => {
 export {ClientGoOverlay}
 export default connect<StateProps, {}, Props>(
   mstp,
-  null,
+  null
 )(ClientGoOverlay)

@@ -18,7 +18,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
+const ClientJavaOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -31,9 +31,7 @@ const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
     writingDataPojoCodeSnippet,
     pojoClassCodeSnippet,
   } = clientJavaLibrary
-  const {
-    org
-  } = props
+  const {org} = props
   const server = window.location.origin
 
   return (
@@ -61,7 +59,7 @@ const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
           token: 'token',
         }}
         values={{
-          server
+          server,
         }}
       />
       <h5>Write Data</h5>
@@ -74,7 +72,7 @@ const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <p>Option 2: Use a Data Point to write data</p>
@@ -86,7 +84,7 @@ const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <p>Option 3: Use POJO and corresponding class to write data</p>
@@ -98,7 +96,7 @@ const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <TemplatedCodeSnippet template={pojoClassCodeSnippet} label="Java Code" />
@@ -111,7 +109,7 @@ const ClientJavaOverlay: FunctionComponent<Props> = (props) => {
           org: 'myorgid',
         }}
         values={{
-          org
+          org,
         }}
       />
     </ClientLibraryOverlay>
@@ -129,5 +127,5 @@ const mstp = (state: AppState): StateProps => {
 export {ClientJavaOverlay}
 export default connect<StateProps, {}, Props>(
   mstp,
-  null,
+  null
 )(ClientJavaOverlay)

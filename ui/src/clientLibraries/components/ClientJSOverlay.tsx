@@ -18,7 +18,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientJSOverlay: FunctionComponent<Props> = (props) => {
+const ClientJSOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -26,9 +26,7 @@ const ClientJSOverlay: FunctionComponent<Props> = (props) => {
     executeQueryCodeSnippet,
     writingDataLineProtocolCodeSnippet,
   } = clientJSLibrary
-  const {
-    org
-  } = props
+  const {org} = props
   const server = window.location.origin
 
   return (
@@ -49,7 +47,7 @@ const ClientJSOverlay: FunctionComponent<Props> = (props) => {
           token: 'token',
         }}
         values={{
-          server
+          server,
         }}
       />
       <h5>Write Data</h5>
@@ -61,7 +59,7 @@ const ClientJSOverlay: FunctionComponent<Props> = (props) => {
           bucket: 'bucketID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <h5>Execute a Flux query</h5>
@@ -72,7 +70,7 @@ const ClientJSOverlay: FunctionComponent<Props> = (props) => {
           org: 'orgID',
         }}
         values={{
-          org
+          org,
         }}
       />
     </ClientLibraryOverlay>
@@ -90,5 +88,5 @@ const mstp = (state: AppState): StateProps => {
 export {ClientJSOverlay}
 export default connect<StateProps, {}, Props>(
   mstp,
-  null,
+  null
 )(ClientJSOverlay)

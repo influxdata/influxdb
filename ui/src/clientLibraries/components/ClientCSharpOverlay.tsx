@@ -18,7 +18,7 @@ interface StateProps {
 
 type Props = StateProps
 
-const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
+const ClientCSharpOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
@@ -32,9 +32,7 @@ const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
     writingDataPocoCodeSnippet,
     pocoClassCodeSnippet,
   } = clientCSharpLibrary
-  const {
-    org
-  } = props
+  const {org} = props
   const server = window.location.origin
 
   return (
@@ -70,7 +68,7 @@ const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
           token: 'token',
         }}
         values={{
-          server
+          server,
         }}
       />
       <h5>Write Data</h5>
@@ -83,7 +81,7 @@ const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
           bucket: 'bucketID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <p>Option 2: Use a Data Point to write data</p>
@@ -95,7 +93,7 @@ const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
           bucket: 'bucketID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <p>Option 3: Use POCO and corresponding Class to write data</p>
@@ -107,7 +105,7 @@ const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
           bucket: 'bucketID',
         }}
         values={{
-          org
+          org,
         }}
       />
       <TemplatedCodeSnippet template={pocoClassCodeSnippet} label="C# Code" />
@@ -120,7 +118,7 @@ const ClientCSharpOverlay: FunctionComponent<Props> = (props) => {
           bucket: 'bucketID',
         }}
         values={{
-          org
+          org,
         }}
       />
     </ClientLibraryOverlay>
@@ -138,5 +136,5 @@ const mstp = (state: AppState): StateProps => {
 export {ClientCSharpOverlay}
 export default connect<StateProps, {}, Props>(
   mstp,
-  null,
+  null
 )(ClientCSharpOverlay)
