@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, MouseEvent} from 'react'
 import {Scale} from '@influxdata/giraffe'
 
 // Components
@@ -19,6 +19,7 @@ interface Props {
   threshold: RangeThreshold
   onChangeMaxPos: (e: DragEvent) => void
   onChangeMinPos: (e: DragEvent) => void
+  onMouseUp: (e: MouseEvent<HTMLDivElement>) => void
 }
 
 const RangeThresholdMarkers: FunctionComponent<Props> = ({
@@ -27,6 +28,7 @@ const RangeThresholdMarkers: FunctionComponent<Props> = ({
   threshold: {level, within, min, max},
   onChangeMinPos,
   onChangeMaxPos,
+  onMouseUp,
 }) => {
   const minY = yScale(clamp(min, yDomain))
   const maxY = yScale(clamp(max, yDomain))
@@ -34,10 +36,20 @@ const RangeThresholdMarkers: FunctionComponent<Props> = ({
   return (
     <>
       {isInDomain(min, yDomain) && (
-        <ThresholdMarker level={level} y={minY} onDrag={onChangeMinPos} />
+        <ThresholdMarker
+          level={level}
+          y={minY}
+          onDrag={onChangeMinPos}
+          onMouseUp={onMouseUp}
+        />
       )}
       {isInDomain(max, yDomain) && (
-        <ThresholdMarker level={level} y={maxY} onDrag={onChangeMaxPos} />
+        <ThresholdMarker
+          level={level}
+          y={maxY}
+          onDrag={onChangeMaxPos}
+          onMouseUp={onMouseUp}
+        />
       )}
       {within ? (
         <ThresholdMarkerArea level={level} top={maxY} height={minY - maxY} />
