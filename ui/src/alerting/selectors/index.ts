@@ -6,18 +6,14 @@ export const getCheck = (state: AppState, id: string): Check => {
   return checksList.find(c => c.id === id)
 }
 
-export const getCheckIDs = (
-  state: AppState
-): {[x: string]: boolean} => {
+export const getCheckIDs = (state: AppState): {[x: string]: boolean} => {
   return state.checks.list.reduce(
     (acc, check) => ({...acc, [check.id]: true}),
     {}
   )
 }
 
-export const getEndpointIDs = (
-  state: AppState
-): {[x: string]: boolean} => {
+export const getEndpointIDs = (state: AppState): {[x: string]: boolean} => {
   return state.endpoints.list.reduce(
     (acc, endpoint) => ({...acc, [endpoint.id]: true}),
     {}

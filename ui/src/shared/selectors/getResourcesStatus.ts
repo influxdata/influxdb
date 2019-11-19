@@ -1,9 +1,10 @@
 // Types
 import {AppState, RemoteDataState} from 'src/types'
 import {ResourceType} from 'src/shared/components/GetResources'
+import {TestState} from 'src/shared/selectors/getResourcesStatus.test'
 
 export const getResourcesStatus = (
-  state: AppState,
+  state: AppState | TestState,
   resources: Array<ResourceType>
 ): RemoteDataState => {
   const done = resources.every(resource => {
