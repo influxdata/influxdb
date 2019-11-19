@@ -5,6 +5,7 @@ v1.7.10 [unreleased]
 
 -	[#15881](https://github.com/influxdata/influxdb/pull/15881): fix(tsm1): make digest safe for concurrent use.
 -	[#15863](https://github.com/influxdata/influxdb/pull/15863): fix(tsi1): index defect with negated equality filters
+-	[#15970](https://github.com/influxdata/influxdb/pull/15970): Fix compaction logic on infrequent cache snapshots.
 
 v1.7.9 [2019-10-27]
 -------------------
