@@ -5,22 +5,15 @@ import {produce} from 'immer'
 import {RemoteDataState} from 'src/types'
 import {Action} from 'src/members/actions'
 import {Member} from 'src/types'
-import {User} from '@influxdata/influx'
-
-export interface UsersMap {
-  [userID: string]: User
-}
 
 const initialState = (): MembersState => ({
   status: RemoteDataState.NotStarted,
   list: [],
-  users: {status: RemoteDataState.NotStarted, item: {}},
 })
 
 export interface MembersState {
   status: RemoteDataState
   list: Member[]
-  users: {status: RemoteDataState; item: UsersMap}
 }
 
 export const membersReducer = (
@@ -58,18 +51,6 @@ export const membersReducer = (
         })
 
         draftState.list = deleted
-        return
-      }
-
-      case 'SET_USERS': {
-        const {status, list} = action.payload
-
-        draftState.users.status = status
-
-        if (list) {
-          draftState.users.item = list
-        }
-
         return
       }
     }
