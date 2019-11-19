@@ -5,6 +5,7 @@ const OSS_FLAGS = {
   alerting: false,
   eventMarkers: false,
   deleteWithPredicate: false,
+  monacoEditor: false,
   downloadCellCSV: false,
 }
 
@@ -12,6 +13,7 @@ const CLOUD_FLAGS = {
   alerting: true,
   eventMarkers: false,
   deleteWithPredicate: false,
+  monacoEditor: false,
   cloudBilling: CLOUD_BILLING_VISIBLE, // should be visible in dev and acceptance, but not in cloud
   downloadCellCSV: false,
 }
@@ -44,6 +46,52 @@ export const FeatureFlag: FunctionComponent<{name: string}> = ({
   return children as any
 }
 
+export const NegativeFeatureFlag: FunctionComponent<{name: string}> = ({
+  name,
+  children,
+}) => {
+  if (isFlagEnabled(name)) {
+    return null
+  }
+
+  return children as any
+}
+
+const list = () => {
+  console.log(
+    'Currently Available Feature Flags'
+  )
+  if (CLOUD) {
+    console.table(CLOUD_FLAGS)
+  } else {
+    console.table(OSS_FLAGS)
+  }
+}
+
+const reset = () => {
+  const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
+
+  if (CLOUD) {
+    Object.keys(featureFlags).forEach((k) => {
+      if (!CLOUD_FLAGS.hasOwnProperty(k)) {
+        delete featureFlags[k]
+      } else {
+        featureFlags[k] = CLOUD_FLAGS[k]
+      }
+    })
+  } else {
+    Object.keys(featureFlags).forEach((k) => {
+      if (!CLOUD_FLAGS.hasOwnProperty(k)) {
+        delete featureFlags[k]
+      } else {
+        featureFlags[k] = CLOUD_FLAGS[k]
+      }
+    })
+  }
+
+  window.localStorage.featureFlags = JSON.stringify(featureFlags)
+}
+
 export const toggleLocalStorageFlag = (flagName: string) => {
   const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
 
@@ -57,4 +105,4 @@ export const toggleLocalStorageFlag = (flagName: string) => {
 // Expose utility in dev tools console for convenience
 const w: any = window
 
-w.influx = {toggleFeature: toggleLocalStorageFlag}
+w.influx = {toggleFeature: toggleLocalStorageFlag, list, reset}
