@@ -4,7 +4,6 @@ import React, {PureComponent} from 'react'
 // Components
 import {EmptyState} from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {ComponentSize} from '@influxdata/clockface'
@@ -42,7 +41,7 @@ export default class EmptyTasksLists extends PureComponent<Props> {
             Looks like you don't have any <b>Tasks</b>, why not create one?"
           </EmptyState.Text>
           <AddResourceDropdown
-            canImportFromTemplate={isFlagEnabled('importTaskTemplate')}
+            canImportFromTemplate
             onSelectNew={onCreate}
             onSelectImport={onImportTask}
             onSelectTemplate={onImportFromTemplate}

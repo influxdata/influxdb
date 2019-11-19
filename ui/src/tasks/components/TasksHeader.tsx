@@ -10,7 +10,6 @@ import {
 } from '@influxdata/clockface'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import PageTitleWithOrg from 'src/shared/components/PageTitleWithOrg'
-import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
@@ -47,7 +46,7 @@ export default class TasksHeader extends PureComponent<Props> {
             onChange={setShowInactive}
           />
           <AddResourceDropdown
-            canImportFromTemplate={isFlagEnabled('importTaskTemplate')}
+            canImportFromTemplate
             onSelectNew={onCreateTask}
             onSelectImport={onImportTask}
             onSelectTemplate={onImportFromTemplate}
