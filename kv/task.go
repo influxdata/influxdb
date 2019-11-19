@@ -98,11 +98,19 @@ func (s *Service) initializeTasks(ctx context.Context, tx Tx) error {
 func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	var t *influxdb.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
-		task, err := s.findTaskByIDWithAuth(ctx, tx, id)
-		if err != nil {
-			return err
+		if influxdb.FindTaskAuthRequired(ctx) {
+			task, err := s.findTaskByIDWithAuth(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			t = task
+		} else {
+			task, err := s.findTaskByID(ctx, tx, id)
+			if err != nil {
+				return err
+			}
+			t = task
 		}
-		t = task
 		return nil
 	})
 	if err != nil {
