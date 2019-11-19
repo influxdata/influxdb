@@ -40,7 +40,6 @@ class TableGraph extends PureComponent<Props, State> {
 
   public render() {
     const {table, properties, timeZone} = this.props
-
     return (
       <TableGraphTransform
         data={table.data}
@@ -48,7 +47,7 @@ class TableGraph extends PureComponent<Props, State> {
         dataTypes={table.dataTypes}
         sortOptions={this.sortOptions}
       >
-        {transformedDataBundle => (
+        {(transformedDataBundle) => (
           <TableGraphTable
             properties={properties}
             dataTypes={table.dataTypes}

@@ -53,7 +53,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'single-stat':
       return (
         <LatestValueTransform table={table} allowString={true}>
-          {latestValue => (
+          {(latestValue) => (
             <SingleStat stat={latestValue} properties={properties} />
           )}
         </LatestValueTransform>
@@ -62,7 +62,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'table':
       return (
         <FluxTablesTransform files={files}>
-          {tables => (
+          {(tables) => (
             <TableGraphs
               tables={tables}
               properties={properties}
@@ -75,7 +75,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'gauge':
       return (
         <LatestValueTransform table={table} allowString={false}>
-          {latestValue => (
+          {(latestValue) => (
             <GaugeChart value={latestValue} properties={properties} />
           )}
         </LatestValueTransform>
@@ -91,21 +91,21 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           timeZone={timeZone}
           viewProperties={properties}
         >
-          {config => <Plot config={config} />}
+          {(config) => <Plot config={config} />}
         </XYPlot>
       )
 
     case 'line-plus-single-stat':
       const xyProperties = {
         ...properties,
-        colors: properties.colors.filter(c => c.type === 'scale'),
+        colors: properties.colors.filter((c) => c.type === 'scale'),
         type: 'xy' as 'xy',
         geom: 'line' as 'line',
       } as XYViewProperties
 
       const singleStatProperties = {
         ...properties,
-        colors: properties.colors.filter(c => c.type !== 'scale'),
+        colors: properties.colors.filter((c) => c.type !== 'scale'),
         type: 'single-stat',
       } as SingleStatViewProperties
 
@@ -119,14 +119,14 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           timeZone={timeZone}
           viewProperties={xyProperties}
         >
-          {config => (
+          {(config) => (
             <Plot config={config}>
               <LatestValueTransform
                 table={config.table}
                 quiet={true}
                 allowString={false}
               >
-                {latestValue => (
+                {(latestValue) => (
                   <SingleStat
                     stat={latestValue}
                     properties={singleStatProperties}
@@ -146,7 +146,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           timeZone={timeZone}
           viewProperties={properties}
         >
-          {config => <Plot config={config} />}
+          {(config) => <Plot config={config} />}
         </HistogramPlot>
       )
 
@@ -160,7 +160,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           timeZone={timeZone}
           viewProperties={properties}
         >
-          {config => <Plot config={config} />}
+          {(config) => <Plot config={config} />}
         </HeatmapPlot>
       )
 
@@ -174,7 +174,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           viewProperties={properties}
           timeZone={timeZone}
         >
-          {config => <Plot config={config} />}
+          {(config) => <Plot config={config} />}
         </ScatterPlot>
       )
 
@@ -189,7 +189,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
           viewProperties={properties}
           statuses={statuses}
         >
-          {config => <Plot config={config} />}
+          {(config) => <Plot config={config} />}
         </CheckPlot>
       )
 

@@ -42,7 +42,6 @@ class TableGraphs extends PureComponent<Props, State> {
 
   public render() {
     const {tables, properties, timeZone} = this.props
-
     return (
       <div className="time-machine-tables">
         {this.showSidebar && (
@@ -71,7 +70,7 @@ class TableGraphs extends PureComponent<Props, State> {
     const {tables} = this.props
 
     const isNameInTables = tables.find(
-      t => t.name === this.state.selectedTableName
+      (t) => t.name === this.state.selectedTableName
     )
 
     if (!isNameInTables) {
@@ -104,7 +103,23 @@ class TableGraphs extends PureComponent<Props, State> {
 
   private get selectedTable(): FluxTable {
     const {tables} = this.props
-    return tables.find(t => t.name === this.nameOfSelectedTable)
+    return tables.find((t) => t.name === this.nameOfSelectedTable)
+  }
+
+  private updateFieldOptions() {
+    this.props.setFieldOptions(this.extractFieldOptions())
+  }
+
+  private extractFieldOptions(): FieldOption[] {
+    return this.headers.map((h) => ({
+      internalName: h,
+      displayName: h,
+      visible: true,
+    }))
+  }
+
+  private get headers(): string[] {
+    return getDeep(this.selectedTable, 'data.0', [])
   }
 }
 

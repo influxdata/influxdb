@@ -109,7 +109,7 @@ export function extractBoxedCol(
   resp: CancelBox<RunQueryResult>,
   colName: string
 ): CancelBox<string[]> {
-  const promise = resp.promise.then<string[]>(result => {
+  const promise = resp.promise.then<string[]>((result) => {
     if (result.type !== 'SUCCESS') {
       return Promise.reject(new Error(result.message))
     }
@@ -128,7 +128,7 @@ export function extractCol(csv: string, colName: string): string[] {
     return []
   }
 
-  const colIndex = data[0].findIndex(d => d === colName)
+  const colIndex = data[0].findIndex((d) => d === colName)
 
   if (colIndex === -1) {
     throw new Error(`could not find column "${colName}" in response`)
@@ -156,7 +156,7 @@ export function formatTagFilterPredicate(
 
   const calls = validSelections
     .map(({key, values}) => {
-      const body = values.map(value => `r.${key} == "${value}"`).join(' or ')
+      const body = values.map((value) => `r.${key} == "${value}"`).join(' or ')
 
       return `(${body})`
     })
@@ -172,7 +172,7 @@ export function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
     return ''
   }
 
-  const fnBody = keys.map(key => `r._value != "${key}"`).join(' and ')
+  const fnBody = keys.map((key) => `r._value != "${key}"`).join(' and ')
 
   return `\n  |> filter(fn: (r) => ${fnBody})`
 }
@@ -186,7 +186,7 @@ export function formatSearchFilterCall(searchTerm: string) {
 }
 
 export function formatTimeRangeArguments(timeRange: TimeRange): string {
-  const [start, stop] = getTimeRangeVars(timeRange).map(assignment =>
+  const [start, stop] = getTimeRangeVars(timeRange).map((assignment) =>
     formatExpression(assignment.init)
   )
 

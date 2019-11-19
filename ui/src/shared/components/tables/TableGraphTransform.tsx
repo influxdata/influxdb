@@ -26,7 +26,7 @@ const areFormatPropertiesEqual = (
   if (!prevProperties.properties) {
     return false
   }
-  const propsEqual = formatProps.every(k =>
+  const propsEqual = formatProps.every((k) =>
     _.isEqual(prevProperties.properties[k], newProperties.properties[k])
   )
 
@@ -42,10 +42,13 @@ class TableGraphTransform extends PureComponent<Props> {
   public render() {
     const {properties, data, dataTypes, sortOptions} = this.props
     const {tableOptions, timeFormat, decimalPlaces, fieldOptions} = properties
-    const fo = fieldOptions.map(opts => ({
-      ...opts,
-      dataType: dataTypes[opts.internalName],
-    }))
+    console.log('fieldOptions: ', fieldOptions)
+    const fo =
+      fieldOptions &&
+      fieldOptions.map((opts) => ({
+        ...opts,
+        dataType: dataTypes[opts.internalName],
+      }))
 
     const transformedDataBundle = this.memoizedTableTransform(
       data,

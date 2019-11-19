@@ -1,21 +1,49 @@
 // Libraries
-import React, {FC, useEffect} from 'react'
+import React, {FC, useEffect, useRef, useState} from 'react'
 import moment from 'moment'
 import {connect} from 'react-redux'
-import {Form, Grid, Columns, Panel} from '@influxdata/clockface'
+import {
+  Columns,
+  Form,
+  Grid,
+  Panel,
+  Popover,
+  PopoverPosition,
+  PopoverInteraction,
+  PopoverType,
+} from '@influxdata/clockface'
+import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
+
+// Utils
+import {runQuery} from 'src/shared/apis/query'
 
 // Components
 import BucketsDropdown from 'src/shared/components/DeleteDataForm/BucketsDropdown'
-import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 import Checkbox from 'src/shared/components/Checkbox'
 import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
 import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
+import FluxTablesTransform from 'src/shared/components/FluxTablesTransform'
+import TableGraph from 'src/shared/components/tables/TableGraph'
+import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 
 // Types
-import {Filter, RemoteDataState} from 'src/types'
+import {
+  AppState,
+  Filter,
+  RemoteDataState,
+  TableViewProperties,
+  TimeZone,
+} from 'src/types'
 
 // Selectors
+import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {setCanDelete} from 'src/shared/selectors/canDelete'
+import {
+  getXColumnSelection,
+  getYColumnSelection,
+  getFillColumnsSelection,
+  getSymbolColumnsSelection,
+} from 'src/timeMachine/selectors'
 
 // Actions
 import {
@@ -28,6 +56,7 @@ import {
   setBucketAndKeys,
   setTimeRange,
 } from 'src/shared/actions/predicates'
+import {executePreviewQuery} from 'src/timeMachine/actions/queries'
 
 interface OwnProps {
   orgID: string
@@ -42,10 +71,13 @@ interface StateProps {
   bucketName: string
   canDelete: boolean
   deletionStatus: RemoteDataState
+  files: string[]
   filters: Filter[]
   isSerious: boolean
   keys: string[]
+  properties: TableViewProperties
   timeRange: [number, number]
+  timeZone: TimeZone
   values: (string | number)[]
 }
 
@@ -53,7 +85,8 @@ interface DispatchProps {
   deleteFilter: (index: number) => void
   deleteWithPredicate: typeof deleteWithPredicate
   resetFilters: () => void
-  setDeletionStatus: (status: RemoteDataState) => void
+  executePreviewQuery: typeof executePreviewQuery
+  setDeletionStatus: typeof setDeletionStatus
   setFilter: typeof setFilter
   setIsSerious: (isSerious: boolean) => void
   setBucketAndKeys: (orgID: string, bucketName: string) => void
@@ -68,6 +101,8 @@ const DeleteDataForm: FC<Props> = ({
   deleteFilter,
   deletionStatus,
   deleteWithPredicate,
+  executePreviewQuery,
+  files,
   filters,
   handleDismiss,
   initialBucketName,
@@ -76,12 +111,14 @@ const DeleteDataForm: FC<Props> = ({
   keys,
   orgID,
   resetFilters,
+  properties,
   setDeletionStatus,
   setFilter,
   setIsSerious,
   setBucketAndKeys,
   setTimeRange,
   timeRange,
+  timeZone,
   values,
 }) => {
   const name = bucketName || initialBucketName
@@ -92,15 +129,58 @@ const DeleteDataForm: FC<Props> = ({
     })
   }
 
+  const [count, setCount] = useState(0)
   const realTimeRange = initialTimeRange || timeRange
+  const checkboxRef = useRef<HTMLDivElement>(null)
 
-  const formatPredicates = predicates => {
+  const formatPredicatesForDeletion = predicates => {
     const result = []
     predicates.forEach(predicate => {
       const {key, equality, value} = predicate
       result.push(`${key} ${equality} ${value}`)
     })
     return result.join(' AND ')
+  }
+
+  const formatPredicatesForPreview = predicates => {
+    let result = ''
+    predicates.forEach(predicate => {
+      const {key, equality, value} = predicate
+      result += `\n|> filter(fn: (r) => r.${key} ${
+        equality === '=' ? '==' : '!='
+      } "${value}")`
+    })
+    return result
+  }
+
+  const handleDeleteDataPreview = async () => {
+    const [start, stop] = realTimeRange
+
+    let query = `from(bucket: "${name}")
+      |> range(start: ${moment(start).toISOString()}, stop: ${moment(
+      stop
+    ).toISOString()})`
+
+    if (filters.length > 0) {
+      query += ` ${formatPredicatesForPreview(filters)}`
+    }
+
+    const countQuery = `${query}
+      |> count()
+      |> keep(columns: ["_value"])
+      |> sum()
+    `
+
+    const rowQuery = `${query}
+      |> limit(n: 1)
+      |> yield(name: "sample_data")
+    `
+
+    const [total] = await extractBoxedCol(runQuery(orgID, countQuery), '_value')
+      .promise
+
+    await executePreviewQuery(rowQuery) // const variableAssignments = getVariableAssignments(getState())
+    setCount(Number(total))
   }
 
   const handleDelete = () => {
@@ -114,7 +194,7 @@ const DeleteDataForm: FC<Props> = ({
     }
 
     if (filters.length > 0) {
-      data['predicate'] = formatPredicates(filters)
+      data['predicate'] = formatPredicatesForDeletion(filters)
     }
 
     const params = {
@@ -176,12 +256,14 @@ const DeleteDataForm: FC<Props> = ({
                 <Panel.Title>Danger Zone!</Panel.Title>
               </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
-                <Checkbox
-                  testID="delete-checkbox"
-                  label="I understand that this cannot be undone."
-                  checked={isSerious}
-                  onSetChecked={isSerious => setIsSerious(isSerious)}
-                />
+                <div ref={checkboxRef} onMouseOver={handleDeleteDataPreview}>
+                  <Checkbox
+                    testID="delete-checkbox"
+                    label="I understand that this cannot be undone."
+                    checked={isSerious}
+                    onSetChecked={isSerious => setIsSerious(isSerious)}
+                  />
+                </div>
                 <DeleteButton
                   status={deletionStatus}
                   valid={canDelete}
@@ -191,29 +273,86 @@ const DeleteDataForm: FC<Props> = ({
             </Panel>
           </Grid.Column>
         </Grid.Row>
+        <Popover
+          type={PopoverType.Outline}
+          position={PopoverPosition.ToTheLeft}
+          triggerRef={checkboxRef}
+          showEvent={PopoverInteraction.Hover}
+          hideEvent={PopoverInteraction.Hover}
+          distanceFromTrigger={8}
+          testID="checkbox-popover"
+          contents={() => {
+            if (count > 0 && files && files.length > 0) {
+              console.log('files: ', files)
+              return (
+                <>
+                  Amount of data to be deleted: {count}
+                  <FluxTablesTransform files={files}>
+                    {tables => {
+                      console.log('tables: ', tables)
+                      return (
+                        <TableGraph
+                          table={tables[0]}
+                          properties={properties}
+                          timeZone={timeZone}
+                        />
+                      )
+                    }}
+                  </FluxTablesTransform>
+                </>
+              )
+            }
+            return <>No data to preview</>
+          }}
+        />
       </Grid>
     </Form>
   )
 }
 
-const mstp = ({predicates}) => {
+const mstp = (state: AppState) => {
   const {
-    bucketName,
-    deletionStatus,
-    filters,
-    isSerious,
-    keys,
-    timeRange,
-    values,
-  } = predicates
+    predicates,
+    predicates: {
+      bucketName,
+      deletionStatus,
+      filters,
+      keys,
+      isSerious,
+      timeRange,
+      values,
+    },
+  } = state
+
+  const {
+    queryResults: {files},
+    view: {properties: viewProperties},
+  } = getActiveTimeMachine(state)
+
+  const timeZone = state.app.persisted.timeZone
+  const xColumn = getXColumnSelection(state)
+  const yColumn = getYColumnSelection(state)
+  const fillColumns = getFillColumnsSelection(state)
+  const symbolColumns = getSymbolColumnsSelection(state)
+  const properties = {
+    ...viewProperties,
+    xColumn,
+    yColumn,
+    fillColumns,
+    symbolColumns,
+  }
+
   return {
     bucketName,
     canDelete: setCanDelete(predicates),
     deletionStatus,
+    files,
     filters,
     isSerious,
     keys,
+    properties,
     timeRange,
+    timeZone,
     values,
   }
 }
@@ -222,6 +361,7 @@ const mdtp = {
   deleteFilter,
   deleteWithPredicate,
   resetFilters,
+  executePreviewQuery,
   setDeletionStatus,
   setFilter,
   setIsSerious,

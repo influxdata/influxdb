@@ -41,7 +41,10 @@ import {CancelBox} from 'src/types/promises'
 import {RemoteDataState, StatusRow} from 'src/types'
 import {GetState} from 'src/types'
 
-export type Action = SetQueryResults | SaveDraftQueriesAction
+export type Action =
+  | SaveDraftQueriesAction
+  | SetQueryResults
+  | SetQueryViewResults
 
 interface SetQueryResults {
   type: 'SET_QUERY_RESULTS'
@@ -62,6 +65,34 @@ const setQueryResults = (
   statuses?: StatusRow[][]
 ): SetQueryResults => ({
   type: 'SET_QUERY_RESULTS',
+  payload: {
+    status,
+    files,
+    fetchDuration,
+    errorMessage,
+    statuses,
+  },
+})
+
+interface SetQueryViewResults {
+  type: 'SET_QUERY_VIEW_RESULTS'
+  payload: {
+    status: RemoteDataState
+    files?: string[]
+    fetchDuration?: number
+    errorMessage?: string
+    statuses?: StatusRow[][]
+  }
+}
+
+const setQueryViewResults = (
+  status: RemoteDataState,
+  files?: string[],
+  fetchDuration?: number,
+  errorMessage?: string,
+  statuses?: StatusRow[][]
+): SetQueryViewResults => ({
+  type: 'SET_QUERY_VIEW_RESULTS',
   payload: {
     status,
     files,
@@ -99,7 +130,7 @@ export const refreshTimeMachineVariableValues = (
 
   // Refresh values for all variables with existing values and in use variables
   const variablesToRefresh = variables.filter(
-    v => variablesInUse.includes(v) || hydratedVariables.includes(v)
+    (v) => variablesInUse.includes(v) || hydratedVariables.includes(v)
   )
 
   await dispatch(refreshVariableValues(contextID, variablesToRefresh))
@@ -142,7 +173,7 @@ export const executeQueries = (dashboardID?: string) => async (
       return runQuery(orgID, text, extern)
     })
 
-    const results = await Promise.all(pendingResults.map(r => r.promise))
+    const results = await Promise.all(pendingResults.map((r) => r.promise))
     const duration = Date.now() - startTime
 
     let statuses = [[]] as StatusRow[][]
@@ -170,10 +201,57 @@ export const executeQueries = (dashboardID?: string) => async (
       checkQueryResult(result.csv)
     }
 
-    const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
-
+    const files = (results as RunQuerySuccessResult[]).map((r) => r.csv)
     dispatch(
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
+    )
+  } catch (e) {
+    if (e.name === 'CancellationError') {
+      return
+    }
+
+    console.error(e)
+    dispatch(setQueryResults(RemoteDataState.Error, null, null, e.message))
+  }
+}
+
+export const executePreviewQuery = (query: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  try {
+    dispatch(setQueryViewResults(RemoteDataState.Loading, null, null, null))
+
+    const orgID = getState().orgs.org.id
+
+    const variableAssignments = getVariableAssignments(getState())
+    const startTime = Date.now()
+    const windowVars = getWindowVars(query, variableAssignments)
+    const extern = buildVarsOption([...variableAssignments, ...windowVars])
+    const result = await runQuery(orgID, query, extern).promise
+    const duration = Date.now() - startTime
+
+    let statuses = [[]] as StatusRow[][]
+
+    if (result.type === 'UNKNOWN_ERROR') {
+      throw new Error(result.message)
+    }
+
+    if (result.type === 'RATE_LIMIT_ERROR') {
+      dispatch(notify(rateLimitReached(result.retryAfter)))
+
+      throw new Error(result.message)
+    }
+
+    if (result.didTruncate) {
+      dispatch(notify(resultTooLarge(result.bytesRead)))
+    }
+
+    checkQueryResult(result.csv)
+
+    const files = [result.csv]
+    dispatch(
+      setQueryViewResults(RemoteDataState.Done, files, duration, null, statuses)
     )
   } catch (e) {
     if (e.name === 'CancellationError') {
@@ -193,7 +271,7 @@ const saveDraftQueries = (): SaveDraftQueriesAction => ({
   type: 'SAVE_DRAFT_QUERIES',
 })
 
-export const saveAndExecuteQueries = () => dispatch => {
+export const saveAndExecuteQueries = () => (dispatch) => {
   dispatch(saveDraftQueries())
   dispatch(executeQueries())
 }
