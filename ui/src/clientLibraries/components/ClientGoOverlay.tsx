@@ -1,5 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import ClientLibraryOverlay from 'src/clientLibraries/components/ClientLibraryOverlay'
@@ -8,13 +9,25 @@ import TemplatedCodeSnippet from 'src/shared/components/TemplatedCodeSnippet'
 // Constants
 import {clientGoLibrary} from 'src/clientLibraries/constants'
 
-const ClientGoOverlay: FunctionComponent<{}> = () => {
+// Types
+import {AppState} from 'src/types'
+
+interface StateProps {
+  org: string
+}
+
+type Props = StateProps
+
+const ClientGoOverlay: FunctionComponent<Props> = props => {
   const {
     name,
     url,
     initializeClientCodeSnippet,
     writeDataCodeSnippet,
   } = clientGoLibrary
+  const {org} = props
+  const server = window.location.origin
+
   return (
     <ClientLibraryOverlay title={`${name} Client Library`}>
       <p>
@@ -31,6 +44,9 @@ const ClientGoOverlay: FunctionComponent<{}> = () => {
           token: 'myToken',
           server: 'myHTTPInfluxAddress',
         }}
+        values={{
+          server,
+        }}
       />
       <h5>Write Data</h5>
       <TemplatedCodeSnippet
@@ -40,9 +56,24 @@ const ClientGoOverlay: FunctionComponent<{}> = () => {
           bucket: 'my-awesome-bucket',
           org: 'my-very-awesome-org',
         }}
+        values={{
+          org,
+        }}
       />
     </ClientLibraryOverlay>
   )
 }
 
-export default ClientGoOverlay
+const mstp = (state: AppState): StateProps => {
+  const org = state.orgs.org.id
+
+  return {
+    org,
+  }
+}
+
+export {ClientGoOverlay}
+export default connect<StateProps, {}, Props>(
+  mstp,
+  null
+)(ClientGoOverlay)
