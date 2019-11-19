@@ -2,6 +2,7 @@ package kv_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -62,7 +63,7 @@ func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testi
 	}
 
 	for i := range f.Passwords {
-		if err := svc.SetPassword(ctx, f.Users[i].Name, f.Passwords[i]); err != nil {
+		if err := svc.SetPassword(ctx, f.Users[i].ID, f.Passwords[i]); err != nil {
 			t.Fatalf("error setting passsword user, %s %s: %v", f.Users[i].Name, f.Passwords[i], err)
 		}
 	}
@@ -95,7 +96,7 @@ func TestService_SetPassword(t *testing.T) {
 		Hash kv.Crypt
 	}
 	type args struct {
-		name     string
+		id       influxdb.ID
 		password string
 	}
 	type wants struct {
@@ -117,7 +118,7 @@ func TestService_SetPassword(t *testing.T) {
 							BucketFn: func(b []byte) (kv.Bucket, error) {
 								return &mock.Bucket{
 									GetFn: func(key []byte) ([]byte, error) {
-										return nil, nil
+										return nil, errors.New("its broked")
 									},
 								}, nil
 							},
@@ -127,11 +128,11 @@ func TestService_SetPassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("your userID is incorrect"),
 			},
 		},
 		{
@@ -143,10 +144,10 @@ func TestService_SetPassword(t *testing.T) {
 							BucketFn: func(b []byte) (kv.Bucket, error) {
 								return &mock.Bucket{
 									GetFn: func(key []byte) ([]byte, error) {
-										if string(key) == "user1" {
-											return []byte("0000000000000001"), nil
-										}
 										return nil, kv.ErrKeyNotFound
+									},
+									PutFn: func(key, val []byte) error {
+										return nil
 									},
 								}, nil
 							},
@@ -156,11 +157,11 @@ func TestService_SetPassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("your userID is incorrect"),
 			},
 		},
 		{
@@ -172,13 +173,13 @@ func TestService_SetPassword(t *testing.T) {
 							BucketFn: func(b []byte) (kv.Bucket, error) {
 								return &mock.Bucket{
 									GetFn: func(key []byte) ([]byte, error) {
-										if string(key) == "user1" {
-											return []byte("0000000000000001"), nil
-										}
 										if string(key) == "0000000000000001" {
 											return []byte(`{"name": "user1"}`), nil
 										}
 										return nil, kv.ErrKeyNotFound
+									},
+									PutFn: func(key, val []byte) error {
+										return nil
 									},
 								}, nil
 							},
@@ -188,11 +189,11 @@ func TestService_SetPassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       0,
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("User ID for user1 has been corrupted; Err: invalid ID"),
+				err: fmt.Errorf("User ID  has been corrupted; Err: invalid ID"),
 			},
 		},
 		{
@@ -207,13 +208,13 @@ func TestService_SetPassword(t *testing.T) {
 								}
 								return &mock.Bucket{
 									GetFn: func(key []byte) ([]byte, error) {
-										if string(key) == "user1" {
-											return []byte("0000000000000001"), nil
-										}
 										if string(key) == "0000000000000001" {
 											return []byte(`{"id": "0000000000000001", "name": "user1"}`), nil
 										}
 										return nil, kv.ErrKeyNotFound
+									},
+									PutFn: func(key, val []byte) error {
+										return nil
 									},
 								}, nil
 							},
@@ -223,7 +224,7 @@ func TestService_SetPassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
@@ -245,13 +246,13 @@ func TestService_SetPassword(t *testing.T) {
 								}
 								return &mock.Bucket{
 									GetFn: func(key []byte) ([]byte, error) {
-										if string(key) == "user1" {
-											return []byte("0000000000000001"), nil
-										}
 										if string(key) == "0000000000000001" {
 											return []byte(`{"id": "0000000000000001", "name": "user1"}`), nil
 										}
 										return nil, kv.ErrKeyNotFound
+									},
+									PutFn: func(key, val []byte) error {
+										return nil
 									},
 								}, nil
 							},
@@ -261,7 +262,7 @@ func TestService_SetPassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
@@ -284,13 +285,13 @@ func TestService_SetPassword(t *testing.T) {
 								}
 								return &mock.Bucket{
 									GetFn: func(key []byte) ([]byte, error) {
-										if string(key) == "user1" {
-											return []byte("0000000000000001"), nil
-										}
 										if string(key) == "0000000000000001" {
 											return []byte(`{"id": "0000000000000001", "name": "user1"}`), nil
 										}
 										return nil, kv.ErrKeyNotFound
+									},
+									PutFn: func(key, val []byte) error {
+										return nil
 									},
 								}, nil
 							},
@@ -300,7 +301,7 @@ func TestService_SetPassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
@@ -315,7 +316,7 @@ func TestService_SetPassword(t *testing.T) {
 			}
 			s.WithStore(tt.fields.kv)
 
-			err := s.SetPassword(context.Background(), tt.args.name, tt.args.password)
+			err := s.SetPassword(context.Background(), tt.args.id, tt.args.password)
 			if (err != nil && tt.wants.err == nil) || (err == nil && tt.wants.err != nil) {
 				t.Fatalf("Service.SetPassword() error = %v, want %v", err, tt.wants.err)
 				return
@@ -336,7 +337,7 @@ func TestService_ComparePassword(t *testing.T) {
 		Hash kv.Crypt
 	}
 	type args struct {
-		name     string
+		id       influxdb.ID
 		password string
 	}
 	type wants struct {
@@ -367,11 +368,11 @@ func TestService_ComparePassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("your username or password is incorrect"),
+				err: fmt.Errorf("your userID is incorrect"),
 			},
 		},
 		{
@@ -399,11 +400,11 @@ func TestService_ComparePassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       0,
 				password: "howdydoody",
 			},
 			wants: wants{
-				err: fmt.Errorf("User ID for user1 has been corrupted; Err: invalid ID"),
+				err: fmt.Errorf("User ID  has been corrupted; Err: invalid ID"),
 			},
 		},
 		{
@@ -434,7 +435,7 @@ func TestService_ComparePassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
@@ -476,7 +477,7 @@ func TestService_ComparePassword(t *testing.T) {
 				},
 			},
 			args: args{
-				name:     "user1",
+				id:       1,
 				password: "howdydoody",
 			},
 			wants: wants{
@@ -490,7 +491,7 @@ func TestService_ComparePassword(t *testing.T) {
 				Hash: tt.fields.Hash,
 			}
 			s.WithStore(tt.fields.kv)
-			err := s.ComparePassword(context.Background(), tt.args.name, tt.args.password)
+			err := s.ComparePassword(context.Background(), tt.args.id, tt.args.password)
 
 			if (err != nil && tt.wants.err == nil) || (err == nil && tt.wants.err != nil) {
 				t.Fatalf("Service.ComparePassword() error = %v, want %v", err, tt.wants.err)

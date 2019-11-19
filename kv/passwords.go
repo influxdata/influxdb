@@ -20,6 +20,13 @@ var (
 		Msg:  "your username or password is incorrect",
 	}
 
+	// EIncorrectUser is returned when any user is failed to be found which indicates
+	// the userID provided is for a user that does not exist.
+	EIncorrectUser = &influxdb.Error{
+		Code: influxdb.EForbidden,
+		Msg:  "your userID is incorrect",
+	}
+
 	// EShortPassword is used when a password is less than the minimum
 	// acceptable password length.
 	EShortPassword = &influxdb.Error{
@@ -41,10 +48,10 @@ func UnavailablePasswordServiceError(err error) *influxdb.Error {
 
 // CorruptUserIDError is used when the ID was encoded incorrectly previously.
 // This is some sort of internal server error.
-func CorruptUserIDError(name string, err error) *influxdb.Error {
+func CorruptUserIDError(userID string, err error) *influxdb.Error {
 	return &influxdb.Error{
 		Code: influxdb.EInternal,
-		Msg:  fmt.Sprintf("User ID for %s has been corrupted; Err: %v", name, err),
+		Msg:  fmt.Sprintf("User ID %s has been corrupted; Err: %v", userID, err),
 		Op:   "kv/setPassword",
 	}
 }
@@ -72,43 +79,42 @@ func (s *Service) initializePasswords(ctx context.Context, tx Tx) error {
 
 // CompareAndSetPassword checks the password and if they match
 // updates to the new password.
-func (s *Service) CompareAndSetPassword(ctx context.Context, name string, old string, new string) error {
+func (s *Service) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		if err := s.comparePassword(ctx, tx, name, old); err != nil {
+		if err := s.comparePassword(ctx, tx, userID, old); err != nil {
 			return err
 		}
-		return s.setPassword(ctx, tx, name, new)
+		return s.setPassword(ctx, tx, userID, new)
 	})
 }
 
 // SetPassword overrides the password of a known user.
-func (s *Service) SetPassword(ctx context.Context, name string, password string) error {
+func (s *Service) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
-		return s.setPassword(ctx, tx, name, password)
+		return s.setPassword(ctx, tx, userID, password)
 	})
 }
 
 // ComparePassword checks if the password matches the password recorded.
 // Passwords that do not match return errors.
-func (s *Service) ComparePassword(ctx context.Context, name string, password string) error {
+func (s *Service) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
 	return s.kv.View(ctx, func(tx Tx) error {
-		return s.comparePassword(ctx, tx, name, password)
+		return s.comparePassword(ctx, tx, userID, password)
 	})
 }
 
-func (s *Service) setPassword(ctx context.Context, tx Tx, name string, password string) error {
+func (s *Service) setPassword(ctx context.Context, tx Tx, userID influxdb.ID, password string) error {
 	if len(password) < MinPasswordLength {
 		return EShortPassword
 	}
 
-	u, err := s.findUserByName(ctx, tx, name)
+	encodedID, err := userID.Encode()
 	if err != nil {
-		return EIncorrectPassword
+		return CorruptUserIDError(userID.String(), err)
 	}
 
-	encodedID, err := u.ID.Encode()
-	if err != nil {
-		return CorruptUserIDError(name, err)
+	if _, err := s.findUserByID(ctx, tx, userID); err != nil {
+		return EIncorrectUser
 	}
 
 	b, err := tx.Bucket(userpasswordBucket)
@@ -132,15 +138,14 @@ func (s *Service) setPassword(ctx context.Context, tx Tx, name string, password 
 	return nil
 }
 
-func (s *Service) comparePassword(ctx context.Context, tx Tx, name string, password string) error {
-	u, err := s.findUserByName(ctx, tx, name)
+func (s *Service) comparePassword(ctx context.Context, tx Tx, userID influxdb.ID, password string) error {
+	encodedID, err := userID.Encode()
 	if err != nil {
-		return EIncorrectPassword
+		return CorruptUserIDError(userID.String(), err)
 	}
 
-	encodedID, err := u.ID.Encode()
-	if err != nil {
-		return CorruptUserIDError(name, err)
+	if _, err := s.findUserByID(ctx, tx, userID); err != nil {
+		return EIncorrectUser
 	}
 
 	b, err := tx.Bucket(userpasswordBucket)

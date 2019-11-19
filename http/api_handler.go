@@ -143,7 +143,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	documentBackend := NewDocumentBackend(b)
 	h.DocumentHandler = NewDocumentHandler(documentBackend)
 
-	sessionBackend := NewSessionBackend(b)
+	sessionBackend := newSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
 
 	bucketBackend := NewBucketBackend(b)

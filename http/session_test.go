@@ -16,11 +16,16 @@ import (
 
 // NewMockSessionBackend returns a SessionBackend with mock services.
 func NewMockSessionBackend() *platformhttp.SessionBackend {
+	userSVC := mock.NewUserService()
+	userSVC.FindUserFn = func(_ context.Context, f platform.UserFilter) (*platform.User, error) {
+		return &platform.User{ID: 1}, nil
+	}
 	return &platformhttp.SessionBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "session")),
+		Logger: zap.NewNop(),
 
 		SessionService:   mock.NewSessionService(),
-		PasswordsService: mock.NewPasswordsService("", ""),
+		PasswordsService: mock.NewPasswordsService(),
+		UserService:      userSVC,
 	}
 }
 
@@ -59,7 +64,7 @@ func TestSessionHandler_handleSignin(t *testing.T) {
 					},
 				},
 				PasswordsService: &mock.PasswordsService{
-					ComparePasswordFn: func(context.Context, string, string) error {
+					ComparePasswordFn: func(context.Context, platform.ID, string) error {
 						return nil
 					},
 				},

@@ -19,7 +19,7 @@ func initPasswordsService(f platformtesting.PasswordFields, t *testing.T) (platf
 	}
 
 	for i := range f.Passwords {
-		if err := s.SetPassword(ctx, f.Users[i].Name, f.Passwords[i]); err != nil {
+		if err := s.SetPassword(ctx, f.Users[i].ID, f.Passwords[i]); err != nil {
 			t.Fatalf("error setting passsword user, %s %s: %v", f.Users[i].Name, f.Passwords[i], err)
 		}
 	}
