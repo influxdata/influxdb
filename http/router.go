@@ -22,6 +22,7 @@ func NewRouter(h platform.HTTPErrorHandler) *httprouter.Router {
 	router.NotFound = http.HandlerFunc(b.notFound)
 	router.MethodNotAllowed = http.HandlerFunc(b.methodNotAllowed)
 	router.PanicHandler = b.panic
+	router.AddMatchedRouteToContext = true
 	return router
 }
 
