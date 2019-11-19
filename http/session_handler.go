@@ -17,16 +17,18 @@ type SessionBackend struct {
 
 	PasswordsService platform.PasswordsService
 	SessionService   platform.SessionService
+	UserService      platform.UserService
 }
 
-// NewSessionBackend creates a new SessionBackend with associated logger.
-func NewSessionBackend(b *APIBackend) *SessionBackend {
+// newSessionBackend creates a new SessionBackend with associated logger.
+func newSessionBackend(b *APIBackend) *SessionBackend {
 	return &SessionBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Logger:           b.Logger.With(zap.String("handler", "session")),
 
 		PasswordsService: b.PasswordsService,
 		SessionService:   b.SessionService,
+		UserService:      b.UserService,
 	}
 }
 
@@ -38,6 +40,7 @@ type SessionHandler struct {
 
 	PasswordsService platform.PasswordsService
 	SessionService   platform.SessionService
+	UserService      platform.UserService
 }
 
 // NewSessionHandler returns a new instance of SessionHandler.
@@ -49,6 +52,7 @@ func NewSessionHandler(b *SessionBackend) *SessionHandler {
 
 		PasswordsService: b.PasswordsService,
 		SessionService:   b.SessionService,
+		UserService:      b.UserService,
 	}
 
 	h.HandlerFunc("POST", "/api/v2/signin", h.handleSignin)
@@ -60,13 +64,21 @@ func NewSessionHandler(b *SessionBackend) *SessionHandler {
 func (h *SessionHandler) handleSignin(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	req, err := decodeSigninRequest(ctx, r)
+	req, decErr := decodeSigninRequest(ctx, r)
+	if decErr != nil {
+		UnauthorizedError(ctx, h, w)
+		return
+	}
+
+	u, err := h.UserService.FindUser(ctx, platform.UserFilter{
+		Name: &req.Username,
+	})
 	if err != nil {
 		UnauthorizedError(ctx, h, w)
 		return
 	}
 
-	if err := h.PasswordsService.ComparePassword(ctx, req.Username, req.Password); err != nil {
+	if err := h.PasswordsService.ComparePassword(ctx, u.ID, req.Password); err != nil {
 		// Don't log here, it should already be handled by the service
 		UnauthorizedError(ctx, h, w)
 		return

@@ -18,7 +18,7 @@ func NewMockUserBackend() *UserBackend {
 		Logger:                  zap.NewNop().With(zap.String("handler", "user")),
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
-		PasswordsService:        mock.NewPasswordsService("", ""),
+		PasswordsService:        mock.NewPasswordsService(),
 	}
 }
 
