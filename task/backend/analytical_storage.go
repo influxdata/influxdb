@@ -75,7 +75,7 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 			return run, err
 		}
 
-		sb, err := influxdb.FindSystemBucket(ctx, as.BucketService, task.OrganizationID, influxdb.TasksSystemBucketName)
+		sb, err := as.BucketService.FindBucketByName(ctx, task.OrganizationID, influxdb.TasksSystemBucketName)
 		if err != nil {
 			return run, err
 		}
@@ -142,7 +142,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 		return runs, n, err
 	}
 
-	sb, err := influxdb.FindSystemBucket(ctx, as.BucketService, task.OrganizationID, influxdb.TasksSystemBucketName)
+	sb, err := as.BucketService.FindBucketByName(ctx, task.OrganizationID, influxdb.TasksSystemBucketName)
 	if err != nil {
 		return runs, n, err
 	}
@@ -246,7 +246,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 		return run, err
 	}
 
-	sb, err := influxdb.FindSystemBucket(ctx, as.BucketService, task.OrganizationID, influxdb.TasksSystemBucketName)
+	sb, err := as.BucketService.FindBucketByName(ctx, task.OrganizationID, influxdb.TasksSystemBucketName)
 	if err != nil {
 		return run, err
 	}

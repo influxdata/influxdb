@@ -345,6 +345,14 @@ func (s *Service) FindBuckets(ctx context.Context, filter influxdb.BucketFilter,
 		return nil
 	})
 
+	// Don't append system buckets if Name is set. Users who don't have real
+	// system buckets won't get mocked buckets if they query for a bucket by name
+	// without the orgID, but this is a vanishing small number of users and has
+	// limited utility anyways. Can be removed once mock system code is ripped out.
+	if filter.Name != nil {
+		return bs, len(bs), nil
+	}
+
 	needsSystemBuckets := true
 	for _, b := range bs {
 		if b.Type == influxdb.BucketTypeSystem {
