@@ -323,6 +323,37 @@ export const timeMachineReducer = (
       })
     }
 
+    case 'SET_QUERY_VIEW_RESULTS': {
+      return produce(state, draftState => {
+        const {
+          status,
+          files,
+          fetchDuration,
+          errorMessage,
+          statuses,
+        } = action.payload
+
+        draftState.queryResults.status = status
+        draftState.queryResults.errorMessage = errorMessage
+
+        if (files) {
+          if (state.view.properties.type === 'table') {
+            const properties = getTableProperties(state.view, files)
+            draftState.view = {...state.view, properties}
+          }
+          draftState.queryResults.files = files
+          draftState.queryResults.isInitialFetch = false
+        }
+        if (statuses) {
+          draftState.queryResults.statuses = statuses
+        }
+
+        if (isNumber(fetchDuration)) {
+          draftState.queryResults.fetchDuration = fetchDuration
+        }
+      })
+    }
+
     case 'SET_IS_VIEWING_RAW_DATA': {
       const {isViewingRawData} = action.payload
 
