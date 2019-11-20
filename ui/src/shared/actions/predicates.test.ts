@@ -4,9 +4,8 @@ import {mocked} from 'ts-jest/utils'
 // Mocks
 import {postDelete} from 'src/client'
 jest.mock('src/client')
-
-// import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
-// jest.mock('src/timeMachine/apis/queryBuilder')
+jest.mock('src/timeMachine/apis/queryBuilder')
+jest.mock('src/shared/apis/query')
 
 // Types
 
@@ -14,12 +13,16 @@ jest.mock('src/client')
 import {initialState, predicatesReducer} from 'src/shared/reducers/predicates'
 
 // Actions
-import {deleteWithPredicate} from 'src/shared/actions/predicates'
+import {
+  deleteWithPredicate,
+  setBucketAndKeys,
+  setValuesByKey,
+} from 'src/shared/actions/predicates'
 
-describe('Shared.Actions.Predicates.setBucketAndKeys', () => {
+describe('Shared.Actions.Predicates', () => {
   let store
 
-  afterEach(() => {
+  beforeEach(() => {
     jest.clearAllMocks()
     store = null
   })
@@ -30,9 +33,7 @@ describe('Shared.Actions.Predicates.setBucketAndKeys', () => {
     const mockDispatch = jest.fn()
     const params = {}
 
-    mocked(postDelete).mockImplementation(() => {
-      return {status: 204}
-    })
+    mocked(postDelete).mockImplementation(() => ({status: 204}))
     await deleteWithPredicate(params)(mockDispatch)
 
     expect(postDelete).toHaveBeenCalledTimes(1)
@@ -50,51 +51,66 @@ describe('Shared.Actions.Predicates.setBucketAndKeys', () => {
     ])
 
     expect(notifySuccessCall).toEqual([
-      {type: 'PUBLISH_NOTIFICATION', payload: {notification: []}},
+      {
+        type: 'PUBLISH_NOTIFICATION',
+        payload: {
+          notification: {
+            duration: 5000,
+            icon: 'checkmark',
+            message: 'Successfully deleted data with predicate!',
+            style: 'success',
+          },
+        },
+      },
     ])
 
-    /*first [
-      { type: 'SET_DELETION_STATUS', payload: { deletionStatus: 'Done' } }
-    ]
+    expect(resetPredicateStateCall).toEqual([{type: 'SET_PREDICATE_DEFAULT'}])
+  })
 
-  console.log src/shared/actions/predicates.test.ts:41
-    second
+  it('sets the keys based on the bucket name', async () => {
+    store = createStore(predicatesReducer, initialState)
 
-  console.log src/shared/actions/predicates.test.ts:42
-    third [ { type: 'SET_PREDICATE_DEFAULT' } ]
-*/
+    const mockDispatch = jest.fn()
+    const orgID = '1'
+    const bucketName = 'Foxygen'
 
-    // expect(mockDispatch).toHaveBeenCalled()
-    // expect(mockDispatch).toHaveBeenNthCalledWith(1, 'setDeletionStatus(RemoteDataState.Done)')
+    await setBucketAndKeys(orgID, bucketName)(mockDispatch)
 
-    // expect(mockDispatch).toHaveBeenNthCalledWith(2, )
-    // expect(mockDispatch).toHaveBeenNthCalledWith(2, )
+    const [setBucketNameDispatch, setKeysDispatch] = mockDispatch.mock.calls
 
-    // mocked(getViewFromState).mockImplementation(() => undefined)
-    // mocked(getView).mockImplementation(() => Promise.resolve(memoryUsageView))
+    expect(setBucketNameDispatch).toEqual([
+      {type: 'SET_BUCKET_NAME', payload: {bucketName: 'Foxygen'}},
+    ])
 
-    // await getViewForTimeMachine(dashboardID, viewID, timeMachineId)(
-    //   mockedDispatch,
-    //   store.getState
-    // )
+    expect(setKeysDispatch).toEqual([
+      {
+        type: 'SET_KEYS_BY_BUCKET',
+        payload: {
+          keys: ['Talking Heads', 'This must be the place'],
+        },
+      },
+    ])
+  })
 
-    // expect(mocked(getView)).toHaveBeenCalledTimes(1)
-    // expect(mockedDispatch).toHaveBeenCalledTimes(3)
+  it('sets the values based on the bucket and key name', async () => {
+    store = createStore(predicatesReducer, initialState)
 
-    // const [
-    //   setViewDispatchArguments,
-    //   setActiveTimeMachineDispatchArguments,
-    // ] = mockedDispatch.mock.calls
-    // expect(setViewDispatchArguments[0]).toEqual({
-    //   type: 'SET_VIEW',
-    //   payload: {id: viewID, view: null, status: RemoteDataState.Loading},
-    // })
-    // expect(setActiveTimeMachineDispatchArguments[0]).toEqual({
-    //   type: 'SET_ACTIVE_TIME_MACHINE',
-    //   payload: {
-    //     activeTimeMachineID: timeMachineId,
-    //     initialState: {view: memoryUsageView},
-    //   },
-    // })
+    const mockDispatch = jest.fn()
+    const orgID = '1'
+    const bucketName = 'Simon & Garfunkel'
+    const keyName = 'America'
+
+    await setValuesByKey(orgID, bucketName, keyName)(mockDispatch)
+
+    const [setValuesDispatch] = mockDispatch.mock.calls
+
+    expect(setValuesDispatch).toEqual([
+      {
+        type: 'SET_VALUES_BY_KEY',
+        payload: {
+          values: ['Talking Heads', 'This must be the place'],
+        },
+      },
+    ])
   })
 })
