@@ -86,7 +86,7 @@ const DeleteDataForm: FC<Props> = ({
 }) => {
   const name = bucketName || initialBucketName
   // trigger the setBucketAndKeys if the bucketName hasn't been set
-  if (bucketName === '') {
+  if (bucketName === '' && name !== undefined) {
     useEffect(() => {
       setBucketAndKeys(orgID, name)
     })
