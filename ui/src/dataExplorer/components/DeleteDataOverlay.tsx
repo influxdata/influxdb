@@ -10,7 +10,7 @@ import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
 // Utils
-import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
+import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
 import {AppState, TimeRange} from 'src/types'
@@ -34,10 +34,10 @@ interface StateProps {
 }
 
 const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
-  selectedBucketName,
-  selectedTimeRange,
   router,
   params: {orgID},
+  selectedBucketName,
+  selectedTimeRange,
 }) => {
   const handleDismiss = () => router.push(`/orgs/${orgID}/data-explorer`)
 
@@ -67,7 +67,10 @@ const mstp = (state: AppState): StateProps => {
   const {timeRange} = getActiveTimeMachine(state)
   const selectedTimeRange = resolveTimeRange(timeRange)
 
-  return {selectedBucketName, selectedTimeRange}
+  return {
+    selectedBucketName,
+    selectedTimeRange,
+  }
 }
 
 export default connect<StateProps>(mstp)(

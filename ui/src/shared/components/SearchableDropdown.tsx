@@ -28,7 +28,7 @@ interface Props {
   buttonTestID: string
   menuTheme: DropdownMenuTheme
   menuTestID: string
-  options: string[]
+  options: (string | number)[]
   emptyText: string
   style?: CSSProperties
 }
@@ -110,7 +110,7 @@ export default class SearchableDropdown extends Component<Props> {
     } = this.props
 
     const filteredOptions = options.filter(option =>
-      option.toLocaleLowerCase().includes(searchTerm.toLocaleLowerCase())
+      `${option}`.toLocaleLowerCase().includes(searchTerm.toLocaleLowerCase())
     )
 
     if (!filteredOptions.length) {

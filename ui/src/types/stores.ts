@@ -9,6 +9,7 @@ import {MeState} from 'src/shared/reducers/me'
 import {NoteEditorState} from 'src/dashboards/reducers/notes'
 import {DataLoadingState} from 'src/dataLoaders/reducers'
 import {OnboardingState} from 'src/onboarding/reducers'
+import {PredicatesState} from 'src/types'
 import {VariablesState, VariableEditorState} from 'src/variables/reducers'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
@@ -30,38 +31,39 @@ import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
 import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
 
 export interface AppState {
-  VERSION: string
-  labels: LabelsState
-  buckets: BucketsState
-  telegrafs: TelegrafsState
-  links: Links
   app: AppPresentationState
-  ranges: RangeState
   autoRefresh: AutoRefreshState
-  views: ViewsState
+  buckets: BucketsState
+  checks: ChecksState
+  cloud: {limits: LimitsState}
   dashboards: DashboardsState
+  dataLoading: DataLoadingState
+  endpoints: NotificationEndpointsState
+  labels: LabelsState
+  links: Links
+  me: MeState
+  members: MembersState
+  noteEditor: NoteEditorState
   notifications: Notification[]
-  timeMachines: TimeMachinesState
-  routing: RouterState
-  tasks: TasksState
-  timeRange: TimeRange
+  onboarding: OnboardingState
   orgs: OrgsState
   overlays: OverlayState
-  me: MeState
-  onboarding: OnboardingState
-  noteEditor: NoteEditorState
-  dataLoading: DataLoadingState
+  predicates: PredicatesState
+  ranges: RangeState
+  routing: RouterState
+  rules: NotificationRulesState
+  scrapers: ScrapersState
+  tasks: TasksState
+  telegrafs: TelegrafsState
+  templates: TemplatesState
+  timeMachines: TimeMachinesState
+  timeRange: TimeRange
+  tokens: AuthorizationsState
+  userSettings: UserSettingsState
   variables: VariablesState
   variableEditor: VariableEditorState
-  tokens: AuthorizationsState
-  templates: TemplatesState
-  scrapers: ScrapersState
-  userSettings: UserSettingsState
-  members: MembersState
-  cloud: {limits: LimitsState}
-  checks: ChecksState
-  rules: NotificationRulesState
-  endpoints: NotificationEndpointsState
+  VERSION: string
+  views: ViewsState
 }
 
 export type GetState = () => AppState
