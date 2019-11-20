@@ -34,8 +34,8 @@ type indexSeriesCursor struct {
 	hasValueExpr bool
 }
 
-func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datatypes.Predicate, view View) (*indexSeriesCursor, error) {
-	queries, err := view.CreateCursorIterator(ctx)
+func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datatypes.Predicate, viewer Viewer) (*indexSeriesCursor, error) {
+	queries, err := viewer.CreateCursorIterator(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func newIndexSeriesCursor(ctx context.Context, src *readSource, predicate *datat
 	scr := storage.SeriesCursorRequest{
 		Name: tsdb.EncodeName(platform.ID(src.OrganizationID), platform.ID(src.BucketID)),
 	}
-	p.sqry, err = view.CreateSeriesCursor(ctx, scr, opt.Condition)
+	p.sqry, err = viewer.CreateSeriesCursor(ctx, scr, opt.Condition)
 	if err != nil {
 		p.Close()
 		return nil, err

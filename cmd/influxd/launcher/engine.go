@@ -24,7 +24,7 @@ var _ Engine = (*storage.Engine)(nil)
 // to facilitate testing.
 type Engine interface {
 	influxdb.DeleteService
-	readservice.View
+	readservice.Viewer
 	storage.PointsWriter
 	storage.BucketDeleter
 	prom.PrometheusCollector
