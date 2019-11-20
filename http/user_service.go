@@ -72,6 +72,10 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 	h.HandlerFunc("GET", usersLogPath, h.handleGetUserLog)
 	h.HandlerFunc("PATCH", usersIDPath, h.handlePatchUser)
 	h.HandlerFunc("DELETE", usersIDPath, h.handleDeleteUser)
+	// the POST doesn't need to be nested under users in this scheme
+	// seems worthwhile to make this a root resource in our HTTP API
+	// removes coupling with userid.
+	h.HandlerFunc("POST", usersPasswordPath, h.handlePostUserPassword)
 	h.HandlerFunc("PUT", usersPasswordPath, h.handlePutUserPassword)
 
 	h.HandlerFunc("GET", mePath, h.handleGetMe)
@@ -80,14 +84,56 @@ func NewUserHandler(b *UserBackend) *UserHandler {
 	return h
 }
 
-func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
+type passwordSetRequest struct {
+	Password string `json:"password"`
+}
 
-	req, err := decodePasswordResetRequest(ctx, r)
+// handlePutPassword is the HTTP handler for the PUT /api/v2/users/:id/password
+func (h *UserHandler) handlePostUserPassword(w http.ResponseWriter, r *http.Request) {
+	var body passwordSetRequest
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		h.HandleHTTPError(r.Context(), &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Err:  err,
+		}, w)
+		return
+	}
+
+	params := httprouter.ParamsFromContext(r.Context())
+	userID, err := influxdb.IDFromString(params.ByName("id"))
+	if err != nil {
+		h.HandleHTTPError(r.Context(), &influxdb.Error{
+			Msg: "invalid user ID provided in route",
+		}, w)
+		return
+	}
+
+	err = h.PasswordsService.SetPassword(r.Context(), *userID, body.Password)
+	if err != nil {
+		h.HandleHTTPError(r.Context(), err, w)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *UserHandler) putPassword(ctx context.Context, w http.ResponseWriter, r *http.Request) (username string, err error) {
+	req, err := decodePasswordResetRequest(r)
 	if err != nil {
 		return "", err
 	}
 
-	err = h.PasswordsService.CompareAndSetPassword(ctx, req.Username, req.PasswordOld, req.PasswordNew)
+	params := httprouter.ParamsFromContext(r.Context())
+	userID, err := influxdb.IDFromString(params.ByName("id"))
+	if err != nil {
+		h.HandleHTTPError(r.Context(), &influxdb.Error{
+			Msg: "invalid user ID provided in route",
+		}, w)
+		return
+	}
+
+	err = h.PasswordsService.CompareAndSetPassword(ctx, *userID, req.PasswordOld, req.PasswordNew)
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +162,7 @@ type passwordResetRequestBody struct {
 	Password string `json:"password"`
 }
 
-func decodePasswordResetRequest(ctx context.Context, r *http.Request) (*passwordResetRequest, error) {
+func decodePasswordResetRequest(r *http.Request) (*passwordResetRequest, error) {
 	u, o, ok := r.BasicAuth()
 	if !ok {
 		return nil, fmt.Errorf("invalid basic auth")
@@ -751,4 +797,58 @@ func newUserLogResponse(id influxdb.ID, es []*influxdb.OperationLogEntry) *opera
 		},
 		Logs: logs,
 	}
+}
+
+// PasswordService is an http client to speak to the password service.
+type PasswordService struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+var _ influxdb.PasswordsService = (*PasswordService)(nil)
+
+// SetPassword sets the user's password.
+func (s *PasswordService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+	u, err := NewURL(s.Addr, path.Join("/api/v2/users", userID.String(), "password"))
+	if err != nil {
+		return err
+	}
+
+	newPass := passwordSetRequest{
+		Password: password,
+	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(newPass); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, u.String(), &buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	SetToken(s.Token, req)
+
+	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return CheckError(resp)
+}
+
+// ComparePassword compares the user new password with existing. Note: is not implemented.
+func (s *PasswordService) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+	panic("not implemented")
+}
+
+// CompareAndSetPassword compares the old and new password and submits the new password if possoble.
+// Note: is not implemented.
+func (s *PasswordService) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
+	panic("not implemented")
 }

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -89,21 +90,17 @@ func (h *AuthenticationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request
 	}
 
 	var auth platform.Authorizer
-
 	switch scheme {
 	case tokenAuthScheme:
 		auth, err = h.extractAuthorization(ctx, r)
-		if err != nil {
-			h.unauthorized(ctx, w, err)
-			return
-		}
 	case sessionAuthScheme:
 		auth, err = h.extractSession(ctx, r)
-		if err != nil {
-			h.unauthorized(ctx, w, err)
-			return
-		}
 	default:
+		// TODO: this error will be nil if it gets here, this should be remedied with some
+		//  sentinel error I'm thinking
+		err = errors.New("invalid auth scheme")
+	}
+	if err != nil {
 		h.unauthorized(ctx, w, err)
 		return
 	}

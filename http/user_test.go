@@ -1,9 +1,18 @@
 package http
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
 	"net/http/httptest"
+	"path"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/influxdata/influxdb/pkg/testttp"
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
@@ -15,10 +24,11 @@ import (
 // NewMockUserBackend returns a UserBackend with mock services.
 func NewMockUserBackend() *UserBackend {
 	return &UserBackend{
-		Logger:                  zap.NewNop().With(zap.String("handler", "user")),
+		Logger:                  zap.NewNop(),
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
-		PasswordsService:        mock.NewPasswordsService("", ""),
+		PasswordsService:        mock.NewPasswordsService(),
+		HTTPErrorHandler:        ErrorHandler(0),
 	}
 }
 
@@ -52,4 +62,38 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 func TestUserService(t *testing.T) {
 	t.Parallel()
 	platformtesting.UserService(initUserService, t)
+}
+
+func TestUserHandler_SettingPassword(t *testing.T) {
+	be := NewMockUserBackend()
+	fakePassSVC := mock.NewPasswordsService()
+
+	userID := platform.ID(1)
+	fakePassSVC.SetPasswordFn = func(_ context.Context, id platform.ID, newPass string) error {
+		if id != userID {
+			return errors.New("unexpected id: " + id.String())
+		}
+		if newPass == "" {
+			return errors.New("no password provided")
+		}
+		return nil
+	}
+	be.PasswordsService = fakePassSVC
+
+	h := NewUserHandler(be)
+
+	body := newReqBody(t, passwordSetRequest{Password: "newpassword"})
+	addr := path.Join("/api/v2/users", userID.String(), "/password")
+
+	testttp.Post(addr, body).Do(h).ExpectStatus(t, http.StatusNoContent)
+}
+
+func newReqBody(t *testing.T, v interface{}) *bytes.Buffer {
+	t.Helper()
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(v); err != nil {
+		require.FailNow(t, "unexpected json encoding error", err)
+	}
+	return &buf
 }

@@ -90,7 +90,7 @@ func (c *Client) Generate(ctx context.Context, req *platform.OnboardingRequest) 
 		return nil, err
 	}
 
-	if err = c.SetPassword(ctx, u.Name, req.Password); err != nil {
+	if err = c.SetPassword(ctx, u.ID, req.Password); err != nil {
 		return nil, err
 	}
 

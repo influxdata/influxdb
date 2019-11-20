@@ -143,7 +143,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	documentBackend := NewDocumentBackend(b)
 	h.DocumentHandler = NewDocumentHandler(documentBackend)
 
-	sessionBackend := NewSessionBackend(b)
+	sessionBackend := newSessionBackend(b)
 	h.SessionHandler = NewSessionHandler(sessionBackend)
 
 	bucketBackend := NewBucketBackend(b)
@@ -156,6 +156,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 
 	userBackend := NewUserBackend(b)
 	userBackend.UserService = authorizer.NewUserService(b.UserService)
+	userBackend.PasswordsService = authorizer.NewPasswordService(b.PasswordsService)
 	h.UserHandler = NewUserHandler(userBackend)
 
 	dashboardBackend := NewDashboardBackend(b)

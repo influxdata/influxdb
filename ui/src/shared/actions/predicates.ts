@@ -3,7 +3,7 @@ import {Dispatch} from 'redux-thunk'
 import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
 
 // API
-import * as api from 'src/client'
+import {postDelete} from 'src/client'
 import {runQuery} from 'src/shared/apis/query'
 
 // Actions
@@ -137,7 +137,8 @@ export const deleteWithPredicate = params => async (
   dispatch: Dispatch<Action>
 ) => {
   try {
-    const resp = await api.postDelete(params)
+    const resp = await postDelete(params)
+
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
     }

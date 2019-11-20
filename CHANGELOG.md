@@ -1,8 +1,9 @@
 ## v2.0.0-alpha.20 [unreleased]
 
-### Feaures
+### Features
 
 1. [15805](https://github.com/influxdata/influxdb/pull/15924) Add tls insecure skip verify to influx CLI.
+2. [15981](https://github.com/influxdata/influxdb/pull/15981) Extend influx cli user create to allow for organization ID and user passwords to be set on user.
 
 ### Bug Fixes
 
