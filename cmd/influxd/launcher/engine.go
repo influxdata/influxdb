@@ -4,6 +4,7 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
+	"sync"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
@@ -46,7 +47,9 @@ type TemporaryEngine struct {
 	config  storage.Config
 	options []storage.Option
 
+	mu     sync.Mutex
 	opened bool
+
 	engine *storage.Engine
 
 	logger *zap.Logger
@@ -64,6 +67,9 @@ func NewTemporaryEngine(c storage.Config, options ...storage.Option) *TemporaryE
 
 // Open creates a temporary directory and opens the engine.
 func (t *TemporaryEngine) Open(ctx context.Context) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if t.opened {
 		return nil
 	}
@@ -88,6 +94,9 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 
 // Close will remove the directory containing the time-series files.
 func (t *TemporaryEngine) Close() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	t.opened = false
 	err := t.engine.Close()
 	_ = os.RemoveAll(t.path)
