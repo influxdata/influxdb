@@ -22,7 +22,7 @@ import {
   getInitialHistoryType,
   getInitialState,
 } from 'src/alerting/utils/history'
-import {getResourceIDs} from 'src/alerting/selectors'
+import {getCheckIDs, getEndpointIDs, getRuleIDs} from 'src/alerting/selectors'
 
 // Types
 import {AlertHistoryType, AppState} from 'src/types'
@@ -110,9 +110,9 @@ const AlertHistoryIndex: FC<Props> = ({params: {orgID}, resourceIDs}) => {
 }
 
 const mstp = (state: AppState) => {
-  const checkIDs = getResourceIDs(state, ResourceType.Checks)
-  const endpointIDs = getResourceIDs(state, ResourceType.NotificationEndpoints)
-  const ruleIDs = getResourceIDs(state, ResourceType.NotificationRules)
+  const checkIDs = getCheckIDs(state)
+  const endpointIDs = getEndpointIDs(state)
+  const ruleIDs = getRuleIDs(state)
 
   const resourceIDs = {
     checkIDs,

@@ -13,7 +13,7 @@ import {getDashboardsAsync} from 'src/dashboards/actions'
 import {getTasks} from 'src/tasks/actions'
 import {getAuthorizations} from 'src/authorizations/actions'
 import {getTemplates} from 'src/templates/actions'
-import {getMembers, getUsers} from 'src/members/actions'
+import {getMembers} from 'src/members/actions'
 import {getChecks} from 'src/alerting/actions/checks'
 import {getNotificationRules} from 'src/alerting/actions/notifications/rules'
 import {getEndpoints} from 'src/alerting/actions/notifications/endpoints'
@@ -29,7 +29,7 @@ import {DashboardsState} from 'src/dashboards/reducers/dashboards'
 import {AuthorizationsState} from 'src/authorizations/reducers'
 import {VariablesState} from 'src/variables/reducers'
 import {TemplatesState} from 'src/templates/reducers'
-import {MembersState, UsersMap} from 'src/members/reducers'
+import {MembersState} from 'src/members/reducers'
 import {ChecksState} from 'src/alerting/reducers/checks'
 import {NotificationRulesState} from 'src/alerting/reducers/notifications/rules'
 import {NotificationEndpointsState} from 'src/alerting/reducers/notifications/endpoints'
@@ -53,7 +53,6 @@ interface StateProps {
   templates: TemplatesState
   tasks: TasksState
   members: MembersState
-  users: {status: RemoteDataState; item: UsersMap}
   checks: ChecksState
   rules: NotificationRulesState
   endpoints: NotificationEndpointsState
@@ -70,7 +69,6 @@ interface DispatchProps {
   getTasks: typeof getTasks
   getTemplates: typeof getTemplates
   getMembers: typeof getMembers
-  getUsers: typeof getUsers
   getChecks: typeof getChecks
   getNotificationRules: typeof getNotificationRules
   getEndpoints: typeof getEndpoints
@@ -93,7 +91,6 @@ export enum ResourceType {
   Tasks = 'tasks',
   Templates = 'templates',
   Members = 'members',
-  Users = 'users',
   Checks = 'checks',
   NotificationRules = 'rules',
   NotificationEndpoints = 'endpoints',
@@ -152,10 +149,6 @@ class GetResources extends PureComponent<Props, StateProps> {
         return this.props.getMembers()
       }
 
-      case ResourceType.Users: {
-        return this.props.getUsers()
-      }
-
       case ResourceType.Checks: {
         return this.props.getChecks()
       }
@@ -188,7 +181,7 @@ class GetResources extends PureComponent<Props, StateProps> {
   }
 }
 
-const mstp = (state: AppState, props: Props): StateProps => {
+const mstp = (state: AppState, {resources}: Props): StateProps => {
   const {
     labels,
     buckets,
@@ -205,7 +198,7 @@ const mstp = (state: AppState, props: Props): StateProps => {
     endpoints,
   } = state
 
-  const remoteDataState = getResourcesStatus(state, props)
+  const remoteDataState = getResourcesStatus(state, resources)
 
   return {
     labels,
@@ -218,7 +211,6 @@ const mstp = (state: AppState, props: Props): StateProps => {
     tasks,
     templates,
     members,
-    users: members.users,
     checks,
     rules,
     endpoints,
@@ -237,7 +229,6 @@ const mdtp = {
   getTasks: getTasks,
   getTemplates: getTemplates,
   getMembers: getMembers,
-  getUsers: getUsers,
   getChecks: getChecks,
   getNotificationRules: getNotificationRules,
   getEndpoints: getEndpoints,
