@@ -200,9 +200,14 @@ func (b *Bucket) Delete(key []byte) error {
 
 // Cursor creates a static cursor from all entries in the database.
 func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
+	var o kv.CursorHints
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	// TODO we should do this by using the Ascend/Descend methods that
 	//  the btree provides.
-	pairs, err := b.getAll()
+	pairs, err := b.getAll(&o)
 	if err != nil {
 		return nil, err
 	}
@@ -210,8 +215,10 @@ func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
 	return kv.NewStaticCursor(pairs), nil
 }
 
-func (b *Bucket) getAll() ([]kv.Pair, error) {
-	pairs := []kv.Pair{}
+func (b *Bucket) getAll(o *kv.CursorHints) ([]kv.Pair, error) {
+	fn := o.KeyPredicateFn
+
+	var pairs []kv.Pair
 	var err error
 	b.btree.Ascend(func(i btree.Item) bool {
 		j, ok := i.(*item)
@@ -220,7 +227,10 @@ func (b *Bucket) getAll() ([]kv.Pair, error) {
 			return false
 		}
 
-		pairs = append(pairs, kv.Pair{Key: j.key, Value: j.value})
+		if fn == nil || fn(j.key) {
+			pairs = append(pairs, kv.Pair{Key: j.key, Value: j.value})
+		}
+
 		return true
 	})
 
