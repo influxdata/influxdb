@@ -17,21 +17,27 @@ import (
 	"github.com/spf13/viper"
 )
 
-var influxCmd = &cobra.Command{
-	Use:   "influx",
-	Short: "Influx Client",
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := checkSetup(flags.host); err != nil {
-			fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
-		}
-		cmd.Usage()
-	},
-}
-
 const maxTCPConnections = 128
 
-func init() {
-	influxCmd.AddCommand(
+func main() {
+	influxCmd := influxCmd()
+	if err := influxCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func influxCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "influx",
+		Short: "Influx Client",
+		Run: func(cmd *cobra.Command, args []string) {
+			if err := checkSetup(flags.host); err != nil {
+				fmt.Printf("Note: %v\n", internal.ErrorFmt(err))
+			}
+			cmd.Usage()
+		},
+	}
+	cmd.AddCommand(
 		authCmd(),
 		bucketCmd,
 		deleteCmd,
@@ -42,13 +48,13 @@ func init() {
 		replCmd,
 		setupCmd,
 		taskCmd,
-		userCmd,
+		userCmd(),
 		writeCmd,
 	)
 
 	viper.SetEnvPrefix("INFLUX")
 
-	influxCmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
+	cmd.PersistentFlags().StringVarP(&flags.token, "token", "t", "", "API token to be used throughout client calls")
 	viper.BindEnv("TOKEN")
 	if h := viper.GetString("TOKEN"); h != "" {
 		flags.token = h
@@ -56,26 +62,22 @@ func init() {
 		flags.token = tok
 	}
 
-	influxCmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
+	cmd.PersistentFlags().StringVar(&flags.host, "host", "http://localhost:9999", "HTTP address of Influx")
 	viper.BindEnv("HOST")
 	if h := viper.GetString("HOST"); h != "" {
 		flags.host = h
 	}
 
-	influxCmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
+	cmd.PersistentFlags().BoolVar(&flags.local, "local", false, "Run commands locally against the filesystem")
 
-	influxCmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
+	cmd.PersistentFlags().BoolVar(&flags.skipVerify, "skip-verify", false, "SkipVerify controls whether a client verifies the server's certificate chain and host name.")
 
 	// Override help on all the commands tree
-	walk(influxCmd, func(c *cobra.Command) {
+	walk(cmd, func(c *cobra.Command) {
 		c.Flags().BoolP("help", "h", false, fmt.Sprintf("Help for the %s command ", c.Name()))
 	})
-}
 
-func main() {
-	if err := influxCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+	return cmd
 }
 
 // Flags contains all the CLI flag values for influx.
