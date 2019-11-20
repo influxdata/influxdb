@@ -68,7 +68,7 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 		return nil
 	}
 
-	path, err := ioutil.TempDir("", "")
+	path, err := ioutil.TempDir("", "e2e")
 	if err != nil {
 		return err
 	}
