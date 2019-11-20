@@ -3,9 +3,9 @@ import React, {FC} from 'react'
 
 // Components
 import MonacoEditor from 'react-monaco-editor'
-import {tokenizeFlux} from 'src/external/monaco.fluxLang'
 import addFluxTheme, {THEME_NAME} from 'src/external/monaco.fluxTheme'
 import {addSnippets} from 'src/external/monaco.fluxCompletions'
+import {addSyntax} from 'src/external/monaco.fluxSyntax'
 import {OnChangeScript} from 'src/types/flux'
 import './FluxMonacoEditor.scss'
 
@@ -24,8 +24,8 @@ interface Props {
 const FluxEditorMonaco: FC<Props> = props => {
   const editorWillMount = monaco => {
     addFluxTheme(monaco)
-    tokenizeFlux(monaco)
     addSnippets(monaco)
+    addSyntax(monaco)
   }
   const editorDidMount = editor => {
     editor.onDidChangeCursorPosition(evt => {

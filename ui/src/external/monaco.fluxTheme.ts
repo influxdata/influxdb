@@ -5,6 +5,11 @@ export default function(monaco) {
     inherit: false,
     rules: [
       {
+        token: 'support.function',
+        foreground: '#ff0000',
+        background: '#ffffff'
+      },
+      {
         token: '',
         foreground: '#f8f8f8',
         background: '#202028',

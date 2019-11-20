@@ -33,7 +33,8 @@ module.exports = {
     rules: [
       {
         test: /\.wasm$/,
-        type: 'webassembly/experimental',
+        loader: "file-loader",
+        type: "javascript/auto",
       },
       {
         test: /\.tsx?$/,
@@ -110,7 +111,7 @@ module.exports = {
     new ForkTsCheckerWebpackPlugin(),
     new webpack.ProgressPlugin(),
     new webpack.DefinePlugin({
-      ENABLE_MONACO: JSON.stringify(false)
+      ENABLE_MONACO: JSON.stringify(true)
     }),
     new webpack.EnvironmentPlugin({...process.env, GIT_SHA, API_PREFIX: API_BASE_PATH, STATIC_PREFIX: BASE_PATH}),
   ],
