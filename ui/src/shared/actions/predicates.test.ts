@@ -1,4 +1,3 @@
-import {createStore} from 'redux'
 import {mocked} from 'ts-jest/utils'
 
 // Mocks
@@ -9,9 +8,6 @@ jest.mock('src/shared/apis/query')
 
 // Types
 
-// Reducers
-import {initialState, predicatesReducer} from 'src/shared/reducers/predicates'
-
 // Actions
 import {
   deleteWithPredicate,
@@ -20,16 +16,11 @@ import {
 } from 'src/shared/actions/predicates'
 
 describe('Shared.Actions.Predicates', () => {
-  let store
-
   beforeEach(() => {
     jest.clearAllMocks()
-    store = null
   })
 
   it('deletes then dispatches success messages', async () => {
-    store = createStore(predicatesReducer, initialState)
-
     const mockDispatch = jest.fn()
     const params = {}
 
@@ -68,8 +59,6 @@ describe('Shared.Actions.Predicates', () => {
   })
 
   it('sets the keys based on the bucket name', async () => {
-    store = createStore(predicatesReducer, initialState)
-
     const mockDispatch = jest.fn()
     const orgID = '1'
     const bucketName = 'Foxygen'
@@ -93,8 +82,6 @@ describe('Shared.Actions.Predicates', () => {
   })
 
   it('sets the values based on the bucket and key name', async () => {
-    store = createStore(predicatesReducer, initialState)
-
     const mockDispatch = jest.fn()
     const orgID = '1'
     const bucketName = 'Simon & Garfunkel'
