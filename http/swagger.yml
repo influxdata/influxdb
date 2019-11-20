@@ -1642,9 +1642,9 @@ paths:
                 $ref: "#/components/schemas/Error"
   /delete:
     post:
-      summary: delete Time series data from InfluxDB
+      summary: Delete time series data from InfluxDB
       requestBody:
-          description: predicate delete request
+          description: Predicate delete request
           required: true
           content:
             application/json:
@@ -1654,27 +1654,27 @@ paths:
         - $ref: '#/components/parameters/TraceSpan'
         - in: query
           name: org
-          description: specifies the destination organization for writes
+          description: Specifies the organization to delete data from.
           schema:
             type: string
-            description: all points within batch are written to this organization.
+            description: Only points from this organization are deleted.
         - in: query
           name: bucket
-          description: specifies the destination bucket for writes
+          description: Specifies the bucket to delete data from.
           schema:
             type: string
-            description: all points within batch are written to this bucket.
+            description: Only points from this bucket are deleted.
         - in: query
           name: orgID
-          description: specifies the organization ID of the resource
+          description: Specifies the organization ID of the resource.
           schema:
             type: string
         - in: query
           name: bucketID
-          description: specifies the destination bucket ID for writes
+          description: Specifies the bucket ID to delete data from.
           schema:
             type: string
-            description: all points within batch are written to this bucket.
+            description: Only points from this bucket ID are deleted.
       responses:
         '204':
           description: delete has been accepted
@@ -4248,7 +4248,7 @@ paths:
         - InfluxPackages
       summary: Create a new Influx package
       requestBody:
-        description: Influx package to create
+        description: Influx package to create.
         required: false
         content:
           application/json:
@@ -4272,7 +4272,7 @@ paths:
       operationId: ApplyPkg
       tags:
         - InfluxPackages
-      summary: Apply or dry run an influx package
+      summary: Apply or dry-run an Influx package
       requestBody:
         required: true
         content:
@@ -4285,7 +4285,7 @@ paths:
       responses:
         '200':
           description: >
-            Influx package dry run successful, no new resources created.
+            Influx package dry-run successful, no new resources created.
             The provided diff and summary will not have IDs for resources
             that do not exist at the time of the dry run.
           content:
@@ -6302,18 +6302,18 @@ components:
         path:
           $ref: "#/components/schemas/StringLiteral"
     DeletePredicateRequest:
-      description: the delete predicate request
+      description: The delete predicate request.
       type: object
       required: [start, stop]
       properties:
         start:
-          description: RFC3339Nano.
+          description: RFC3339Nano
           type: string
         stop:
-          description: RFC3339Nano.
+          description: RFC3339Nano
           type: string
         predicate:
-          description: sql where like delete statement
+          description: InfluxQL-like delete statement
           example: tag1="value1" and (tag2="value2" and tag3!="value3")
           type: string
     Node:
@@ -10010,7 +10010,7 @@ components:
                 - inactive
             labels:
               type: array
-              description: List of label ids to associate with notification rule
+              description: List of label IDs to associate with notification rule.
               items:
                 type: string
     NotificationRules:
@@ -10230,7 +10230,7 @@ components:
                 - inactive
             labels:
               type: array
-              description: List of label ids to associate with check
+              description: List of label IDs to associate with check.
               items:
                 type: string
     NotificationEndpoints:
