@@ -568,6 +568,16 @@ export const predicateDeleteFailed = (): Notification => ({
   message: 'Failed to delete data with predicate',
 })
 
+export const setFilterKeyFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to set the filter key tag',
+})
+
+export const setFilterValueFailed = (): Notification => ({
+  ...defaultErrorNotification,
+  message: 'Failed to set the filter value tag',
+})
+
 export const bucketCreateSuccess = (): Notification => ({
   ...defaultSuccessNotification,
   message: 'Bucket was successfully created',
