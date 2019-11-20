@@ -842,10 +842,10 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		b := m.apibackend
 		pkgSVC = pkger.NewService(
 			pkger.WithLogger(m.logger.With(zap.String("service", "pkger"))),
-			pkger.WithBucketSVC(b.BucketService),
-			pkger.WithDashboardSVC(b.DashboardService),
-			pkger.WithLabelSVC(b.LabelService),
-			pkger.WithVariableSVC(b.VariableService),
+			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
+			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
+			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
+			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
 	}
 
