@@ -199,7 +199,7 @@ describe('Dashboard', () => {
           .contains('Graph')
           .click()
           .then(() => {
-            cy.getByTestID('dropdown-item')
+            cy.getByTestID('view-type--table')
               .contains('Table')
               .should('have.length', 1)
               .click()

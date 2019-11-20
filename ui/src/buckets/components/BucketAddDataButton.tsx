@@ -48,7 +48,10 @@ export default class BucketAddDataButton extends PureComponent<Props> {
                 className="bucket-add-data--option"
                 onClick={onAddLineProtocol}
               >
-                <div className="bucket-add-data--option-header">
+                <div
+                  className="bucket-add-data--option-header"
+                  data-testid="bucket-add-line-protocol"
+                >
                   Line Protocol
                 </div>
                 <div className="bucket-add-data--option-desc">
@@ -71,6 +74,7 @@ export default class BucketAddDataButton extends PureComponent<Props> {
         <Button
           ref={this.triggerRef}
           text="Add Data"
+          testID="add-data--button"
           icon={IconFont.Plus}
           size={ComponentSize.ExtraSmall}
           color={ComponentColor.Secondary}

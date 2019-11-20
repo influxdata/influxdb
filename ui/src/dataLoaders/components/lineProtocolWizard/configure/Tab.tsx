@@ -22,6 +22,7 @@ export default class extends PureComponent<Props> {
         value={tab}
         active={active}
         onClick={this.handleClick}
+        testID={tab}
       >
         {tab}
       </Radio.Button>

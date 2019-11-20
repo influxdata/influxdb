@@ -72,6 +72,7 @@ const (
 	JaegerTracing = "jaeger"
 )
 
+// NewCommand creates the command to run influxdb.
 func NewCommand() *cobra.Command {
 	l := NewLauncher()
 	cmd := &cobra.Command{
@@ -247,13 +248,13 @@ func buildLauncherCommand(l *Launcher, cmd *cobra.Command) {
 			Desc:  "vault authentication token",
 		},
 		{
-			DestP:   &l.httpTlsCert,
+			DestP:   &l.httpTLSCert,
 			Flag:    "tls-cert",
 			Default: "",
 			Desc:    "TLS certificate for HTTPs",
 		},
 		{
-			DestP:   &l.httpTlsKey,
+			DestP:   &l.httpTLSKey,
 			Flag:    "tls-key",
 			Default: "",
 			Desc:    "TLS key for HTTPs",
@@ -294,15 +295,15 @@ type Launcher struct {
 
 	boltClient    *bolt.Client
 	kvService     *kv.Service
-	engine        *storage.Engine
+	engine        Engine
 	StorageConfig storage.Config
 
 	queryController *control.Controller
 
 	httpPort    int
 	httpServer  *nethttp.Server
-	httpTlsCert string
-	httpTlsKey  string
+	httpTLSCert string
+	httpTLSKey  string
 
 	natsServer *nats.Server
 	natsPort   int
@@ -364,7 +365,7 @@ func (m *Launcher) NatsURL() string {
 
 // Engine returns a reference to the storage engine. It should only be called
 // for end-to-end testing purposes.
-func (m *Launcher) Engine() *storage.Engine {
+func (m *Launcher) Engine() Engine {
 	return m.engine
 }
 
@@ -493,20 +494,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		SessionLength: time.Duration(m.sessionLength) * time.Minute,
 	}
 
-	var flusher http.Flusher
+	flushers := flushers{}
 	switch m.storeType {
 	case BoltStore:
 		store := bolt.NewKVStore(m.boltPath)
 		store.WithDB(m.boltClient.DB())
 		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
-			flusher = store
+			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
 		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
-			flusher = store
+			flushers = append(flushers, store)
 		}
 	default:
 		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
@@ -576,56 +577,61 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	var deleteService platform.DeleteService
-	var pointsWriter storage.PointsWriter
-	{
+	if m.testing {
+		// the testing engine will write/read into a temporary directory
+		engine := NewTemporaryEngine(m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
+		flushers = append(flushers, engine)
+		m.engine = engine
+	} else {
 		m.engine = storage.NewEngine(m.enginePath, m.StorageConfig, storage.WithRetentionEnforcer(bucketSvc))
-		m.engine.WithLogger(m.logger)
-
-		if err := m.engine.Open(ctx); err != nil {
-			m.logger.Error("failed to open engine", zap.Error(err))
-			return err
-		}
-		// The Engine's metrics must be registered after it opens.
-		m.reg.MustRegister(m.engine.PrometheusCollectors()...)
-
-		pointsWriter = m.engine
-		deleteService = m.engine
-
-		// TODO(cwolff): Figure out a good default per-query memory limit:
-		//   https://github.com/influxdata/influxdb/issues/13642
-		const (
-			concurrencyQuota         = 10
-			memoryBytesQuotaPerQuery = math.MaxInt64
-			QueueSize                = 10
-		)
-
-		cc := control.Config{
-			ConcurrencyQuota:         concurrencyQuota,
-			MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
-			QueueSize:                QueueSize,
-			Logger:                   m.logger.With(zap.String("service", "storage-reads")),
-		}
-
-		authBucketSvc := authorizer.NewBucketService(bucketSvc)
-		authOrgSvc := authorizer.NewOrgService(orgSvc)
-		authSecretSvc := authorizer.NewSecretService(secretSvc)
-		reader := reads.NewReader(readservice.NewStore(m.engine))
-		deps, err := influxdb.NewDependencies(reader, m.engine, authBucketSvc, authOrgSvc, authSecretSvc, cc.MetricLabelKeys)
-		if err != nil {
-			m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
-			return err
-		}
-		cc.ExecutorDependencies = []flux.Dependency{deps}
-
-		c, err := control.New(cc)
-		if err != nil {
-			m.logger.Error("Failed to create query controller", zap.Error(err))
-			return err
-		}
-		m.queryController = c
-		m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 	}
+	m.engine.WithLogger(m.logger)
+	if err := m.engine.Open(ctx); err != nil {
+		m.logger.Error("failed to open engine", zap.Error(err))
+		return err
+	}
+	// The Engine's metrics must be registered after it opens.
+	m.reg.MustRegister(m.engine.PrometheusCollectors()...)
+
+	var (
+		deleteService platform.DeleteService = m.engine
+		pointsWriter  storage.PointsWriter   = m.engine
+	)
+
+	// TODO(cwolff): Figure out a good default per-query memory limit:
+	//   https://github.com/influxdata/influxdb/issues/13642
+	const (
+		concurrencyQuota         = 10
+		memoryBytesQuotaPerQuery = math.MaxInt64
+		QueueSize                = 10
+	)
+
+	deps, err := influxdb.NewDependencies(
+		reads.NewReader(readservice.NewStore(m.engine)),
+		m.engine,
+		authorizer.NewBucketService(bucketSvc),
+		authorizer.NewOrgService(orgSvc),
+		authorizer.NewSecretService(secretSvc),
+		nil,
+	)
+	if err != nil {
+		m.logger.Error("Failed to get query controller dependencies", zap.Error(err))
+		return err
+	}
+
+	m.queryController, err = control.New(control.Config{
+		ConcurrencyQuota:         concurrencyQuota,
+		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
+		QueueSize:                QueueSize,
+		Logger:                   m.logger.With(zap.String("service", "storage-reads")),
+		ExecutorDependencies:     []flux.Dependency{deps},
+	})
+	if err != nil {
+		m.logger.Error("Failed to create query controller", zap.Error(err))
+		return err
+	}
+
+	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
 	var taskSvc platform.TaskService
@@ -869,7 +875,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.httpServer.Handler = h
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(ctx, h, flusher)
+		m.httpServer.Handler = http.DebugFlush(ctx, h, flushers)
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)
@@ -882,9 +888,9 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	var cer tls.Certificate
 	transport := "http"
 
-	if m.httpTlsCert != "" && m.httpTlsKey != "" {
+	if m.httpTLSCert != "" && m.httpTLSKey != "" {
 		var err error
-		cer, err = tls.LoadX509KeyPair(m.httpTlsCert, m.httpTlsKey)
+		cer, err = tls.LoadX509KeyPair(m.httpTLSCert, m.httpTLSKey)
 
 		if err != nil {
 			httpLogger.Error("failed to load x509 key pair", zap.Error(err))
@@ -906,7 +912,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		logger.Info("Listening", zap.String("transport", transport), zap.String("addr", m.httpBindAddress), zap.Int("port", m.httpPort))
 
 		if cer.Certificate != nil {
-			if err := m.httpServer.ServeTLS(ln, m.httpTlsCert, m.httpTlsKey); err != nethttp.ErrServerClosed {
+			if err := m.httpServer.ServeTLS(ln, m.httpTLSCert, m.httpTLSKey); err != nethttp.ErrServerClosed {
 				logger.Error("failed https service", zap.Error(err))
 			}
 		} else {

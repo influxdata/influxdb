@@ -1,5 +1,6 @@
 import {Doc} from 'codemirror'
 import {Organization} from '../../src/types'
+import {VIS_TYPES} from '../../src/timeMachine/constants'
 import {
   FROM,
   RANGE,
@@ -36,11 +37,9 @@ describe('DataExplorer', () => {
 
   describe('numeric input using custom bin sizes in Histograms', () => {
     beforeEach(() => {
-      cy.getByTestID('page-header--right').within(() => {
-        cy.getByTestID('dropdown').click()
-        cy.get('#histogram').click()
-        cy.getByTestID('cog-cell--button').click()
-      })
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--histogram`).click()
+      cy.getByTestID('cog-cell--button').click()
     })
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
@@ -69,11 +68,9 @@ describe('DataExplorer', () => {
 
   describe('numeric input validation when changing bin sizes in Heat Maps', () => {
     beforeEach(() => {
-      cy.getByTestID('page-header--right').within(() => {
-        cy.getByTestID('dropdown').click()
-        cy.get('#heatmap').click()
-        cy.getByTestID('cog-cell--button').click()
-      })
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--heatmap`).click()
+      cy.getByTestID('cog-cell--button').click()
     })
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
@@ -121,11 +118,9 @@ describe('DataExplorer', () => {
 
   describe('numeric input validation when changing number of decimal places in Single Stat', () => {
     beforeEach(() => {
-      cy.getByTestID('page-header--right').within(() => {
-        cy.getByTestID('dropdown').click()
-        cy.get('#single-stat').click()
-        cy.getByTestID('cog-cell--button').click()
-      })
+      cy.getByTestID('view-type--dropdown').click()
+      cy.getByTestID(`view-type--single-stat`).click()
+      cy.getByTestID('cog-cell--button').click()
     })
     it('should put input field in error status and stay in error status when input is invalid or empty', () => {
       cy.get('.view-options').within(() => {
@@ -550,6 +545,56 @@ describe('DataExplorer', () => {
         cy.getByTestID('empty-graph--error').should('exist')
       })
     })
+
+    describe('visualize with 360 lines', () => {
+      const numLines = 360
+
+      beforeEach(() => {
+        cy.flush()
+
+        cy.signin().then(({body}) => {
+          const {
+            org: {id},
+            bucket,
+          } = body
+          cy.wrap(body.org).as('org')
+          cy.wrap(bucket).as('bucket')
+
+          // POST 360 lines to the server
+          cy.writeData(lines(numLines))
+
+          // start at the data explorer
+          cy.fixture('routes').then(({orgs, explorer}) => {
+            cy.visit(`${orgs}/${id}${explorer}`)
+          })
+        })
+      })
+
+      it('can view time-series data', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+        cy.getByTestID('selector-list max').click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+
+        // cycle through all the visualizations of the data
+        VIS_TYPES.forEach(({type}) => {
+          cy.getByTestID('view-type--dropdown').click()
+          cy.getByTestID(`view-type--${type}`).click()
+          cy.getByTestID(`vis-graphic--${type}`).should('exist')
+          if (type.includes('single-stat')) {
+            cy.getByTestID('single-stat--text').should('contain', `${numLines}`)
+          }
+        })
+
+        // view raw data table
+        cy.getByTestID('raw-data--toggle').click()
+        cy.getByTestID('raw-data-table').should('exist')
+        cy.getByTestID('raw-data--toggle').click()
+      })
+    })
   })
 
   // skipping until feature flag feature is removed for deleteWithPredicate
@@ -597,3 +642,23 @@ describe('DataExplorer', () => {
     })
   })
 })
+
+const lines = (numLines = 3) => {
+  // each line is 10 seconds before the previous line
+  const offset_ms = 10_000
+  const now = Date.now()
+  const nanos_per_ms = '000000'
+
+  const decendingValues = Array(numLines)
+    .fill(0)
+    .map((_, i) => i)
+    .reverse()
+
+  const incrementingTimes = decendingValues.map(val => {
+    return now - offset_ms * val
+  })
+
+  return incrementingTimes.map((tm, i) => {
+    return `m,tk1=tv1 v=${i + 1} ${tm}${nanos_per_ms}`
+  })
+}
