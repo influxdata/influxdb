@@ -1,6 +1,5 @@
 .delete-data-filters--filters,
-.delete-data-filters--no-filters
-{
+.delete-data-filters--no-filters {
   margin: $ix-marg-c 0;
 }
 
@@ -10,7 +9,7 @@
 }
 
 .delete-data-filter {
-  display: flex; 
+  display: flex;
   justify-content: stretch;
 }
 
@@ -27,14 +26,12 @@
 }
 
 .delete-data-filter--remove,
-.delete-data-filter--equals,
-{
+.delete-data-filter--equals {
   margin-top: 18px;
 }
 
 .delete-data-filter--remove {
   flex: 0 0 auto;
-  margin-left: $ix-marg-a;
 }
 
 .delete-data-form--danger-zone {
@@ -64,4 +61,8 @@
   &.delete-data-button--error {
     color: $c-fire;
   }
+}
+
+.dwp-filter-dropdown {
+  max-width: 95%;
 }

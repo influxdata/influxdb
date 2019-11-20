@@ -67,13 +67,14 @@ const FilterRow: FC<Props & DispatchProps> = ({
         errorMessage={keyErrorMessage}
       >
         <SearchableDropdown
+          className="dwp-filter-dropdown"
           searchTerm={key}
           emptyText="No Tags Found"
           searchPlaceholder="Search keys..."
           selectedOption={key}
           onSelect={onKeySelect}
           onChangeSearchTerm={onChangeKey}
-          testID="key-input"
+          testID="dwp-filter-key-input"
           buttonTestID="tag-selector--dropdown-button"
           menuTestID="tag-selector--dropdown-menu"
           options={keys}
@@ -85,6 +86,7 @@ const FilterRow: FC<Props & DispatchProps> = ({
         errorMessage={equalityErrorMessage}
       >
         <SelectDropdown
+          className="dwp-filter-dropdown"
           options={['=', '!=']}
           selectedOption={equality}
           onSelect={onChangeEquality}
@@ -96,13 +98,14 @@ const FilterRow: FC<Props & DispatchProps> = ({
         errorMessage={valueErrorMessage}
       >
         <SearchableDropdown
+          className="dwp-filter-dropdown"
           searchTerm={value}
           emptyText="No Tags Found"
           searchPlaceholder="Search values..."
           selectedOption={value}
           onSelect={onChangeValue}
           onChangeSearchTerm={onChangeValue}
-          testID="value-input"
+          testID="dwp-filter-value-input"
           buttonTestID="tag-selector--dropdown-button"
           menuTestID="tag-selector--dropdown-menu"
           options={values}

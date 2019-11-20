@@ -13,6 +13,8 @@ import {notify} from 'src/shared/actions/notifications'
 import {
   predicateDeleteFailed,
   predicateDeleteSucceeded,
+  setFilterKeyFailed,
+  setFilterValueFailed,
 } from 'src/shared/copy/notifications'
 
 // Types
@@ -32,12 +34,12 @@ export type Action =
 
 interface DeleteFilter {
   type: 'DELETE_FILTER'
-  index: number
+  payload: {index: number}
 }
 
 export const deleteFilter = (index: number): DeleteFilter => ({
   type: 'DELETE_FILTER',
-  index,
+  payload: {index},
 })
 
 interface ResetFilters {
@@ -58,76 +60,77 @@ export const resetPredicateState = (): SetPredicateToDefault => ({
 
 interface SetBucketName {
   type: 'SET_BUCKET_NAME'
-  bucketName: string
+  payload: {bucketName: string}
 }
 
 export const setBucketName = (bucketName: string): SetBucketName => ({
   type: 'SET_BUCKET_NAME',
-  bucketName,
+  payload: {bucketName},
 })
 
 interface SetDeletionStatus {
   type: 'SET_DELETION_STATUS'
-  deletionStatus: RemoteDataState
+  payload: {deletionStatus: RemoteDataState}
 }
 
 export const setDeletionStatus = (
   status: RemoteDataState
 ): SetDeletionStatus => ({
   type: 'SET_DELETION_STATUS',
-  deletionStatus: status,
+  payload: {deletionStatus: status},
 })
 
 interface SetFilter {
   type: 'SET_FILTER'
-  filter: Filter
-  index: number
+  payload: {
+    filter: Filter
+    index: number
+  }
 }
 
 export const setFilter = (filter: Filter, index: number): SetFilter => ({
   type: 'SET_FILTER',
-  filter,
-  index,
+  payload: {filter, index},
 })
 
 interface SetIsSerious {
   type: 'SET_IS_SERIOUS'
-  isSerious: boolean
+  payload: {isSerious: boolean}
 }
 
 export const setIsSerious = (isSerious: boolean): SetIsSerious => ({
   type: 'SET_IS_SERIOUS',
-  isSerious,
+  payload: {isSerious},
 })
 
 interface SetKeysByBucket {
   type: 'SET_KEYS_BY_BUCKET'
-  keys: string[]
+  payload: {keys: string[]}
 }
 
 const setKeys = (keys: string[]): SetKeysByBucket => ({
   type: 'SET_KEYS_BY_BUCKET',
-  keys,
+  payload: {keys},
 })
 
 interface SetTimeRange {
   type: 'SET_DELETE_TIME_RANGE'
-  timeRange: [number, number]
+  payload: {timeRange: [number, number]}
 }
 
 export const setTimeRange = (timeRange: [number, number]): SetTimeRange => ({
   type: 'SET_DELETE_TIME_RANGE',
-  timeRange,
+  payload: {timeRange},
 })
 
 interface SetValuesByKey {
   type: 'SET_VALUES_BY_KEY'
-  values: string[]
+  payload: {values: string[]}
 }
 
 const setValues = (values: string[]): SetValuesByKey => ({
   type: 'SET_VALUES_BY_KEY',
-  values,
+  payload: {values},
 })
 
 export const deleteWithPredicate = params => async (
@@ -152,11 +155,16 @@ export const deleteWithPredicate = params => async (
 export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
   dispatch: Dispatch<Action>
 ) => {
-  const query = `import "influxdata/influxdb/v1"
-  v1.tagKeys(bucket: "${bucketName}")`
-  const keys = await extractBoxedCol(runQuery(orgID, query), '_value').promise
-  dispatch(setBucketName(bucketName))
-  dispatch(setKeys(keys))
+  try {
+    const query = `import "influxdata/influxdb/v1"
+    v1.tagKeys(bucket: "${bucketName}")`
+    const keys = await extractBoxedCol(runQuery(orgID, query), '_value').promise
+    dispatch(setBucketName(bucketName))
+    dispatch(setKeys(keys))
+  } catch {
+    dispatch(notify(setFilterKeyFailed()))
+    dispatch(setDeletionStatus(RemoteDataState.Error))
+  }
 }
 
 export const setValuesByKey = (
@@ -164,7 +172,13 @@ export const setValuesByKey = (
   bucketName: string,
   keyName: string
 ) => async (dispatch: Dispatch<Action>) => {
-  const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`
-  const values = await extractBoxedCol(runQuery(orgID, query), '_value').promise
-  dispatch(setValues(values))
+  try {
+    const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`
+    const values = await extractBoxedCol(runQuery(orgID, query), '_value')
+      .promise
+    dispatch(setValues(values))
+  } catch {
+    dispatch(notify(setFilterValueFailed()))
+    dispatch(setDeletionStatus(RemoteDataState.Error))
+  }
 }
