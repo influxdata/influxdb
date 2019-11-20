@@ -11,10 +11,12 @@ import (
 	"github.com/influxdata/influxdb/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestService(t *testing.T) {
-	newTestService := func(opts ...ServiceSetterFn) *Service {
+	newTestService := func(log *zap.Logger, opts ...ServiceSetterFn) *Service {
 		opt := serviceOpt{
 			bucketSVC: mock.NewBucketService(),
 			dashSVC:   mock.NewDashboardService(),
@@ -27,6 +29,7 @@ func TestService(t *testing.T) {
 		}
 
 		return NewService(
+			log,
 			WithBucketSVC(opt.bucketSVC),
 			WithDashboardSVC(opt.dashSVC),
 			WithLabelSVC(opt.labelSVC),
@@ -49,7 +52,7 @@ func TestService(t *testing.T) {
 							RetentionPeriod: 30 * time.Hour,
 						}, nil
 					}
-					svc := newTestService(WithBucketSVC(fakeBktSVC), WithLabelSVC(mock.NewLabelService()))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(fakeBktSVC), WithLabelSVC(mock.NewLabelService()))
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -78,7 +81,7 @@ func TestService(t *testing.T) {
 					fakeBktSVC.FindBucketByNameFn = func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
 						return nil, errors.New("not found")
 					}
-					svc := newTestService(WithBucketSVC(fakeBktSVC), WithLabelSVC(mock.NewLabelService()))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(fakeBktSVC), WithLabelSVC(mock.NewLabelService()))
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -114,7 +117,7 @@ func TestService(t *testing.T) {
 							},
 						}, nil
 					}
-					svc := newTestService(WithLabelSVC(fakeLabelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(fakeLabelSVC))
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -148,7 +151,7 @@ func TestService(t *testing.T) {
 					fakeLabelSVC.FindLabelsFn = func(_ context.Context, filter influxdb.LabelFilter) ([]*influxdb.Label, error) {
 						return nil, errors.New("no labels found")
 					}
-					svc := newTestService(WithLabelSVC(fakeLabelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(fakeLabelSVC))
 
 					_, diff, err := svc.DryRun(context.TODO(), influxdb.ID(100), pkg)
 					require.NoError(t, err)
@@ -186,6 +189,7 @@ func TestService(t *testing.T) {
 				}
 				fakeLabelSVC := mock.NewLabelService() // ignore mappings for now
 				svc := newTestService(
+					zaptest.NewLogger(t),
 					WithLabelSVC(fakeLabelSVC),
 					WithVariableSVC(fakeVarSVC),
 				)
@@ -244,7 +248,7 @@ func TestService(t *testing.T) {
 						return &influxdb.Bucket{ID: id}, nil
 					}
 
-					svc := newTestService(WithBucketSVC(fakeBktSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(fakeBktSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -288,7 +292,7 @@ func TestService(t *testing.T) {
 						return &influxdb.Bucket{ID: id}, nil
 					}
 
-					svc := newTestService(WithBucketSVC(fakeBktSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(fakeBktSVC))
 
 					sum, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.NoError(t, err)
@@ -329,7 +333,7 @@ func TestService(t *testing.T) {
 					pkg.mBuckets["copybuck1"] = pkg.mBuckets["rucket_11"]
 					pkg.mBuckets["copybuck2"] = pkg.mBuckets["rucket_11"]
 
-					svc := newTestService(WithBucketSVC(fakeBktSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(fakeBktSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -352,7 +356,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					svc := newTestService(WithLabelSVC(fakeLabelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(fakeLabelSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -397,7 +401,7 @@ func TestService(t *testing.T) {
 					pkg.mLabels["copy1"] = pkg.mLabels["label_1"]
 					pkg.mLabels["copy2"] = pkg.mLabels["label_2"]
 
-					svc := newTestService(WithLabelSVC(fakeLabelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(fakeLabelSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -442,7 +446,7 @@ func TestService(t *testing.T) {
 						return &influxdb.Label{ID: id}, nil
 					}
 
-					svc := newTestService(WithLabelSVC(fakeLabelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(fakeLabelSVC))
 
 					sum, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.NoError(t, err)
@@ -483,7 +487,7 @@ func TestService(t *testing.T) {
 						return &influxdb.View{}, nil
 					}
 
-					svc := newTestService(WithDashboardSVC(fakeDashSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithDashboardSVC(fakeDashSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -520,7 +524,7 @@ func TestService(t *testing.T) {
 
 					pkg.mDashboards = append(pkg.mDashboards, pkg.mDashboards[0])
 
-					svc := newTestService(WithDashboardSVC(fakeDashSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithDashboardSVC(fakeDashSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -561,6 +565,7 @@ func TestService(t *testing.T) {
 					}
 					fakeDashSVC := mock.NewDashboardService()
 					svc := newTestService(
+						zaptest.NewLogger(t),
 						WithBucketSVC(fakeBktSVC),
 						WithLabelSVC(fakeLabelSVC),
 						WithDashboardSVC(fakeDashSVC),
@@ -587,7 +592,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithTelegrafSVC(fakeTeleSVC))
 
 					sum, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.NoError(t, err)
@@ -621,7 +626,7 @@ func TestService(t *testing.T) {
 
 					pkg.mTelegrafs = append(pkg.mTelegrafs, pkg.mTelegrafs[0])
 
-					svc := newTestService(WithTelegrafSVC(fakeTeleSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithTelegrafSVC(fakeTeleSVC))
 
 					orgID := influxdb.ID(9000)
 
@@ -645,6 +650,7 @@ func TestService(t *testing.T) {
 					}
 
 					svc := newTestService(
+						zaptest.NewLogger(t),
 						WithLabelSVC(mock.NewLabelService()),
 						WithVariableSVC(fakeVarSVC),
 					)
@@ -689,6 +695,7 @@ func TestService(t *testing.T) {
 					}
 
 					svc := newTestService(
+						zaptest.NewLogger(t),
 						WithLabelSVC(mock.NewLabelService()),
 						WithVariableSVC(fakeVarSVC),
 					)
@@ -736,6 +743,7 @@ func TestService(t *testing.T) {
 					}
 
 					svc := newTestService(
+						zaptest.NewLogger(t),
 						WithLabelSVC(mock.NewLabelService()),
 						WithVariableSVC(fakeVarSVC),
 					)
@@ -756,7 +764,7 @@ func TestService(t *testing.T) {
 
 	t.Run("CreatePkg", func(t *testing.T) {
 		t.Run("with metadata sets the new pkgs metadata", func(t *testing.T) {
-			svc := newTestService()
+			svc := newTestService(zaptest.NewLogger(t))
 
 			expectedMeta := Metadata{
 				Description: "desc",
@@ -803,7 +811,7 @@ func TestService(t *testing.T) {
 							return expected, nil
 						}
 
-						svc := newTestService(WithBucketSVC(bktSVC), WithLabelSVC(mock.NewLabelService()))
+						svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(bktSVC), WithLabelSVC(mock.NewLabelService()))
 
 						resToClone := ResourceToClone{
 							Kind: KindBucket,
@@ -1100,7 +1108,7 @@ func TestService(t *testing.T) {
 							return nil, errors.New("wrongo ids")
 						}
 
-						svc := newTestService(WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
+						svc := newTestService(zaptest.NewLogger(t), WithDashboardSVC(dashSVC), WithLabelSVC(mock.NewLabelService()))
 
 						resToClone := ResourceToClone{
 							Kind: KindDashboard,
@@ -1166,7 +1174,7 @@ func TestService(t *testing.T) {
 							return expectedLabel, nil
 						}
 
-						svc := newTestService(WithLabelSVC(labelSVC))
+						svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(labelSVC))
 
 						resToClone := ResourceToClone{
 							Kind: KindLabel,
@@ -1258,7 +1266,7 @@ func TestService(t *testing.T) {
 							return &tt.expectedVar, nil
 						}
 
-						svc := newTestService(WithVariableSVC(varSVC), WithLabelSVC(mock.NewLabelService()))
+						svc := newTestService(zaptest.NewLogger(t), WithVariableSVC(varSVC), WithLabelSVC(mock.NewLabelService()))
 
 						resToClone := ResourceToClone{
 							Kind: KindVariable,
@@ -1311,7 +1319,7 @@ func TestService(t *testing.T) {
 						}, nil
 					}
 
-					svc := newTestService(WithBucketSVC(bktSVC), WithLabelSVC(labelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(bktSVC), WithLabelSVC(labelSVC))
 
 					resToClone := ResourceToClone{
 						Kind: KindBucket,
@@ -1350,7 +1358,7 @@ func TestService(t *testing.T) {
 						}, nil
 					}
 
-					svc := newTestService(WithBucketSVC(bktSVC), WithLabelSVC(labelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithBucketSVC(bktSVC), WithLabelSVC(labelSVC))
 
 					resourcesToClone := []ResourceToClone{
 						{
@@ -1390,7 +1398,7 @@ func TestService(t *testing.T) {
 						return nil, errors.New("should not get here")
 					}
 
-					svc := newTestService(WithLabelSVC(labelSVC))
+					svc := newTestService(zaptest.NewLogger(t), WithLabelSVC(labelSVC))
 
 					resToClone := ResourceToClone{
 						Kind: KindLabel,
@@ -1474,6 +1482,7 @@ func TestService(t *testing.T) {
 			}
 
 			svc := newTestService(
+				zaptest.NewLogger(t),
 				WithBucketSVC(bktSVC),
 				WithDashboardSVC(dashSVC),
 				WithLabelSVC(labelSVC),

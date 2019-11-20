@@ -25,8 +25,6 @@ type SVC interface {
 }
 
 type serviceOpt struct {
-	logger *zap.Logger
-
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
 	dashSVC   influxdb.DashboardService
@@ -36,13 +34,6 @@ type serviceOpt struct {
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
 type ServiceSetterFn func(opt *serviceOpt)
-
-// WithLogger sets the service logger.
-func WithLogger(logger *zap.Logger) ServiceSetterFn {
-	return func(opt *serviceOpt) {
-		opt.logger = logger
-	}
-}
 
 // WithBucketSVC sets the bucket service.
 func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
@@ -92,16 +83,14 @@ type Service struct {
 }
 
 // NewService is a constructor for a pkger Service.
-func NewService(opts ...ServiceSetterFn) *Service {
-	opt := &serviceOpt{
-		logger: zap.NewNop(),
-	}
+func NewService(logger *zap.Logger, opts ...ServiceSetterFn) *Service {
+	opt := &serviceOpt{}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		logger:    opt.logger,
+		logger:    logger,
 		bucketSVC: opt.bucketSVC,
 		labelSVC:  opt.labelSVC,
 		dashSVC:   opt.dashSVC,

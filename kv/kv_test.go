@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/bolt"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
+	"go.uber.org/zap"
 )
 
 func NewTestBoltStore() (kv.Store, func(), error) {
@@ -19,7 +20,7 @@ func NewTestBoltStore() (kv.Store, func(), error) {
 	f.Close()
 
 	path := f.Name()
-	s := bolt.NewKVStore(path)
+	s := bolt.NewKVStore(zap.NewNop(), path)
 	if err := s.Open(context.Background()); err != nil {
 		return nil, nil, err
 	}

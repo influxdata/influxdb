@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/bolt"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,7 +30,7 @@ func NewTestClient() (*bolt.Client, func(), error) {
 }
 
 func newTestClient() (*bolt.Client, func(), error) {
-	c := bolt.NewClient()
+	c := bolt.NewClient(zap.NewNop())
 
 	f, err := ioutil.TempFile("", "influxdata-platform-bolt-")
 	if err != nil {
@@ -61,7 +62,7 @@ func TestClientOpen(t *testing.T) {
 
 	boltFile := filepath.Join(tempDir, "test", "bolt.db")
 
-	c := bolt.NewClient()
+	c := bolt.NewClient(zap.NewNop())
 	c.Path = boltFile
 
 	if err := c.Open(context.Background()); err != nil {
@@ -81,7 +82,7 @@ func NewTestKVStore() (*bolt.KVStore, func(), error) {
 	f.Close()
 
 	path := f.Name()
-	s := bolt.NewKVStore(path)
+	s := bolt.NewKVStore(zap.NewNop(), path)
 	if err := s.Open(context.TODO()); err != nil {
 		return nil, nil, err
 	}

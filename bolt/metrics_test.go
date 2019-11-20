@@ -7,6 +7,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
+	"go.uber.org/zap"
 )
 
 func TestInitialMetrics(t *testing.T) {
@@ -16,7 +17,7 @@ func TestInitialMetrics(t *testing.T) {
 	}
 	defer teardown()
 
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(client)
 
 	mfs, err := reg.Gather()
@@ -47,7 +48,7 @@ func TestMetrics_Onboarding(t *testing.T) {
 	}
 	defer teardown()
 
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(client)
 
 	ctx := context.Background()

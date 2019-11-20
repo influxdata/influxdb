@@ -158,22 +158,14 @@ func WithMaxConcurrency(ctx context.Context, d int) TickSchedulerOption {
 	}
 }
 
-// WithLogger sets the logger for the scheduler.
-// If not set, the scheduler will use a no-op logger.
-func WithLogger(logger *zap.Logger) TickSchedulerOption {
-	return func(s *TickScheduler) {
-		s.logger = logger.With(zap.String("svc", "taskd/scheduler"))
-	}
-}
-
 // NewScheduler returns a new scheduler with the given desired state and the given now UTC timestamp.
-func NewScheduler(taskControlService TaskControlService, executor Executor, now int64, opts ...TickSchedulerOption) *TickScheduler {
+func NewScheduler(logger *zap.Logger, taskControlService TaskControlService, executor Executor, now int64, opts ...TickSchedulerOption) *TickScheduler {
 	o := &TickScheduler{
 		taskControlService: taskControlService,
 		executor:           executor,
 		now:                now,
 		taskSchedulers:     make(map[platform.ID]*taskScheduler),
-		logger:             zap.NewNop(),
+		logger:             logger,
 		wg:                 &sync.WaitGroup{},
 		metrics:            newSchedulerMetrics(),
 		maxConcurrency:     1,

@@ -47,7 +47,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				Logger:  tt.fields.Logger,
 			}
 			h.initMetrics()
-			reg := prom.NewRegistry()
+			reg := prom.NewRegistry(zap.NewNop())
 			reg.MustRegister(h.PrometheusCollectors()...)
 
 			tt.args.r.Header.Set("User-Agent", "ua1")

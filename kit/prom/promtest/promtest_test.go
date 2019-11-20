@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	"go.uber.org/zap"
 )
 
 func helperCollectors() []prometheus.Collector {
@@ -36,7 +37,7 @@ func helperCollectors() []prometheus.Collector {
 }
 
 func TestFindMetric(t *testing.T) {
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(helperCollectors()...)
 
 	mfs, err := reg.Gather()
@@ -88,7 +89,7 @@ func (t *fakeT) Fatalf(format string, args ...interface{}) {
 }
 
 func TestMustFindMetric(t *testing.T) {
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(helperCollectors()...)
 
 	mfs, err := reg.Gather()
@@ -177,7 +178,7 @@ func TestMustGather(t *testing.T) {
 }
 
 func TestFromHTTPResponse(t *testing.T) {
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(helperCollectors()...)
 
 	s := httptest.NewServer(reg.HTTPHandler())

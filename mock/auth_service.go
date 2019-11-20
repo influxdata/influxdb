@@ -4,7 +4,6 @@ import (
 	"context"
 
 	platform "github.com/influxdata/influxdb"
-	"go.uber.org/zap"
 )
 
 // AuthorizationService is a mock implementation of a retention.AuthorizationService, which
@@ -13,7 +12,6 @@ type AuthorizationService struct {
 	// Methods for a retention.AuthorizationService
 	OpenFn       func() error
 	CloseFn      func() error
-	WithLoggerFn func(l *zap.Logger)
 
 	// Methods for an platform.AuthorizationService
 	FindAuthorizationByIDFn    func(context.Context, platform.ID) (*platform.Authorization, error)

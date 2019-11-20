@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -28,7 +29,7 @@ func TestPkgerHTTPServer(t *testing.T) {
 					ID: id,
 				}, nil
 			}
-			svc := pkger.NewService(pkger.WithLabelSVC(fakeLabelSVC))
+			svc := pkger.NewService(zap.NewNop(), pkger.WithLabelSVC(fakeLabelSVC))
 			pkgHandler := fluxTTP.NewHandlerPkg(fluxTTP.ErrorHandler(0), svc)
 			svr := newMountedHandler(pkgHandler)
 

@@ -22,10 +22,10 @@ type KVStore struct {
 
 // NewKVStore returns an instance of KVStore with the file at
 // the provided path.
-func NewKVStore(path string) *KVStore {
+func NewKVStore(logger *zap.Logger, path string) *KVStore {
 	return &KVStore{
 		path:   path,
-		logger: zap.NewNop(),
+		logger: logger,
 	}
 }
 
@@ -87,11 +87,6 @@ func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
 			s.cleanBucket(tx, b.Bucket(k))
 		}
 	}
-}
-
-// WithLogger sets the logger on the store.
-func (s *KVStore) WithLogger(l *zap.Logger) {
-	s.logger = l
 }
 
 // WithDB sets the boltdb on the store.

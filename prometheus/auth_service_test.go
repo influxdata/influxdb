@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/prometheus"
+	"go.uber.org/zap"
 )
 
 // authzSvc is a test helper that returns its Err from every method on the AuthorizationService interface.
@@ -47,7 +48,7 @@ func TestAuthorizationService_Metrics(t *testing.T) {
 
 	svc := prometheus.NewAuthorizationService()
 	svc.AuthorizationService = a
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(svc.PrometheusCollectors()...)
 
 	ctx := context.Background()

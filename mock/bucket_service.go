@@ -5,7 +5,6 @@ import (
 	"time"
 
 	platform "github.com/influxdata/influxdb"
-	"go.uber.org/zap"
 )
 
 // BucketService is a mock implementation of a retention.BucketService, which
@@ -14,7 +13,6 @@ type BucketService struct {
 	// Methods for a retention.BucketService
 	OpenFn       func() error
 	CloseFn      func() error
-	WithLoggerFn func(l *zap.Logger)
 
 	// Methods for an platform.BucketService
 	FindBucketByIDFn   func(context.Context, platform.ID) (*platform.Bucket, error)
@@ -32,7 +30,6 @@ func NewBucketService() *BucketService {
 	return &BucketService{
 		OpenFn:           func() error { return nil },
 		CloseFn:          func() error { return nil },
-		WithLoggerFn:     func(l *zap.Logger) {},
 		FindBucketByIDFn: func(context.Context, platform.ID) (*platform.Bucket, error) { return nil, nil },
 		FindBucketByNameFn: func(context.Context, platform.ID, string) (*platform.Bucket, error) {
 			return &platform.Bucket{
@@ -58,9 +55,6 @@ func (s *BucketService) Open() error { return s.OpenFn() }
 
 // Close closes the BucketService.
 func (s *BucketService) Close() error { return s.CloseFn() }
-
-// WithLogger sets the logger on the BucketService.
-func (s *BucketService) WithLogger(l *zap.Logger) { s.WithLoggerFn(l) }
 
 // FindBucketByID returns a single bucket by ID.
 func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {

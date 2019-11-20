@@ -481,9 +481,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		m.jaegerTracerCloser = closer
 	}
 
-	m.boltClient = bolt.NewClient()
+	m.boltClient = bolt.NewClient(m.logger.With(zap.String("service", "bolt")))
 	m.boltClient.Path = m.boltPath
-	m.boltClient.WithLogger(m.logger.With(zap.String("service", "bolt")))
 
 	if err := m.boltClient.Open(ctx); err != nil {
 		m.logger.Error("failed opening bolt", zap.Error(err))
@@ -497,7 +496,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	flushers := flushers{}
 	switch m.storeType {
 	case BoltStore:
-		store := bolt.NewKVStore(m.boltPath)
+		store := bolt.NewKVStore(m.logger.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
 		m.kvService = kv.NewService(store, serviceConfig)
 		if m.testing {
@@ -521,12 +520,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	m.reg = prom.NewRegistry()
+	m.reg = prom.NewRegistry(m.logger.With(zap.String("service", "prom_registry")))
 	m.reg.MustRegister(
 		prometheus.NewGoCollector(),
 		infprom.NewInfluxCollector(m.boltClient, info),
 	)
-	m.reg.WithLogger(m.logger)
 	m.reg.MustRegister(m.boltClient)
 
 	var (
@@ -692,7 +690,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			executor := taskexecutor.NewAsyncQueryServiceExecutor(m.logger.With(zap.String("service", "task-executor")), m.queryController, authSvc, combinedTaskService)
 
 			// create the scheduler
-			m.scheduler = taskbackend.NewScheduler(combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond), taskbackend.WithLogger(m.logger))
+			m.scheduler = taskbackend.NewScheduler(m.logger.With(zap.String("svc", "taskd/scheduler")), combinedTaskService, executor, time.Now().UTC().Unix(), taskbackend.WithTicker(ctx, 100*time.Millisecond))
 			m.scheduler.Start(ctx)
 			m.reg.MustRegister(m.scheduler.PrometheusCollectors()...)
 
@@ -847,7 +845,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	{
 		b := m.apibackend
 		pkgSVC = pkger.NewService(
-			pkger.WithLogger(m.logger.With(zap.String("service", "pkger"))),
+			m.logger.With(zap.String("service", "pkger")),
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),

@@ -27,17 +27,11 @@ type Registry struct {
 }
 
 // NewRegistry returns a new registry.
-func NewRegistry() *Registry {
+func NewRegistry(logger *zap.Logger) *Registry {
 	return &Registry{
 		Registry: prometheus.NewRegistry(),
-		logger:   zap.NewNop(),
+		logger:   logger,
 	}
-}
-
-// WithLogger sets the logger for the Registry.
-// The logger will print any errors that occur while serving metrics over HTTP.
-func (r *Registry) WithLogger(l *zap.Logger) {
-	r.logger = l.With(zap.String("service", "prom_registry"))
 }
 
 // HTTPHandler returns an http.Handler for the registry,

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -301,7 +302,7 @@ func testMetrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	mg := promtest.MustGather(t, reg)
@@ -433,7 +434,7 @@ func testErrorHandling(t *testing.T) {
 	tes := taskExecutorSystem(t)
 
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())

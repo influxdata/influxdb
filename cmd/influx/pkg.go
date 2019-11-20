@@ -24,6 +24,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -481,6 +482,7 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 
 func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 	return pkger.NewService(
+		zap.NewNop(),
 		pkger.WithBucketSVC(&ihttp.BucketService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
