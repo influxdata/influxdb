@@ -2,8 +2,11 @@
 
 ### Features
 
-1. [15805](https://github.com/influxdata/influxdb/pull/15924) Add tls insecure skip verify to influx CLI.
-2. [15981](https://github.com/influxdata/influxdb/pull/15981) Extend influx cli user create to allow for organization ID and user passwords to be set on user.
+1. [15805](https://github.com/influxdata/influxdb/pull/15924): Add tls insecure skip verify to influx CLI.
+1. [15981](https://github.com/influxdata/influxdb/pull/15981): Extend influx cli user create to allow for organization ID and user passwords to be set on user.
+1. [15983](https://github.com/influxdata/influxdb/pull/15983): Autopopulate organization ids in the code samples
+1. [15749](https://github.com/influxdata/influxdb/pull/15749): Expose bundle analysis tools for frontend resources
+1. [15674](https://github.com/influxdata/influxdb/pull/15674): Allow users to view just the output section of a telegraf config
 
 ### Bug Fixes
 
@@ -11,6 +14,9 @@
 1. [15713](https://github.com/influxdata/influxdb/pull/15713): Mock missing Flux dependencies when creating tasks
 1. [15731](https://github.com/influxdata/influxdb/pull/15731): Ensure array cursor iterator stats accumulate all cursor stats
 1. [15866](https://github.com/influxdata/influxdb/pull/15866): Do not show Members section in Cloud environments
+1. [15801](https://github.com/influxdata/influxdb/pull/15801): Change how cloud mode is enabled
+1. [15820](https://github.com/influxdata/influxdb/pull/15820): Merge frontend development environments
+1. [15944](https://github.com/influxdata/influxdb/pull/15944): Refactor table state logic on the frontend
 
 ### UI Improvements
 1. [15809](https://github.com/influxdata/influxdb/pull/15809): Redesign cards and animations on getting started page
