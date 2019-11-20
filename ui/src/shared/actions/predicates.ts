@@ -157,7 +157,8 @@ export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
 ) => {
   try {
     const query = `import "influxdata/influxdb/v1"
-    v1.tagKeys(bucket: "${bucketName}")`
+    v1.tagKeys(bucket: "${bucketName}")
+    |> filter(fn: (r) => r._value != "_stop" and r._value != "_start")`
     const keys = await extractBoxedCol(runQuery(orgID, query), '_value').promise
     dispatch(setBucketName(bucketName))
     dispatch(setKeys(keys))
