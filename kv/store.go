@@ -38,9 +38,12 @@ type Tx interface {
 	WithContext(ctx context.Context)
 }
 
+type KeyPredicateFunc func(key []byte) bool
+
 type CursorHints struct {
-	KeyPrefix *string
-	KeyStart  *string
+	KeyPrefix      *string
+	KeyStart       *string
+	KeyPredicateFn KeyPredicateFunc
 }
 
 // CursorHint configures CursorHints
@@ -61,6 +64,15 @@ func WithCursorHintPrefix(prefix string) CursorHint {
 func WithCursorHintKeyStart(start string) CursorHint {
 	return func(o *CursorHints) {
 		o.KeyStart = &start
+	}
+}
+
+// WithCursorHintKeyPredicate is a hint to the store
+// to return only key / values which return true for the
+// f.
+func WithCursorHintKeyPredicate(f KeyPredicateFunc) CursorHint {
+	return func(o *CursorHints) {
+		o.KeyPredicateFn = f
 	}
 }
 

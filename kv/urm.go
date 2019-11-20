@@ -97,10 +97,36 @@ func (s *Service) FindUserResourceMappings(ctx context.Context, filter influxdb.
 	return ms, len(ms), nil
 }
 
+func userResourceMappingPredicate(filter influxdb.UserResourceMappingFilter) KeyPredicateFunc {
+	switch {
+	case filter.ResourceID.Valid() && filter.UserID.Valid():
+		keyPredicate := filter.ResourceID.String() + filter.UserID.String()
+		return func(key []byte) bool {
+			return len(key) >= 32 && string(key[:32]) == keyPredicate
+		}
+
+	case !filter.ResourceID.Valid() && filter.UserID.Valid():
+		keyPredicate := filter.UserID.String()
+		return func(key []byte) bool {
+			return len(key) >= 32 && string(key[16:32]) == keyPredicate
+		}
+
+	case filter.ResourceID.Valid() && !filter.UserID.Valid():
+		keyPredicate := filter.ResourceID.String()
+		return func(key []byte) bool {
+			return len(key) >= 16 && string(key[:16]) == keyPredicate
+		}
+
+	default:
+		return nil
+	}
+}
+
 func (s *Service) findUserResourceMappings(ctx context.Context, tx Tx, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, error) {
 	ms := []*influxdb.UserResourceMapping{}
+	keyPred := userResourceMappingPredicate(filter)
 	filterFn := filterMappingsFn(filter)
-	err := s.forEachUserResourceMapping(ctx, tx, func(m *influxdb.UserResourceMapping) bool {
+	err := s.forEachUserResourceMapping(ctx, tx, keyPred, func(m *influxdb.UserResourceMapping) bool {
 		if filterFn(m) {
 			ms = append(ms, m)
 		}
@@ -209,13 +235,17 @@ func userResourceKey(m *influxdb.UserResourceMapping) ([]byte, error) {
 	return key, nil
 }
 
-func (s *Service) forEachUserResourceMapping(ctx context.Context, tx Tx, fn func(*influxdb.UserResourceMapping) bool) error {
+func (s *Service) forEachUserResourceMapping(ctx context.Context, tx Tx, pred KeyPredicateFunc, fn func(*influxdb.UserResourceMapping) bool) error {
 	b, err := tx.Bucket(urmBucket)
 	if err != nil {
 		return UnavailableURMServiceError(err)
 	}
-
-	cur, err := b.Cursor()
+	var cur Cursor
+	if pred != nil {
+		cur, err = b.Cursor(WithCursorHintKeyPredicate(pred))
+	} else {
+		cur, err = b.Cursor()
+	}
 	if err != nil {
 		return UnavailableURMServiceError(err)
 	}
