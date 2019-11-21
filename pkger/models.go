@@ -101,6 +101,30 @@ type Diff struct {
 	Variables     []DiffVariable     `json:"variables"`
 }
 
+// HasConflicts provides a binary t/f if there are any changes within package
+// after dry run is complete.
+func (d Diff) HasConflicts() bool {
+	for _, b := range d.Buckets {
+		if b.hasConflict() {
+			return true
+		}
+	}
+
+	for _, l := range d.Labels {
+		if l.hasConflict() {
+			return true
+		}
+	}
+
+	for _, v := range d.Variables {
+		if v.hasConflict() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
 	ID           SafeID        `json:"id"`
@@ -114,6 +138,10 @@ type DiffBucket struct {
 // IsNew indicates whether a pkg bucket is going to be new to the platform.
 func (d DiffBucket) IsNew() bool {
 	return d.ID == SafeID(0)
+}
+
+func (d DiffBucket) hasConflict() bool {
+	return !(d.IsNew() || d.NewDesc == d.OldDesc && d.NewRetention == d.OldRetention)
 }
 
 func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
@@ -170,6 +198,10 @@ func (d DiffLabel) IsNew() bool {
 	return d.ID == SafeID(0)
 }
 
+func (d DiffLabel) hasConflict() bool {
+	return !(d.IsNew() || d.NewDesc == d.OldDesc || d.NewColor == d.OldColor)
+}
+
 func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
 	return DiffLabel{
 		ID:       SafeID(i.ID),
@@ -220,6 +252,24 @@ func newDiffVariable(v *variable, iv influxdb.Variable) DiffVariable {
 // IsNew indicates whether a pkg variable is going to be new to the platform.
 func (d DiffVariable) IsNew() bool {
 	return d.ID == SafeID(0)
+}
+
+func (d DiffVariable) hasConflict() bool {
+	if d.IsNew() {
+		return false
+	}
+	if d.NewDesc != d.OldDesc {
+		return true
+	}
+
+	oArg, nArg := d.OldArgs, d.NewArgs
+	if oArg == nil && nArg == nil {
+		return false
+	}
+	if oArg != nil && nArg == nil || oArg == nil && nArg != nil {
+		return true
+	}
+	return *oArg != *nArg
 }
 
 // Summary is a definition of all the resources that have or
