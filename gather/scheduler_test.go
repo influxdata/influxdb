@@ -43,12 +43,11 @@ func TestScheduler(t *testing.T) {
 	}
 
 	subscriber.Subscribe(MetricsSubject, "", &RecorderHandler{
-		Logger:   logger,
+		logger:   logger,
 		Recorder: storage,
 	})
 
-	scheduler, err := NewScheduler(10, logger,
-		storage, publisher, subscriber, time.Millisecond, time.Microsecond)
+	scheduler, err := NewScheduler(logger, 10, storage, publisher, subscriber, time.Millisecond, time.Microsecond)
 
 	go func() {
 		err = scheduler.run(ctx)

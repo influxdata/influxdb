@@ -32,7 +32,7 @@ var (
 type PushGateway struct {
 	Timeout  time.Duration // handler returns after this duration with an error; defaults to 5 seconds
 	MaxBytes int64         // maximum number of bytes to read from the body; defaults to 1024000
-	Logger   *zap.Logger
+	logger   *zap.Logger
 
 	Store        Store
 	Transformers []prometheus.Transformer
@@ -48,7 +48,7 @@ func NewPushGateway(logger *zap.Logger, store Store, xforms ...prometheus.Transf
 	return &PushGateway{
 		Store:        store,
 		Transformers: xforms,
-		Logger:       logger,
+		logger:       logger,
 		Timeout:      DefaultTimeout,
 		MaxBytes:     DefaultMaxBytes,
 	}
@@ -98,20 +98,20 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 
 	format, err := metricsFormat(r.Header)
 	if err != nil {
-		p.Logger.Error("metrics format not support", zap.Error(err))
+		p.logger.Error("metrics format not support", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	mfs, err := decodePostMetricsRequest(r.Body, format, p.MaxBytes)
 	if err != nil {
-		p.Logger.Error("unable to decode metrics", zap.Error(err))
+		p.logger.Error("unable to decode metrics", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if err := valid(mfs); err != nil {
-		p.Logger.Error("invalid metrics", zap.Error(err))
+		p.logger.Error("invalid metrics", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -122,13 +122,13 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := p.Encoder.Encode(mfs)
 	if err != nil {
-		p.Logger.Error("unable to encode metric families", zap.Error(err))
+		p.logger.Error("unable to encode metric families", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if err := p.Store.WriteMessage(ctx, data); err != nil {
-		p.Logger.Error("unable to write to store", zap.Error(err))
+		p.logger.Error("unable to write to store", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

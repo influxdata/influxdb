@@ -8,10 +8,10 @@ type Handler interface {
 }
 
 type LogHandler struct {
-	Logger *zap.Logger
+	logger *zap.Logger
 }
 
 func (lh *LogHandler) Process(s Subscription, m Message) {
-	lh.Logger.Info(string(m.Data()))
+	lh.logger.Info(string(m.Data()))
 	m.Ack()
 }

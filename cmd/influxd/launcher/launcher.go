@@ -92,9 +92,8 @@ func NewCommand() *cobra.Command {
 
 			var wg sync.WaitGroup
 			if !l.ReportingDisabled() {
-				reporter := telemetry.NewReporter(l.Registry())
+				reporter := telemetry.NewReporter(l.Logger(), l.Registry())
 				reporter.Interval = 8 * time.Hour
-				reporter.Logger = l.Logger()
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
@@ -460,9 +459,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	switch m.tracingType {
 	case LogTracing:
 		m.logger.Info("tracing via zap logging")
-		tracer := new(pzap.Tracer)
-		tracer.Logger = m.logger
-		tracer.IDGenerator = snowflake.NewIDGenerator()
+		tracer := pzap.NewTracer(m.logger, snowflake.NewIDGenerator())
 		opentracing.SetGlobalTracer(tracer)
 
 	case JaegerTracing:
@@ -756,7 +753,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	publisher := nats.NewAsyncPublisher(fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
+	publisher := nats.NewAsyncPublisher(m.logger, fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
 	if err := publisher.Open(); err != nil {
 		m.logger.Error("failed to connect to streaming server", zap.Error(err))
 		return err
@@ -769,13 +766,8 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	subscriber.Subscribe(gather.MetricsSubject, "metrics", &gather.RecorderHandler{
-		Logger: m.logger,
-		Recorder: gather.PointWriter{
-			Writer: pointsWriter,
-		},
-	})
-	scraperScheduler, err := gather.NewScheduler(10, m.logger, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
+	subscriber.Subscribe(gather.MetricsSubject, "metrics", gather.NewRecorderHandler(m.logger, gather.PointWriter{Writer: pointsWriter}))
+	scraperScheduler, err := gather.NewScheduler(m.logger, 10, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
 	if err != nil {
 		m.logger.Error("failed to create scraper subscriber", zap.Error(err))
 		return err

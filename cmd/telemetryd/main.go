@@ -49,9 +49,7 @@ func main() {
 
 func run() error {
 	logger := logger.With(zap.String("service", "telemetryd"))
-	store := &telemetry.LogStore{
-		Logger: logger,
-	}
+	store := telemetry.NewLogStore(logger)
 	svc := telemetry.NewPushGateway(logger, store)
 	// Print data as line protocol
 	svc.Encoder = &prometheus.LineProtocol{}

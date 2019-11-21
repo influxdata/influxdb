@@ -30,15 +30,15 @@ type Scheduler struct {
 	// Publisher will send the gather requests and gathered metrics to the queue.
 	Publisher nats.Publisher
 
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	gather chan struct{}
 }
 
 // NewScheduler creates a new Scheduler and subscriptions for scraper jobs.
 func NewScheduler(
+	logger *zap.Logger,
 	numScrapers int,
-	l *zap.Logger,
 	targets influxdb.ScraperTargetStoreService,
 	p nats.Publisher,
 	s nats.Subscriber,
@@ -56,7 +56,7 @@ func NewScheduler(
 		Interval:  interval,
 		Timeout:   timeout,
 		Publisher: p,
-		Logger:    l,
+		logger:    logger,
 		gather:    make(chan struct{}, 100),
 	}
 
@@ -64,7 +64,7 @@ func NewScheduler(
 		err := s.Subscribe(promTargetSubject, "metrics", &handler{
 			Scraper:   new(prometheusScraper),
 			Publisher: p,
-			Logger:    l,
+			logger:    logger,
 		})
 		if err != nil {
 			return nil, err
@@ -109,13 +109,13 @@ func (s *Scheduler) doGather(ctx context.Context) {
 
 	targets, err := s.Targets.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 	if err != nil {
-		s.Logger.Error("cannot list targets", zap.Error(err))
+		s.logger.Error("cannot list targets", zap.Error(err))
 		tracing.LogError(span, err)
 		return
 	}
 	for _, target := range targets {
 		if err := requestScrape(target, s.Publisher); err != nil {
-			s.Logger.Error("json encoding error", zap.Error(err))
+			s.logger.Error("json encoding error", zap.Error(err))
 			tracing.LogError(span, err)
 		}
 	}

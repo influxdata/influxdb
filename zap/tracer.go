@@ -29,8 +29,15 @@ const (
 
 // Tracer implements opentracing.Tracer and logs each span as its own log.
 type Tracer struct {
-	Logger      *zap.Logger
-	IDGenerator platform.IDGenerator
+	logger      *zap.Logger
+	idGenerator platform.IDGenerator
+}
+
+func NewTracer(logger *zap.Logger, idGenerator platform.IDGenerator) *Tracer {
+	return &Tracer{
+		logger:      logger,
+		idGenerator: idGenerator,
+	}
 }
 
 func (t *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
@@ -41,7 +48,7 @@ func (t *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanOp
 		opt.Apply(startOpts)
 	}
 	ctx := newSpanContext()
-	ctx.spanID = t.IDGenerator.ID()
+	ctx.spanID = t.idGenerator.ID()
 	for _, ref := range startOpts.References {
 		refCtx, ok := ref.ReferencedContext.(SpanContext)
 		if ok {
@@ -50,7 +57,7 @@ func (t *Tracer) StartSpan(operationName string, opts ...opentracing.StartSpanOp
 		}
 	}
 	if !ctx.traceID.Valid() {
-		ctx.traceID = t.IDGenerator.ID()
+		ctx.traceID = t.idGenerator.ID()
 	}
 	return &Span{
 		tracer: t,
@@ -116,7 +123,7 @@ func (t *Tracer) Extract(format interface{}, carrier interface{}) (opentracing.S
 		return nil, fmt.Errorf("unsupported format %v", format)
 	}
 	if !ctx.traceID.Valid() {
-		ctx.traceID = t.IDGenerator.ID()
+		ctx.traceID = t.idGenerator.ID()
 	}
 	if !ctx.spanID.Valid() {
 		return nil, errors.New("no span ID found in carrier")
@@ -188,7 +195,7 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	for k, v := range s.ctx.baggage {
 		fields = append(fields, zap.String(k, v))
 	}
-	s.tracer.Logger.Info(s.opName, fields...)
+	s.tracer.logger.Info(s.opName, fields...)
 }
 
 func (s *Span) Context() opentracing.SpanContext {
