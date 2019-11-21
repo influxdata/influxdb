@@ -105,10 +105,11 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 
 // BucketFindFlags define the Find Command
 type BucketFindFlags struct {
-	name  string
-	id    string
-	org   string
-	orgID string
+	name    string
+	id      string
+	org     string
+	orgID   string
+	headers bool
 }
 
 var bucketFindFlags BucketFindFlags
@@ -124,6 +125,7 @@ func init() {
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.id, "id", "i", "", "The bucket ID")
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.orgID, "org-id", "", "", "The bucket organization ID")
 	bucketFindCmd.Flags().StringVarP(&bucketFindFlags.org, "org", "o", "", "The bucket organization name")
+	bucketFindCmd.Flags().BoolVar(&bucketFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	bucketCmd.AddCommand(bucketFindCmd)
 }
@@ -169,6 +171,7 @@ func bucketFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	w := internal.NewTabWriter(os.Stdout)
+	w.HideHeaders(!bucketFindFlags.headers)
 	w.WriteHeaders(
 		"ID",
 		"Name",
