@@ -30,11 +30,11 @@ export default function(monaco) {
       },
       {
         token: 'constant.time',
-        foreground: '#6BDFFF'
+        foreground: '#6BDFFF',
       },
       {
         token: 'constant.numeric',
-        foreground: '#6BDFFF'
+        foreground: '#6BDFFF',
       },
       {
         token: 'constant.language',
