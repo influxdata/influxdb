@@ -28,11 +28,12 @@ import (
 
 type pkgSVCFn func(cliReq httpClientOpts) (pkger.SVC, error)
 
-func pkgCmd(newSVCFn pkgSVCFn) *cobra.Command {
-	cmd := pkgApplyCmd(newSVCFn)
+func cmdPkg(newSVCFn pkgSVCFn) *cobra.Command {
+	cmd := cmdPkgApply(newSVCFn)
 	cmd.AddCommand(
-		pkgNewCmd(newSVCFn),
-		pkgExportCmd(newSVCFn),
+		cmdPkgNew(newSVCFn),
+		cmdPkgExport(newSVCFn),
+		cmdPkgValidate(),
 	)
 	return cmd
 }
@@ -43,7 +44,7 @@ type pkgApplyOpts struct {
 	quiet, forceOnConflict    bool
 }
 
-func pkgApplyCmd(newSVCFn pkgSVCFn) *cobra.Command {
+func cmdPkgApply(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pkg",
 		Short: "Apply a pkg to create resources",
@@ -66,6 +67,18 @@ func pkgApplyCmd(newSVCFn pkgSVCFn) *cobra.Command {
 	return cmd
 }
 
+func readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
+	if stdin, _ := readStdIn(); stdin != nil {
+		pkg, err := pkgFromStdIn(stdin)
+		return pkg, true, err
+	}
+	if file == "" {
+		return nil, false, errors.New("a file path is required when not using a TTY input")
+	}
+	pkg, err := pkgFromFile(file)
+	return pkg, false, err
+}
+
 func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
 		if !opts.hasColor {
@@ -82,19 +95,7 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, 
 			return err
 		}
 
-		var (
-			pkg   *pkger.Pkg
-			isTTY bool
-		)
-		if stdin, _ := readStdIn(); stdin != nil {
-			isTTY = true
-			pkg, err = pkgFromStdIn(stdin)
-		} else {
-			if opts.file == "" {
-				return errors.New("a file path is required when not using a TTY input")
-			}
-			pkg, err = pkgFromFile(opts.file)
-		}
+		pkg, isTTY, err := readPkgStdInOrFile(opts.file)
 		if err != nil {
 			return err
 		}
@@ -138,7 +139,7 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, 
 	}
 }
 
-func pkgNewCmd(newSVCFn pkgSVCFn) *cobra.Command {
+func cmdPkgNew(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "Create a reusable pkg to create resources in a declarative manner",
@@ -201,12 +202,12 @@ type pkgExportOpts struct {
 	variables    string
 }
 
-func pkgExportCmd(newSVCFn pkgSVCFn) *cobra.Command {
+func cmdPkgExport(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "export",
 		Short: "Export existing resources as a package",
 	}
-	cmd.AddCommand(pkgExportAllCmd(newSVCFn))
+	cmd.AddCommand(cmdPkgExportAll(newSVCFn))
 
 	var opts pkgExportOpts
 	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -288,7 +289,7 @@ func getResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn
 	return pkger.CreateWithExistingResources(resources...), nil
 }
 
-func pkgExportAllCmd(newSVCFn pkgSVCFn) *cobra.Command {
+func cmdPkgExportAll(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "all",
 		Short: "Export all existing resources for an organization as a package",
@@ -323,6 +324,25 @@ func pkgExportAllRunEFn(newSVCFn pkgSVCFn, opt *pkgNewOpts) func(*cobra.Command,
 
 		return writePkg(cmd.OutOrStdout(), pkgSVC, opt.outPath, opts...)
 	}
+}
+
+func cmdPkgValidate() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "validate",
+		Short: "Validate the provided package",
+	}
+
+	inPath := cmd.Flags().StringP("file", "f", "", "input file for pkg; if none provided will use TTY input")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		pkg, _, err := readPkgStdInOrFile(*inPath)
+		if err != nil {
+			return err
+		}
+		return pkg.Validate()
+	}
+
+	return cmd
 }
 
 func readStdIn() (*os.File, error) {
