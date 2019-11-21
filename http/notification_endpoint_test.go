@@ -24,7 +24,7 @@ import (
 // NewMockNotificationEndpointBackend returns a NotificationEndpointBackend with mock services.
 func NewMockNotificationEndpointBackend() *NotificationEndpointBackend {
 	return &NotificationEndpointBackend{
-		logger: zap.NewNop().With(zap.String("handler", "notification endpoint")),
+		log: zap.NewNop().With(zap.String("handler", "notification endpoint")),
 
 		NotificationEndpointService: &mock.NotificationEndpointService{},
 		UserResourceMappingService:  mock.NewUserResourceMappingService(),

@@ -52,7 +52,7 @@ func (c *Client) ID() platform.ID {
 	})
 
 	if err != nil {
-		c.logger.Error("unable to load id", zap.Error(err))
+		c.log.Error("unable to load id", zap.Error(err))
 	}
 
 	return id

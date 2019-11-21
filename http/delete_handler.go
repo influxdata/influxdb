@@ -19,7 +19,7 @@ import (
 // DeleteBackend is all services and associated parameters required to construct
 // the DeleteHandler.
 type DeleteBackend struct {
-	logger *zap.Logger
+	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
 	DeleteService       influxdb.DeleteService
@@ -28,9 +28,9 @@ type DeleteBackend struct {
 }
 
 // NewDeleteBackend returns a new instance of DeleteBackend
-func NewDeleteBackend(logger *zap.Logger, b *APIBackend) *DeleteBackend {
+func NewDeleteBackend(log *zap.Logger, b *APIBackend) *DeleteBackend {
 	return &DeleteBackend{
-		logger: logger,
+		log: log,
 
 		HTTPErrorHandler:    b.HTTPErrorHandler,
 		DeleteService:       b.DeleteService,
@@ -44,7 +44,7 @@ type DeleteHandler struct {
 	influxdb.HTTPErrorHandler
 	*httprouter.Router
 
-	logger *zap.Logger
+	log *zap.Logger
 
 	DeleteService       influxdb.DeleteService
 	BucketService       influxdb.BucketService
@@ -56,11 +56,11 @@ const (
 )
 
 // NewDeleteHandler creates a new handler at /api/v2/delete to recieve delete requests.
-func NewDeleteHandler(logger *zap.Logger, b *DeleteBackend) *DeleteHandler {
+func NewDeleteHandler(log *zap.Logger, b *DeleteBackend) *DeleteHandler {
 	h := &DeleteHandler{
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		Router:           NewRouter(b.HTTPErrorHandler),
-		logger:           logger,
+		log:              log,
 
 		BucketService:       b.BucketService,
 		DeleteService:       b.DeleteService,
@@ -126,7 +126,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("deleted",
+	h.log.Debug("deleted",
 		zap.String("orgID", fmt.Sprint(dr.Org.ID.String())),
 		zap.String("buketID", fmt.Sprint(dr.Bucket.ID.String())),
 	)

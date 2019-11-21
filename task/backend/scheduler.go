@@ -159,13 +159,13 @@ func WithMaxConcurrency(ctx context.Context, d int) TickSchedulerOption {
 }
 
 // NewScheduler returns a new scheduler with the given desired state and the given now UTC timestamp.
-func NewScheduler(logger *zap.Logger, taskControlService TaskControlService, executor Executor, now int64, opts ...TickSchedulerOption) *TickScheduler {
+func NewScheduler(log *zap.Logger, taskControlService TaskControlService, executor Executor, now int64, opts ...TickSchedulerOption) *TickScheduler {
 	o := &TickScheduler{
 		taskControlService: taskControlService,
 		executor:           executor,
 		now:                now,
 		taskSchedulers:     make(map[platform.ID]*taskScheduler),
-		logger:             logger,
+		log:                log,
 		wg:                 &sync.WaitGroup{},
 		metrics:            newSchedulerMetrics(),
 		maxConcurrency:     1,
@@ -185,7 +185,7 @@ type TickScheduler struct {
 	executor           Executor
 
 	maxConcurrency int
-	logger         *zap.Logger
+	log            *zap.Logger
 
 	metrics *schedulerMetrics
 
@@ -246,7 +246,7 @@ func (s *TickScheduler) Tick(now int64) {
 		}
 	}
 	// TODO(mr): find a way to emit a more useful / less annoying tick message, maybe aggregated over the past 10s or 30s?
-	s.logger.Debug("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
+	s.log.Debug("Ticked", zap.Int64("now", now), zap.Int("tasks_affected", affected))
 }
 
 func (s *TickScheduler) Start(ctx context.Context) {
@@ -385,7 +385,7 @@ func (s *TickScheduler) UpdateTask(authCtx context.Context, task *platform.Task)
 		if maxC > len(ts.runners) {
 			delta := maxC - len(ts.runners)
 			for i := 0; i < delta; i++ {
-				ts.runners = append(ts.runners, newRunner(s.ctx, authCtx, ts.wg, s.logger, task, s.taskControlService, s.executor, ts))
+				ts.runners = append(ts.runners, newRunner(s.ctx, authCtx, ts.wg, s.log, task, s.taskControlService, s.executor, ts))
 			}
 		}
 		ts.runningMu.Unlock()
@@ -443,7 +443,7 @@ type taskScheduler struct {
 	running   map[platform.ID]runCtx
 	runningMu sync.Mutex
 
-	logger *zap.Logger
+	log *zap.Logger
 
 	metrics *schedulerMetrics
 
@@ -489,7 +489,7 @@ func newTaskScheduler(
 		wg:            wg,
 		runners:       make([]*runner, maxC),
 		running:       make(map[platform.ID]runCtx, maxC),
-		logger:        s.logger.With(zap.String("task_id", task.ID.String())),
+		log:           s.log.With(zap.String("task_id", task.ID.String())),
 		metrics:       s.metrics,
 		nextDue:       firstDue,
 		nextDueSource: math.MinInt64,
@@ -497,7 +497,7 @@ func newTaskScheduler(
 	}
 
 	for i := range ts.runners {
-		logger := ts.logger.With(zap.Int("run_slot", i))
+		logger := ts.log.With(zap.Int("run_slot", i))
 		ts.runners[i] = newRunner(ctx, authCtx, wg, logger, task, s.taskControlService, s.executor, ts)
 	}
 
@@ -582,14 +582,14 @@ type runner struct {
 	// Parent taskScheduler.
 	ts *taskScheduler
 
-	logger *zap.Logger
+	log *zap.Logger
 }
 
 func newRunner(
 	ctx context.Context,
 	authCtx context.Context,
 	wg *sync.WaitGroup,
-	logger *zap.Logger,
+	log *zap.Logger,
 	task *platform.Task,
 	taskControlService TaskControlService,
 	executor Executor,
@@ -604,7 +604,7 @@ func newRunner(
 		taskControlService: taskControlService,
 		executor:           executor,
 		ts:                 ts,
-		logger:             logger,
+		log:                log,
 	}
 }
 
@@ -644,7 +644,7 @@ func (r *runner) RestartRun(qr QueuedRun) bool {
 		return false
 	}
 	// create a QueuedRun because we cant stm.CreateNextRun
-	runLogger := r.logger.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
+	runLogger := r.log.With(zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 	r.wg.Add(1)
 	r.ts.runningMu.Lock()
 	rCtx, ok := r.ts.running[qr.RunID]
@@ -675,7 +675,7 @@ func (r *runner) startFromWorking(now int64) {
 	ctx, cancel := context.WithCancel(ctx)
 	rc, err := r.taskControlService.CreateNextRun(ctx, r.task.ID, now)
 	if err != nil {
-		r.logger.Info("Failed to create run", zap.Error(err))
+		r.log.Info("Failed to create run", zap.Error(err))
 		atomic.StoreUint32(r.state, runnerIdle)
 		cancel() // cancel to prevent context leak
 		return
@@ -689,7 +689,7 @@ func (r *runner) startFromWorking(now int64) {
 	// Create a new child logger for the individual run.
 	// We can't do r.logger = r.logger.With(zap.String("run_id", qr.RunID.String()) because zap doesn't deduplicate fields,
 	// and we'll quickly end up with many run_ids associated with the log.
-	runLogger := r.logger.With(logger.TraceID(ctx), zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
+	runLogger := r.log.With(logger.TraceID(ctx), zap.String("run_id", qr.RunID.String()), zap.Int64("now", qr.Now))
 
 	runLogger.Debug("Created run; beginning execution")
 	r.wg.Add(1)
@@ -705,17 +705,17 @@ func (r *runner) clearRunning(id platform.ID) {
 }
 
 // fail sets r's state to failed, and marks this runner as idle.
-func (r *runner) fail(qr QueuedRun, runLogger *zap.Logger, stage string, reason error) {
+func (r *runner) fail(qr QueuedRun, runLog *zap.Logger, stage string, reason error) {
 	if err := r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), stage+": "+reason.Error()); err != nil {
-		runLogger.Info("Failed to update run log", zap.Error(err))
+		runLog.Info("Failed to update run log", zap.Error(err))
 	}
 
-	r.updateRunState(qr, RunFail, runLogger, reason)
+	r.updateRunState(qr, RunFail, runLog, reason)
 	atomic.StoreUint32(r.state, runnerIdle)
 }
 
-func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *zap.Logger) {
-	r.updateRunState(qr, RunStarted, runLogger, nil)
+func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLog *zap.Logger) {
+	r.updateRunState(qr, RunStarted, runLog, nil)
 	qr.startedAt = time.Now()
 	defer r.wg.Done()
 	errMsg := "Failed to finish run"
@@ -723,7 +723,7 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		if _, err := r.taskControlService.FinishRun(r.authCtx, qr.TaskID, qr.RunID); err != nil {
 			// TODO(mr): Need to figure out how to reconcile this error, on the next run, if it happens.
 
-			runLogger.Error(errMsg, zap.Error(err))
+			runLog.Error(errMsg, zap.Error(err))
 
 			atomic.StoreUint32(r.state, runnerIdle)
 		}
@@ -734,11 +734,11 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 
 	rp, err := r.executor.Execute(spCtx, qr)
 	if err != nil {
-		runLogger.Info("Failed to begin run execution", zap.Error(err))
+		runLog.Info("Failed to begin run execution", zap.Error(err))
 		errMsg = "Beginning run execution failed, " + errMsg
 		// TODO(mr): retry?
 
-		r.fail(qr, runLogger, "Run failed to begin execution", influxdb.ErrRunExecutionError(err))
+		r.fail(qr, runLog, "Run failed to begin execution", influxdb.ErrRunExecutionError(err))
 		return
 	}
 
@@ -764,25 +764,25 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 	close(ready)
 	if err != nil {
 		if err == platform.ErrRunCanceled {
-			r.updateRunState(qr, RunCanceled, runLogger, err)
+			r.updateRunState(qr, RunCanceled, runLog, err)
 			errMsg = "Waiting for execution result failed, " + errMsg
 			// Move on to the next execution, for a canceled run.
 			r.startFromWorking(atomic.LoadInt64(r.ts.now))
 			return
 		}
 
-		runLogger.Info("Failed to wait for execution result", zap.Error(err))
+		runLog.Info("Failed to wait for execution result", zap.Error(err))
 
 		// TODO(mr): retry?
-		r.fail(qr, runLogger, "Waiting for execution result", influxdb.ErrRunExecutionError(err))
+		r.fail(qr, runLog, "Waiting for execution result", influxdb.ErrRunExecutionError(err))
 		return
 	}
 	if err := rr.Err(); err != nil {
-		runLogger.Info("Run failed to execute", zap.Error(err))
+		runLog.Info("Run failed to execute", zap.Error(err))
 		errMsg = "Run failed to execute, " + errMsg
 
 		// TODO(mr): retry?
-		r.fail(qr, runLogger, "Run failed to execute", influxdb.ErrRunExecutionError(err))
+		r.fail(qr, runLog, "Run failed to execute", influxdb.ErrRunExecutionError(err))
 		return
 	}
 
@@ -798,14 +798,14 @@ func (r *runner) executeAndWait(ctx context.Context, qr QueuedRun, runLogger *za
 		r.ts.nextDueMu.RUnlock()
 		r.taskControlService.AddRunLog(authCtx, r.task.ID, qr.RunID, time.Now(), string(b))
 	}
-	r.updateRunState(qr, RunSuccess, runLogger, err)
-	runLogger.Debug("Execution succeeded")
+	r.updateRunState(qr, RunSuccess, runLog, err)
+	runLog.Debug("Execution succeeded")
 
 	// Check again if there is a new run available, without returning to idle state.
 	r.startFromWorking(atomic.LoadInt64(r.ts.now))
 }
 
-func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger, err error) {
+func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLog *zap.Logger, err error) {
 	switch s {
 	case RunStarted:
 		dueAt := time.Unix(qr.DueAt, 0)
@@ -822,13 +822,13 @@ func (r *runner) updateRunState(qr QueuedRun, s RunStatus, runLogger *zap.Logger
 		r.taskControlService.AddRunLog(r.ts.authCtx, r.task.ID, qr.RunID, time.Now(), "Canceled")
 	default: // We are deliberately not handling RunQueued yet.
 		// There is not really a notion of being queued in this runner architecture.
-		runLogger.Warn("Unhandled run state", zap.Stringer("state", s))
+		runLog.Warn("Unhandled run state", zap.Stringer("state", s))
 	}
 	if err != nil {
 		r.ts.metrics.LogError(err)
 	}
 
 	if err := r.taskControlService.UpdateRunState(r.ctx, r.task.ID, qr.RunID, time.Now(), s); err != nil {
-		runLogger.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
+		runLog.Info("Error updating run state", zap.Stringer("state", s), zap.Error(err))
 	}
 }

@@ -508,7 +508,7 @@ func (s *Service) deleteNotificationRule(ctx context.Context, tx Tx, id influxdb
 	}); err != nil {
 		// TODO(desa): it is possible that there were no user resource mappings for a resource so this likely shouldn't be a blocking
 		// condition for deleting a notification rule.
-		s.logger.Info("failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
+		s.log.Info("failed to remove user resource mappings for notification rule", zap.Error(err), zap.Stringer("rule_id", id))
 	}
 
 	return nil

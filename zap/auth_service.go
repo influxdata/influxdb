@@ -11,7 +11,7 @@ var _ platform.AuthorizationService = (*AuthorizationService)(nil)
 
 // AuthorizationService manages authorizations.
 type AuthorizationService struct {
-	logger               *zap.Logger
+	log                  *zap.Logger
 	AuthorizationService platform.AuthorizationService
 }
 
@@ -19,7 +19,7 @@ type AuthorizationService struct {
 func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
 	defer func() {
 		if err != nil {
-			s.logger.Info("error finding authorization by id", zap.Error(err))
+			s.log.Info("error finding authorization by id", zap.Error(err))
 		}
 	}()
 
@@ -30,7 +30,7 @@ func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id pla
 func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t string) (a *platform.Authorization, err error) {
 	defer func() {
 		if err != nil {
-			s.logger.Info("error finding authorization by token", zap.Error(err))
+			s.log.Info("error finding authorization by token", zap.Error(err))
 		}
 	}()
 
@@ -41,7 +41,7 @@ func (s *AuthorizationService) FindAuthorizationByToken(ctx context.Context, t s
 func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter platform.AuthorizationFilter, opt ...platform.FindOptions) (as []*platform.Authorization, i int, err error) {
 	defer func() {
 		if err != nil {
-			s.logger.Info("error finding authorizations", zap.Error(err))
+			s.log.Info("error finding authorizations", zap.Error(err))
 		}
 	}()
 
@@ -52,7 +52,7 @@ func (s *AuthorizationService) FindAuthorizations(ctx context.Context, filter pl
 func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platform.Authorization) (err error) {
 	defer func() {
 		if err != nil {
-			s.logger.Info("error creating authorization", zap.Error(err))
+			s.log.Info("error creating authorization", zap.Error(err))
 		}
 	}()
 
@@ -63,7 +63,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
 	defer func() {
 		if err != nil {
-			s.logger.Info("error deleting authorization", zap.Error(err))
+			s.log.Info("error deleting authorization", zap.Error(err))
 		}
 	}()
 
@@ -74,7 +74,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
 	defer func() {
 		if err != nil {
-			s.logger.Info("error updating authorization", zap.Error(err))
+			s.log.Info("error updating authorization", zap.Error(err))
 		}
 	}()
 

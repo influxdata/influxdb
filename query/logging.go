@@ -20,15 +20,15 @@ type LoggingProxyQueryService struct {
 	proxyQueryService ProxyQueryService
 	queryLogger       Logger
 	nowFunction       func() time.Time
-	logger            *zap.Logger
+	log               *zap.Logger
 }
 
-func NewLoggingProxyQueryService(logger *zap.Logger, queryLogger Logger, proxyQueryService ProxyQueryService) *LoggingProxyQueryService {
+func NewLoggingProxyQueryService(log *zap.Logger, queryLogger Logger, proxyQueryService ProxyQueryService) *LoggingProxyQueryService {
 	return &LoggingProxyQueryService{
 		proxyQueryService: proxyQueryService,
 		queryLogger:       queryLogger,
 		nowFunction:       time.Now,
-		logger:            logger,
+		log:               log,
 	}
 }
 
@@ -45,7 +45,7 @@ func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic: %v", r)
-			if entry := s.logger.Check(zapcore.InfoLevel, "QueryLogging panic"); entry != nil {
+			if entry := s.log.Check(zapcore.InfoLevel, "QueryLogging panic"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}

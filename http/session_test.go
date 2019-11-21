@@ -20,7 +20,7 @@ func NewMockSessionBackend() *SessionBackend {
 		return &platform.User{ID: 1}, nil
 	}
 	return &SessionBackend{
-		logger: zap.NewNop(),
+		log: zap.NewNop(),
 
 		SessionService:   mock.NewSessionService(),
 		PasswordsService: mock.NewPasswordsService(),

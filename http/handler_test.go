@@ -15,7 +15,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	type fields struct {
 		name    string
 		handler http.Handler
-		logger  *zap.Logger
+		log     *zap.Logger
 	}
 	type args struct {
 		w *httptest.ResponseRecorder
@@ -31,7 +31,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			fields: fields{
 				name:    "test",
 				handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
-				logger:  zap.NewNop(),
+				log:     zap.NewNop(),
 			},
 			args: args{
 				r: httptest.NewRequest(http.MethodGet, "/", nil),
@@ -44,7 +44,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			h := &Handler{
 				name:    tt.fields.name,
 				Handler: tt.fields.handler,
-				logger:  tt.fields.logger,
+				log:     tt.fields.log,
 			}
 			h.initMetrics()
 			reg := prom.NewRegistry(zap.NewNop())

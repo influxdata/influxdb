@@ -23,7 +23,7 @@ import (
 // NewMockBucketBackend returns a BucketBackend with mock services.
 func NewMockBucketBackend() *BucketBackend {
 	return &BucketBackend{
-		logger: zap.NewNop().With(zap.String("handler", "bucket")),
+		log: zap.NewNop().With(zap.String("handler", "bucket")),
 
 		BucketService:              mock.NewBucketService(),
 		BucketOperationLogService:  mock.NewBucketOperationLogService(),

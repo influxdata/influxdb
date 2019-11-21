@@ -38,7 +38,7 @@ const (
 // the FluxHandler.
 type FluxBackend struct {
 	influxdb.HTTPErrorHandler
-	logger             *zap.Logger
+	log                *zap.Logger
 	QueryEventRecorder metric.EventRecorder
 
 	OrganizationService influxdb.OrganizationService
@@ -46,10 +46,10 @@ type FluxBackend struct {
 }
 
 // NewFluxBackend returns a new instance of FluxBackend.
-func NewFluxBackend(logger *zap.Logger, b *APIBackend) *FluxBackend {
+func NewFluxBackend(log *zap.Logger, b *APIBackend) *FluxBackend {
 	return &FluxBackend{
 		HTTPErrorHandler:   b.HTTPErrorHandler,
-		logger:             logger,
+		log:                log,
 		QueryEventRecorder: b.QueryEventRecorder,
 
 		ProxyQueryService:   b.FluxService,
@@ -66,7 +66,7 @@ type HTTPDialect interface {
 type FluxHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
@@ -76,12 +76,12 @@ type FluxHandler struct {
 }
 
 // NewFluxHandler returns a new handler at /api/v2/query for flux queries.
-func NewFluxHandler(logger *zap.Logger, b *FluxBackend) *FluxHandler {
+func NewFluxHandler(log *zap.Logger, b *FluxBackend) *FluxHandler {
 	h := &FluxHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		Now:              time.Now,
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		ProxyQueryService:   b.ProxyQueryService,
 		OrganizationService: b.OrganizationService,
@@ -169,7 +169,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}
-		h.logger.Info("Error writing response to client",
+		h.log.Info("Error writing response to client",
 			zap.String("handler", "flux"),
 			zap.Error(err),
 		)
@@ -218,7 +218,7 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -246,7 +246,7 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, a); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -298,7 +298,7 @@ func (h *FluxHandler) getFluxSuggestions(w http.ResponseWriter, r *http.Request)
 	res := suggestionsResponse{Functions: functions}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -320,7 +320,7 @@ func (h *FluxHandler) getFluxSuggestion(w http.ResponseWriter, r *http.Request) 
 
 	res := suggestionResponse{Name: name, Params: suggestion.Params}
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }

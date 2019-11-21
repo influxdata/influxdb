@@ -45,8 +45,8 @@ type Handler struct {
 	requests   *prometheus.CounterVec
 	requestDur *prometheus.HistogramVec
 
-	// logger logs all HTTP requests as they are served
-	logger *zap.Logger
+	// log logs all HTTP requests as they are served
+	log *zap.Logger
 }
 
 // NewHandler creates a new handler with the given name.
@@ -68,15 +68,14 @@ func NewHandler(name string) *Handler {
 // NewHandlerFromRegistry creates a new handler with the given name,
 // and sets the /metrics endpoint to use the metrics from the given registry,
 // after self-registering h's metrics.
-func NewHandlerFromRegistry(logger *zap.Logger, name string, wrappedHandler http.Handler, reg *prom.Registry) *Handler {
+func NewHandlerFromRegistry(log *zap.Logger, name string, reg *prom.Registry) *Handler {
 	h := &Handler{
 		name:           name,
-		Handler:        wrappedHandler,
 		MetricsHandler: reg.HTTPHandler(),
 		ReadyHandler:   http.HandlerFunc(ReadyHandler),
 		HealthHandler:  http.HandlerFunc(HealthHandler),
 		DebugHandler:   http.DefaultServeMux,
-		logger:         logger,
+		log:            log,
 	}
 	h.initMetrics()
 	reg.MustRegister(h.PrometheusCollectors()...)
@@ -171,11 +170,11 @@ func (h *Handler) initMetrics() {
 	}, []string{"handler", "method", "path", "status", "user_agent"})
 }
 
-func logEncodingError(logger *zap.Logger, r *http.Request, err error) {
+func logEncodingError(log *zap.Logger, r *http.Request, err error) {
 	// If we encounter an error while encoding the response to an http request
 	// the best thing we can do is log that error, as we may have already written
 	// the headers for the http request in question.
-	logger.Info("error encoding response",
+	log.Info("error encoding response",
 		zap.String("path", r.URL.Path),
 		zap.String("method", r.Method),
 		zap.Error(err))

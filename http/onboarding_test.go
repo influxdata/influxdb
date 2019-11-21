@@ -17,7 +17,7 @@ import (
 // NewMockSetupBackend returns a SetupBackend with mock services.
 func NewMockSetupBackend() *SetupBackend {
 	return &SetupBackend{
-		logger:            zap.NewNop().With(zap.String("handler", "scraper")),
+		log:               zap.NewNop().With(zap.String("handler", "scraper")),
 		OnboardingService: mock.NewOnboardingService(),
 	}
 }

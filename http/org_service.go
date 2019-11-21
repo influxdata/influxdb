@@ -19,7 +19,7 @@ import (
 // the OrgHandler.
 type OrgBackend struct {
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
@@ -30,10 +30,10 @@ type OrgBackend struct {
 }
 
 // NewOrgBackend is a datasource used by the org handler.
-func NewOrgBackend(logger *zap.Logger, b *APIBackend) *OrgBackend {
+func NewOrgBackend(log *zap.Logger, b *APIBackend) *OrgBackend {
 	return &OrgBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
@@ -48,7 +48,7 @@ func NewOrgBackend(logger *zap.Logger, b *APIBackend) *OrgBackend {
 type OrgHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	OrganizationService             influxdb.OrganizationService
 	OrganizationOperationLogService influxdb.OrganizationOperationLogService
@@ -96,11 +96,11 @@ func checkOrganziationExists(handler *OrgHandler) Middleware {
 }
 
 // NewOrgHandler returns a new instance of OrgHandler.
-func NewOrgHandler(logger *zap.Logger, b *OrgBackend) *OrgHandler {
+func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 	h := &OrgHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		OrganizationService:             b.OrganizationService,
 		OrganizationOperationLogService: b.OrganizationOperationLogService,
@@ -119,7 +119,7 @@ func NewOrgHandler(logger *zap.Logger, b *OrgBackend) *OrgHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		logger:                     b.logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -131,7 +131,7 @@ func NewOrgHandler(logger *zap.Logger, b *OrgBackend) *OrgHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		logger:                     b.logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.OrgsResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -148,7 +148,7 @@ func NewOrgHandler(logger *zap.Logger, b *OrgBackend) *OrgHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           b.logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.OrgsResourceType,
 	}
@@ -235,10 +235,10 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("org created", zap.String("org", fmt.Sprint(req.Org)))
+	h.log.Debug("org created", zap.String("org", fmt.Sprint(req.Org)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOrgResponse(req.Org)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -272,10 +272,10 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("org retrieved", zap.String("org", fmt.Sprint(b)))
+	h.log.Debug("org retrieved", zap.String("org", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(b)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -320,10 +320,10 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
+	h.log.Debug("orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -364,7 +364,7 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("org deleted", zap.String("orgID", fmt.Sprint(req.OrganizationID)))
+	h.log.Debug("org deleted", zap.String("orgID", fmt.Sprint(req.OrganizationID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -412,10 +412,10 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("org updated", zap.String("org", fmt.Sprint(o)))
+	h.log.Debug("org updated", zap.String("org", fmt.Sprint(o)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -468,7 +468,7 @@ func (h *OrgHandler) handleGetSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newSecretsResponse(req.orgID, ks)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -854,10 +854,10 @@ func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("org logs retrieved", zap.String("log", fmt.Sprint(log)))
+	h.log.Debug("org logs retrieved", zap.String("log", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrganizationLogResponse(req.OrganizationID, log)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }

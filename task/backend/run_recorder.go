@@ -18,12 +18,12 @@ import (
 type StoragePointsWriterRecorder struct {
 	pw storage.PointsWriter
 
-	logger *zap.Logger
+	log *zap.Logger
 }
 
 // NewStoragePointsWriterRecorder configures and returns a new *StoragePointsWriterRecorder
-func NewStoragePointsWriterRecorder(pw storage.PointsWriter, logger *zap.Logger) *StoragePointsWriterRecorder {
-	return &StoragePointsWriterRecorder{pw, logger}
+func NewStoragePointsWriterRecorder(pw storage.PointsWriter, log *zap.Logger) *StoragePointsWriterRecorder {
+	return &StoragePointsWriterRecorder{pw, log}
 }
 
 // Record formats the provided run as a models.Point and writes the resulting
@@ -40,7 +40,7 @@ func (s *StoragePointsWriterRecorder) Record(ctx context.Context, orgID influxdb
 		run.StartedAt.IsZero() ||
 		run.FinishedAt.IsZero() ||
 		run.Status == "" {
-		s.logger.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
+		s.log.Error("Run missing critical fields", zap.String("run", fmt.Sprintf("%+v", run)), zap.String("runID", run.ID.String()))
 	}
 
 	fields := map[string]interface{}{}

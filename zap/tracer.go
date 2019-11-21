@@ -29,13 +29,13 @@ const (
 
 // Tracer implements opentracing.Tracer and logs each span as its own log.
 type Tracer struct {
-	logger      *zap.Logger
+	log         *zap.Logger
 	idGenerator platform.IDGenerator
 }
 
-func NewTracer(logger *zap.Logger, idGenerator platform.IDGenerator) *Tracer {
+func NewTracer(log *zap.Logger, idGenerator platform.IDGenerator) *Tracer {
 	return &Tracer{
-		logger:      logger,
+		log:         log,
 		idGenerator: idGenerator,
 	}
 }
@@ -195,7 +195,7 @@ func (s *Span) FinishWithOptions(opts opentracing.FinishOptions) {
 	for k, v := range s.ctx.baggage {
 		fields = append(fields, zap.String(k, v))
 	}
-	s.tracer.logger.Info(s.opName, fields...)
+	s.tracer.log.Info(s.opName, fields...)
 }
 
 func (s *Span) Context() opentracing.SpanContext {

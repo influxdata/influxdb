@@ -14,6 +14,7 @@ import (
 	platformhttp "github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/jsonweb"
 	"github.com/influxdata/influxdb/mock"
+	"go.uber.org/zap"
 )
 
 const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJjbG91ZDIuaW5mbHV4ZGF0YS5jb20iLCJhdWQiOiJnYXRld2F5LmluZmx1eGRhdGEuY29tIiwiaWF0IjoxNTY4NjI4OTgwLCJraWQiOiJzb21lLWtleSIsInBlcm1pc3Npb25zIjpbeyJhY3Rpb24iOiJ3cml0ZSIsInJlc291cmNlIjp7InR5cGUiOiJidWNrZXRzIiwiaWQiOiIwMDAwMDAwMDAwMDAwMDAxIiwib3JnSUQiOiIwMDAwMDAwMDAwMDAwMDAyIn19XX0.74vjbExiOd702VSIMmQWaDT_GFvUI0-_P-SfQ_OOHB0"
@@ -208,7 +209,7 @@ func TestAuthenticationHandler(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			h := platformhttp.NewAuthenticationHandler(platformhttp.ErrorHandler(0))
+			h := platformhttp.NewAuthenticationHandler(zap.NewNop(), platformhttp.ErrorHandler(0))
 			h.AuthorizationService = tt.fields.AuthorizationService
 			h.SessionService = tt.fields.SessionService
 			h.UserService = &mock.UserService{
@@ -375,7 +376,7 @@ func TestAuthenticationHandler_NoAuthRoutes(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			h := platformhttp.NewAuthenticationHandler(platformhttp.ErrorHandler(0))
+			h := platformhttp.NewAuthenticationHandler(zap.NewNop(), platformhttp.ErrorHandler(0))
 			h.AuthorizationService = mock.NewAuthorizationService()
 			h.SessionService = mock.NewSessionService()
 			h.Handler = handler

@@ -11,8 +11,8 @@ import (
 // also makes it a suitable mock to use wherever an platform.BucketService is required.
 type BucketService struct {
 	// Methods for a retention.BucketService
-	OpenFn       func() error
-	CloseFn      func() error
+	OpenFn  func() error
+	CloseFn func() error
 
 	// Methods for an platform.BucketService
 	FindBucketByIDFn   func(context.Context, platform.ID) (*platform.Bucket, error)

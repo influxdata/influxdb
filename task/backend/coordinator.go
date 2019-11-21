@@ -26,7 +26,7 @@ type Coordinator interface {
 
 // NotifyCoordinatorOfExisting lists all tasks by the provided task service and for
 // each task it calls the provided coordinators task created method
-func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coordinator, logger *zap.Logger) error {
+func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coordinator, log *zap.Logger) error {
 	// If we missed a Create Action
 	tasks, _, err := ts.FindTasks(ctx, influxdb.TaskFilter{})
 	if err != nil {
@@ -44,7 +44,7 @@ func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coor
 				LatestCompleted: &latestCompleted,
 			})
 			if err != nil {
-				logger.Error("failed to set latestCompleted", zap.Error(err))
+				log.Error("failed to set latestCompleted", zap.Error(err))
 				continue
 			}
 
@@ -67,7 +67,7 @@ type TaskResumer func(ctx context.Context, id influxdb.ID, runID influxdb.ID) er
 // TaskNotifyCoordinatorOfExisting lists all tasks by the provided task service and for
 // each task it calls the provided coordinators task created method
 // TODO(docmerlin): this is temporary untill the executor queue is persistent
-func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs TaskControlService, coord Coordinator, exec TaskResumer, logger *zap.Logger) error {
+func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs TaskControlService, coord Coordinator, exec TaskResumer, log *zap.Logger) error {
 	// If we missed a Create Action
 	tasks, _, err := ts.FindTasks(ctx, influxdb.TaskFilter{})
 	if err != nil {
@@ -85,7 +85,7 @@ func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs Ta
 				LatestCompleted: &latestCompleted,
 			})
 			if err != nil {
-				logger.Error("failed to set latestCompleted", zap.Error(err))
+				log.Error("failed to set latestCompleted", zap.Error(err))
 				continue
 			}
 

@@ -34,9 +34,9 @@ type RunRecorder interface {
 }
 
 // NewAnalyticalRunStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
-func NewAnalyticalRunStorage(logger *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService, tcs TaskControlService, rr RunRecorder, qs query.QueryService) *AnalyticalStorage {
+func NewAnalyticalRunStorage(log *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService, tcs TaskControlService, rr RunRecorder, qs query.QueryService) *AnalyticalStorage {
 	return &AnalyticalStorage{
-		logger:             logger,
+		log:                log,
 		TaskService:        ts,
 		BucketService:      bs,
 		TaskControlService: tcs,
@@ -46,13 +46,13 @@ func NewAnalyticalRunStorage(logger *zap.Logger, ts influxdb.TaskService, bs inf
 }
 
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware (deprecated)
-func NewAnalyticalStorage(logger *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
+func NewAnalyticalStorage(log *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
 	return &AnalyticalStorage{
-		logger:             logger,
+		log:                log,
 		TaskService:        ts,
 		BucketService:      bs,
 		TaskControlService: tcs,
-		rr:                 NewStoragePointsWriterRecorder(pw, logger),
+		rr:                 NewStoragePointsWriterRecorder(pw, log),
 		qs:                 qs,
 	}
 }
@@ -62,9 +62,9 @@ type AnalyticalStorage struct {
 	influxdb.BucketService
 	TaskControlService
 
-	rr     RunRecorder
-	qs     query.QueryService
-	logger *zap.Logger
+	rr  RunRecorder
+	qs  query.QueryService
+	log *zap.Logger
 }
 
 func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
@@ -191,7 +191,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 	}
 	defer ittr.Release()
 
-	re := &runReader{logger: as.logger.With(zap.String("component", "run-reader"), zap.String("taskID", filter.Task.String()))}
+	re := &runReader{log: as.log.With(zap.String("component", "run-reader"), zap.String("taskID", filter.Task.String()))}
 	for ittr.More() {
 		err := ittr.Next().Tables().Do(re.readTable)
 		if err != nil {
@@ -338,8 +338,8 @@ func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID influxd
 }
 
 type runReader struct {
-	runs   []*influxdb.Run
-	logger *zap.Logger
+	runs []*influxdb.Run
+	log  *zap.Logger
 }
 
 func (re *runReader) readTable(tbl flux.Table) error {
@@ -355,7 +355,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 				if cr.Strings(j).ValueString(i) != "" {
 					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
 					if err != nil {
-						re.logger.Info("failed to parse runID", zap.Error(err))
+						re.log.Info("failed to parse runID", zap.Error(err))
 						continue
 					}
 					r.ID = *id
@@ -364,7 +364,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 				if cr.Strings(j).ValueString(i) != "" {
 					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
 					if err != nil {
-						re.logger.Info("failed to parse taskID", zap.Error(err))
+						re.log.Info("failed to parse taskID", zap.Error(err))
 						continue
 					}
 					r.TaskID = *id
@@ -372,21 +372,21 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 			case startedAtField:
 				started, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
 				if err != nil {
-					re.logger.Info("failed to parse startedAt time", zap.Error(err))
+					re.log.Info("failed to parse startedAt time", zap.Error(err))
 					continue
 				}
 				r.StartedAt = started.UTC()
 			case requestedAtField:
 				requested, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
 				if err != nil {
-					re.logger.Info("failed to parse requestedAt time", zap.Error(err))
+					re.log.Info("failed to parse requestedAt time", zap.Error(err))
 					continue
 				}
 				r.RequestedAt = requested.UTC()
 			case scheduledForField:
 				scheduled, err := time.Parse(time.RFC3339, cr.Strings(j).ValueString(i))
 				if err != nil {
-					re.logger.Info("failed to parse scheduledAt time", zap.Error(err))
+					re.log.Info("failed to parse scheduledAt time", zap.Error(err))
 					continue
 				}
 				r.ScheduledFor = scheduled.UTC()
@@ -395,7 +395,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 			case finishedAtField:
 				finished, err := time.Parse(time.RFC3339Nano, cr.Strings(j).ValueString(i))
 				if err != nil {
-					re.logger.Info("failed to parse finishedAt time", zap.Error(err))
+					re.log.Info("failed to parse finishedAt time", zap.Error(err))
 					continue
 				}
 				r.FinishedAt = finished.UTC()
@@ -404,7 +404,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 				if len(logBytes) != 0 {
 					err := json.Unmarshal(logBytes, &r.Log)
 					if err != nil {
-						re.logger.Info("failed to parse log data", zap.Error(err), zap.ByteString("log_bytes", logBytes))
+						re.log.Info("failed to parse log data", zap.Error(err), zap.ByteString("log_bytes", logBytes))
 					}
 				}
 			}

@@ -79,7 +79,7 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 // the SourceHandler.
 type SourceBackend struct {
 	platform.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	SourceService   platform.SourceService
 	LabelService    platform.LabelService
@@ -88,10 +88,10 @@ type SourceBackend struct {
 }
 
 // NewSourceBackend returns a new instance of SourceBackend.
-func NewSourceBackend(logger *zap.Logger, b *APIBackend) *SourceBackend {
+func NewSourceBackend(log *zap.Logger, b *APIBackend) *SourceBackend {
 	return &SourceBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		SourceService:   b.SourceService,
 		LabelService:    b.LabelService,
@@ -104,7 +104,7 @@ func NewSourceBackend(logger *zap.Logger, b *APIBackend) *SourceBackend {
 type SourceHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	logger        *zap.Logger
+	log           *zap.Logger
 	SourceService platform.SourceService
 	LabelService  platform.LabelService
 	BucketService platform.BucketService
@@ -115,11 +115,11 @@ type SourceHandler struct {
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
-func NewSourceHandler(logger *zap.Logger, b *SourceBackend) *SourceHandler {
+func NewSourceHandler(log *zap.Logger, b *SourceBackend) *SourceHandler {
 	h := &SourceHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		SourceService:   b.SourceService,
 		LabelService:    b.LabelService,
@@ -244,7 +244,7 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -284,9 +284,9 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourceResponse(req.Source)
-	h.logger.Debug("source created", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("source created", zap.String("source", fmt.Sprint(res)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -322,10 +322,10 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 	}
 
 	res := newSourceResponse(s)
-	h.logger.Debug("source retrieved", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("source retrieved", zap.String("source", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -392,7 +392,7 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
+	h.log.Debug("source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -438,10 +438,10 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourcesResponse(srcs)
-	h.logger.Debug("sources retrieved", zap.String("sources", fmt.Sprint(res)))
+	h.log.Debug("sources retrieved", zap.String("sources", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -469,10 +469,10 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("source updated", zap.String("source", fmt.Sprint(b)))
+	h.log.Debug("source updated", zap.String("source", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }

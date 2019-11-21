@@ -197,7 +197,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 
 				w := httptest.NewRecorder()
 				memberBackend := MemberBackend{
-					logger:                     zap.NewNop().With(zap.String("handler", "member")),
+					log:                        zap.NewNop().With(zap.String("handler", "member")),
 					ResourceType:               resourceType,
 					UserType:                   tt.args.userType,
 					UserResourceMappingService: tt.fields.userResourceMappingService,
@@ -358,7 +358,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 
 				w := httptest.NewRecorder()
 				memberBackend := MemberBackend{
-					logger:                     zap.NewNop().With(zap.String("handler", "member")),
+					log:                        zap.NewNop().With(zap.String("handler", "member")),
 					ResourceType:               resourceType,
 					UserType:                   tt.args.userType,
 					UserResourceMappingService: tt.fields.userResourceMappingService,

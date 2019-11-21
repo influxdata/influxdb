@@ -24,7 +24,7 @@ func TestReadTable(t *testing.T) {
 	}
 
 	defer itr.Release()
-	re := &runReader{logger: zap.NewNop()}
+	re := &runReader{log: zap.NewNop()}
 
 	for itr.More() {
 		err := itr.Next().Tables().Do(re.readTable)

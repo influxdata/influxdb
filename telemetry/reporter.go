@@ -13,22 +13,22 @@ import (
 // gateway every interval.
 type Reporter struct {
 	Pusher   *Pusher
-	logger   *zap.Logger
+	log      *zap.Logger
 	Interval time.Duration
 }
 
 // NewReporter reports telemetry every 24 hours.
-func NewReporter(logger *zap.Logger, g prometheus.Gatherer) *Reporter {
+func NewReporter(log *zap.Logger, g prometheus.Gatherer) *Reporter {
 	return &Reporter{
 		Pusher:   NewPusher(g),
-		logger:   logger,
+		log:      log,
 		Interval: 24 * time.Hour,
 	}
 }
 
 // Report starts periodic telemetry reporting each interval.
 func (r *Reporter) Report(ctx context.Context) {
-	logger := r.logger.With(
+	logger := r.log.With(
 		zap.String("service", "telemetry"),
 		influxlogger.DurationLiteral("interval", r.Interval),
 	)

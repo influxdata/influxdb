@@ -38,13 +38,13 @@ type Recorder interface {
 // RecorderHandler implements nats.Handler interface.
 type RecorderHandler struct {
 	Recorder Recorder
-	logger   *zap.Logger
+	log      *zap.Logger
 }
 
-func NewRecorderHandler(logger *zap.Logger, recorder Recorder) *RecorderHandler {
+func NewRecorderHandler(log *zap.Logger, recorder Recorder) *RecorderHandler {
 	return &RecorderHandler{
 		Recorder: recorder,
-		logger:   logger,
+		log:      log,
 	}
 }
 
@@ -54,11 +54,11 @@ func (h *RecorderHandler) Process(s nats.Subscription, m nats.Message) {
 	collected := new(MetricsCollection)
 	err := json.Unmarshal(m.Data(), &collected)
 	if err != nil {
-		h.logger.Error("recorder handler error", zap.Error(err))
+		h.log.Error("recorder handler error", zap.Error(err))
 		return
 	}
 	err = h.Recorder.Record(*collected)
 	if err != nil {
-		h.logger.Error("recorder handler error", zap.Error(err))
+		h.log.Error("recorder handler error", zap.Error(err))
 	}
 }

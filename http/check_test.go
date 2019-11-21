@@ -25,7 +25,7 @@ import (
 // NewMockCheckBackend returns a CheckBackend with mock services.
 func NewMockCheckBackend() *CheckBackend {
 	return &CheckBackend{
-		logger: zap.NewNop().With(zap.String("handler", "check")),
+		log: zap.NewNop().With(zap.String("handler", "check")),
 
 		CheckService:               mock.NewCheckService(),
 		UserResourceMappingService: mock.NewUserResourceMappingService(),

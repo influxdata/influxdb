@@ -24,7 +24,7 @@ var faketime = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
 // NewMockVariableBackend returns a VariableBackend with mock services.
 func NewMockVariableBackend() *VariableBackend {
 	return &VariableBackend{
-		logger:          zap.NewNop().With(zap.String("handler", "variable")),
+		log:             zap.NewNop().With(zap.String("handler", "variable")),
 		VariableService: mock.NewVariableService(),
 		LabelService:    mock.NewLabelService(),
 	}

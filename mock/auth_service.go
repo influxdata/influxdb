@@ -10,8 +10,8 @@ import (
 // also makes it a suitable mock to use wherever an platform.AuthorizationService is required.
 type AuthorizationService struct {
 	// Methods for a retention.AuthorizationService
-	OpenFn       func() error
-	CloseFn      func() error
+	OpenFn  func() error
+	CloseFn func() error
 
 	// Methods for an platform.AuthorizationService
 	FindAuthorizationByIDFn    func(context.Context, platform.ID) (*platform.Authorization, error)

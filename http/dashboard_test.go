@@ -26,7 +26,7 @@ import (
 // NewMockDashboardBackend returns a DashboardBackend with mock services.
 func NewMockDashboardBackend() *DashboardBackend {
 	return &DashboardBackend{
-		logger: zap.NewNop().With(zap.String("handler", "dashboard")),
+		log: zap.NewNop().With(zap.String("handler", "dashboard")),
 
 		DashboardService:             mock.NewDashboardService(),
 		DashboardOperationLogService: mock.NewDashboardOperationLogService(),

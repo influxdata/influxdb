@@ -24,7 +24,7 @@ import (
 // NewMockUserBackend returns a UserBackend with mock services.
 func NewMockUserBackend() *UserBackend {
 	return &UserBackend{
-		logger:                  zap.NewNop(),
+		log:                     zap.NewNop(),
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
 		PasswordsService:        mock.NewPasswordsService(),

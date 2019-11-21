@@ -24,7 +24,7 @@ import (
 // NewMockAuthorizationBackend returns a AuthorizationBackend with mock services.
 func NewMockAuthorizationBackend() *AuthorizationBackend {
 	return &AuthorizationBackend{
-		logger: zap.NewNop().With(zap.String("handler", "authorization")),
+		log: zap.NewNop().With(zap.String("handler", "authorization")),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		OrganizationService:  mock.NewOrganizationService(),
@@ -922,7 +922,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	authZ := NewAuthorizationHandler(zap.NewNop(), authorizationBackend)
-	authN := NewAuthenticationHandler(ErrorHandler(0))
+	authN := NewAuthenticationHandler(zap.NewNop(), ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ
 	authN.UserService = mus

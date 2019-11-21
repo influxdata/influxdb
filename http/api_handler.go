@@ -201,7 +201,7 @@ func NewAPIHandler(b *APIBackend, opts ...APIHandlerOptFn) *APIHandler {
 	notificationEndpointBackend := NewNotificationEndpointBackend(b.Logger.With(zap.String("handler", "notificationEndpoint")), b)
 	notificationEndpointBackend.NotificationEndpointService = authorizer.NewNotificationEndpointService(b.NotificationEndpointService,
 		b.UserResourceMappingService, b.OrganizationService)
-	h.NotificationEndpointHandler = NewNotificationEndpointHandler(notificationEndpointBackend.Logger(), notificationEndpointBackend)
+	h.NotificationEndpointHandler = NewNotificationEndpointHandler(notificationEndpointBackend.Log(), notificationEndpointBackend)
 
 	checkBackend := NewCheckBackend(b.Logger.With(zap.String("handler", "check")), b)
 	checkBackend.CheckService = authorizer.NewCheckService(b.CheckService,

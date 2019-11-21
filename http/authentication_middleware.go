@@ -17,7 +17,7 @@ import (
 // AuthenticationHandler is a middleware for authenticating incoming requests.
 type AuthenticationHandler struct {
 	platform.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	AuthorizationService platform.AuthorizationService
 	SessionService       platform.SessionService
@@ -33,9 +33,9 @@ type AuthenticationHandler struct {
 }
 
 // NewAuthenticationHandler creates an authentication handler.
-func NewAuthenticationHandler(h platform.HTTPErrorHandler) *AuthenticationHandler {
+func NewAuthenticationHandler(log *zap.Logger, h platform.HTTPErrorHandler) *AuthenticationHandler {
 	return &AuthenticationHandler{
-		logger:           zap.NewNop(),
+		log:              log,
 		HTTPErrorHandler: h,
 		Handler:          http.DefaultServeMux,
 		TokenParser:      jsonweb.NewTokenParser(jsonweb.EmptyKeyStore),
@@ -71,7 +71,7 @@ func ProbeAuthScheme(r *http.Request) (string, error) {
 }
 
 func (h *AuthenticationHandler) unauthorized(ctx context.Context, w http.ResponseWriter, err error) {
-	h.logger.Info("unauthorized", zap.Error(err))
+	h.log.Info("unauthorized", zap.Error(err))
 	UnauthorizedError(ctx, h, w)
 }
 

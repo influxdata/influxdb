@@ -22,7 +22,7 @@ import (
 // NewMockOrgBackend returns a OrgBackend with mock services.
 func NewMockOrgBackend() *OrgBackend {
 	return &OrgBackend{
-		logger: zap.NewNop().With(zap.String("handler", "org")),
+		log: zap.NewNop().With(zap.String("handler", "org")),
 
 		OrganizationService:             mock.NewOrganizationService(),
 		OrganizationOperationLogService: mock.NewOrganizationOperationLogService(),

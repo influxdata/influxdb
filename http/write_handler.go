@@ -25,7 +25,7 @@ import (
 // the WriteHandler.
 type WriteBackend struct {
 	influxdb.HTTPErrorHandler
-	logger             *zap.Logger
+	log                *zap.Logger
 	WriteEventRecorder metric.EventRecorder
 
 	PointsWriter        storage.PointsWriter
@@ -34,10 +34,10 @@ type WriteBackend struct {
 }
 
 // NewWriteBackend returns a new instance of WriteBackend.
-func NewWriteBackend(logger *zap.Logger, b *APIBackend) *WriteBackend {
+func NewWriteBackend(log *zap.Logger, b *APIBackend) *WriteBackend {
 	return &WriteBackend{
 		HTTPErrorHandler:   b.HTTPErrorHandler,
-		logger:             logger,
+		log:                log,
 		WriteEventRecorder: b.WriteEventRecorder,
 
 		PointsWriter:        b.PointsWriter,
@@ -50,7 +50,7 @@ func NewWriteBackend(logger *zap.Logger, b *APIBackend) *WriteBackend {
 type WriteHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	BucketService       influxdb.BucketService
 	OrganizationService influxdb.OrganizationService
@@ -67,11 +67,11 @@ const (
 )
 
 // NewWriteHandler creates a new handler at /api/v2/write to receive line protocol.
-func NewWriteHandler(logger *zap.Logger, b *WriteBackend) *WriteHandler {
+func NewWriteHandler(log *zap.Logger, b *WriteBackend) *WriteHandler {
 	h := &WriteHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		PointsWriter:        b.PointsWriter,
 		BucketService:       b.BucketService,
@@ -134,7 +134,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger := h.logger.With(zap.String("org", req.Org), zap.String("bucket", req.Bucket))
+	logger := h.log.With(zap.String("org", req.Org), zap.String("bucket", req.Bucket))
 
 	var org *influxdb.Organization
 	org, err = queryOrganization(ctx, r, h.OrganizationService)

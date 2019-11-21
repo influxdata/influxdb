@@ -325,7 +325,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	i := inmem.NewService()
 	b := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		logger:              zaptest.NewLogger(t),
+		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: i,
 		ProxyQueryService: &mock.ProxyQueryService{
@@ -479,7 +479,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		logger:              zaptest.NewLogger(t),
+		log:                 zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
@@ -490,7 +490,7 @@ func TestFluxService_Query_gzip(t *testing.T) {
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth := NewAuthenticationHandler(zap.NewNop(), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
@@ -615,7 +615,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		logger:              zaptest.NewLogger(b),
+		log:                 zaptest.NewLogger(b),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
@@ -626,7 +626,7 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(ErrorHandler(0))
+	auth := NewAuthenticationHandler(zap.NewNop(), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 

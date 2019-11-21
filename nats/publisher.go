@@ -16,14 +16,14 @@ type Publisher interface {
 type AsyncPublisher struct {
 	ClientID   string
 	Connection stan.Conn
-	logger     *zap.Logger
+	log        *zap.Logger
 	Addr       string
 }
 
-func NewAsyncPublisher(logger *zap.Logger, clientID string, addr string) *AsyncPublisher {
+func NewAsyncPublisher(log *zap.Logger, clientID string, addr string) *AsyncPublisher {
 	return &AsyncPublisher{
 		ClientID: clientID,
-		logger:   logger,
+		log:      log,
 		Addr:     addr,
 	}
 }
@@ -45,7 +45,7 @@ func (p *AsyncPublisher) Publish(subject string, r io.Reader) error {
 
 	ah := func(guid string, err error) {
 		if err != nil {
-			p.logger.Info(err.Error())
+			p.log.Info(err.Error())
 		}
 	}
 

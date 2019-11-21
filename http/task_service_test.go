@@ -28,7 +28,7 @@ import (
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	return &TaskBackend{
-		logger: zaptest.NewLogger(t).With(zap.String("handler", "task")),
+		log: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
@@ -1249,7 +1249,7 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 	}
 
 	h := NewTaskHandler(zap.NewNop(), &TaskBackend{
-		logger: zaptest.NewLogger(t),
+		log: zaptest.NewLogger(t),
 
 		TaskService:                ts,
 		AuthorizationService:       i,
@@ -1346,7 +1346,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	newHandler := func(t *testing.T, ts *mock.TaskService) *TaskHandler {
 		return NewTaskHandler(zap.NewNop(), &TaskBackend{
 			HTTPErrorHandler: ErrorHandler(0),
-			logger:           zaptest.NewLogger(t),
+			log:              zaptest.NewLogger(t),
 
 			TaskService:                ts,
 			AuthorizationService:       i,

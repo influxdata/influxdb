@@ -19,7 +19,7 @@ import (
 // BucketBackend is all services and associated parameters required to construct
 // the BucketHandler.
 type BucketBackend struct {
-	logger *zap.Logger
+	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
 	BucketService              influxdb.BucketService
@@ -31,10 +31,10 @@ type BucketBackend struct {
 }
 
 // NewBucketBackend returns a new instance of BucketBackend.
-func NewBucketBackend(logger *zap.Logger, b *APIBackend) *BucketBackend {
+func NewBucketBackend(log *zap.Logger, b *APIBackend) *BucketBackend {
 	return &BucketBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		BucketService:              b.BucketService,
 		BucketOperationLogService:  b.BucketOperationLogService,
@@ -49,7 +49,7 @@ func NewBucketBackend(logger *zap.Logger, b *APIBackend) *BucketBackend {
 type BucketHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	BucketService              influxdb.BucketService
 	BucketOperationLogService  influxdb.BucketOperationLogService
@@ -72,11 +72,11 @@ const (
 )
 
 // NewBucketHandler returns a new instance of BucketHandler.
-func NewBucketHandler(logger *zap.Logger, b *BucketBackend) *BucketHandler {
+func NewBucketHandler(log *zap.Logger, b *BucketBackend) *BucketHandler {
 	h := &BucketHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		BucketService:              b.BucketService,
 		BucketOperationLogService:  b.BucketOperationLogService,
@@ -95,7 +95,7 @@ func NewBucketHandler(logger *zap.Logger, b *BucketBackend) *BucketHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		logger:                     b.logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.BucketsResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -107,7 +107,7 @@ func NewBucketHandler(logger *zap.Logger, b *BucketBackend) *BucketHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		logger:                     b.logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.BucketsResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -119,7 +119,7 @@ func NewBucketHandler(logger *zap.Logger, b *BucketBackend) *BucketHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           b.logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.BucketsResourceType,
 	}
@@ -331,10 +331,10 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("bucket created", zap.String("bucket", fmt.Sprint(bucket)))
+	h.log.Debug("bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(bucket, []*influxdb.Label{})); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -414,10 +414,10 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.logger.Debug("bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
+	h.log.Debug("bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -445,10 +445,10 @@ func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.logger.Debug("bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
+	h.log.Debug("bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketLogResponse(req.BucketID, log)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -532,7 +532,7 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.logger.Debug("bucket deleted", zap.String("bucketID", req.BucketID.String()))
+	h.log.Debug("bucket deleted", zap.String("bucketID", req.BucketID.String()))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -579,10 +579,10 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
+	h.log.Debug("buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -650,10 +650,10 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("bucket updated", zap.String("bucket", fmt.Sprint(b)))
+	h.log.Debug("bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }

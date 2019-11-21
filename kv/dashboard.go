@@ -308,7 +308,7 @@ func (s *Service) CreateDashboard(ctx context.Context, d *influxdb.Dashboard) er
 		}
 
 		if err := s.addDashboardOwner(ctx, tx, d.ID); err != nil {
-			s.logger.Info("failed to make user owner of organization", zap.Error(err))
+			s.log.Info("failed to make user owner of organization", zap.Error(err))
 		}
 
 		return nil

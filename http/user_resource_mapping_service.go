@@ -56,7 +56,7 @@ func newResourceUsersResponse(opts influxdb.FindOptions, f influxdb.UserResource
 // member handler.
 type MemberBackend struct {
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	ResourceType influxdb.ResourceType
 	UserType     influxdb.UserType
@@ -92,7 +92,7 @@ func newPostMemberHandler(b MemberBackend) http.HandlerFunc {
 			b.HandleHTTPError(ctx, err, w)
 			return
 		}
-		b.logger.Debug("member/owner created", zap.String("mapping", fmt.Sprint(mapping)))
+		b.log.Debug("member/owner created", zap.String("mapping", fmt.Sprint(mapping)))
 
 		if err := encodeResponse(ctx, w, http.StatusCreated, newResourceUserResponse(user, b.UserType)); err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -175,7 +175,7 @@ func newGetMembersHandler(b MemberBackend) http.HandlerFunc {
 
 			users = append(users, user)
 		}
-		b.logger.Debug("members/owners retrieved", zap.String("users", fmt.Sprint(users)))
+		b.log.Debug("members/owners retrieved", zap.String("users", fmt.Sprint(users)))
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newResourceUsersResponse(opts, filter, users)); err != nil {
 			b.HandleHTTPError(ctx, err, w)
@@ -225,7 +225,7 @@ func newDeleteMemberHandler(b MemberBackend) http.HandlerFunc {
 			b.HandleHTTPError(ctx, err, w)
 			return
 		}
-		b.logger.Debug("member deleted", zap.String("resourceID", req.ResourceID.String()), zap.String("memberID", req.MemberID.String()))
+		b.log.Debug("member deleted", zap.String("resourceID", req.ResourceID.String()), zap.String("memberID", req.MemberID.String()))
 
 		w.WriteHeader(http.StatusNoContent)
 	}

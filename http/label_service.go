@@ -19,7 +19,7 @@ import (
 type LabelHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	LabelService influxdb.LabelService
 }
@@ -30,11 +30,11 @@ const (
 )
 
 // NewLabelHandler returns a new instance of LabelHandler
-func NewLabelHandler(logger *zap.Logger, s influxdb.LabelService, he influxdb.HTTPErrorHandler) *LabelHandler {
+func NewLabelHandler(log *zap.Logger, s influxdb.LabelService, he influxdb.HTTPErrorHandler) *LabelHandler {
 	h := &LabelHandler{
 		Router:           NewRouter(he),
 		HTTPErrorHandler: he,
-		logger:           logger,
+		log:              log,
 		LabelService:     s,
 	}
 
@@ -61,9 +61,9 @@ func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("label created", zap.String("label", fmt.Sprint(req.Label)))
+	h.log.Debug("label created", zap.String("label", fmt.Sprint(req.Label)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(req.Label)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -120,7 +120,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("labels retrived", zap.String("labels", fmt.Sprint(labels)))
+	h.log.Debug("labels retrived", zap.String("labels", fmt.Sprint(labels)))
 	err = encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -164,9 +164,9 @@ func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("label retrieved", zap.String("label", fmt.Sprint(l)))
+	h.log.Debug("label retrieved", zap.String("label", fmt.Sprint(l)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -209,7 +209,7 @@ func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("label deleted", zap.String("labelID", fmt.Sprint(req.LabelID)))
+	h.log.Debug("label deleted", zap.String("labelID", fmt.Sprint(req.LabelID)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -252,9 +252,9 @@ func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("label updated", zap.String("label", fmt.Sprint(l)))
+	h.log.Debug("label updated", zap.String("label", fmt.Sprint(l)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelResponse(l)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -330,7 +330,7 @@ func newLabelsResponse(ls []*influxdb.Label) *labelsResponse {
 // LabelBackend is all services and associated parameters required to construct
 // label handlers.
 type LabelBackend struct {
-	logger *zap.Logger
+	log *zap.Logger
 	influxdb.HTTPErrorHandler
 	LabelService influxdb.LabelService
 	ResourceType influxdb.ResourceType
@@ -354,7 +354,7 @@ func newGetLabelsHandler(b *LabelBackend) http.HandlerFunc {
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels)); err != nil {
-			logEncodingError(b.logger, r, err)
+			logEncodingError(b.log, r, err)
 			return
 		}
 	}
@@ -414,7 +414,7 @@ func newPostLabelHandler(b *LabelBackend) http.HandlerFunc {
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(label)); err != nil {
-			logEncodingError(b.logger, r, err)
+			logEncodingError(b.log, r, err)
 			return
 		}
 	}

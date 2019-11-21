@@ -18,7 +18,7 @@ import (
 // the NotificationEndpointBackendHandler.
 type NotificationEndpointBackend struct {
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	NotificationEndpointService influxdb.NotificationEndpointService
 	UserResourceMappingService  influxdb.UserResourceMappingService
@@ -29,10 +29,10 @@ type NotificationEndpointBackend struct {
 }
 
 // NewNotificationEndpointBackend returns a new instance of NotificationEndpointBackend.
-func NewNotificationEndpointBackend(logger *zap.Logger, b *APIBackend) *NotificationEndpointBackend {
+func NewNotificationEndpointBackend(log *zap.Logger, b *APIBackend) *NotificationEndpointBackend {
 	return &NotificationEndpointBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		NotificationEndpointService: b.NotificationEndpointService,
 		UserResourceMappingService:  b.UserResourceMappingService,
@@ -43,15 +43,15 @@ func NewNotificationEndpointBackend(logger *zap.Logger, b *APIBackend) *Notifica
 	}
 }
 
-func (b *NotificationEndpointBackend) Logger() *zap.Logger {
-	return b.logger
+func (b *NotificationEndpointBackend) Log() *zap.Logger {
+	return b.log
 }
 
 // NotificationEndpointHandler is the handler for the notificationEndpoint service
 type NotificationEndpointHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	NotificationEndpointService influxdb.NotificationEndpointService
 	UserResourceMappingService  influxdb.UserResourceMappingService
@@ -73,11 +73,11 @@ const (
 )
 
 // NewNotificationEndpointHandler returns a new instance of NotificationEndpointHandler.
-func NewNotificationEndpointHandler(logger *zap.Logger, b *NotificationEndpointBackend) *NotificationEndpointHandler {
+func NewNotificationEndpointHandler(log *zap.Logger, b *NotificationEndpointBackend) *NotificationEndpointHandler {
 	h := &NotificationEndpointHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 
 		NotificationEndpointService: b.NotificationEndpointService,
 		UserResourceMappingService:  b.UserResourceMappingService,
@@ -95,7 +95,7 @@ func NewNotificationEndpointHandler(logger *zap.Logger, b *NotificationEndpointB
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		logger:                     b.logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationEndpointResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -107,7 +107,7 @@ func NewNotificationEndpointHandler(logger *zap.Logger, b *NotificationEndpointB
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		logger:                     b.logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationEndpointResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -119,7 +119,7 @@ func NewNotificationEndpointHandler(logger *zap.Logger, b *NotificationEndpointB
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           b.logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
@@ -224,7 +224,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 	ctx := r.Context()
 	filter, opts, err := decodeNotificationEndpointFilter(ctx, r)
 	if err != nil {
-		h.logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -233,10 +233,10 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("notificationEndpoints retrieved", zap.String("notificationEndpoints", fmt.Sprint(edps)))
+	h.log.Debug("notificationEndpoints retrieved", zap.String("notificationEndpoints", fmt.Sprint(edps)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointsResponse(ctx, edps, h.LabelService, filter, *opts)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -253,7 +253,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("notificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("notificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
 	if err != nil {
@@ -262,7 +262,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointResponse(edp, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -416,7 +416,7 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 	ctx := r.Context()
 	edp, err := decodePostNotificationEndpointRequest(ctx, r)
 	if err != nil {
-		h.logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -446,10 +446,10 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 
 	labels := h.mapNewNotificationEndpointLabels(ctx, edp.NotificationEndpoint, edp.Labels)
 
-	h.logger.Debug("notificationEndpoint created", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("notificationEndpoint created", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newNotificationEndpointResponse(edp, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -490,7 +490,7 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 	ctx := r.Context()
 	edp, err := decodePutNotificationEndpointRequest(ctx, r)
 	if err != nil {
-		h.logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -524,10 +524,10 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("notificationEndpoint replaced", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("notificationEndpoint replaced", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointResponse(edp, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -537,7 +537,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 	ctx := r.Context()
 	req, err := decodePatchNotificationEndpointRequest(ctx, r)
 	if err != nil {
-		h.logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -553,10 +553,10 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("notificationEndpoint patch", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("notificationEndpoint patch", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointResponse(edp, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -592,7 +592,7 @@ func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.Re
 		}, w)
 		return
 	}
-	h.logger.Debug("notificationEndpoint deleted", zap.String("notificationEndpointID", fmt.Sprint(i)))
+	h.log.Debug("notificationEndpoint deleted", zap.String("notificationEndpointID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

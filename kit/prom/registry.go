@@ -23,14 +23,14 @@ type PrometheusCollector interface {
 type Registry struct {
 	*prometheus.Registry
 
-	logger *zap.Logger
+	log *zap.Logger
 }
 
 // NewRegistry returns a new registry.
-func NewRegistry(logger *zap.Logger) *Registry {
+func NewRegistry(log *zap.Logger) *Registry {
 	return &Registry{
 		Registry: prometheus.NewRegistry(),
-		logger:   logger,
+		log:      log,
 	}
 }
 
@@ -55,5 +55,5 @@ var _ promhttp.Logger = (*promLogger)(nil)
 
 // Println implements promhttp.logger.
 func (pl promLogger) Println(v ...interface{}) {
-	pl.r.logger.Sugar().Info(v...)
+	pl.r.log.Sugar().Info(v...)
 }

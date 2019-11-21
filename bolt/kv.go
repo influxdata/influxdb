@@ -15,17 +15,17 @@ import (
 
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
-	path   string
-	db     *bolt.DB
-	logger *zap.Logger
+	path string
+	db   *bolt.DB
+	log  *zap.Logger
 }
 
 // NewKVStore returns an instance of KVStore with the file at
 // the provided path.
-func NewKVStore(logger *zap.Logger, path string) *KVStore {
+func NewKVStore(log *zap.Logger, path string) *KVStore {
 	return &KVStore{
-		path:   path,
-		logger: logger,
+		path: path,
+		log:  log,
 	}
 }
 
@@ -50,7 +50,7 @@ func (s *KVStore) Open(ctx context.Context) error {
 	}
 	s.db = db
 
-	s.logger.Info("Resources opened", zap.String("path", s.path))
+	s.log.Info("Resources opened", zap.String("path", s.path))
 	return nil
 }
 

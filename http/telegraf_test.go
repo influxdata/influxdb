@@ -21,7 +21,7 @@ import (
 // NewMockTelegrafBackend returns a TelegrafBackend with mock services.
 func NewMockTelegrafBackend() *TelegrafBackend {
 	return &TelegrafBackend{
-		logger: zap.NewNop().With(zap.String("handler", "telegraf")),
+		log: zap.NewNop().With(zap.String("handler", "telegraf")),
 
 		TelegrafService:            &mock.TelegrafConfigStore{},
 		UserResourceMappingService: mock.NewUserResourceMappingService(),

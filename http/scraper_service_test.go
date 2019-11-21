@@ -34,7 +34,7 @@ var (
 // NewMockScraperBackend returns a ScraperBackend with mock services.
 func NewMockScraperBackend() *ScraperBackend {
 	return &ScraperBackend{
-		logger: zap.NewNop().With(zap.String("handler", "scraper")),
+		log: zap.NewNop().With(zap.String("handler", "scraper")),
 
 		ScraperStorageService:      &mock.ScraperTargetStoreService{},
 		BucketService:              mock.NewBucketService(),

@@ -18,7 +18,7 @@ import (
 // NewMockDeleteBackend returns a DeleteBackend with mock services.
 func NewMockDeleteBackend() *DeleteBackend {
 	return &DeleteBackend{
-		logger: zap.NewNop().With(zap.String("handler", "delete")),
+		log: zap.NewNop().With(zap.String("handler", "delete")),
 
 		DeleteService:       mock.NewDeleteService(),
 		BucketService:       mock.NewBucketService(),

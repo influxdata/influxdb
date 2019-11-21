@@ -73,7 +73,7 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
-	logger *zap.Logger
+	log *zap.Logger
 
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
@@ -83,14 +83,14 @@ type Service struct {
 }
 
 // NewService is a constructor for a pkger Service.
-func NewService(logger *zap.Logger, opts ...ServiceSetterFn) *Service {
+func NewService(log *zap.Logger, opts ...ServiceSetterFn) *Service {
 	opt := &serviceOpt{}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		logger:    logger,
+		log:       log,
 		bucketSVC: opt.bucketSVC,
 		labelSVC:  opt.labelSVC,
 		dashSVC:   opt.dashSVC,
@@ -761,7 +761,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 	}
 
 	coordinator := new(rollbackCoordinator)
-	defer coordinator.rollback(s.logger, &e)
+	defer coordinator.rollback(s.log, &e)
 
 	runners := [][]applier{
 		// each grouping here runs for its entirety, then returns an error that

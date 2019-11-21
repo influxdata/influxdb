@@ -43,7 +43,7 @@ func TestScheduler(t *testing.T) {
 	}
 
 	subscriber.Subscribe(MetricsSubject, "", &RecorderHandler{
-		logger:   logger,
+		log:      logger,
 		Recorder: storage,
 	})
 

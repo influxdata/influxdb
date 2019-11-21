@@ -16,7 +16,7 @@ import (
 
 func NewMockNotificationRuleBackend() *NotificationRuleBackend {
 	return &NotificationRuleBackend{
-		logger: zap.NewNop().With(zap.String("handler", "check")),
+		log: zap.NewNop().With(zap.String("handler", "check")),
 
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),

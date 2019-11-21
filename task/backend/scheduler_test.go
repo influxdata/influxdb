@@ -252,7 +252,7 @@ func TestScheduler_LogStatisticsOnSuccess(t *testing.T) {
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
 
-	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5,)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 

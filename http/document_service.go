@@ -15,7 +15,7 @@ import (
 // DocumentBackend is all services and associated parameters required to construct
 // the DocumentHandler.
 type DocumentBackend struct {
-	logger *zap.Logger
+	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
 	DocumentService influxdb.DocumentService
@@ -23,10 +23,10 @@ type DocumentBackend struct {
 }
 
 // NewDocumentBackend returns a new instance of DocumentBackend.
-func NewDocumentBackend(logger *zap.Logger, b *APIBackend) *DocumentBackend {
+func NewDocumentBackend(log *zap.Logger, b *APIBackend) *DocumentBackend {
 	return &DocumentBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           logger,
+		log:              log,
 		DocumentService:  b.DocumentService,
 		LabelService:     b.LabelService,
 	}
@@ -36,7 +36,7 @@ func NewDocumentBackend(logger *zap.Logger, b *APIBackend) *DocumentBackend {
 type DocumentHandler struct {
 	*httprouter.Router
 
-	logger *zap.Logger
+	log *zap.Logger
 	influxdb.HTTPErrorHandler
 
 	DocumentService influxdb.DocumentService
@@ -56,7 +56,7 @@ func NewDocumentHandler(b *DocumentBackend) *DocumentHandler {
 	h := &DocumentHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           b.logger,
+		log:              b.log,
 
 		DocumentService: b.DocumentService,
 		LabelService:    b.LabelService,
@@ -143,10 +143,10 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.logger.Debug("document created", zap.String("document", fmt.Sprint(req.Document)))
+	h.log.Debug("document created", zap.String("document", fmt.Sprint(req.Document)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newDocumentResponse(req.Namespace, req.Document)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -229,10 +229,10 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("documents retrieved", zap.String("documents", fmt.Sprint(ds)))
+	h.log.Debug("documents retrieved", zap.String("documents", fmt.Sprint(ds)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentsResponse(req.Namespace, ds)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -301,10 +301,10 @@ func (h *DocumentHandler) handlePostDocumentLabel(w http.ResponseWriter, r *http
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("document label created", zap.String("label", fmt.Sprint(label)))
+	h.log.Debug("document label created", zap.String("label", fmt.Sprint(label)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(label)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -341,7 +341,7 @@ func (h *DocumentHandler) handleDeleteDocumentLabel(w http.ResponseWriter, r *ht
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("document label deleted", zap.String("mapping", fmt.Sprint(mapping)))
+	h.log.Debug("document label deleted", zap.String("mapping", fmt.Sprint(mapping)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -353,10 +353,10 @@ func (h *DocumentHandler) handleGetDocumentLabel(w http.ResponseWriter, r *http.
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("document label retrieved", zap.String("labels", fmt.Sprint(d.Labels)))
+	h.log.Debug("document label retrieved", zap.String("labels", fmt.Sprint(d.Labels)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(d.Labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -399,10 +399,10 @@ func (h *DocumentHandler) handleGetDocument(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("document retrieved", zap.String("document", fmt.Sprint(d)))
+	h.log.Debug("document retrieved", zap.String("document", fmt.Sprint(d)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentResponse(namspace, d)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -470,7 +470,7 @@ func (h *DocumentHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.logger.Debug("document deleted", zap.String("documentID", fmt.Sprint(req.ID)))
+	h.log.Debug("document deleted", zap.String("documentID", fmt.Sprint(req.ID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -555,10 +555,10 @@ func (h *DocumentHandler) handlePutDocument(w http.ResponseWriter, r *http.Reque
 
 	d := ds[0]
 
-	h.logger.Debug("document updated", zap.String("document", fmt.Sprint(d)))
+	h.log.Debug("document updated", zap.String("document", fmt.Sprint(d)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentResponse(req.Namespace, d)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
