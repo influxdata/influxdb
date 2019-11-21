@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltNotificationEndpointService(t *testing.T) {
@@ -44,7 +45,7 @@ func initInmemNotificationEndpointService(f influxdbtesting.NotificationEndpoint
 }
 
 func initNotificationEndpointService(s kv.Store, f influxdbtesting.NotificationEndpointFields, t *testing.T) (influxdb.NotificationEndpointService, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {

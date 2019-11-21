@@ -90,7 +90,7 @@ func assignOrgBucket(spec *gen.Spec) error {
 		return err
 	}
 
-	s := kv.NewService(store)
+	s := kv.NewService(zap.NewNop(), store)
 	if err = s.Initialize(context.Background()); err != nil {
 		return err
 	}

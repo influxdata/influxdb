@@ -642,7 +642,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	if err := s.createTaskURM(ctx, tx, task); err != nil {
-		s.Logger.Info("error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
+		s.logger.Info("error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
 	}
 
 	// populate permissions so the task can be used immediately
@@ -872,7 +872,7 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 	if err := s.deleteUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
 		ResourceID: task.ID,
 	}); err != nil {
-		s.Logger.Info("error deleting user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
+		s.logger.Info("error deleting user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
 	}
 
 	return nil

@@ -51,8 +51,8 @@ func TestAPIHandler_NotFound(t *testing.T) {
 
 			b := &APIBackend{
 				HTTPErrorHandler: ErrorHandler(0),
+				Logger:           zap.NewNop(),
 			}
-			b.Logger = zap.NewNop()
 
 			h := NewAPIHandler(b)
 			h.ServeHTTP(w, r)

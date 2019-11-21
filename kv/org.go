@@ -264,7 +264,7 @@ func (s *Service) CreateOrganization(ctx context.Context, o *influxdb.Organizati
 		// Attempt to add user as owner of organization, if that is not possible allow the
 		// organization to be created anyways.
 		if err := s.addOrgOwner(ctx, tx, o.ID); err != nil {
-			s.Logger.Info("Failed to make user owner of organization", zap.Error(err))
+			s.logger.Info("Failed to make user owner of organization", zap.Error(err))
 		}
 
 		return s.createSystemBuckets(ctx, tx, o)
@@ -469,7 +469,7 @@ func (s *Service) deleteOrganizationsBuckets(ctx context.Context, tx Tx, id infl
 	}
 	for _, b := range bs {
 		if err := s.deleteBucket(ctx, tx, b.ID); err != nil {
-			s.Logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrgID))
+			s.logger.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrgID))
 		}
 	}
 	return nil

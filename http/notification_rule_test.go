@@ -16,7 +16,7 @@ import (
 
 func NewMockNotificationRuleBackend() *NotificationRuleBackend {
 	return &NotificationRuleBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "check")),
+		logger: zap.NewNop().With(zap.String("handler", "check")),
 
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),
@@ -177,7 +177,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 }`,
 		},
 	}
-	handler := NewNotificationRuleHandler(NewMockNotificationRuleBackend())
+	handler := NewNotificationRuleHandler(zap.NewNop(), NewMockNotificationRuleBackend())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -292,7 +292,7 @@ func Test_newNotificationRuleResponse(t *testing.T) {
 }`,
 		},
 	}
-	handler := NewNotificationRuleHandler(NewMockNotificationRuleBackend())
+	handler := NewNotificationRuleHandler(zap.NewNop(), NewMockNotificationRuleBackend())
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := handler.newNotificationRuleResponse(context.Background(), tt.args.nr, []*influxdb.Label{})

@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltScraperTargetStoreService(t *testing.T) {
@@ -44,7 +45,7 @@ func initInmemTargetService(f influxdbtesting.TargetFields, t *testing.T) (influ
 }
 
 func initScraperTargetStoreService(s kv.Store, f influxdbtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 
 	ctx := context.Background()

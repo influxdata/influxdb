@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltTelegrafService(t *testing.T) {
@@ -44,7 +45,7 @@ func initInmemTelegrafService(f influxdbtesting.TelegrafConfigFields, t *testing
 }
 
 func initTelegrafService(s kv.Store, f influxdbtesting.TelegrafConfigFields, t *testing.T) (influxdb.TelegrafConfigStore, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 
 	ctx := context.Background()

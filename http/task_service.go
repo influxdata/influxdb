@@ -26,7 +26,7 @@ import (
 // the TaskHandler.
 type TaskBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	TaskService                influxdb.TaskService
 	AuthorizationService       influxdb.AuthorizationService
@@ -38,10 +38,10 @@ type TaskBackend struct {
 }
 
 // NewTaskBackend returns a new instance of TaskBackend.
-func NewTaskBackend(b *APIBackend) *TaskBackend {
+func NewTaskBackend(logger *zap.Logger, b *APIBackend) *TaskBackend {
 	return &TaskBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "task")),
+		logger:                     logger,
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
 		OrganizationService:        b.OrganizationService,
@@ -84,11 +84,11 @@ const (
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler(b *TaskBackend) *TaskHandler {
+func NewTaskHandler(logger *zap.Logger, b *TaskBackend) *TaskHandler {
 	h := &TaskHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           b.Logger,
+		logger:           logger,
 
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
@@ -111,7 +111,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		logger:                     b.logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.TasksResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -123,7 +123,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		logger:                     b.logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.TasksResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -141,7 +141,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		logger:           b.logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TasksResourceType,
 	}

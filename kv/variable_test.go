@@ -5,6 +5,8 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
+
 	"testing"
 )
 
@@ -43,7 +45,7 @@ func initInmemVariableService(f influxdbtesting.VariableFields, t *testing.T) (i
 }
 
 func initVariableService(s kv.Store, f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 
 	svc.TimeGenerator = f.TimeGenerator

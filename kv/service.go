@@ -21,7 +21,7 @@ const OpPrefix = "kv/"
 // Service is the struct that influxdb services are implemented on.
 type Service struct {
 	kv     Store
-	Logger *zap.Logger
+	logger *zap.Logger
 	Config ServiceConfig
 
 	IDGenerator influxdb.IDGenerator
@@ -38,9 +38,9 @@ type Service struct {
 }
 
 // NewService returns an instance of a Service.
-func NewService(kv Store, configs ...ServiceConfig) *Service {
+func NewService(logger *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 	s := &Service{
-		Logger:      zap.NewNop(),
+		logger:      logger,
 		IDGenerator: snowflake.NewIDGenerator(),
 		// Seed the random number generator with the current time
 		OrgBucketIDs:   rand.NewOrgBucketID(time.Now().UnixNano()),

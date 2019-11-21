@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltDashboardService(t *testing.T) {
@@ -48,7 +49,7 @@ func initDashboardService(s kv.Store, f influxdbtesting.DashboardFields, t *test
 	if f.TimeGenerator == nil {
 		f.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 

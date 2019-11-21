@@ -18,17 +18,17 @@ import (
 // the UserHandler.
 type UserBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger                  *zap.Logger
+	logger                  *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
 	PasswordsService        influxdb.PasswordsService
 }
 
 // NewUserBackend creates a UserBackend using information in the APIBackend.
-func NewUserBackend(b *APIBackend) *UserBackend {
+func NewUserBackend(logger *zap.Logger, b *APIBackend) *UserBackend {
 	return &UserBackend{
 		HTTPErrorHandler:        b.HTTPErrorHandler,
-		Logger:                  b.Logger.With(zap.String("handler", "user")),
+		logger:                  logger,
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
 		PasswordsService:        b.PasswordsService,
@@ -39,7 +39,7 @@ func NewUserBackend(b *APIBackend) *UserBackend {
 type UserHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	Logger                  *zap.Logger
+	logger                  *zap.Logger
 	UserService             influxdb.UserService
 	UserOperationLogService influxdb.UserOperationLogService
 	PasswordsService        influxdb.PasswordsService
@@ -55,11 +55,11 @@ const (
 )
 
 // NewUserHandler returns a new instance of UserHandler.
-func NewUserHandler(b *UserBackend) *UserHandler {
+func NewUserHandler(logger *zap.Logger, b *UserBackend) *UserHandler {
 	h := &UserHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		logger:           logger,
 
 		UserService:             b.UserService,
 		UserOperationLogService: b.UserOperationLogService,
@@ -148,7 +148,7 @@ func (h *UserHandler) handlePutUserPassword(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("user password updated")
+	h.logger.Debug("user password updated")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -201,7 +201,7 @@ func (h *UserHandler) handlePostUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("user created", zap.String("user", fmt.Sprint(req.User)))
+	h.logger.Debug("user created", zap.String("user", fmt.Sprint(req.User)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newUserResponse(req.User)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -261,7 +261,7 @@ func (h *UserHandler) handleGetUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("user retrieved", zap.String("user", fmt.Sprint(b)))
+	h.logger.Debug("user retrieved", zap.String("user", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -308,7 +308,7 @@ func (h *UserHandler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("user deleted", zap.String("userID", fmt.Sprint(req.UserID)))
+	h.logger.Debug("user deleted", zap.String("userID", fmt.Sprint(req.UserID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -393,7 +393,7 @@ func (h *UserHandler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("users retrieved", zap.String("users", fmt.Sprint(users)))
+	h.logger.Debug("users retrieved", zap.String("users", fmt.Sprint(users)))
 
 	err = encodeResponse(ctx, w, http.StatusOK, newUsersResponse(users))
 	if err != nil {
@@ -439,7 +439,7 @@ func (h *UserHandler) handlePatchUser(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("users updated", zap.String("user", fmt.Sprint(b)))
+	h.logger.Debug("users updated", zap.String("user", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newUserResponse(b)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -747,7 +747,7 @@ func (h *UserHandler) handleGetUserLog(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("user log retrieved", zap.String("log", fmt.Sprint(log)))
+	h.logger.Debug("user log retrieved", zap.String("log", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newUserLogResponse(req.UserID, log)); err != nil {
 		h.HandleHTTPError(ctx, err, w)

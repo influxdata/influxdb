@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 var (
@@ -243,7 +244,7 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 			if err != nil {
 				t.Fatalf("unable to create bolt test client: %v", err)
 			}
-			svc := kv.NewService(store)
+			svc := kv.NewService(zap.NewNop(), store)
 			defer done()
 
 			svc.IDGenerator = mock.NewMockIDGenerator()

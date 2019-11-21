@@ -30,7 +30,10 @@ type swaggerLoader struct {
 }
 
 func newSwaggerLoader(logger *zap.Logger, h influxdb.HTTPErrorHandler) *swaggerLoader {
-	return &swaggerLoader{logger: logger, HTTPErrorHandler: h}
+	return &swaggerLoader{
+		logger:           logger,
+		HTTPErrorHandler: h,
+	}
 }
 
 func (s *swaggerLoader) initialize() {

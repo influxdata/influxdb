@@ -17,14 +17,14 @@ import (
 // NewMockSetupBackend returns a SetupBackend with mock services.
 func NewMockSetupBackend() *SetupBackend {
 	return &SetupBackend{
-		Logger:            zap.NewNop().With(zap.String("handler", "scraper")),
+		logger:            zap.NewNop().With(zap.String("handler", "scraper")),
 		OnboardingService: mock.NewOnboardingService(),
 	}
 }
 
 func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (platform.OnboardingService, func()) {
 	t.Helper()
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
@@ -41,7 +41,7 @@ func initOnboardingService(f platformtesting.OnboardingFields, t *testing.T) (pl
 	setupBackend := NewMockSetupBackend()
 	setupBackend.HTTPErrorHandler = ErrorHandler(0)
 	setupBackend.OnboardingService = svc
-	handler := NewSetupHandler(setupBackend)
+	handler := NewSetupHandler(zap.NewNop(), setupBackend)
 	server := httptest.NewServer(handler)
 	client := struct {
 		*SetupService

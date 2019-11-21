@@ -15,7 +15,7 @@ import (
 type UsageHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	UsageService platform.UsageService
 }
@@ -24,7 +24,7 @@ type UsageHandler struct {
 func NewUsageHandler(he platform.HTTPErrorHandler) *UsageHandler {
 	h := &UsageHandler{
 		Router: NewRouter(he),
-		Logger: zap.NewNop(),
+		logger: zap.NewNop(),
 	}
 
 	h.HandlerFunc("GET", "/api/v2/usage", h.handleGetUsage)
@@ -48,7 +48,7 @@ func (h *UsageHandler) handleGetUsage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }

@@ -24,7 +24,7 @@ import (
 // NewMockUserBackend returns a UserBackend with mock services.
 func NewMockUserBackend() *UserBackend {
 	return &UserBackend{
-		Logger:                  zap.NewNop(),
+		logger:                  zap.NewNop(),
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
 		PasswordsService:        mock.NewPasswordsService(),
@@ -47,7 +47,7 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 	userBackend := NewMockUserBackend()
 	userBackend.HTTPErrorHandler = ErrorHandler(0)
 	userBackend.UserService = svc
-	handler := NewUserHandler(userBackend)
+	handler := NewUserHandler(zap.NewNop(), userBackend)
 	server := httptest.NewServer(handler)
 	client := UserService{
 		Addr:     server.URL,
@@ -80,7 +80,7 @@ func TestUserHandler_SettingPassword(t *testing.T) {
 	}
 	be.PasswordsService = fakePassSVC
 
-	h := NewUserHandler(be)
+	h := NewUserHandler(zap.NewNop(), be)
 
 	body := newReqBody(t, passwordSetRequest{Password: "newpassword"})
 	addr := path.Join("/api/v2/users", userID.String(), "/password")

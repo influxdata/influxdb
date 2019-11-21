@@ -21,7 +21,7 @@ import (
 // NewMockTelegrafBackend returns a TelegrafBackend with mock services.
 func NewMockTelegrafBackend() *TelegrafBackend {
 	return &TelegrafBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "telegraf")),
+		logger: zap.NewNop().With(zap.String("handler", "telegraf")),
 
 		TelegrafService:            &mock.TelegrafConfigStore{},
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
@@ -188,7 +188,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			w := httptest.NewRecorder()
 			telegrafBackend := NewMockTelegrafBackend()
 			telegrafBackend.TelegrafService = tt.svc
-			h := NewTelegrafHandler(telegrafBackend)
+			h := NewTelegrafHandler(zap.NewNop(), telegrafBackend)
 			h.ServeHTTP(w, tt.r)
 
 			res := w.Result()
@@ -728,7 +728,7 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 			w := httptest.NewRecorder()
 			telegrafBackend := NewMockTelegrafBackend()
 			telegrafBackend.TelegrafService = tt.svc
-			h := NewTelegrafHandler(telegrafBackend)
+			h := NewTelegrafHandler(zap.NewNop(), telegrafBackend)
 
 			h.ServeHTTP(w, tt.r)
 

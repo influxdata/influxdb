@@ -7,6 +7,7 @@ import (
 	influxdb "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltOnboardingService(t *testing.T) {
@@ -44,7 +45,7 @@ func initInmemOnboardingService(f influxdbtesting.OnboardingFields, t *testing.T
 }
 
 func initOnboardingService(s kv.Store, f influxdbtesting.OnboardingFields, t *testing.T) (influxdb.OnboardingService, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator

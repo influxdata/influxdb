@@ -22,7 +22,7 @@ import (
 // NewMockOrgBackend returns a OrgBackend with mock services.
 func NewMockOrgBackend() *OrgBackend {
 	return &OrgBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "org")),
+		logger: zap.NewNop().With(zap.String("handler", "org")),
 
 		OrganizationService:             mock.NewOrganizationService(),
 		OrganizationOperationLogService: mock.NewOrganizationOperationLogService(),
@@ -35,7 +35,7 @@ func NewMockOrgBackend() *OrgBackend {
 
 func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T) (platform.OrganizationService, string, func()) {
 	t.Helper()
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.TimeGenerator = f.TimeGenerator
@@ -57,7 +57,7 @@ func initOrganizationService(f platformtesting.OrganizationFields, t *testing.T)
 	orgBackend := NewMockOrgBackend()
 	orgBackend.HTTPErrorHandler = ErrorHandler(0)
 	orgBackend.OrganizationService = svc
-	handler := NewOrgHandler(orgBackend)
+	handler := NewOrgHandler(zap.NewNop(), orgBackend)
 	server := httptest.NewServer(handler)
 	client := OrganizationService{
 		Addr:     server.URL,
@@ -184,7 +184,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			orgBackend := NewMockOrgBackend()
 			orgBackend.HTTPErrorHandler = ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
-			h := NewOrgHandler(orgBackend)
+			h := NewOrgHandler(zap.NewNop(), orgBackend)
 
 			u := fmt.Sprintf("http://any.url/api/v2/orgs/%s/secrets", tt.args.orgID)
 			r := httptest.NewRequest("GET", u, nil)
@@ -260,7 +260,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 			orgBackend := NewMockOrgBackend()
 			orgBackend.HTTPErrorHandler = ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
-			h := NewOrgHandler(orgBackend)
+			h := NewOrgHandler(zap.NewNop(), orgBackend)
 
 			b, err := json.Marshal(tt.args.secrets)
 			if err != nil {
@@ -342,7 +342,7 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			orgBackend := NewMockOrgBackend()
 			orgBackend.HTTPErrorHandler = ErrorHandler(0)
 			orgBackend.SecretService = tt.fields.SecretService
-			h := NewOrgHandler(orgBackend)
+			h := NewOrgHandler(zap.NewNop(), orgBackend)
 
 			b, err := json.Marshal(deleteSecretsRequest{
 				Secrets: tt.args.secrets,

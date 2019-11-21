@@ -44,7 +44,7 @@ func (r *Registry) HTTPHandler() http.Handler {
 	return promhttp.HandlerFor(r.Registry, opts)
 }
 
-// promLogger satisfies the promhttp.Logger interface with the registry.
+// promLogger satisfies the promhttp.logger interface with the registry.
 // Because normal usage is that WithLogger is called after HTTPHandler,
 // we refer to the Registry rather than its logger.
 type promLogger struct {
@@ -53,7 +53,7 @@ type promLogger struct {
 
 var _ promhttp.Logger = (*promLogger)(nil)
 
-// Println implements promhttp.Logger.
+// Println implements promhttp.logger.
 func (pl promLogger) Println(v ...interface{}) {
 	pl.r.logger.Sugar().Info(v...)
 }

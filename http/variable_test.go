@@ -24,7 +24,7 @@ var faketime = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
 // NewMockVariableBackend returns a VariableBackend with mock services.
 func NewMockVariableBackend() *VariableBackend {
 	return &VariableBackend{
-		Logger:          zap.NewNop().With(zap.String("handler", "variable")),
+		logger:          zap.NewNop().With(zap.String("handler", "variable")),
 		VariableService: mock.NewVariableService(),
 		LabelService:    mock.NewLabelService(),
 	}
@@ -298,7 +298,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.LabelService = tt.fields.LabelService
 			variableBackend.VariableService = tt.fields.VariableService
-			h := NewVariableHandler(variableBackend)
+			h := NewVariableHandler(zap.NewNop(), variableBackend)
 
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
 
@@ -429,7 +429,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
 			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
-			h := NewVariableHandler(variableBackend)
+			h := NewVariableHandler(zap.NewNop(), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
 			r = r.WithContext(context.WithValue(
 				context.TODO(),
@@ -568,7 +568,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
 			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
-			h := NewVariableHandler(variableBackend)
+			h := NewVariableHandler(zap.NewNop(), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.variable)))
 			w := httptest.NewRecorder()
 
@@ -668,7 +668,7 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
 			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
-			h := NewVariableHandler(variableBackend)
+			h := NewVariableHandler(zap.NewNop(), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", bytes.NewReader([]byte(tt.args.update)))
 			r = r.WithContext(context.WithValue(
 				context.TODO(),
@@ -762,7 +762,7 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
 			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.VariableService = tt.fields.VariableService
-			h := NewVariableHandler(variableBackend)
+			h := NewVariableHandler(zap.NewNop(), variableBackend)
 			r := httptest.NewRequest("GET", "http://howdy.tld", nil)
 			r = r.WithContext(context.WithValue(
 				context.TODO(),
@@ -855,7 +855,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 			variableBackend := NewMockVariableBackend()
 			variableBackend.HTTPErrorHandler = ErrorHandler(0)
 			variableBackend.LabelService = tt.fields.LabelService
-			h := NewVariableHandler(variableBackend)
+			h := NewVariableHandler(zap.NewNop(), variableBackend)
 
 			b, err := json.Marshal(tt.args.labelMapping)
 			if err != nil {

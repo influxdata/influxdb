@@ -7,11 +7,12 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func initUserService(f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {
 	s := NewKVStore()
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 	svc.IDGenerator = f.IDGenerator
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {

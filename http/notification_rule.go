@@ -22,7 +22,7 @@ type statusDecode struct {
 // the NotificationRuleBackendHandler.
 type NotificationRuleBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	NotificationRuleStore       influxdb.NotificationRuleStore
 	NotificationEndpointService influxdb.NotificationEndpointService
@@ -34,10 +34,10 @@ type NotificationRuleBackend struct {
 }
 
 // NewNotificationRuleBackend returns a new instance of NotificationRuleBackend.
-func NewNotificationRuleBackend(b *APIBackend) *NotificationRuleBackend {
+func NewNotificationRuleBackend(logger *zap.Logger, b *APIBackend) *NotificationRuleBackend {
 	return &NotificationRuleBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "notification_rule")),
+		logger:           logger,
 
 		NotificationRuleStore:       b.NotificationRuleStore,
 		NotificationEndpointService: b.NotificationEndpointService,
@@ -53,7 +53,7 @@ func NewNotificationRuleBackend(b *APIBackend) *NotificationRuleBackend {
 type NotificationRuleHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	NotificationRuleStore       influxdb.NotificationRuleStore
 	NotificationEndpointService influxdb.NotificationEndpointService
@@ -77,11 +77,11 @@ const (
 )
 
 // NewNotificationRuleHandler returns a new instance of NotificationRuleHandler.
-func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHandler {
+func NewNotificationRuleHandler(logger *zap.Logger, b *NotificationRuleBackend) *NotificationRuleHandler {
 	h := &NotificationRuleHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		logger:           logger,
 
 		NotificationRuleStore:       b.NotificationRuleStore,
 		NotificationEndpointService: b.NotificationEndpointService,
@@ -101,7 +101,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		logger:                     b.logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationRuleResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -113,7 +113,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		logger:                     b.logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.NotificationRuleResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -125,7 +125,7 @@ func NewNotificationRuleHandler(b *NotificationRuleBackend) *NotificationRuleHan
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		logger:           b.logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TelegrafsResourceType,
 	}
@@ -242,7 +242,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRules(w http.ResponseWrit
 	ctx := r.Context()
 	filter, opts, err := decodeNotificationRuleFilter(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -251,7 +251,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRules(w http.ResponseWrit
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rules retrieved", zap.String("notificationRules", fmt.Sprint(nrs)))
+	h.logger.Debug("notification rules retrieved", zap.String("notificationRules", fmt.Sprint(nrs)))
 
 	res, err := h.newNotificationRulesResponse(ctx, nrs, h.LabelService, filter, *opts)
 	if err != nil {
@@ -260,7 +260,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRules(w http.ResponseWrit
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -291,9 +291,9 @@ func (h *NotificationRuleHandler) handleGetNotificationRuleQuery(w http.Response
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rule query retrieved", zap.String("notificationRuleQuery", fmt.Sprint(flux)))
+	h.logger.Debug("notification rule query retrieved", zap.String("notificationRuleQuery", fmt.Sprint(flux)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newFluxResponse(flux)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -310,7 +310,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRule(w http.ResponseWrite
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.logger.Debug("notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
 	if err != nil {
@@ -325,7 +325,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRule(w http.ResponseWrite
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -530,7 +530,7 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 	ctx := r.Context()
 	nr, err := decodePostNotificationRuleRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -545,7 +545,7 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rule created", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.logger.Debug("notification rule created", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	labels := h.mapNewNotificationRuleLabels(ctx, nr.NotificationRuleCreate, nr.Labels)
 
@@ -556,7 +556,7 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -597,7 +597,7 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 	ctx := r.Context()
 	nrc, err := decodePutNotificationRuleRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -618,7 +618,7 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rule updated", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.logger.Debug("notification rule updated", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	res, err := h.newNotificationRuleResponse(ctx, nr, labels)
 	if err != nil {
@@ -627,7 +627,7 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -637,7 +637,7 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 	ctx := r.Context()
 	req, err := decodePatchNotificationRuleRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -653,7 +653,7 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rule patch", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.logger.Debug("notification rule patch", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	res, err := h.newNotificationRuleResponse(ctx, nr, labels)
 	if err != nil {
@@ -662,7 +662,7 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -679,7 +679,7 @@ func (h *NotificationRuleHandler) handleDeleteNotificationRule(w http.ResponseWr
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("notification rule deleted", zap.String("notificationRuleID", fmt.Sprint(i)))
+	h.logger.Debug("notification rule deleted", zap.String("notificationRuleID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

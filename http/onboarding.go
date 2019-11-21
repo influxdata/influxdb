@@ -16,15 +16,15 @@ import (
 // the SetupHandler.
 type SetupBackend struct {
 	platform.HTTPErrorHandler
-	Logger            *zap.Logger
+	logger            *zap.Logger
 	OnboardingService platform.OnboardingService
 }
 
 // NewSetupBackend returns a new instance of SetupBackend.
-func NewSetupBackend(b *APIBackend) *SetupBackend {
+func NewSetupBackend(logger *zap.Logger, b *APIBackend) *SetupBackend {
 	return &SetupBackend{
 		HTTPErrorHandler:  b.HTTPErrorHandler,
-		Logger:            b.Logger.With(zap.String("handler", "setup")),
+		logger:            logger,
 		OnboardingService: b.OnboardingService,
 	}
 }
@@ -33,7 +33,7 @@ func NewSetupBackend(b *APIBackend) *SetupBackend {
 type SetupHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	OnboardingService platform.OnboardingService
 }
@@ -43,11 +43,11 @@ const (
 )
 
 // NewSetupHandler returns a new instance of SetupHandler.
-func NewSetupHandler(b *SetupBackend) *SetupHandler {
+func NewSetupHandler(logger *zap.Logger, b *SetupBackend) *SetupHandler {
 	h := &SetupHandler{
 		Router:            NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler:  b.HTTPErrorHandler,
-		Logger:            b.Logger,
+		logger:            logger,
 		OnboardingService: b.OnboardingService,
 	}
 	h.HandlerFunc("POST", setupPath, h.handlePostSetup)
@@ -67,10 +67,10 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
+	h.logger.Debug("onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, isOnboardingResponse{result}); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -88,10 +88,10 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("onboarding setup completed", zap.String("results", fmt.Sprint(results)))
+	h.logger.Debug("onboarding setup completed", zap.String("results", fmt.Sprint(results)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOnboardingResponse(results)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }

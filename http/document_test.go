@@ -182,7 +182,7 @@ var (
 // NewMockDocumentBackend returns a DocumentBackend with mock services.
 func NewMockDocumentBackend() *DocumentBackend {
 	return &DocumentBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "document")),
+		logger: zap.NewNop().With(zap.String("handler", "document")),
 
 		DocumentService: mock.NewDocumentService(),
 		LabelService:    mock.NewLabelService(),

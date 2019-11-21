@@ -24,7 +24,7 @@ import (
 // NewMockNotificationEndpointBackend returns a NotificationEndpointBackend with mock services.
 func NewMockNotificationEndpointBackend() *NotificationEndpointBackend {
 	return &NotificationEndpointBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "notification endpoint")),
+		logger: zap.NewNop().With(zap.String("handler", "notification endpoint")),
 
 		NotificationEndpointService: &mock.NotificationEndpointService{},
 		UserResourceMappingService:  mock.NewUserResourceMappingService(),
@@ -220,7 +220,7 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			notificationEndpointBackend.LabelService = tt.fields.LabelService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -357,7 +357,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -504,7 +504,7 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			notificationEndpointBackend.OrganizationService = tt.fields.OrganizationService
 			notificationEndpointBackend.SecretService = tt.fields.SecretService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			b, err := json.Marshal(tt.args.endpoint)
 			if err != nil {
@@ -629,7 +629,7 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			notificationEndpointBackend.SecretService = tt.fields.SecretService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -775,7 +775,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			upd := influxdb.NotificationEndpointUpdate{}
 			if tt.args.name != "" {
@@ -940,7 +940,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 			notificationEndpointBackend.HTTPErrorHandler = ErrorHandler(0)
 			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
 			notificationEndpointBackend.SecretService = tt.fields.SecretService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			b, err := json.Marshal(tt.args.edp)
 			if err != nil {
@@ -1048,7 +1048,7 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.UserService = tt.fields.UserService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {
@@ -1143,7 +1143,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			notificationEndpointBackend := NewMockNotificationEndpointBackend()
 			notificationEndpointBackend.UserService = tt.fields.UserService
-			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+			h := NewNotificationEndpointHandler(zap.NewNop(), notificationEndpointBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {

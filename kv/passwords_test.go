@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltPasswordService(t *testing.T) {
@@ -47,7 +48,7 @@ func initInmemPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (
 }
 
 func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 
 	svc.IDGenerator = f.IDGenerator
 	ctx := context.Background()

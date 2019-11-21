@@ -12,7 +12,7 @@ import (
 // SessionBackend is all services and associated parameters required to construct
 // the SessionHandler.
 type SessionBackend struct {
-	Logger *zap.Logger
+	logger *zap.Logger
 	platform.HTTPErrorHandler
 
 	PasswordsService platform.PasswordsService
@@ -21,10 +21,10 @@ type SessionBackend struct {
 }
 
 // newSessionBackend creates a new SessionBackend with associated logger.
-func newSessionBackend(b *APIBackend) *SessionBackend {
+func newSessionBackend(logger *zap.Logger, b *APIBackend) *SessionBackend {
 	return &SessionBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "session")),
+		logger:           logger,
 
 		PasswordsService: b.PasswordsService,
 		SessionService:   b.SessionService,
@@ -36,7 +36,7 @@ func newSessionBackend(b *APIBackend) *SessionBackend {
 type SessionHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	PasswordsService platform.PasswordsService
 	SessionService   platform.SessionService
@@ -44,11 +44,11 @@ type SessionHandler struct {
 }
 
 // NewSessionHandler returns a new instance of SessionHandler.
-func NewSessionHandler(b *SessionBackend) *SessionHandler {
+func NewSessionHandler(logger *zap.Logger, b *SessionBackend) *SessionHandler {
 	h := &SessionHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		logger:           logger,
 
 		PasswordsService: b.PasswordsService,
 		SessionService:   b.SessionService,

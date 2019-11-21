@@ -24,7 +24,7 @@ import (
 // NewMockAuthorizationBackend returns a AuthorizationBackend with mock services.
 func NewMockAuthorizationBackend() *AuthorizationBackend {
 	return &AuthorizationBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "authorization")),
+		logger: zap.NewNop().With(zap.String("handler", "authorization")),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		OrganizationService:  mock.NewOrganizationService(),
@@ -336,7 +336,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zap.NewNop(), authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -522,7 +522,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
 			authorizationBackend.LookupService = tt.fields.LookupService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zap.NewNop(), authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -702,7 +702,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
 			authorizationBackend.LookupService = tt.fields.LookupService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zap.NewNop(), authorizationBackend)
 
 			req, err := newPostAuthorizationRequest(tt.args.authorization)
 			if err != nil {
@@ -815,7 +815,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			authorizationBackend.AuthorizationService = tt.fields.AuthorizationService
 			authorizationBackend.UserService = tt.fields.UserService
 			authorizationBackend.OrganizationService = tt.fields.OrganizationService
-			h := NewAuthorizationHandler(authorizationBackend)
+			h := NewAuthorizationHandler(zap.NewNop(), authorizationBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -869,7 +869,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		t.Skip("HTTP authorization service does not required a user id on the authentication struct.  We get the user from the session token.")
 	}
 
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.TokenGenerator = f.TokenGenerator
 	svc.TimeGenerator = f.TimeGenerator
@@ -921,7 +921,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 		},
 	}
 
-	authZ := NewAuthorizationHandler(authorizationBackend)
+	authZ := NewAuthorizationHandler(zap.NewNop(), authorizationBackend)
 	authN := NewAuthenticationHandler(ErrorHandler(0))
 	authN.AuthorizationService = svc
 	authN.Handler = authZ

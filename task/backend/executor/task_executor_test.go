@@ -37,7 +37,7 @@ func taskExecutorSystem(t *testing.T) tes {
 		AsyncQueryService: aqs,
 	}
 
-	i := kv.NewService(inmem.NewKVStore())
+	i := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 
 	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, taskControlService{i})
 	return tes{

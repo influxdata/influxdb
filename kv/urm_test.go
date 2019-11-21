@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap"
 )
 
 func TestBoltUserResourceMappingService(t *testing.T) {
@@ -44,7 +45,7 @@ func initInmemUserResourceMappingService(f influxdbtesting.UserResourceFields, t
 }
 
 func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	svc := kv.NewService(s)
+	svc := kv.NewService(zap.NewNop(), s)
 
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {

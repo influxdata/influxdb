@@ -31,7 +31,7 @@ func TestAnalyticalStore(t *testing.T) {
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
-			svc := kv.NewService(inmem.NewKVStore())
+			svc := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 			if err := svc.Initialize(ctx); err != nil {
 				t.Fatalf("error initializing urm service: %v", err)
 			}
@@ -63,7 +63,7 @@ func TestAnalyticalStore(t *testing.T) {
 }
 
 func TestDeduplicateRuns(t *testing.T) {
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 	if err := svc.Initialize(context.Background()); err != nil {
 		t.Fatalf("error initializing kv service: %v", err)
 	}

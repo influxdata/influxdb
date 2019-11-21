@@ -498,13 +498,13 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	case BoltStore:
 		store := bolt.NewKVStore(m.logger.With(zap.String("service", "kvstore-bolt")), m.boltPath)
 		store.WithDB(m.boltClient.DB())
-		m.kvService = kv.NewService(store, serviceConfig)
+		m.kvService = kv.NewService(m.logger.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
 	case MemoryStore:
 		store := inmem.NewKVStore()
-		m.kvService = kv.NewService(store, serviceConfig)
+		m.kvService = kv.NewService(m.logger.With(zap.String("store", "kv")), store, serviceConfig)
 		if m.testing {
 			flushers = append(flushers, store)
 		}
@@ -514,7 +514,6 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	m.kvService.Logger = m.logger.With(zap.String("store", "kv"))
 	if err := m.kvService.Initialize(ctx); err != nil {
 		m.logger.Error("failed to initialize kv service", zap.Error(err))
 		return err
@@ -859,21 +858,19 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 
 	// HTTP server
-	platformHandler := http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
-	m.reg.MustRegister(platformHandler.PrometheusCollectors()...)
-
-	h := http.NewHandlerFromRegistry("platform", m.reg)
-	h.Handler = platformHandler
+	var platformHandler nethttp.Handler = http.NewPlatformHandler(m.apibackend, http.WithResourceHandler(pkgHTTPServer))
+	m.reg.MustRegister(platformHandler.(*http.PlatformHandler).PrometheusCollectors()...)
 	httpLogger := m.logger.With(zap.String("service", "http"))
 	if logconf.Level == zap.DebugLevel {
-		h.Handler = http.LoggingMW(httpLogger)(h.Handler)
+		platformHandler = http.LoggingMW(httpLogger)(platformHandler)
 	}
-	h.Logger = httpLogger
 
-	m.httpServer.Handler = h
+	handler := http.NewHandlerFromRegistry(httpLogger, "platform", platformHandler, m.reg)
+
+	m.httpServer.Handler = handler
 	// If we are in testing mode we allow all data to be flushed and removed.
 	if m.testing {
-		m.httpServer.Handler = http.DebugFlush(ctx, h, flushers)
+		m.httpServer.Handler = http.DebugFlush(ctx, handler, flushers)
 	}
 
 	ln, err := net.Listen("tcp", m.httpBindAddress)

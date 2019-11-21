@@ -34,7 +34,7 @@ var (
 // NewMockScraperBackend returns a ScraperBackend with mock services.
 func NewMockScraperBackend() *ScraperBackend {
 	return &ScraperBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "scraper")),
+		logger: zap.NewNop().With(zap.String("handler", "scraper")),
 
 		ScraperStorageService:      &mock.ScraperTargetStoreService{},
 		BucketService:              mock.NewBucketService(),
@@ -211,7 +211,7 @@ func TestService_handleGetScraperTargets(t *testing.T) {
 			scraperBackend.ScraperStorageService = tt.fields.ScraperTargetStoreService
 			scraperBackend.OrganizationService = tt.fields.OrganizationService
 			scraperBackend.BucketService = tt.fields.BucketService
-			h := NewScraperHandler(scraperBackend)
+			h := NewScraperHandler(zap.NewNop(), scraperBackend)
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -348,7 +348,7 @@ func TestService_handleGetScraperTarget(t *testing.T) {
 			scraperBackend.ScraperStorageService = tt.fields.ScraperTargetStoreService
 			scraperBackend.OrganizationService = tt.fields.OrganizationService
 			scraperBackend.BucketService = tt.fields.BucketService
-			h := NewScraperHandler(scraperBackend)
+			h := NewScraperHandler(zap.NewNop(), scraperBackend)
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -454,7 +454,7 @@ func TestService_handleDeleteScraperTarget(t *testing.T) {
 			scraperBackend := NewMockScraperBackend()
 			scraperBackend.HTTPErrorHandler = ErrorHandler(0)
 			scraperBackend.ScraperStorageService = tt.fields.Service
-			h := NewScraperHandler(scraperBackend)
+			h := NewScraperHandler(zap.NewNop(), scraperBackend)
 
 			r := httptest.NewRequest("GET", "http://any.tld", nil)
 
@@ -587,7 +587,7 @@ func TestService_handlePostScraperTarget(t *testing.T) {
 			scraperBackend.ScraperStorageService = tt.fields.ScraperTargetStoreService
 			scraperBackend.OrganizationService = tt.fields.OrganizationService
 			scraperBackend.BucketService = tt.fields.BucketService
-			h := NewScraperHandler(scraperBackend)
+			h := NewScraperHandler(zap.NewNop(), scraperBackend)
 
 			st, err := json.Marshal(tt.args.target)
 			if err != nil {
@@ -765,7 +765,7 @@ func TestService_handlePatchScraperTarget(t *testing.T) {
 			scraperBackend.ScraperStorageService = tt.fields.ScraperTargetStoreService
 			scraperBackend.OrganizationService = tt.fields.OrganizationService
 			scraperBackend.BucketService = tt.fields.BucketService
-			h := NewScraperHandler(scraperBackend)
+			h := NewScraperHandler(zap.NewNop(), scraperBackend)
 
 			var err error
 			st := make([]byte, 0)
@@ -849,7 +849,7 @@ func initScraperService(f platformtesting.TargetFields, t *testing.T) (influxdb.
 		},
 	}
 
-	handler := NewScraperHandler(scraperBackend)
+	handler := NewScraperHandler(zap.NewNop(), scraperBackend)
 	server := httptest.NewServer(httpMock.NewAuthMiddlewareHandler(
 		handler,
 		&influxdb.Authorization{

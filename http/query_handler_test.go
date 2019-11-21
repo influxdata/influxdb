@@ -28,6 +28,7 @@ import (
 	influxmock "github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -324,7 +325,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	i := inmem.NewService()
 	b := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(t),
+		logger:              zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: i,
 		ProxyQueryService: &mock.ProxyQueryService{
@@ -336,7 +337,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			},
 		},
 	}
-	h := NewFluxHandler(b)
+	h := NewFluxHandler(zap.NewNop(), b)
 
 	t.Run("missing authorizer", func(t *testing.T) {
 		ts := httptest.NewServer(h)
@@ -478,13 +479,13 @@ func TestFluxService_Query_gzip(t *testing.T) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(t),
+		logger:              zaptest.NewLogger(t),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(fluxBackend)
+	fluxHandler := NewFluxHandler(zap.NewNop(), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
@@ -614,13 +615,13 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 
 	fluxBackend := &FluxBackend{
 		HTTPErrorHandler:    ErrorHandler(0),
-		Logger:              zaptest.NewLogger(b),
+		logger:              zaptest.NewLogger(b),
 		QueryEventRecorder:  noopEventRecorder{},
 		OrganizationService: orgService,
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(fluxBackend)
+	fluxHandler := NewFluxHandler(zap.NewNop(), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places

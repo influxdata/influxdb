@@ -45,8 +45,8 @@ type Handler struct {
 	requests   *prometheus.CounterVec
 	requestDur *prometheus.HistogramVec
 
-	// Logger if set will log all HTTP requests as they are served
-	Logger *zap.Logger
+	// logger logs all HTTP requests as they are served
+	logger *zap.Logger
 }
 
 // NewHandler creates a new handler with the given name.
@@ -68,13 +68,15 @@ func NewHandler(name string) *Handler {
 // NewHandlerFromRegistry creates a new handler with the given name,
 // and sets the /metrics endpoint to use the metrics from the given registry,
 // after self-registering h's metrics.
-func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
+func NewHandlerFromRegistry(logger *zap.Logger, name string, wrappedHandler http.Handler, reg *prom.Registry) *Handler {
 	h := &Handler{
 		name:           name,
+		Handler:        wrappedHandler,
 		MetricsHandler: reg.HTTPHandler(),
 		ReadyHandler:   http.HandlerFunc(ReadyHandler),
 		HealthHandler:  http.HandlerFunc(HealthHandler),
 		DebugHandler:   http.DefaultServeMux,
+		logger:         logger,
 	}
 	h.initMetrics()
 	reg.MustRegister(h.PrometheusCollectors()...)

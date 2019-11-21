@@ -271,7 +271,7 @@ type createSysFn func() *system
 func createAsyncSystem() *system {
 	svc := newFakeQueryService()
 	store := inmem.NewKVStore()
-	i := kv.NewService(store)
+	i := kv.NewService(zap.NewNop(), store)
 	if err := i.Initialize(context.Background()); err != nil {
 		panic(err)
 	}
@@ -288,7 +288,7 @@ func createAsyncSystem() *system {
 
 func createSyncSystem() *system {
 	svc := newFakeQueryService()
-	i := kv.NewService(inmem.NewKVStore())
+	i := kv.NewService(zap.NewNop(), inmem.NewKVStore())
 	if err := i.Initialize(context.Background()); err != nil {
 		panic(err)
 	}

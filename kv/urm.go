@@ -391,7 +391,7 @@ func (s *Service) deleteOrgDependentMappings(ctx context.Context, tx Tx, m *infl
 			UserID:       m.UserID,
 		}); err != nil {
 			if influxdb.ErrorCode(err) == influxdb.ENotFound {
-				s.Logger.Info("URM bucket is missing", zap.Stringer("orgID", m.ResourceID))
+				s.logger.Info("URM bucket is missing", zap.Stringer("orgID", m.ResourceID))
 				continue
 			}
 			return err

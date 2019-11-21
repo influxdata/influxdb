@@ -18,7 +18,7 @@ import (
 // the ScraperHandler.
 type ScraperBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	logger *zap.Logger
 
 	ScraperStorageService      influxdb.ScraperTargetStoreService
 	BucketService              influxdb.BucketService
@@ -29,10 +29,10 @@ type ScraperBackend struct {
 }
 
 // NewScraperBackend returns a new instance of ScraperBackend.
-func NewScraperBackend(b *APIBackend) *ScraperBackend {
+func NewScraperBackend(logger *zap.Logger, b *APIBackend) *ScraperBackend {
 	return &ScraperBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "scraper")),
+		logger:           logger,
 
 		ScraperStorageService:      b.ScraperTargetStoreService,
 		BucketService:              b.BucketService,
@@ -47,7 +47,7 @@ func NewScraperBackend(b *APIBackend) *ScraperBackend {
 type ScraperHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	Logger                     *zap.Logger
+	logger                     *zap.Logger
 	UserService                influxdb.UserService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
@@ -67,11 +67,11 @@ const (
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
-func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
+func NewScraperHandler(logger *zap.Logger, b *ScraperBackend) *ScraperHandler {
 	h := &ScraperHandler{
 		Router:                     NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger,
+		logger:                     logger,
 		UserService:                b.UserService,
 		UserResourceMappingService: b.UserResourceMappingService,
 		LabelService:               b.LabelService,
@@ -87,7 +87,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		logger:                     b.logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ScraperResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -99,7 +99,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		logger:                     b.logger.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.ScraperResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -111,7 +111,7 @@ func NewScraperHandler(b *ScraperBackend) *ScraperHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		logger:           b.logger.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.ScraperResourceType,
 	}
@@ -141,7 +141,7 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("scraper created", zap.String("scraper", fmt.Sprint(req)))
+	h.logger.Debug("scraper created", zap.String("scraper", fmt.Sprint(req)))
 
 	resp, err := h.newTargetResponse(ctx, *req)
 	if err != nil {
@@ -149,7 +149,7 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusCreated, resp); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -167,7 +167,7 @@ func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *htt
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("scraper deleted", zap.String("scraperTargetID", fmt.Sprint(id)))
+	h.logger.Debug("scraper deleted", zap.String("scraperTargetID", fmt.Sprint(id)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -192,7 +192,7 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("scraper updated", zap.String("scraper", fmt.Sprint(target)))
+	h.logger.Debug("scraper updated", zap.String("scraper", fmt.Sprint(target)))
 
 	resp, err := h.newTargetResponse(ctx, *target)
 	if err != nil {
@@ -201,7 +201,7 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, resp); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -218,7 +218,7 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("scraper retrieved", zap.String("scraper", fmt.Sprint(target)))
+	h.logger.Debug("scraper retrieved", zap.String("scraper", fmt.Sprint(target)))
 
 	resp, err := h.newTargetResponse(ctx, *target)
 	if err != nil {
@@ -227,7 +227,7 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, resp); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }
@@ -280,7 +280,7 @@ func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("scrapers retrieved", zap.String("scrapers", fmt.Sprint(targets)))
+	h.logger.Debug("scrapers retrieved", zap.String("scrapers", fmt.Sprint(targets)))
 
 	resp, err := h.newListTargetsResponse(ctx, targets)
 	if err != nil {
@@ -289,7 +289,7 @@ func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, resp); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.logger, r, err)
 		return
 	}
 }

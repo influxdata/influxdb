@@ -7,6 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
+	"go.uber.org/zap"
 )
 
 type mockStore struct {
@@ -21,7 +22,7 @@ func (s mockStore) Update(context.Context, func(kv.Tx) error) error {
 }
 
 func TestNewService(t *testing.T) {
-	s := kv.NewService(mockStore{})
+	s := kv.NewService(zap.NewNop(), mockStore{})
 
 	if s.Config.SessionLength != influxdb.DefaultSessionLength {
 		t.Errorf("Service session length should use default length when not set")
@@ -31,7 +32,7 @@ func TestNewService(t *testing.T) {
 		SessionLength: time.Duration(time.Hour * 4),
 	}
 
-	s = kv.NewService(mockStore{}, config)
+	s = kv.NewService(zap.NewNop(), mockStore{}, config)
 
 	if s.Config != config {
 		t.Errorf("Service config not set by constructor")

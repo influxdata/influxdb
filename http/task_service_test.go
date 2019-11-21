@@ -28,7 +28,7 @@ import (
 // NewMockTaskBackend returns a TaskBackend with mock services.
 func NewMockTaskBackend(t *testing.T) *TaskBackend {
 	return &TaskBackend{
-		Logger: zaptest.NewLogger(t).With(zap.String("handler", "task")),
+		logger: zaptest.NewLogger(t).With(zap.String("handler", "task")),
 
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
@@ -395,7 +395,7 @@ func TestTaskHandler_handleGetTasks(t *testing.T) {
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
 			taskBackend.LabelService = tt.fields.labelService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zap.NewNop(), taskBackend)
 			h.handleGetTasks(w, r)
 
 			res := w.Result()
@@ -561,7 +561,7 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			taskBackend := NewMockTaskBackend(t)
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zap.NewNop(), taskBackend)
 			h.handlePostTask(w, r)
 
 			res := w.Result()
@@ -675,7 +675,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			taskBackend := NewMockTaskBackend(t)
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zap.NewNop(), taskBackend)
 			h.handleGetRun(w, r)
 
 			res := w.Result()
@@ -793,7 +793,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 			taskBackend := NewMockTaskBackend(t)
 			taskBackend.HTTPErrorHandler = ErrorHandler(0)
 			taskBackend.TaskService = tt.fields.taskService
-			h := NewTaskHandler(taskBackend)
+			h := NewTaskHandler(zap.NewNop(), taskBackend)
 			h.handleGetRuns(w, r)
 
 			res := w.Result()
@@ -823,7 +823,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	im := inmem.NewService()
 	taskBackend := NewMockTaskBackend(t)
 	taskBackend.HTTPErrorHandler = ErrorHandler(0)
-	h := NewTaskHandler(taskBackend)
+	h := NewTaskHandler(zap.NewNop(), taskBackend)
 	h.UserResourceMappingService = im
 	h.LabelService = im
 	h.UserService = im
@@ -1173,7 +1173,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			taskBE := NewMockTaskBackend(t)
 			taskBE.LabelService = tt.fields.LabelService
-			h := NewTaskHandler(taskBE)
+			h := NewTaskHandler(zap.NewNop(), taskBE)
 
 			b, err := json.Marshal(tt.args.labelMapping)
 			if err != nil {
@@ -1248,8 +1248,8 @@ func TestTaskHandler_CreateTaskWithOrgName(t *testing.T) {
 		},
 	}
 
-	h := NewTaskHandler(&TaskBackend{
-		Logger: zaptest.NewLogger(t),
+	h := NewTaskHandler(zap.NewNop(), &TaskBackend{
+		logger: zaptest.NewLogger(t),
 
 		TaskService:                ts,
 		AuthorizationService:       i,
@@ -1344,9 +1344,9 @@ func TestTaskHandler_Sessions(t *testing.T) {
 	})
 
 	newHandler := func(t *testing.T, ts *mock.TaskService) *TaskHandler {
-		return NewTaskHandler(&TaskBackend{
+		return NewTaskHandler(zap.NewNop(), &TaskBackend{
 			HTTPErrorHandler: ErrorHandler(0),
-			Logger:           zaptest.NewLogger(t),
+			logger:           zaptest.NewLogger(t),
 
 			TaskService:                ts,
 			AuthorizationService:       i,
