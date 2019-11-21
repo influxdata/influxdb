@@ -1,4 +1,4 @@
-## v2.0.0-alpha.20 [unreleased]
+## v2.0.0-alpha.20 [2019-11-20]
 
 ### Features
 
@@ -7,6 +7,7 @@
 1. [15983](https://github.com/influxdata/influxdb/pull/15983): Autopopulate organization ids in the code samples
 1. [15749](https://github.com/influxdata/influxdb/pull/15749): Expose bundle analysis tools for frontend resources
 1. [15674](https://github.com/influxdata/influxdb/pull/15674): Allow users to view just the output section of a telegraf config
+1. [15314](https://github.com/influxdata/influxdb/issues/15314): Allow the users to see string data in the single stat graph type
 
 ### Bug Fixes
 
@@ -17,9 +18,13 @@
 1. [15801](https://github.com/influxdata/influxdb/pull/15801): Change how cloud mode is enabled
 1. [15820](https://github.com/influxdata/influxdb/pull/15820): Merge frontend development environments
 1. [15944](https://github.com/influxdata/influxdb/pull/15944): Refactor table state logic on the frontend
+1. [15888](https://github.com/influxdata/influxdb/issues/15888): Arrows in tables now show data in ascending and descening order
+1. [14923](https://github.com/influxdata/influxdb/issues/14923): Sort by retention rules now sorts by seconds
+1. [13943](https://github.com/influxdata/influxdb/issues/13943): Horizontall scrollbar no longer covering data
 
 ### UI Improvements
 1. [15809](https://github.com/influxdata/influxdb/pull/15809): Redesign cards and animations on getting started page
+1. [15601](https://github.com/influxdata/influxdb/issues/15601): Allow the users to filter with labels in telegraph input search
 
 ## v2.0.0-alpha.19 [2019-10-30]
 
