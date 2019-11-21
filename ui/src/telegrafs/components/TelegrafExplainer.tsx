@@ -7,7 +7,7 @@ import {Panel, InfluxColors} from '@influxdata/clockface'
 const TelegrafExplainer: FunctionComponent = () => (
   <Panel backgroundColor={InfluxColors.Onyx} style={{marginTop: '32px'}}>
     <Panel.Header>
-      <Panel.Title>What is Telegraf?</Panel.Title>
+      <h5>What is Telegraf?</h5>
     </Panel.Header>
     <Panel.Body>
       <p>

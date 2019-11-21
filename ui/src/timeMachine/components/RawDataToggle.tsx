@@ -3,7 +3,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 // Components
-import {SlideToggle, ComponentSize} from '@influxdata/clockface'
+import {SlideToggle, InputLabel, ComponentSize} from '@influxdata/clockface'
 
 // Actions
 import {setIsViewingRawData} from 'src/timeMachine/actions'
@@ -30,7 +30,7 @@ class TimeMachineQueries extends PureComponent<Props> {
 
     return (
       <div className="view-raw-data-toggle">
-        <SlideToggle.Label text="View Raw Data" />
+        <InputLabel>View Raw Data</InputLabel>
         <SlideToggle
           active={isViewingRawData}
           onChange={this.handleToggleIsViewingRawData}

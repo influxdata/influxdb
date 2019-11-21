@@ -36,9 +36,9 @@ const AlertsColumnHeader: FC<Props> = ({
     >
       <Panel.Header>
         <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
-          <Panel.Title style={{fontSize: '17px', width: 'auto'}}>
+          <h4 style={{width: 'auto', marginRight: '6px'}}>
             {title}
-          </Panel.Title>
+          </h4>
           <QuestionMarkTooltip
             diameter={18}
             color={ComponentColor.Primary}

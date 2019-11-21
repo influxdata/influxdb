@@ -173,7 +173,7 @@ const DeleteDataForm: FC<Props> = ({
           <Grid.Column widthXS={Columns.Twelve}>
             <Panel className="delete-data-form--danger-zone">
               <Panel.Header>
-                <Panel.Title>Danger Zone!</Panel.Title>
+                <h5>Danger Zone!</h5>
               </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
                 <Checkbox

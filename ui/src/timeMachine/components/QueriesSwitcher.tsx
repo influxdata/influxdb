@@ -6,7 +6,7 @@ import {connect} from 'react-redux'
 import {
   Button,
   ConfirmationButton,
-  PopoverType,
+  Appearance,
   ComponentColor,
 } from '@influxdata/clockface'
 
@@ -70,7 +70,7 @@ class TimeMachineQueriesSwitcher extends PureComponent<Props> {
       button = (
         <ConfirmationButton
           popoverColor={ComponentColor.Danger}
-          popoverType={PopoverType.Outline}
+          popoverAppearance={Appearance.Outline}
           popoverStyle={{width: '400px'}}
           confirmationLabel="Switching to Query Builder mode will discard any changes you
                 have made using Flux. This cannot be recovered."

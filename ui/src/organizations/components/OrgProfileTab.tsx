@@ -31,17 +31,17 @@ class OrgProfileTab extends PureComponent<Props> {
     return (
       <Panel backgroundColor={InfluxColors.Onyx}>
         <Panel.Header size={ComponentSize.Small}>
-          <Panel.Title size={ComponentSize.Small}>
+          <h4>
             Organization Profile
-          </Panel.Title>
+          </h4>
         </Panel.Header>
         <Panel.Body size={ComponentSize.Small}>
           <Form onSubmit={this.handleShowEditOverlay}>
             <Panel gradient={Gradients.DocScott}>
               <Panel.Header size={ComponentSize.ExtraSmall}>
-                <Panel.Title size={ComponentSize.ExtraSmall}>
+                <h5>
                   Danger Zone!
-                </Panel.Title>
+                </h5>
               </Panel.Header>
               <Panel.Body size={ComponentSize.ExtraSmall}>
                 <FlexBox

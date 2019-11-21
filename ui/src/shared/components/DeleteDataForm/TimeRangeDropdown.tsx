@@ -6,7 +6,7 @@ import {
   Popover,
   PopoverPosition,
   PopoverInteraction,
-  PopoverType,
+  Appearance,
 } from '@influxdata/clockface'
 
 // Components
@@ -34,7 +34,7 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
         {lower} - {upper}
       </Dropdown.Button>
       <Popover
-        type={PopoverType.Outline}
+        appearance={Appearance.Outline}
         position={PopoverPosition.Below}
         triggerRef={buttonRef}
         visible={pickerActive}
