@@ -347,6 +347,30 @@ func Test_Pkg(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("validate", func(t *testing.T) {
+		t.Run("pkg is valid returns no error", func(t *testing.T) {
+			cmd := newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC))).cmdPkgValidate()
+			require.NoError(t, cmd.Flags().Set("file", "../../pkger/testdata/bucket.yml"))
+			require.NoError(t, cmd.Execute())
+		})
+
+		t.Run("pkg is invalid returns error", func(t *testing.T) {
+			// pkgYml is invalid because it is missing a name
+			const pkgYml = `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+spec:
+  resources:
+    - kind: Bucket`
+
+			b := newCmdPkgBuilder(fakeSVCFn(new(fakePkgSVC)), in(strings.NewReader(pkgYml)), out(ioutil.Discard))
+			cmd := b.cmdPkgValidate()
+			require.Error(t, cmd.Execute())
+		})
+	})
 }
 
 type flagArg struct{ name, val string }
