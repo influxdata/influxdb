@@ -25,3 +25,20 @@
   width: 100%;
   height: 100%;
 }
+
+.time-machine-editor--loading {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #292933;
+
+  &:after {
+    content: '';
+    position: absolute;
+    background: #202028;
+    top: 8px;
+    bottom: 8px;
+    left: 24px;
+    right: 8px;
+  }
+}
