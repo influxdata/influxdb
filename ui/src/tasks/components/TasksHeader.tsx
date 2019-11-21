@@ -46,7 +46,7 @@ export default class TasksHeader extends PureComponent<Props> {
             onChange={setShowInactive}
           />
           <AddResourceDropdown
-            canImportFromTemplate={true}
+            canImportFromTemplate
             onSelectNew={onCreateTask}
             onSelectImport={onImportTask}
             onSelectTemplate={onImportFromTemplate}
