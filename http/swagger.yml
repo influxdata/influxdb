@@ -7862,6 +7862,11 @@ components:
           type: array
           items:
             type: string
+        aggregateFunctionType:
+          $ref: '#/components/schemas/BuilderAggregateFunctionType'
+    BuilderAggregateFunctionType:
+      type: string
+      enum: ['filter', 'group']
     BuilderFunctionsType:
       type: object
       properties:

@@ -20,11 +20,12 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Actions
 import {
+  removeTagSelector,
+  searchTagKeys,
+  searchTagValues,
   selectTagKey,
   selectTagValue,
-  searchTagValues,
-  searchTagKeys,
-  removeTagSelector,
+  setBuilderAggregateFunctionType,
   setKeysSearchTerm,
   setValuesSearchTerm,
 } from 'src/timeMachine/actions/queryBuilder'
@@ -40,10 +41,12 @@ import {
 
 // Types
 import {AppState, RemoteDataState} from 'src/types'
+import {BuilderAggregateFunctionType} from 'src/client'
 
 const SEARCH_DEBOUNCE_MS = 500
 
 interface StateProps {
+  aggregateFunctionType: BuilderAggregateFunctionType
   emptyText: string
   keys: string[]
   keysStatus: RemoteDataState
@@ -57,13 +60,14 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onSelectValue: typeof selectTagValue
-  onSelectTag: typeof selectTagKey
-  onSearchValues: typeof searchTagValues
-  onSearchKeys: typeof searchTagKeys
   onRemoveTagSelector: typeof removeTagSelector
-  onSetValuesSearchTerm: typeof setValuesSearchTerm
+  onSearchKeys: typeof searchTagKeys
+  onSearchValues: typeof searchTagValues
+  onSelectTag: typeof selectTagKey
+  onSelectValue: typeof selectTagValue
+  onSetBuilderAggregateFunctionType: typeof setBuilderAggregateFunctionType
   onSetKeysSearchTerm: typeof setKeysSearchTerm
+  onSetValuesSearchTerm: typeof setValuesSearchTerm
 }
 
 interface OwnProps {
@@ -76,13 +80,24 @@ type Props = StateProps & DispatchProps & OwnProps
 class TagSelector extends PureComponent<Props> {
   private debouncer = new DefaultDebouncer()
 
+  // bucky: this will currently always be 'Filter'
+  // updates to this are imminent
+  private renderAggregateFunctionType(
+    aggregateFunctionType: BuilderAggregateFunctionType
+  ) {
+    if (aggregateFunctionType === 'group') {
+      return 'Group'
+    }
+    return 'Filter'
+  }
+
   public render() {
-    const {index} = this.props
+    const {aggregateFunctionType, index} = this.props
 
     return (
       <BuilderCard>
         <BuilderCard.Header
-          title="Filter"
+          title={this.renderAggregateFunctionType(aggregateFunctionType)}
           onDelete={index !== 0 && this.handleRemoveTagSelector}
         />
         {this.body}
@@ -255,15 +270,19 @@ class TagSelector extends PureComponent<Props> {
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const {
     keys,
+    keysSearchTerm,
     keysStatus,
     values,
-    valuesStatus,
     valuesSearchTerm,
-    keysSearchTerm,
+    valuesStatus,
   } = getActiveTimeMachine(state).queryBuilder.tags[ownProps.index]
 
   const tags = getActiveQuery(state).builderConfig.tags
-  const {key: selectedKey, values: selectedValues} = tags[ownProps.index]
+  const {
+    key: selectedKey,
+    values: selectedValues,
+    aggregateFunctionType,
+  } = tags[ownProps.index]
 
   let emptyText: string
 
@@ -276,6 +295,7 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const isInCheckOverlay = getIsInCheckOverlay(state)
 
   return {
+    aggregateFunctionType,
     emptyText,
     keys,
     keysStatus,
@@ -290,11 +310,12 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
 }
 
 const mdtp = {
-  onSelectValue: selectTagValue,
-  onSelectTag: selectTagKey,
-  onSearchValues: searchTagValues,
-  onSearchKeys: searchTagKeys,
   onRemoveTagSelector: removeTagSelector,
+  onSearchKeys: searchTagKeys,
+  onSearchValues: searchTagValues,
+  onSelectTag: selectTagKey,
+  onSelectValue: selectTagValue,
+  onSetBuilderAggregateFunctionType: setBuilderAggregateFunctionType,
   onSetKeysSearchTerm: setKeysSearchTerm,
   onSetValuesSearchTerm: setValuesSearchTerm,
 }
