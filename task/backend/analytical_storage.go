@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
+	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/storage"
 	"go.uber.org/zap"
@@ -70,7 +71,7 @@ type AnalyticalStorage struct {
 func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
 	run, err := as.TaskControlService.FinishRun(ctx, taskID, runID)
 	if run != nil && run.ID.String() != "" {
-		task, err := as.TaskService.FindTaskByID(influxdb.FindTaskWithoutAuth(ctx), run.TaskID)
+		task, err := as.TaskService.FindTaskByID(influxdb.FindTaskWithoutAuth(ctx), taskID)
 		if err != nil {
 			return run, err
 		}
@@ -79,6 +80,26 @@ func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influx
 		if err != nil {
 			return run, err
 		}
+
+		// legacy system buckets don't have an associated organization ID
+		var orgID *influxdb.ID
+		if sb.OrgID.Valid() {
+			orgID = &sb.OrgID
+		}
+
+		ctx = icontext.SetAuthorizer(ctx, &influxdb.Authorization{
+			Status: influxdb.Active,
+			Permissions: []influxdb.Permission{
+				influxdb.Permission{
+					Action: influxdb.WriteAction,
+					Resource: influxdb.Resource{
+						Type:  influxdb.BucketsResourceType,
+						ID:    &sb.ID,
+						OrgID: orgID,
+					},
+				},
+			},
+		})
 
 		return run, as.rr.Record(ctx, task.OrganizationID, task.Organization, sb.ID, influxdb.TasksSystemBucketName, run)
 	}
