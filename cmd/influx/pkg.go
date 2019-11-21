@@ -28,74 +28,94 @@ import (
 
 type pkgSVCFn func(cliReq httpClientOpts) (pkger.SVC, error)
 
-func cmdPkg(newSVCFn pkgSVCFn) *cobra.Command {
-	cmd := cmdPkgApply(newSVCFn)
+func cmdPkg(svcFn pkgSVCFn, opts ...genericCLIOptfn) *cobra.Command {
+	return newCmdPkgBuilder(svcFn, opts...).cmdPkg()
+}
+
+type cmdPkgBuilder struct {
+	genericCLIOpts
+
+	svcFn pkgSVCFn
+
+	file            string
+	hasColor        bool
+	hasTableBorders bool
+	meta            pkger.Metadata
+	orgID           string
+	quiet           bool
+
+	applyOpts struct {
+		forceOnConflict bool
+	}
+	exportOpts struct {
+		resourceType string
+		buckets      string
+		dashboards   string
+		labels       string
+		variables    string
+	}
+}
+
+func newCmdPkgBuilder(svcFn pkgSVCFn, opts ...genericCLIOptfn) *cmdPkgBuilder {
+	opt := genericCLIOpts{
+		in: os.Stdin,
+		w:  os.Stdout,
+	}
+	for _, o := range opts {
+		o(&opt)
+	}
+
+	return &cmdPkgBuilder{
+		genericCLIOpts: opt,
+		svcFn:          svcFn,
+	}
+}
+
+func (b *cmdPkgBuilder) cmdPkg() *cobra.Command {
+	cmd := b.cmdPkgApply()
 	cmd.AddCommand(
-		cmdPkgNew(newSVCFn),
-		cmdPkgExport(newSVCFn),
-		cmdPkgValidate(),
+		b.cmdPkgNew(),
+		b.cmdPkgExport(),
+		b.cmdPkgValidate(),
 	)
 	return cmd
 }
 
-type pkgApplyOpts struct {
-	orgID, file               string
-	hasColor, hasTableBorders bool
-	quiet, forceOnConflict    bool
-}
+func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
+	cmd := b.newCmd("pkg")
+	cmd.Short = "Apply a pkg to create resources"
 
-func cmdPkgApply(newSVCFn pkgSVCFn) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "pkg",
-		Short: "Apply a pkg to create resources",
-	}
-
-	var opts pkgApplyOpts
-	cmd.Flags().StringVarP(&opts.file, "file", "f", "", "Path to package file")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
-	cmd.Flags().BoolVar(&opts.forceOnConflict, "force-on-conflict", true, "TTY input, if package will have destructive changes, proceed if set true.")
-	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false, "disable output printing")
+	cmd.Flags().BoolVar(&b.applyOpts.forceOnConflict, "force-on-conflict", true, "TTY input, if package will have destructive changes, proceed if set true.")
+	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
 
-	cmd.Flags().StringVarP(&opts.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
+	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
 
-	cmd.Flags().BoolVarP(&opts.hasColor, "color", "c", true, "Enable color in output, defaults true")
-	cmd.Flags().BoolVar(&opts.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
+	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
 
-	cmd.RunE = pkgApplyRunEFn(newSVCFn, &opts)
+	cmd.RunE = b.pkgApplyRunEFn()
 
 	return cmd
 }
 
-func readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
-	if stdin, _ := readStdIn(); stdin != nil {
-		pkg, err := pkgFromStdIn(stdin)
-		return pkg, true, err
-	}
-	if file == "" {
-		return nil, false, errors.New("a file path is required when not using a TTY input")
-	}
-	pkg, err := pkgFromFile(file)
-	return pkg, false, err
-}
-
-func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, []string) error {
+func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
-		if !opts.hasColor {
-			color.NoColor = true
-		}
+		color.NoColor = !b.hasColor
 
-		influxOrgID, err := influxdb.IDFromString(opts.orgID)
+		influxOrgID, err := influxdb.IDFromString(b.orgID)
 		if err != nil {
 			return err
 		}
 
-		svc, err := newSVCFn(flags.httpClientOpts())
+		svc, err := b.svcFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
 
-		pkg, isTTY, err := readPkgStdInOrFile(opts.file)
+		pkg, isTTY, err := b.readPkgStdInOrFile(b.file)
 		if err != nil {
 			return err
 		}
@@ -105,8 +125,8 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, 
 			return err
 		}
 
-		if !opts.quiet {
-			printPkgDiff(opts.hasColor, opts.hasTableBorders, diff)
+		if !b.quiet {
+			b.printPkgDiff(diff)
 		}
 
 		if !isTTY {
@@ -122,7 +142,7 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, 
 			}
 		}
 
-		if !opts.forceOnConflict && isTTY && diff.HasConflicts() {
+		if !b.applyOpts.forceOnConflict && isTTY && diff.HasConflicts() {
 			return errors.New("package has conflicts with existing resources and cannot safely apply")
 		}
 
@@ -131,149 +151,248 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, 
 			return err
 		}
 
-		if !opts.quiet {
-			printPkgSummary(opts.hasColor, opts.hasTableBorders, summary)
+		if !b.quiet {
+			b.printPkgSummary(summary)
 		}
 
 		return nil
 	}
 }
 
-func cmdPkgNew(newSVCFn pkgSVCFn) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "new",
-		Short: "Create a reusable pkg to create resources in a declarative manner",
-	}
+func (b *cmdPkgBuilder) cmdPkgNew() *cobra.Command {
+	cmd := b.newCmd("new")
+	cmd.Short = "Create a reusable pkg to create resources in a declarative manner"
 
-	var opts pkgNewOpts
-	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false, "skip interactive mode")
-	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "skip interactive mode")
+	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
 
-	cmd.RunE = pkgNewRunEFn(newSVCFn, &opts)
+	cmd.RunE = b.pkgNewRunEFn()
 
 	return cmd
 }
 
-type pkgNewOpts struct {
-	quiet   bool
-	outPath string
-	orgID   string
-	meta    pkger.Metadata
-}
-
-func pkgNewRunEFn(newSVCFn pkgSVCFn, opt *pkgNewOpts) func(*cobra.Command, []string) error {
+func (b *cmdPkgBuilder) pkgNewRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		if !opt.quiet {
+		if !b.quiet {
 			ui := &input.UI{
-				Writer: os.Stdout,
-				Reader: os.Stdin,
+				Writer: b.w,
+				Reader: b.in,
 			}
 
-			if opt.meta.Name == "" {
-				opt.meta.Name = getInput(ui, "pkg name", "")
+			if b.meta.Name == "" {
+				b.meta.Name = getInput(ui, "pkg name", "")
 			}
-			if opt.meta.Description == "" {
-				opt.meta.Description = getInput(ui, "pkg description", opt.meta.Description)
+			if b.meta.Description == "" {
+				b.meta.Description = getInput(ui, "pkg description", "")
 			}
-			if opt.meta.Version == "" {
-				opt.meta.Version = getInput(ui, "pkg version", opt.meta.Version)
+			if b.meta.Version == "" {
+				b.meta.Version = getInput(ui, "pkg version", "")
 			}
 		}
 
-		pkgSVC, err := newSVCFn(flags.httpClientOpts())
+		pkgSVC, err := b.svcFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
 
-		return writePkg(cmd.OutOrStdout(), pkgSVC, opt.outPath, pkger.CreateWithMetadata(opt.meta))
+		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, pkger.CreateWithMetadata(b.meta))
 	}
 }
 
-type pkgExportOpts struct {
-	outPath      string
-	meta         pkger.Metadata
-	resourceType string
-	buckets      string
-	dashboards   string
-	labels       string
-	variables    string
-}
+func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
+	cmd := b.newCmd("export")
+	cmd.Short = "Export existing resources as a package"
+	cmd.AddCommand(b.cmdPkgExportAll())
 
-func cmdPkgExport(newSVCFn pkgSVCFn) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "export",
-		Short: "Export existing resources as a package",
-	}
-	cmd.AddCommand(cmdPkgExportAll(newSVCFn))
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
+	cmd.Flags().StringVar(&b.exportOpts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
+	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.labels, "labels", "", "List of label ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.variables, "variables", "", "List of variable ids comma separated")
 
-	var opts pkgExportOpts
-	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
-	cmd.Flags().StringVar(&opts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
-	cmd.Flags().StringVar(&opts.buckets, "buckets", "", "List of bucket ids comma separated")
-	cmd.Flags().StringVar(&opts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
-	cmd.Flags().StringVar(&opts.labels, "labels", "", "List of label ids comma separated")
-	cmd.Flags().StringVar(&opts.variables, "variables", "", "List of variable ids comma separated")
+	cmd.RunE = b.pkgExportRunEFn()
 
-	cmd.RunE = pkgExportRunEFn(newSVCFn, &opts)
 	return cmd
 }
 
-func pkgExportRunEFn(newSVCFn pkgSVCFn, cmdOpts *pkgExportOpts) func(*cobra.Command, []string) error {
+func (b *cmdPkgBuilder) pkgExportRunEFn() func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
-		pkgSVC, err := newSVCFn(flags.httpClientOpts())
+		pkgSVC, err := b.svcFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
 
-		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(cmdOpts.meta)}
+		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
 
 		resTypes := []struct {
 			kind   pkger.Kind
 			idStrs []string
 		}{
-			{kind: pkger.KindBucket, idStrs: strings.Split(cmdOpts.buckets, ",")},
-			{kind: pkger.KindDashboard, idStrs: strings.Split(cmdOpts.dashboards, ",")},
-			{kind: pkger.KindLabel, idStrs: strings.Split(cmdOpts.labels, ",")},
-			{kind: pkger.KindVariable, idStrs: strings.Split(cmdOpts.variables, ",")},
+			{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
+			{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
+			{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},
+			{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
 		}
 		for _, rt := range resTypes {
-			newOpt, err := getResourcesToClone(rt.kind, rt.idStrs)
+			newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
 			if err != nil {
 				return ierror.Wrap(err, rt.kind.String())
 			}
 			opts = append(opts, newOpt)
 		}
 
-		if cmdOpts.resourceType == "" {
-			return writePkg(cmd.OutOrStdout(), pkgSVC, cmdOpts.outPath, opts...)
+		if b.exportOpts.resourceType == "" {
+			return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
 		}
 
-		kind := pkger.NewKind(cmdOpts.resourceType)
+		kind := pkger.NewKind(b.exportOpts.resourceType)
 		if err := kind.OK(); err != nil {
-			return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + cmdOpts.resourceType)
+			return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + b.exportOpts.resourceType)
 		}
 
-		stdinInpt, _ := readStdInLines()
-		if len(stdinInpt) > 0 {
-			args = stdinInpt
+		if stdin, err := b.inStdIn(); err == nil {
+			stdinInpt, _ := b.readLines(stdin)
+			if len(stdinInpt) > 0 {
+				args = stdinInpt
+			}
 		}
 
-		resTypeOpt, err := getResourcesToClone(kind, args)
+		resTypeOpt, err := newResourcesToClone(kind, args)
 		if err != nil {
 			return err
 		}
 
-		return writePkg(cmd.OutOrStdout(), pkgSVC, cmdOpts.outPath, append(opts, resTypeOpt)...)
+		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, append(opts, resTypeOpt)...)
 	}
 }
 
-func getResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
+func (b *cmdPkgBuilder) cmdPkgExportAll() *cobra.Command {
+	cmd := b.newCmd("all")
+	cmd.Short = "Export all existing resources for an organization as a package"
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "organization id")
+	cmd.Flags().StringVarP(&b.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&b.meta.Version, "version", "v", "", "version for new pkg")
+
+	cmd.RunE = b.pkgExportAllRunEFn()
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) pkgExportAllRunEFn() func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		pkgSVC, err := b.svcFn(flags.httpClientOpts())
+		if err != nil {
+			return err
+		}
+
+		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(b.meta)}
+
+		orgID, err := influxdb.IDFromString(b.orgID)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, pkger.CreateWithAllOrgResources(*orgID))
+
+		return b.writePkg(cmd.OutOrStdout(), pkgSVC, b.file, opts...)
+	}
+}
+
+func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
+	cmd := b.newCmd("validate")
+	cmd.Short = "Validate the provided package"
+
+	inPath := cmd.Flags().StringP("file", "f", "", "input file for pkg; if none provided will use TTY input")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		pkg, _, err := b.readPkgStdInOrFile(*inPath)
+		if err != nil {
+			return err
+		}
+		return pkg.Validate()
+	}
+
+	return cmd
+}
+
+func (b *cmdPkgBuilder) writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
+	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
+	if err != nil {
+		return err
+	}
+
+	buf, err := createPkgBuf(pkg, outPath)
+	if err != nil {
+		return err
+	}
+
+	if outPath == "" {
+		_, err := io.Copy(w, buf)
+		return err
+	}
+
+	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
+}
+
+func (b *cmdPkgBuilder) readPkgStdInOrFile(file string) (*pkger.Pkg, bool, error) {
+	if file != "" {
+		pkg, err := pkgFromFile(file)
+		return pkg, false, err
+	}
+
+	var isTTY bool
+
+	if _, err := b.inStdIn(); err == nil {
+		isTTY = true
+	}
+
+	pkg, err := pkgFromReader(b.in)
+	return pkg, isTTY, err
+}
+
+func (b *cmdPkgBuilder) inStdIn() (*os.File, error) {
+	stdin, _ := b.in.(*os.File)
+	if stdin != os.Stdin {
+		return nil, errors.New("input not stdIn")
+	}
+
+	info, err := stdin.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
+		return nil, errors.New("input not stdIn")
+	}
+	return stdin, nil
+}
+
+func (b *cmdPkgBuilder) readLines(r io.Reader) ([]string, error) {
+	bb, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	var stdinInput []string
+	for _, bs := range bytes.Split(bb, []byte("\n")) {
+		trimmed := bytes.TrimSpace(bs)
+		if len(trimmed) == 0 {
+			continue
+		}
+		stdinInput = append(stdinInput, string(trimmed))
+	}
+	return stdinInput, nil
+}
+
+func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
 	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
@@ -287,95 +406,6 @@ func getResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn
 		})
 	}
 	return pkger.CreateWithExistingResources(resources...), nil
-}
-
-func cmdPkgExportAll(newSVCFn pkgSVCFn) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "all",
-		Short: "Export all existing resources for an organization as a package",
-	}
-
-	var opts pkgNewOpts
-	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	cmd.Flags().StringVarP(&opts.orgID, "org-id", "o", "", "organization id")
-	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
-	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
-
-	cmd.RunE = pkgExportAllRunEFn(newSVCFn, &opts)
-
-	return cmd
-}
-
-func pkgExportAllRunEFn(newSVCFn pkgSVCFn, opt *pkgNewOpts) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) error {
-		pkgSVC, err := newSVCFn(flags.httpClientOpts())
-		if err != nil {
-			return err
-		}
-
-		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(opt.meta)}
-
-		orgID, err := influxdb.IDFromString(opt.orgID)
-		if err != nil {
-			return err
-		}
-		opts = append(opts, pkger.CreateWithAllOrgResources(*orgID))
-
-		return writePkg(cmd.OutOrStdout(), pkgSVC, opt.outPath, opts...)
-	}
-}
-
-func cmdPkgValidate() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "validate",
-		Short: "Validate the provided package",
-	}
-
-	inPath := cmd.Flags().StringP("file", "f", "", "input file for pkg; if none provided will use TTY input")
-
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := readPkgStdInOrFile(*inPath)
-		if err != nil {
-			return err
-		}
-		return pkg.Validate()
-	}
-
-	return cmd
-}
-
-func readStdIn() (*os.File, error) {
-	info, err := os.Stdin.Stat()
-	if err != nil {
-		return nil, err
-	}
-	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
-		return nil, nil
-	}
-	return os.Stdin, nil
-}
-
-func readStdInLines() ([]string, error) {
-	r, err := readStdIn()
-	if err != nil || r == nil {
-		return nil, err
-	}
-
-	b, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-
-	var stdinInput []string
-	for _, bb := range bytes.Split(b, []byte("\n")) {
-		trimmed := bytes.TrimSpace(bb)
-		if len(trimmed) == 0 {
-			continue
-		}
-		stdinInput = append(stdinInput, string(trimmed))
-	}
-	return stdinInput, nil
 }
 
 func toInfluxIDs(args []string) ([]influxdb.ID, error) {
@@ -401,25 +431,6 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 	}
 
 	return ids, nil
-}
-
-func writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
-	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
-	if err != nil {
-		return err
-	}
-
-	buf, err := createPkgBuf(pkg, outPath)
-	if err != nil {
-		return err
-	}
-
-	if outPath == "" {
-		_, err := io.Copy(w, buf)
-		return err
-	}
-
-	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
 }
 
 func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
@@ -470,7 +481,7 @@ func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 	), nil
 }
 
-func pkgFromStdIn(stdin *os.File) (*pkger.Pkg, error) {
+func pkgFromReader(stdin io.Reader) (*pkger.Pkg, error) {
 	b, err := ioutil.ReadAll(stdin)
 	if err != nil {
 		return nil, err
@@ -500,7 +511,7 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 	return pkger.Parse(enc, pkger.FromFile(path))
 }
 
-func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
+func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 	red := color.New(color.FgRed).SprintfFunc()
 	green := color.New(color.FgHiGreen, color.Bold).SprintfFunc()
 
@@ -540,7 +551,7 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 		return fmt.Sprintf("%s\n%s", red(o), green(n))
 	}
 
-	tablePrintFn := tablePrinterGen(hasColor, hasTableBorders)
+	tablePrintFn := b.tablePrinterGen()
 	if labels := diff.Labels; len(labels) > 0 {
 		headers := []string{"New", "ID", "Name", "Color", "Description"}
 		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
@@ -626,40 +637,8 @@ func printPkgDiff(hasColor, hasTableBorders bool, diff pkger.Diff) {
 	}
 }
 
-func printVarArgs(a *influxdb.VariableArguments) string {
-	if a == nil {
-		return "<nil>"
-	}
-	if a.Type == "map" {
-		b, err := json.Marshal(a.Values)
-		if err != nil {
-			return "{}"
-		}
-		return string(b)
-	}
-	if a.Type == "constant" {
-		vals, ok := a.Values.(influxdb.VariableConstantValues)
-		if !ok {
-			return "[]"
-		}
-		var out []string
-		for _, s := range vals {
-			out = append(out, fmt.Sprintf("%q", s))
-		}
-		return fmt.Sprintf("[%s]", strings.Join(out, " "))
-	}
-	if a.Type == "query" {
-		qVal, ok := a.Values.(influxdb.VariableQueryValues)
-		if !ok {
-			return ""
-		}
-		return fmt.Sprintf("language=%q query=%q", qVal.Language, qVal.Query)
-	}
-	return "unknown variable argument"
-}
-
-func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
-	tablePrintFn := tablePrinterGen(hasColor, hasTableBorders)
+func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
+	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
 		headers := []string{"ID", "Name", "Description", "Color"}
 		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
@@ -733,13 +712,13 @@ func printPkgSummary(hasColor, hasTableBorders bool, sum pkger.Summary) {
 	}
 }
 
-func tablePrinterGen(hasColor, hasTableBorder bool) func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
+func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
 	return func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
-		tablePrinter(table, headers, count, hasColor, hasTableBorder, appendFn)
+		tablePrinter(b.w, table, headers, count, b.hasColor, b.hasTableBorders, appendFn)
 	}
 }
 
-func tablePrinter(table string, headers []string, count int, hasColor, hasTableBorders bool, appendFn func(w *tablewriter.Table)) {
+func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, appendFn func(w *tablewriter.Table)) {
 	descrCol := -1
 	for i, h := range headers {
 		if strings.ToLower(h) == "description" {
@@ -748,7 +727,7 @@ func tablePrinter(table string, headers []string, count int, hasColor, hasTableB
 		}
 	}
 
-	w := tablewriter.NewWriter(os.Stdout)
+	w := tablewriter.NewWriter(wr)
 	w.SetBorder(hasTableBorders)
 	w.SetRowLine(hasTableBorders)
 
@@ -784,6 +763,38 @@ func tablePrinter(table string, headers []string, count int, hasColor, hasTableB
 
 	w.Render()
 	fmt.Fprintln(os.Stdout)
+}
+
+func printVarArgs(a *influxdb.VariableArguments) string {
+	if a == nil {
+		return "<nil>"
+	}
+	if a.Type == "map" {
+		b, err := json.Marshal(a.Values)
+		if err != nil {
+			return "{}"
+		}
+		return string(b)
+	}
+	if a.Type == "constant" {
+		vals, ok := a.Values.(influxdb.VariableConstantValues)
+		if !ok {
+			return "[]"
+		}
+		var out []string
+		for _, s := range vals {
+			out = append(out, fmt.Sprintf("%q", s))
+		}
+		return fmt.Sprintf("[%s]", strings.Join(out, " "))
+	}
+	if a.Type == "query" {
+		qVal, ok := a.Values.(influxdb.VariableQueryValues)
+		if !ok {
+			return ""
+		}
+		return fmt.Sprintf("language=%q query=%q", qVal.Language, qVal.Query)
+	}
+	return "unknown variable argument"
 }
 
 func formatDuration(d time.Duration) string {
