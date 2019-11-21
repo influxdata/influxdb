@@ -47,7 +47,7 @@ class TableGraph extends PureComponent<Props, State> {
         dataTypes={table.dataTypes}
         sortOptions={this.sortOptions}
       >
-        {(transformedDataBundle) => (
+        {transformedDataBundle => (
           <TableGraphTable
             properties={properties}
             dataTypes={table.dataTypes}

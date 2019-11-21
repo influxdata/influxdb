@@ -122,16 +122,16 @@ const DeleteDataForm: FC<Props> = ({
   values,
 }) => {
   const name = bucketName || initialBucketName
-  // trigger the setBucketAndKeys if the bucketName hasn't been set
-  if (bucketName === '' && name !== undefined) {
-    useEffect(() => {
-      setBucketAndKeys(orgID, name)
-    })
-  }
-
   const [count, setCount] = useState(0)
-  const realTimeRange = initialTimeRange || timeRange
   const checkboxRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // trigger the setBucketAndKeys if the bucketName hasn't been set
+    if (bucketName === '' && name !== undefined) {
+      setBucketAndKeys(orgID, name)
+    }
+  })
+
+  const realTimeRange = initialTimeRange || timeRange
 
   const formatPredicatesForDeletion = predicates => {
     const result = []
@@ -283,21 +283,17 @@ const DeleteDataForm: FC<Props> = ({
           testID="checkbox-popover"
           contents={() => {
             if (count > 0 && files && files.length > 0) {
-              console.log('files: ', files)
               return (
                 <>
                   Amount of data to be deleted: {count}
                   <FluxTablesTransform files={files}>
-                    {tables => {
-                      console.log('tables: ', tables)
-                      return (
-                        <TableGraph
-                          table={tables[0]}
-                          properties={properties}
-                          timeZone={timeZone}
-                        />
-                      )
-                    }}
+                    {tables => (
+                      <TableGraph
+                        table={tables[0]}
+                        properties={properties}
+                        timeZone={timeZone}
+                      />
+                    )}
                   </FluxTablesTransform>
                 </>
               )
@@ -341,6 +337,8 @@ const mstp = (state: AppState) => {
     fillColumns,
     symbolColumns,
   }
+
+  console.log('properties: ', properties)
 
   return {
     bucketName,

@@ -26,7 +26,7 @@ const areFormatPropertiesEqual = (
   if (!prevProperties.properties) {
     return false
   }
-  const propsEqual = formatProps.every((k) =>
+  const propsEqual = formatProps.every(k =>
     _.isEqual(prevProperties.properties[k], newProperties.properties[k])
   )
 
@@ -43,9 +43,10 @@ class TableGraphTransform extends PureComponent<Props> {
     const {properties, data, dataTypes, sortOptions} = this.props
     const {tableOptions, timeFormat, decimalPlaces, fieldOptions} = properties
     console.log('fieldOptions: ', fieldOptions)
+    console.log('prop: ', this.props)
     const fo =
       fieldOptions &&
-      fieldOptions.map((opts) => ({
+      fieldOptions.map(opts => ({
         ...opts,
         dataType: dataTypes[opts.internalName],
       }))
