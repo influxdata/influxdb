@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,7 +17,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/http"
+	ihttp "github.com/influxdata/influxdb/http"
 	ierror "github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/olekukonko/tablewriter"
@@ -33,8 +34,13 @@ func pkgCmd(newSVCFn pkgSVCFn) *cobra.Command {
 		pkgNewCmd(newSVCFn),
 		pkgExportCmd(newSVCFn),
 	)
-
 	return cmd
+}
+
+type pkgApplyOpts struct {
+	orgID, file               string
+	hasColor, hasTableBorders bool
+	quiet, forceOnConflict    bool
 }
 
 func pkgApplyCmd(newSVCFn pkgSVCFn) *cobra.Command {
@@ -43,28 +49,30 @@ func pkgApplyCmd(newSVCFn pkgSVCFn) *cobra.Command {
 		Short: "Apply a pkg to create resources",
 	}
 
-	path := cmd.Flags().StringP("path", "p", "", "path to manifest file")
-	cmd.MarkFlagFilename("path", "yaml", "yml", "json")
-	cmd.MarkFlagRequired("path")
+	var opts pkgApplyOpts
+	cmd.Flags().StringVarP(&opts.file, "file", "f", "", "Path to package file")
+	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
+	cmd.Flags().BoolVar(&opts.forceOnConflict, "force-on-conflict", true, "TTY input, if package will have destructive changes, proceed if set true.")
+	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false, "disable output printing")
 
-	orgID := cmd.Flags().StringP("org-id", "o", "", "The ID of the organization that owns the bucket")
+	cmd.Flags().StringVarP(&opts.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
 
-	hasColor := cmd.Flags().BoolP("color", "c", true, "Enable color in output, defaults true")
-	hasTableBorders := cmd.Flags().Bool("table-borders", true, "Enable table borders, defaults true")
+	cmd.Flags().BoolVarP(&opts.hasColor, "color", "c", true, "Enable color in output, defaults true")
+	cmd.Flags().BoolVar(&opts.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
 
-	cmd.RunE = pkgApplyRunEFn(newSVCFn, orgID, path, hasColor, hasTableBorders)
+	cmd.RunE = pkgApplyRunEFn(newSVCFn, &opts)
 
 	return cmd
 }
 
-func pkgApplyRunEFn(newSVCFn pkgSVCFn, orgID, path *string, hasColor, hasTableBorders *bool) func(*cobra.Command, []string) error {
+func pkgApplyRunEFn(newSVCFn pkgSVCFn, opts *pkgApplyOpts) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) (e error) {
-		if !*hasColor {
+		if !opts.hasColor {
 			color.NoColor = true
 		}
 
-		influxOrgID, err := influxdb.IDFromString(*orgID)
+		influxOrgID, err := influxdb.IDFromString(opts.orgID)
 		if err != nil {
 			return err
 		}
@@ -74,7 +82,19 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, orgID, path *string, hasColor, hasTableBo
 			return err
 		}
 
-		pkg, err := pkgFromFile(*path)
+		var (
+			pkg   *pkger.Pkg
+			isTTY bool
+		)
+		if stdin, _ := readStdIn(); stdin != nil {
+			isTTY = true
+			pkg, err = pkgFromStdIn(stdin)
+		} else {
+			if opts.file == "" {
+				return errors.New("a file path is required when not using a TTY input")
+			}
+			pkg, err = pkgFromFile(opts.file)
+		}
 		if err != nil {
 			return err
 		}
@@ -84,17 +104,25 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, orgID, path *string, hasColor, hasTableBo
 			return err
 		}
 
-		printPkgDiff(*hasColor, *hasTableBorders, diff)
-
-		ui := &input.UI{
-			Writer: os.Stdout,
-			Reader: os.Stdin,
+		if !opts.quiet {
+			printPkgDiff(opts.hasColor, opts.hasTableBorders, diff)
 		}
 
-		confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
-		if strings.ToLower(confirm) != "y" {
-			fmt.Fprintln(os.Stdout, "aborted application of package")
-			return nil
+		if !isTTY {
+			ui := &input.UI{
+				Writer: os.Stdout,
+				Reader: os.Stdin,
+			}
+
+			confirm := getInput(ui, "Confirm application of the above resources (y/n)", "n")
+			if strings.ToLower(confirm) != "y" {
+				fmt.Fprintln(os.Stdout, "aborted application of package")
+				return nil
+			}
+		}
+
+		if !opts.forceOnConflict && isTTY && diff.HasConflicts() {
+			return errors.New("package has conflicts with existing resources and cannot safely apply")
 		}
 
 		summary, err := svc.Apply(context.Background(), *influxOrgID, pkg)
@@ -102,7 +130,9 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, orgID, path *string, hasColor, hasTableBo
 			return err
 		}
 
-		printPkgSummary(*hasColor, *hasTableBorders, summary)
+		if !opts.quiet {
+			printPkgSummary(opts.hasColor, opts.hasTableBorders, summary)
+		}
 
 		return nil
 	}
@@ -228,7 +258,7 @@ func pkgExportRunEFn(newSVCFn pkgSVCFn, cmdOpts *pkgExportOpts) func(*cobra.Comm
 			return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + cmdOpts.resourceType)
 		}
 
-		stdinInpt, _ := readStdInFull()
+		stdinInpt, _ := readStdInLines()
 		if len(stdinInpt) > 0 {
 			args = stdinInpt
 		}
@@ -256,51 +286,6 @@ func getResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn
 		})
 	}
 	return pkger.CreateWithExistingResources(resources...), nil
-}
-
-func readStdInFull() ([]string, error) {
-	info, err := os.Stdin.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	var stdinInput []string
-	if (info.Mode() & os.ModeCharDevice) != os.ModeCharDevice {
-		b, _ := ioutil.ReadAll(os.Stdin)
-		for _, bb := range bytes.Split(b, []byte("\n")) {
-			trimmed := bytes.TrimSpace(bb)
-			if len(trimmed) == 0 {
-				continue
-			}
-			stdinInput = append(stdinInput, string(trimmed))
-		}
-	}
-	return stdinInput, nil
-}
-
-func toInfluxIDs(args []string) ([]influxdb.ID, error) {
-	var (
-		ids  []influxdb.ID
-		errs []string
-	)
-	for _, arg := range args {
-		normedArg := normStr(arg)
-		if normedArg == "" {
-			continue
-		}
-
-		id, err := influxdb.IDFromString(normedArg)
-		if err != nil {
-			errs = append(errs, "arg must provide a valid 16 length ID; got: "+arg)
-			continue
-		}
-		ids = append(ids, *id)
-	}
-	if len(errs) > 0 {
-		return nil, errors.New(strings.Join(errs, "\n\t"))
-	}
-
-	return ids, nil
 }
 
 func pkgExportAllCmd(newSVCFn pkgSVCFn) *cobra.Command {
@@ -340,8 +325,62 @@ func pkgExportAllRunEFn(newSVCFn pkgSVCFn, opt *pkgNewOpts) func(*cobra.Command,
 	}
 }
 
-func normStr(in string) string {
-	return strings.TrimSpace(strings.ToLower(in))
+func readStdIn() (*os.File, error) {
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if (info.Mode() & os.ModeCharDevice) == os.ModeCharDevice {
+		return nil, nil
+	}
+	return os.Stdin, nil
+}
+
+func readStdInLines() ([]string, error) {
+	r, err := readStdIn()
+	if err != nil || r == nil {
+		return nil, err
+	}
+
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+
+	var stdinInput []string
+	for _, bb := range bytes.Split(b, []byte("\n")) {
+		trimmed := bytes.TrimSpace(bb)
+		if len(trimmed) == 0 {
+			continue
+		}
+		stdinInput = append(stdinInput, string(trimmed))
+	}
+	return stdinInput, nil
+}
+
+func toInfluxIDs(args []string) ([]influxdb.ID, error) {
+	var (
+		ids  []influxdb.ID
+		errs []string
+	)
+	for _, arg := range args {
+		normedArg := strings.TrimSpace(strings.ToLower(arg))
+		if normedArg == "" {
+			continue
+		}
+
+		id, err := influxdb.IDFromString(normedArg)
+		if err != nil {
+			errs = append(errs, "arg must provide a valid 16 length ID; got: "+arg)
+			continue
+		}
+		ids = append(ids, *id)
+	}
+	if len(errs) > 0 {
+		return nil, errors.New(strings.Join(errs, "\n\t"))
+	}
+
+	return ids, nil
 }
 
 func writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
@@ -388,27 +427,43 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 
 func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 	return pkger.NewService(
-		pkger.WithBucketSVC(&http.BucketService{
+		pkger.WithBucketSVC(&ihttp.BucketService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
 			InsecureSkipVerify: cliReqOpts.skipVerify,
 		}),
-		pkger.WithDashboardSVC(&http.DashboardService{
+		pkger.WithDashboardSVC(&ihttp.DashboardService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
 			InsecureSkipVerify: cliReqOpts.skipVerify,
 		}),
-		pkger.WithLabelSVC(&http.LabelService{
+		pkger.WithLabelSVC(&ihttp.LabelService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
 			InsecureSkipVerify: cliReqOpts.skipVerify,
 		}),
-		pkger.WithVariableSVC(&http.VariableService{
+		pkger.WithVariableSVC(&ihttp.VariableService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
 			InsecureSkipVerify: cliReqOpts.skipVerify,
 		}),
 	), nil
+}
+
+func pkgFromStdIn(stdin *os.File) (*pkger.Pkg, error) {
+	b, err := ioutil.ReadAll(stdin)
+	if err != nil {
+		return nil, err
+	}
+
+	var enc pkger.Encoding
+	switch http.DetectContentType(b[0:512]) {
+	case "application/json":
+		enc = pkger.EncodingJSON
+	default:
+		enc = pkger.EncodingYAML
+	}
+	return pkger.Parse(enc, pkger.FromString(string(b)))
 }
 
 func pkgFromFile(path string) (*pkger.Pkg, error) {
