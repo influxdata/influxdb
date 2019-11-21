@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -19,15 +20,40 @@ import (
 
 const maxTCPConnections = 128
 
+func main() {
+	influxCmd := influxCmd()
+	if err := influxCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
 type httpClientOpts struct {
 	token, addr string
 	skipVerify  bool
 }
 
-func main() {
-	influxCmd := influxCmd()
-	if err := influxCmd.Execute(); err != nil {
-		os.Exit(1)
+type genericCLIOptfn func(*genericCLIOpts)
+
+type genericCLIOpts struct {
+	in io.Reader
+	w  io.Writer
+}
+
+func (o genericCLIOpts) newCmd(use string) *cobra.Command {
+	cmd := &cobra.Command{Use: use}
+	cmd.SetOutput(o.w)
+	return cmd
+}
+
+func in(r io.Reader) genericCLIOptfn {
+	return func(o *genericCLIOpts) {
+		o.in = r
+	}
+}
+
+func out(w io.Writer) genericCLIOptfn {
+	return func(o *genericCLIOpts) {
+		o.w = w
 	}
 }
 

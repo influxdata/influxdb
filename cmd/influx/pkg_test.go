@@ -87,7 +87,9 @@ func Test_Pkg(t *testing.T) {
 		}
 
 		cmdFn := func() *cobra.Command {
-			return cmdPkgNew(fakeSVCFn(pkger.NewService()))
+			builder := newCmdPkgBuilder(fakeSVCFn(pkger.NewService()), in(new(bytes.Buffer)))
+			cmd := builder.cmdPkgNew()
+			return cmd
 		}
 
 		for _, tt := range tests {
@@ -151,7 +153,8 @@ func Test_Pkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return cmdPkgExportAll(fakeSVCFn(pkgSVC))
+			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), in(new(bytes.Buffer)))
+			return builder.cmdPkgExportAll()
 		}
 		for _, tt := range tests {
 			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
@@ -303,7 +306,8 @@ func Test_Pkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return cmdPkgExport(fakeSVCFn(pkgSVC))
+			builder := newCmdPkgBuilder(fakeSVCFn(pkgSVC), in(new(bytes.Buffer)))
+			return builder.cmdPkgExport()
 		}
 		for _, tt := range tests {
 			tt.flags = append(tt.flags,
@@ -357,7 +361,7 @@ type pkgFileArgs struct {
 func testPkgWrites(t *testing.T, newCmdFn func() *cobra.Command, args pkgFileArgs, assertFn func(t *testing.T, pkg *pkger.Pkg)) {
 	wrappedCmdFn := func() *cobra.Command {
 		cmd := newCmdFn()
-		cmd.SetArgs([]string{})
+		cmd.SetArgs([]string{}) // clears mess from test runner coming into cobra cli via stdin
 		return cmd
 	}
 
@@ -377,7 +381,7 @@ func testPkgWritesFile(newCmdFn func() *cobra.Command, args pkgFileArgs, assertF
 		cmd := newCmdFn()
 		require.NoError(t, cmd.Flags().Set("file", pathToFile))
 		for _, f := range args.flags {
-			require.NoError(t, cmd.Flags().Set(f.name, f.val))
+			require.NoError(t, cmd.Flags().Set(f.name, f.val), "cmd="+cmd.Name())
 		}
 
 		require.NoError(t, cmd.Execute())
