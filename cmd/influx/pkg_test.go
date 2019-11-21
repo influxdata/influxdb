@@ -87,7 +87,7 @@ func Test_Pkg(t *testing.T) {
 		}
 
 		cmdFn := func() *cobra.Command {
-			return pkgNewCmd(fakeSVCFn(pkger.NewService()))
+			return cmdPkgNew(fakeSVCFn(pkger.NewService()))
 		}
 
 		for _, tt := range tests {
@@ -151,7 +151,7 @@ func Test_Pkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return pkgExportAllCmd(fakeSVCFn(pkgSVC))
+			return cmdPkgExportAll(fakeSVCFn(pkgSVC))
 		}
 		for _, tt := range tests {
 			testPkgWrites(t, cmdFn, tt.pkgFileArgs, func(t *testing.T, pkg *pkger.Pkg) {
@@ -303,7 +303,7 @@ func Test_Pkg(t *testing.T) {
 					return &pkg, nil
 				},
 			}
-			return pkgExportCmd(fakeSVCFn(pkgSVC))
+			return cmdPkgExport(fakeSVCFn(pkgSVC))
 		}
 		for _, tt := range tests {
 			tt.flags = append(tt.flags,

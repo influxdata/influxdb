@@ -48,7 +48,7 @@ func influxCmd() *cobra.Command {
 		deleteCmd,
 		organizationCmd,
 		pingCmd,
-		pkgCmd(newPkgerSVC),
+		cmdPkg(newPkgerSVC),
 		queryCmd,
 		replCmd,
 		setupCmd,
