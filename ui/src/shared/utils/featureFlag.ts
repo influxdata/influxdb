@@ -18,8 +18,9 @@ const CLOUD_FLAGS = {
   downloadCellCSV: false,
 }
 
-export const isFlagEnabled = (flagName: string) => {
+export const isFlagEnabled = (flagName: string, equals?: string | boolean) => {
   let localStorageFlags
+  let _equals = equals
 
   try {
     localStorageFlags = JSON.parse(window.localStorage.featureFlags)
@@ -27,30 +28,35 @@ export const isFlagEnabled = (flagName: string) => {
     localStorageFlags = {}
   }
 
-  return (
-    localStorageFlags[flagName] === true ||
-    (CLOUD && CLOUD_FLAGS[flagName]) ||
-    (!CLOUD && OSS_FLAGS[flagName])
-  )
+  if (_equals === undefined) {
+    _equals = true
+  }
+
+  if (localStorageFlags.hasOwnProperty(flagName)) {
+    return localStorageFlags[flagName] === _equals
+  }
+
+  if (CLOUD) {
+    if (CLOUD_FLAGS.hasOwnProperty(flagName)) {
+      return CLOUD_FLAGS[flagName] === _equals
+    }
+
+    return false
+  }
+
+  if (OSS_FLAGS.hasOwnProperty(flagName)) {
+    return OSS_FLAGS[flagName] === _equals
+  }
+
+  return false
 }
 
 // type influx.toggleFeature('myFlag') to disable / enable any feature flag
-export const FeatureFlag: FunctionComponent<{name: string}> = ({
-  name,
-  children,
-}) => {
-  if (!isFlagEnabled(name)) {
-    return null
-  }
-
-  return children as any
-}
-
-export const NegativeFeatureFlag: FunctionComponent<{name: string}> = ({
-  name,
-  children,
-}) => {
-  if (isFlagEnabled(name)) {
+export const FeatureFlag: FunctionComponent<{
+  name: string
+  equals?: string | boolean
+}> = ({name, equals, children}) => {
+  if (!isFlagEnabled(name, equals)) {
     return null
   }
 
@@ -90,6 +96,16 @@ const reset = () => {
   }
 
   window.localStorage.featureFlags = JSON.stringify(featureFlags)
+}
+
+export const set = (flagName: string, value: string | boolean) => {
+  const featureFlags = JSON.parse(window.localStorage.featureFlags || '{}')
+
+  featureFlags[flagName] = value
+
+  window.localStorage.featureFlags = JSON.stringify(featureFlags)
+
+  return featureFlags[flagName]
 }
 
 export const toggleLocalStorageFlag = (flagName: string) => {

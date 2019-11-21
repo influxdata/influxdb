@@ -12,7 +12,7 @@ import Threesizer from 'src/shared/components/threesizer/Threesizer'
 import FluxFunctionsToolbar from 'src/timeMachine/components/fluxFunctionsToolbar/FluxFunctionsToolbar'
 import VariableToolbar from 'src/timeMachine/components/variableToolbar/VariableToolbar'
 import ToolbarTab from 'src/timeMachine/components/ToolbarTab'
-import {FeatureFlag, NegativeFeatureFlag} from 'src/shared/utils/featureFlag'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {setActiveQueryText} from 'src/timeMachine/actions'
@@ -72,7 +72,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
                     onCursorChange={this.handleCursorPosition}
                   />
                 </FeatureFlag>
-                <NegativeFeatureFlag name="monacoEditor">
+                <FeatureFlag name="monacoEditor" equals={false}>
                   <FluxEditor
                     script={activeQueryText}
                     status={{type: '', text: ''}}
@@ -81,7 +81,7 @@ class TimeMachineFluxEditor extends PureComponent<Props, State> {
                     suggestions={[]}
                     onCursorChange={this.handleCursorPosition}
                   />
-                </NegativeFeatureFlag>
+                </FeatureFlag>
               </Suspense>
             </>
           )
