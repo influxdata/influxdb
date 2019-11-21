@@ -76,6 +76,7 @@ func (b *cmdPkgBuilder) cmdPkg() *cobra.Command {
 	cmd.AddCommand(
 		b.cmdPkgNew(),
 		b.cmdPkgExport(),
+		b.cmdPkgSummary(),
 		b.cmdPkgValidate(),
 	)
 	return cmd
@@ -307,14 +308,35 @@ func (b *cmdPkgBuilder) pkgExportAllRunEFn() func(*cobra.Command, []string) erro
 	}
 }
 
+func (b *cmdPkgBuilder) cmdPkgSummary() *cobra.Command {
+	cmd := b.newCmd("summary")
+	cmd.Short = "Summarize the provided package"
+
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
+	cmd.Flags().BoolVarP(&b.hasColor, "color", "c", true, "Enable color in output, defaults true")
+	cmd.Flags().BoolVar(&b.hasTableBorders, "table-borders", true, "Enable table borders, defaults true")
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		pkg, _, err := b.readPkgStdInOrFile(b.file)
+		if err != nil {
+			return err
+		}
+
+		b.printPkgSummary(pkg.Summary())
+		return nil
+	}
+
+	return cmd
+}
+
 func (b *cmdPkgBuilder) cmdPkgValidate() *cobra.Command {
 	cmd := b.newCmd("validate")
 	cmd.Short = "Validate the provided package"
 
-	inPath := cmd.Flags().StringP("file", "f", "", "input file for pkg; if none provided will use TTY input")
+	cmd.Flags().StringVarP(&b.file, "file", "f", "", "input file for pkg; if none provided will use TTY input")
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		pkg, _, err := b.readPkgStdInOrFile(*inPath)
+		pkg, _, err := b.readPkgStdInOrFile(b.file)
 		if err != nil {
 			return err
 		}
