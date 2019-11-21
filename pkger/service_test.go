@@ -1307,5 +1307,99 @@ func TestService(t *testing.T) {
 				})
 			})
 		})
+
+		t.Run("with org id", func(t *testing.T) {
+			orgID := influxdb.ID(9000)
+
+			bktSVC := mock.NewBucketService()
+			bktSVC.FindBucketsFn = func(_ context.Context, f influxdb.BucketFilter, opts ...influxdb.FindOptions) ([]*influxdb.Bucket, int, error) {
+				if f.OrganizationID == nil || *f.OrganizationID != orgID {
+					return nil, 0, errors.New("not suppose to get here")
+				}
+				return []*influxdb.Bucket{{ID: 1, Name: "bucket"}}, 1, nil
+			}
+			bktSVC.FindBucketByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+				if id != 1 {
+					return nil, errors.New("wrong id")
+				}
+				return &influxdb.Bucket{ID: 1, Name: "bucket"}, nil
+			}
+
+			dashSVC := mock.NewDashboardService()
+			dashSVC.FindDashboardsF = func(_ context.Context, f influxdb.DashboardFilter, _ influxdb.FindOptions) ([]*influxdb.Dashboard, int, error) {
+				if f.OrganizationID == nil || *f.OrganizationID != orgID {
+					return nil, 0, errors.New("not suppose to get here")
+				}
+				return []*influxdb.Dashboard{{
+					ID:    2,
+					Name:  "dashboard",
+					Cells: []*influxdb.Cell{},
+				}}, 1, nil
+			}
+			dashSVC.FindDashboardByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+				if id != 2 {
+					return nil, errors.New("wrong id")
+				}
+				return &influxdb.Dashboard{
+					ID:    2,
+					Name:  "dashboard",
+					Cells: []*influxdb.Cell{},
+				}, nil
+			}
+
+			labelSVC := mock.NewLabelService()
+			labelSVC.FindLabelsFn = func(_ context.Context, f influxdb.LabelFilter) ([]*influxdb.Label, error) {
+				if f.OrgID == nil || *f.OrgID != orgID {
+					return nil, errors.New("not suppose to get here")
+				}
+				return []*influxdb.Label{{ID: 3, Name: "label"}}, nil
+			}
+			labelSVC.FindLabelByIDFn = func(_ context.Context, id influxdb.ID) (*influxdb.Label, error) {
+				if id != 3 {
+					return nil, errors.New("wrong id")
+				}
+				return &influxdb.Label{ID: 3, Name: "label"}, nil
+			}
+
+			varSVC := mock.NewVariableService()
+			varSVC.FindVariablesF = func(_ context.Context, f influxdb.VariableFilter, _ ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
+				if f.OrganizationID == nil || *f.OrganizationID != orgID {
+					return nil, errors.New("not suppose to get here")
+				}
+				return []*influxdb.Variable{{ID: 4, Name: "variable"}}, nil
+			}
+			varSVC.FindVariableByIDF = func(_ context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+				if id != 4 {
+					return nil, errors.New("wrong id")
+				}
+				return &influxdb.Variable{ID: 4, Name: "variable"}, nil
+			}
+
+			svc := NewService(
+				WithBucketSVC(bktSVC),
+				WithDashboardSVC(dashSVC),
+				WithLabelSVC(labelSVC),
+				WithVariableSVC(varSVC),
+			)
+
+			pkg, err := svc.CreatePkg(context.TODO(), CreateWithAllOrgResources(orgID))
+			require.NoError(t, err)
+
+			bkts := pkg.Summary().Buckets
+			require.Len(t, bkts, 1)
+			assert.Equal(t, "bucket", bkts[0].Name)
+
+			dashs := pkg.Summary().Dashboards
+			require.Len(t, dashs, 1)
+			assert.Equal(t, "dashboard", dashs[0].Name)
+
+			labels := pkg.Summary().Labels
+			require.Len(t, labels, 1)
+			assert.Equal(t, "label", labels[0].Name)
+
+			vars := pkg.Summary().Variables
+			require.Len(t, vars, 1)
+			assert.Equal(t, "variable", vars[0].Name)
+		})
 	})
 }

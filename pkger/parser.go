@@ -126,7 +126,7 @@ func parse(dec decoder, opts ...ValidateOptFn) (*Pkg, error) {
 // to another power, the graphing of the package is handled within itself.
 type Pkg struct {
 	APIVersion string   `yaml:"apiVersion" json:"apiVersion"`
-	Kind       string   `yaml:"kind" json:"kind"`
+	Kind       Kind     `yaml:"kind" json:"kind"`
 	Metadata   Metadata `yaml:"meta" json:"meta"`
 	Spec       struct {
 		Resources []Resource `yaml:"resources" json:"resources"`
@@ -308,7 +308,7 @@ func (p *Pkg) validMetadata() error {
 		})
 	}
 
-	if mKind := newKind(p.Kind); mKind != KindPackage {
+	if !p.Kind.is(KindPackage) {
 		failures = append(failures, ValidationErr{
 			Field: "kind",
 			Msg:   `must be of kind "Package"`,
@@ -470,13 +470,6 @@ func (p *Pkg) graphDashboards() error {
 			return []ValidationErr{{
 				Field: "name",
 				Msg:   "must be a string of at least 2 chars in length",
-			}}
-		}
-
-		if _, ok := p.mDashboards[r.Name()]; ok {
-			return []ValidationErr{{
-				Field: "name",
-				Msg:   "duplicate name: " + r.Name(),
 			}}
 		}
 
@@ -777,17 +770,17 @@ func (r Resource) Name() string {
 }
 
 func (r Resource) kind() (Kind, error) {
+	if k, ok := r[fieldKind].(Kind); ok {
+		return k, k.OK()
+	}
+
 	resKind, ok := r.string(fieldKind)
 	if !ok {
 		return KindUnknown, errors.New("no kind provided")
 	}
 
-	k := newKind(resKind)
-	if err := k.OK(); err != nil {
-		return k, err
-	}
-
-	return k, nil
+	k := NewKind(resKind)
+	return k, k.OK()
 }
 
 func (r Resource) chartKind() (chartKind, error) {
@@ -1001,12 +994,21 @@ func uniqResources(resources []Resource) []Resource {
 		if err != nil {
 			continue
 		}
-		rKey := key{kind: k, name: r.Name()}
-		if m[rKey] {
+		if err := k.OK(); err != nil {
 			continue
 		}
-		m[rKey] = true
-		out = append(out, r)
+		switch k {
+		// these 3 kinds are unique, have existing state identifiable by name
+		case KindBucket, KindLabel, KindVariable:
+			rKey := key{kind: k, name: r.Name()}
+			if m[rKey] {
+				continue
+			}
+			m[rKey] = true
+			fallthrough
+		default:
+			out = append(out, r)
+		}
 	}
 	return out
 }

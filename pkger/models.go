@@ -30,7 +30,8 @@ var kinds = map[Kind]bool{
 // Kind is a resource kind.
 type Kind string
 
-func newKind(s string) Kind {
+// NewKind returns the kind parsed from the provided string.
+func NewKind(s string) Kind {
 	return Kind(strings.TrimSpace(strings.ToLower(s)))
 }
 
