@@ -1,6 +1,3 @@
-// TODO: this is maintained in influxdata/vsflux, which is currently
-// a private repo, so we can't use it yet (alex)
-import textmate from './flux.tmLanguage.json'
 import {loadWASM} from 'onigasm' // peer dependency of 'monaco-textmate'
 import {Registry} from 'monaco-textmate' // peer dependency
 import {wireTmGrammars} from 'monaco-editor-textmate'
@@ -11,9 +8,15 @@ export async function addSyntax(monaco) {
   monaco.languages.register({id: 'flux'})
 
   const registry = new Registry({
-    getGrammarDefinition: () => ({
+    // TODO: this is maintained in influxdata/vsflux, which is currently
+    // a private repo, so we can't use it yet (alex)
+    getGrammarDefinition: async () => ({
       format: 'json',
-      content: textmate,
+      content: await import(/* webpackPrefetch: 0 */ 'src/external/flux.tmLanguage.json').then(
+        data => {
+          return JSON.stringify(data)
+        }
+      ),
     }),
   })
 
