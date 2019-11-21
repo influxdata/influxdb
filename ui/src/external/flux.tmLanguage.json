@@ -53,7 +53,7 @@
           "match": "\\b(\\d{4}-\\d{2}-\\d{2}(T\\d{2}\\:\\d{2}\\:\\d{2}(\\.\\d*)?((Z|(\\+|\\-)\\d{2}:\\d{2}))?)?)\\b"
         },
         {
-          "name": "constant.other",
+          "name": "constant.time",
           "match": "\\b(\\d*(y|mo|w|d|h|m|s|ms|us|µs|ns))+\\b"
         },
         {

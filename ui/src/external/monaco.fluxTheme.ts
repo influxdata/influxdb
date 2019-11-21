@@ -6,8 +6,43 @@ export default function(monaco) {
     rules: [
       {
         token: 'support.function',
-        foreground: '#ff0000',
-        background: '#ffffff'
+        foreground: '#9394FF',
+      },
+      {
+        token: 'keyword.operator.new',
+        foreground: '#9394FF',
+      },
+      {
+        token: 'keyword.control.flux',
+        foreground: '#9394FF',
+      },
+      {
+        token: 'comment.line.double-slash',
+        foreground: '#676978',
+      },
+      {
+        token: 'string.quoted.double.flux',
+        foreground: '#7CE490',
+      },
+      {
+        token: 'string.regexp',
+        foreground: '#FFB6A0',
+      },
+      {
+        token: 'constant.time',
+        foreground: '#6BDFFF'
+      },
+      {
+        token: 'constant.numeric',
+        foreground: '#6BDFFF'
+      },
+      {
+        token: 'constant.language',
+        foreground: '#32B08C',
+      },
+      {
+        token: 'keyword.operator',
+        foreground: '#ff4d96',
       },
       {
         token: '',
