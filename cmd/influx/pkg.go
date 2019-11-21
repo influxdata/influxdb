@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/http"
+	ierror "github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
@@ -28,7 +30,8 @@ type pkgSVCFn func(cliReq httpClientOpts) (pkger.SVC, error)
 func pkgCmd(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := pkgApplyCmd(newSVCFn)
 	cmd.AddCommand(
-		pkgCreateCmd(newSVCFn),
+		pkgNewCmd(newSVCFn),
+		pkgExportCmd(newSVCFn),
 	)
 
 	return cmd
@@ -105,36 +108,32 @@ func pkgApplyRunEFn(newSVCFn pkgSVCFn, orgID, path *string, hasColor, hasTableBo
 	}
 }
 
-func pkgCreateCmd(newSVCFn pkgSVCFn) *cobra.Command {
+func pkgNewCmd(newSVCFn pkgSVCFn) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "new",
 		Short: "Create a reusable pkg to create resources in a declarative manner",
 	}
 
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-
-	var opts pkgCreateRunOpts
-	cmd.Flags().StringVarP(&opts.outPath, "out", "o", filepath.Join(wd, "pkg.json"), "output file for created pkg; defaults to pkg.json; the extension of provided file (.yml/.json) will dictate encoding")
+	var opts pkgNewOpts
+	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().BoolVarP(&opts.quiet, "quiet", "q", false, "skip interactive mode")
 	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
 	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
 	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
 
-	cmd.RunE = pkgCreateRunEFn(newSVCFn, &opts)
+	cmd.RunE = pkgNewRunEFn(newSVCFn, &opts)
 
 	return cmd
 }
 
-type pkgCreateRunOpts struct {
+type pkgNewOpts struct {
 	quiet   bool
 	outPath string
+	orgID   string
 	meta    pkger.Metadata
 }
 
-func pkgCreateRunEFn(newSVCFn pkgSVCFn, opt *pkgCreateRunOpts) func(*cobra.Command, []string) error {
+func pkgNewRunEFn(newSVCFn pkgSVCFn, opt *pkgNewOpts) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, args []string) error {
 		if !opt.quiet {
 			ui := &input.UI{
@@ -143,13 +142,13 @@ func pkgCreateRunEFn(newSVCFn pkgSVCFn, opt *pkgCreateRunOpts) func(*cobra.Comma
 			}
 
 			if opt.meta.Name == "" {
-				opt.meta.Name = getInput(ui, "pkg name:", "")
+				opt.meta.Name = getInput(ui, "pkg name", "")
 			}
 			if opt.meta.Description == "" {
-				opt.meta.Description = getInput(ui, "pkg description:", opt.meta.Description)
+				opt.meta.Description = getInput(ui, "pkg description", opt.meta.Description)
 			}
 			if opt.meta.Version == "" {
-				opt.meta.Version = getInput(ui, "pkg version:", opt.meta.Version)
+				opt.meta.Version = getInput(ui, "pkg version", opt.meta.Version)
 			}
 		}
 
@@ -158,37 +157,233 @@ func pkgCreateRunEFn(newSVCFn pkgSVCFn, opt *pkgCreateRunOpts) func(*cobra.Comma
 			return err
 		}
 
-		newPkg, err := pkgSVC.CreatePkg(context.Background(), pkger.CreateWithMetadata(opt.meta))
+		return writePkg(cmd.OutOrStdout(), pkgSVC, opt.outPath, pkger.CreateWithMetadata(opt.meta))
+	}
+}
+
+type pkgExportOpts struct {
+	outPath      string
+	meta         pkger.Metadata
+	resourceType string
+	buckets      string
+	dashboards   string
+	labels       string
+	variables    string
+}
+
+func pkgExportCmd(newSVCFn pkgSVCFn) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "export",
+		Short: "Export existing resources as a package",
+	}
+	cmd.AddCommand(pkgExportAllCmd(newSVCFn))
+
+	var opts pkgExportOpts
+	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
+	cmd.Flags().StringVar(&opts.resourceType, "resource-type", "", "The resource type provided will be associated with all IDs via stdin.")
+	cmd.Flags().StringVar(&opts.buckets, "buckets", "", "List of bucket ids comma separated")
+	cmd.Flags().StringVar(&opts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
+	cmd.Flags().StringVar(&opts.labels, "labels", "", "List of label ids comma separated")
+	cmd.Flags().StringVar(&opts.variables, "variables", "", "List of variable ids comma separated")
+
+	cmd.RunE = pkgExportRunEFn(newSVCFn, &opts)
+	return cmd
+}
+
+func pkgExportRunEFn(newSVCFn pkgSVCFn, cmdOpts *pkgExportOpts) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		pkgSVC, err := newSVCFn(flags.httpClientOpts())
 		if err != nil {
 			return err
 		}
 
-		var (
-			buf bytes.Buffer
-			enc interface {
-				Encode(interface{}) error
-			}
-		)
+		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(cmdOpts.meta)}
 
-		switch ext := filepath.Ext(opt.outPath); ext {
-		case ".yml":
-			enc = yaml.NewEncoder(&buf)
-		default:
-			jsonEnc := json.NewEncoder(&buf)
-			jsonEnc.SetIndent("", "\t")
-			enc = jsonEnc
+		resTypes := []struct {
+			kind   pkger.Kind
+			idStrs []string
+		}{
+			{kind: pkger.KindBucket, idStrs: strings.Split(cmdOpts.buckets, ",")},
+			{kind: pkger.KindDashboard, idStrs: strings.Split(cmdOpts.dashboards, ",")},
+			{kind: pkger.KindLabel, idStrs: strings.Split(cmdOpts.labels, ",")},
+			{kind: pkger.KindVariable, idStrs: strings.Split(cmdOpts.variables, ",")},
 		}
-		if err := enc.Encode(newPkg); err != nil {
+		for _, rt := range resTypes {
+			newOpt, err := getResourcesToClone(rt.kind, rt.idStrs)
+			if err != nil {
+				return ierror.Wrap(err, rt.kind.String())
+			}
+			opts = append(opts, newOpt)
+		}
+
+		if cmdOpts.resourceType == "" {
+			return writePkg(cmd.OutOrStdout(), pkgSVC, cmdOpts.outPath, opts...)
+		}
+
+		kind := pkger.NewKind(cmdOpts.resourceType)
+		if err := kind.OK(); err != nil {
+			return errors.New("resource type must be one of bucket|dashboard|label|variable; got: " + cmdOpts.resourceType)
+		}
+
+		stdinInpt, _ := readStdInFull()
+		if len(stdinInpt) > 0 {
+			args = stdinInpt
+		}
+
+		resTypeOpt, err := getResourcesToClone(kind, args)
+		if err != nil {
 			return err
 		}
 
-		return ioutil.WriteFile(opt.outPath, buf.Bytes(), os.ModePerm)
+		return writePkg(cmd.OutOrStdout(), pkgSVC, cmdOpts.outPath, append(opts, resTypeOpt)...)
 	}
 }
 
-type httpClientOpts struct {
-	token, addr string
-	skipVerify  bool
+func getResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.CreatePkgSetFn, error) {
+	ids, err := toInfluxIDs(idStrs)
+	if err != nil {
+		return nil, err
+	}
+
+	var resources []pkger.ResourceToClone
+	for _, id := range ids {
+		resources = append(resources, pkger.ResourceToClone{
+			Kind: kind,
+			ID:   id,
+		})
+	}
+	return pkger.CreateWithExistingResources(resources...), nil
+}
+
+func readStdInFull() ([]string, error) {
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	var stdinInput []string
+	if (info.Mode() & os.ModeCharDevice) != os.ModeCharDevice {
+		b, _ := ioutil.ReadAll(os.Stdin)
+		for _, bb := range bytes.Split(b, []byte("\n")) {
+			trimmed := bytes.TrimSpace(bb)
+			if len(trimmed) == 0 {
+				continue
+			}
+			stdinInput = append(stdinInput, string(trimmed))
+		}
+	}
+	return stdinInput, nil
+}
+
+func toInfluxIDs(args []string) ([]influxdb.ID, error) {
+	var (
+		ids  []influxdb.ID
+		errs []string
+	)
+	for _, arg := range args {
+		normedArg := normStr(arg)
+		if normedArg == "" {
+			continue
+		}
+
+		id, err := influxdb.IDFromString(normedArg)
+		if err != nil {
+			errs = append(errs, "arg must provide a valid 16 length ID; got: "+arg)
+			continue
+		}
+		ids = append(ids, *id)
+	}
+	if len(errs) > 0 {
+		return nil, errors.New(strings.Join(errs, "\n\t"))
+	}
+
+	return ids, nil
+}
+
+func pkgExportAllCmd(newSVCFn pkgSVCFn) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "all",
+		Short: "Export all existing resources for an organization as a package",
+	}
+
+	var opts pkgNewOpts
+	cmd.Flags().StringVarP(&opts.outPath, "file", "f", "", "output file for created pkg; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
+	cmd.Flags().StringVarP(&opts.orgID, "org-id", "o", "", "organization id")
+	cmd.Flags().StringVarP(&opts.meta.Name, "name", "n", "", "name for new pkg")
+	cmd.Flags().StringVarP(&opts.meta.Description, "description", "d", "", "description for new pkg")
+	cmd.Flags().StringVarP(&opts.meta.Version, "version", "v", "", "version for new pkg")
+
+	cmd.RunE = pkgExportAllRunEFn(newSVCFn, &opts)
+
+	return cmd
+}
+
+func pkgExportAllRunEFn(newSVCFn pkgSVCFn, opt *pkgNewOpts) func(*cobra.Command, []string) error {
+	return func(cmd *cobra.Command, args []string) error {
+		pkgSVC, err := newSVCFn(flags.httpClientOpts())
+		if err != nil {
+			return err
+		}
+
+		opts := []pkger.CreatePkgSetFn{pkger.CreateWithMetadata(opt.meta)}
+
+		orgID, err := influxdb.IDFromString(opt.orgID)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, pkger.CreateWithAllOrgResources(*orgID))
+
+		return writePkg(cmd.OutOrStdout(), pkgSVC, opt.outPath, opts...)
+	}
+}
+
+func normStr(in string) string {
+	return strings.TrimSpace(strings.ToLower(in))
+}
+
+func writePkg(w io.Writer, pkgSVC pkger.SVC, outPath string, opts ...pkger.CreatePkgSetFn) error {
+	pkg, err := pkgSVC.CreatePkg(context.Background(), opts...)
+	if err != nil {
+		return err
+	}
+
+	buf, err := createPkgBuf(pkg, outPath)
+	if err != nil {
+		return err
+	}
+
+	if outPath == "" {
+		_, err := io.Copy(w, buf)
+		return err
+	}
+
+	return ioutil.WriteFile(outPath, buf.Bytes(), os.ModePerm)
+}
+
+func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
+	var (
+		buf bytes.Buffer
+		enc interface {
+			Encode(interface{}) error
+		}
+	)
+
+	switch ext := filepath.Ext(outPath); ext {
+	case ".json":
+		jsonEnc := json.NewEncoder(&buf)
+		jsonEnc.SetIndent("", "\t")
+		enc = jsonEnc
+	default:
+		enc = yaml.NewEncoder(&buf)
+	}
+	if err := enc.Encode(pkg); err != nil {
+		return nil, err
+	}
+
+	return &buf, nil
 }
 
 func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {

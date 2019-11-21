@@ -3050,7 +3050,7 @@ func nextField(t *testing.T, field string) (string, int) {
 
 type baseAsserts struct {
 	version     string
-	kind        string
+	kind        Kind
 	description string
 	metaName    string
 	metaVersion string
@@ -3063,7 +3063,7 @@ func validParsedPkg(t *testing.T, path string, encoding Encoding, expected baseA
 	require.NoError(t, err)
 
 	require.Equal(t, expected.version, pkg.APIVersion)
-	require.Equal(t, expected.kind, pkg.Kind)
+	require.True(t, pkg.Kind.is(expected.kind))
 	require.Equal(t, expected.description, pkg.Metadata.Description)
 	require.Equal(t, expected.metaName, pkg.Metadata.Name)
 	require.Equal(t, expected.metaVersion, pkg.Metadata.Version)
@@ -3108,7 +3108,7 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 
 			pkg := validParsedPkg(t, path+tt.extension, tt.encoding, baseAsserts{
 				version:     "0.1.0",
-				kind:        "Package",
+				kind:        KindPackage,
 				description: "pack description",
 				metaName:    "pkg_name",
 				metaVersion: "1",

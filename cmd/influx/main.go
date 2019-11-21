@@ -19,6 +19,11 @@ import (
 
 const maxTCPConnections = 128
 
+type httpClientOpts struct {
+	token, addr string
+	skipVerify  bool
+}
+
 func main() {
 	influxCmd := influxCmd()
 	if err := influxCmd.Execute(); err != nil {

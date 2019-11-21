@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	ierrors "github.com/influxdata/influxdb/kit/errors"
 	"go.uber.org/zap"
 )
 
@@ -100,38 +101,55 @@ func NewService(opts ...ServiceSetterFn) *Service {
 }
 
 // CreatePkgSetFn is a functional input for setting the pkg fields.
-type CreatePkgSetFn func(opt *createOpt) error
+type CreatePkgSetFn func(opt *CreateOpt) error
 
-type createOpt struct {
-	metadata  Metadata
-	resources []ResourceToClone
+// CreateOpt are the options for creating a new package.
+type CreateOpt struct {
+	Metadata  Metadata
+	OrgIDs    map[influxdb.ID]bool
+	Resources []ResourceToClone
 }
 
 // CreateWithMetadata sets the metadata on the pkg in a CreatePkg call.
 func CreateWithMetadata(meta Metadata) CreatePkgSetFn {
-	return func(opt *createOpt) error {
-		opt.metadata = meta
+	return func(opt *CreateOpt) error {
+		opt.Metadata = meta
 		return nil
 	}
 }
 
 // CreateWithExistingResources allows the create method to clone existing resources.
 func CreateWithExistingResources(resources ...ResourceToClone) CreatePkgSetFn {
-	return func(opt *createOpt) error {
+	return func(opt *CreateOpt) error {
 		for _, r := range resources {
 			if err := r.OK(); err != nil {
 				return err
 			}
-			r.Kind = newKind(string(r.Kind))
+			r.Kind = NewKind(string(r.Kind))
 		}
-		opt.resources = append(opt.resources, resources...)
+		opt.Resources = append(opt.Resources, resources...)
+		return nil
+	}
+}
+
+// CreateWithAllOrgResources allows the create method to clone all existing resources
+// for the given organization.
+func CreateWithAllOrgResources(orgID influxdb.ID) CreatePkgSetFn {
+	return func(opt *CreateOpt) error {
+		if orgID == 0 {
+			return errors.New("orgID provided must not be zero")
+		}
+		if opt.OrgIDs == nil {
+			opt.OrgIDs = make(map[influxdb.ID]bool)
+		}
+		opt.OrgIDs[orgID] = true
 		return nil
 	}
 }
 
 // CreatePkg will produce a pkg from the parameters provided.
 func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pkg, error) {
-	opt := new(createOpt)
+	opt := new(CreateOpt)
 	for _, setter := range setters {
 		if err := setter(opt); err != nil {
 			return nil, err
@@ -140,12 +158,12 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 
 	pkg := &Pkg{
 		APIVersion: APIVersion,
-		Kind:       KindPackage.String(),
-		Metadata:   opt.metadata,
+		Kind:       KindPackage,
+		Metadata:   opt.Metadata,
 		Spec: struct {
 			Resources []Resource `yaml:"resources" json:"resources"`
 		}{
-			Resources: make([]Resource, 0, len(opt.resources)),
+			Resources: make([]Resource, 0, len(opt.Resources)),
 		},
 	}
 	if pkg.Metadata.Name == "" {
@@ -158,7 +176,15 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	}
 
 	cloneAssFn := s.resourceCloneAssociationsGen()
-	for _, r := range opt.resources {
+	for orgID := range opt.OrgIDs {
+		resourcesToClone, err := s.cloneOrgResources(ctx, orgID)
+		if err != nil {
+			return nil, err
+		}
+		opt.Resources = append(opt.Resources, resourcesToClone...)
+	}
+
+	for _, r := range uniqResourcesToClone(opt.Resources) {
 		newResources, err := s.resourceCloneToResource(ctx, r, cloneAssFn)
 		if err != nil {
 			return nil, err
@@ -191,6 +217,117 @@ func (s *Service) CreatePkg(ctx context.Context, setters ...CreatePkgSetFn) (*Pk
 	})
 
 	return pkg, nil
+}
+
+func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	resourceTypeGens := []struct {
+		resType influxdb.ResourceType
+		cloneFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
+	}{
+		{
+			resType: influxdb.BucketsResourceType,
+			cloneFn: s.cloneOrgBuckets,
+		},
+		{
+			resType: influxdb.DashboardsResourceType,
+			cloneFn: s.cloneOrgDashboards,
+		},
+		{
+			resType: influxdb.LabelsResourceType,
+			cloneFn: s.cloneOrgLabels,
+		},
+		{
+			resType: influxdb.VariablesResourceType,
+			cloneFn: s.cloneOrgVariables,
+		},
+	}
+
+	var resources []ResourceToClone
+	for _, resGen := range resourceTypeGens {
+		existingResources, err := resGen.cloneFn(ctx, orgID)
+		if err != nil {
+			return nil, ierrors.Wrap(err, "finding "+string(resGen.resType))
+		}
+		resources = append(resources, existingResources...)
+	}
+
+	return resources, nil
+}
+
+func (s *Service) cloneOrgBuckets(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	buckets, _, err := s.bucketSVC.FindBuckets(ctx, influxdb.BucketFilter{
+		OrganizationID: &orgID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(buckets))
+	for _, b := range buckets {
+		if b.Type == influxdb.BucketTypeSystem {
+			continue
+		}
+		resources = append(resources, ResourceToClone{
+			Kind: KindBucket,
+			ID:   b.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgDashboards(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	dashs, _, err := s.dashSVC.FindDashboards(ctx, influxdb.DashboardFilter{
+		OrganizationID: &orgID,
+	}, influxdb.FindOptions{Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(dashs))
+	for _, d := range dashs {
+		resources = append(resources, ResourceToClone{
+			Kind: KindDashboard,
+			ID:   d.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	labels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
+		OrgID: &orgID,
+	}, influxdb.FindOptions{Limit: 10000})
+	if err != nil {
+		return nil, ierrors.Wrap(err, "finding labels")
+	}
+
+	resources := make([]ResourceToClone, 0, len(labels))
+	for _, l := range labels {
+		resources = append(resources, ResourceToClone{
+			Kind: KindLabel,
+			ID:   l.ID,
+		})
+	}
+	return resources, nil
+}
+
+func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
+		OrganizationID: &orgID,
+	}, influxdb.FindOptions{Limit: 10000})
+	if err != nil {
+		return nil, err
+	}
+
+	resources := make([]ResourceToClone, 0, len(vars))
+	for _, v := range vars {
+		resources = append(resources, ResourceToClone{
+			Kind: KindVariable,
+			ID:   v.ID,
+		})
+	}
+
+	return resources, nil
 }
 
 func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) ([]Resource, error) {
@@ -589,14 +726,6 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 		mappingFn(l.ID(), l.Name, true)
 	}
 	return nil
-}
-
-func labelSlcToMap(labels []*label) map[string]*label {
-	m := make(map[string]*label)
-	for i := range labels {
-		m[labels[i].Name] = labels[i]
-	}
-	return m
 }
 
 // Apply will apply all the resources identified in the provided pkg. The entire pkg will be applied
@@ -1140,4 +1269,12 @@ func (a applyErrs) toError(resType, msg string) error {
 		errMsg += fmt.Sprintf("\n\tname=%q err_msg=%q", e.name, e.msg)
 	}
 	return errors.New(errMsg)
+}
+
+func labelSlcToMap(labels []*label) map[string]*label {
+	m := make(map[string]*label)
+	for i := range labels {
+		m[labels[i].Name] = labels[i]
+	}
+	return m
 }

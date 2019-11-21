@@ -25,16 +25,47 @@ func (r ResourceToClone) OK() error {
 	return nil
 }
 
+func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
+	type key struct {
+		kind Kind
+		id   influxdb.ID
+	}
+	m := make(map[key]ResourceToClone)
+
+	for i := range resources {
+		r := resources[i]
+		rKey := key{kind: r.Kind, id: r.ID}
+		kr, ok := m[rKey]
+		switch {
+		case ok && kr.Name == r.Name:
+		case ok && kr.Name != "" && r.Name == "":
+		default:
+			m[rKey] = r
+		}
+	}
+
+	out := make([]ResourceToClone, 0, len(resources))
+	for _, r := range m {
+		out = append(out, r)
+	}
+	return out
+}
+
 func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 	if name == "" {
 		name = bkt.Name
 	}
-	return Resource{
-		fieldKind:                  KindBucket.title(),
-		fieldName:                  name,
-		fieldDescription:           bkt.Description,
-		fieldBucketRetentionPeriod: bkt.RetentionPeriod.String(),
+	r := Resource{
+		fieldKind: KindBucket.title(),
+		fieldName: name,
 	}
+	if bkt.Description != "" {
+		r[fieldDescription] = bkt.Description
+	}
+	if bkt.RetentionPeriod != 0 {
+		r[fieldBucketRetentionPeriod] = bkt.RetentionPeriod.String()
+	}
+	return r
 }
 
 type cellView struct {
@@ -274,12 +305,17 @@ func labelToResource(l influxdb.Label, name string) Resource {
 	if name == "" {
 		name = l.Name
 	}
-	return Resource{
-		fieldKind:        KindLabel.title(),
-		fieldName:        name,
-		fieldLabelColor:  l.Properties["color"],
-		fieldDescription: l.Properties["description"],
+	r := Resource{
+		fieldKind: KindLabel.title(),
+		fieldName: name,
 	}
+	if desc := l.Properties["description"]; desc != "" {
+		r[fieldDescription] = desc
+	}
+	if color := l.Properties["color"]; color != "" {
+		r[fieldLabelColor] = color
+	}
+	return r
 }
 
 func variableToResource(v influxdb.Variable, name string) Resource {
@@ -288,10 +324,13 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	}
 
 	r := Resource{
-		fieldKind:        KindVariable.title(),
-		fieldName:        name,
-		fieldDescription: v.Description,
+		fieldKind: KindVariable.title(),
+		fieldName: name,
 	}
+	if v.Description != "" {
+		r[fieldDescription] = v.Description
+	}
+
 	args := v.Arguments
 	if args == nil {
 		return r
