@@ -16,6 +16,7 @@ module.exports = merge(common, {
     historyApiFallback: true,
     compress: true,
     proxy: {
+      '/oauth': 'http://localhost:9999',
       '/api/v2': 'http://localhost:9999',
       '/debug/flush': 'http://localhost:9999',
     },
