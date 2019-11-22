@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -534,17 +535,17 @@ func pkgFromFile(path string) (*pkger.Pkg, error) {
 }
 
 func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
-	red := color.New(color.FgRed).SprintfFunc()
-	green := color.New(color.FgHiGreen, color.Bold).SprintfFunc()
+	red := color.New(color.FgRed).SprintFunc()
+	green := color.New(color.FgHiGreen, color.Bold).SprintFunc()
 
-	strDiff := func(isNew bool, old, new string) string {
+	diffLn := func(isNew bool, old, new interface{}) string {
 		if isNew {
 			return green(new)
 		}
-		if old == new {
-			return new
+		if reflect.DeepEqual(old, new) {
+			return fmt.Sprint(new)
 		}
-		return fmt.Sprintf("%s\n%s", red("%q", old), green("%q", new))
+		return fmt.Sprintf("%s\n%s", red(old), green(new))
 	}
 
 	boolDiff := func(b bool) string {
@@ -555,105 +556,95 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		return bb
 	}
 
-	durDiff := func(isNew bool, oldDur, newDur time.Duration) string {
-		o := oldDur.String()
-		if oldDur == 0 {
-			o = "inf"
-		}
-		n := newDur.String()
-		if newDur == 0 {
-			n = "inf"
-		}
-		if isNew {
-			return green(n)
-		}
-		if oldDur == newDur {
-			return n
-		}
-		return fmt.Sprintf("%s\n%s", red(o), green(n))
-	}
-
 	tablePrintFn := b.tablePrinterGen()
 	if labels := diff.Labels; len(labels) > 0 {
 		headers := []string{"New", "ID", "Name", "Color", "Description"}
-		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
-			for _, l := range labels {
-				w.Append([]string{
-					boolDiff(l.IsNew()),
-					l.ID.String(),
-					l.Name,
-					strDiff(l.IsNew(), l.OldColor, l.NewColor),
-					strDiff(l.IsNew(), l.OldDesc, l.NewDesc),
-				})
+		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
+			l := labels[i]
+			var old pkger.DiffLabelValues
+			if l.Old != nil {
+				old = *l.Old
+			}
+
+			return []string{
+				boolDiff(l.IsNew()),
+				l.ID.String(),
+				l.Name,
+				diffLn(l.IsNew(), old.Color, l.New.Color),
+				diffLn(l.IsNew(), old.Description, l.New.Description),
 			}
 		})
 	}
 
 	if bkts := diff.Buckets; len(bkts) > 0 {
 		headers := []string{"New", "ID", "Name", "Retention Period", "Description"}
-		tablePrintFn("BUCKETS", headers, len(bkts), func(w *tablewriter.Table) {
-			for _, b := range bkts {
-				w.Append([]string{
-					boolDiff(b.IsNew()),
-					b.ID.String(),
-					b.Name,
-					durDiff(b.IsNew(), b.OldRetention, b.NewRetention),
-					strDiff(b.IsNew(), b.OldDesc, b.NewDesc),
-				})
+		tablePrintFn("BUCKETS", headers, len(bkts), func(i int) []string {
+			b := bkts[i]
+			var old pkger.DiffBucketValues
+			if b.Old != nil {
+				old = *b.Old
+			}
+			return []string{
+				boolDiff(b.IsNew()),
+				b.ID.String(),
+				b.Name,
+				diffLn(b.IsNew(), old.RetentionRules.RP().String(), b.New.RetentionRules.RP().String()),
+				diffLn(b.IsNew(), old.Description, b.New.Description),
 			}
 		})
 	}
 
 	if dashes := diff.Dashboards; len(dashes) > 0 {
 		headers := []string{"New", "Name", "Description", "Num Charts"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(w *tablewriter.Table) {
-			for _, d := range dashes {
-				w.Append([]string{
-					boolDiff(true),
-					d.Name,
-					green(d.Desc),
-					green(strconv.Itoa(len(d.Charts))),
-				})
+		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
+			d := dashes[i]
+			return []string{
+				boolDiff(true),
+				d.Name,
+				green(d.Desc),
+				green(strconv.Itoa(len(d.Charts))),
 			}
 		})
 	}
 
 	if vars := diff.Variables; len(vars) > 0 {
 		headers := []string{"New", "ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(w *tablewriter.Table) {
-			for _, v := range vars {
-				var oldArgType string
-				if v.OldArgs != nil {
-					oldArgType = v.OldArgs.Type
-				}
-				var newArgType string
-				if v.NewArgs != nil {
-					newArgType = v.NewArgs.Type
-				}
-				w.Append([]string{
-					boolDiff(v.IsNew()),
-					v.ID.String(),
-					v.Name,
-					strDiff(v.IsNew(), v.OldDesc, v.NewDesc),
-					strDiff(v.IsNew(), oldArgType, newArgType),
-					strDiff(v.IsNew(), printVarArgs(v.OldArgs), printVarArgs(v.NewArgs)),
-				})
+		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
+			v := vars[i]
+			var old pkger.DiffVariableValues
+			if v.Old != nil {
+				old = *v.Old
+			}
+			var oldArgType string
+			if old.Args != nil {
+				oldArgType = old.Args.Type
+			}
+			var newArgType string
+			if v.New.Args != nil {
+				newArgType = v.New.Args.Type
+			}
+			return []string{
+				boolDiff(v.IsNew()),
+				v.ID.String(),
+				v.Name,
+				diffLn(v.IsNew(), old.Description, v.New.Description),
+				diffLn(v.IsNew(), oldArgType, newArgType),
+				diffLn(v.IsNew(), printVarArgs(old.Args), printVarArgs(v.New.Args)),
 			}
 		})
 	}
 
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(w *tablewriter.Table) {
-			for _, m := range diff.LabelMappings {
-				w.Append([]string{
-					boolDiff(m.IsNew),
-					string(m.ResType),
-					m.ResName,
-					m.ResID.String(),
-					m.LabelName,
-					m.LabelID.String(),
-				})
+		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
+			m := diff.LabelMappings[i]
+			return []string{
+				boolDiff(m.IsNew),
+				string(m.ResType),
+				m.ResName,
+				m.ResID.String(),
+				m.LabelName,
+				m.LabelID.String(),
 			}
 		})
 	}
@@ -663,91 +654,76 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 	tablePrintFn := b.tablePrinterGen()
 	if labels := sum.Labels; len(labels) > 0 {
 		headers := []string{"ID", "Name", "Description", "Color"}
-		tablePrintFn("LABELS", headers, len(labels), func(w *tablewriter.Table) {
-			for _, l := range labels {
-				w.Append([]string{
-					l.ID.String(),
-					l.Name,
-					l.Properties["description"],
-					l.Properties["color"],
-				})
+		tablePrintFn("LABELS", headers, len(labels), func(i int) []string {
+			l := labels[i]
+			return []string{
+				l.ID.String(),
+				l.Name,
+				l.Properties["description"],
+				l.Properties["color"],
 			}
 		})
 	}
 
 	if buckets := sum.Buckets; len(buckets) > 0 {
 		headers := []string{"ID", "Name", "Retention", "Description"}
-		tablePrintFn("BUCKETS", headers, len(buckets), func(w *tablewriter.Table) {
-			for _, bucket := range buckets {
-				w.Append([]string{
-					bucket.ID.String(),
-					bucket.Name,
-					formatDuration(bucket.RetentionPeriod),
-					bucket.Description,
-				})
+		tablePrintFn("BUCKETS", headers, len(buckets), func(i int) []string {
+			bucket := buckets[i]
+			return []string{
+				bucket.ID.String(),
+				bucket.Name,
+				formatDuration(bucket.RetentionPeriod),
+				bucket.Description,
 			}
 		})
 	}
 
 	if dashes := sum.Dashboards; len(dashes) > 0 {
 		headers := []string{"ID", "Name", "Description"}
-		tablePrintFn("DASHBOARDS", headers, len(dashes), func(w *tablewriter.Table) {
-			for _, d := range dashes {
-				w.Append([]string{
-					d.ID.String(),
-					d.Name,
-					d.Description,
-				})
-			}
+		tablePrintFn("DASHBOARDS", headers, len(dashes), func(i int) []string {
+			d := dashes[i]
+			return []string{d.ID.String(), d.Name, d.Description}
 		})
 	}
 
 	if vars := sum.Variables; len(vars) > 0 {
 		headers := []string{"ID", "Name", "Description", "Arg Type", "Arg Values"}
-		tablePrintFn("VARIABLES", headers, len(vars), func(w *tablewriter.Table) {
-			for _, v := range vars {
-				args := v.Arguments
-				w.Append([]string{
-					v.ID.String(),
-					v.Name,
-					v.Description,
-					args.Type,
-					printVarArgs(args),
-				})
+		tablePrintFn("VARIABLES", headers, len(vars), func(i int) []string {
+			v := vars[i]
+			args := v.Arguments
+			return []string{
+				v.ID.String(),
+				v.Name,
+				v.Description,
+				args.Type,
+				printVarArgs(args),
 			}
 		})
 	}
 
 	if mappings := sum.LabelMappings; len(mappings) > 0 {
 		headers := []string{"Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
-		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(w *tablewriter.Table) {
-			for _, m := range mappings {
-				w.Append([]string{
-					string(m.ResourceType),
-					m.ResourceName,
-					m.ResourceID.String(),
-					m.LabelName,
-					m.LabelID.String(),
-				})
+		tablePrintFn("LABEL MAPPINGS", headers, len(mappings), func(i int) []string {
+			m := mappings[i]
+			return []string{
+				string(m.ResourceType),
+				m.ResourceName,
+				m.ResourceID.String(),
+				m.LabelName,
+				m.LabelID.String(),
 			}
 		})
 	}
 }
 
-func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
-	return func(table string, headers []string, count int, appendFn func(w *tablewriter.Table)) {
-		tablePrinter(b.w, table, headers, count, b.hasColor, b.hasTableBorders, appendFn)
+func (b *cmdPkgBuilder) tablePrinterGen() func(table string, headers []string, count int, rowFn func(i int) []string) {
+	return func(table string, headers []string, count int, rowFn func(i int) []string) {
+		tablePrinter(b.w, table, headers, count, b.hasColor, b.hasTableBorders, rowFn)
 	}
 }
 
-func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, appendFn func(w *tablewriter.Table)) {
-	descrCol := -1
-	for i, h := range headers {
-		if strings.ToLower(h) == "description" {
-			descrCol = i
-			break
-		}
-	}
+func tablePrinter(wr io.Writer, table string, headers []string, count int, hasColor, hasTableBorders bool, rowFn func(i int) []string) {
+	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
 
 	w := tablewriter.NewWriter(wr)
 	w.SetBorder(hasTableBorders)
@@ -757,16 +733,19 @@ func tablePrinter(wr io.Writer, table string, headers []string, count int, hasCo
 	for range headers {
 		alignments = append(alignments, tablewriter.ALIGN_CENTER)
 	}
+
+	descrCol := find("description", headers)
 	if descrCol != -1 {
 		w.SetColMinWidth(descrCol, 30)
 		alignments[descrCol] = tablewriter.ALIGN_LEFT
 	}
 
-	color.New(color.FgYellow, color.Bold).Fprintln(os.Stdout, strings.ToUpper(table))
 	w.SetHeader(headers)
 	w.SetColumnAlignment(alignments)
 
-	appendFn(w)
+	for i := range make([]struct{}, count) {
+		w.Append(rowFn(i))
+	}
 
 	footers := make([]string, len(headers))
 	footers[len(footers)-2] = "TOTAL"
@@ -824,4 +803,13 @@ func formatDuration(d time.Duration) string {
 		return "inf"
 	}
 	return d.String()
+}
+
+func find(needle string, haystack []string) int {
+	for i, h := range haystack {
+		if strings.ToLower(h) == needle {
+			return i
+		}
+	}
+	return -1
 }

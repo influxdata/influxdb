@@ -3,6 +3,7 @@ package pkger
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -126,14 +127,38 @@ func (d Diff) HasConflicts() bool {
 	return false
 }
 
+// DiffBucketValues are the varying values for a bucket.
+type DiffBucketValues struct {
+	Description    string         `json:"description"`
+	RetentionRules retentionRules `json:"retentionRules"`
+}
+
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
-	ID           SafeID        `json:"id"`
-	Name         string        `json:"name"`
-	OldDesc      string        `json:"oldDescription"`
-	NewDesc      string        `json:"newDescription"`
-	OldRetention time.Duration `json:"oldRP"`
-	NewRetention time.Duration `json:"newRP"`
+	ID   SafeID
+	Name string
+	New  DiffBucketValues  `json:"new"`
+	Old  *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+}
+
+func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
+	diff := DiffBucket{
+		Name: b.Name,
+		New: DiffBucketValues{
+			Description:    b.Description,
+			RetentionRules: b.RetentionRules,
+		},
+	}
+	if i != nil {
+		diff.ID = SafeID(i.ID)
+		diff.Old = &DiffBucketValues{
+			Description: i.Description,
+		}
+		if i.RetentionPeriod > 0 {
+			diff.Old.RetentionRules = retentionRules{newRetentionRule(i.RetentionPeriod)}
+		}
+	}
+	return diff
 }
 
 // IsNew indicates whether a pkg bucket is going to be new to the platform.
@@ -142,18 +167,7 @@ func (d DiffBucket) IsNew() bool {
 }
 
 func (d DiffBucket) hasConflict() bool {
-	return !(d.IsNew() || d.NewDesc == d.OldDesc && d.NewRetention == d.OldRetention)
-}
-
-func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
-	return DiffBucket{
-		ID:           SafeID(i.ID),
-		Name:         b.Name,
-		OldDesc:      i.Description,
-		NewDesc:      b.Description,
-		OldRetention: i.RetentionPeriod,
-		NewRetention: b.RetentionRules.RP(),
-	}
+	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
 }
 
 // DiffDashboard is a diff of an individual dashboard.
@@ -184,14 +198,18 @@ func newDiffDashboard(d *dashboard) DiffDashboard {
 // the SummaryChart is reused here.
 type DiffChart SummaryChart
 
+// DiffLabelValues are the varying values for a label.
+type DiffLabelValues struct {
+	Color       string `json:"color"`
+	Description string `json:"description"`
+}
+
 // DiffLabel is a diff of an individual label.
 type DiffLabel struct {
-	ID       SafeID `json:"id"`
-	Name     string `json:"name"`
-	OldColor string `json:"oldColor"`
-	NewColor string `json:"newColor"`
-	OldDesc  string `json:"oldDescription"`
-	NewDesc  string `json:"newDescription"`
+	ID   SafeID           `json:"id"`
+	Name string           `json:"name"`
+	New  DiffLabelValues  `json:"new"`
+	Old  *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
@@ -200,18 +218,25 @@ func (d DiffLabel) IsNew() bool {
 }
 
 func (d DiffLabel) hasConflict() bool {
-	return !(d.IsNew() || d.NewDesc == d.OldDesc || d.NewColor == d.OldColor)
+	return d.IsNew() || d.Old != nil && *d.Old != d.New
 }
 
-func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
-	return DiffLabel{
-		ID:       SafeID(i.ID),
-		Name:     l.Name,
-		OldColor: i.Properties["color"],
-		NewColor: l.Color,
-		OldDesc:  i.Properties["description"],
-		NewDesc:  l.Description,
+func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
+	diff := DiffLabel{
+		Name: l.Name,
+		New: DiffLabelValues{
+			Color:       l.Color,
+			Description: l.Description,
+		},
 	}
+	if i != nil {
+		diff.ID = SafeID(i.ID)
+		diff.Old = &DiffLabelValues{
+			Color:       i.Properties["color"],
+			Description: i.Properties["description"],
+		}
+	}
+	return diff
 }
 
 // DiffLabelMapping is a diff of an individual label mapping. A
@@ -228,26 +253,37 @@ type DiffLabelMapping struct {
 	LabelName string `json:"labelName"`
 }
 
-// DiffVariable is a diff of an individual variable.
-type DiffVariable struct {
-	ID      SafeID `json:"id"`
-	Name    string `json:"name"`
-	OldDesc string `json:"oldDescription"`
-	NewDesc string `json:"newDescription"`
-
-	OldArgs *influxdb.VariableArguments `json:"oldArgs"`
-	NewArgs *influxdb.VariableArguments `json:"newArgs"`
+// DiffVariableValues are the varying values for a variable.
+type DiffVariableValues struct {
+	Description string                      `json:"description"`
+	Args        *influxdb.VariableArguments `json:"args"`
 }
 
-func newDiffVariable(v *variable, iv influxdb.Variable) DiffVariable {
-	return DiffVariable{
-		ID:      SafeID(iv.ID),
-		Name:    v.Name,
-		OldDesc: iv.Description,
-		NewDesc: v.Description,
-		OldArgs: iv.Arguments,
-		NewArgs: v.influxVarArgs(),
+// DiffVariable is a diff of an individual variable.
+type DiffVariable struct {
+	ID   SafeID              `json:"id"`
+	Name string              `json:"name"`
+	New  DiffVariableValues  `json:"new"`
+	Old  *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+}
+
+func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
+	diff := DiffVariable{
+		Name: v.Name,
+		New: DiffVariableValues{
+			Description: v.Description,
+			Args:        v.influxVarArgs(),
+		},
 	}
+	if iv != nil {
+		diff.ID = SafeID(iv.ID)
+		diff.Old = &DiffVariableValues{
+			Description: iv.Description,
+			Args:        iv.Arguments,
+		}
+	}
+
+	return diff
 }
 
 // IsNew indicates whether a pkg variable is going to be new to the platform.
@@ -256,21 +292,7 @@ func (d DiffVariable) IsNew() bool {
 }
 
 func (d DiffVariable) hasConflict() bool {
-	if d.IsNew() {
-		return false
-	}
-	if d.NewDesc != d.OldDesc {
-		return true
-	}
-
-	oArg, nArg := d.OldArgs, d.NewArgs
-	if oArg == nil && nArg == nil {
-		return false
-	}
-	if oArg != nil && nArg == nil || oArg == nil && nArg != nil {
-		return true
-	}
-	return *oArg != *nArg
+	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
 }
 
 // Summary is a definition of all the resources that have or
