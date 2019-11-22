@@ -110,7 +110,11 @@ func (t *Token) Allowed(p influxdb.Permission) bool {
 // Identifier returns the identifier for this Token
 // as found in the standard claims
 func (t *Token) Identifier() influxdb.ID {
-	id, _ := influxdb.IDFromString(t.Id)
+	id, err := influxdb.IDFromString(t.Id)
+	if err != nil || id == nil {
+		return influxdb.ID(0)
+	}
+
 	return *id
 }
 
