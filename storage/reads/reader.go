@@ -137,7 +137,7 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 		return nil
 	}
 
-	return fi.handleRead(filterDuplicateTables(f), rs)
+	return fi.handleRead(f, rs)
 }
 
 func (fi *filterIterator) handleRead(f func(flux.Table) error, rs ResultSet) error {
@@ -267,7 +267,7 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	if rs == nil {
 		return nil
 	}
-	return gi.handleRead(filterDuplicateTables(f), rs)
+	return gi.handleRead(f, rs)
 }
 
 func (gi *groupIterator) handleRead(f func(flux.Table) error, rs GroupResultSet) error {
@@ -647,28 +647,4 @@ func (ti *tagValuesIterator) handleRead(f func(flux.Table) error, rs cursors.Str
 
 func (ti *tagValuesIterator) Statistics() cursors.CursorStats {
 	return cursors.CursorStats{}
-}
-
-type duplicateFilter struct {
-	f    func(tbl flux.Table) error
-	seen *execute.GroupLookup
-}
-
-func filterDuplicateTables(f func(tbl flux.Table) error) func(tbl flux.Table) error {
-	filter := &duplicateFilter{
-		f:    f,
-		seen: execute.NewGroupLookup(),
-	}
-	return filter.Process
-}
-
-func (df *duplicateFilter) Process(tbl flux.Table) error {
-	// Identify duplicate keys within the cursor.
-	if _, ok := df.seen.Lookup(tbl.Key()); ok {
-		// Discard this table.
-		tbl.Done()
-		return nil
-	}
-	df.seen.Set(tbl.Key(), true)
-	return df.f(tbl)
 }
