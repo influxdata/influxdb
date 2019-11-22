@@ -112,7 +112,7 @@ func (t *Token) Allowed(p influxdb.Permission) bool {
 func (t *Token) Identifier() influxdb.ID {
 	id, err := influxdb.IDFromString(t.Id)
 	if err != nil || id == nil {
-		return influxdb.ID(0)
+		return influxdb.ID(1)
 	}
 
 	return *id
