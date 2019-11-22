@@ -187,11 +187,12 @@ func NewScheduler(taskControlService TaskControlService, executor Executor, now 
 }
 
 type TickScheduler struct {
+	now int64 // Accessed via atomic; ensure 8b word 8b aligned.
+
 	taskControlService TaskControlService
 	executor           Executor
 
 	maxConcurrency int
-	now            int64
 	logger         *zap.Logger
 
 	metrics *schedulerMetrics

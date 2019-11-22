@@ -174,7 +174,7 @@ func BenchmarkKVStore_Bucket_Cursor(b *testing.B) {
 
 const sourceFile = "kvdata/keys.txt"
 
-func fillBucket(t testing.TB, s *inmem.KVStore, bucket string, lines int) {
+func fillBucket(t testing.TB, s *inmem.KVStore, bucket string, lines int64) {
 	t.Helper()
 	err := s.Update(context.Background(), func(tx kv.Tx) error {
 		b, err := tx.Bucket([]byte(bucket))
@@ -189,7 +189,7 @@ func fillBucket(t testing.TB, s *inmem.KVStore, bucket string, lines int) {
 		defer f.Close()
 
 		if lines == 0 {
-			lines = math.MaxInt64
+			lines = int64(math.MaxInt64)
 		}
 
 		scan := bufio.NewScanner(bufio.NewReader(f))

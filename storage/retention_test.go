@@ -217,7 +217,7 @@ func TestRetentionService(t *testing.T) {
 	gotMatched := map[string]struct{}{}
 	engine.DeleteBucketRangeFn = func(ctx context.Context, orgID, bucketID influxdb.ID, from, to int64) error {
 		if from != math.MinInt64 {
-			t.Fatalf("got from %d, expected %d", from, math.MinInt64)
+			t.Fatalf("got from %d, expected %d", from, int64(math.MinInt64))
 		}
 		wantTo := now.Add(-3 * time.Hour).UnixNano()
 		if to != wantTo {

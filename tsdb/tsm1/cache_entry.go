@@ -10,12 +10,12 @@ import (
 
 // entry is a set of values and some metadata.
 type entry struct {
+	// Tracks the number of values in the entry. Must always be accessed via
+	// atomic; must be 8b aligned.
+	n int64
+
 	mu     sync.RWMutex
 	values Values // All stored values.
-
-	// Tracks the number of values in the entry. Must always be accessed via
-	// atomic.
-	n int64
 
 	// The type of values stored. Read only so doesn't need to be protected by mu.
 	vtype byte
