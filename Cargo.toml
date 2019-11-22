@@ -1,0 +1,19 @@
+[package]
+name = "delorean"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures = "0.1"
+tokio = "0.1.22"
+tower-grpc = "0.1.1"
+tower-hyper = "0.1.1"
+tower-util = "0.1.0"
+prost = "0.5.0"
+bytes = "0.4.12"
+
+[build-dependencies]
+tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc" }
