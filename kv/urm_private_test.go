@@ -22,12 +22,12 @@ func Test_userResourceMappingPredicate(t *testing.T) {
 		u, k := mk(10, 20)
 		f := influxdb.UserResourceMappingFilter{ResourceID: u.ResourceID}
 		fn := userResourceMappingPredicate(f)
-		if got, exp := fn(k), true; got != exp {
+		if got, exp := fn(k, nil), true; got != exp {
 			t.Errorf("unexpected result -got/+exp\n%s", cmp.Diff(got, exp))
 		}
 
 		_, k = mk(10, 21)
-		if got, exp := fn(k), false; got != exp {
+		if got, exp := fn(k, nil), false; got != exp {
 			t.Errorf("unexpected result -got/+exp\n%s", cmp.Diff(got, exp))
 		}
 	})
@@ -36,12 +36,12 @@ func Test_userResourceMappingPredicate(t *testing.T) {
 		u, k := mk(10, 20)
 		f := influxdb.UserResourceMappingFilter{UserID: u.UserID}
 		fn := userResourceMappingPredicate(f)
-		if got, exp := fn(k), true; got != exp {
+		if got, exp := fn(k, nil), true; got != exp {
 			t.Errorf("unexpected result -got/+exp\n%s", cmp.Diff(got, exp))
 		}
 
 		_, k = mk(11, 20)
-		if got, exp := fn(k), false; got != exp {
+		if got, exp := fn(k, nil), false; got != exp {
 			t.Errorf("unexpected result -got/+exp\n%s", cmp.Diff(got, exp))
 		}
 	})
@@ -50,12 +50,12 @@ func Test_userResourceMappingPredicate(t *testing.T) {
 		u, k := mk(10, 20)
 		f := influxdb.UserResourceMappingFilter{ResourceID: u.ResourceID, UserID: u.UserID}
 		fn := userResourceMappingPredicate(f)
-		if got, exp := fn(k), true; got != exp {
+		if got, exp := fn(k, nil), true; got != exp {
 			t.Errorf("unexpected result -got/+exp\n%s", cmp.Diff(got, exp))
 		}
 
 		_, k = mk(11, 20)
-		if got, exp := fn(k), false; got != exp {
+		if got, exp := fn(k, nil), false; got != exp {
 			t.Errorf("unexpected result -got/+exp\n%s", cmp.Diff(got, exp))
 		}
 	})

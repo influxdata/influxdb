@@ -13,6 +13,7 @@ require (
 	github.com/benbjohnson/tmpl v1.0.0
 	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/bouk/httprouter v0.0.0-20160817010721-ee8b3818a7f5
+	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/cespare/xxhash v1.1.0
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/coreos/bbolt v1.3.1-coreos.6
