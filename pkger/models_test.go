@@ -16,18 +16,18 @@ func TestPkg(t *testing.T) {
 			pkg := Pkg{
 				mBuckets: map[string]*bucket{
 					"buck_2": {
-						id:              influxdb.ID(2),
-						OrgID:           influxdb.ID(100),
-						Description:     "desc2",
-						Name:            "name2",
-						RetentionPeriod: 2 * time.Hour,
+						id:             influxdb.ID(2),
+						OrgID:          influxdb.ID(100),
+						Description:    "desc2",
+						Name:           "name2",
+						RetentionRules: retentionRules{newRetentionRule(2 * time.Hour)},
 					},
 					"buck_1": {
-						id:              influxdb.ID(1),
-						OrgID:           influxdb.ID(100),
-						Name:            "name1",
-						Description:     "desc1",
-						RetentionPeriod: time.Hour,
+						id:             influxdb.ID(1),
+						OrgID:          influxdb.ID(100),
+						Name:           "name1",
+						Description:    "desc1",
+						RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 					},
 				},
 			}

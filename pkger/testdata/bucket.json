@@ -11,6 +11,12 @@
       {
         "kind": "Bucket",
         "name": "rucket_11",
+        "retentionRules": [
+          {
+            "type": "expire",
+            "everySeconds": 3600
+          }
+        ],
         "retention_period": "1h",
         "description": "bucket 1 description"
       }

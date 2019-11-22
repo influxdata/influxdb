@@ -234,7 +234,7 @@ func TestService(t *testing.T) {
 						OrgID:           orgID,
 						Name:            pkgBkt.Name,
 						Description:     pkgBkt.Description,
-						RetentionPeriod: pkgBkt.RetentionPeriod,
+						RetentionPeriod: pkgBkt.RetentionRules.RP(),
 					}
 
 					fakeBktSVC := mock.NewBucketService()
