@@ -30,7 +30,7 @@ to validate the package after the raw decoding is done:
 	}
 
 If a validation error is encountered during the validation or parsing then
-the error returned will be of type *ParseErr. The ParseErr provides a rich
+the error returned will be of type *parseErr. The parseErr provides a rich
 set of validations failures. There can be numerous failures in a package
 and we did our best to inform the caller about them all in a single run.
 

@@ -116,15 +116,7 @@ type (
 		Diff    pkger.Diff    `json:"diff" yaml:"diff"`
 		Summary pkger.Summary `json:"summary" yaml:"summary"`
 
-		Errors []PkgValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
-	}
-
-	// PkgValidationErr is a single
-	PkgValidationErr struct {
-		Kind    string   `json:"kind" yaml:"kind"`
-		Fields  []string `json:"fields" yaml:"fields"`
-		Indexes []*int   `json:"idxs" yaml:"idxs"`
-		Reason  string   `json:"reason" yaml:"reason"`
+		Errors []pkger.ValidationErr `json:"errors,omitempty" yaml:"errors,omitempty"`
 	}
 )
 
@@ -223,41 +215,12 @@ func (s *HandlerPkg) encJSONResp(ctx context.Context, w http.ResponseWriter, cod
 	s.encResp(ctx, w, newJSONEnc(w), code, res)
 }
 
-func convertParseErr(err error) []PkgValidationErr {
-	pErr, ok := err.(*pkger.ParseErr)
+func convertParseErr(err error) []pkger.ValidationErr {
+	pErr, ok := err.(pkger.ParseError)
 	if !ok {
 		return nil
 	}
-
-	var errs []PkgValidationErr
-	for _, r := range pErr.Resources {
-		rootErr := PkgValidationErr{
-			Kind:    r.Kind,
-			Fields:  []string{"resources"},
-			Indexes: []*int{&r.Idx},
-		}
-
-		for _, v := range append(r.ValidationErrs, r.AssociationErrs...) {
-			errs = append(errs, traverseErrs(rootErr, v)...)
-		}
-	}
-
-	return errs
-}
-
-func traverseErrs(root PkgValidationErr, vErr pkger.ValidationErr) []PkgValidationErr {
-	root.Fields = append(root.Fields, vErr.Field)
-	root.Indexes = append(root.Indexes, vErr.Index)
-	if len(vErr.Nested) == 0 {
-		root.Reason = vErr.Msg
-		return []PkgValidationErr{root}
-	}
-
-	var errs []PkgValidationErr
-	for _, n := range vErr.Nested {
-		errs = append(errs, traverseErrs(root, n)...)
-	}
-	return errs
+	return pErr.ValidationErrs()
 }
 
 func newDecodeErr(encoding string, err error) *influxdb.Error {
