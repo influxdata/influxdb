@@ -124,3 +124,13 @@ func (t *Token) GetUserID() influxdb.ID {
 func (t *Token) Kind() string {
 	return kind
 }
+
+// EphemeralAuth creates a influxdb Auth form a jwt token
+func (t *Token) EphemeralAuth(orgID influxdb.ID) *influxdb.Authorization {
+	return &influxdb.Authorization{
+		ID:          t.Identifier(),
+		OrgID:       orgID,
+		Status:      influxdb.Active,
+		Permissions: t.Permissions,
+	}
+}
