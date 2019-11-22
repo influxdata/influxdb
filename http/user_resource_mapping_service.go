@@ -10,8 +10,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
-	"github.com/julienschmidt/httprouter"
 )
 
 // UserResourceMappingService is the struct of urm service

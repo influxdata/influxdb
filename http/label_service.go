@@ -11,8 +11,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
-	"github.com/julienschmidt/httprouter"
 )
 
 // LabelHandler represents an HTTP API handler for labels

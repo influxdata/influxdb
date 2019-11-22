@@ -12,10 +12,10 @@ import (
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
+	jhttprouter "github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/oauth2"
 	"github.com/influxdata/influxdb/chronograf/roles"
-	jhttprouter "github.com/julienschmidt/httprouter"
 )
 
 const (

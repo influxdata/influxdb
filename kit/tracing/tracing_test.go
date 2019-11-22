@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/mocktracer"
 )

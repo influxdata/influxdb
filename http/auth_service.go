@@ -12,9 +12,9 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
-	"github.com/julienschmidt/httprouter"
 )
 
 // AuthorizationBackend is all services and associated parameters required to construct

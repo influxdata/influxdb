@@ -14,7 +14,7 @@ import (
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/mock"
 	influxtesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 	"go.uber.org/zap"
 )
 

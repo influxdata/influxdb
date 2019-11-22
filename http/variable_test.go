@@ -16,7 +16,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 )
 
 var faketime = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)

@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/NYTimes/gziphandler"
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/chronograf/server"
-	"github.com/julienschmidt/httprouter"
 )
 
 // ChronografHandler is an http handler for serving chronograf chronografs.
