@@ -6928,6 +6928,7 @@ components:
           format: date-time
           readOnly: true
         retentionRules:
+          $ref: "#/components/schemas/RetentionRules"
           type: array
           description: Rules to expire or retain data.  No rules means data never expires.
           items:
@@ -6957,6 +6958,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Bucket"
+    RetentionRules:
+      type: array
+      description: Rules to expire or retain data.  No rules means data never expires.
+      items:
+        type: object
+        properties:
+          type:
+            type: string
+            default: expire
+            enum:
+              - expire
+          everySeconds:
+            type: integer
+            description: Duration in seconds for how long data will be kept in the database.
+            example: 86400
+            minimum: 1
+        required: [type, everySeconds]
     Link:
       type: string
       format: uri
@@ -7224,14 +7242,20 @@ components:
                     type: string
                   name:
                     type: string
-                  oldDescription:
-                    type: string
-                  newDescription:
-                    type: string
-                  oldRP:
-                    type: string
-                  newRP:
-                    type: string
+                  new:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      retentionRules:
+                        $ref: "#/components/schemas/RetentionRules"
+                  old:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      retentionRules:
+                        $ref: "#/components/schemas/RetentionRules"
             dashboards:
               type: array
               items:
@@ -7254,14 +7278,20 @@ components:
                     type: string
                   name:
                     type: string
-                  oldDescription:
-                    type: string
-                  newDescription:
-                    type: string
-                  oldColor:
-                    type: string
-                  newColor:
-                    type: string
+                  new:
+                    type: object
+                    properties:
+                      color:
+                        type: string
+                      description:
+                        type: string
+                  old:
+                    type: object
+                    properties:
+                      color:
+                        type: string
+                      description:
+                        type: string
             labelMappings:
               type: array
               items:
@@ -7288,14 +7318,20 @@ components:
                     type: string
                   name:
                     type: string
-                  oldDescription:
-                    type: string
-                  newDescription:
-                    type: string
-                  oldArgs:
-                    $ref: "#/components/schemas/VariableProperties"
-                  newArgs:
-                    $ref: "#/components/schemas/VariableProperties"
+                  new:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      args:
+                        $ref: "#/components/schemas/VariableProperties"
+                  old:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      args:
+                        $ref: "#/components/schemas/VariableProperties"
         errors:
           type: array
           items:

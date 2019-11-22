@@ -502,9 +502,9 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 		//  err isn't a not found (some other error)
 		case nil:
 			b.existing = existingBkt
-			mExistingBkts[b.Name] = newDiffBucket(b, *existingBkt)
+			mExistingBkts[b.Name] = newDiffBucket(b, existingBkt)
 		default:
-			mExistingBkts[b.Name] = newDiffBucket(b, influxdb.Bucket{})
+			mExistingBkts[b.Name] = newDiffBucket(b, nil)
 		}
 	}
 
@@ -547,9 +547,9 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		case err == nil && len(existingLabels) > 0:
 			existingLabel := existingLabels[0]
 			pkgLabel.existing = existingLabel
-			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, *existingLabel)
+			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, existingLabel)
 		default:
-			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, influxdb.Label{})
+			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, nil)
 		}
 	}
 
@@ -585,14 +585,14 @@ VarLoop:
 					continue
 				}
 				pkgVar.existing = existingVar
-				mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, *existingVar)
+				mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, existingVar)
 				continue VarLoop
 			}
 			// fallthrough here for when the variable is not found, it'll fall to the
 			// default case and add it as new.
 			fallthrough
 		default:
-			mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, influxdb.Variable{})
+			mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, nil)
 		}
 	}
 
