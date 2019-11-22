@@ -80,6 +80,12 @@ func Test_TokenParser(t *testing.T) {
 			if diff := cmp.Diff(test.token, token); diff != "" {
 				t.Errorf("unexpected token:\n%s", diff)
 			}
+
+			// if err is nil then token should be present
+			if err == nil {
+				// ensure this does not panic
+				token.Identifier()
+			}
 		})
 	}
 }
