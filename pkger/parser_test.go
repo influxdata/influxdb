@@ -2936,6 +2936,71 @@ spec:
 	})
 }
 
+func Test_PkgValidationErr(t *testing.T) {
+	iPtr := func(i int) *int {
+		return &i
+	}
+
+	compIntSlcs := func(t *testing.T, expected []int, actuals []*int) {
+		t.Helper()
+
+		if len(expected) >= len(actuals) {
+			require.FailNow(t, "expected array is larger than actuals")
+		}
+
+		for i, actual := range actuals {
+			if i == len(expected) {
+				assert.Nil(t, actual)
+				continue
+			}
+			assert.Equal(t, expected[i], *actual)
+		}
+	}
+
+	pErr := &parseErr{
+		Resources: []resourceErr{
+			{
+				Kind: KindDashboard.String(),
+				Idx:  intPtr(0),
+				ValidationErrs: []validationErr{
+					{
+						Field: "charts",
+						Index: iPtr(1),
+						Nested: []validationErr{
+							{
+								Field: "colors",
+								Index: iPtr(0),
+								Nested: []validationErr{
+									{
+										Field: "hex",
+										Msg:   "hex value required",
+									},
+								},
+							},
+							{
+								Field: "kind",
+								Msg:   "chart kind must be provided",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	errs := pErr.ValidationErrs()
+	require.Len(t, errs, 2)
+	assert.Equal(t, KindDashboard.String(), errs[0].Kind)
+	assert.Equal(t, []string{"spec.resources", "charts", "colors", "hex"}, errs[0].Fields)
+	compIntSlcs(t, []int{0, 1, 0}, errs[0].Indexes)
+	assert.Equal(t, "hex value required", errs[0].Reason)
+
+	assert.Equal(t, KindDashboard.String(), errs[1].Kind)
+	assert.Equal(t, []string{"spec.resources", "charts", "kind"}, errs[1].Fields)
+	compIntSlcs(t, []int{0, 1}, errs[1].Indexes)
+	assert.Equal(t, "chart kind must be provided", errs[1].Reason)
+}
+
 type testPkgResourceError struct {
 	name           string
 	encoding       Encoding
@@ -2969,7 +3034,7 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 
 		require.True(t, IsParseErr(err), err)
 
-		pErr := err.(*ParseErr)
+		pErr := err.(*parseErr)
 		require.Len(t, pErr.Resources, resErrs)
 
 		resErr := pErr.Resources[0]
@@ -2999,7 +3064,7 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 	t.Run(tt.name, fn)
 }
 
-func findErr(t *testing.T, expectedField string, vErr ValidationErr) ValidationErr {
+func findErr(t *testing.T, expectedField string, vErr validationErr) validationErr {
 	t.Helper()
 
 	fields := strings.Split(expectedField, ".")
