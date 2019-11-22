@@ -53,7 +53,7 @@ export const generateThresholdsListHexs = ({
   const baseColor = colors.find(color => color.id === BASE_THRESHOLD_ID) || {
     hex: defaultColoring.textColor,
   }
-  
+
   if (lastValue != 0 && !lastValue) {
     return {...defaultColoring, textColor: baseColor.hex}
   }
