@@ -13,7 +13,6 @@ import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryPa
 import CheckPlot from 'src/shared/components/CheckPlot'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
 
-
 // Constants
 import {STATUS_FIELDS} from 'src/alerting/constants/history'
 
@@ -24,9 +23,9 @@ import {loadStatuses, getInitialState} from 'src/alerting/utils/history'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 import {AppState, Check, TimeZone, CheckViewProperties} from 'src/types'
 import TimeSeries from 'src/shared/components/TimeSeries'
-import { createView } from 'src/shared/utils/view'
-import { checkResultsLength } from 'src/shared/utils/vis'
-import { getTimeRangeVars } from 'src/variables/utils/getTimeRangeVars'
+import {createView} from 'src/shared/utils/view'
+import {checkResultsLength} from 'src/shared/utils/vis'
+import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
 
 interface ResourceIDs {
   checkIDs: {[x: string]: boolean}
@@ -48,12 +47,19 @@ interface StateProps {
 type Props = OwnProps & StateProps
 //TODO maybe update submitToken when we know how
 
-const CheckHistory: FC<Props> = ({params: {orgID, checkID}, check, timeZone}) => {
+const CheckHistory: FC<Props> = ({
+  params: {orgID, checkID},
+  check,
+  timeZone,
+}) => {
   const historyType = 'statuses'
   let properties: CheckViewProperties
 
   useEffect(() => {
-    const view = createView<CheckViewProperties>(get(check, 'type', 'threshold'))
+    a
+    const view = createView<CheckViewProperties>(
+      get(check, 'type', 'threshold')
+    )
     properties = view.properties
   }, [check])
 
@@ -90,11 +96,12 @@ const CheckHistory: FC<Props> = ({params: {orgID, checkID}, check, timeZone}) =>
               scrollable={false}
               className="alert-history-page--contents"
             >
+              {/* {<CheckHistoryVisualization .../>} */}
               <TimeSeries
                 submitToken={submitToken}
                 queries={[check.query]}
                 key={manualRefresh}
-                variables={getTimeRangeVars({lower: "now() - 5m"})}
+                variables={getTimeRangeVars({lower: 'now() - 5m'})}
                 check={check}
               >
                 {({
@@ -106,25 +113,29 @@ const CheckHistory: FC<Props> = ({params: {orgID, checkID}, check, timeZone}) =>
                 }) => {
                   return (
                     <EmptyQueryView
-                    errorFormat={ErrorFormat.Tooltip}
-                    errorMessage={errorMessage}
-                    hasResults={checkResultsLength(giraffeResult)}
-                    loading={loading}
-                    isInitialFetch={isInitialFetch}
-                    queries={[check.query]}
-                    fallbackNote={null}
-                  >
-                    <CheckPlot
-                      check={check}
-                      table={get(giraffeResult, 'table')}
-                      fluxGroupKeyUnion={get(giraffeResult, 'fluxGroupKeyUnion')}
+                      errorFormat={ErrorFormat.Tooltip}
+                      errorMessage={errorMessage}
+                      hasResults={checkResultsLength(giraffeResult)}
                       loading={loading}
-                      timeZone={timeZone}
-                      viewProperties={properties}
-                      statuses={statuses}
+                      isInitialFetch={isInitialFetch}
+                      queries={[check.query]}
+                      fallbackNote={null}
                     >
-                      {config => <Plot config={config} />}
-                    </CheckPlot>
+                      <CheckPlot
+                        check={check}
+                        table={get(giraffeResult, 'table')}
+                        fluxGroupKeyUnion={get(
+                          giraffeResult,
+                          'fluxGroupKeyUnion'
+                        )}
+                        loading={loading}
+                        timeZone={timeZone}
+                        viewProperties={properties}
+                        statuses={statuses}
+                      >
+                        {config => <Plot config={config} />}
+                      </CheckPlot>
+                      {/* {<CheckHistoryStatuses .../>} */}
                     </EmptyQueryView>
                   )
                 }}
