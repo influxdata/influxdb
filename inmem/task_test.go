@@ -15,7 +15,6 @@ var (
 	taskBucket                              = []byte("tasksv1")
 	organizationBucket                      = []byte("organizationsv1")
 	authBucket                              = []byte("authorizationsv1")
-	urmBucket                               = []byte("userresourcemappingsv1")
 	idgen              influxdb.IDGenerator = snowflake.NewIDGenerator()
 )
 
