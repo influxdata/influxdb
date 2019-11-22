@@ -1,16 +1,14 @@
 // Libraries
-import React, {FC, useEffect, useRef, useState} from 'react'
+import React, {FC, useEffect, useState} from 'react'
 import moment from 'moment'
 import {connect} from 'react-redux'
 import {
   Columns,
+  ComponentSize,
   Form,
   Grid,
+  InfluxColors,
   Panel,
-  Popover,
-  PopoverPosition,
-  PopoverInteraction,
-  PopoverType,
 } from '@influxdata/clockface'
 import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
 
@@ -23,32 +21,20 @@ import Checkbox from 'src/shared/components/Checkbox'
 import DeleteButton from 'src/shared/components/DeleteDataForm/DeleteButton'
 import FilterEditor from 'src/shared/components/DeleteDataForm/FilterEditor'
 import FluxTablesTransform from 'src/shared/components/FluxTablesTransform'
-import TableGraph from 'src/shared/components/tables/TableGraph'
+import PreviewDataTable from 'src/shared/components/DeleteDataForm/PreviewDataTable'
 import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 
 // Types
-import {
-  AppState,
-  Filter,
-  RemoteDataState,
-  TableViewProperties,
-  TimeZone,
-} from 'src/types'
+import {AppState, Filter, RemoteDataState} from 'src/types'
 
 // Selectors
-import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 import {setCanDelete} from 'src/shared/selectors/canDelete'
-import {
-  getXColumnSelection,
-  getYColumnSelection,
-  getFillColumnsSelection,
-  getSymbolColumnsSelection,
-} from 'src/timeMachine/selectors'
 
 // Actions
 import {
   deleteFilter,
   deleteWithPredicate,
+  executePreviewQuery,
   resetFilters,
   setDeletionStatus,
   setFilter,
@@ -56,7 +42,6 @@ import {
   setBucketAndKeys,
   setTimeRange,
 } from 'src/shared/actions/predicates'
-import {executePreviewQuery} from 'src/timeMachine/actions/queries'
 
 interface OwnProps {
   orgID: string
@@ -75,9 +60,7 @@ interface StateProps {
   filters: Filter[]
   isSerious: boolean
   keys: string[]
-  properties: TableViewProperties
   timeRange: [number, number]
-  timeZone: TimeZone
   values: (string | number)[]
 }
 
@@ -111,25 +94,28 @@ const DeleteDataForm: FC<Props> = ({
   keys,
   orgID,
   resetFilters,
-  properties,
   setDeletionStatus,
   setFilter,
   setIsSerious,
   setBucketAndKeys,
   setTimeRange,
   timeRange,
-  timeZone,
   values,
 }) => {
   const name = bucketName || initialBucketName
-  const [count, setCount] = useState(0)
-  const checkboxRef = useRef<HTMLDivElement>(null)
+  const [count, setCount] = useState('0')
   useEffect(() => {
     // trigger the setBucketAndKeys if the bucketName hasn't been set
     if (bucketName === '' && name !== undefined) {
       setBucketAndKeys(orgID, name)
     }
   })
+
+  useEffect(() => {
+    if (filters.every(filter => filter.key !== '' && filter.value !== '')) {
+      handleDeleteDataPreview()
+    }
+  }, [filters])
 
   const realTimeRange = initialTimeRange || timeRange
 
@@ -175,12 +161,10 @@ const DeleteDataForm: FC<Props> = ({
       |> limit(n: 1)
       |> yield(name: "sample_data")
     `
-
     const [total] = await extractBoxedCol(runQuery(orgID, countQuery), '_value')
       .promise
-
-    await executePreviewQuery(rowQuery) // const variableAssignments = getVariableAssignments(getState())
-    setCount(Number(total))
+    executePreviewQuery(rowQuery)
+    setCount(total)
   }
 
   const handleDelete = () => {
@@ -212,6 +196,13 @@ const DeleteDataForm: FC<Props> = ({
   const handleBucketClick = selectedBucket => {
     setBucketAndKeys(orgID, selectedBucket)
     resetFilters()
+  }
+
+  const formatNumber = num => {
+    if (num !== undefined) {
+      return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
+    }
+    return 0
   }
 
   return (
@@ -249,21 +240,55 @@ const DeleteDataForm: FC<Props> = ({
             />
           </Grid.Column>
         </Grid.Row>
+        <Grid.Row className="delete-data-preview">
+          <Grid.Column widthXS={Columns.Twelve}>
+            <Panel>
+              <Panel.Header size={ComponentSize.ExtraSmall}>
+                <p className="preview-data-margins">Preview Data</p>
+              </Panel.Header>
+              <Panel.Body size={ComponentSize.ExtraSmall}>
+                {files && files.length > 0 && files[0].length > 1 && (
+                  <FluxTablesTransform files={files}>
+                    {tables => {
+                      const [table] = tables
+                      if (table && table.data) {
+                        let [headers, bodyData] = table.data
+                        headers = headers.slice(3)
+                        bodyData = bodyData.slice(3)
+                        return (
+                          <PreviewDataTable
+                            headers={headers}
+                            bodyData={bodyData}
+                          />
+                        )
+                      }
+                      return <span />
+                    }}
+                  </FluxTablesTransform>
+                )}
+              </Panel.Body>
+            </Panel>
+          </Grid.Column>
+        </Grid.Row>
         <Grid.Row>
           <Grid.Column widthXS={Columns.Twelve}>
             <Panel className="delete-data-form--danger-zone">
               <Panel.Header>
-                <Panel.Title>Danger Zone!</Panel.Title>
+                <Panel.Title>
+                  Danger Zone! You're deleting{' '}
+                  <span style={{color: InfluxColors.Dreamsicle}}>
+                    {formatNumber(count)}
+                  </span>{' '}
+                  records
+                </Panel.Title>
               </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
-                <div ref={checkboxRef} onMouseOver={handleDeleteDataPreview}>
-                  <Checkbox
-                    testID="delete-checkbox"
-                    label="I understand that this cannot be undone."
-                    checked={isSerious}
-                    onSetChecked={isSerious => setIsSerious(isSerious)}
-                  />
-                </div>
+                <Checkbox
+                  testID="delete-checkbox"
+                  label="I understand that this cannot be undone."
+                  checked={isSerious}
+                  onSetChecked={isSerious => setIsSerious(isSerious)}
+                />
                 <DeleteButton
                   status={deletionStatus}
                   valid={canDelete}
@@ -273,72 +298,22 @@ const DeleteDataForm: FC<Props> = ({
             </Panel>
           </Grid.Column>
         </Grid.Row>
-        <Popover
-          type={PopoverType.Outline}
-          position={PopoverPosition.ToTheLeft}
-          triggerRef={checkboxRef}
-          showEvent={PopoverInteraction.Hover}
-          hideEvent={PopoverInteraction.Hover}
-          distanceFromTrigger={8}
-          testID="checkbox-popover"
-          contents={() => {
-            if (count > 0 && files && files.length > 0) {
-              return (
-                <>
-                  Amount of data to be deleted: {count}
-                  <FluxTablesTransform files={files}>
-                    {tables => (
-                      <TableGraph
-                        table={tables[0]}
-                        properties={properties}
-                        timeZone={timeZone}
-                      />
-                    )}
-                  </FluxTablesTransform>
-                </>
-              )
-            }
-            return <>No data to preview</>
-          }}
-        />
       </Grid>
     </Form>
   )
 }
 
-const mstp = (state: AppState) => {
+const mstp = ({predicates}: AppState) => {
   const {
-    predicates,
-    predicates: {
-      bucketName,
-      deletionStatus,
-      filters,
-      keys,
-      isSerious,
-      timeRange,
-      values,
-    },
-  } = state
-
-  const {
-    queryResults: {files},
-    view: {properties: viewProperties},
-  } = getActiveTimeMachine(state)
-
-  const timeZone = state.app.persisted.timeZone
-  const xColumn = getXColumnSelection(state)
-  const yColumn = getYColumnSelection(state)
-  const fillColumns = getFillColumnsSelection(state)
-  const symbolColumns = getSymbolColumnsSelection(state)
-  const properties = {
-    ...viewProperties,
-    xColumn,
-    yColumn,
-    fillColumns,
-    symbolColumns,
-  }
-
-  console.log('properties: ', properties)
+    bucketName,
+    deletionStatus,
+    files,
+    filters,
+    keys,
+    isSerious,
+    timeRange,
+    values,
+  } = predicates
 
   return {
     bucketName,
@@ -348,9 +323,7 @@ const mstp = (state: AppState) => {
     filters,
     isSerious,
     keys,
-    properties,
     timeRange,
-    timeZone,
     values,
   }
 }

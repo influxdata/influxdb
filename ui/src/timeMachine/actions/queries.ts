@@ -38,13 +38,9 @@ import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
 // Types
 import {CancelBox} from 'src/types/promises'
-import {RemoteDataState, StatusRow} from 'src/types'
-import {GetState} from 'src/types'
+import {GetState, RemoteDataState, StatusRow} from 'src/types'
 
-export type Action =
-  | SaveDraftQueriesAction
-  | SetQueryResults
-  | SetQueryViewResults
+export type Action = SaveDraftQueriesAction | SetQueryResults
 
 interface SetQueryResults {
   type: 'SET_QUERY_RESULTS'
@@ -65,34 +61,6 @@ const setQueryResults = (
   statuses?: StatusRow[][]
 ): SetQueryResults => ({
   type: 'SET_QUERY_RESULTS',
-  payload: {
-    status,
-    files,
-    fetchDuration,
-    errorMessage,
-    statuses,
-  },
-})
-
-interface SetQueryViewResults {
-  type: 'SET_QUERY_VIEW_RESULTS'
-  payload: {
-    status: RemoteDataState
-    files?: string[]
-    fetchDuration?: number
-    errorMessage?: string
-    statuses?: StatusRow[][]
-  }
-}
-
-const setQueryViewResults = (
-  status: RemoteDataState,
-  files?: string[],
-  fetchDuration?: number,
-  errorMessage?: string,
-  statuses?: StatusRow[][]
-): SetQueryViewResults => ({
-  type: 'SET_QUERY_VIEW_RESULTS',
   payload: {
     status,
     files,
@@ -204,54 +172,6 @@ export const executeQueries = (dashboardID?: string) => async (
     const files = (results as RunQuerySuccessResult[]).map(r => r.csv)
     dispatch(
       setQueryResults(RemoteDataState.Done, files, duration, null, statuses)
-    )
-  } catch (e) {
-    if (e.name === 'CancellationError') {
-      return
-    }
-
-    console.error(e)
-    dispatch(setQueryResults(RemoteDataState.Error, null, null, e.message))
-  }
-}
-
-export const executePreviewQuery = (query: string) => async (
-  dispatch,
-  getState: GetState
-) => {
-  try {
-    dispatch(setQueryViewResults(RemoteDataState.Loading, null, null, null))
-
-    const orgID = getState().orgs.org.id
-
-    const variableAssignments = getVariableAssignments(getState())
-    const startTime = Date.now()
-    const windowVars = getWindowVars(query, variableAssignments)
-    const extern = buildVarsOption([...variableAssignments, ...windowVars])
-    const result = await runQuery(orgID, query, extern).promise
-    const duration = Date.now() - startTime
-
-    let statuses = [[]] as StatusRow[][]
-
-    if (result.type === 'UNKNOWN_ERROR') {
-      throw new Error(result.message)
-    }
-
-    if (result.type === 'RATE_LIMIT_ERROR') {
-      dispatch(notify(rateLimitReached(result.retryAfter)))
-
-      throw new Error(result.message)
-    }
-
-    if (result.didTruncate) {
-      dispatch(notify(resultTooLarge(result.bytesRead)))
-    }
-
-    checkQueryResult(result.csv)
-
-    const files = [result.csv]
-    dispatch(
-      setQueryViewResults(RemoteDataState.Done, files, duration, null, statuses)
     )
   } catch (e) {
     if (e.name === 'CancellationError') {

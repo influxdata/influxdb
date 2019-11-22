@@ -42,8 +42,6 @@ class TableGraphTransform extends PureComponent<Props> {
   public render() {
     const {properties, data, dataTypes, sortOptions} = this.props
     const {tableOptions, timeFormat, decimalPlaces, fieldOptions} = properties
-    console.log('fieldOptions: ', fieldOptions)
-    console.log('prop: ', this.props)
     const fo =
       fieldOptions &&
       fieldOptions.map(opts => ({
