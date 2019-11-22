@@ -117,9 +117,9 @@ spec:
 
 				actual := buckets[0]
 				expectedBucket := bucket{
-					Name:            "rucket_11",
-					Description:     "bucket 1 description",
-					RetentionPeriod: time.Hour,
+					Name:           "rucket_11",
+					Description:    "bucket 1 description",
+					RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 				}
 				assert.Equal(t, expectedBucket, *actual)
 			})

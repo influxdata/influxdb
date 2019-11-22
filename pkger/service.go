@@ -829,9 +829,10 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 			continue
 		}
 
+		rp := b.RetentionRules.RP()
 		_, err := s.bucketSVC.UpdateBucket(context.Background(), b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
-			RetentionPeriod: &b.RetentionPeriod,
+			RetentionPeriod: &rp,
 		})
 		if err != nil {
 			errs = append(errs, b.ID().String())
@@ -847,10 +848,11 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 }
 
 func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, error) {
+	rp := b.RetentionRules.RP()
 	if b.existing != nil {
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
 			Description:     &b.Description,
-			RetentionPeriod: &b.RetentionPeriod,
+			RetentionPeriod: &rp,
 		})
 		if err != nil {
 			return influxdb.Bucket{}, err
@@ -862,7 +864,7 @@ func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, 
 		OrgID:           b.OrgID,
 		Description:     b.Description,
 		Name:            b.Name,
-		RetentionPeriod: b.RetentionPeriod,
+		RetentionPeriod: rp,
 	}
 	err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
 	if err != nil {

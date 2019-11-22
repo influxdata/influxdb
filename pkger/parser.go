@@ -424,9 +424,18 @@ func (p *Pkg) graphBuckets() error {
 		}
 
 		bkt := &bucket{
-			Name:            r.Name(),
-			Description:     r.stringShort(fieldDescription),
-			RetentionPeriod: r.duration(fieldBucketRetentionPeriod),
+			Name:        r.Name(),
+			Description: r.stringShort(fieldDescription),
+		}
+		if rules, ok := r[fieldBucketRetentionRules].(retentionRules); ok {
+			bkt.RetentionRules = rules
+		} else {
+			for _, r := range r.slcResource(fieldBucketRetentionRules) {
+				bkt.RetentionRules = append(bkt.RetentionRules, retentionRule{
+					Type:    r.stringShort(fieldType),
+					Seconds: r.intShort(fieldRetentionRulesEverySeconds),
+				})
+			}
 		}
 
 		failures := p.parseNestedLabels(r, func(l *label) error {
@@ -440,7 +449,7 @@ func (p *Pkg) graphBuckets() error {
 
 		p.mBuckets[r.Name()] = bkt
 
-		return failures
+		return append(failures, bkt.valid()...)
 	})
 }
 
@@ -535,7 +544,7 @@ func (p *Pkg) graphVariables() error {
 			Description: r.stringShort(fieldDescription),
 			Type:        strings.ToLower(r.stringShort(fieldType)),
 			Query:       strings.TrimSpace(r.stringShort(fieldQuery)),
-			Language:    strings.ToLower(strings.TrimSpace(r.stringShort(fieldLegendLanguage))),
+			Language:    strings.ToLower(strings.TrimSpace(r.stringShort(fieldLanguage))),
 			ConstValues: r.slcStr(fieldValues),
 			MapValues:   r.mapStrStr(fieldValues),
 		}
@@ -807,11 +816,6 @@ func (r Resource) bool(key string) (bool, bool) {
 func (r Resource) boolShort(key string) bool {
 	b, _ := r.bool(key)
 	return b
-}
-
-func (r Resource) duration(key string) time.Duration {
-	dur, _ := time.ParseDuration(r.stringShort(key))
-	return dur
 }
 
 func (r Resource) float64(key string) (float64, bool) {
