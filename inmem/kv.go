@@ -208,7 +208,7 @@ func (b *Bucket) Cursor(opts ...kv.CursorHint) (kv.Cursor, error) {
 }
 
 func (b *Bucket) getAll(o *kv.CursorHints) ([]kv.Pair, error) {
-	fn := o.KeyPredicateFn
+	fn := o.PredicateFn
 
 	var pairs []kv.Pair
 	var err error
@@ -219,7 +219,7 @@ func (b *Bucket) getAll(o *kv.CursorHints) ([]kv.Pair, error) {
 			return false
 		}
 
-		if fn == nil || fn(j.key) {
+		if fn == nil || fn(j.key, j.value) {
 			pairs = append(pairs, kv.Pair{Key: j.key, Value: j.value})
 		}
 
