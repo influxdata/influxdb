@@ -26,19 +26,23 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 import {RemoteDataState, XYViewProperties, TimeZone} from 'src/types'
 
 interface Props {
-  table: Table
+  children: (config: Config) => JSX.Element
+  endTime: number
   fluxGroupKeyUnion: string[]
   loading: RemoteDataState
+  startTime: number
+  table: Table
   timeZone: TimeZone
   viewProperties: XYViewProperties
-  children: (config: Config) => JSX.Element
 }
 
 const XYPlot: FunctionComponent<Props> = ({
-  table,
+  children,
+  endTime,
   fluxGroupKeyUnion,
   loading,
-  children,
+  startTime,
+  table,
   timeZone,
   viewProperties: {
     geom,
@@ -119,6 +123,9 @@ const XYPlot: FunctionComponent<Props> = ({
     base: yTickBase,
     timeZone,
   })
+
+  xDomain[0] = Math.min(startTime, xDomain[0])
+  xDomain[1] = Math.max(endTime, xDomain[1])
 
   const config: Config = {
     ...VIS_THEME,
