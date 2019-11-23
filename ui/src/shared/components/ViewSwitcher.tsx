@@ -1,6 +1,7 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {Plot, FromFluxResult} from '@influxdata/giraffe'
+import {connect} from 'react-redux'
 
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'
@@ -16,15 +17,19 @@ import CheckPlot from 'src/shared/components/CheckPlot'
 
 // Types
 import {
-  QueryViewProperties,
-  SingleStatViewProperties,
-  XYViewProperties,
-  RemoteDataState,
-  TimeZone,
-  CheckViewProperties,
+  AppState,
   Check,
+  CheckViewProperties,
+  QueryViewProperties,
+  RemoteDataState,
+  SingleStatViewProperties,
   StatusRow,
+  TimeZone,
+  XYViewProperties,
 } from 'src/types'
+
+// Selectors
+import {getEndTime, getStartTime} from 'src/timeMachine/selectors/index'
 
 interface Props {
   giraffeResult: FromFluxResult
@@ -36,12 +41,19 @@ interface Props {
   statuses: StatusRow[][]
 }
 
-const ViewSwitcher: FunctionComponent<Props> = ({
+interface StateProps {
+  endTime: number
+  startTime: number
+}
+
+const ViewSwitcher: FunctionComponent<Props & StateProps> = ({
   properties,
   check,
   loading,
+  endTime,
   files,
   giraffeResult: {table, fluxGroupKeyUnion},
+  startTime,
   timeZone,
   statuses,
 }) => {
@@ -79,11 +91,13 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'xy':
       return (
         <XYPlot
-          table={table}
+          endTime={endTime}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          viewProperties={properties}
           loading={loading}
+          startTime={startTime}
+          table={table}
           timeZone={timeZone}
+          viewProperties={properties}
         >
           {config => <Plot config={config} />}
         </XYPlot>
@@ -105,11 +119,13 @@ const ViewSwitcher: FunctionComponent<Props> = ({
 
       return (
         <XYPlot
-          table={table}
+          endTime={endTime}
           fluxGroupKeyUnion={fluxGroupKeyUnion}
-          viewProperties={xyProperties}
           loading={loading}
+          startTime={startTime}
+          table={table}
           timeZone={timeZone}
+          viewProperties={xyProperties}
         >
           {config => (
             <Plot config={config}>
@@ -145,8 +161,10 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'heatmap':
       return (
         <HeatmapPlot
-          table={table}
+          endTime={endTime}
           loading={loading}
+          startTime={startTime}
+          table={table}
           timeZone={timeZone}
           viewProperties={properties}
         >
@@ -157,8 +175,10 @@ const ViewSwitcher: FunctionComponent<Props> = ({
     case 'scatter':
       return (
         <ScatterPlot
-          table={table}
+          endTime={endTime}
           loading={loading}
+          startTime={startTime}
+          table={table}
           viewProperties={properties}
           timeZone={timeZone}
         >
@@ -186,4 +206,13 @@ const ViewSwitcher: FunctionComponent<Props> = ({
   }
 }
 
-export default ViewSwitcher
+const mstp = ({timeMachines}: AppState) => {
+  const {activeTimeMachineID, timeMachines: machine} = timeMachines
+  const {timeRange} = machine[activeTimeMachineID]
+  return {
+    startTime: timeRange ? getStartTime(timeRange) : Infinity,
+    endTime: timeRange ? getEndTime(timeRange) : null,
+  }
+}
+
+export default connect<StateProps>(mstp)(ViewSwitcher)
