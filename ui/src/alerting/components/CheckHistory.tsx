@@ -56,7 +56,6 @@ const CheckHistory: FC<Props> = ({
   let properties: CheckViewProperties
 
   useEffect(() => {
-    a
     const view = createView<CheckViewProperties>(
       get(check, 'type', 'threshold')
     )
@@ -141,7 +140,7 @@ const CheckHistory: FC<Props> = ({
                 }}
               </TimeSeries>
               <div className="alert-history">
-                {/* <EventTable {...props} fields={fields} /> */}
+                <EventTable {...props} fields={fields} />
               </div>
             </Page.Contents>
           </Page>
