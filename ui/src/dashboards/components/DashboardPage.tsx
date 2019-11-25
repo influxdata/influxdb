@@ -23,7 +23,6 @@ import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
 } from 'src/shared/actions/autoRefresh'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -88,7 +87,6 @@ interface DispatchProps {
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
 }
 
 interface PassedProps {
@@ -269,8 +267,7 @@ class DashboardPage extends Component<Props> {
   }
 
   private handleEditView = (cellID: string): void => {
-    const {router, location, onSetActiveTimeMachine, timeRange} = this.props
-    onSetActiveTimeMachine('veo', {timeRange})
+    const {router, location} = this.props
     router.push(`${location.pathname}/cells/${cellID}/edit`)
   }
 
@@ -351,7 +348,6 @@ const mdtp: DispatchProps = {
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onToggleShowVariablesControls: toggleShowVariablesControls,
-  onSetActiveTimeMachine: setActiveTimeMachine,
 }
 
 export default connect(
