@@ -9,7 +9,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"

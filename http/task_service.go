@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/task/backend"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 

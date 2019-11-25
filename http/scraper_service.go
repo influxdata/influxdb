@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 

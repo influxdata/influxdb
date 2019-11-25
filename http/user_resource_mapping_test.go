@@ -14,7 +14,7 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 )
 
 func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {

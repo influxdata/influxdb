@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/http/metric"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 
 	"github.com/influxdata/influxdb"
