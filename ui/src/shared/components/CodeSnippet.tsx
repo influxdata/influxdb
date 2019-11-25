@@ -23,7 +23,7 @@ class CodeSnippet extends PureComponent<Props> {
 
   public render() {
     const {copyText, label} = this.props
-    let testID = this.props.testID || 'code-snippet'
+    const testID = this.props.testID || 'code-snippet'
 
     return (
       <div className="code-snippet" data-testid={testID}>
