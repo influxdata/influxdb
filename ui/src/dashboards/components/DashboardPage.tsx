@@ -19,7 +19,7 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import * as dashboardActions from 'src/dashboards/actions'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
-import {setActiveTimeMachine, setTimeRange} from 'src/timeMachine/actions'
+import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
@@ -86,7 +86,6 @@ interface DispatchProps {
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
   onSetActiveTimeMachine: typeof setActiveTimeMachine
-  onSetTimeRange: typeof setTimeRange
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
@@ -114,13 +113,14 @@ type Props = PassedProps &
 @ErrorHandling
 class DashboardPage extends Component<Props> {
   public componentDidMount() {
-    const {autoRefresh, timeRange, onSetTimeRange} = this.props
+    const {autoRefresh, timeRange, onSetActiveTimeMachine} = this.props
 
     if (autoRefresh.status === AutoRefreshStatus.Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
     }
+
     if (timeRange) {
-      onSetTimeRange(timeRange)
+      onSetActiveTimeMachine('veo', {timeRange})
     }
 
     this.getDashboard()
@@ -219,12 +219,12 @@ class DashboardPage extends Component<Props> {
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {
       dashboard,
-      onSetTimeRange,
+      onSetActiveTimeMachine,
       setDashTimeV1,
       updateQueryParams,
     } = this.props
     setDashTimeV1(dashboard.id, {...timeRange})
-    onSetTimeRange(timeRange)
+    onSetActiveTimeMachine('veo', {timeRange})
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
@@ -359,7 +359,6 @@ const mdtp: DispatchProps = {
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onSetActiveTimeMachine: setActiveTimeMachine,
-  onSetTimeRange: setTimeRange,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 
