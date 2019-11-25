@@ -255,61 +255,43 @@ export const getStartTime = timeRange => {
   const {lower} = timeRange
   switch (lower) {
     case 'now() - 30d':
-      return (
-        moment()
-          .subtract(30, 'days')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(30, 'days')
+        .valueOf()
     case 'now() - 7d':
-      return (
-        moment()
-          .subtract(7, 'days')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(7, 'days')
+        .valueOf()
     case 'now() - 2d':
-      return (
-        moment()
-          .subtract(2, 'days')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(2, 'days')
+        .valueOf()
     case 'now() - 24h':
-      return (
-        moment()
-          .subtract(24, 'hours')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(24, 'hours')
+        .valueOf()
     case 'now() - 12h':
-      return (
-        moment()
-          .subtract(12, 'hours')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(12, 'hours')
+        .valueOf()
     case 'now() - 6h':
-      return (
-        moment()
-          .subtract(6, 'hours')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(6, 'hours')
+        .valueOf()
     case 'now() - 1h':
-      return (
-        moment()
-          .subtract(1, 'hours')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(1, 'hours')
+        .valueOf()
     case 'now() - 15m':
-      return (
-        moment()
-          .subtract(15, 'minutes')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(15, 'minutes')
+        .valueOf()
     case 'now() - 5m':
-      return (
-        moment()
-          .subtract(5, 'minutes')
-          .unix() * 1000
-      )
+      return moment()
+        .subtract(5, 'minutes')
+        .valueOf()
     default:
-      return moment(lower).unix() * 1000
+      return moment(lower).valueOf()
   }
 }
 
@@ -319,6 +301,6 @@ export const getEndTime = timeRange => {
     case null:
       return null
     default:
-      return moment(upper).unix() * 1000
+      return moment(upper).valueOf()
   }
 }
