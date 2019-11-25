@@ -19,7 +19,6 @@ import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import * as dashboardActions from 'src/dashboards/actions'
 import * as rangesActions from 'src/dashboards/actions/ranges'
 import * as appActions from 'src/shared/actions/app'
-import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
@@ -35,7 +34,6 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
-import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
 import {
@@ -57,6 +55,9 @@ import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {LimitStatus} from 'src/cloud/actions/limits'
+
+// Selector
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 interface StateProps {
   limitedResources: string[]
@@ -85,7 +86,6 @@ interface DispatchProps {
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
   onCreateCellWithView: typeof dashboardActions.createCellWithView
   onUpdateView: typeof dashboardActions.updateView
-  onSetActiveTimeMachine: typeof setActiveTimeMachine
   onToggleShowVariablesControls: typeof toggleShowVariablesControls
 }
 
@@ -113,14 +113,10 @@ type Props = PassedProps &
 @ErrorHandling
 class DashboardPage extends Component<Props> {
   public componentDidMount() {
-    const {autoRefresh, timeRange, onSetActiveTimeMachine} = this.props
+    const {autoRefresh} = this.props
 
     if (autoRefresh.status === AutoRefreshStatus.Active) {
       GlobalAutoRefresher.poll(autoRefresh.interval)
-    }
-
-    if (timeRange) {
-      onSetActiveTimeMachine('veo', {timeRange})
     }
 
     this.getDashboard()
@@ -217,14 +213,8 @@ class DashboardPage extends Component<Props> {
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
-    const {
-      dashboard,
-      onSetActiveTimeMachine,
-      setDashTimeV1,
-      updateQueryParams,
-    } = this.props
+    const {dashboard, setDashTimeV1, updateQueryParams} = this.props
     setDashTimeV1(dashboard.id, {...timeRange})
-    onSetActiveTimeMachine('veo', {timeRange})
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
@@ -320,8 +310,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     cloud: {limits},
   } = state
 
-  const timeRange =
-    ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
+  const timeRange = getTimeRangeByDashboardID(ranges, dashboardID)
 
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
 
@@ -358,7 +347,6 @@ const mdtp: DispatchProps = {
   setZoomedTimeRange: rangesActions.setZoomedTimeRange,
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
-  onSetActiveTimeMachine: setActiveTimeMachine,
   onToggleShowVariablesControls: toggleShowVariablesControls,
 }
 
