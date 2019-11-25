@@ -85,7 +85,6 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
     let bucket = null
 
     if (_buckets.length) {
-      console.log(_buckets.length, selectedBucket)
       bucket = selectedBucket ? selectedBucket : _buckets[0]
       bucket_dd = (
         <BucketDropdown

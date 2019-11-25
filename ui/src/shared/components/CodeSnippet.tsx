@@ -26,8 +26,7 @@ class CodeSnippet extends PureComponent<Props> {
     let testID = this.props.testID || 'code-snippet'
 
     return (
-      <div className="code-snippet"
-        data-testid={ testID }>
+      <div className="code-snippet" data-testid={testID}>
         <FancyScrollbar
           autoHide={false}
           autoHeight={true}
