@@ -81,10 +81,12 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
         return _a > _b ? 1 : _a < _b ? -1 : 0
       })
     const {selectedBucket} = this.state
-    const bucket = selectedBucket ? selectedBucket : _buckets[0]
     let bucket_dd = null
+    let bucket = null
 
-    if (buckets.length) {
+    if (_buckets.length) {
+      console.log(_buckets.length, selectedBucket)
+      bucket = selectedBucket ? selectedBucket : _buckets[0]
       bucket_dd = (
         <BucketDropdown
           selectedBucketID={bucket.id}
@@ -111,6 +113,7 @@ class TelegrafOutputOverlay extends PureComponent<Props> {
             <TemplatedCodeSnippet
               template={TELEGRAF_OUTPUT}
               label="telegraf.conf"
+              testID="telegraf-output-overlay--code-snippet"
               values={{
                 server,
                 org,
