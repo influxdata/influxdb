@@ -1,7 +1,6 @@
 // Libraries
 import React, {FunctionComponent} from 'react'
 import {Plot, FromFluxResult} from '@influxdata/giraffe'
-import {connect} from 'react-redux'
 
 // Components
 import GaugeChart from 'src/shared/components/GaugeChart'
@@ -17,7 +16,6 @@ import CheckPlot from 'src/shared/components/CheckPlot'
 
 // Types
 import {
-  AppState,
   Check,
   CheckViewProperties,
   QueryViewProperties,
@@ -28,9 +26,6 @@ import {
   XYViewProperties,
 } from 'src/types'
 
-// Selectors
-import {getEndTime, getStartTime} from 'src/timeMachine/selectors/index'
-
 interface Props {
   giraffeResult: FromFluxResult
   check: Partial<Check>
@@ -39,14 +34,11 @@ interface Props {
   properties: QueryViewProperties | CheckViewProperties
   timeZone: TimeZone
   statuses: StatusRow[][]
-}
-
-interface StateProps {
   endTime: number
   startTime: number
 }
 
-const ViewSwitcher: FunctionComponent<Props & StateProps> = ({
+const ViewSwitcher: FunctionComponent<Props> = ({
   properties,
   check,
   loading,
@@ -206,13 +198,4 @@ const ViewSwitcher: FunctionComponent<Props & StateProps> = ({
   }
 }
 
-const mstp = ({timeMachines}: AppState) => {
-  const {activeTimeMachineID, timeMachines: machine} = timeMachines
-  const {timeRange} = machine[activeTimeMachineID]
-  return {
-    startTime: timeRange ? getStartTime(timeRange) : Infinity,
-    endTime: timeRange ? getEndTime(timeRange) : null,
-  }
-}
-
-export default connect<StateProps>(mstp)(ViewSwitcher)
+export default ViewSwitcher

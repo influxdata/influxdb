@@ -66,7 +66,9 @@ const ScatterPlot: FunctionComponent<Props> = ({
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    table.getColumn(xColumn, 'number')
+    table.getColumn(xColumn, 'number'),
+    startTime,
+    endTime
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(
@@ -100,9 +102,6 @@ const ScatterPlot: FunctionComponent<Props> = ({
     suffix: ySuffix,
     timeZone,
   })
-
-  xDomain[0] = Math.min(startTime, xDomain[0])
-  xDomain[1] = Math.max(endTime, xDomain[1])
 
   const config: Config = {
     ...VIS_THEME,
