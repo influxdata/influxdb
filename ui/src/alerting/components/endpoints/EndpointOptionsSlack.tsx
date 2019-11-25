@@ -6,10 +6,12 @@ import {Input, FormElement, Panel, Grid, Columns} from '@influxdata/clockface'
 
 interface Props {
   url: string
+  testChannel: string
   onChange: (e: ChangeEvent<HTMLInputElement>) => void
 }
 
-const EndpointOptionsSlack: FC<Props> = ({url, onChange}) => {
+const EndpointOptionsSlack: FC<Props> = ({url, testChannel, onChange}) => {
+  const {pathname} = window.location
   return (
     <Panel>
       <Panel.Header>
@@ -27,6 +29,16 @@ const EndpointOptionsSlack: FC<Props> = ({url, onChange}) => {
                   onChange={onChange}
                 />
               </FormElement>
+              {pathname.includes('/edit') && (
+                <FormElement label="Test Channel">
+                  <Input
+                    name="testChannel"
+                    value={testChannel}
+                    testID="testChannel--input"
+                    onChange={onChange}
+                  />
+                </FormElement>
+              )}
             </Grid.Column>
           </Grid.Row>
         </Grid>

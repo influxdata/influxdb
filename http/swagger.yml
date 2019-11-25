@@ -5935,6 +5935,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  '/notificationEndpoints/{endpointID}/test':
+    put:
+      operationId: PutNotificationEndpointsIDTest
+      tags:
+        - NotificationEndpoints
+      summary: Tests an existing notification endpoint
+      requestBody:
+        description: A notification endpoint to test
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationEndpoint"
+      parameters:
+        - $ref: '#/components/parameters/TraceSpan'
+        - in: path
+          name: endpointID
+          schema:
+            type: string
+          required: true
+          description: The notification endpoint ID.
+      responses:
+        '204':
+          description: Endpoint test sent
+        '400':
+          description: The notification endpoint test was not sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   '/notificationEndpoints/{endpointID}':
     get:
       operationId: GetNotificationEndpointsID
@@ -6062,6 +6098,28 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        default:
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  '/notificationEndpointsTest':
+    post:
+      operationId: NotificationEndpointTest
+      tags:
+        - NotificationEndpoints
+      summary: Test a connection to a notification endpoint
+      requestBody:
+        description: Notification endpoint to test
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PostNotificationEndpoint"
+      responses:
+        '204':
+          description: Notification endpoint tested
         default:
           description: Unexpected error
           content:
@@ -10339,6 +10397,9 @@ components:
               type: string
             token:
               description: Specifies the API token string. Specify either `URL` or `Token`.
+              type: string
+            testChannel:
+              description: Specifies the channel to send test notification to Slack.
               type: string
     PagerDutyNotificationEndpoint:
       type: object

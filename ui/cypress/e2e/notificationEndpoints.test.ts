@@ -90,6 +90,8 @@ describe('Notification Endpoints', () => {
 
     cy.getByTestID('endpoint-save--button').click()
 
+    cy.getByTestID('notification-success').should('have.length', 1)
+
     cy.getByTestID(`endpoint-card ${name}`).should('exist')
     cy.getByTestID('endpoint--overlay').should('not.be.visible')
   })

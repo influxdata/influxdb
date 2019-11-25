@@ -27,9 +27,13 @@ const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
     router.push(`/orgs/${params.orgID}/alerting`)
   }
 
-  const handleCreateEndpoint = (endpoint: NotificationEndpoint) => {
-    onCreateEndpoint(endpoint)
+  const handleCreateEndpoint = async (endpoint: NotificationEndpoint) => {
+    await onCreateEndpoint(endpoint)
     handleDismiss()
+  }
+
+  const handleTest = (endpoint: NotificationEndpoint) => {
+    return Promise.resolve(console.warn('TODO: test new endpoints', endpoint))
   }
 
   const initialState = useMemo(() => ({...NEW_ENDPOINT_DRAFT, orgID}), [orgID])
@@ -43,6 +47,7 @@ const NewRuleOverlay: FC<Props> = ({params, router, onCreateEndpoint}) => {
             onDismiss={handleDismiss}
           />
           <EndpointOverlayContents
+            onTest={handleTest}
             onSave={handleCreateEndpoint}
             onCancel={handleDismiss}
             saveButtonText="Create Notification Endpoint"

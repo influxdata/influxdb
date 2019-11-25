@@ -31,10 +31,11 @@ type NotificationEndpoint interface {
 	GetDescription() string
 	GetStatus() Status
 	// SecretFields return available secret fields.
-	SecretFields() []SecretField
+	SecretFields() []*SecretField
 	// BackfillSecretKeys fill back fill the secret field key during the unmarshalling
 	// if value of that secret field is not nil.
 	BackfillSecretKeys()
+	GenerateTestFlux() (string, error)
 }
 
 // ops for checks error
@@ -45,6 +46,7 @@ var (
 	OpCreateNotificationEndpoint   = "CreateNotificationEndpoint"
 	OpUpdateNotificationEndpoint   = "UpdateNotificationEndpoint"
 	OpDeleteNotificationEndpoint   = "DeleteNotificationEndpoint"
+	OpTestNotificationEndpoint     = "TestNotificationEndpoint"
 )
 
 // NotificationEndpointFilter represents a set of filter that restrict the returned notification endpoints.
@@ -129,5 +131,5 @@ type NotificationEndpointService interface {
 	PatchNotificationEndpoint(ctx context.Context, id ID, upd NotificationEndpointUpdate) (NotificationEndpoint, error)
 
 	// DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
-	DeleteNotificationEndpoint(ctx context.Context, id ID) (flds []SecretField, orgID ID, err error)
+	DeleteNotificationEndpoint(ctx context.Context, id ID) (flds []*SecretField, orgID ID, err error)
 }

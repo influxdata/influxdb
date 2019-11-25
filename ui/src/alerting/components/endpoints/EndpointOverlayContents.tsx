@@ -15,7 +15,9 @@ import {
 } from '@influxdata/clockface'
 import EndpointOptions from 'src/alerting/components/endpoints/EndpointOptions'
 import EndpointTypeDropdown from 'src/alerting/components/endpoints/EndpointTypeDropdown'
-import EndpointOverlayFooter from 'src/alerting/components/endpoints/EndpointOverlayFooter'
+import EndpointOverlayFooter, {
+  Message,
+} from 'src/alerting/components/endpoints/EndpointOverlayFooter'
 
 // Hooks
 import {useEndpointReducer} from './EndpointOverlayProvider'
@@ -24,18 +26,20 @@ import {useEndpointReducer} from './EndpointOverlayProvider'
 import {NotificationEndpointType, NotificationEndpoint} from 'src/types'
 
 interface Props {
-  onSave: (endpoint: NotificationEndpoint) => void
-  onCancel: () => void
   saveButtonText: string
+  onSave: (endpoint: NotificationEndpoint) => Promise<void>
+  onTest: (endpoint: NotificationEndpoint) => Promise<void>
+  onCancel: () => void
 }
 
 const EndpointOverlayContents: FC<Props> = ({
   onSave,
+  onTest,
   saveButtonText,
   onCancel,
 }) => {
   const [endpoint, dispatch] = useEndpointReducer()
-  const [errorMessage, setErrorMessage] = useState<string>(null)
+  const [message, setMessage] = useState<Message>(null)
 
   const handleChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -111,13 +115,21 @@ const EndpointOverlayContents: FC<Props> = ({
                 minHeight: '43px',
               }}
             >
-              {errorMessage && (
+              {message && (
                 <Alert
-                  color={ComponentColor.Danger}
-                  icon={IconFont.AlertTriangle}
+                  color={
+                    message.remoteState === 'Done'
+                      ? ComponentColor.Success
+                      : ComponentColor.Danger
+                  }
+                  icon={
+                    message.remoteState === 'Done'
+                      ? IconFont.Checkmark
+                      : IconFont.AlertTriangle
+                  }
                   style={{width: 'auto', marginTop: '8px'}}
                 >
-                  {errorMessage}
+                  {message.text}
                 </Alert>
               )}
             </Grid.Column>
@@ -126,9 +138,10 @@ const EndpointOverlayContents: FC<Props> = ({
       </Overlay.Body>
       <EndpointOverlayFooter
         onSave={onSave}
+        onTest={onTest}
         onCancel={onCancel}
         saveButtonText={saveButtonText}
-        onSetErrorMessage={setErrorMessage}
+        onSetMessage={setMessage}
       />
     </Form>
   )

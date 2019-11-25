@@ -7,7 +7,10 @@ import {withRouter, WithRouterProps} from 'react-router'
 import {getEndpointFailed} from 'src/shared/copy/notifications'
 
 // Actions
-import {updateEndpoint} from 'src/alerting/actions/notifications/endpoints'
+import {
+  updateEndpoint,
+  testExistingEndpoint,
+} from 'src/alerting/actions/notifications/endpoints'
 import {notify} from 'src/shared/actions/notifications'
 
 // Components
@@ -21,6 +24,7 @@ import {NotificationEndpoint, AppState} from 'src/types'
 interface DispatchProps {
   onUpdateEndpoint: typeof updateEndpoint
   onNotify: typeof notify
+  onTestEndpoint: typeof testExistingEndpoint
 }
 
 interface StateProps {
@@ -32,6 +36,7 @@ type Props = WithRouterProps & DispatchProps & StateProps
 const EditEndpointOverlay: FC<Props> = ({
   params,
   router,
+  onTestEndpoint,
   onUpdateEndpoint,
   onNotify,
   endpoint,
@@ -46,10 +51,14 @@ const EditEndpointOverlay: FC<Props> = ({
     return null
   }
 
-  const handleEditEndpoint = (endpoint: NotificationEndpoint) => {
-    onUpdateEndpoint(endpoint)
+  const handleEditEndpoint = async (endpoint: NotificationEndpoint) => {
+    await onUpdateEndpoint(endpoint)
 
     handleDismiss()
+  }
+
+  const handleTest = async (endpoint: NotificationEndpoint) => {
+    await onTestEndpoint(endpoint)
   }
 
   return (
@@ -62,6 +71,7 @@ const EditEndpointOverlay: FC<Props> = ({
           />
           <Overlay.Body />
           <EndpointOverlayContents
+            onTest={handleTest}
             onSave={handleEditEndpoint}
             onCancel={handleDismiss}
             saveButtonText="Edit Notification Endpoint"
@@ -75,6 +85,7 @@ const EditEndpointOverlay: FC<Props> = ({
 const mdtp = {
   onUpdateEndpoint: updateEndpoint,
   onNotify: notify,
+  onTestEndpoint: testExistingEndpoint,
 }
 
 const mstp = ({endpoints}: AppState, {params}: Props): StateProps => {

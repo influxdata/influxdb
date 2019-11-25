@@ -843,6 +843,11 @@ export const getEndpointsFailed = (message: string): Notification => ({
   message: `Failed to get endpoints: ${message}`,
 })
 
+export const createEndpointSuccess = (): Notification => ({
+  ...defaultSuccessNotification,
+  message: 'Successfully created endpoint',
+})
+
 export const createEndpointFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to create endpoint: ${message}`,

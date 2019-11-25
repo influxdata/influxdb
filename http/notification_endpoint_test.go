@@ -32,6 +32,7 @@ func NewMockNotificationEndpointBackend() *NotificationEndpointBackend {
 		UserService:                 mock.NewUserService(),
 		OrganizationService:         mock.NewOrganizationService(),
 		SecretService:               mock.NewSecretService(),
+		QueryService:                mock.NewQueryService(),
 	}
 }
 
@@ -141,7 +142,8 @@ func TestService_handleGetNotificationEndpoints(t *testing.T) {
 		     },
 		     "name": "hello",
 		     "orgID": "50f7ba1150f7ba11",
-		     "status": "active",
+			 "status": "active",
+			 "testChannel": "",
 			 "type": "slack",
 			 "token": "",
 		     "updatedAt": "0001-01-01T00:00:00Z",
@@ -579,9 +581,9 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 					},
 				},
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]*influxdb.SecretField, influxdb.ID, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
-							return []influxdb.SecretField{
+							return []*influxdb.SecretField{
 								{Key: "k1"},
 							}, influxTesting.MustIDBase16("020f755c3c082001"), nil
 						}
@@ -604,7 +606,7 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 			name: "notification endpoint not found",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]*influxdb.SecretField, influxdb.ID, error) {
 						return nil, 0, &influxdb.Error{
 							Code: influxdb.ENotFound,
 							Msg:  "notification endpoint not found",
@@ -741,6 +743,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 		  "url": "http://example.com",
 		  "name": "example",
 		  "status": "active",
+		  "testChannel": "",
 		  "type": "slack",
 		  "token": "",
 		  "labels": []
@@ -900,6 +903,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 		  "url": "example.com",
           "type": "slack",
 		  "status": "active",
+		  "testChannel": "",
 		  "token": "",
           "labels": []
 		}
@@ -1170,6 +1174,117 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 				t.Errorf("%q, handlePostNotificationEndpointOwner(). error unmarshaling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostNotificationEndpointOwner() = ***%s***", tt.name, diff)
+			}
+		})
+	}
+}
+
+func TestService_handleTestNotificationEndpoint(t *testing.T) {
+	type fields struct {
+		Secrets                     map[string]string
+		SecretService               influxdb.SecretService
+		NotificationEndpointService influxdb.NotificationEndpointService
+		OrganizationService         influxdb.OrganizationService
+	}
+	type args struct {
+		endpoint interface{}
+	}
+	type wants struct {
+		statusCode int
+	}
+
+	var secrets map[string]string
+
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		wants  wants
+	}{
+		{
+			name: "test a notification endpoint",
+			fields: fields{
+				Secrets: map[string]string{},
+				SecretService: &mock.SecretService{
+					PutSecretFn: func(ctx context.Context, orgID influxdb.ID, k string, v string) error {
+						secrets[orgID.String()+"-"+k] = v
+						return nil
+					},
+				},
+				NotificationEndpointService: &mock.NotificationEndpointService{
+					TestNotificationEndpointF: func(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						edp.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
+						edp.BackfillSecretKeys()
+						return nil
+					},
+				},
+				OrganizationService: &mock.OrganizationService{
+					FindOrganizationF: func(ctx context.Context, f influxdb.OrganizationFilter) (*influxdb.Organization, error) {
+						return &influxdb.Organization{ID: influxTesting.MustIDBase16("6f626f7274697320")}, nil
+					},
+				},
+			},
+			args: args{
+				endpoint: map[string]interface{}{
+					"name":            "hello",
+					"type":            "http",
+					"orgID":           "6f626f7274697320",
+					"description":     "desc1",
+					"status":          "active",
+					"url":             "example.com",
+					"username":        "user1",
+					"password":        "password1",
+					"authMethod":      "basic",
+					"method":          "POST",
+					"contentTemplate": "template",
+				},
+			},
+			wants: wants{
+				statusCode: http.StatusNoContent,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			secrets = tt.fields.Secrets
+			notificationEndpointBackend := NewMockNotificationEndpointBackend()
+			notificationEndpointBackend.NotificationEndpointService = tt.fields.NotificationEndpointService
+			notificationEndpointBackend.OrganizationService = tt.fields.OrganizationService
+			notificationEndpointBackend.SecretService = tt.fields.SecretService
+			querySvc := mock.NewQueryService()
+			querySvc.Response = `#group,false,false,true,true,false,false,false,false,false,false
+#datatype,string,long,string,string,long,dateTime:RFC3339,string,string,long,string
+#default,experimental-to6,,,,,,,,,
+,result,table,_measurement,_sent,_status_timestamp,_time,id,name,retentionPeriod,retentionPolicy
+,,0,notifications,true,,2019-11-22T22:10:44.028232Z,id1,telegraf,0,`
+			notificationEndpointBackend.QueryService = querySvc
+			h := NewNotificationEndpointHandler(notificationEndpointBackend)
+
+			b, err := json.Marshal(tt.args.endpoint)
+			if err != nil {
+				t.Fatalf("failed to unmarshal endpoint: %v", err)
+			}
+			r := httptest.NewRequest("GET", "http://any.url?org=30", bytes.NewReader(b))
+			c := context.WithValue(
+				context.Background(),
+				httprouter.ParamsKey,
+				httprouter.Params{
+					{
+						Key:   "id",
+						Value: "0000000000000001",
+					},
+				})
+			r = r.WithContext(pcontext.SetAuthorizer(c, &influxdb.Session{UserID: 1}))
+
+			w := httptest.NewRecorder()
+
+			h.handlePutNotificationEndpointTest(w, r)
+
+			res := w.Result()
+
+			if res.StatusCode != tt.wants.statusCode {
+				t.Errorf("%q. handleTestNotificationEndpoint() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
 		})
 	}

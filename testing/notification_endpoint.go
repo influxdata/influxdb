@@ -1690,7 +1690,7 @@ func DeleteNotificationEndpoint(
 	type wants struct {
 		notificationEndpoints []influxdb.NotificationEndpoint
 		userResourceMappings  []*influxdb.UserResourceMapping
-		secretFlds            []influxdb.SecretField
+		secretFlds            []*influxdb.SecretField
 		orgID                 influxdb.ID
 		err                   error
 	}
@@ -1960,7 +1960,7 @@ func DeleteNotificationEndpoint(
 				userID: MustIDBase16(sixID),
 			},
 			wants: wants{
-				secretFlds: []influxdb.SecretField{
+				secretFlds: []*influxdb.SecretField{
 					{Key: twoID + "-routing-key"},
 				},
 				orgID: MustIDBase16(fourID),

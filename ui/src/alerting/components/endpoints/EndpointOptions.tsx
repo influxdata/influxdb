@@ -27,8 +27,14 @@ const EndpointOptions: FC<Props> = ({
 }) => {
   switch (endpoint.type) {
     case 'slack': {
-      const {url} = endpoint as SlackNotificationEndpoint
-      return <EndpointOptionsSlack url={url} onChange={onChange} />
+      const {url, testChannel} = endpoint as SlackNotificationEndpoint
+      return (
+        <EndpointOptionsSlack
+          url={url}
+          testChannel={testChannel}
+          onChange={onChange}
+        />
+      )
     }
     case 'pagerduty': {
       const {clientURL, routingKey} = endpoint as PagerDutyNotificationEndpoint
