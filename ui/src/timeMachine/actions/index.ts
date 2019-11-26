@@ -36,7 +36,7 @@ import {HistogramPosition} from '@influxdata/giraffe'
 import {RemoteDataState} from '@influxdata/clockface'
 import {createView} from 'src/shared/utils/view'
 import {setValues} from 'src/variables/actions'
-import { getTimeRangeByDashboardID } from 'src/dashboards/selectors'
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
 
 export type Action =
   | QueryBuilderAction
@@ -675,7 +675,10 @@ export const loadNewVEO = (dashboardID: string) => (
   const timeRange = getTimeRangeByDashboardID(state.ranges, dashboardID)
 
   dispatch(
-    setActiveTimeMachine('veo', {view: createView<XYViewProperties>('xy'), timeRange})
+    setActiveTimeMachine('veo', {
+      view: createView<XYViewProperties>('xy'),
+      timeRange,
+    })
   )
 
   const values = get(getState(), `variables.values.${dashboardID}.values`, {})

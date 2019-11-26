@@ -115,7 +115,7 @@ export const getViewForTimeMachine = (
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
-    dispatch(setActiveTimeMachine(timeMachineID, {view,timeRange}))
+    dispatch(setActiveTimeMachine(timeMachineID, {view, timeRange}))
     dispatch(executeQueries(dashboardID))
   } catch (e) {
     dispatch(notify(copy.getViewFailed(e.message)))
