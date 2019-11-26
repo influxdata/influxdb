@@ -176,8 +176,8 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const timeZone = state.app.persisted.timeZone
 
   return {
-    endTime: timeRange ? getEndTime(timeRange) : null,
-    startTime: timeRange ? getStartTime(timeRange) : Infinity,
+    endTime: getEndTime(timeRange),
+    startTime: getStartTime(timeRange),
     timeZone,
     variableAssignments,
     variablesStatus: valuesStatus,

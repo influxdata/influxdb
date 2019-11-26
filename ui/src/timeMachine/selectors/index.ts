@@ -252,6 +252,9 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
 }
 
 export const getStartTime = (timeRange: TimeRange): number => {
+  if (!timeRange) {
+    return Infinity
+  }
   const {lower} = timeRange
   switch (lower) {
     case 'now() - 30d':
@@ -296,6 +299,9 @@ export const getStartTime = (timeRange: TimeRange): number => {
 }
 
 export const getEndTime = (timeRange: TimeRange): number => {
+  if (!timeRange) {
+    return null
+  }
   const {upper} = timeRange
   switch (upper) {
     case null:
