@@ -22,7 +22,7 @@ interface OwnProps {
 
 interface DispatchProps {
   onShowOverlay: typeof showOverlay
-  onDismissOverlay: typeof showOverlay
+  onDismissOverlay: typeof dismissOverlay
 }
 
 type OverlayHandlerProps = OwnProps & DispatchProps & WithRouterProps
