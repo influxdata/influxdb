@@ -28,8 +28,8 @@ export const getViewStatus = (state: AppState, id: string): RemoteDataState => {
 }
 
 export const getTimeRangeByDashboardID = (
-  ranges: Range[],
-  dashboardID: string
+  ranges: Range[] = [],
+  dashboardID: string = ''
 ): TimeRange =>
   ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
 
