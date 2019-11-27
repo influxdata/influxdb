@@ -10,8 +10,11 @@ import {
 
 // Types
 import {Dispatch} from 'redux-thunk'
-import {GetState, RemoteDataState} from 'src/types'
-import {BuilderAggregateFunctionType} from 'src/client/generatedRoutes'
+import {
+  BuilderAggregateFunctionType,
+  GetState,
+  RemoteDataState,
+} from 'src/types'
 import {BuilderFunctionsType} from '@influxdata/influx'
 
 export type Action =
@@ -285,7 +288,8 @@ export const selectTagValue = (index: number, value: string) => (
     timeMachines: {activeTimeMachineID},
   } = state
   const tags = getActiveQuery(state).builderConfig.tags
-  const values = tags[index].values
+  const currentTag = tags[index]
+  const values = currentTag.values
 
   let newValues: string[]
 
@@ -293,7 +297,7 @@ export const selectTagValue = (index: number, value: string) => (
     newValues = values.filter(v => v !== value)
   } else if (
     activeTimeMachineID === 'alerting' &&
-    tags[index].key === '_field'
+    currentTag.key === '_field'
   ) {
     newValues = [value]
   } else {
@@ -301,6 +305,11 @@ export const selectTagValue = (index: number, value: string) => (
   }
 
   dispatch(setBuilderTagValuesSelection(index, newValues))
+
+  // don't add a new tag filter if we're grouping
+  if (currentTag.aggregateFunctionType === 'group') {
+    return
+  }
 
   if (index === tags.length - 1 && newValues.length) {
     dispatch(addTagSelector())

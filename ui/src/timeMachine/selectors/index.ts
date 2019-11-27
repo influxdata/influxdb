@@ -22,8 +22,12 @@ import {
   durationToMilliseconds,
 } from 'src/shared/utils/duration'
 
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
+
 // Types
 import {
+  BuilderAggregateFunctionType,
+  BuilderTagsType,
   DashboardQuery,
   FluxTable,
   QueryView,
@@ -308,4 +312,30 @@ export const getActiveTimeRange = (
     return timeRange
   }
   return null
+}
+
+export const getActiveTagValues = (
+  activeQueryBuilderTags: BuilderTagsType[],
+  aggregateFunctionType: BuilderAggregateFunctionType,
+  index: number
+): string[] => {
+  // if we're grouping, we want to be able to group on all previous tags
+  if (
+    isFlagEnabled('queryBuilderGrouping') &&
+    aggregateFunctionType === 'group'
+  ) {
+    const values = []
+    activeQueryBuilderTags.forEach((tag, i) => {
+      // if we don't skip the current set of tags, we'll double render them at the bottom of the selector list
+      if (i === index) {
+        return
+      }
+      tag.values.forEach(value => {
+        values.push(value)
+      })
+    })
+    return values
+  }
+
+  return activeQueryBuilderTags[index].values
 }
