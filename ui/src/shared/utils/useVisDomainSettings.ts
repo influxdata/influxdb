@@ -45,7 +45,5 @@ export const useVisDomainSettings = (
   const [domain, setDomain] = useOneWayState(initialDomain)
   const resetDomain = () => setDomain(initialDomain)
 
-  console.log('domain: ', domain)
-
   return [domain, setDomain, resetDomain]
 }
