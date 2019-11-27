@@ -15,6 +15,9 @@ import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 // Types
 import {AppState, TimeRange} from 'src/types'
 
+// Actions
+import {resetPredicateState} from 'src/shared/actions/predicates'
+
 const resolveTimeRange = (timeRange: TimeRange): [number, number] | null => {
   const [lower, upper] = [
     Date.parse(timeRange.lower),
@@ -33,13 +36,23 @@ interface StateProps {
   selectedTimeRange?: [number, number]
 }
 
-const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
+interface DispatchProps {
+  resetPredicateState: () => void
+}
+
+type Props = StateProps & WithRouterProps & DispatchProps
+
+const DeleteDataOverlay: FunctionComponent<Props> = ({
   router,
   params: {orgID},
   selectedBucketName,
   selectedTimeRange,
+  resetPredicateState,
 }) => {
-  const handleDismiss = () => router.push(`/orgs/${orgID}/data-explorer`)
+  const handleDismiss = () => {
+    resetPredicateState()
+    router.push(`/orgs/${orgID}/data-explorer`)
+  }
 
   return (
     <Overlay visible={true}>
@@ -73,6 +86,11 @@ const mstp = (state: AppState): StateProps => {
   }
 }
 
-export default connect<StateProps>(mstp)(
-  withRouter<StateProps>(DeleteDataOverlay)
-)
+const mdtp: DispatchProps = {
+  resetPredicateState,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(DeleteDataOverlay))
