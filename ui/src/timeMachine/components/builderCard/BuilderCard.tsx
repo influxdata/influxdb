@@ -4,6 +4,7 @@ import classnames from 'classnames'
 
 // Components
 import BuilderCardHeader from 'src/timeMachine/components/builderCard/BuilderCardHeader'
+import BuilderCardDropdownHeader from 'src/timeMachine/components/builderCard/BuilderCardDropdownHeader'
 import BuilderCardMenu from 'src/timeMachine/components/builderCard/BuilderCardMenu'
 import BuilderCardBody from 'src/timeMachine/components/builderCard/BuilderCardBody'
 import BuilderCardEmpty from 'src/timeMachine/components/builderCard/BuilderCardEmpty'
@@ -16,6 +17,7 @@ interface Props {
 
 export default class BuilderCard extends PureComponent<Props> {
   public static Header = BuilderCardHeader
+  public static DropdownHeader = BuilderCardDropdownHeader
   public static Menu = BuilderCardMenu
   public static Body = BuilderCardBody
   public static Empty = BuilderCardEmpty
