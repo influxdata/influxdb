@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pcontext "github.com/influxdata/influxdb/context"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 

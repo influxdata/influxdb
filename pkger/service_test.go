@@ -36,12 +36,16 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 1)
 
 					expected := DiffBucket{
-						ID:           SafeID(1),
-						Name:         "rucket_11",
-						OldDesc:      "old desc",
-						NewDesc:      "bucket 1 description",
-						OldRetention: 30 * time.Hour,
-						NewRetention: time.Hour,
+						ID:   SafeID(1),
+						Name: "rucket_11",
+						Old: &DiffBucketValues{
+							Description:    "old desc",
+							RetentionRules: retentionRules{newRetentionRule(30 * time.Hour)},
+						},
+						New: DiffBucketValues{
+							Description:    "bucket 1 description",
+							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
+						},
 					}
 					assert.Equal(t, expected, diff.Buckets[0])
 				})
@@ -61,11 +65,14 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Buckets, 1)
 
 					expected := DiffBucket{
-						Name:         "rucket_11",
-						NewDesc:      "bucket 1 description",
-						NewRetention: time.Hour,
+						Name: "rucket_11",
+						New: DiffBucketValues{
+							Description:    "bucket 1 description",
+							RetentionRules: retentionRules{newRetentionRule(time.Hour)},
+						},
 					}
 					assert.Equal(t, expected, diff.Buckets[0])
+					t.Log(diff.Buckets[0].Old)
 				})
 			})
 		})
@@ -94,18 +101,22 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 2)
 
 					expected := DiffLabel{
-						ID:       SafeID(1),
-						Name:     "label_1",
-						OldColor: "old color",
-						NewColor: "#FFFFFF",
-						OldDesc:  "old description",
-						NewDesc:  "label 1 description",
+						ID:   SafeID(1),
+						Name: "label_1",
+						Old: &DiffLabelValues{
+							Color:       "old color",
+							Description: "old description",
+						},
+						New: DiffLabelValues{
+							Color:       "#FFFFFF",
+							Description: "label 1 description",
+						},
 					}
 					assert.Equal(t, expected, diff.Labels[0])
 
 					expected.Name = "label_2"
-					expected.NewColor = "#000000"
-					expected.NewDesc = "label 2 description"
+					expected.New.Color = "#000000"
+					expected.New.Description = "label 2 description"
 					assert.Equal(t, expected, diff.Labels[1])
 				})
 			})
@@ -124,15 +135,17 @@ func TestService(t *testing.T) {
 					require.Len(t, diff.Labels, 2)
 
 					expected := DiffLabel{
-						Name:     "label_1",
-						NewColor: "#FFFFFF",
-						NewDesc:  "label 1 description",
+						Name: "label_1",
+						New: DiffLabelValues{
+							Color:       "#FFFFFF",
+							Description: "label 1 description",
+						},
 					}
 					assert.Equal(t, expected, diff.Labels[0])
 
 					expected.Name = "label_2"
-					expected.NewColor = "#000000"
-					expected.NewDesc = "label 2 description"
+					expected.New.Color = "#000000"
+					expected.New.Description = "label 2 description"
 					assert.Equal(t, expected, diff.Labels[1])
 				})
 			})
@@ -162,25 +175,30 @@ func TestService(t *testing.T) {
 				require.Len(t, diff.Variables, 4)
 
 				expected := DiffVariable{
-					ID:      SafeID(1),
-					Name:    "var_const",
-					OldDesc: "old desc",
-					NewDesc: "var_const desc",
-					NewArgs: &influxdb.VariableArguments{
-						Type:   "constant",
-						Values: influxdb.VariableConstantValues{"first val"},
+					ID:   SafeID(1),
+					Name: "var_const",
+					Old: &DiffVariableValues{
+						Description: "old desc",
+					},
+					New: DiffVariableValues{
+						Description: "var_const desc",
+						Args: &influxdb.VariableArguments{
+							Type:   "constant",
+							Values: influxdb.VariableConstantValues{"first val"},
+						},
 					},
 				}
 				assert.Equal(t, expected, diff.Variables[0])
 
 				expected = DiffVariable{
 					// no ID here since this one would be new
-					Name:    "var_map",
-					OldDesc: "",
-					NewDesc: "var_map desc",
-					NewArgs: &influxdb.VariableArguments{
-						Type:   "map",
-						Values: influxdb.VariableMapValues{"k1": "v1"},
+					Name: "var_map",
+					New: DiffVariableValues{
+						Description: "var_map desc",
+						Args: &influxdb.VariableArguments{
+							Type:   "map",
+							Values: influxdb.VariableMapValues{"k1": "v1"},
+						},
 					},
 				}
 				assert.Equal(t, expected, diff.Variables[1])

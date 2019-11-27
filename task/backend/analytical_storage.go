@@ -173,7 +173,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 		ID:     sb.ID,
 		OrgID:  task.OrganizationID,
 		Permissions: []influxdb.Permission{
-			influxdb.Permission{
+			{
 				Action: influxdb.ReadAction,
 				Resource: influxdb.Resource{
 					Type:  influxdb.BucketsResourceType,
@@ -269,7 +269,7 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 		Status: influxdb.Active,
 		OrgID:  task.OrganizationID,
 		Permissions: []influxdb.Permission{
-			influxdb.Permission{
+			{
 				Action: influxdb.ReadAction,
 				Resource: influxdb.Resource{
 					Type:  influxdb.BucketsResourceType,

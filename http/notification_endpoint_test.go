@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/notification/endpoint"
 	influxTesting "github.com/influxdata/influxdb/testing"
-	"github.com/julienschmidt/httprouter"
+	"github.com/influxdata/httprouter"
 	"go.uber.org/zap"
 )
 

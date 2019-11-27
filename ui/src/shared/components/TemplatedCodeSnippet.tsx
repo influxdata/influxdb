@@ -13,6 +13,7 @@ interface StringMap {
 export interface Props {
   template: string
   label: string
+  testID?: string
   values?: StringMap
   defaults?: StringMap
 }
@@ -42,9 +43,10 @@ class TemplatedCodeSnippet extends PureComponent<Props> {
   }
 
   render() {
-    const {label} = this.props
+    const {label, testID} = this.props
     const props = {
       label,
+      testID,
       copyText: this.transform(),
     }
 

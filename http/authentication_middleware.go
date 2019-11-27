@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	platcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/jsonweb"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 

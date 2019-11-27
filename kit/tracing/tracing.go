@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/influxdata/httprouter"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/opentracing/opentracing-go/log"
@@ -50,15 +51,26 @@ func InjectToHTTPRequest(span opentracing.Span, req *http.Request) {
 func ExtractFromHTTPRequest(req *http.Request, handlerName string) (opentracing.Span, *http.Request) {
 	spanContext, err := opentracing.GlobalTracer().Extract(opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(req.Header))
 	if err != nil {
-		span, ctx := opentracing.StartSpanFromContext(req.Context(), handlerName+":"+req.URL.Path)
-		LogError(span, err)
-		req = req.WithContext(ctx)
-		return span, req
+		span, ctx := opentracing.StartSpanFromContext(req.Context(), "request")
+		annotateSpan(span, handlerName, req)
+
+		_ = LogError(span, err)
+
+		return span, req.WithContext(ctx)
 	}
 
-	span := opentracing.StartSpan(handlerName+":"+req.URL.Path, opentracing.ChildOf(spanContext), ext.RPCServerOption(spanContext))
-	req = req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
-	return span, req
+	span := opentracing.StartSpan("request", opentracing.ChildOf(spanContext), ext.RPCServerOption(spanContext))
+	annotateSpan(span, handlerName, req)
+
+	return span, req.WithContext(opentracing.ContextWithSpan(req.Context(), span))
+}
+
+func annotateSpan(span opentracing.Span, handlerName string, req *http.Request) {
+	if route := httprouter.MatchedRouteFromContext(req.Context()); route != "" {
+		span.SetTag("route", route)
+	}
+	span.SetTag("handler", handlerName)
+	span.LogKV("path", req.URL.Path)
 }
 
 // StartSpanFromContext is an improved opentracing.StartSpanFromContext.

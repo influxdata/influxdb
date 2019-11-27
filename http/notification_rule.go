@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification/rule"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 

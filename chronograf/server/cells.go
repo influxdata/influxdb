@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/chronograf"
 	idgen "github.com/influxdata/influxdb/chronograf/id"
-	"github.com/julienschmidt/httprouter"
 )
 
 const (

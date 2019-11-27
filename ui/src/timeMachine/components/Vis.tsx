@@ -166,8 +166,8 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
-    startTime: timeRange ? getStartTime(timeRange) : Infinity,
-    endTime: timeRange ? getEndTime(timeRange) : null,
+    startTime: getStartTime(timeRange),
+    endTime: getEndTime(timeRange),
     statuses,
   }
 }
