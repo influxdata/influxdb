@@ -2217,6 +2217,12 @@ paths:
               type: string
             required: true
             description: The ID of the dashboard to update.
+          - in: query
+            name: include
+            required: false
+            schema:
+              type: string
+            description: Includes the cell view properties in the response if set to `properties`
       responses:
           '200':
             description: Get a single dashboard

@@ -210,6 +210,32 @@ type dashboardCellResponse struct {
 	Links map[string]string `json:"links"`
 }
 
+func (d *dashboardCellResponse) MarshalJSON() ([]byte, error) {
+	r := struct {
+		ID             platform.ID             `json:"id,omitempty"`
+		X              int32                   `json:"x"`
+		Y              int32                   `json:"y"`
+		W              int32                   `json:"w"`
+		H              int32                   `json:"h"`
+		Name           string                  `json:"name,omitempty"`
+		ViewProperties platform.ViewProperties `json:"properties,omitempty"`
+		Links          map[string]string       `json:"links"`
+	}{
+		ID:    d.Cell.ID,
+		X:     d.Cell.X,
+		Y:     d.Cell.Y,
+		W:     d.Cell.W,
+		H:     d.Cell.H,
+		Links: d.Links,
+	}
+
+	if d.Cell.View != nil {
+		r.ViewProperties = d.Cell.View.Properties
+		r.Name = d.Cell.View.Name
+	}
+	return json.Marshal(r)
+}
+
 func (c dashboardCellResponse) toPlatform() *platform.Cell {
 	return &c.Cell
 }
@@ -472,10 +498,26 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	showViewProperties := r.URL.Query().Get("include") == "properties"
+
 	dashboard, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
+	}
+
+	if showViewProperties {
+		for _, c := range dashboard.Cells {
+			view, err := h.DashboardService.GetDashboardCellView(ctx, dashboard.ID, c.ID)
+			if err != nil {
+				h.HandleHTTPError(ctx, err, w)
+				return
+			}
+
+			if view != nil {
+				c.View = view
+			}
+		}
 	}
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: dashboard.ID})

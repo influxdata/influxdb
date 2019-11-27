@@ -14,11 +14,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/influxdata/httprouter"
 	"github.com/yudai/gojsondiff"
 	"github.com/yudai/gojsondiff/formatter"
 )
@@ -375,20 +375,275 @@ func TestService_handleGetDashboard(t *testing.T) {
 		DashboardService platform.DashboardService
 	}
 	type args struct {
-		id string
+		id          string
+		queryString map[string]string
 	}
 	type wants struct {
 		statusCode  int
 		contentType string
 		body        string
 	}
-
 	tests := []struct {
 		name   string
 		fields fields
 		args   args
 		wants  wants
 	}{
+		{
+			name: "get a dashboard by id with view properties",
+			fields: fields{
+				&mock.DashboardService{
+					GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.View, error) {
+						return &platform.View{ViewContents: platform.ViewContents{Name: "the cell name"}, Properties: platform.XYViewProperties{Type: platform.ViewPropertyTypeXY}}, nil
+					},
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							return &platform.Dashboard{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID: 1,
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
+								Name: "hello",
+								Cells: []*platform.Cell{
+									{
+										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
+									},
+								},
+							}, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+				queryString: map[string]string{
+					"include": "properties",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "id": "020f755c3c082000",
+  "orgID": "0000000000000001",
+  "name": "hello",
+  "description": "",
+  "labels": [],
+  "meta": {
+    "createdAt": "2012-11-10T23:00:00Z",
+    "updatedAt": "2012-11-11T00:00:00Z"
+  },
+  "cells": [
+    {
+      "id": "da7aba5e5d81e550",
+      "x": 1,
+      "y": 2,
+      "w": 3,
+	  "h": 4,
+	  "name": "the cell name",
+	  "properties": {
+		"axes": null,
+		"colors": null,
+		"geom": "",
+		"legend": {},
+		"note": "",
+		"queries": null,
+		"shadeBelow": false,
+		"showNoteWhenEmpty": false,
+		"type": "xy",
+		"xColumn": "",
+		"yColumn": ""
+	  },
+	  "links": {
+		"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+		"view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+	  }
+    }
+  ],
+  "links": {
+	     "self": "/api/v2/dashboards/020f755c3c082000",
+	     "org": "/api/v2/orgs/0000000000000001",
+	     "members": "/api/v2/dashboards/020f755c3c082000/members",
+	     "owners": "/api/v2/dashboards/020f755c3c082000/owners",
+	     "logs": "/api/v2/dashboards/020f755c3c082000/logs",
+	     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
+	     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
+	}
+}
+`,
+			},
+		},
+		{
+			name: "get a dashboard by id with view properties, but a cell doesnt exist",
+			fields: fields{
+				&mock.DashboardService{
+					GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.View, error) {
+						return nil, nil
+					},
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							return &platform.Dashboard{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID: 1,
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
+								Name: "hello",
+								Cells: []*platform.Cell{
+									{
+										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
+									},
+								},
+							}, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id: "020f755c3c082000",
+				queryString: map[string]string{
+					"include": "properties",
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "id": "020f755c3c082000",
+  "orgID": "0000000000000001",
+  "name": "hello",
+  "description": "",
+  "labels": [],
+  "meta": {
+    "createdAt": "2012-11-10T23:00:00Z",
+    "updatedAt": "2012-11-11T00:00:00Z"
+  },
+  "cells": [
+    {
+      "id": "da7aba5e5d81e550",
+      "x": 1,
+      "y": 2,
+      "w": 3,
+	  "h": 4,
+	  "links": {
+		"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+		"view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+	  }
+    }
+  ],
+  "links": {
+	     "self": "/api/v2/dashboards/020f755c3c082000",
+	     "org": "/api/v2/orgs/0000000000000001",
+	     "members": "/api/v2/dashboards/020f755c3c082000/members",
+	     "owners": "/api/v2/dashboards/020f755c3c082000/owners",
+	     "logs": "/api/v2/dashboards/020f755c3c082000/logs",
+	     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
+	     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
+	}
+}
+`,
+			},
+		},
+		{
+			name: "get a dashboard by id doesnt return cell properties if they exist by default",
+			fields: fields{
+				&mock.DashboardService{
+					GetDashboardCellViewF: func(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*platform.View, error) {
+						return &platform.View{ViewContents: platform.ViewContents{Name: "the cell name"}, Properties: platform.XYViewProperties{Type: platform.ViewPropertyTypeXY}}, nil
+					},
+					FindDashboardByIDF: func(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
+						if id == platformtesting.MustIDBase16("020f755c3c082000") {
+							return &platform.Dashboard{
+								ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+								OrganizationID: 1,
+								Meta: platform.DashboardMeta{
+									CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+									UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+								},
+								Name: "hello",
+								Cells: []*platform.Cell{
+									{
+										ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
+										CellProperty: platform.CellProperty{
+											X: 1,
+											Y: 2,
+											W: 3,
+											H: 4,
+										},
+									},
+								},
+							}, nil
+						}
+
+						return nil, fmt.Errorf("not found")
+					},
+				},
+			},
+			args: args{
+				id:          "020f755c3c082000",
+				queryString: map[string]string{},
+			},
+			wants: wants{
+				statusCode:  http.StatusOK,
+				contentType: "application/json; charset=utf-8",
+				body: `
+{
+  "id": "020f755c3c082000",
+  "orgID": "0000000000000001",
+  "name": "hello",
+  "description": "",
+  "labels": [],
+  "meta": {
+    "createdAt": "2012-11-10T23:00:00Z",
+    "updatedAt": "2012-11-11T00:00:00Z"
+  },
+  "cells": [
+    {
+      "id": "da7aba5e5d81e550",
+      "x": 1,
+      "y": 2,
+      "w": 3,
+	  "h": 4,
+	  "links": {
+		"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+		"view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+	  }
+    }
+  ],
+  "links": {
+	     "self": "/api/v2/dashboards/020f755c3c082000",
+	     "org": "/api/v2/orgs/0000000000000001",
+	     "members": "/api/v2/dashboards/020f755c3c082000/members",
+	     "owners": "/api/v2/dashboards/020f755c3c082000/owners",
+	     "logs": "/api/v2/dashboards/020f755c3c082000/logs",
+	     "cells": "/api/v2/dashboards/020f755c3c082000/cells",
+	     "labels": "/api/v2/dashboards/020f755c3c082000/labels"
+	}
+}
+`,
+			},
+		},
 		{
 			name: "get a dashboard by id",
 			fields: fields{
@@ -428,40 +683,40 @@ func TestService_handleGetDashboard(t *testing.T) {
 				statusCode:  http.StatusOK,
 				contentType: "application/json; charset=utf-8",
 				body: `
-{
-  "id": "020f755c3c082000",
-  "orgID": "0000000000000001",
-  "name": "hello",
-  "description": "",
-  "labels": [],
-  "meta": {
-    "createdAt": "2012-11-10T23:00:00Z",
-    "updatedAt": "2012-11-11T00:00:00Z"
-  },
-  "cells": [
-    {
-      "id": "da7aba5e5d81e550",
-      "x": 1,
-      "y": 2,
-      "w": 3,
-      "h": 4,
-      "links": {
-        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
-        "view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
-      }
-    }
-  ],
-  "links": {
-    "self": "/api/v2/dashboards/020f755c3c082000",
-    "org": "/api/v2/orgs/0000000000000001",
-    "members": "/api/v2/dashboards/020f755c3c082000/members",
-    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
-    "logs": "/api/v2/dashboards/020f755c3c082000/logs",
-    "cells": "/api/v2/dashboards/020f755c3c082000/cells",
-    "labels": "/api/v2/dashboards/020f755c3c082000/labels"
-  }
-}
-`,
+		{
+		  "id": "020f755c3c082000",
+		  "orgID": "0000000000000001",
+		  "name": "hello",
+		  "description": "",
+		  "labels": [],
+		  "meta": {
+		    "createdAt": "2012-11-10T23:00:00Z",
+		    "updatedAt": "2012-11-11T00:00:00Z"
+		  },
+		  "cells": [
+		    {
+			  "id": "da7aba5e5d81e550",
+		      "x": 1,
+		      "y": 2,
+		      "w": 3,
+		      "h": 4,
+		      "links": {
+		        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+		        "view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+		      }
+		    }
+		  ],
+		  "links": {
+		    "self": "/api/v2/dashboards/020f755c3c082000",
+		    "org": "/api/v2/orgs/0000000000000001",
+		    "members": "/api/v2/dashboards/020f755c3c082000/members",
+		    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
+		    "logs": "/api/v2/dashboards/020f755c3c082000/logs",
+		    "cells": "/api/v2/dashboards/020f755c3c082000/cells",
+		    "labels": "/api/v2/dashboards/020f755c3c082000/labels"
+		  }
+		}
+		`,
 			},
 		},
 		{
@@ -494,6 +749,14 @@ func TestService_handleGetDashboard(t *testing.T) {
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
+			urlQuery := r.URL.Query()
+
+			for k, v := range tt.args.queryString {
+				urlQuery.Add(k, v)
+			}
+
+			r.URL.RawQuery = urlQuery.Encode()
+
 			r = r.WithContext(context.WithValue(
 				context.Background(),
 				httprouter.ParamsKey,
@@ -511,7 +774,6 @@ func TestService_handleGetDashboard(t *testing.T) {
 			res := w.Result()
 			content := res.Header.Get("Content-Type")
 			body, _ := ioutil.ReadAll(res.Body)
-
 			if res.StatusCode != tt.wants.statusCode {
 				t.Errorf("%q. handleGetDashboard() = %v, want %v", tt.name, res.StatusCode, tt.wants.statusCode)
 			}
