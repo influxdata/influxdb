@@ -76,6 +76,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         labels={this.labels}
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
+            {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
             Bucket: {bucket}
           </span>,
           <>

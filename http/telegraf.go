@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
-	"github.com/influxdata/influxdb/telegraf/plugins"
 	"go.uber.org/zap"
 )
 
@@ -133,25 +132,15 @@ type telegrafLinks struct {
 // TODO: remove this hack and make labels and links return.
 // see: https://github.com/influxdata/influxdb/issues/12457
 func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
-	// telegrafPluginEncode is the helper struct for json encoding.
-	type telegrafPluginEncode struct {
-		// Name of the telegraf plugin, exp "docker"
-		Name    string         `json:"name"`
-		Type    plugins.Type   `json:"type"`
-		Comment string         `json:"comment"`
-		Config  plugins.Config `json:"config"`
-	}
-
 	// telegrafConfigEncode is the helper struct for json encoding.
 	type telegrafConfigEncode struct {
-		ID          platform.ID                  `json:"id"`
-		OrgID       platform.ID                  `json:"orgID,omitempty"`
-		Name        string                       `json:"name"`
-		Description string                       `json:"description"`
-		Agent       platform.TelegrafAgentConfig `json:"agent"`
-		Plugins     []telegrafPluginEncode       `json:"plugins"`
-		Labels      []platform.Label             `json:"labels"`
-		Links       telegrafLinks                `json:"links"`
+		ID          platform.ID               `json:"id"`
+		OrgID       platform.ID               `json:"orgID,omitempty"`
+		Name        string                    `json:"name"`
+		Description string                    `json:"description"`
+		Plugins     []platform.TelegrafPlugin `json:"plugins"`
+		Labels      []platform.Label          `json:"labels"`
+		Links       telegrafLinks             `json:"links"`
 	}
 
 	tce := new(telegrafConfigEncode)
@@ -160,19 +149,13 @@ func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
 		OrgID:       r.OrgID,
 		Name:        r.Name,
 		Description: r.Description,
-		Agent:       r.Agent,
-		Plugins:     make([]telegrafPluginEncode, len(r.Plugins)),
+		Plugins:     make([]platform.TelegrafPlugin, len(r.Plugins)),
 		Labels:      r.Labels,
 		Links:       r.Links,
 	}
 
 	for k, p := range r.Plugins {
-		tce.Plugins[k] = telegrafPluginEncode{
-			Name:    p.Config.PluginName(),
-			Type:    p.Config.Type(),
-			Comment: p.Comment,
-			Config:  p.Config,
-		}
+		tce.Plugins[k] = p
 	}
 
 	return json.Marshal(tce)
@@ -323,6 +306,7 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
 	tc := new(platform.TelegrafConfig)
 	err := json.NewDecoder(r.Body).Decode(tc)
+	// fmt.Printf("GOT THING: %+v\n", tc)
 	return tc, err
 }
 
