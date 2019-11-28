@@ -485,7 +485,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]*influxdb.SecretField, influxdb.ID, error) {
 						return nil, 0, nil
 					},
 				},
@@ -525,7 +525,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]*influxdb.SecretField, influxdb.ID, error) {
 						return nil, 0, nil
 					},
 				},

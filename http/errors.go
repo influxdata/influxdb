@@ -148,6 +148,7 @@ func InactiveUserError(ctx context.Context, h platform.HTTPErrorHandler, w http.
 var statusCodePlatformError = map[string]int{
 	platform.EInternal:            http.StatusInternalServerError,
 	platform.EInvalid:             http.StatusBadRequest,
+	platform.EBadRequest:          http.StatusBadRequest,
 	platform.EUnprocessableEntity: http.StatusUnprocessableEntity,
 	platform.EEmptyValue:          http.StatusBadRequest,
 	platform.EConflict:            http.StatusUnprocessableEntity,

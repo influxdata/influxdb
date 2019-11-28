@@ -17,7 +17,8 @@ type NotificationEndpointService struct {
 	CreateNotificationEndpointF   func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error
 	UpdateNotificationEndpointF   func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error)
 	PatchNotificationEndpointF    func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error)
-	DeleteNotificationEndpointF   func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error)
+	DeleteNotificationEndpointF   func(ctx context.Context, id influxdb.ID) ([]*influxdb.SecretField, influxdb.ID, error)
+	TestNotificationEndpointF     func(ctx context.Context, nr influxdb.NotificationEndpoint, id influxdb.ID) error
 }
 
 // FindNotificationEndpointByID returns a single telegraf config by ID.
@@ -49,6 +50,11 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 }
 
 // DeleteNotificationEndpoint removes a notification rule by ID.
-func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]*influxdb.SecretField, influxdb.ID, error) {
 	return s.DeleteNotificationEndpointF(ctx, id)
+}
+
+// TestNotificationEndpoint tests the an endpoints connection to a 3rd party service i.e. Slack, PagerDuty etc.
+func (s *NotificationEndpointService) TestNotificationEndpoint(ctx context.Context, ne influxdb.NotificationEndpoint, id influxdb.ID) error {
+	return s.TestNotificationEndpointF(ctx, ne, id)
 }

@@ -1,5 +1,6 @@
 // Libraries
 import {Dispatch} from 'react'
+import {ThunkAction} from 'redux-thunk'
 
 // Actions
 import {
@@ -79,7 +80,9 @@ export const getEndpoints = () => async (
   }
 }
 
-export const createEndpoint = (endpoint: NotificationEndpoint) => async (
+export const createEndpoint = (
+  endpoint: NotificationEndpoint
+): ThunkAction<Promise<void>, GetState> => async (
   dispatch: Dispatch<
     Action | NotificationAction | ReturnType<typeof checkEndpointsLimits>
   >
@@ -101,10 +104,47 @@ export const createEndpoint = (endpoint: NotificationEndpoint) => async (
     type: 'SET_ENDPOINT',
     endpoint: resp.data,
   })
+
+  dispatch(notify(copy.createEndpointSuccess()))
   dispatch(checkEndpointsLimits())
 }
 
-export const updateEndpoint = (endpoint: NotificationEndpoint) => async (
+export const testExistingEndpoint = async (endpoint: NotificationEndpoint) => {
+  const labels = endpoint.labels || []
+
+  const data = {
+    ...endpoint,
+    labels: labels.map(l => l.id),
+  } as PostNotificationEndpoint
+
+  const resp = await api.putNotificationEndpointsTest({
+    endpointID: endpoint.id,
+    data,
+  })
+
+  if (resp.status !== 204) {
+    throw new Error('Test unsuccessful. Check endpoint parameters')
+  }
+}
+
+export const testEndpoint = (endpoint: NotificationEndpoint) => async () => {
+  const labels = endpoint.labels || []
+
+  const data = {
+    ...endpoint,
+    labels: labels.map(l => l.id),
+  } as PostNotificationEndpoint
+
+  const resp = await api.postNotificationEndpointsTest({data})
+
+  if (resp.status !== 204) {
+    throw new Error(resp.data.message)
+  }
+}
+
+export const updateEndpoint = (
+  endpoint: NotificationEndpoint
+): ThunkAction<Promise<void>, GetState> => async (
   dispatch: Dispatch<Action | NotificationAction>
 ) => {
   const resp = await api.putNotificationEndpoint({

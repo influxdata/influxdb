@@ -131,6 +131,36 @@ func (s *Service) createNotificationEndpoint(ctx context.Context, tx Tx, edp inf
 	return s.createUserResourceMapping(ctx, tx, urm)
 }
 
+// TestNotificationEndpoint tests a notification endpoint
+func (s *Service) TestNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+	return s.kv.Update(ctx, func(tx Tx) error {
+		return s.testNotificationEndpoint(ctx, tx, edp, userID)
+	})
+}
+
+func (s *Service) testNotificationEndpoint(ctx context.Context, tx Tx, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+	if edp.GetOrgID().Valid() {
+		span, ctx := tracing.StartSpanFromContext(ctx)
+		defer span.Finish()
+
+		if _, err := s.findOrganizationByID(ctx, tx, edp.GetOrgID()); err != nil {
+			return err
+		}
+	}
+
+	// notification endpoint name unique
+	if _, err := s.findNotificationEndpointByName(ctx, tx, edp.GetOrgID(), edp.GetName()); err == nil {
+		if err == nil {
+			return &influxdb.Error{
+				Code: influxdb.EConflict,
+				Msg:  fmt.Sprintf("notification endpoint with name %s already exists", edp.GetName()),
+			}
+		}
+	}
+
+	return nil
+}
+
 func (s *Service) findNotificationEndpointByName(ctx context.Context, tx Tx, orgID influxdb.ID, n string) (influxdb.NotificationEndpoint, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -502,7 +532,7 @@ func filterNotificationEndpointsFn(idMap map[influxdb.ID]bool, filter influxdb.N
 }
 
 // DeleteNotificationEndpoint removes a notification endpoint by ID.
-func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
+func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) (flds []*influxdb.SecretField, orgID influxdb.ID, err error) {
 	err = s.kv.Update(ctx, func(tx Tx) error {
 		flds, orgID, err = s.deleteNotificationEndpoint(ctx, tx, id)
 		return err
@@ -510,7 +540,7 @@ func (s *Service) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID
 	return flds, orgID, err
 }
 
-func (s *Service) deleteNotificationEndpoint(ctx context.Context, tx Tx, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
+func (s *Service) deleteNotificationEndpoint(ctx context.Context, tx Tx, id influxdb.ID) (flds []*influxdb.SecretField, orgID influxdb.ID, err error) {
 	edp, encID, bucket, err := s.findNotificationEndpointByID(ctx, tx, id)
 	if err != nil {
 		return nil, 0, err

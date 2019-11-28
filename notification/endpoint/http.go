@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification/flux"
 )
 
 var _ influxdb.NotificationEndpoint = &HTTP{}
@@ -33,6 +35,170 @@ type HTTP struct {
 	ContentTemplate string               `json:"contentTemplate"`
 }
 
+// GenerateTestFlux generates the flux that tests PagerDuty endpoints
+func (h *HTTP) GenerateTestFlux() (string, error) {
+	f, err := h.GenerateTestFluxAST()
+	if err != nil {
+		return "", err
+	}
+
+	// used string interpolation here because flux's ast.Format returns malformed
+	// multi-line strings 😿
+	data := `#group,false,false,false,false,true,false,false
+#datatype,string,long,string,string,string,string,long
+#default,_result,,,,,,
+,result,table,name,id,_measurement,retentionPolicy,retentionPeriod
+,,0,telegraf,id1,m1,,0`
+
+	return fmt.Sprintf(ast.Format(f), data), nil
+}
+
+// GenerateTestFluxAST generates a flux AST for the slack notification rule.
+func (h *HTTP) GenerateTestFluxAST() (*ast.Package, error) {
+	f := flux.File(
+		h.Name,
+		h.imports(),
+		h.generateTestFluxASTBody(),
+	)
+
+	return &ast.Package{Package: "main", Files: []*ast.File{f}}, nil
+}
+
+func (h *HTTP) imports() []*ast.ImportDeclaration {
+	packages := []string{
+		"influxdata/influxdb/monitor",
+		"http",
+		"csv",
+		"json",
+	}
+
+	if h.AuthMethod == "bearer" || h.AuthMethod == "basic" {
+		packages = append(packages, "influxdata/influxdb/secrets")
+	}
+
+	return flux.Imports(packages...)
+}
+
+func (h *HTTP) generateTestFluxASTBody() []ast.Statement {
+	var statements []ast.Statement
+	statements = append(statements, h.generateFluxASTHeaders())
+	statements = append(statements, h.generateFluxASTEndpoint())
+	statements = append(statements, h.generateFluxASTCSVTable()...)
+	statements = append(statements, h.generateFluxASTNotifyPipe())
+
+	return statements
+}
+
+func (h *HTTP) generateFluxASTHeaders() ast.Statement {
+	props := []*ast.Property{
+		flux.Dictionary("Content-Type", flux.String("application/json")),
+	}
+
+	switch h.AuthMethod {
+	case "bearer":
+		token := flux.Call(
+			flux.Member("secrets", "get"),
+			flux.Object(
+				flux.Property("key", flux.String(h.Token.Key)),
+			),
+		)
+		bearer := flux.Add(
+			flux.String("Bearer "),
+			token,
+		)
+		auth := flux.Dictionary("Authorization", bearer)
+		props = append(props, auth)
+	case "basic":
+		username := flux.Call(
+			flux.Member("secrets", "get"),
+			flux.Object(
+				flux.Property("key", flux.String(h.Username.Key)),
+			),
+		)
+		passwd := flux.Call(
+			flux.Member("secrets", "get"),
+			flux.Object(
+				flux.Property("key", flux.String(h.Password.Key)),
+			),
+		)
+
+		basic := flux.Call(
+			flux.Member("http", "basicAuth"),
+			flux.Object(
+				flux.Property("u", username),
+				flux.Property("p", passwd),
+			),
+		)
+
+		auth := flux.Dictionary("Authorization", basic)
+		props = append(props, auth)
+	}
+
+	return flux.DefineVariable("headers", flux.Object(props...))
+}
+
+func (h *HTTP) generateFluxASTEndpoint() ast.Statement {
+	props := []*ast.Property{}
+	props = append(props, flux.Property("url", flux.String(h.URL)))
+	call := flux.Call(flux.Member("http", "endpoint"), flux.Object(props...))
+
+	return flux.DefineVariable("http_endpoint", call)
+}
+
+func (h *HTTP) generateFluxASTCSVTable() []ast.Statement {
+	props := []*ast.Property{}
+	// used string interpolation here because flux's ast.Format returns
+	// malformed multi-line strings 😿
+	data := flux.DefineVariable("data", flux.String("%s"))
+	props = append(props, flux.Property("csv", flux.Identifier("data")))
+	call := flux.Call(flux.Member("csv", "from"), flux.Object(props...))
+	table := flux.DefineVariable("csvTable", call)
+
+	return []ast.Statement{
+		data,
+		table,
+	}
+}
+
+func (s *HTTP) generateFluxASTNotifyPipe() ast.Statement {
+	endpointBody := flux.Call(
+		flux.Member("json", "encode"),
+		flux.Object(flux.Property("v", flux.Identifier("body"))),
+	)
+	headers := flux.Property("headers", flux.Identifier("headers"))
+
+	endpointProps := []*ast.Property{
+		headers,
+		flux.Property("data", endpointBody),
+	}
+	endpointFn := flux.FuncBlock(flux.FunctionParams("r"),
+		s.generateBody(),
+		&ast.ReturnStatement{
+			Argument: flux.Object(endpointProps...),
+		},
+	)
+
+	props := []*ast.Property{}
+	props = append(props, flux.Property("endpoint",
+		flux.Call(flux.Identifier("http_endpoint"), flux.Object(flux.Property("mapFn", endpointFn)))))
+
+	call := flux.Call(flux.Member("monitor", "notify"), flux.Object(props...))
+
+	return flux.ExpressionStatement(flux.Pipe(flux.Identifier("csvTable"), call))
+}
+
+func (s *HTTP) generateBody() ast.Statement {
+	// {r with "_version": 1}
+	props := []*ast.Property{
+		flux.Property(
+			"_version", flux.Integer(1),
+		),
+	}
+
+	body := flux.ObjectWith("r", props...)
+	return flux.DefineVariable("body", body)
+}
+
 // BackfillSecretKeys fill back fill the secret field key during the unmarshalling
 // if value of that secret field is not nil.
 func (s *HTTP) BackfillSecretKeys() {
@@ -48,16 +214,16 @@ func (s *HTTP) BackfillSecretKeys() {
 }
 
 // SecretFields return available secret fields.
-func (s HTTP) SecretFields() []influxdb.SecretField {
-	arr := make([]influxdb.SecretField, 0)
+func (s *HTTP) SecretFields() []*influxdb.SecretField {
+	arr := make([]*influxdb.SecretField, 0)
 	if s.Token.Key != "" {
-		arr = append(arr, s.Token)
+		arr = append(arr, &s.Token)
 	}
 	if s.Username.Key != "" {
-		arr = append(arr, s.Username)
+		arr = append(arr, &s.Username)
 	}
 	if s.Password.Key != "" {
-		arr = append(arr, s.Password)
+		arr = append(arr, &s.Password)
 	}
 	return arr
 }
