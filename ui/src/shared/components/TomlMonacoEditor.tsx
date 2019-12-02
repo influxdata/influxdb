@@ -52,7 +52,7 @@ const TomlEditorMonaco: FC<Props> = props => {
   const {script, onChangeScript} = props
 
   return (
-    <div className="time-machine-editor" data-testid="toml-editor">
+    <div className="time-machine-editor--embedded" data-testid="toml-editor">
       <MonacoEditor
         language="toml"
         theme={THEME_NAME}
