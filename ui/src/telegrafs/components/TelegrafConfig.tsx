@@ -1,21 +1,26 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, Suspense} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Controlled as ReactCodeMirror} from 'react-codemirror2'
+const Editor = React.lazy(() => import('react-codemirror2').then(module => ({ default: module.Controlled })))
+const MonacoEditor = React.lazy(() =>
+  import('src/shared/components/TomlMonacoEditor')
+)
 import {RemoteDataState} from '@influxdata/clockface'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {getTelegrafConfigToml} from 'src/telegrafs/actions'
+import {getTelegrafConfigToml, editTelegraf} from 'src/telegrafs/actions'
 
 // Types
 import {AppState} from 'src/types'
 
 interface DispatchProps {
   getTelegrafConfigToml: typeof getTelegrafConfigToml
+  editTelegraf: typeof editTelegraf
 }
 
 interface StateProps {
@@ -24,6 +29,8 @@ interface StateProps {
 }
 
 type Props = StateProps & DispatchProps
+
+const spinner = <div className="time-machine-editor--loading" />
 
 @ErrorHandling
 export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
@@ -41,6 +48,9 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
 
   private onBeforeChange = () => {}
   private onTouchStart = () => {}
+  private onChange = (text) => {
+    console.log('whoa', text)
+  }
 
   private get overlayBody(): JSX.Element {
     const options = {
@@ -54,14 +64,32 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
     }
     const {telegrafConfig} = this.props
     return (
-      <ReactCodeMirror
-        autoFocus={true}
-        autoCursor={true}
-        value={telegrafConfig}
-        options={options}
-        onBeforeChange={this.onBeforeChange}
-        onTouchStart={this.onTouchStart}
-      />
+      <Suspense fallback={spinner}>
+        <FeatureFlag name="monacoEditor">
+          <MonacoEditor
+            script={telegrafConfig}
+            onChangeScript={this.onChange}
+          />
+        </FeatureFlag>
+        <FeatureFlag name="monacoEditor" equals={false}>
+          <Editor
+            autoFocus={true}
+            autoCursor={true}
+            value={telegrafConfig}
+            options={{
+              tabIndex: 1,
+              mode: 'toml',
+              readonly: true,
+              lineNumbers: true,
+              autoRefresh: true,
+              theme: 'time-machine',
+              completeSingle: false,
+            }}
+            onBeforeChange={this.onBeforeChange}
+            onTouchStart={this.onTouchStart}
+          />
+        </FeatureFlag>
+      </Suspense>
     )
   }
 }
@@ -73,6 +101,7 @@ const mstp = (state: AppState): StateProps => ({
 
 const mdtp: DispatchProps = {
   getTelegrafConfigToml: getTelegrafConfigToml,
+  editTelegraf: editTelegraf,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
