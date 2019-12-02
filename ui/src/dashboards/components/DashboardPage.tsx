@@ -35,6 +35,9 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+
 // Types
 import {
   Links,
@@ -55,9 +58,6 @@ import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
 import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {LimitStatus} from 'src/cloud/actions/limits'
-
-// Selector
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 interface StateProps {
   limitedResources: string[]
@@ -298,7 +298,6 @@ class DashboardPage extends Component<Props> {
 const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const {
     links,
-    ranges,
     dashboards,
     views: {views},
     userSettings: {showVariablesControls},
@@ -306,7 +305,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     cloud: {limits},
   } = state
 
-  const timeRange = getTimeRangeByDashboardID(ranges, dashboardID)
+  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
 
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
 

@@ -27,6 +27,15 @@ export const pastThirtyDaysTimeRange: SelectedTimeRange = {
   type: 'selected',
 }
 
+export const pastFifteenMinTimeRange: SelectedTimeRange = {
+  seconds: 900,
+  lower: 'now() - 15m',
+  upper: null,
+  label: 'Past 15m',
+  duration: '15m',
+  type: 'selected',
+}
+
 export const CUSTOM_TIME_RANGE: CustomTimeRange = {
   lower: '',
   upper: null,
@@ -50,14 +59,7 @@ export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
     duration: '5m',
     type: 'selected',
   },
-  {
-    seconds: 900,
-    lower: 'now() - 15m',
-    upper: null,
-    label: 'Past 15m',
-    duration: '15m',
-    type: 'selected',
-  },
+  pastFifteenMinTimeRange,
   pastHourTimeRange,
   {
     seconds: 21600,

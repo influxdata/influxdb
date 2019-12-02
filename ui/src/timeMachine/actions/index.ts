@@ -1,17 +1,24 @@
 // Libraries
 import {get, isEmpty} from 'lodash'
+import {Dispatch} from 'redux-thunk'
 
 // Actions
 import {loadBuckets} from 'src/timeMachine/actions/queryBuilder'
 import {saveAndExecuteQueries} from 'src/timeMachine/actions/queries'
-
-// Types
-import {Dispatch} from 'redux-thunk'
-import {TimeMachineState} from 'src/timeMachine/reducers'
 import {
   reloadTagSelectors,
   Action as QueryBuilderAction,
 } from 'src/timeMachine/actions/queryBuilder'
+import {setValues} from 'src/variables/actions'
+
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+
+// Utils
+import {createView} from 'src/shared/utils/view'
+
+// Types
+import {TimeMachineState} from 'src/timeMachine/reducers'
 import {Action as QueryResultsAction} from 'src/timeMachine/actions/queries'
 import {
   TimeRange,
@@ -30,13 +37,10 @@ import {
   CheckStatusLevel,
   XYViewProperties,
   GetState,
+  RemoteDataState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
 import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
-import {RemoteDataState} from '@influxdata/clockface'
-import {createView} from 'src/shared/utils/view'
-import {setValues} from 'src/variables/actions'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 export type Action =
   | QueryBuilderAction
@@ -677,8 +681,7 @@ export const loadNewVEO = (dashboardID: string) => (
   getState: GetState
 ): void => {
   const state = getState()
-
-  const timeRange = getTimeRangeByDashboardID(state.ranges, dashboardID)
+  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
 
   dispatch(
     setActiveTimeMachine('veo', {

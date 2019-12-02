@@ -14,6 +14,10 @@ import {getVariableAssignments} from 'src/variables/selectors'
 import {getDashboardValuesStatus} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
 
+// Selectors
+import {getEndTime, getStartTime} from 'src/timeMachine/selectors/index'
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
+
 // Types
 import {
   TimeRange,
@@ -25,10 +29,6 @@ import {
   QueryViewProperties,
   Check,
 } from 'src/types'
-
-// Selectors
-import {getEndTime, getStartTime} from 'src/timeMachine/selectors/index'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 interface OwnProps {
   timeRange: TimeRange
@@ -164,12 +164,11 @@ class RefreshingView extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
-  const {ranges} = state
   const variableAssignments = getVariableAssignments(
     state,
     ownProps.dashboardID
   )
-  const timeRange = getTimeRangeByDashboardID(ranges, ownProps.dashboardID)
+  const timeRange = getTimeRangeByDashboardID(state, ownProps.dashboardID)
 
   const valuesStatus = getDashboardValuesStatus(state, ownProps.dashboardID)
 

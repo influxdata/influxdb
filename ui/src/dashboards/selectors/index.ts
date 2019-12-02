@@ -4,12 +4,10 @@ import {
   AppState,
   View,
   Check,
-  TimeRange,
   ViewType,
   RemoteDataState,
+  TimeRange,
 } from 'src/types'
-
-import {Range} from 'src/dashboards/reducers/ranges'
 
 import {
   getValuesForVariable,
@@ -17,6 +15,7 @@ import {
   getArgumentValuesForVariable,
 } from 'src/variables/selectors'
 
+// Constants
 import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 export const getView = (state: AppState, id: string): View => {
@@ -28,10 +27,9 @@ export const getViewStatus = (state: AppState, id: string): RemoteDataState => {
 }
 
 export const getTimeRangeByDashboardID = (
-  ranges: Range[] = [],
-  dashboardID: string = ''
-): TimeRange =>
-  ranges.find(r => r.dashboardID === dashboardID) || DEFAULT_TIME_RANGE
+  state: AppState,
+  dashboardID: string
+): TimeRange => state.ranges[dashboardID] || DEFAULT_TIME_RANGE
 
 export const getCheckForView = (
   state: AppState,
