@@ -294,7 +294,11 @@ export const timeMachineReducer = (
         draftState.queryResults.errorMessage = errorMessage
 
         if (files) {
-          if (state.view.properties.type === 'table') {
+          if (
+            state.view &&
+            state.view.properties &&
+            state.view.properties.type === 'table'
+          ) {
             const properties = getTableProperties(state.view, files)
             draftState.view = {...state.view, properties}
           }
