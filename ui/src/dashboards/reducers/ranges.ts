@@ -26,7 +26,7 @@ export default (state: RangeState = initialState, action: Action) => {
       return ranges
     }
 
-    case ActionTypes.SetDashboardTimeV1: {
+    case ActionTypes.SetDashboardTimeRange: {
       const {dashboardID, timeRange} = action.payload
       const newTimeRange = [{dashboardID, ...timeRange}]
       const ranges = _.unionBy(newTimeRange, state, 'dashboardID')

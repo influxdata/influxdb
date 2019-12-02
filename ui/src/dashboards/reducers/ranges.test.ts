@@ -1,6 +1,6 @@
 import reducer from 'src/dashboards/reducers/ranges'
 
-import {setDashTimeV1, deleteTimeRange} from 'src/dashboards/actions/ranges'
+import {setDashboardTimeRange, deleteTimeRange} from 'src/dashboards/actions/ranges'
 
 const emptyState = undefined
 const dashboardID = '1'
@@ -27,14 +27,17 @@ describe('Dashboards.Reducers.Ranges', () => {
         lower: '2017-10-05 12:04',
       }
 
-      const actual = reducer(state, setDashTimeV1(dashboardID, {upper, lower}))
+      const actual = reducer(state, setDashboardTimeRange(dashboardID, {upper, lower}))
       const expected = [{dashboardID, upper, lower}]
 
       expect(actual).toEqual(expected)
     })
 
     it('can set a new time range if none exists', () => {
-      const actual = reducer(emptyState, setDashTimeV1(dashboardID, timeRange))
+      const actual = reducer(
+        emptyState,
+        setDashboardTimeRange(dashboardID, timeRange)
+      )
 
       const expected = [
         {dashboardID, upper: timeRange.upper, lower: timeRange.lower},

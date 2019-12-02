@@ -19,14 +19,13 @@ import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 import {TimeRange} from 'src/types'
 
 export type Action =
-  | SetDashTimeV1Action
+  | SetDashboardTimeRangeAction
   | DeleteTimeRangeAction
   | RetainRangesDashTimeV1Action
 
 export enum ActionTypes {
   DeleteTimeRange = 'DELETE_TIME_RANGE',
-  SetTimeRange = 'SET_DASHBOARD_TIME_RANGE',
-  SetDashboardTimeV1 = 'SET_DASHBOARD_TIME_V1',
+  SetDashboardTimeRange = 'SET_DASHBOARD_TIME_RANGE',
   RetainRangesDashboardTimeV1 = 'RETAIN_RANGES_DASHBOARD_TIME_V1',
 }
 
@@ -37,8 +36,8 @@ export interface DeleteTimeRangeAction {
   }
 }
 
-interface SetDashTimeV1Action {
-  type: ActionTypes.SetDashboardTimeV1
+interface SetDashboardTimeRangeAction {
+  type: ActionTypes.SetDashboardTimeRange
   payload: {
     dashboardID: string
     timeRange: TimeRange
@@ -59,11 +58,11 @@ export const deleteTimeRange = (
   payload: {dashboardID},
 })
 
-export const setDashTimeV1 = (
+export const setDashboardTimeRange = (
   dashboardID: string,
   timeRange: TimeRange
-): SetDashTimeV1Action => ({
-  type: ActionTypes.SetDashboardTimeV1,
+): SetDashboardTimeRangeAction => ({
+  type: ActionTypes.SetDashboardTimeRange,
   payload: {dashboardID, timeRange},
 })
 
@@ -117,9 +116,8 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
     if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
       dispatch(notify(copy.invalidTimeRangeValueInURLQuery()))
     }
-  }
 
-  dispatch(setDashTimeV1(dashboardID, validatedTimeRange))
+  dispatch(setDashboardTimeRange(dashboardID, validatedTimeRange))
 
   const updatedQueryParams = {
     lower: validatedTimeRange.lower,
