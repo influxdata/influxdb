@@ -13,14 +13,13 @@ import {RemoteDataState} from '@influxdata/clockface'
 import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
-import {getTelegrafConfigToml, editTelegraf} from 'src/telegrafs/actions'
+import {getTelegrafConfigToml} from 'src/telegrafs/actions'
 
 // Types
 import {AppState} from 'src/types'
 
 interface DispatchProps {
   getTelegrafConfigToml: typeof getTelegrafConfigToml
-  editTelegraf: typeof editTelegraf
 }
 
 interface StateProps {
@@ -48,9 +47,6 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
 
   private onBeforeChange = () => {}
   private onTouchStart = () => {}
-  private onChange = (text) => {
-    console.log('whoa', text)
-  }
 
   private get overlayBody(): JSX.Element {
     const options = {
@@ -68,7 +64,6 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
         <FeatureFlag name="monacoEditor">
           <MonacoEditor
             script={telegrafConfig}
-            onChangeScript={this.onChange}
           />
         </FeatureFlag>
         <FeatureFlag name="monacoEditor" equals={false}>
@@ -101,7 +96,6 @@ const mstp = (state: AppState): StateProps => ({
 
 const mdtp: DispatchProps = {
   getTelegrafConfigToml: getTelegrafConfigToml,
-  editTelegraf: editTelegraf,
 }
 
 export default connect<StateProps, DispatchProps, {}>(
