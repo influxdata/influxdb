@@ -74,6 +74,7 @@ const list = () => {
           if (typeof curr[0] === 'boolean') {
             return prev
           }
+
           prev[curr[0]] = curr[1]
           return prev
         }, {})
