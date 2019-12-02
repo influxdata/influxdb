@@ -91,6 +91,6 @@ export const timeRangeToDuration = (timeRange: TimeRange): string => {
   if (timeRange.upper || !timeRange.lower || !timeRange.lower.includes('now')) {
     throw new Error('cannot convert time range to duration')
   }
-
+  // remove spaces and remove "now()-"
   return timeRange.lower.replace(/\s/g, '').replace(/now\(\)-/, '')
 }
