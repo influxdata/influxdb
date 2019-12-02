@@ -55,9 +55,7 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
     return (
       <Suspense fallback={spinner}>
         <FeatureFlag name="monacoEditor">
-          <MonacoEditor
-            script={telegrafConfig}
-          />
+          <MonacoEditor script={telegrafConfig} />
         </FeatureFlag>
         <FeatureFlag name="monacoEditor" equals={false}>
           <Editor
