@@ -64,7 +64,6 @@ interface StateProps {
   limitStatus: LimitStatus
   org: Organization
   links: Links
-  zoomedTimeRange: TimeRange
   timeRange: TimeRange
   dashboard: Dashboard
   autoRefresh: AutoRefresh
@@ -80,7 +79,6 @@ interface DispatchProps {
   updateCells: typeof dashboardActions.updateCellsAsync
   updateQueryParams: typeof rangesActions.updateQueryParams
   setDashTimeV1: typeof rangesActions.setDashTimeV1
-  setZoomedTimeRange: typeof rangesActions.setZoomedTimeRange
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
@@ -143,7 +141,6 @@ class DashboardPage extends Component<Props> {
     const {
       org,
       timeRange,
-      zoomedTimeRange,
       dashboard,
       autoRefresh,
       limitStatus,
@@ -168,7 +165,6 @@ class DashboardPage extends Component<Props> {
               onAddCell={this.handleAddCell}
               onAddNote={this.showNoteOverlay}
               onManualRefresh={onManualRefresh}
-              zoomedTimeRange={zoomedTimeRange}
               onRenameDashboard={this.handleRenameDashboard}
               activeDashboard={dashboard ? dashboard.name : ''}
               handleChooseAutoRefresh={this.handleChooseAutoRefresh}
@@ -323,7 +319,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     org,
     links,
     views,
-    zoomedTimeRange: {lower: null, upper: null},
     timeRange,
     dashboard,
     autoRefresh,
@@ -344,7 +339,6 @@ const mdtp: DispatchProps = {
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
   setDashTimeV1: rangesActions.setDashTimeV1,
   updateQueryParams: rangesActions.updateQueryParams,
-  setZoomedTimeRange: rangesActions.setZoomedTimeRange,
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onToggleShowVariablesControls: toggleShowVariablesControls,

@@ -20,7 +20,6 @@ import {TimeRange} from 'src/types'
 
 export type Action =
   | SetDashTimeV1Action
-  | SetZoomedTimeRangeAction
   | DeleteTimeRangeAction
   | RetainRangesDashTimeV1Action
 
@@ -29,7 +28,6 @@ export enum ActionTypes {
   SetTimeRange = 'SET_DASHBOARD_TIME_RANGE',
   SetDashboardTimeV1 = 'SET_DASHBOARD_TIME_V1',
   RetainRangesDashboardTimeV1 = 'RETAIN_RANGES_DASHBOARD_TIME_V1',
-  SetZoomedTimeRange = 'SET_DASHBOARD_ZOOMED_TIME_RANGE',
 }
 
 export interface DeleteTimeRangeAction {
@@ -47,13 +45,6 @@ interface SetDashTimeV1Action {
   }
 }
 
-interface SetZoomedTimeRangeAction {
-  type: ActionTypes.SetZoomedTimeRange
-  payload: {
-    zoomedTimeRange: TimeRange
-  }
-}
-
 interface RetainRangesDashTimeV1Action {
   type: ActionTypes.RetainRangesDashboardTimeV1
   payload: {
@@ -66,13 +57,6 @@ export const deleteTimeRange = (
 ): DeleteTimeRangeAction => ({
   type: ActionTypes.DeleteTimeRange,
   payload: {dashboardID},
-})
-
-export const setZoomedTimeRange = (
-  zoomedTimeRange: TimeRange
-): SetZoomedTimeRangeAction => ({
-  type: ActionTypes.SetZoomedTimeRange,
-  payload: {zoomedTimeRange},
 })
 
 export const setDashTimeV1 = (
@@ -122,10 +106,6 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
     upper: queryParams.upper,
   }
 
-  const zoomedTimeRangeFromQueries = {
-    lower: queryParams.zoomedLower,
-    upper: queryParams.zoomedUpper,
-  }
 
   let validatedTimeRange = validTimeRange(timeRangeFromQueries)
 
@@ -141,24 +121,9 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
 
   dispatch(setDashTimeV1(dashboardID, validatedTimeRange))
 
-  const validatedZoomedTimeRange = validAbsoluteTimeRange(
-    zoomedTimeRangeFromQueries
-  )
-
-  if (
-    !validatedZoomedTimeRange.lower &&
-    (queryParams.zoomedLower || queryParams.zoomedUpper)
-  ) {
-    dispatch(notify(copy.invalidZoomedTimeRangeValueInURLQuery()))
-  }
-
-  dispatch(setZoomedTimeRange(validatedZoomedTimeRange))
-
   const updatedQueryParams = {
     lower: validatedTimeRange.lower,
     upper: validatedTimeRange.upper,
-    zoomedLower: validatedZoomedTimeRange.lower,
-    zoomedUpper: validatedZoomedTimeRange.upper,
   }
 
   dispatch(updateQueryParams(updatedQueryParams))
