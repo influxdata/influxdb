@@ -69,6 +69,7 @@ const TomlEditorMonaco: FC<Props> = props => {
           },
           overviewRulerBorder: false,
           automaticLayout: true,
+          readOnly: true,
         }}
         editorWillMount={editorWillMount}
         editorDidMount={editorDidMount}
