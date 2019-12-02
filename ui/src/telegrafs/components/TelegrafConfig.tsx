@@ -5,7 +5,9 @@ import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-const Editor = React.lazy(() => import('react-codemirror2').then(module => ({ default: module.Controlled })))
+const Editor = React.lazy(() =>
+  import('react-codemirror2').then(module => ({default: module.Controlled}))
+)
 const MonacoEditor = React.lazy(() =>
   import('src/shared/components/TomlMonacoEditor')
 )
@@ -62,9 +64,7 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
     return (
       <Suspense fallback={spinner}>
         <FeatureFlag name="monacoEditor">
-          <MonacoEditor
-            script={telegrafConfig}
-          />
+          <MonacoEditor script={telegrafConfig} />
         </FeatureFlag>
         <FeatureFlag name="monacoEditor" equals={false}>
           <Editor

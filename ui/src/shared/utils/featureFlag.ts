@@ -67,19 +67,23 @@ export const FeatureFlag: FunctionComponent<{
 const list = () => {
   console.log('Currently Available Feature Flags')
   if (CLOUD) {
-    console.table(Object.keys(CLOUD_FLAGS)
-    .map((k) => ([k, isFlagEnabled(k)]))
-    .reduce((prev, curr) => {
-      prev[curr[0]] = curr[1]
-      return prev
-    }, {}))
+    console.table(
+      Object.keys(CLOUD_FLAGS)
+        .map(k => [k, isFlagEnabled(k)])
+        .reduce((prev, curr) => {
+          prev[curr[0]] = curr[1]
+          return prev
+        }, {})
+    )
   } else {
-    console.table(Object.keys(CLOUD_FLAGS)
-    .map((k) => ([k, isFlagEnabled(k)]))
-    .reduce((prev, curr) => {
-      prev[curr[0]] = curr[1]
-      return prev
-    }, {}))
+    console.table(
+      Object.keys(CLOUD_FLAGS)
+        .map(k => [k, isFlagEnabled(k)])
+        .reduce((prev, curr) => {
+          prev[curr[0]] = curr[1]
+          return prev
+        }, {})
+    )
   }
 }
 /* eslint-enable no-console */
