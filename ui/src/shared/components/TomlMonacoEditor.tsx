@@ -65,12 +65,10 @@ const TomlEditorMonaco: FC<Props> = props => {
           lineNumbersMinChars: 4,
           lineDecorationsWidth: 0,
           minimap: {
-            enabled: false,
             renderCharacters: false,
           },
           overviewRulerBorder: false,
           automaticLayout: true,
-          readOnly: true,
         }}
         editorWillMount={editorWillMount}
         editorDidMount={editorDidMount}
