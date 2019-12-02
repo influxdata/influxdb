@@ -51,15 +51,6 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
   private onTouchStart = () => {}
 
   private get overlayBody(): JSX.Element {
-    const options = {
-      tabIndex: 1,
-      mode: 'toml',
-      readonly: true,
-      lineNumbers: true,
-      autoRefresh: true,
-      theme: 'time-machine',
-      completeSingle: false,
-    }
     const {telegrafConfig} = this.props
     return (
       <Suspense fallback={spinner}>
@@ -72,13 +63,11 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
             autoCursor={true}
             value={telegrafConfig}
             options={{
-              tabIndex: 1,
+              tabindex: 1,
               mode: 'toml',
-              readonly: true,
+              readOnly: true,
               lineNumbers: true,
-              autoRefresh: true,
               theme: 'time-machine',
-              completeSingle: false,
             }}
             onBeforeChange={this.onBeforeChange}
             onTouchStart={this.onTouchStart}

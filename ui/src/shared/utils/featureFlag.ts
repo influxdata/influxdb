@@ -71,15 +71,23 @@ const list = () => {
       Object.keys(CLOUD_FLAGS)
         .map(k => [k, isFlagEnabled(k)])
         .reduce((prev, curr) => {
+          if (typeof curr[0] === 'boolean') {
+            return prev
+          }
+
           prev[curr[0]] = curr[1]
           return prev
         }, {})
     )
   } else {
     console.table(
-      Object.keys(CLOUD_FLAGS)
+      Object.keys(OSS_FLAGS)
         .map(k => [k, isFlagEnabled(k)])
         .reduce((prev, curr) => {
+          if (typeof curr[0] === 'boolean') {
+            return prev
+          }
+
           prev[curr[0]] = curr[1]
           return prev
         }, {})

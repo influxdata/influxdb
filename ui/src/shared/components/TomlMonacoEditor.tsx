@@ -15,7 +15,7 @@ interface Position {
 
 interface Props {
   script: string
-  onChangeScript: OnChangeScript
+  onChangeScript?: OnChangeScript
   onSubmitScript?: () => void
   onCursorChange?: (position: Position) => void
 }
