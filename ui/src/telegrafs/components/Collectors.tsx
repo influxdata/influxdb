@@ -89,10 +89,14 @@ class Collectors extends PureComponent<Props, State> {
     }
   }
 
+  public static defaultProps = {
+    collectors: [],
+  }
+
   public render() {
     const {collectors} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
-
+    const hasTelegrafs = collectors && collectors.length > 0
     return (
       <>
         <NoBucketsWarning
@@ -123,8 +127,8 @@ class Collectors extends PureComponent<Props, State> {
           <Grid.Row>
             <Grid.Column
               widthXS={Columns.Twelve}
-              widthSM={collectors.length ? Columns.Eight : Columns.Twelve}
-              widthMD={collectors.length ? Columns.Ten : Columns.Twelve}
+              widthSM={hasTelegrafs ? Columns.Eight : Columns.Twelve}
+              widthMD={hasTelegrafs ? Columns.Ten : Columns.Twelve}
             >
               <GetResources resources={[ResourceType.Labels]}>
                 <FilterList<Telegraf>
@@ -152,7 +156,7 @@ class Collectors extends PureComponent<Props, State> {
                 </FilterList>
               </GetResources>
             </Grid.Column>
-            {collectors.length > 0 && (
+            {hasTelegrafs && (
               <Grid.Column
                 widthXS={Columns.Twelve}
                 widthSM={Columns.Four}
