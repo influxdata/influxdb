@@ -2222,6 +2222,7 @@ paths:
             required: false
             schema:
               type: string
+              enum: [properties]
             description: Includes the cell view properties in the response if set to `properties`
       responses:
           '200':
