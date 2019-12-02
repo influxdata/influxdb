@@ -23,19 +23,23 @@ import {INVALID_DATA_COPY} from 'src/shared/copy/cell'
 import {RemoteDataState, ScatterViewProperties, TimeZone} from 'src/types'
 
 interface Props {
-  table: Table
+  children: (config: Config) => JSX.Element
+  endTime: number
   fluxGroupKeyUnion?: string[]
   loading: RemoteDataState
-  viewProperties: ScatterViewProperties
-  children: (config: Config) => JSX.Element
+  startTime: number
+  table: Table
   timeZone: TimeZone
+  viewProperties: ScatterViewProperties
 }
 
 const ScatterPlot: FunctionComponent<Props> = ({
-  table,
-  loading,
   children,
+  endTime,
+  loading,
+  startTime,
   timeZone,
+  table,
   viewProperties: {
     xAxisLabel,
     yAxisLabel,
@@ -62,7 +66,9 @@ const ScatterPlot: FunctionComponent<Props> = ({
 
   const [xDomain, onSetXDomain, onResetXDomain] = useVisDomainSettings(
     storedXDomain,
-    table.getColumn(xColumn, 'number')
+    table.getColumn(xColumn, 'number'),
+    startTime,
+    endTime
   )
 
   const [yDomain, onSetYDomain, onResetYDomain] = useVisDomainSettings(

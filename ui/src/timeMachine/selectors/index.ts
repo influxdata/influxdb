@@ -1,5 +1,6 @@
 // Libraries
 import memoizeOne from 'memoize-one'
+import moment from 'moment'
 import {get, flatMap} from 'lodash'
 import {fromFlux, Table} from '@influxdata/giraffe'
 
@@ -248,4 +249,64 @@ export const getSaveableView = (state: AppState): QueryView & {id?: string} => {
   }
 
   return saveableView
+}
+
+export const getStartTime = (timeRange: TimeRange): number => {
+  if (!timeRange) {
+    return Infinity
+  }
+  const {lower} = timeRange
+  switch (lower) {
+    case 'now() - 30d':
+      return moment()
+        .subtract(30, 'days')
+        .valueOf()
+    case 'now() - 7d':
+      return moment()
+        .subtract(7, 'days')
+        .valueOf()
+    case 'now() - 2d':
+      return moment()
+        .subtract(2, 'days')
+        .valueOf()
+    case 'now() - 24h':
+      return moment()
+        .subtract(24, 'hours')
+        .valueOf()
+    case 'now() - 12h':
+      return moment()
+        .subtract(12, 'hours')
+        .valueOf()
+    case 'now() - 6h':
+      return moment()
+        .subtract(6, 'hours')
+        .valueOf()
+    case 'now() - 1h':
+      return moment()
+        .subtract(1, 'hours')
+        .valueOf()
+    case 'now() - 15m':
+      return moment()
+        .subtract(15, 'minutes')
+        .valueOf()
+    case 'now() - 5m':
+      return moment()
+        .subtract(5, 'minutes')
+        .valueOf()
+    default:
+      return moment(lower).valueOf()
+  }
+}
+
+export const getEndTime = (timeRange: TimeRange): number => {
+  if (!timeRange) {
+    return null
+  }
+  const {upper} = timeRange
+  switch (upper) {
+    case null:
+      return null
+    default:
+      return moment(upper).valueOf()
+  }
 }

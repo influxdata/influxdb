@@ -15,6 +15,9 @@ import {notify} from 'src/shared/actions/notifications'
 import {setActiveTimeMachine} from 'src/timeMachine/actions'
 import {executeQueries} from 'src/timeMachine/actions/queries'
 
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
+
 // Types
 import {RemoteDataState, QueryView, GetState} from 'src/types'
 import {Dispatch} from 'redux'
@@ -105,12 +108,14 @@ export const getViewForTimeMachine = (
     const state = getState()
     let view = getViewFromState(state, cellID) as QueryView
 
+    const timeRange = getTimeRangeByDashboardID(state.ranges, dashboardID)
+
     if (!view) {
       dispatch(setView(cellID, null, RemoteDataState.Loading))
       view = (await getViewAJAX(dashboardID, cellID)) as QueryView
     }
 
-    dispatch(setActiveTimeMachine(timeMachineID, {view}))
+    dispatch(setActiveTimeMachine(timeMachineID, {view, timeRange}))
     dispatch(executeQueries(dashboardID))
   } catch (e) {
     dispatch(notify(copy.getViewFailed(e.message)))

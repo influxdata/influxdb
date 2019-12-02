@@ -26,6 +26,10 @@ import {
   Check,
 } from 'src/types'
 
+// Selectors
+import {getEndTime, getStartTime} from 'src/timeMachine/selectors/index'
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
+
 interface OwnProps {
   timeRange: TimeRange
   manualRefresh: number
@@ -35,6 +39,8 @@ interface OwnProps {
 }
 
 interface StateProps {
+  endTime: number
+  startTime: number
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
   variablesStatus: RemoteDataState
@@ -67,7 +73,14 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {properties, manualRefresh, timeZone, check} = this.props
+    const {
+      check,
+      endTime,
+      properties,
+      manualRefresh,
+      startTime,
+      timeZone,
+    } = this.props
     const {submitToken} = this.state
 
     return (
@@ -97,12 +110,14 @@ class RefreshingView extends PureComponent<Props, State> {
               fallbackNote={this.fallbackNote}
             >
               <ViewSwitcher
-                giraffeResult={giraffeResult}
-                files={files}
                 check={check}
-                statuses={statuses}
+                endTime={endTime}
+                files={files}
+                giraffeResult={giraffeResult}
                 loading={loading}
                 properties={properties}
+                startTime={startTime}
+                statuses={statuses}
                 timeZone={timeZone}
               />
             </EmptyQueryView>
@@ -149,16 +164,24 @@ class RefreshingView extends PureComponent<Props, State> {
 }
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
+  const {ranges} = state
   const variableAssignments = getVariableAssignments(
     state,
     ownProps.dashboardID
   )
+  const timeRange = getTimeRangeByDashboardID(ranges, ownProps.dashboardID)
 
   const valuesStatus = getDashboardValuesStatus(state, ownProps.dashboardID)
 
   const timeZone = state.app.persisted.timeZone
 
-  return {timeZone, variableAssignments, variablesStatus: valuesStatus}
+  return {
+    endTime: getEndTime(timeRange),
+    startTime: getStartTime(timeRange),
+    timeZone,
+    variableAssignments,
+    variablesStatus: valuesStatus,
+  }
 }
 
 export default connect<StateProps, {}, OwnProps>(mstp)(RefreshingView)
