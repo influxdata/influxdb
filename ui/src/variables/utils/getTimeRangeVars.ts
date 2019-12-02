@@ -13,18 +13,8 @@ export const getTimeRangeVars = (
 ): VariableAssignment[] => {
   let startValue: VariableAssignment
 
-  if (isDate(timeRange.lower)) {
-    startValue = {
-      type: 'VariableAssignment',
-      id: {
-        type: 'Identifier',
-        name: TIME_RANGE_START,
-      },
-      init: {
-        type: 'DateTimeLiteral',
-        value: new Date(timeRange.lower).toISOString(),
-      },
-    }
+  if (isDateParseable(timeRange.lower)) {
+    startValue = generateDateTimeLiteral(TIME_RANGE_START, timeRange.lower)
   } else {
     startValue = {
       type: 'VariableAssignment',
@@ -45,18 +35,8 @@ export const getTimeRangeVars = (
 
   let stopValue: VariableAssignment
 
-  if (timeRange.upper && isDate(timeRange.upper)) {
-    stopValue = {
-      type: 'VariableAssignment',
-      id: {
-        type: 'Identifier',
-        name: TIME_RANGE_STOP,
-      },
-      init: {
-        type: 'DateTimeLiteral',
-        value: new Date(timeRange.upper).toISOString(),
-      },
-    }
+  if (timeRange.upper && isDateParseable(timeRange.upper)) {
+    stopValue = generateDateTimeLiteral(TIME_RANGE_STOP, timeRange.upper)
   } else {
     stopValue = {
       type: 'VariableAssignment',
@@ -73,9 +53,25 @@ export const getTimeRangeVars = (
       },
     }
   }
-
   return [startValue, stopValue]
 }
 
-const isDate = (ambiguousString: string): boolean =>
+const generateDateTimeLiteral = (
+  name: string,
+  value: string
+): VariableAssignment => {
+  return {
+    type: 'VariableAssignment',
+    id: {
+      type: 'Identifier',
+      name,
+    },
+    init: {
+      type: 'DateTimeLiteral',
+      value: new Date(value).toISOString(),
+    },
+  }
+}
+
+export const isDateParseable = (ambiguousString: string): boolean =>
   !isNaN(Date.parse(ambiguousString))
