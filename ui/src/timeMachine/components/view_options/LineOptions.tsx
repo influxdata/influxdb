@@ -1,9 +1,10 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
+import {capitalize} from 'lodash'
 
 // Components
-import {Grid} from '@influxdata/clockface'
+import {Grid, Form, Dropdown} from '@influxdata/clockface'
 import Geom from 'src/timeMachine/components/view_options/Geom'
 import YAxisTitle from 'src/timeMachine/components/view_options/YAxisTitle'
 import AxisAffixes from 'src/timeMachine/components/view_options/AxisAffixes'
@@ -25,6 +26,7 @@ import {
   setXColumn,
   setYColumn,
   setShadeBelow,
+  setLinePosition,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -38,6 +40,7 @@ import {
 // Types
 import {ViewType} from 'src/types'
 import {AppState, XYGeom, Axes, Color} from 'src/types'
+import {LinePosition} from '@influxdata/giraffe'
 
 interface OwnProps {
   type: ViewType
@@ -45,6 +48,7 @@ interface OwnProps {
   geom?: XYGeom
   colors: Color[]
   shadeBelow?: boolean
+  position: LinePosition
 }
 
 interface StateProps {
@@ -64,6 +68,7 @@ interface DispatchProps {
   onSetXColumn: typeof setXColumn
   onSetYColumn: typeof setYColumn
   onSetGeom: typeof setGeom
+  onSetPosition: typeof setLinePosition
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -77,6 +82,8 @@ class LineOptions extends PureComponent<Props> {
       colors,
       geom,
       shadeBelow,
+      position,
+      onSetPosition,
       onUpdateColors,
       onUpdateYAxisLabel,
       onUpdateAxisPrefix,
@@ -140,6 +147,35 @@ class LineOptions extends PureComponent<Props> {
             onSetDomain={this.handleSetYDomain}
             label="Y Axis Domain"
           />
+          <Form.Element label="Positioning">
+            <Dropdown
+              button={(active, onClick) => (
+                <Dropdown.Button active={active} onClick={onClick}>
+                  {capitalize(position)}
+                </Dropdown.Button>
+              )}
+              menu={onCollapse => (
+                <Dropdown.Menu onCollapse={onCollapse}>
+                  <Dropdown.Item
+                    id="overlaid"
+                    value="overlaid"
+                    onClick={onSetPosition}
+                    selected={position === 'overlaid'}
+                  >
+                    Overlaid
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    id="stacked"
+                    value="stacked"
+                    onClick={onSetPosition}
+                    selected={position === 'stacked'}
+                  >
+                    Stacked
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              )}
+            />
+          </Form.Element>
         </Grid.Column>
       </>
     )
@@ -181,6 +217,7 @@ const mdtp: DispatchProps = {
   onSetShadeBelow: setShadeBelow,
   onUpdateColors: setColors,
   onSetGeom: setGeom,
+  onSetPosition: setLinePosition,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

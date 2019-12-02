@@ -32,7 +32,7 @@ import {
   GetState,
 } from 'src/types'
 import {Color} from 'src/types/colors'
-import {HistogramPosition} from '@influxdata/giraffe'
+import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
 import {RemoteDataState} from '@influxdata/clockface'
 import {createView} from 'src/shared/utils/view'
 import {setValues} from 'src/variables/actions'
@@ -83,6 +83,7 @@ export type Action =
   | SetSymbolColumnsAction
   | SetBinCountAction
   | SetHistogramPositionAction
+  | ReturnType<typeof setLinePosition>
   | SetXDomainAction
   | SetYDomainAction
   | SetXAxisLabelAction
@@ -600,6 +601,11 @@ export const setHistogramPosition = (
   position: HistogramPosition
 ): SetHistogramPositionAction => ({
   type: 'SET_HISTOGRAM_POSITION',
+  payload: {position},
+})
+
+export const setLinePosition = (position: LinePosition) => ({
+  type: 'SET_LINE_POSITION' as 'SET_LINE_POSITION',
   payload: {position},
 })
 
