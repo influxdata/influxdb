@@ -646,6 +646,7 @@ type LinePlusSingleStatProperties struct {
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
+	Position          string           `json:"position"`
 }
 
 // XYViewProperties represents options for line, bar, step, or stacked view in Chronograf
@@ -661,6 +662,7 @@ type XYViewProperties struct {
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
+	Position          string           `json:"position"`
 }
 
 // CheckViewProperties represents options for a view representing a check

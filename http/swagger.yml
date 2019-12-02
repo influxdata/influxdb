@@ -7992,6 +7992,7 @@ components:
         - legend
         - note
         - showNoteWhenEmpty
+        - position
       properties:
         type:
           type: string
@@ -8023,6 +8024,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        position:
+          type: string
+          enum: [overlaid, stacked]
         geom:
           $ref: '#/components/schemas/XYGeom'
     XYGeom:
@@ -8042,6 +8046,7 @@ components:
         - prefix
         - suffix
         - decimalPlaces
+        - position
       properties:
         type:
           type: string
@@ -8073,6 +8078,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        position:
+          type: string
+          enum: [overlaid, stacked]
         prefix:
           type: string
         suffix:

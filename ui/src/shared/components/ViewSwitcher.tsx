@@ -101,6 +101,7 @@ const ViewSwitcher: FunctionComponent<Props> = ({
         colors: properties.colors.filter(c => c.type === 'scale'),
         type: 'xy' as 'xy',
         geom: 'line' as 'line',
+        position: 'overlaid' as 'overlaid',
       } as XYViewProperties
 
       const singleStatProperties = {
