@@ -78,7 +78,7 @@ interface DispatchProps {
   updateDashboard: typeof dashboardActions.updateDashboardAsync
   updateCells: typeof dashboardActions.updateCellsAsync
   updateQueryParams: typeof rangesActions.updateQueryParams
-  setDashTimeV1: typeof rangesActions.setDashTimeV1
+  setDashboardTimeRange: typeof rangesActions.setDashboardTimeRange
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
@@ -209,8 +209,8 @@ class DashboardPage extends Component<Props> {
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
-    const {dashboard, setDashTimeV1, updateQueryParams} = this.props
-    setDashTimeV1(dashboard.id, {...timeRange})
+    const {dashboard, setDashboardTimeRange, updateQueryParams} = this.props
+    setDashboardTimeRange(dashboard.id, {...timeRange})
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
@@ -337,7 +337,7 @@ const mdtp: DispatchProps = {
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
-  setDashTimeV1: rangesActions.setDashTimeV1,
+  setDashboardTimeRange: rangesActions.setDashboardTimeRange,
   updateQueryParams: rangesActions.updateQueryParams,
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
