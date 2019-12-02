@@ -2,27 +2,39 @@
 import React, {FunctionComponent} from 'react'
 
 // Components
-import {Panel, InfluxColors, ComponentSize} from '@influxdata/clockface'
+import {
+  Panel,
+  EmptyState,
+  InfluxColors,
+  ComponentSize,
+} from '@influxdata/clockface'
 import {TextAlignProperty} from 'csstype'
 
 interface Props {
+  hasNoTelegrafs?: boolean
   textAlign?: TextAlignProperty
-  titleSize?: ComponentSize
   bodySize?: ComponentSize
 }
 
 const TelegrafExplainer: FunctionComponent<Props> = ({
+  hasNoTelegrafs = false,
   textAlign = 'inherit',
-  titleSize,
   bodySize,
 }) => (
   <Panel
     backgroundColor={InfluxColors.Smoke}
-    style={{textAlign, marginTop: '32px'}}
+    style={{textAlign, marginTop: 32}}
   >
-    <Panel.Header>
-      <Panel.Title size={titleSize}>What is Telegraf?</Panel.Title>
-    </Panel.Header>
+    {hasNoTelegrafs && (
+      <EmptyState.Text style={{color: InfluxColors.Platinum, marginTop: 16}}>
+        What is Telegraf?
+      </EmptyState.Text>
+    )}
+    {!hasNoTelegrafs && (
+      <Panel.Header>
+        <Panel.Title>What is Telegraf?</Panel.Title>
+      </Panel.Header>
+    )}
     <Panel.Body size={bodySize}>
       Telegraf is an agent written in Go for collecting metrics and writing them
       into <strong>InfluxDB</strong> or other possible outputs.

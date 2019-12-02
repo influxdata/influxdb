@@ -247,9 +247,9 @@ class Collectors extends PureComponent<Props, State> {
           <br />
           <br />
           <TelegrafExplainer
+            hasNoTelegrafs={true}
             textAlign="center"
             bodySize={ComponentSize.Medium}
-            titleSize={ComponentSize.Large}
           />
         </EmptyState>
       )
