@@ -207,30 +207,24 @@ func newDashboardResponse(d *platform.Dashboard, labels []*platform.Label) dashb
 
 type dashboardCellResponse struct {
 	platform.Cell
-	Links map[string]string `json:"links"`
+	Properties platform.ViewProperties `json:"-"`
+	Name       string                  `json:"name,omitempty"`
+	Links      map[string]string       `json:"links"`
 }
 
 func (d *dashboardCellResponse) MarshalJSON() ([]byte, error) {
 	r := struct {
-		ID             platform.ID             `json:"id,omitempty"`
-		X              int32                   `json:"x"`
-		Y              int32                   `json:"y"`
-		W              int32                   `json:"w"`
-		H              int32                   `json:"h"`
-		Name           string                  `json:"name,omitempty"`
-		ViewProperties platform.ViewProperties `json:"properties,omitempty"`
-		Links          map[string]string       `json:"links"`
+		platform.Cell
+		Properties platform.ViewProperties `json:"properties,omitempty"`
+		Name       string                  `json:"name,omitempty"`
+		Links      map[string]string       `json:"links"`
 	}{
-		ID:    d.Cell.ID,
-		X:     d.Cell.X,
-		Y:     d.Cell.Y,
-		W:     d.Cell.W,
-		H:     d.Cell.H,
+		Cell:  d.Cell,
 		Links: d.Links,
 	}
 
 	if d.Cell.View != nil {
-		r.ViewProperties = d.Cell.View.Properties
+		r.Properties = d.Cell.View.Properties
 		r.Name = d.Cell.View.Name
 	}
 	return json.Marshal(r)
@@ -241,13 +235,19 @@ func (c dashboardCellResponse) toPlatform() *platform.Cell {
 }
 
 func newDashboardCellResponse(dashboardID platform.ID, c *platform.Cell) dashboardCellResponse {
-	return dashboardCellResponse{
+	resp := dashboardCellResponse{
 		Cell: *c,
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/dashboards/%s/cells/%s", dashboardID, c.ID),
 			"view": fmt.Sprintf("/api/v2/dashboards/%s/cells/%s/view", dashboardID, c.ID),
 		},
 	}
+
+	if c.View != nil {
+		resp.Properties = c.View.Properties
+		resp.Name = c.View.Name
+	}
+	return resp
 }
 
 type dashboardCellsResponse struct {
@@ -498,15 +498,13 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	showViewProperties := r.URL.Query().Get("include") == "properties"
-
 	dashboard, err := h.DashboardService.FindDashboardByID(ctx, req.DashboardID)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	if showViewProperties {
+	if r.URL.Query().Get("include") == "properties" {
 		for _, c := range dashboard.Cells {
 			view, err := h.DashboardService.GetDashboardCellView(ctx, dashboard.ID, c.ID)
 			if err != nil {
