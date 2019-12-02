@@ -192,6 +192,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		return nil, fmt.Errorf("failed to find task by id %s", id)
 	}
 
+	findTasksByStatus := func(tasks []*influxdb.Task, status string) []*influxdb.Task {
+		var foundTasks = []*influxdb.Task{}
+		for _, t := range tasks {
+			if t.Status == status {
+				foundTasks = append(foundTasks, t)
+			}
+		}
+		return foundTasks
+	}
+
 	// TODO: replace with ErrMissingOwner test
 	// // should not be able to create a task without a token
 	// noToken := influxdb.TaskCreate{
@@ -227,6 +237,16 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 	found["FindTasks with Organization filter"] = f
+
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Organization: cr.Org})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err = findTask(fs, tsk.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found["FindTasks with Organization name filter"] = f
 
 	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{User: &cr.UserID})
 	if err != nil {
@@ -266,6 +286,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 1),
 		OwnerID:        cr.UserID,
+		Status:         string(backend.TaskInactive),
 	}
 
 	if _, err := sys.TaskService.CreateTask(authorizedCtx, tc2); err != nil {
@@ -297,6 +318,29 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		if first.ID == task.ID {
 			t.Fatalf("after task included in task list")
 		}
+	}
+
+	// Check task status filter
+	active := string(backend.TaskActive)
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &active})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	activeTasks := findTasksByStatus(fs, string(backend.TaskActive))
+	if len(fs) != len(activeTasks) {
+		t.Fatalf("expected to find %d active tasks, found: %d", len(activeTasks), len(fs))
+	}
+
+	inactive := string(backend.TaskInactive)
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &inactive})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inactiveTasks := findTasksByStatus(fs, string(backend.TaskInactive))
+	if len(fs) != len(inactiveTasks) {
+		t.Fatalf("expected to find %d inactive tasks, found: %d", len(inactiveTasks), len(fs))
 	}
 
 	// Update task: script only.

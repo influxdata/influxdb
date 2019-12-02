@@ -511,6 +511,12 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 		req.filter.Limit = influxdb.TaskDefaultPageSize
 	}
 
+	if status := qp.Get("status"); status == "active" {
+		req.filter.Status = &status
+	} else if status := qp.Get("status"); status == "inactive" {
+		req.filter.Status = &status
+	}
+
 	// the task api can only create or lookup system tasks.
 	req.filter.Type = &influxdb.TaskSystemType
 
@@ -1472,6 +1478,10 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 	}
 	if filter.Limit != 0 {
 		val.Add("limit", strconv.Itoa(filter.Limit))
+	}
+
+	if filter.Status != nil {
+		val.Add("status", *filter.Status)
 	}
 
 	if filter.Type != nil {
