@@ -302,11 +302,12 @@ export const getEndTime = (timeRange: TimeRange): number => {
   if (!timeRange) {
     return null
   }
-  const {upper} = timeRange
-  switch (upper) {
-    case null:
-      return null
-    default:
-      return moment(upper).valueOf()
+  const {lower, upper} = timeRange
+  if (lower.includes('now()')) {
+    return moment().valueOf()
   }
+  if (upper) {
+    return moment(upper).valueOf()
+  }
+  return null
 }

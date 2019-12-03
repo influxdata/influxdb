@@ -104,16 +104,17 @@ describe('TimeMachine.Selectors.Index', () => {
   })
   it(`getEndTime should return ${newYears} when lower is ${date}`, () => {
     const timeRange = {
-      lower: 'now() - 30d',
+      lower: date,
       upper: date,
     }
     expect(getEndTime(timeRange)).toEqual(newYears)
   })
-  it(`getEndTime should return null when upper is null`, () => {
+  const now = moment().valueOf()
+  it(`getEndTime should return ${now} when upper is null and lower includes now()`, () => {
     const timeRange = {
       lower: 'now() - 30d',
       upper: null,
     }
-    expect(getEndTime(timeRange)).toEqual(null)
+    expect(getEndTime(timeRange)).toBeGreaterThanOrEqual(now)
   })
 })
