@@ -1,13 +1,14 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, Suspense} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
-import CollectorsStepSwitcher from 'src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'
+const TelegrafEditor = React.lazy(() => import('src/dataLoaders/components/TelegrafEditor'))
+const CollectorsStepSwitcher = React.lazy(() => import('src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'))
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -66,6 +67,8 @@ interface State {
 
 type Props = StateProps & DispatchProps
 
+const spinner = <div />
+
 @ErrorHandling
 class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
   constructor(props) {
@@ -87,7 +90,14 @@ class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
         title="Create a Telegraf Config"
         onDismiss={this.handleDismiss}
       >
-        <CollectorsStepSwitcher stepProps={this.stepProps} buckets={buckets} />
+        <Suspense fallback={spinner}>
+          <FeatureFlag name="telegrafEditor">
+            <TelegrafEditor />
+          </FeatureFlag>
+          <FeatureFlag name="telegrafEditor" equals={false}>
+            <CollectorsStepSwitcher stepProps={this.stepProps} buckets={buckets} />
+          </FeatureFlag>
+        </Suspense>
       </WizardOverlay>
     )
   }

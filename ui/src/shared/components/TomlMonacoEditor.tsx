@@ -15,6 +15,10 @@ interface Position {
 
 interface Props {
   script: string
+  className?: string
+  willMount?: (monaco) => void
+  readOnly?: boolean
+  testID?: string
   onChangeScript?: OnChangeScript
   onSubmitScript?: () => void
   onCursorChange?: (position: Position) => void
@@ -48,11 +52,17 @@ const TomlEditorMonaco: FC<Props> = props => {
         }
       }
     })
+
+    if (props.willMount) {
+      props.willMount(editor);
+    }
   }
-  const {script, onChangeScript} = props
+  const {script, onChangeScript, readOnly} = props
+  const testID = props.testID || 'toml-editor'
+  const className = props.className || 'time-machine-editor--embedded'
 
   return (
-    <div className="time-machine-editor--embedded" data-testid="toml-editor">
+    <div className={ className } data-testid={ testID }>
       <MonacoEditor
         language="toml"
         theme={THEME_NAME}
@@ -69,7 +79,7 @@ const TomlEditorMonaco: FC<Props> = props => {
           },
           overviewRulerBorder: false,
           automaticLayout: true,
-          readOnly: true,
+          readOnly: readOnly || false,
         }}
         editorWillMount={editorWillMount}
         editorDidMount={editorDidMount}
