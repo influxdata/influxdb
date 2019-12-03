@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb"
 	"gopkg.in/yaml.v3"
 )
@@ -136,6 +137,7 @@ type Pkg struct {
 	mBuckets    map[string]*bucket
 	mDashboards []*dashboard
 	mVariables  map[string]*variable
+	mTelegrafs  []*telegraf
 
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -165,6 +167,10 @@ func (p *Pkg) Summary() Summary {
 			LabelName:    m.LabelName,
 			LabelMapping: m.LabelMapping,
 		})
+	}
+
+	for _, t := range p.telegrafs() {
+		sum.TelegrafConfigs = append(sum.TelegrafConfigs, t.summarize())
 	}
 
 	for _, v := range p.variables() {
@@ -251,6 +257,12 @@ func (p *Pkg) dashboards() []*dashboard {
 	dashes := p.mDashboards[:]
 	sort.Slice(dashes, func(i, j int) bool { return dashes[i].name < dashes[j].name })
 	return dashes
+}
+
+func (p *Pkg) telegrafs() []*telegraf {
+	teles := p.mTelegrafs[:]
+	sort.Slice(teles, func(i, j int) bool { return teles[i].Name() < teles[j].Name() })
+	return teles
 }
 
 func (p *Pkg) variables() []*variable {
@@ -369,6 +381,7 @@ func (p *Pkg) graphResources() error {
 		p.graphVariables,
 		p.graphBuckets,
 		p.graphDashboards,
+		p.graphTelegrafs,
 	}
 
 	var pErr parseErr
@@ -515,6 +528,33 @@ func (p *Pkg) graphVariables() error {
 		p.mVariables[r.Name()] = newVar
 
 		return append(failures, newVar.valid()...)
+	})
+}
+
+func (p *Pkg) graphTelegrafs() error {
+	p.mTelegrafs = make([]*telegraf, 0)
+	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
+		tele := new(telegraf)
+		failures := p.parseNestedLabels(r, func(l *label) error {
+			tele.labels = append(tele.labels, l)
+			p.mLabels[l.Name()].setMapping(tele, false)
+			return nil
+		})
+		sort.Sort(tele.labels)
+
+		cfgBytes := []byte(r.stringShort(fieldTelegrafConfig))
+		if err := toml.Unmarshal(cfgBytes, &tele.config); err != nil {
+			failures = append(failures, validationErr{
+				Field: fieldTelegrafConfig,
+				Msg:   err.Error(),
+			})
+		}
+		tele.config.Name = r.Name()
+		tele.config.Description = r.stringShort(fieldDescription)
+
+		p.mTelegrafs = append(p.mTelegrafs, tele)
+
+		return failures
 	})
 }
 
