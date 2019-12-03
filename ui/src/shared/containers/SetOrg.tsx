@@ -53,9 +53,10 @@ const SetOrg: FunctionComponent<Props> = ({
     // else default to first org
     if (orgs && orgs.length > 0) {
       router.push(`/orgs/${orgs[0].id}`)
+    } else {
+      // if no orgs exist are returned, create one
+      router.push(`/orgs/new`)
     }
-    // if no orgs exist are returned, create one
-    router.push(`/orgs/new`)
   }, [orgID])
 
   return (
