@@ -1,6 +1,17 @@
 import {TimeRange} from 'src/types'
 import {Duration, DurationUnit} from 'src/types/ast'
 
+export const isDurationParseable = (lower: string): boolean => {
+  if (!lower || !lower.includes('now()')) {
+    return false
+  }
+  // remove spaces and remove "now()-"
+  lower.replace(/\s/g, '').replace(/now\(\)-/, '')
+
+  const r = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
+  return !!r.exec(lower)
+}
+
 export const parseDuration = (input: string): Duration[] => {
   const r = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
   const result = []

@@ -2,7 +2,7 @@ export {Query, Dialect} from 'src/client'
 
 export type CUSTOM_TIME_RANGE_LABEL = 'Custom Time Range'
 
-export type TimeRangeLower =
+export type SelectableTimeRangeLower =
   | 'now() - 5m'
   | 'now() - 15m'
   | 'now() - 1h'
@@ -13,14 +13,26 @@ export type TimeRangeLower =
   | 'now() - 7d'
   | 'now() - 30d'
 
-export interface SelectedTimeRange {
-  lower: TimeRangeLower
-  upper: string | null
+export type TimeRange =
+  | SelectableDurationTimeRange
+  | DurationTimeRange
+  | CustomTimeRange
+
+export interface SelectableDurationTimeRange {
+  lower: SelectableTimeRangeLower
+  upper: null
   seconds: number
   format?: string
   label: string
   duration: string
-  type: 'selected'
+  type: 'selectable-duration'
+}
+
+export interface DurationTimeRange {
+  lower: string
+  upper: null
+  label: string
+  type: 'duration'
 }
 
 export interface CustomTimeRange {
@@ -28,13 +40,4 @@ export interface CustomTimeRange {
   upper: string
   label: CUSTOM_TIME_RANGE_LABEL | string
   type: 'custom'
-}
-export type TimeRange = SelectedTimeRange | CustomTimeRange
-
-  lower: string
-  upper?: string | null
-  seconds?: number
-  format?: string
-  label?: string
-  duration?: string
 }

@@ -8,8 +8,8 @@ import _ from 'lodash'
 import {notify} from 'src/shared/actions/notifications'
 
 // Utils
-import {validTimeRange, validAbsoluteTimeRange} from 'src/dashboards/utils/time'
 import {stripPrefix} from 'src/utils/basepath'
+import {validateAndTypeRange} from 'src/dashboards/utils/time'
 
 // Constants
 import * as copy from 'src/shared/copy/notifications'
@@ -100,29 +100,27 @@ export const updateTimeRangeFromQueryParams = (dashboardID: string) => (
     ignoreQueryPrefix: true,
   })
 
-  const timeRangeFromQueries = {
+  const validatedTimeRangeFromQuery = validateAndTypeRange({
     lower: queryParams.lower,
     upper: queryParams.upper,
+  })
+
+  const validatedTimeRange =
+    validatedTimeRangeFromQuery || ranges[dashboardID] || DEFAULT_TIME_RANGE
+
+  if (
+    (queryParams.lower || queryParams.upper) &&
+    !validatedTimeRangeFromQuery
+  ) {
+    dispatch(notify(copy.invalidTimeRangeValueInURLQuery()))
   }
-
-
-  let validatedTimeRange = validTimeRange(timeRangeFromQueries)
-
-  if (!validatedTimeRange.lower) {
-    const dashboardTimeRange = ranges.find(r => r.dashboardID === dashboardID)
-
-    validatedTimeRange = dashboardTimeRange || DEFAULT_TIME_RANGE
-
-    if (timeRangeFromQueries.lower || timeRangeFromQueries.upper) {
-      dispatch(notify(copy.invalidTimeRangeValueInURLQuery()))
-    }
 
   dispatch(setDashboardTimeRange(dashboardID, validatedTimeRange))
 
-  const updatedQueryParams = {
-    lower: validatedTimeRange.lower,
-    upper: validatedTimeRange.upper,
-  }
-
-  dispatch(updateQueryParams(updatedQueryParams))
+  dispatch(
+    updateQueryParams({
+      lower: validatedTimeRange.lower,
+      upper: validatedTimeRange.upper,
+    })
+  )
 }

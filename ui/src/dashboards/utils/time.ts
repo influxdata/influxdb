@@ -1,7 +1,9 @@
-import {TimeRange} from 'src/types/queries'
-import moment from 'moment'
+import {CustomTimeRange, TimeRange, DurationTimeRange} from 'src/types/queries'
+import {isNull} from 'lodash'
 
-import {TIME_RANGES} from 'src/shared/constants/timeRanges'
+import {SELECTED_TIME_RANGES} from 'src/shared/constants/timeRanges'
+import {isDateParseable} from 'src/variables/utils/getTimeRangeVars'
+import {isDurationParseable} from 'src/shared/utils/duration'
 
 interface InputTimeRange {
   seconds?: number
@@ -34,37 +36,32 @@ export const millisecondTimeRange = ({
   return {since, until}
 }
 
-const nullTimeRange: TimeRange = {lower: null, upper: null}
-
-const validRelativeTimeRange = (timeRange: TimeRange): TimeRange => {
-  const validatedTimeRange = TIME_RANGES.find(t => t.lower === timeRange.lower)
-
-  if (validatedTimeRange) {
-    return validatedTimeRange
+export const validateAndTypeRange = (timeRange: {
+  lower: string
+  upper: string
+}): TimeRange => {
+  const {lower, upper} = timeRange
+  if (isDateParseable(lower) && isDateParseable(upper)) {
+    return {
+      ...timeRange,
+      type: 'custom',
+      label: 'Custom Time Range',
+    } as CustomTimeRange
   }
+  if (isDurationParseable(lower) && isNull(upper)) {
+    const selectedTimeRange = SELECTED_TIME_RANGES.find(r => {
+      r.lower === lower
+    })
 
-  return nullTimeRange
-}
-
-export const validAbsoluteTimeRange = (timeRange: TimeRange): TimeRange => {
-  if (timeRange.lower && timeRange.upper) {
-    if (moment(timeRange.lower).isValid()) {
-      if (
-        timeRange.upper === 'now()' ||
-        (moment(timeRange.upper).isValid() &&
-          moment(timeRange.lower).isBefore(moment(timeRange.upper)))
-      ) {
-        return timeRange
-      }
+    if (selectedTimeRange) {
+      return selectedTimeRange
     }
-  }
-  return nullTimeRange
-}
 
-export const validTimeRange = (timeRange: TimeRange): TimeRange => {
-  const validatedTimeRange = validRelativeTimeRange(timeRange)
-  if (validatedTimeRange.lower) {
-    return validatedTimeRange
+    return {
+      ...timeRange,
+      type: 'duration',
+      label: timeRange.lower,
+    } as DurationTimeRange
   }
-  return validAbsoluteTimeRange(timeRange)
+  return null
 }

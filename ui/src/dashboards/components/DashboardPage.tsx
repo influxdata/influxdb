@@ -210,7 +210,7 @@ class DashboardPage extends Component<Props> {
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
     const {dashboard, setDashboardTimeRange, updateQueryParams} = this.props
-    setDashboardTimeRange(dashboard.id, {...timeRange})
+    setDashboardTimeRange(dashboard.id, timeRange)
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,

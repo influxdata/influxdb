@@ -1,39 +1,38 @@
 import {
   TimeRange,
   CUSTOM_TIME_RANGE_LABEL,
-  TimeRangeLower,
-  SelectedTimeRange,
   CustomTimeRange,
-  CheckTimeRange,
+  SelectableDurationTimeRange,
+  DurationTimeRange,
 } from 'src/types'
 
 export const TIME_RANGE_FORMAT = 'YYYY-MM-DD HH:mm'
 
-export const pastHourTimeRange: SelectedTimeRange = {
+export const pastHourTimeRange: SelectableDurationTimeRange = {
   seconds: 3600,
-  lower: 'now() - 1h' as TimeRangeLower,
+  lower: 'now() - 1h',
   upper: null,
   label: 'Past 1h',
   duration: '1h',
-  type: 'selected',
+  type: 'selectable-duration',
 }
 
-export const pastThirtyDaysTimeRange: SelectedTimeRange = {
+export const pastThirtyDaysTimeRange: SelectableDurationTimeRange = {
   seconds: 2592000,
   lower: 'now() - 30d',
   upper: null,
   label: 'Past 30d',
   duration: '30d',
-  type: 'selected',
+  type: 'selectable-duration',
 }
 
-export const pastFifteenMinTimeRange: SelectedTimeRange = {
+export const pastFifteenMinTimeRange: SelectableDurationTimeRange = {
   seconds: 900,
   lower: 'now() - 15m',
   upper: null,
   label: 'Past 15m',
   duration: '15m',
-  type: 'selected',
+  type: 'selectable-duration',
 }
 
 export const CUSTOM_TIME_RANGE: CustomTimeRange = {
@@ -43,21 +42,21 @@ export const CUSTOM_TIME_RANGE: CustomTimeRange = {
   type: 'custom',
 }
 
-export const CHECK_TIME_RANGE: CheckTimeRange = {
+export const CHECK_TIME_RANGE: DurationTimeRange = {
   lower: '', // format: `now() - ${durationMultiple}`
   upper: null,
-  label: 'Auto-generated time range',
-  type: 'check',
+  label: 'Custom Duration',
+  type: 'duration',
 }
 
-export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
+export const SELECTED_TIME_RANGES: SelectableDurationTimeRange[] = [
   {
     seconds: 300,
     lower: 'now() - 5m',
     upper: null,
     label: 'Past 5m',
     duration: '5m',
-    type: 'selected',
+    type: 'selectable-duration',
   },
   pastFifteenMinTimeRange,
   pastHourTimeRange,
@@ -67,7 +66,7 @@ export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
     upper: null,
     label: 'Past 6h',
     duration: '6h',
-    type: 'selected',
+    type: 'selectable-duration',
   },
   {
     seconds: 43200,
@@ -75,7 +74,7 @@ export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
     upper: null,
     label: 'Past 12h',
     duration: '12h',
-    type: 'selected',
+    type: 'selectable-duration',
   },
   {
     seconds: 86400,
@@ -83,7 +82,7 @@ export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
     upper: null,
     label: 'Past 24h',
     duration: '24h',
-    type: 'selected',
+    type: 'selectable-duration',
   },
   {
     seconds: 172800,
@@ -91,7 +90,7 @@ export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
     upper: null,
     label: 'Past 2d',
     duration: '2d',
-    type: 'selected',
+    type: 'selectable-duration',
   },
   {
     seconds: 604800,
@@ -99,7 +98,7 @@ export const SELECTED_TIME_RANGES: SelectedTimeRange[] = [
     upper: null,
     label: 'Past 7d',
     duration: '7d',
-    type: 'selected',
+    type: 'selectable-duration',
   },
   pastThirtyDaysTimeRange,
 ]

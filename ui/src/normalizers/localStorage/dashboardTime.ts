@@ -1,12 +1,13 @@
 // Libraries
 import {isString, isNull, isObject} from 'lodash'
 
+// Utils
+import {validateAndTypeRange} from 'src/dashboards/utils/time'
+
 // Types
 import {RangeState} from 'src/dashboards/reducers/ranges'
-import {CUSTOM_TIME_RANGE_LABEL} from 'src/types'
 
 const isCorrectType = (bound: any) => isString(bound) || isNull(bound)
-const isKnownType = (type: any) => isString(type) && true // TODO check that type is one of the known ones.
 
 export const getLocalStateRangesAsArray = (ranges: any[]): RangeState => {
   const normalizedRanges = ranges.filter(r => {
@@ -44,16 +45,14 @@ export const getLocalStateRangesAsArray = (ranges: any[]): RangeState => {
 
   normalizedRanges.forEach(
     (range: {dashboardID: string; lower: string; upper: string}) => {
-      const {dashboardID, ...rest} = range
-      // TODO assign types here
-      rangesObject[dashboardID] = {
-        ...rest,
-        type: 'custom',
-        label: 'Custom Time Range' as CUSTOM_TIME_RANGE_LABEL,
+      const {dashboardID, lower, upper} = range
+
+      const timeRange = validateAndTypeRange({lower, upper})
+      if (timeRange) {
+        rangesObject[dashboardID] = timeRange
       }
     }
   )
-
   return rangesObject
 }
 
@@ -65,13 +64,13 @@ const normalizeRangesState = (ranges: RangeState): RangeState => {
       isObject(ranges[key]) &&
       ranges[key].hasOwnProperty('upper') &&
       ranges[key].hasOwnProperty('lower') &&
-      ranges[key].hasOwnProperty('type') &&
       isCorrectType(ranges[key].lower) &&
-      isCorrectType(ranges[key].upper) &&
-      isKnownType(ranges[key]['type'])
+      isCorrectType(ranges[key].upper)
     ) {
-      //TODO further validate based on type
-      normalized[key] = ranges[key]
+      const typedRange = validateAndTypeRange(ranges[key])
+      if (typedRange) {
+        normalized[key] = typedRange
+      }
     }
   }
 
