@@ -55,7 +55,7 @@ func run() error {
 	svc.Encoder = &prometheus.LineProtocol{}
 
 	handler := http.HandlerFunc(svc.Handler)
-	logger.Info("starting telemetryd server", zap.String("addr", addr))
+	logger.Info("Starting telemetryd server", zap.String("addr", addr))
 
 	srv := http.Server{
 		Addr:     addr,

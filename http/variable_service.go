@@ -158,7 +158,7 @@ func (h *VariableHandler) handleGetVariables(w http.ResponseWriter, r *http.Requ
 		}, w)
 		return
 	}
-	h.log.Debug("variables retrieved", zap.String("vars", fmt.Sprint(variables)))
+	h.log.Debug("Variables retrieved", zap.String("vars", fmt.Sprint(variables)))
 	err = encodeResponse(ctx, w, http.StatusOK, newGetVariablesResponse(ctx, variables, req.filter, req.opts, h.LabelService))
 	if err != nil {
 		logEncodingError(h.log, r, err)
@@ -203,7 +203,7 @@ func (h *VariableHandler) handleGetVariable(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("variable retrieved", zap.String("var", fmt.Sprint(variable)))
+	h.log.Debug("Variable retrieved", zap.String("var", fmt.Sprint(variable)))
 	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(variable, labels))
 	if err != nil {
 		logEncodingError(h.log, r, err)
@@ -253,7 +253,7 @@ func (h *VariableHandler) handlePostVariable(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("variable created", zap.String("var", fmt.Sprint(req.variable)))
+	h.log.Debug("Variable created", zap.String("var", fmt.Sprint(req.variable)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, newVariableResponse(req.variable, []*platform.Label{})); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -312,7 +312,7 @@ func (h *VariableHandler) handlePatchVariable(w http.ResponseWriter, r *http.Req
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("variable updated", zap.String("var", fmt.Sprint(variable)))
+	h.log.Debug("Variable updated", zap.String("var", fmt.Sprint(variable)))
 	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(variable, labels))
 	if err != nil {
 		logEncodingError(h.log, r, err)
@@ -379,7 +379,7 @@ func (h *VariableHandler) handlePutVariable(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("variable replaced", zap.String("var", fmt.Sprint(req.variable)))
+	h.log.Debug("Variable replaced", zap.String("var", fmt.Sprint(req.variable)))
 	err = encodeResponse(ctx, w, http.StatusOK, newVariableResponse(req.variable, labels))
 	if err != nil {
 		logEncodingError(h.log, r, err)
@@ -433,7 +433,7 @@ func (h *VariableHandler) handleDeleteVariable(w http.ResponseWriter, r *http.Re
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("variable deleted", zap.String("variableID", fmt.Sprint(id)))
+	h.log.Debug("Variable deleted", zap.String("variableID", fmt.Sprint(id)))
 	w.WriteHeader(http.StatusNoContent)
 }
 

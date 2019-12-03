@@ -469,7 +469,7 @@ func (s *Service) deleteOrganizationsBuckets(ctx context.Context, tx Tx, id infl
 	}
 	for _, b := range bs {
 		if err := s.deleteBucket(ctx, tx, b.ID); err != nil {
-			s.log.Warn("bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrgID))
+			s.log.Warn("Bucket was not deleted", zap.Stringer("bucketID", b.ID), zap.Stringer("orgID", b.OrgID))
 		}
 	}
 	return nil

@@ -332,7 +332,7 @@ func (w *worker) finish(p *promise, rs backend.RunStatus, err error) {
 	// log error
 	if err != nil {
 		w.te.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), err.Error())
-		w.te.log.Debug("execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
+		w.te.log.Debug("Execution failed", zap.Error(err), zap.String("taskID", p.task.ID.String()))
 		w.te.metrics.LogError(p.task.Type, err)
 
 		if backend.IsUnrecoverable(err) {

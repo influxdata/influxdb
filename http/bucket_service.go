@@ -331,7 +331,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("bucket created", zap.String("bucket", fmt.Sprint(bucket)))
+	h.log.Debug("Bucket created", zap.String("bucket", fmt.Sprint(bucket)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newBucketResponse(bucket, []*influxdb.Label{})); err != nil {
 		logEncodingError(h.log, r, err)
@@ -414,7 +414,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	h.log.Debug("bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
+	h.log.Debug("Bucket retrieved", zap.String("bucket", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -445,7 +445,7 @@ func (h *BucketHandler) handleGetBucketLog(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.log.Debug("bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
+	h.log.Debug("Bucket log retrived", zap.String("bucket", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketLogResponse(req.BucketID, log)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -532,7 +532,7 @@ func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	h.log.Debug("bucket deleted", zap.String("bucketID", req.BucketID.String()))
+	h.log.Debug("Bucket deleted", zap.String("bucketID", req.BucketID.String()))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -579,7 +579,7 @@ func (h *BucketHandler) handleGetBuckets(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
+	h.log.Debug("Buckets retrieved", zap.String("buckets", fmt.Sprint(bs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -650,7 +650,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("bucket updated", zap.String("bucket", fmt.Sprint(b)))
+	h.log.Debug("Bucket updated", zap.String("bucket", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketResponse(b, labels)); err != nil {
 		logEncodingError(h.log, r, err)

@@ -143,7 +143,7 @@ func (h *DocumentHandler) handlePostDocument(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	h.log.Debug("document created", zap.String("document", fmt.Sprint(req.Document)))
+	h.log.Debug("Document created", zap.String("document", fmt.Sprint(req.Document)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newDocumentResponse(req.Namespace, req.Document)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -229,7 +229,7 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("documents retrieved", zap.String("documents", fmt.Sprint(ds)))
+	h.log.Debug("Documents retrieved", zap.String("documents", fmt.Sprint(ds)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentsResponse(req.Namespace, ds)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -301,7 +301,7 @@ func (h *DocumentHandler) handlePostDocumentLabel(w http.ResponseWriter, r *http
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("document label created", zap.String("label", fmt.Sprint(label)))
+	h.log.Debug("Document label created", zap.String("label", fmt.Sprint(label)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newLabelResponse(label)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -341,7 +341,7 @@ func (h *DocumentHandler) handleDeleteDocumentLabel(w http.ResponseWriter, r *ht
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("document label deleted", zap.String("mapping", fmt.Sprint(mapping)))
+	h.log.Debug("Document label deleted", zap.String("mapping", fmt.Sprint(mapping)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -353,7 +353,7 @@ func (h *DocumentHandler) handleGetDocumentLabel(w http.ResponseWriter, r *http.
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("document label retrieved", zap.String("labels", fmt.Sprint(d.Labels)))
+	h.log.Debug("Document label retrieved", zap.String("labels", fmt.Sprint(d.Labels)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(d.Labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -399,7 +399,7 @@ func (h *DocumentHandler) handleGetDocument(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("document retrieved", zap.String("document", fmt.Sprint(d)))
+	h.log.Debug("Document retrieved", zap.String("document", fmt.Sprint(d)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentResponse(namspace, d)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -470,7 +470,7 @@ func (h *DocumentHandler) handleDeleteDocument(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	h.log.Debug("document deleted", zap.String("documentID", fmt.Sprint(req.ID)))
+	h.log.Debug("Document deleted", zap.String("documentID", fmt.Sprint(req.ID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -555,7 +555,7 @@ func (h *DocumentHandler) handlePutDocument(w http.ResponseWriter, r *http.Reque
 
 	d := ds[0]
 
-	h.log.Debug("document updated", zap.String("document", fmt.Sprint(d)))
+	h.log.Debug("Document updated", zap.String("document", fmt.Sprint(d)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newDocumentResponse(req.Namespace, d)); err != nil {
 		logEncodingError(h.log, r, err)

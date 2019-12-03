@@ -235,7 +235,7 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("org created", zap.String("org", fmt.Sprint(req.Org)))
+	h.log.Debug("Org created", zap.String("org", fmt.Sprint(req.Org)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOrgResponse(req.Org)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -272,7 +272,7 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("org retrieved", zap.String("org", fmt.Sprint(b)))
+	h.log.Debug("Org retrieved", zap.String("org", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(b)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -320,7 +320,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
+	h.log.Debug("Orgs retrieved", zap.String("org", fmt.Sprint(orgs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgsResponse(orgs)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -364,7 +364,7 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("org deleted", zap.String("orgID", fmt.Sprint(req.OrganizationID)))
+	h.log.Debug("Org deleted", zap.String("orgID", fmt.Sprint(req.OrganizationID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -412,7 +412,7 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("org updated", zap.String("org", fmt.Sprint(o)))
+	h.log.Debug("Org updated", zap.String("org", fmt.Sprint(o)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrgResponse(o)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -854,7 +854,7 @@ func (h *OrgHandler) handleGetOrgLog(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("org logs retrieved", zap.String("log", fmt.Sprint(log)))
+	h.log.Debug("Org logs retrieved", zap.String("log", fmt.Sprint(log)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newOrganizationLogResponse(req.OrganizationID, log)); err != nil {
 		logEncodingError(h.log, r, err)

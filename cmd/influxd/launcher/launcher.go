@@ -384,7 +384,7 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 
 	m.log.Info("Stopping", zap.String("service", "bolt"))
 	if err := m.boltClient.Close(); err != nil {
-		m.log.Info("failed closing bolt", zap.Error(err))
+		m.log.Info("Failed closing bolt", zap.Error(err))
 	}
 
 	m.log.Info("Stopping", zap.String("service", "query"))
@@ -394,14 +394,14 @@ func (m *Launcher) Shutdown(ctx context.Context) {
 
 	m.log.Info("Stopping", zap.String("service", "storage-engine"))
 	if err := m.engine.Close(); err != nil {
-		m.log.Error("failed to close engine", zap.Error(err))
+		m.log.Error("Failed to close engine", zap.Error(err))
 	}
 
 	m.wg.Wait()
 
 	if m.jaegerTracerCloser != nil {
 		if err := m.jaegerTracerCloser.Close(); err != nil {
-			m.log.Warn("failed to closer Jaeger tracer", zap.Error(err))
+			m.log.Warn("Failed to closer Jaeger tracer", zap.Error(err))
 		}
 	}
 
@@ -458,20 +458,20 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 	switch m.tracingType {
 	case LogTracing:
-		m.log.Info("tracing via zap logging")
+		m.log.Info("Tracing via zap logging")
 		tracer := pzap.NewTracer(m.log, snowflake.NewIDGenerator())
 		opentracing.SetGlobalTracer(tracer)
 
 	case JaegerTracing:
-		m.log.Info("tracing via Jaeger")
+		m.log.Info("Tracing via Jaeger")
 		cfg, err := jaegerconfig.FromEnv()
 		if err != nil {
-			m.log.Error("failed to get Jaeger client config from environment variables", zap.Error(err))
+			m.log.Error("Failed to get Jaeger client config from environment variables", zap.Error(err))
 			break
 		}
 		tracer, closer, err := cfg.NewTracer()
 		if err != nil {
-			m.log.Error("failed to instantiate Jaeger tracer", zap.Error(err))
+			m.log.Error("Failed to instantiate Jaeger tracer", zap.Error(err))
 			break
 		}
 		opentracing.SetGlobalTracer(tracer)
@@ -482,7 +482,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.boltClient.Path = m.boltPath
 
 	if err := m.boltClient.Open(ctx); err != nil {
-		m.log.Error("failed opening bolt", zap.Error(err))
+		m.log.Error("Failed opening bolt", zap.Error(err))
 		return err
 	}
 
@@ -507,12 +507,12 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		}
 	default:
 		err := fmt.Errorf("unknown store type %s; expected bolt or memory", m.storeType)
-		m.log.Error("failed opening bolt", zap.Error(err))
+		m.log.Error("Failed opening bolt", zap.Error(err))
 		return err
 	}
 
 	if err := m.kvService.Initialize(ctx); err != nil {
-		m.log.Error("failed to initialize kv service", zap.Error(err))
+		m.log.Error("Failed to initialize kv service", zap.Error(err))
 		return err
 	}
 
@@ -555,19 +555,19 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		// https://www.vaultproject.io/docs/commands/index.html#environment-variables
 		svc, err := vault.NewSecretService(vault.WithConfig(vaultConfig))
 		if err != nil {
-			m.log.Error("failed initializing vault secret service", zap.Error(err))
+			m.log.Error("Failed initializing vault secret service", zap.Error(err))
 			return err
 		}
 		secretSvc = svc
 	default:
 		err := fmt.Errorf("unknown secret service %q, expected \"bolt\" or \"vault\"", m.secretStore)
-		m.log.Error("failed setting secret service", zap.Error(err))
+		m.log.Error("Failed setting secret service", zap.Error(err))
 		return err
 	}
 
 	chronografSvc, err := server.NewServiceV2(ctx, m.boltClient.DB())
 	if err != nil {
-		m.log.Error("failed creating chronograf service", zap.Error(err))
+		m.log.Error("Failed creating chronograf service", zap.Error(err))
 		return err
 	}
 
@@ -581,7 +581,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	}
 	m.engine.WithLogger(m.log)
 	if err := m.engine.Open(ctx); err != nil {
-		m.log.Error("failed to open engine", zap.Error(err))
+		m.log.Error("Failed to open engine", zap.Error(err))
 		return err
 	}
 	// The Engine's metrics must be registered after it opens.
@@ -678,7 +678,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 					return err
 				},
 				coordLogger); err != nil {
-				m.log.Error("failed to resume existing tasks", zap.Error(err))
+				m.log.Error("Failed to resume existing tasks", zap.Error(err))
 			}
 		} else {
 
@@ -695,7 +695,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 			// resume existing task claims from task service
 			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, logger, combinedTaskService, coordinator); err != nil {
-				logger.Error("failed to resume existing tasks", zap.Error(err))
+				logger.Error("Failed to resume existing tasks", zap.Error(err))
 			}
 
 			taskSvc = middleware.New(combinedTaskService, coordinator)
@@ -749,27 +749,27 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 	m.natsPort = int(nextPort)
 
 	if err := m.natsServer.Open(); err != nil {
-		m.log.Error("failed to start nats streaming server", zap.Error(err))
+		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
 	}
 
 	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
 	if err := publisher.Open(); err != nil {
-		m.log.Error("failed to connect to streaming server", zap.Error(err))
+		m.log.Error("Failed to connect to streaming server", zap.Error(err))
 		return err
 	}
 
 	// TODO(jm): this is an example of using a subscriber to consume from the channel. It should be removed.
 	subscriber := nats.NewQueueSubscriber(fmt.Sprintf("nats-subscriber-%d", m.natsPort), m.NatsURL())
 	if err := subscriber.Open(); err != nil {
-		m.log.Error("failed to connect to streaming server", zap.Error(err))
+		m.log.Error("Failed to connect to streaming server", zap.Error(err))
 		return err
 	}
 
 	subscriber.Subscribe(gather.MetricsSubject, "metrics", gather.NewRecorderHandler(m.log, gather.PointWriter{Writer: pointsWriter}))
 	scraperScheduler, err := gather.NewScheduler(m.log, 10, scraperTargetSvc, publisher, subscriber, 10*time.Second, 30*time.Second)
 	if err != nil {
-		m.log.Error("failed to create scraper subscriber", zap.Error(err))
+		m.log.Error("Failed to create scraper subscriber", zap.Error(err))
 		return err
 	}
 
@@ -778,7 +778,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 		defer m.wg.Done()
 		log = log.With(zap.String("service", "scraper"))
 		if err := scraperScheduler.Run(ctx); err != nil {
-			log.Error("failed scraper service", zap.Error(err))
+			log.Error("Failed scraper service", zap.Error(err))
 		}
 		log.Info("Stopping")
 	}(m.log)
@@ -901,11 +901,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 
 		if cer.Certificate != nil {
 			if err := m.httpServer.ServeTLS(ln, m.httpTLSCert, m.httpTLSKey); err != nethttp.ErrServerClosed {
-				log.Error("failed https service", zap.Error(err))
+				log.Error("Failed https service", zap.Error(err))
 			}
 		} else {
 			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
-				log.Error("failed http service", zap.Error(err))
+				log.Error("Failed http service", zap.Error(err))
 			}
 		}
 		log.Info("Stopping")

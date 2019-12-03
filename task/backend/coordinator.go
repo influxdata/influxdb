@@ -44,7 +44,7 @@ func NotifyCoordinatorOfExisting(ctx context.Context, log *zap.Logger, ts TaskSe
 				LatestCompleted: &latestCompleted,
 			})
 			if err != nil {
-				log.Error("failed to set latestCompleted", zap.Error(err))
+				log.Error("Failed to set latestCompleted", zap.Error(err))
 				continue
 			}
 
@@ -85,7 +85,7 @@ func TaskNotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, tcs Ta
 				LatestCompleted: &latestCompleted,
 			})
 			if err != nil {
-				log.Error("failed to set latestCompleted", zap.Error(err))
+				log.Error("Failed to set latestCompleted", zap.Error(err))
 				continue
 			}
 

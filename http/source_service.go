@@ -284,7 +284,7 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourceResponse(req.Source)
-	h.log.Debug("source created", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("Source created", zap.String("source", fmt.Sprint(res)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -322,7 +322,7 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 	}
 
 	res := newSourceResponse(s)
-	h.log.Debug("source retrieved", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("Source retrieved", zap.String("source", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
 		logEncodingError(h.log, r, err)
@@ -392,7 +392,7 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
+	h.log.Debug("Source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -438,7 +438,7 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourcesResponse(srcs)
-	h.log.Debug("sources retrieved", zap.String("sources", fmt.Sprint(res)))
+	h.log.Debug("Sources retrieved", zap.String("sources", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
 		logEncodingError(h.log, r, err)
@@ -469,7 +469,7 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("source updated", zap.String("source", fmt.Sprint(b)))
+	h.log.Debug("Source updated", zap.String("source", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
 		logEncodingError(h.log, r, err)

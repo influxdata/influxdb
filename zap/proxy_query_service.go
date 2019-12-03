@@ -24,7 +24,7 @@ func NewProxyQueryService(log *zap.Logger) *ProxyQueryService {
 // Query logs the query request.
 func (s *ProxyQueryService) Query(ctx context.Context, w io.Writer, req *query.ProxyRequest) (int64, error) {
 	if req != nil {
-		s.log.Info("query", zap.Any("request", req))
+		s.log.Info("Query", zap.Any("request", req))
 	}
 	n, err := w.Write([]byte{})
 	return int64(n), err

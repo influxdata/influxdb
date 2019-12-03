@@ -224,7 +224,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 	ctx := r.Context()
 	filter, opts, err := decodeNotificationEndpointFilter(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -233,7 +233,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoints(w http.Resp
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notificationEndpoints retrieved", zap.String("notificationEndpoints", fmt.Sprint(edps)))
+	h.log.Debug("NotificationEndpoints retrieved", zap.String("notificationEndpoints", fmt.Sprint(edps)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointsResponse(ctx, edps, h.LabelService, filter, *opts)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -253,7 +253,7 @@ func (h *NotificationEndpointHandler) handleGetNotificationEndpoint(w http.Respo
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("NotificationEndpoint retrieved", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
 	if err != nil {
@@ -416,7 +416,7 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 	ctx := r.Context()
 	edp, err := decodePostNotificationEndpointRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -446,7 +446,7 @@ func (h *NotificationEndpointHandler) handlePostNotificationEndpoint(w http.Resp
 
 	labels := h.mapNewNotificationEndpointLabels(ctx, edp.NotificationEndpoint, edp.Labels)
 
-	h.log.Debug("notificationEndpoint created", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("NotificationEndpoint created", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newNotificationEndpointResponse(edp, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -490,7 +490,7 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 	ctx := r.Context()
 	edp, err := decodePutNotificationEndpointRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -524,7 +524,7 @@ func (h *NotificationEndpointHandler) handlePutNotificationEndpoint(w http.Respo
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notificationEndpoint replaced", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("NotificationEndpoint replaced", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointResponse(edp, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -537,7 +537,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 	ctx := r.Context()
 	req, err := decodePatchNotificationEndpointRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -553,7 +553,7 @@ func (h *NotificationEndpointHandler) handlePatchNotificationEndpoint(w http.Res
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notificationEndpoint patch", zap.String("notificationEndpoint", fmt.Sprint(edp)))
+	h.log.Debug("NotificationEndpoint patch", zap.String("notificationEndpoint", fmt.Sprint(edp)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newNotificationEndpointResponse(edp, labels)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -592,7 +592,7 @@ func (h *NotificationEndpointHandler) handleDeleteNotificationEndpoint(w http.Re
 		}, w)
 		return
 	}
-	h.log.Debug("notificationEndpoint deleted", zap.String("notificationEndpointID", fmt.Sprint(i)))
+	h.log.Debug("NotificationEndpoint deleted", zap.String("notificationEndpointID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

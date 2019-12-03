@@ -126,7 +126,7 @@ func (h *DeleteHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("deleted",
+	h.log.Debug("Deleted",
 		zap.String("orgID", fmt.Sprint(dr.Org.ID.String())),
 		zap.String("buketID", fmt.Sprint(dr.Bucket.ID.String())),
 	)

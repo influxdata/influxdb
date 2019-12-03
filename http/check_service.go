@@ -248,7 +248,7 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	filter, opts, err := decodeCheckFilter(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -257,7 +257,7 @@ func (h *CheckHandler) handleGetChecks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("checks retrieved", zap.String("checks", fmt.Sprint(chks)))
+	h.log.Debug("Checks retrieved", zap.String("checks", fmt.Sprint(chks)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, h.newChecksResponse(ctx, chks, h.LabelService, filter, *opts)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -282,7 +282,7 @@ func (h *CheckHandler) handleGetCheckQuery(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("check query retrieved", zap.String("check query", flux))
+	h.log.Debug("Check query retrieved", zap.String("check query", flux))
 	if err := encodeResponse(ctx, w, http.StatusOK, newFluxResponse(flux)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -311,7 +311,7 @@ func (h *CheckHandler) handleGetCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("check retrieved", zap.String("check", fmt.Sprint(chk)))
+	h.log.Debug("Check retrieved", zap.String("check", fmt.Sprint(chk)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})
 	if err != nil {
@@ -516,7 +516,7 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chk, err := decodePostCheckRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -531,7 +531,7 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("check created", zap.String("check", fmt.Sprint(chk)))
+	h.log.Debug("Check created", zap.String("check", fmt.Sprint(chk)))
 
 	labels := h.mapNewCheckLabels(ctx, chk.CheckCreate, chk.Labels)
 
@@ -584,7 +584,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chk, err := decodePutCheckRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -600,7 +600,7 @@ func (h *CheckHandler) handlePutCheck(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("check replaced", zap.String("check", fmt.Sprint(c)))
+	h.log.Debug("Check replaced", zap.String("check", fmt.Sprint(c)))
 
 	cr, err := h.newCheckResponse(ctx, c, labels)
 	if err != nil {
@@ -619,7 +619,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	req, err := decodePatchCheckRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -635,7 +635,7 @@ func (h *CheckHandler) handlePatchCheck(w http.ResponseWriter, r *http.Request) 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("check patch", zap.String("check", fmt.Sprint(chk)))
+	h.log.Debug("Check patch", zap.String("check", fmt.Sprint(chk)))
 
 	cr, err := h.newCheckResponse(ctx, chk, labels)
 	if err != nil {
@@ -661,7 +661,7 @@ func (h *CheckHandler) handleDeleteCheck(w http.ResponseWriter, r *http.Request)
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("check deleted", zap.String("checkID", fmt.Sprint(i)))
+	h.log.Debug("Check deleted", zap.String("checkID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

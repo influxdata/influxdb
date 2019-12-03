@@ -71,7 +71,7 @@ func ProbeAuthScheme(r *http.Request) (string, error) {
 }
 
 func (h *AuthenticationHandler) unauthorized(ctx context.Context, w http.ResponseWriter, err error) {
-	h.log.Info("unauthorized", zap.Error(err))
+	h.log.Info("Unauthorized", zap.Error(err))
 	UnauthorizedError(ctx, h, w)
 }
 

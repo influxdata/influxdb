@@ -31,7 +31,7 @@ func (s PointWriter) Record(collected MetricsCollection) error {
 
 // Recorder record the metrics of a time based.
 type Recorder interface {
-	//Subscriber nats.Subscriber
+	// Subscriber nats.Subscriber
 	Record(collected MetricsCollection) error
 }
 
@@ -54,11 +54,11 @@ func (h *RecorderHandler) Process(s nats.Subscription, m nats.Message) {
 	collected := new(MetricsCollection)
 	err := json.Unmarshal(m.Data(), &collected)
 	if err != nil {
-		h.log.Error("recorder handler error", zap.Error(err))
+		h.log.Error("Recorder handler error", zap.Error(err))
 		return
 	}
 	err = h.Recorder.Record(*collected)
 	if err != nil {
-		h.log.Error("recorder handler error", zap.Error(err))
+		h.log.Error("Recorder handler error", zap.Error(err))
 	}
 }

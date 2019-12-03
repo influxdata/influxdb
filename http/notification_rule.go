@@ -242,7 +242,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRules(w http.ResponseWrit
 	ctx := r.Context()
 	filter, opts, err := decodeNotificationRuleFilter(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -251,7 +251,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRules(w http.ResponseWrit
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rules retrieved", zap.String("notificationRules", fmt.Sprint(nrs)))
+	h.log.Debug("Notification rules retrieved", zap.String("notificationRules", fmt.Sprint(nrs)))
 
 	res, err := h.newNotificationRulesResponse(ctx, nrs, h.LabelService, filter, *opts)
 	if err != nil {
@@ -291,7 +291,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRuleQuery(w http.Response
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rule query retrieved", zap.String("notificationRuleQuery", fmt.Sprint(flux)))
+	h.log.Debug("Notification rule query retrieved", zap.String("notificationRuleQuery", fmt.Sprint(flux)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newFluxResponse(flux)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -310,7 +310,7 @@ func (h *NotificationRuleHandler) handleGetNotificationRule(w http.ResponseWrite
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.log.Debug("Notification rule retrieved", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})
 	if err != nil {
@@ -530,7 +530,7 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 	ctx := r.Context()
 	nr, err := decodePostNotificationRuleRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -545,7 +545,7 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rule created", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.log.Debug("Notification rule created", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	labels := h.mapNewNotificationRuleLabels(ctx, nr.NotificationRuleCreate, nr.Labels)
 
@@ -597,7 +597,7 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 	ctx := r.Context()
 	nrc, err := decodePutNotificationRuleRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -618,7 +618,7 @@ func (h *NotificationRuleHandler) handlePutNotificationRule(w http.ResponseWrite
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rule updated", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.log.Debug("Notification rule updated", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	res, err := h.newNotificationRuleResponse(ctx, nr, labels)
 	if err != nil {
@@ -637,7 +637,7 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 	ctx := r.Context()
 	req, err := decodePatchNotificationRuleRequest(ctx, r)
 	if err != nil {
-		h.log.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -653,7 +653,7 @@ func (h *NotificationRuleHandler) handlePatchNotificationRule(w http.ResponseWri
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rule patch", zap.String("notificationRule", fmt.Sprint(nr)))
+	h.log.Debug("Notification rule patch", zap.String("notificationRule", fmt.Sprint(nr)))
 
 	res, err := h.newNotificationRuleResponse(ctx, nr, labels)
 	if err != nil {
@@ -679,7 +679,7 @@ func (h *NotificationRuleHandler) handleDeleteNotificationRule(w http.ResponseWr
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("notification rule deleted", zap.String("notificationRuleID", fmt.Sprint(i)))
+	h.log.Debug("Notification rule deleted", zap.String("notificationRuleID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

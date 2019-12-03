@@ -25,25 +25,25 @@ func (h *handler) Process(s nats.Subscription, m nats.Message) {
 	req := new(influxdb.ScraperTarget)
 	err := json.Unmarshal(m.Data(), req)
 	if err != nil {
-		h.log.Error("unable to unmarshal json", zap.Error(err))
+		h.log.Error("Unable to unmarshal json", zap.Error(err))
 		return
 	}
 
 	ms, err := h.Scraper.Gather(context.TODO(), *req)
 	if err != nil {
-		h.log.Error("unable to gather", zap.Error(err))
+		h.log.Error("Unable to gather", zap.Error(err))
 		return
 	}
 
 	// send metrics to recorder queue
 	buf := new(bytes.Buffer)
 	if err := json.NewEncoder(buf).Encode(ms); err != nil {
-		h.log.Error("unable to marshal json", zap.Error(err))
+		h.log.Error("Unable to marshal json", zap.Error(err))
 		return
 	}
 
 	if err := h.Publisher.Publish(MetricsSubject, buf); err != nil {
-		h.log.Error("unable to publish scraper metrics", zap.Error(err))
+		h.log.Error("Unable to publish scraper metrics", zap.Error(err))
 		return
 	}
 

@@ -231,7 +231,7 @@ func (h *AuthorizationHandler) handlePostAuthorization(w http.ResponseWriter, r 
 		return
 	}
 
-	h.log.Debug("auth created ", zap.String("auth", fmt.Sprint(auth)))
+	h.log.Debug("Auth created ", zap.String("auth", fmt.Sprint(auth)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newAuthResponse(auth, org, user, perms)); err != nil {
 		logEncodingError(h.log, r, err)
@@ -336,7 +336,7 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	ctx := r.Context()
 	req, err := decodeGetAuthorizationsRequest(ctx, r)
 	if err != nil {
-		h.log.Info("failed to decode request", zap.String("handler", "getAuthorizations"), zap.Error(err))
+		h.log.Info("Failed to decode request", zap.String("handler", "getAuthorizations"), zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -352,13 +352,13 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 	for _, a := range as {
 		o, err := h.OrganizationService.FindOrganizationByID(ctx, a.OrgID)
 		if err != nil {
-			h.log.Info("failed to get organization", zap.String("handler", "getAuthorizations"), zap.String("orgID", a.OrgID.String()), zap.Error(err))
+			h.log.Info("Failed to get organization", zap.String("handler", "getAuthorizations"), zap.String("orgID", a.OrgID.String()), zap.Error(err))
 			continue
 		}
 
 		u, err := h.UserService.FindUserByID(ctx, a.UserID)
 		if err != nil {
-			h.log.Info("failed to get user", zap.String("handler", "getAuthorizations"), zap.String("userID", a.UserID.String()), zap.Error(err))
+			h.log.Info("Failed to get user", zap.String("handler", "getAuthorizations"), zap.String("userID", a.UserID.String()), zap.Error(err))
 			continue
 		}
 
@@ -371,7 +371,7 @@ func (h *AuthorizationHandler) handleGetAuthorizations(w http.ResponseWriter, r 
 		auths = append(auths, newAuthResponse(a, o, u, ps))
 	}
 
-	h.log.Debug("auths retrieved ", zap.String("auths", fmt.Sprint(auths)))
+	h.log.Debug("Auths retrieved ", zap.String("auths", fmt.Sprint(auths)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthsResponse(auths)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -433,7 +433,7 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 	ctx := r.Context()
 	req, err := decodeGetAuthorizationRequest(ctx, r)
 	if err != nil {
-		h.log.Info("failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
+		h.log.Info("Failed to decode request", zap.String("handler", "getAuthorization"), zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -463,7 +463,7 @@ func (h *AuthorizationHandler) handleGetAuthorization(w http.ResponseWriter, r *
 		return
 	}
 
-	h.log.Debug("auth retrieved ", zap.String("auth", fmt.Sprint(a)))
+	h.log.Debug("Auth retrieved ", zap.String("auth", fmt.Sprint(a)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -500,7 +500,7 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 	ctx := r.Context()
 	req, err := decodeUpdateAuthorizationRequest(ctx, r)
 	if err != nil {
-		h.log.Info("failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
+		h.log.Info("Failed to decode request", zap.String("handler", "updateAuthorization"), zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -534,7 +534,7 @@ func (h *AuthorizationHandler) handleUpdateAuthorization(w http.ResponseWriter, 
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("auth updated", zap.String("auth", fmt.Sprint(a)))
+	h.log.Debug("Auth updated", zap.String("auth", fmt.Sprint(a)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newAuthResponse(a, o, u, ps)); err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -578,7 +578,7 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 	ctx := r.Context()
 	req, err := decodeDeleteAuthorizationRequest(ctx, r)
 	if err != nil {
-		h.log.Info("failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
+		h.log.Info("Failed to decode request", zap.String("handler", "deleteAuthorization"), zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -589,7 +589,7 @@ func (h *AuthorizationHandler) handleDeleteAuthorization(w http.ResponseWriter, 
 		return
 	}
 
-	h.log.Debug("auth deleted", zap.String("authID", fmt.Sprint(req.ID)))
+	h.log.Debug("Auth deleted", zap.String("authID", fmt.Sprint(req.ID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

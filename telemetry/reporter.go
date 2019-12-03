@@ -35,7 +35,7 @@ func (r *Reporter) Report(ctx context.Context) {
 
 	logger.Info("Starting")
 	if err := r.Pusher.Push(ctx); err != nil {
-		logger.Debug("failure reporting telemetry metrics", zap.Error(err))
+		logger.Debug("Failure reporting telemetry metrics", zap.Error(err))
 	}
 
 	ticker := time.NewTicker(r.Interval)
@@ -45,7 +45,7 @@ func (r *Reporter) Report(ctx context.Context) {
 		case <-ticker.C:
 			logger.Debug("Reporting")
 			if err := r.Pusher.Push(ctx); err != nil {
-				logger.Debug("failure reporting telemetry metrics", zap.Error(err))
+				logger.Debug("Failure reporting telemetry metrics", zap.Error(err))
 			}
 		case <-ctx.Done():
 			logger.Info("Stopping")

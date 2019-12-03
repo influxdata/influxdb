@@ -440,7 +440,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
+	h.log.Debug("Tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, req.filter, h.LabelService)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -566,7 +566,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	task, err := h.TaskService.CreateTask(ctx, req.TaskCreate)
 	if err != nil {
 		if e, ok := err.(AuthzError); ok {
-			h.log.Error("failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
+			h.log.Error("Failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
 		}
 
 		// if the error is not already a influxdb.error then make it into one
@@ -650,7 +650,7 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("task retrived", zap.String("tasks", fmt.Sprint(task)))
+	h.log.Debug("Task retrieved", zap.String("tasks", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -717,7 +717,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("tasks updated", zap.String("task", fmt.Sprint(task)))
+	h.log.Debug("Tasks updated", zap.String("task", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
 		logEncodingError(h.log, r, err)
 		return
@@ -783,7 +783,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("tasks deleted", zap.String("taskID", fmt.Sprint(req.TaskID)))
+	h.log.Debug("Tasks deleted", zap.String("taskID", fmt.Sprint(req.TaskID)))
 	w.WriteHeader(http.StatusNoContent)
 }
 

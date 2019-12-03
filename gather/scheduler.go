@@ -109,13 +109,13 @@ func (s *Scheduler) doGather(ctx context.Context) {
 
 	targets, err := s.Targets.ListTargets(ctx, influxdb.ScraperTargetFilter{})
 	if err != nil {
-		s.log.Error("cannot list targets", zap.Error(err))
+		s.log.Error("Cannot list targets", zap.Error(err))
 		tracing.LogError(span, err)
 		return
 	}
 	for _, target := range targets {
 		if err := requestScrape(target, s.Publisher); err != nil {
-			s.log.Error("json encoding error", zap.Error(err))
+			s.log.Error("JSON encoding error", zap.Error(err))
 			tracing.LogError(span, err)
 		}
 	}

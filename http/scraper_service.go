@@ -141,7 +141,7 @@ func (h *ScraperHandler) handlePostScraperTarget(w http.ResponseWriter, r *http.
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("scraper created", zap.String("scraper", fmt.Sprint(req)))
+	h.log.Debug("Scraper created", zap.String("scraper", fmt.Sprint(req)))
 
 	resp, err := h.newTargetResponse(ctx, *req)
 	if err != nil {
@@ -167,7 +167,7 @@ func (h *ScraperHandler) handleDeleteScraperTarget(w http.ResponseWriter, r *htt
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("scraper deleted", zap.String("scraperTargetID", fmt.Sprint(id)))
+	h.log.Debug("Scraper deleted", zap.String("scraperTargetID", fmt.Sprint(id)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -192,7 +192,7 @@ func (h *ScraperHandler) handlePatchScraperTarget(w http.ResponseWriter, r *http
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("scraper updated", zap.String("scraper", fmt.Sprint(target)))
+	h.log.Debug("Scraper updated", zap.String("scraper", fmt.Sprint(target)))
 
 	resp, err := h.newTargetResponse(ctx, *target)
 	if err != nil {
@@ -218,7 +218,7 @@ func (h *ScraperHandler) handleGetScraperTarget(w http.ResponseWriter, r *http.R
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("scraper retrieved", zap.String("scraper", fmt.Sprint(target)))
+	h.log.Debug("Scraper retrieved", zap.String("scraper", fmt.Sprint(target)))
 
 	resp, err := h.newTargetResponse(ctx, *target)
 	if err != nil {
@@ -280,7 +280,7 @@ func (h *ScraperHandler) handleGetScraperTargets(w http.ResponseWriter, r *http.
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("scrapers retrieved", zap.String("scrapers", fmt.Sprint(targets)))
+	h.log.Debug("Scrapers retrieved", zap.String("scrapers", fmt.Sprint(targets)))
 
 	resp, err := h.newListTargetsResponse(ctx, targets)
 	if err != nil {

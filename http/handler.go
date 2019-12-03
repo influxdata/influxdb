@@ -174,7 +174,7 @@ func logEncodingError(log *zap.Logger, r *http.Request, err error) {
 	// If we encounter an error while encoding the response to an http request
 	// the best thing we can do is log that error, as we may have already written
 	// the headers for the http request in question.
-	log.Info("error encoding response",
+	log.Info("Error encoding response",
 		zap.String("path", r.URL.Path),
 		zap.String("method", r.Method),
 		zap.Error(err))

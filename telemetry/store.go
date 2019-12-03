@@ -27,6 +27,6 @@ func NewLogStore(log *zap.Logger) *LogStore {
 
 // WriteMessage logs data at Info level.
 func (s *LogStore) WriteMessage(ctx context.Context, data []byte) error {
-	s.log.Info("write", zap.String("data", string(data)))
+	s.log.Info("Write", zap.String("data", string(data)))
 	return nil
 }

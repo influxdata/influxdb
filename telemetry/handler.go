@@ -98,20 +98,20 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 
 	format, err := metricsFormat(r.Header)
 	if err != nil {
-		p.log.Error("metrics format not support", zap.Error(err))
+		p.log.Error("Metrics format not support", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	mfs, err := decodePostMetricsRequest(r.Body, format, p.MaxBytes)
 	if err != nil {
-		p.log.Error("unable to decode metrics", zap.Error(err))
+		p.log.Error("Unable to decode metrics", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if err := valid(mfs); err != nil {
-		p.log.Error("invalid metrics", zap.Error(err))
+		p.log.Error("Invalid metrics", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -122,13 +122,13 @@ func (p *PushGateway) Handler(w http.ResponseWriter, r *http.Request) {
 
 	data, err := p.Encoder.Encode(mfs)
 	if err != nil {
-		p.log.Error("unable to encode metric families", zap.Error(err))
+		p.log.Error("Unable to encode metric families", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if err := p.Store.WriteMessage(ctx, data); err != nil {
-		p.log.Error("unable to write to store", zap.Error(err))
+		p.log.Error("Unable to write to store", zap.Error(err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

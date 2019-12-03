@@ -67,7 +67,7 @@ func (h *SetupHandler) isOnboarding(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
+	h.log.Debug("Onboarding eligibility check finished", zap.String("result", fmt.Sprint(result)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, isOnboardingResponse{result}); err != nil {
 		logEncodingError(h.log, r, err)
@@ -88,7 +88,7 @@ func (h *SetupHandler) handlePostSetup(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("onboarding setup completed", zap.String("results", fmt.Sprint(results)))
+	h.log.Debug("Onboarding setup completed", zap.String("results", fmt.Sprint(results)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newOnboardingResponse(results)); err != nil {
 		logEncodingError(h.log, r, err)
