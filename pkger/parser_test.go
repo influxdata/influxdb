@@ -2699,6 +2699,48 @@ spec:
 		})
 	})
 
+	t.Run("pkg with telegraf and label associations", func(t *testing.T) {
+		t.Run("with valid fields", func(t *testing.T) {
+			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.TelegrafConfigs, 1)
+
+				actual := sum.TelegrafConfigs[0]
+				assert.Equal(t, "first_tele_config", actual.Name)
+				assert.Equal(t, "desc", actual.Description)
+
+				require.Len(t, actual.LabelAssociations, 1)
+				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+			})
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []testPkgResourceError{
+				{
+					name:           "config missing",
+					validationErrs: 1,
+					valFields:      []string{"config"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Telegraf
+      name: tele_name
+      description: desc
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, KindTelegraf, tt)
+			}
+		})
+	})
+
 	t.Run("pkg with a variable", func(t *testing.T) {
 		t.Run("with valid fields should produce summary", func(t *testing.T) {
 			testfileRunner(t, "testdata/variables", func(t *testing.T, pkg *Pkg) {

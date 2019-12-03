@@ -300,11 +300,12 @@ func (d DiffVariable) hasConflict() bool {
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets       []SummaryBucket       `json:"buckets"`
-	Dashboards    []SummaryDashboard    `json:"dashboards"`
-	Labels        []SummaryLabel        `json:"labels"`
-	LabelMappings []SummaryLabelMapping `json:"labelMappings"`
-	Variables     []SummaryVariable     `json:"variables"`
+	Buckets         []SummaryBucket       `json:"buckets"`
+	Dashboards      []SummaryDashboard    `json:"dashboards"`
+	Labels          []SummaryLabel        `json:"labels"`
+	LabelMappings   []SummaryLabelMapping `json:"labelMappings"`
+	TelegrafConfigs []SummaryTelegraf     `json:"telegrafConfigs"`
+	Variables       []SummaryVariable     `json:"variables"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
@@ -379,6 +380,12 @@ type SummaryLabelMapping struct {
 	ResourceName string `json:"resourceName"`
 	LabelName    string `json:"labelName"`
 	influxdb.LabelMapping
+}
+
+// SummaryTelegraf provides a summary of a pkg telegraf config.
+type SummaryTelegraf struct {
+	influxdb.TelegrafConfig
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
 // SummaryVariable provides a summary of a pkg variable.
@@ -702,6 +709,31 @@ func (s sortedLogos) Less(i, j int) bool {
 
 func (s sortedLogos) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+const (
+	fieldTelegrafConfig = "config"
+)
+
+type telegraf struct {
+	config influxdb.TelegrafConfig
+
+	labels sortedLogos
+}
+
+func (t *telegraf) Name() string {
+	return t.config.Name
+}
+
+func (t *telegraf) ResourceType() influxdb.ResourceType {
+	return influxdb.TelegrafsResourceType
+}
+
+func (t *telegraf) summarize() SummaryTelegraf {
+	return SummaryTelegraf{
+		TelegrafConfig:    t.config,
+		LabelAssociations: toInfluxLabels(t.labels...),
+	}
 }
 
 const (
