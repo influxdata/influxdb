@@ -857,3 +857,12 @@ export const deleteEndpointFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete endpoint: ${message}`,
 })
+
+export const invalidJSON = (message: string): Notification => {
+  return {
+    ...defaultErrorNotification,
+    message: message
+      ? `We couldn’t parse the JSON you entered because it failed with message:\n'${message}'`
+      : 'We couldn’t parse the JSON you entered because it isn’t valid. Please check the formatting and try again.',
+  }
+}
