@@ -303,11 +303,11 @@ export const getEndTime = (timeRange: TimeRange): number => {
     return null
   }
   const {lower, upper} = timeRange
-  if (lower.includes('now()')) {
-    return moment().valueOf()
-  }
   if (upper) {
     return moment(upper).valueOf()
+  }
+  if (lower.includes('now()')) {
+    return moment().valueOf()
   }
   return null
 }
