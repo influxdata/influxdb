@@ -100,6 +100,20 @@ func TraceInfo(ctx context.Context) (traceID string, sampled bool, found bool) {
 	return "", false, false
 }
 
+// OTTraceID returns a fields "ot_trace_id" and "ot_trace_sampled", values pulled from the (Jaeger) trace ID
+// found in the given context. Returns zap.Skip() if the context doesn't have a trace ID.
+func Trace(ctx context.Context) []zap.Field {
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
+			return []zap.Field{
+				zap.String("ot_trace_id", spanContext.TraceID().String()),
+				zap.Bool("ot_trace_sampled", spanContext.IsSampled()),
+			}
+		}
+	}
+	return []zap.Field{zap.Skip()}
+}
+
 // TraceID returns a field "trace_id", value pulled from the (Jaeger) trace ID found in the given context.
 // Returns zap.Skip() if the context doesn't have a trace ID.
 func TraceID(ctx context.Context) zap.Field {
