@@ -117,7 +117,7 @@ spec:
 
 				actual := buckets[0]
 				expectedBucket := bucket{
-					Name:           "rucket_11",
+					name:           "rucket_11",
 					Description:    "bucket 1 description",
 					RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 				}
@@ -216,14 +216,14 @@ spec:
 				require.Len(t, labels, 2)
 
 				expectedLabel1 := label{
-					Name:        "label_1",
+					name:        "label_1",
 					Description: "label 1 description",
 					Color:       "#FFFFFF",
 				}
 				assert.Equal(t, expectedLabel1, *labels[0])
 
 				expectedLabel2 := label{
-					Name:        "label_2",
+					name:        "label_2",
 					Description: "label 2 description",
 					Color:       "#000000",
 				}

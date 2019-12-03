@@ -250,7 +250,7 @@ func TestService(t *testing.T) {
 						// makes all pkg changes same as they are on thes existing bucket
 						ID:              influxdb.ID(3),
 						OrgID:           orgID,
-						Name:            pkgBkt.Name,
+						Name:            pkgBkt.Name(),
 						Description:     pkgBkt.Description,
 						RetentionPeriod: pkgBkt.RetentionRules.RP(),
 					}
@@ -397,7 +397,7 @@ func TestService(t *testing.T) {
 						// makes all pkg changes same as they are on the existing
 						ID:    influxdb.ID(1),
 						OrgID: orgID,
-						Name:  pkgLabel.Name,
+						Name:  pkgLabel.Name(),
 						Properties: map[string]string{
 							"color":       pkgLabel.Color,
 							"description": pkgLabel.Description,
@@ -497,7 +497,7 @@ func TestService(t *testing.T) {
 						return nil
 					}
 
-					pkg.mDashboards["copy1"] = pkg.mDashboards["dash_1"]
+					pkg.mDashboards = append(pkg.mDashboards, pkg.mDashboards[0])
 
 					svc := NewService(WithDashboardSVC(fakeDashSVC))
 
@@ -634,7 +634,7 @@ func TestService(t *testing.T) {
 						// makes all pkg changes same as they are on the existing
 						ID:             influxdb.ID(1),
 						OrganizationID: orgID,
-						Name:           pkgLabel.Name,
+						Name:           pkgLabel.Name(),
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
 							Values: influxdb.VariableConstantValues{"first val"},
@@ -1275,11 +1275,11 @@ func TestService(t *testing.T) {
 					resourcesToClone := []ResourceToClone{
 						{
 							Kind: KindBucket,
-							ID:   1,
+							ID:   10,
 						},
 						{
 							Kind: KindBucket,
-							ID:   2,
+							ID:   20,
 						},
 					}
 					pkg, err := svc.CreatePkg(context.TODO(), CreateWithExistingResources(resourcesToClone...))
@@ -1289,7 +1289,7 @@ func TestService(t *testing.T) {
 					require.Len(t, bkts, 2)
 
 					for i, actual := range bkts {
-						assert.Equal(t, strconv.Itoa(i+1), actual.Name)
+						assert.Equal(t, strconv.Itoa((i+1)*10), actual.Name)
 						require.Len(t, actual.LabelAssociations, 2)
 						assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
 						assert.Equal(t, "label_2", actual.LabelAssociations[1].Name)

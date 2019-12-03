@@ -496,15 +496,15 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	bkts := pkg.buckets()
 	for i := range bkts {
 		b := bkts[i]
-		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name)
+		existingBkt, err := s.bucketSVC.FindBucketByName(ctx, orgID, b.Name())
 		switch err {
 		// TODO: case for err not found here and another case handle where
 		//  err isn't a not found (some other error)
 		case nil:
 			b.existing = existingBkt
-			mExistingBkts[b.Name] = newDiffBucket(b, existingBkt)
+			mExistingBkts[b.Name()] = newDiffBucket(b, existingBkt)
 		default:
-			mExistingBkts[b.Name] = newDiffBucket(b, nil)
+			mExistingBkts[b.Name()] = newDiffBucket(b, nil)
 		}
 	}
 
@@ -538,7 +538,7 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	for i := range labels {
 		pkgLabel := labels[i]
 		existingLabels, err := s.labelSVC.FindLabels(ctx, influxdb.LabelFilter{
-			Name:  pkgLabel.Name,
+			Name:  pkgLabel.Name(),
 			OrgID: &orgID,
 		}, influxdb.FindOptions{Limit: 1})
 		switch {
@@ -547,9 +547,9 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 		case err == nil && len(existingLabels) > 0:
 			existingLabel := existingLabels[0]
 			pkgLabel.existing = existingLabel
-			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, existingLabel)
+			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, existingLabel)
 		default:
-			mExistingLabels[pkgLabel.Name] = newDiffLabel(pkgLabel, nil)
+			mExistingLabels[pkgLabel.Name()] = newDiffLabel(pkgLabel, nil)
 		}
 	}
 
@@ -581,18 +581,18 @@ VarLoop:
 		case err == nil && len(existingLabels) > 0:
 			for i := range existingLabels {
 				existingVar := existingLabels[i]
-				if existingVar.Name != pkgVar.Name {
+				if existingVar.Name != pkgVar.Name() {
 					continue
 				}
 				pkgVar.existing = existingVar
-				mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, existingVar)
+				mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, existingVar)
 				continue VarLoop
 			}
 			// fallthrough here for when the variable is not found, it'll fall to the
 			// default case and add it as new.
 			fallthrough
 		default:
-			mExistingLabels[pkgVar.Name] = newDiffVariable(pkgVar, nil)
+			mExistingLabels[pkgVar.Name()] = newDiffVariable(pkgVar, nil)
 		}
 	}
 
@@ -622,13 +622,13 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 	for _, b := range pkg.buckets() {
 		err := s.dryRunResourceLabelMapping(ctx, b, b.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
 			if l, ok := pkg.mLabels[labelName]; ok {
-				l.setBucketMapping(b, !isNew)
+				l.setMapping(b, !isNew)
 			}
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   b.ResourceType(),
 				ResID:     SafeID(b.ID()),
-				ResName:   b.Name,
+				ResName:   b.Name(),
 				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
@@ -640,12 +640,12 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 
 	for _, d := range pkg.dashboards() {
 		err := s.dryRunResourceLabelMapping(ctx, d, d.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setDashboardMapping(d)
+			pkg.mLabels[labelName].setMapping(d, false)
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   d.ResourceType(),
 				ResID:     SafeID(d.ID()),
-				ResName:   d.Name,
+				ResName:   d.Name(),
 				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
@@ -657,12 +657,12 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 
 	for _, v := range pkg.variables() {
 		err := s.dryRunResourceLabelMapping(ctx, v, v.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setVariableMapping(v, !isNew)
+			pkg.mLabels[labelName].setMapping(v, !isNew)
 			diffs = append(diffs, DiffLabelMapping{
 				IsNew:     isNew,
 				ResType:   v.ResourceType(),
 				ResID:     SafeID(v.ID()),
-				ResName:   v.Name,
+				ResName:   v.Name(),
 				LabelID:   SafeID(labelID),
 				LabelName: labelName,
 			})
@@ -696,7 +696,7 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, labels []*label, mappingFn labelMappingDiffFn) error {
 	if !la.Exists() {
 		for _, l := range labels {
-			mappingFn(l.ID(), l.Name, true)
+			mappingFn(l.ID(), l.Name(), true)
 		}
 		return nil
 	}
@@ -723,7 +723,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 
 	// now we add labels that were not apart of the existing labels
 	for _, l := range pkgLabels {
-		mappingFn(l.ID(), l.Name, true)
+		mappingFn(l.ID(), l.Name(), true)
 	}
 	return nil
 }
@@ -797,7 +797,7 @@ func (s *Service) applyBuckets(buckets []*bucket) applier {
 			influxBucket, err := s.applyBucket(ctx, b)
 			if err != nil {
 				errs = append(errs, applyErrBody{
-					name: b.Name,
+					name: b.Name(),
 					msg:  err.Error(),
 				})
 				continue
@@ -863,7 +863,7 @@ func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, 
 	influxBucket := influxdb.Bucket{
 		OrgID:           b.OrgID,
 		Description:     b.Description,
-		Name:            b.Name,
+		Name:            b.Name(),
 		RetentionPeriod: rp,
 	}
 	err := s.bucketSVC.CreateBucket(ctx, &influxBucket)
@@ -889,7 +889,7 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 			influxBucket, err := s.applyDashboard(ctx, d)
 			if err != nil {
 				errs = append(errs, applyErrBody{
-					name: d.Name,
+					name: d.Name(),
 					msg:  err.Error(),
 				})
 				continue
@@ -932,7 +932,7 @@ func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Da
 	influxDashboard := influxdb.Dashboard{
 		OrganizationID: d.OrgID,
 		Description:    d.Description,
-		Name:           d.Name,
+		Name:           d.Name(),
 		Cells:          cells,
 	}
 	err := s.dashSVC.CreateDashboard(ctx, &influxDashboard)
@@ -992,7 +992,7 @@ func (s *Service) applyLabels(labels []*label) applier {
 			influxLabel, err := s.applyLabel(ctx, l)
 			if err != nil {
 				errs = append(errs, applyErrBody{
-					name: l.Name,
+					name: l.Name(),
 					msg:  err.Error(),
 				})
 				continue
@@ -1052,7 +1052,7 @@ func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, err
 
 	influxLabel := influxdb.Label{
 		OrgID:      l.OrgID,
-		Name:       l.Name,
+		Name:       l.Name(),
 		Properties: l.properties(),
 	}
 	err := s.labelSVC.CreateLabel(ctx, &influxLabel)
@@ -1080,7 +1080,7 @@ func (s *Service) applyVariables(vars []*variable) applier {
 			influxVar, err := s.applyVariable(ctx, v)
 			if err != nil {
 				errs = append(errs, applyErrBody{
-					name: v.Name,
+					name: v.Name(),
 					msg:  err.Error(),
 				})
 				continue
@@ -1142,7 +1142,7 @@ func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Vari
 
 	influxVar := influxdb.Variable{
 		OrganizationID: v.OrgID,
-		Name:           v.Name,
+		Name:           v.Name(),
 		Description:    v.Description,
 		Arguments:      v.influxVarArgs(),
 	}
@@ -1276,7 +1276,7 @@ func (a applyErrs) toError(resType, msg string) error {
 func labelSlcToMap(labels []*label) map[string]*label {
 	m := make(map[string]*label)
 	for i := range labels {
-		m[labels[i].Name] = labels[i]
+		m[labels[i].Name()] = labels[i]
 	}
 	return m
 }
