@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/influxdata/influxdb/telegraf/plugins"
 	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
@@ -62,20 +61,11 @@ type TelegrafConfigFilter struct {
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID          ID               // ID of this config object.
-	OrgID       ID               // OrgID is the id of the owning organization.
-	Name        string           // Name of this config object.
-	Description string           // Decription of this config object.
-	Plugins     []TelegrafPlugin // List of plugins in this config object.
-}
-
-// TelegrafPlugin is the general wrapper of the telegraf plugin config.
-type TelegrafPlugin struct {
-	Type        string `json:"type,omitempty"`        // Type of the plugin.
-	Name        string `json:"name,omitempty"`        // Name of the plugin.
-	Alias       string `json:"alias,omitempty"`       // Alias of the plugin.
-	Description string `json:"description,omitempty"` // Description of the plugin.
-	ConfigTOML  string `json:"config-toml,omitempty"` // ConfigTOML contains the raw toml config.
+	ID          ID     `json:"id,omitempty"`          // ID of this config object.
+	OrgID       ID     `json:"orgID,omitempty"`       // OrgID is the id of the owning organization.
+	Name        string `json:"name,omitempty"`        // Name of this config object.
+	Description string `json:"description,omitempty"` // Decription of this config object.
+	Config      string `json:"config,omitempty"`      // ConfigTOML contains the raw toml config.
 }
 
 // UnmarshalJSON implement the json.Unmarshaler interface.
@@ -86,70 +76,78 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
+
 	orgID := tcd.OrgID
 	if !orgID.Valid() {
 		orgID = tcd.OrganizationID
 	}
+
 	*tc = TelegrafConfig{
 		ID:          tcd.ID,
 		OrgID:       orgID,
 		Name:        tcd.Name,
 		Description: tcd.Description,
-		Plugins:     make([]TelegrafPlugin, len(tcd.Plugins)),
+		Config:      tcd.Config,
 	}
-	return decodePluginRaw(tcd, tc)
+
+	// legacy, remove after some moons. or a migration.
+	if lp := len(tcd.Plugins); lp > 0 {
+		conf, err := decodePluginRaw(tcd)
+		if err != nil {
+			return err
+		}
+		tc.Config = plugins.AgentConfig + conf
+	}
+
+	return nil
 }
 
-func decodePluginRaw(tcd *telegrafConfigDecode, tc *TelegrafConfig) (err error) {
+func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 	op := "unmarshal telegraf config raw plugin"
-	for k, pr := range tcd.Plugins {
+	ps := ""
+
+	for _, pr := range tcd.Plugins {
 		var tpFn func() plugins.Config
-		var config plugins.Config
 		var ok bool
+
 		switch pr.Type {
 		case "input":
 			tpFn, ok = availableInputPlugins[pr.Name]
 		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			tc.Plugins[k] = TelegrafPlugin{
-				Type:       pr.Type,
-				Name:       pr.Name,
-				Alias:      pr.Alias,
-				ConfigTOML: pr.ConfigTOML,
-			}
-			// fmt.Printf("BADTYPE: %+v\n", tc)
+			ps += pr.ConfigTOML
 			continue
 		}
+
 		if !ok {
-			return &Error{
+			return "", &Error{
 				Code: EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
 			}
 		}
 
+		var config plugins.Config
 		config = tpFn()
 		// if pr.Config if empty, make it a blank obj,
 		// so it will still go to the unmarshalling process to validate.
 		if len(string(pr.Config)) == 0 {
 			pr.Config = []byte("{}")
 		}
-		if err = json.Unmarshal(pr.Config, config); err != nil {
-			return &Error{
+
+		if err := json.Unmarshal(pr.Config, config); err != nil {
+			return "", &Error{
 				Code: EInvalid,
 				Err:  err,
 				Op:   op,
 			}
 		}
-		tc.Plugins[k] = TelegrafPlugin{
-			Type:       fmt.Sprint(config.Type()),
-			Name:       config.PluginName(),
-			ConfigTOML: config.TOML(),
-		}
 
+		ps += config.TOML()
 	}
-	return nil
+
+	return ps, nil
 }
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
@@ -159,8 +157,7 @@ type telegrafConfigDecode struct {
 	OrgID          ID     `json:"orgID,omitempty"`
 	Name           string `json:"name"`
 	Description    string `json:"description"`
-
-	// Agent TelegrafAgentConfig `json:"agent"`
+	Config         string `json:"config,omitempty"`
 
 	Plugins []telegrafPluginDecode `json:"plugins"`
 }
@@ -202,68 +199,4 @@ var availableInputPlugins = map[string](func() plugins.Config){
 var availableOutputPlugins = map[string](func() plugins.Config){
 	"file":        func() plugins.Config { return &outputs.File{} },
 	"influxdb_v2": func() plugins.Config { return &outputs.InfluxDBV2{} },
-}
-
-// TOML returns the telegraf toml config string.
-func (tc TelegrafConfig) TOML() string {
-	plugins := ""
-	for _, p := range tc.Plugins {
-		plugins += p.ConfigTOML
-	}
-	interval := time.Duration(10 * time.Second)
-	return fmt.Sprintf(`# Configuration for telegraf agent
-[agent]
-  ## Default data collection interval for all inputs
-  interval = "%s"
-  ## Rounds collection interval to 'interval'
-  ## ie, if interval="10s" then always collect on :00, :10, :20, etc.
-  round_interval = true
-
-  ## Telegraf will send metrics to outputs in batches of at most
-  ## metric_batch_size metrics.
-  ## This controls the size of writes that Telegraf sends to output plugins.
-  metric_batch_size = 1000
-
-  ## For failed writes, telegraf will cache metric_buffer_limit metrics for each
-  ## output, and will flush this buffer on a successful write. Oldest metrics
-  ## are dropped first when this buffer fills.
-  ## This buffer only fills when writes fail to output plugin(s).
-  metric_buffer_limit = 10000
-
-  ## Collection jitter is used to jitter the collection by a random amount.
-  ## Each plugin will sleep for a random time within jitter before collecting.
-  ## This can be used to avoid many plugins querying things like sysfs at the
-  ## same time, which can have a measurable effect on the system.
-  collection_jitter = "0s"
-
-  ## Default flushing interval for all outputs. Maximum flush_interval will be
-  ## flush_interval + flush_jitter
-  flush_interval = "10s"
-  ## Jitter the flush interval by a random amount. This is primarily to avoid
-  ## large write spikes for users running a large number of telegraf instances.
-  ## ie, a jitter of 5s and interval 10s means flushes will happen every 10-15s
-  flush_jitter = "0s"
-
-  ## By default or when set to "0s", precision will be set to the same
-  ## timestamp order as the collection interval, with the maximum being 1s.
-  ##   ie, when interval = "10s", precision will be "1s"
-  ##       when interval = "250ms", precision will be "1ms"
-  ## Precision will NOT be used for service inputs. It is up to each individual
-  ## service input to set the timestamp at the appropriate precision.
-  ## Valid time units are "ns", "us" (or "µs"), "ms", "s".
-  precision = ""
-
-  ## Logging configuration:
-  ## Run telegraf with debug log messages.
-  debug = false
-  ## Run telegraf in quiet mode (error log messages only).
-  quiet = false
-  ## Specify the log file name. The empty string means to log to stderr.
-  logfile = ""
-
-  ## Override default hostname, if empty use os.Hostname()
-  hostname = ""
-  ## If set to true, do no set the "host" tag in the telegraf agent.
-  omit_hostname = false
-%s`, interval.String(), plugins)
 }
