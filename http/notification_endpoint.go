@@ -43,7 +43,7 @@ func NewNotificationEndpointBackend(log *zap.Logger, b *APIBackend) *Notificatio
 	}
 }
 
-func (b *NotificationEndpointBackend) Log() *zap.Logger {
+func (b *NotificationEndpointBackend) Logger() *zap.Logger {
 	return b.log
 }
 

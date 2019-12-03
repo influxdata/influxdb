@@ -10,21 +10,19 @@ import (
 	"path"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/influxdata/influxdb/pkg/testttp"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/testttp"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockUserBackend returns a UserBackend with mock services.
-func NewMockUserBackend() *UserBackend {
+func NewMockUserBackend(t *testing.T) *UserBackend {
 	return &UserBackend{
-		log:                     zap.NewNop(),
+		log:                     zaptest.NewLogger(t),
 		UserService:             mock.NewUserService(),
 		UserOperationLogService: mock.NewUserOperationLogService(),
 		PasswordsService:        mock.NewPasswordsService(),
@@ -44,10 +42,10 @@ func initUserService(f platformtesting.UserFields, t *testing.T) (platform.UserS
 		}
 	}
 
-	userBackend := NewMockUserBackend()
+	userBackend := NewMockUserBackend(t)
 	userBackend.HTTPErrorHandler = ErrorHandler(0)
 	userBackend.UserService = svc
-	handler := NewUserHandler(zap.NewNop(), userBackend)
+	handler := NewUserHandler(zaptest.NewLogger(t), userBackend)
 	server := httptest.NewServer(handler)
 	client := UserService{
 		Addr:     server.URL,
@@ -65,7 +63,7 @@ func TestUserService(t *testing.T) {
 }
 
 func TestUserHandler_SettingPassword(t *testing.T) {
-	be := NewMockUserBackend()
+	be := NewMockUserBackend(t)
 	fakePassSVC := mock.NewPasswordsService()
 
 	userID := platform.ID(1)
@@ -80,7 +78,7 @@ func TestUserHandler_SettingPassword(t *testing.T) {
 	}
 	be.PasswordsService = fakePassSVC
 
-	h := NewUserHandler(zap.NewNop(), be)
+	h := NewUserHandler(zaptest.NewLogger(t), be)
 
 	body := newReqBody(t, passwordSetRequest{Password: "newpassword"})
 	addr := path.Join("/api/v2/users", userID.String(), "/password")

@@ -10,7 +10,7 @@ import (
 )
 
 func initScraperTargetStoreService(f platformtesting.TargetFields, t *testing.T) (platform.ScraperTargetStoreService, string, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

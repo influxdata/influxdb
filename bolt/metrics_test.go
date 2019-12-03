@@ -7,17 +7,17 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestInitialMetrics(t *testing.T) {
-	client, teardown, err := NewTestClient()
+	client, teardown, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("unable to setup bolt client: %v", err)
 	}
 	defer teardown()
 
-	reg := prom.NewRegistry(zap.NewNop())
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(client)
 
 	mfs, err := reg.Gather()
@@ -42,13 +42,13 @@ func TestInitialMetrics(t *testing.T) {
 }
 
 func TestMetrics_Onboarding(t *testing.T) {
-	client, teardown, err := NewTestClient()
+	client, teardown, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("unable to setup bolt client: %v", err)
 	}
 	defer teardown()
 
-	reg := prom.NewRegistry(zap.NewNop())
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(client)
 
 	ctx := context.Background()

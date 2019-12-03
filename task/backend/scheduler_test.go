@@ -18,7 +18,6 @@ import (
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/mock"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -146,7 +145,7 @@ func TestScheduler_DontRunInactiveTasks(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(zap.NewNop(), tcs, e, 5)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
@@ -179,7 +178,7 @@ func TestScheduler_CreateNextRunOnTick(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(zap.NewNop(), tcs, e, 5)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
@@ -319,7 +318,7 @@ func TestScheduler_Release(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	o := backend.NewScheduler(zap.NewNop(), tcs, e, 5)
+	o := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	o.Start(context.Background())
 	defer o.Stop()
 	latestCompleted, _ := time.Parse(time.RFC3339, "1970-01-01T00:00:05Z")
@@ -831,11 +830,11 @@ func TestScheduler_Metrics(t *testing.T) {
 
 	tcs := mock.NewTaskControlService()
 	e := mock.NewExecutor()
-	s := backend.NewScheduler(zap.NewNop(), tcs, e, 5)
+	s := backend.NewScheduler(zaptest.NewLogger(t), tcs, e, 5)
 	s.Start(context.Background())
 	defer s.Stop()
 
-	reg := prom.NewRegistry(zap.NewNop())
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	// PrometheusCollector isn't part of the Scheduler interface. Yet.
 	// Still thinking about whether it should be.
 	reg.MustRegister(s.PrometheusCollectors()...)

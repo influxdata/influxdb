@@ -13,19 +13,19 @@ import (
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestInmemTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestInmemStore()
+			store, close, err := NewTestInmemStore(t)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			service := kv.NewService(zap.NewNop(), store)
+			service := kv.NewService(zaptest.NewLogger(t), store)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
 			if err := service.Initialize(ctx); err != nil {
@@ -52,12 +52,12 @@ func TestBoltTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestBoltStore()
+			store, close, err := NewTestBoltStore(t)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			service := kv.NewService(zap.NewNop(), store)
+			service := kv.NewService(zaptest.NewLogger(t), store)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			if err := service.Initialize(ctx); err != nil {
 				t.Fatalf("error initializing urm service: %v", err)
@@ -80,13 +80,13 @@ func TestBoltTaskService(t *testing.T) {
 }
 
 func TestNextRunDue(t *testing.T) {
-	store, close, err := NewTestBoltStore()
+	store, close, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer close()
 
-	service := kv.NewService(zap.NewNop(), store)
+	service := kv.NewService(zaptest.NewLogger(t), store)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	if err := service.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing urm service: %v", err)
@@ -180,13 +180,13 @@ func TestNextRunDue(t *testing.T) {
 }
 
 func TestRetrieveTaskWithBadAuth(t *testing.T) {
-	store, close, err := NewTestInmemStore()
+	store, close, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer close()
 
-	service := kv.NewService(zap.NewNop(), store)
+	service := kv.NewService(zaptest.NewLogger(t), store)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	if err := service.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing urm service: %v", err)

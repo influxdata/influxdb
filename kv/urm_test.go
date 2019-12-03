@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltUserResourceMappingService(t *testing.T) {
@@ -19,7 +19,7 @@ func TestInmemUserResourceMappingService(t *testing.T) {
 }
 
 func initBoltUserResourceMappingService(f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	s, closeBolt, err := NewTestBoltStore()
+	s, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -32,7 +32,7 @@ func initBoltUserResourceMappingService(f influxdbtesting.UserResourceFields, t 
 }
 
 func initInmemUserResourceMappingService(f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	s, closeBolt, err := NewTestInmemStore()
+	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -45,7 +45,7 @@ func initInmemUserResourceMappingService(f influxdbtesting.UserResourceFields, t
 }
 
 func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	svc := kv.NewService(zap.NewNop(), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {

@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltKeyValueLog(t *testing.T) {
@@ -19,7 +19,7 @@ func TestInmemKeyValueLog(t *testing.T) {
 }
 
 func initBoltKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
-	s, closeBolt, err := NewTestBoltStore()
+	s, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -32,7 +32,7 @@ func initBoltKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (inf
 }
 
 func initInmemKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
-	s, closeBolt, err := NewTestInmemStore()
+	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -45,7 +45,7 @@ func initInmemKeyValueLog(f influxdbtesting.KeyValueLogFields, t *testing.T) (in
 }
 
 func initKeyValueLog(s kv.Store, f influxdbtesting.KeyValueLogFields, t *testing.T) (influxdb.KeyValueLog, func()) {
-	svc := kv.NewService(zap.NewNop(), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 
 	ctx := context.Background()
 	if err := svc.Initialize(ctx); err != nil {

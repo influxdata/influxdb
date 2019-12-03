@@ -694,7 +694,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			coordinator := coordinator.New(logger, m.scheduler)
 
 			// resume existing task claims from task service
-			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, combinedTaskService, coordinator, logger); err != nil {
+			if err := taskbackend.NotifyCoordinatorOfExisting(ctx, logger, combinedTaskService, coordinator); err != nil {
 				logger.Error("failed to resume existing tasks", zap.Error(err))
 			}
 

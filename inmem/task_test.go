@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/snowflake"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 var (
@@ -29,7 +29,7 @@ func BenchmarkFindTaskByID_CursorHints(b *testing.B) {
 		return nil
 	})
 
-	s := kv.NewService(zap.NewNop(), kvs)
+	s := kv.NewService(zaptest.NewLogger(b), kvs)
 	_ = s.Initialize(ctx)
 
 	b.ResetTimer()

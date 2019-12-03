@@ -10,7 +10,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltPasswordService(t *testing.T) {
@@ -22,7 +22,7 @@ func TestInmemPasswordService(t *testing.T) {
 }
 
 func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	s, closeStore, err := NewTestBoltStore()
+	s, closeStore, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt kv store: %v", err)
 	}
@@ -35,7 +35,7 @@ func initBoltPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (i
 }
 
 func initInmemPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	s, closeStore, err := NewTestInmemStore()
+	s, closeStore, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new inmem kv store: %v", err)
 	}
@@ -48,7 +48,7 @@ func initInmemPasswordsService(f influxdbtesting.PasswordFields, t *testing.T) (
 }
 
 func initPasswordsService(s kv.Store, f influxdbtesting.PasswordFields, t *testing.T) (influxdb.PasswordsService, func()) {
-	svc := kv.NewService(zap.NewNop(), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 
 	svc.IDGenerator = f.IDGenerator
 	ctx := context.Background()

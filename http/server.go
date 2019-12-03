@@ -32,10 +32,7 @@ type Server struct {
 }
 
 // NewServer returns a new server struct that can be used.
-func NewServer(handler http.Handler, log *zap.Logger) *Server {
-	if log == nil {
-		log = zap.NewNop()
-	}
+func NewServer(log *zap.Logger, handler http.Handler) *Server {
 	return &Server{
 		ShutdownTimeout: DefaultShutdownTimeout,
 		srv: &http.Server{
@@ -135,13 +132,13 @@ func (s *Server) notifyOnSignals() (_ <-chan os.Signal, cancel func()) {
 // ListenAndServe is a convenience method for opening a listener using the address
 // and then serving the handler on that address. This method sets up the typical
 // signal handlers.
-func ListenAndServe(addr string, handler http.Handler, log *zap.Logger) error {
+func ListenAndServe(log *zap.Logger, addr string, handler http.Handler) error {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 
-	server := NewServer(handler, log)
+	server := NewServer(log, handler)
 	server.ListenForSignals(os.Interrupt, syscall.SIGTERM)
 	return server.Serve(l)
 }

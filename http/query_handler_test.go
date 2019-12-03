@@ -28,7 +28,6 @@ import (
 	influxmock "github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -337,7 +336,7 @@ func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 			},
 		},
 	}
-	h := NewFluxHandler(zap.NewNop(), b)
+	h := NewFluxHandler(zaptest.NewLogger(t), b)
 
 	t.Run("missing authorizer", func(t *testing.T) {
 		ts := httptest.NewServer(h)
@@ -485,12 +484,12 @@ func TestFluxService_Query_gzip(t *testing.T) {
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(zap.NewNop(), fluxBackend)
+	fluxHandler := NewFluxHandler(zaptest.NewLogger(t), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(zap.NewNop(), ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(t), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 	auth.UserService = &influxmock.UserService{
@@ -621,12 +620,12 @@ func benchmarkQuery(b *testing.B, disableCompression bool) {
 		ProxyQueryService:   queryService,
 	}
 
-	fluxHandler := NewFluxHandler(zap.NewNop(), fluxBackend)
+	fluxHandler := NewFluxHandler(zaptest.NewLogger(b), fluxBackend)
 
 	// fluxHandling expects authorization to be on the request context.
 	// AuthenticationHandler extracts the token from headers and places
 	// the auth on context.
-	auth := NewAuthenticationHandler(zap.NewNop(), ErrorHandler(0))
+	auth := NewAuthenticationHandler(zaptest.NewLogger(b), ErrorHandler(0))
 	auth.AuthorizationService = authService
 	auth.Handler = fluxHandler
 

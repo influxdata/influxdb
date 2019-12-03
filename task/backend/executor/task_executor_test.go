@@ -19,7 +19,6 @@ import (
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -37,7 +36,7 @@ func taskExecutorSystem(t *testing.T) tes {
 		AsyncQueryService: aqs,
 	}
 
-	i := kv.NewService(zap.NewNop(), inmem.NewKVStore())
+	i := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 
 	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, taskControlService{i})
 	return tes{
@@ -302,7 +301,7 @@ func testMetrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 	metrics := tes.metrics
-	reg := prom.NewRegistry(zap.NewNop())
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	mg := promtest.MustGather(t, reg)
@@ -434,7 +433,7 @@ func testErrorHandling(t *testing.T) {
 	tes := taskExecutorSystem(t)
 
 	metrics := tes.metrics
-	reg := prom.NewRegistry(zap.NewNop())
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())

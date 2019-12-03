@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltDashboardService(t *testing.T) {
@@ -19,7 +19,7 @@ func TestInmemDashboardService(t *testing.T) {
 }
 
 func initBoltDashboardService(f influxdbtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore()
+	s, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -32,7 +32,7 @@ func initBoltDashboardService(f influxdbtesting.DashboardFields, t *testing.T) (
 }
 
 func initInmemDashboardService(f influxdbtesting.DashboardFields, t *testing.T) (influxdb.DashboardService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore()
+	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -49,7 +49,7 @@ func initDashboardService(s kv.Store, f influxdbtesting.DashboardFields, t *test
 	if f.TimeGenerator == nil {
 		f.TimeGenerator = influxdb.RealTimeGenerator{}
 	}
-	svc := kv.NewService(zap.NewNop(), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 

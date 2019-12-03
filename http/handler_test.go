@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestHandler_ServeHTTP(t *testing.T) {
@@ -31,7 +32,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			fields: fields{
 				name:    "test",
 				handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
-				log:     zap.NewNop(),
+				log:     zaptest.NewLogger(t),
 			},
 			args: args{
 				r: httptest.NewRequest(http.MethodGet, "/", nil),
@@ -47,7 +48,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 				log:     tt.fields.log,
 			}
 			h.initMetrics()
-			reg := prom.NewRegistry(zap.NewNop())
+			reg := prom.NewRegistry(zaptest.NewLogger(t))
 			reg.MustRegister(h.PrometheusCollectors()...)
 
 			tt.args.r.Header.Set("User-Agent", "ua1")

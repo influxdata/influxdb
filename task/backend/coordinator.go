@@ -26,7 +26,7 @@ type Coordinator interface {
 
 // NotifyCoordinatorOfExisting lists all tasks by the provided task service and for
 // each task it calls the provided coordinators task created method
-func NotifyCoordinatorOfExisting(ctx context.Context, ts TaskService, coord Coordinator, log *zap.Logger) error {
+func NotifyCoordinatorOfExisting(ctx context.Context, log *zap.Logger, ts TaskService, coord Coordinator) error {
 	// If we missed a Create Action
 	tasks, _, err := ts.FindTasks(ctx, influxdb.TaskFilter{})
 	if err != nil {

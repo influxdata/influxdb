@@ -16,7 +16,6 @@ import (
 	httpmock "github.com/influxdata/influxdb/http/mock"
 	"github.com/influxdata/influxdb/mock"
 	influxtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -276,7 +275,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				PointsWriter:        &mock.PointsWriter{Err: tt.state.writeErr},
 				WriteEventRecorder:  &metric.NopEventRecorder{},
 			}
-			writeHandler := NewWriteHandler(zap.NewNop(), NewWriteBackend(zap.NewNop(), b))
+			writeHandler := NewWriteHandler(zaptest.NewLogger(t), NewWriteBackend(zaptest.NewLogger(t), b))
 			handler := httpmock.NewAuthMiddlewareHandler(writeHandler, tt.request.auth)
 
 			r := httptest.NewRequest(

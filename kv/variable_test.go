@@ -2,12 +2,12 @@ package kv_test
 
 import (
 	"context"
+	"testing"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
-
-	"testing"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltVariableService(t *testing.T) {
@@ -19,7 +19,7 @@ func TestInmemVariableService(t *testing.T) {
 }
 
 func initBoltVariableService(f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore()
+	s, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -32,7 +32,7 @@ func initBoltVariableService(f influxdbtesting.VariableFields, t *testing.T) (in
 }
 
 func initInmemVariableService(f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore()
+	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -45,7 +45,7 @@ func initInmemVariableService(f influxdbtesting.VariableFields, t *testing.T) (i
 }
 
 func initVariableService(s kv.Store, f influxdbtesting.VariableFields, t *testing.T) (influxdb.VariableService, string, func()) {
-	svc := kv.NewService(zap.NewNop(), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 
 	svc.TimeGenerator = f.TimeGenerator

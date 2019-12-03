@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func Test_Pkg(t *testing.T) {
@@ -88,7 +88,7 @@ func Test_Pkg(t *testing.T) {
 		}
 
 		cmdFn := func() *cobra.Command {
-			builder := newCmdPkgBuilder(fakeSVCFn(pkger.NewService(zap.NewNop())), in(new(bytes.Buffer)))
+			builder := newCmdPkgBuilder(fakeSVCFn(pkger.NewService(zaptest.NewLogger(t))), in(new(bytes.Buffer)))
 			cmd := builder.cmdPkgNew()
 			return cmd
 		}

@@ -134,12 +134,12 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	logger := h.log.With(zap.String("org", req.Org), zap.String("bucket", req.Bucket))
+	log := h.log.With(zap.String("org", req.Org), zap.String("bucket", req.Bucket))
 
 	var org *influxdb.Organization
 	org, err = queryOrganization(ctx, r, h.OrganizationService)
 	if err != nil {
-		logger.Info("Failed to find organization", zap.Error(err))
+		log.Info("Failed to find organization", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -204,7 +204,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	span.LogKV("request_bytes", len(data))
 	span.Finish()
 	if err != nil {
-		logger.Error("Error reading body", zap.Error(err))
+		log.Error("Error reading body", zap.Error(err))
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInternal,
 			Op:   "http/handleWrite",
@@ -231,7 +231,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	span.LogKV("values_total", len(points))
 	span.Finish()
 	if err != nil {
-		logger.Error("Error parsing points", zap.Error(err))
+		log.Error("Error parsing points", zap.Error(err))
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInvalid,
 			Msg:  err.Error(),
@@ -240,7 +240,7 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.PointsWriter.WritePoints(ctx, points); err != nil {
-		logger.Error("Error writing points", zap.Error(err))
+		log.Error("Error writing points", zap.Error(err))
 		h.HandleHTTPError(ctx, &influxdb.Error{
 			Code: influxdb.EInternal,
 			Op:   "http/handleWrite",

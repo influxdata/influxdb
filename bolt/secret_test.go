@@ -9,7 +9,7 @@ import (
 )
 
 func initSecretService(f platformtesting.SecretServiceFields, t *testing.T) (platform.SecretService, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

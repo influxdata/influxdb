@@ -7,20 +7,19 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockSessionBackend returns a SessionBackend with mock services.
-func NewMockSessionBackend() *SessionBackend {
+func NewMockSessionBackend(t *testing.T) *SessionBackend {
 	userSVC := mock.NewUserService()
 	userSVC.FindUserFn = func(_ context.Context, f platform.UserFilter) (*platform.User, error) {
 		return &platform.User{ID: 1}, nil
 	}
 	return &SessionBackend{
-		log: zap.NewNop(),
+		log: zaptest.NewLogger(t),
 
 		SessionService:   mock.NewSessionService(),
 		PasswordsService: mock.NewPasswordsService(),
@@ -81,10 +80,10 @@ func TestSessionHandler_handleSignin(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			b := NewMockSessionBackend()
+			b := NewMockSessionBackend(t)
 			b.PasswordsService = tt.fields.PasswordsService
 			b.SessionService = tt.fields.SessionService
-			h := NewSessionHandler(zap.NewNop(), b)
+			h := NewSessionHandler(zaptest.NewLogger(t), b)
 
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("POST", "http://localhost:9999/api/v2/signin", nil)

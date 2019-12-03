@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kv"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestBoltCheckService(t *testing.T) {
@@ -21,7 +21,7 @@ func TestInmemCheckService(t *testing.T) {
 }
 
 func initBoltCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
-	s, closeBolt, err := NewTestBoltStore()
+	s, closeBolt, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -34,7 +34,7 @@ func initBoltCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb
 }
 
 func initInmemCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
-	s, closeBolt, err := NewTestInmemStore()
+	s, closeBolt, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}
@@ -47,7 +47,7 @@ func initInmemCheckService(f influxdbtesting.CheckFields, t *testing.T) (influxd
 }
 
 func initCheckService(s kv.Store, f influxdbtesting.CheckFields, t *testing.T) (influxdb.CheckService, string, func()) {
-	svc := kv.NewService(zap.NewNop(), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s)
 	svc.IDGenerator = f.IDGenerator
 	svc.TimeGenerator = f.TimeGenerator
 	if f.TimeGenerator == nil {

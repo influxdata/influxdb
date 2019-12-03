@@ -13,19 +13,19 @@ import (
 	"github.com/influxdata/flux/parser"
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/notification"
+	"go.uber.org/zap/zaptest"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/notification/check"
 	influxTesting "github.com/influxdata/influxdb/testing"
-	"github.com/influxdata/httprouter"
-	"go.uber.org/zap"
 )
 
 // NewMockCheckBackend returns a CheckBackend with mock services.
-func NewMockCheckBackend() *CheckBackend {
+func NewMockCheckBackend(t *testing.T) *CheckBackend {
 	return &CheckBackend{
-		log: zap.NewNop().With(zap.String("handler", "check")),
+		log: zaptest.NewLogger(t),
 
 		CheckService:               mock.NewCheckService(),
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
@@ -267,7 +267,7 @@ func TestService_handleGetChecks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.LabelService = tt.fields.LabelService
 			checkBackend.TaskService = &mock.TaskService{
@@ -275,7 +275,7 @@ func TestService_handleGetChecks(t *testing.T) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -420,7 +420,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
@@ -428,7 +428,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 					return &influxdb.Task{}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -572,7 +572,7 @@ func TestService_handleGetCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
@@ -580,7 +580,7 @@ func TestService_handleGetCheck(t *testing.T) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -736,7 +736,7 @@ func TestService_handlePostCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.OrganizationService = tt.fields.OrganizationService
 			checkBackend.TaskService = &mock.TaskService{
@@ -744,7 +744,7 @@ func TestService_handlePostCheck(t *testing.T) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			b, err := json.Marshal(tt.args.check)
 			if err != nil {
@@ -839,7 +839,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
@@ -847,7 +847,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 					return &influxdb.Task{}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -1002,7 +1002,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
@@ -1010,7 +1010,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			upd := influxdb.CheckUpdate{}
 			if tt.args.name != "" {
@@ -1189,7 +1189,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.HTTPErrorHandler = ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
@@ -1197,7 +1197,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			b, err := json.Marshal(tt.args.chk)
 			if err != nil {
@@ -1301,14 +1301,14 @@ func TestService_handlePostCheckMember(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.UserService = tt.fields.UserService
 			checkBackend.TaskService = &mock.TaskService{
 				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{}, nil
 				},
 			}
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {
@@ -1400,9 +1400,9 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkBackend := NewMockCheckBackend()
+			checkBackend := NewMockCheckBackend(t)
 			checkBackend.UserService = tt.fields.UserService
-			h := NewCheckHandler(zap.NewNop(), checkBackend)
+			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {

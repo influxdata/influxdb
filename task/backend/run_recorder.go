@@ -22,7 +22,7 @@ type StoragePointsWriterRecorder struct {
 }
 
 // NewStoragePointsWriterRecorder configures and returns a new *StoragePointsWriterRecorder
-func NewStoragePointsWriterRecorder(pw storage.PointsWriter, log *zap.Logger) *StoragePointsWriterRecorder {
+func NewStoragePointsWriterRecorder(log *zap.Logger, pw storage.PointsWriter) *StoragePointsWriterRecorder {
 	return &StoragePointsWriterRecorder{pw, log}
 }
 

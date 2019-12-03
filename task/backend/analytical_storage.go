@@ -52,7 +52,7 @@ func NewAnalyticalStorage(log *zap.Logger, ts influxdb.TaskService, bs influxdb.
 		TaskService:        ts,
 		BucketService:      bs,
 		TaskControlService: tcs,
-		rr:                 NewStoragePointsWriterRecorder(pw, log),
+		rr:                 NewStoragePointsWriterRecorder(log, pw),
 		qs:                 qs,
 	}
 }

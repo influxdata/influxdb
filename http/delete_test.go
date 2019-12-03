@@ -12,13 +12,13 @@ import (
 	pcontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/mock"
 	influxtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockDeleteBackend returns a DeleteBackend with mock services.
-func NewMockDeleteBackend() *DeleteBackend {
+func NewMockDeleteBackend(t *testing.T) *DeleteBackend {
 	return &DeleteBackend{
-		log: zap.NewNop().With(zap.String("handler", "delete")),
+		log: zaptest.NewLogger(t),
 
 		DeleteService:       mock.NewDeleteService(),
 		BucketService:       mock.NewBucketService(),
@@ -337,12 +337,12 @@ func TestDelete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			deleteBackend := NewMockDeleteBackend()
+			deleteBackend := NewMockDeleteBackend(t)
 			deleteBackend.HTTPErrorHandler = ErrorHandler(0)
 			deleteBackend.DeleteService = tt.fields.DeleteService
 			deleteBackend.OrganizationService = tt.fields.OrganizationService
 			deleteBackend.BucketService = tt.fields.BucketService
-			h := NewDeleteHandler(zap.NewNop(), deleteBackend)
+			h := NewDeleteHandler(zaptest.NewLogger(t), deleteBackend)
 
 			r := httptest.NewRequest("POST", "http://any.tld", bytes.NewReader(tt.args.body))
 

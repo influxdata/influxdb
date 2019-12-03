@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	influxdbtesting "github.com/influxdata/influxdb/testing"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 	nonexistantID    = platform.ID(10001)
 )
 
-type StoreFn func() (kv.Store, func(), error)
+type StoreFn func(*testing.T) (kv.Store, func(), error)
 
 func TestLookupService_Name_WithBolt(t *testing.T) {
 	testLookupName(NewTestBoltStore, t)
@@ -240,11 +240,11 @@ func testLookupName(newStore StoreFn, t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store, done, err := newStore()
+			store, done, err := newStore(t)
 			if err != nil {
 				t.Fatalf("unable to create bolt test client: %v", err)
 			}
-			svc := kv.NewService(zap.NewNop(), store)
+			svc := kv.NewService(zaptest.NewLogger(t), store)
 			defer done()
 
 			svc.IDGenerator = mock.NewMockIDGenerator()

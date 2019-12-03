@@ -5,18 +5,17 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/influxdata/influxdb/notification"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/notification"
 	"github.com/influxdata/influxdb/notification/rule"
 	influxTesting "github.com/influxdata/influxdb/testing"
+	"go.uber.org/zap/zaptest"
 )
 
-func NewMockNotificationRuleBackend() *NotificationRuleBackend {
+func NewMockNotificationRuleBackend(t *testing.T) *NotificationRuleBackend {
 	return &NotificationRuleBackend{
-		log: zap.NewNop().With(zap.String("handler", "check")),
+		log: zaptest.NewLogger(t),
 
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
 		LabelService:               mock.NewLabelService(),
@@ -177,7 +176,7 @@ func Test_newNotificationRuleResponses(t *testing.T) {
 }`,
 		},
 	}
-	handler := NewNotificationRuleHandler(zap.NewNop(), NewMockNotificationRuleBackend())
+	handler := NewNotificationRuleHandler(zaptest.NewLogger(t), NewMockNotificationRuleBackend(t))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -292,7 +291,7 @@ func Test_newNotificationRuleResponse(t *testing.T) {
 }`,
 		},
 	}
-	handler := NewNotificationRuleHandler(zap.NewNop(), NewMockNotificationRuleBackend())
+	handler := NewNotificationRuleHandler(zaptest.NewLogger(t), NewMockNotificationRuleBackend(t))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := handler.newNotificationRuleResponse(context.Background(), tt.args.nr, []*influxdb.Label{})

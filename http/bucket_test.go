@@ -11,19 +11,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
-	"github.com/influxdata/httprouter"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockBucketBackend returns a BucketBackend with mock services.
-func NewMockBucketBackend() *BucketBackend {
+func NewMockBucketBackend(t *testing.T) *BucketBackend {
 	return &BucketBackend{
-		log: zap.NewNop().With(zap.String("handler", "bucket")),
+		log: zaptest.NewLogger(t).With(zap.String("handler", "bucket")),
 
 		BucketService:              mock.NewBucketService(),
 		BucketOperationLogService:  mock.NewBucketOperationLogService(),
@@ -195,10 +196,10 @@ func TestService_handleGetBuckets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.BucketService = tt.fields.BucketService
 			bucketBackend.LabelService = tt.fields.LabelService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -320,10 +321,10 @@ func TestService_handleGetBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -434,10 +435,10 @@ func TestService_handlePostBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.BucketService = tt.fields.BucketService
 			bucketBackend.OrganizationService = tt.fields.OrganizationService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			b, err := json.Marshal(newBucket(tt.args.bucket))
 			if err != nil {
@@ -532,10 +533,10 @@ func TestService_handleDeleteBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			r := httptest.NewRequest("GET", "http://any.url", nil)
 
@@ -835,10 +836,10 @@ func TestService_handlePatchBucket(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.HTTPErrorHandler = ErrorHandler(0)
 			bucketBackend.BucketService = tt.fields.BucketService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			upd := platform.BucketUpdate{}
 			if tt.args.name != "" {
@@ -951,9 +952,9 @@ func TestService_handlePostBucketMember(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.UserService = tt.fields.UserService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {
@@ -1045,9 +1046,9 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			bucketBackend := NewMockBucketBackend()
+			bucketBackend := NewMockBucketBackend(t)
 			bucketBackend.UserService = tt.fields.UserService
-			h := NewBucketHandler(zap.NewNop(), bucketBackend)
+			h := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 
 			b, err := json.Marshal(tt.args.user)
 			if err != nil {
@@ -1080,7 +1081,7 @@ func TestService_handlePostBucketOwner(t *testing.T) {
 }
 
 func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.BucketService, string, func()) {
-	svc := kv.NewService(zap.NewNop(), inmem.NewKVStore())
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	svc.IDGenerator = f.IDGenerator
 	svc.OrgBucketIDs = f.OrgBucketIDs
 	svc.TimeGenerator = f.TimeGenerator
@@ -1104,11 +1105,11 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 		}
 	}
 
-	bucketBackend := NewMockBucketBackend()
+	bucketBackend := NewMockBucketBackend(t)
 	bucketBackend.HTTPErrorHandler = ErrorHandler(0)
 	bucketBackend.BucketService = svc
 	bucketBackend.OrganizationService = svc
-	handler := NewBucketHandler(zap.NewNop(), bucketBackend)
+	handler := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 	server := httptest.NewServer(handler)
 	client := BucketService{
 		Addr:     server.URL,

@@ -23,7 +23,7 @@ import (
 	"github.com/influxdata/influxdb/query"
 	_ "github.com/influxdata/influxdb/query/builtin"
 	"github.com/influxdata/influxdb/task/backend"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 type fakeQueryService struct {
@@ -266,12 +266,12 @@ type system struct {
 	store *inmem.KVStore
 }
 
-type createSysFn func() *system
+type createSysFn func(*testing.T) *system
 
-func createAsyncSystem() *system {
+func createAsyncSystem(t *testing.T) *system {
 	svc := newFakeQueryService()
 	store := inmem.NewKVStore()
-	i := kv.NewService(zap.NewNop(), store)
+	i := kv.NewService(zaptest.NewLogger(t), store)
 	if err := i.Initialize(context.Background()); err != nil {
 		panic(err)
 	}
@@ -280,15 +280,15 @@ func createAsyncSystem() *system {
 		name:  "AsyncExecutor",
 		svc:   svc,
 		ts:    i,
-		ex:    NewAsyncQueryServiceExecutor(zap.NewNop(), svc, i, i),
+		ex:    NewAsyncQueryServiceExecutor(zaptest.NewLogger(t), svc, i, i),
 		i:     i,
 		store: store,
 	}
 }
 
-func createSyncSystem() *system {
+func createSyncSystem(t *testing.T) *system {
 	svc := newFakeQueryService()
-	i := kv.NewService(zap.NewNop(), inmem.NewKVStore())
+	i := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	if err := i.Initialize(context.Background()); err != nil {
 		panic(err)
 	}
@@ -298,7 +298,7 @@ func createSyncSystem() *system {
 		svc:  svc,
 		ts:   i,
 		ex: NewQueryServiceExecutor(
-			zap.NewNop(),
+			zaptest.NewLogger(t),
 			query.QueryServiceBridge{
 				AsyncQueryService: svc,
 			},
@@ -331,7 +331,7 @@ option task = {
 from(bucket: "one") |> to(bucket: "two", orgID: "0000000000000000")`
 
 func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
-	sys := fn()
+	sys := fn(t)
 	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/QuerySuccess", func(t *testing.T) {
 		t.Parallel()
@@ -386,7 +386,7 @@ func testExecutorQuerySuccess(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorQueryFailure(t *testing.T, fn createSysFn) {
-	sys := fn()
+	sys := fn(t)
 	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/QueryFail", func(t *testing.T) {
 		t.Parallel()
@@ -433,7 +433,7 @@ func errTr(x error) string {
 }
 
 func testExecutorExecuteErrors(t *testing.T, fn createSysFn) {
-	sys := fn()
+	sys := fn(t)
 	t.Run(sys.name+"/Execute", func(t *testing.T) {
 		t.Run("no task", func(t *testing.T) {
 			t.Parallel()
@@ -447,7 +447,7 @@ func testExecutorExecuteErrors(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
-	sys := fn()
+	sys := fn(t)
 	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/PromiseCancel", func(t *testing.T) {
 		t.Parallel()
@@ -476,7 +476,7 @@ func testExecutorPromiseCancel(t *testing.T, fn createSysFn) {
 }
 
 func testExecutorServiceError(t *testing.T, fn createSysFn) {
-	sys := fn()
+	sys := fn(t)
 	tc := createCreds(t, sys.i)
 	t.Run(sys.name+"/ServiceError", func(t *testing.T) {
 		t.Parallel()
@@ -521,10 +521,10 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 	// For this set of tests, we are testing Wait, which does not allow calling Execute concurrently,
 	// so we make a new sys for each subtest.
 
-	t.Run(createSys().name+"/Wait", func(t *testing.T) {
+	t.Run(createSys(t).name+"/Wait", func(t *testing.T) {
 		t.Run("with nothing running", func(t *testing.T) {
 			t.Parallel()
-			sys := createSys()
+			sys := createSys(t)
 
 			executorWaited := make(chan struct{})
 			go func() {
@@ -542,7 +542,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 
 		t.Run("cancel execute context", func(t *testing.T) {
 			t.Parallel()
-			sys := createSys()
+			sys := createSys(t)
 			tc := createCreds(t, sys.i)
 
 			ctx, ctxCancel := context.WithCancel(context.Background())
@@ -584,7 +584,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 
 		t.Run("cancel run promise", func(t *testing.T) {
 			t.Parallel()
-			sys := createSys()
+			sys := createSys(t)
 			tc := createCreds(t, sys.i)
 
 			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
@@ -625,7 +625,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 
 		t.Run("run success", func(t *testing.T) {
 			t.Parallel()
-			sys := createSys()
+			sys := createSys(t)
 			tc := createCreds(t, sys.i)
 
 			ctx := icontext.SetAuthorizer(context.Background(), tc.Auth)
@@ -666,7 +666,7 @@ func testExecutorWait(t *testing.T, createSys createSysFn) {
 
 		t.Run("run failure", func(t *testing.T) {
 			t.Parallel()
-			sys := createSys()
+			sys := createSys(t)
 			tc := createCreds(t, sys.i)
 
 			script := fmt.Sprintf(fmtTestScript, t.Name())
