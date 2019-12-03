@@ -464,23 +464,96 @@ func (h *DashboardHandler) handlePostDashboard(w http.ResponseWriter, r *http.Re
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	if err := h.DashboardService.CreateDashboard(ctx, req.Dashboard); err != nil {
+
+	pd := req.Dashboard.toPlatform()
+	if err := h.DashboardService.CreateDashboard(ctx, pd); err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardResponse(req.Dashboard, []*platform.Label{})); err != nil {
+	if err := encodeResponse(ctx, w, http.StatusCreated, newDashboardResponse(pd, []*platform.Label{})); err != nil {
 		logEncodingError(h.Logger, r, err)
 		return
 	}
 }
 
+func (d *dashboard) toPlatform() *platform.Dashboard {
+	pd := &platform.Dashboard{
+		ID:             d.ID,
+		OrganizationID: d.OrganizationID,
+		Name:           d.Name,
+		Description:    d.Description,
+		Meta:           d.Meta,
+	}
+
+	for _, cell := range d.Cells {
+		pd.Cells = append(pd.Cells, cell.toPlatform())
+	}
+
+	return pd
+}
+
+func (c *cell) toPlatform() *platform.Cell {
+	view := &platform.View{
+		ViewContents: platform.ViewContents{Name: c.Name, ID: c.ID},
+	}
+
+	if c.ViewProperties != nil {
+		view.Properties = *c.ViewProperties
+	}
+
+	return &platform.Cell{
+		ID:           c.ID,
+		CellProperty: c.CellProperty,
+		View:         view,
+	}
+}
+
+type cell struct {
+	platform.Cell
+	ViewProperties *platform.ViewProperties `json:"properties,omitempty"`
+	Name           string                   `json:"name"`
+}
+
+type name struct {
+	Name string `json:"name"`
+}
+
+func (c *cell) UnmarshalJSON(b []byte) error {
+	platformCell := platform.Cell{}
+	if err := json.Unmarshal(b, &platformCell); err != nil {
+		return err
+	}
+
+	v, err := platform.UnmarshalViewPropertiesJSON(b)
+	if err != nil {
+		return err
+	}
+
+	n := name{}
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+
+	if v.GetType() != "" {
+		c.ViewProperties = &v
+	}
+	c.Name = n.Name
+	c.Cell = platformCell
+	return nil
+}
+
+type dashboard struct {
+	platform.Dashboard
+	Cells []*cell `json:"cells"`
+}
+
 type postDashboardRequest struct {
-	Dashboard *platform.Dashboard
+	Dashboard *dashboard
 }
 
 func decodePostDashboardRequest(ctx context.Context, r *http.Request) (*postDashboardRequest, error) {
-	c := &platform.Dashboard{}
+	c := &dashboard{}
 	if err := json.NewDecoder(r.Body).Decode(c); err != nil {
 		return nil, err
 	}
