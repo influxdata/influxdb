@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -104,6 +105,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	ctx := r.Context()
+	log := h.log.With(influxlogger.Trace(ctx)...)
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
@@ -169,7 +171,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}
-		h.log.Info("Error writing response to client",
+		log.Info("Error writing response to client",
 			zap.String("handler", "flux"),
 			zap.Error(err),
 		)
