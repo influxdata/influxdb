@@ -20,6 +20,7 @@ spec:
           height: 3
           shade: true
           geom: line
+          position: stacked
           legend:
           queries:
             - query: >

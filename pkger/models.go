@@ -1006,6 +1006,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
+			Position:          c.Position,
 		}
 	case chartKindXY:
 		return influxdb.XYViewProperties{
@@ -1020,6 +1021,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
+			Position:          c.Position,
 		}
 	default:
 		return nil
@@ -1058,12 +1060,25 @@ func (c chart) validProperties() []validationErr {
 	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
 	case chartKindXY:
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
 	}
 
 	return fails
+}
+
+func validPosition(pos string) []validationErr {
+	pos = strings.ToLower(pos)
+	if pos != "" && pos != "overlaid" && pos != "stacked" {
+		return []validationErr{{
+			Field: fieldChartPosition,
+			Msg:   fmt.Sprintf("invalid position supplied %q; valid positions is one of [overlaid, stacked]", pos),
+		}}
+	}
+	return nil
 }
 
 var geometryTypes = map[string]bool{

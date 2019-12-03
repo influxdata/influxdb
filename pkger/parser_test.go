@@ -686,7 +686,7 @@ spec:
 			})
 		})
 
-		t.Run("single dashboard heatmap chart", func(t *testing.T) {
+		t.Run("single heatmap chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -934,7 +934,7 @@ spec:
 			})
 		})
 
-		t.Run("single dashboard histogram chart", func(t *testing.T) {
+		t.Run("single histogram chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -1176,7 +1176,7 @@ spec:
 			})
 		})
 
-		t.Run("single dashboard markdown chart", func(t *testing.T) {
+		t.Run("single markdown chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -2029,6 +2029,7 @@ spec:
 				assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
 				assert.Equal(t, "days", props.Suffix)
 				assert.Equal(t, "sumtin", props.Prefix)
+				assert.Equal(t, "overlaid", props.Position)
 				assert.Equal(t, "leg_type", props.Legend.Type)
 				assert.Equal(t, "horizontal", props.Legend.Orientation)
 
@@ -2400,6 +2401,7 @@ spec:
 					assert.Equal(t, true, props.ShadeBelow)
 					assert.Equal(t, "xy chart note", props.Note)
 					assert.True(t, props.ShowNoteWhenEmpty)
+					assert.Equal(t, "stacked", props.Position)
 
 					require.Len(t, props.Queries, 1)
 					q := props.Queries[0]
