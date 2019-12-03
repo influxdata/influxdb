@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	logger = influxlogger.New(os.Stdout)
-	addr   string
+	log  = influxlogger.New(os.Stdout)
+	addr string
 )
 
 func main() {
@@ -36,10 +36,10 @@ func main() {
 	var exitCode int
 	if err := cmd.Execute(); err != nil {
 		exitCode = 1
-		logger.Error("Command returned error", zap.Error(err))
+		log.Error("Command returned error", zap.Error(err))
 	}
 
-	if err := logger.Sync(); err != nil {
+	if err := log.Sync(); err != nil {
 		exitCode = 1
 		fmt.Fprintf(os.Stderr, "Error syncing logs: %v\n", err)
 	}
@@ -48,19 +48,19 @@ func main() {
 }
 
 func run() error {
-	logger := logger.With(zap.String("service", "telemetryd"))
-	store := telemetry.NewLogStore(logger)
-	svc := telemetry.NewPushGateway(logger, store)
+	log := log.With(zap.String("service", "telemetryd"))
+	store := telemetry.NewLogStore(log)
+	svc := telemetry.NewPushGateway(log, store)
 	// Print data as line protocol
 	svc.Encoder = &prometheus.LineProtocol{}
 
 	handler := http.HandlerFunc(svc.Handler)
-	logger.Info("Starting telemetryd server", zap.String("addr", addr))
+	log.Info("Starting telemetryd server", zap.String("addr", addr))
 
 	srv := http.Server{
 		Addr:     addr,
 		Handler:  handler,
-		ErrorLog: zap.NewStdLog(logger),
+		ErrorLog: zap.NewStdLog(log),
 	}
 	return srv.ListenAndServe()
 }
