@@ -116,7 +116,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			ps += pr.ConfigTOML
+			// TODO(glinton): log something here
 			continue
 		}
 
@@ -152,25 +152,22 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
 type telegrafConfigDecode struct {
-	ID             ID     `json:"id"`
-	OrganizationID ID     `json:"organizationID,omitempty"`
-	OrgID          ID     `json:"orgID,omitempty"`
-	Name           string `json:"name"`
-	Description    string `json:"description"`
-	Config         string `json:"config,omitempty"`
-
-	Plugins []telegrafPluginDecode `json:"plugins"`
+	ID             ID                     `json:"id,omitempty"`
+	OrganizationID ID                     `json:"organizationID,omitempty"`
+	OrgID          ID                     `json:"orgID,omitempty"`
+	Name           string                 `json:"name,omitempty"`
+	Description    string                 `json:"description,omitempty"`
+	Config         string                 `json:"config,omitempty"`
+	Plugins        []telegrafPluginDecode `json:"plugins,omitempty"`
 }
 
 // telegrafPluginDecode is the helper struct for json decoding. legacy.
 type telegrafPluginDecode struct {
-	Type        string `json:"type,omitempty"`        // Type of the plugin.
-	Name        string `json:"name,omitempty"`        // Name of the plugin.
-	Alias       string `json:"alias,omitempty"`       // Alias of the plugin.
-	Description string `json:"description,omitempty"` // Description of the plugin.
-	ConfigTOML  string `json:"config-toml,omitempty"` // ConfigTOML contains the raw toml config.
-
-	Config json.RawMessage `json:"config,omitempty"` // legacy
+	Type        string          `json:"type,omitempty"`        // Type of the plugin.
+	Name        string          `json:"name,omitempty"`        // Name of the plugin.
+	Alias       string          `json:"alias,omitempty"`       // Alias of the plugin.
+	Description string          `json:"description,omitempty"` // Description of the plugin.
+	Config      json.RawMessage `json:"config,omitempty"`      // Config is the currently stored plugin configuration.
 }
 
 var availableInputPlugins = map[string](func() plugins.Config){

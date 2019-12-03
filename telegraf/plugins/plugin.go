@@ -19,8 +19,70 @@ type TelegrafPlugins struct {
 
 // AvailablePlugins returns the base list of available plugins.
 func AvailablePlugins() (*TelegrafPlugins, error) {
+	all := &TelegrafPlugins{}
+
+	t, err := AvailableInputs()
+	if err != nil {
+		return nil, err
+	}
+	all.Version = t.Version
+	all.Plugins = append(all.Plugins, t.Plugins...)
+
+	t, err = AvailableOutputs()
+	if err != nil {
+		return nil, err
+	}
+	all.Plugins = append(all.Plugins, t.Plugins...)
+
+	t, err = AvailableProcessors()
+	if err != nil {
+		return nil, err
+	}
+	all.Plugins = append(all.Plugins, t.Plugins...)
+
+	t, err = AvailableAggregators()
+	if err != nil {
+		return nil, err
+	}
+	all.Plugins = append(all.Plugins, t.Plugins...)
+
+	return all, nil
+}
+
+// AvailableInputs returns the base list of available input plugins.
+func AvailableInputs() (*TelegrafPlugins, error) {
 	t := &TelegrafPlugins{}
-	err := json.Unmarshal([]byte(availablePlugins), t)
+	err := json.Unmarshal([]byte(availableInputs), t)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// AvailableOutputs returns the base list of available output plugins.
+func AvailableOutputs() (*TelegrafPlugins, error) {
+	t := &TelegrafPlugins{}
+	err := json.Unmarshal([]byte(availableOutputs), t)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// AvailableProcessors returns the base list of available processor plugins.
+func AvailableProcessors() (*TelegrafPlugins, error) {
+	t := &TelegrafPlugins{}
+	err := json.Unmarshal([]byte(availableProcessors), t)
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// AvailableAggregators returns the base list of available aggregator plugins.
+func AvailableAggregators() (*TelegrafPlugins, error) {
+	t := &TelegrafPlugins{}
+	err := json.Unmarshal([]byte(availableAggregators), t)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +146,7 @@ var AgentConfig = `# Configuration for telegraf agent
   omit_hostname = false
 `
 
-var availablePlugins = `{
+var availableInputs = `{
   "version": "1.12.5",
   "plugins": [
     {
@@ -1084,7 +1146,14 @@ var availablePlugins = `{
       "name": "nginx_plus",
       "description": "Read Nginx Plus' full status information (ngx_http_status_module)",
       "config": "\n  ## An array of ngx_http_status_module or status URI to gather stats.\n  urls = [\"http://localhost/status\"]\n\n  # HTTP response timeout (default: 5s)\n  response_timeout = \"5s\"\n\n  ## Optional TLS Config\n  # tls_ca = \"/etc/telegraf/ca.pem\"\n  # tls_cert = \"/etc/telegraf/cert.pem\"\n  # tls_key = \"/etc/telegraf/key.pem\"\n  ## Use TLS but skip chain & host verification\n  # insecure_skip_verify = false\n"
-    },
+    }
+  ]
+}
+`
+
+var availableOutputs = `{
+  "version": "1.12.5",
+  "plugins": [
     {
       "type": "outputs",
       "name": "influxdb",
@@ -1281,7 +1350,14 @@ var availablePlugins = `{
       "name": "stackdriver",
       "description": "Configuration for Google Cloud Stackdriver to send metrics to",
       "config": "\n  ## GCP Project\n  project = \"erudite-bloom-151019\"\n\n  ## The namespace for the metric descriptor\n  namespace = \"telegraf\"\n\n  ## Custom resource type\n  # resource_type = \"generic_node\"\n\n  ## Additonal resource labels\n  # [outputs.stackdriver.resource_labels]\n  #   node_id = \"$HOSTNAME\"\n  #   namespace = \"myapp\"\n  #   location = \"eu-north0\"\n"
-    },
+    }
+  ]
+}
+`
+
+var availableProcessors = `{
+  "version": "1.12.5",
+  "plugins": [
     {
       "type": "processors",
       "name": "rename",
@@ -1365,7 +1441,14 @@ var availablePlugins = `{
       "name": "date",
       "description": "Dates measurements, tags, and fields that pass through this filter.",
       "config": "\n  ## New tag to create\n  tag_key = \"month\"\n\n  ## Date format string, must be a representation of the Go \"reference time\"\n  ## which is \"Mon Jan 2 15:04:05 -0700 MST 2006\".\n  date_format = \"Jan\"\n"
-    },
+    }
+  ]
+}
+`
+
+var availableAggregators = `{
+  "version": "1.12.5",
+  "plugins": [
     {
       "type": "aggregators",
       "name": "histogram",

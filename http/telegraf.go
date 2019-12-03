@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/telegraf/plugins"
 	"go.uber.org/zap"
 )
 
@@ -63,6 +64,8 @@ const (
 	telegrafsIDOwnersIDPath  = "/api/v2/telegrafs/:id/owners/:userID"
 	telegrafsIDLabelsPath    = "/api/v2/telegrafs/:id/labels"
 	telegrafsIDLabelsIDPath  = "/api/v2/telegrafs/:id/labels/:lid"
+
+	telegrafPluginsPath = "/api/v2/telegraf/plugins"
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
@@ -83,6 +86,8 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 	h.HandlerFunc("GET", telegrafsIDPath, h.handleGetTelegraf)
 	h.HandlerFunc("DELETE", telegrafsIDPath, h.handleDeleteTelegraf)
 	h.HandlerFunc("PUT", telegrafsIDPath, h.handlePutTelegraf)
+
+	h.HandlerFunc("GET", telegrafPluginsPath, h.handleGetTelegrafPlugins)
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -126,39 +131,6 @@ type telegrafLinks struct {
 	Labels  string `json:"labels"`
 	Members string `json:"members"`
 	Owners  string `json:"owners"`
-}
-
-// MarshalJSON implement the json.Marshaler interface.
-// TODO: remove this hack and make labels and links return.
-// see: https://github.com/influxdata/influxdb/issues/12457
-func (r *telegrafResponse) MarshalJSON() ([]byte, error) {
-	// telegrafConfigEncode is the helper struct for json encoding.
-	type telegrafConfigEncode struct {
-		ID          platform.ID               `json:"id"`
-		OrgID       platform.ID               `json:"orgID,omitempty"`
-		Name        string                    `json:"name"`
-		Description string                    `json:"description"`
-		Plugins     []platform.TelegrafPlugin `json:"plugins"`
-		Labels      []platform.Label          `json:"labels"`
-		Links       telegrafLinks             `json:"links"`
-	}
-
-	tce := new(telegrafConfigEncode)
-	*tce = telegrafConfigEncode{
-		ID:          r.ID,
-		OrgID:       r.OrgID,
-		Name:        r.Name,
-		Description: r.Description,
-		Plugins:     make([]platform.TelegrafPlugin, len(r.Plugins)),
-		Labels:      r.Labels,
-		Links:       r.Links,
-	}
-
-	for k, p := range r.Plugins {
-		tce.Plugins[k] = p
-	}
-
-	return json.Marshal(tce)
 }
 
 type telegrafResponse struct {
@@ -217,6 +189,60 @@ func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.
 	return i, nil
 }
 
+func decodeGetTelegrafPluginRequest(ctx context.Context, r *http.Request) (*plugins.TelegrafPlugins, error) {
+	t, ok := r.URL.Query()["type"]
+	if !ok || len(t) < 1 {
+		return plugins.AvailablePlugins()
+	}
+
+	var telPlugins *plugins.TelegrafPlugins
+	var err error
+
+	switch t[0] {
+	case "inputs":
+		telPlugins, err = plugins.AvailableInputs()
+		if err != nil {
+			return nil, err
+		}
+	case "outputs":
+		telPlugins, err = plugins.AvailableOutputs()
+		if err != nil {
+			return nil, err
+		}
+	case "processors":
+		telPlugins, err = plugins.AvailableProcessors()
+		if err != nil {
+			return nil, err
+		}
+	case "aggregators":
+		telPlugins, err = plugins.AvailableAggregators()
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unknown plugin type '%s'", t)
+	}
+
+	return telPlugins, nil
+}
+
+func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	telPlugins, err := decodeGetTelegrafPluginRequest(ctx, r)
+	if err != nil {
+		h.HandleHTTPError(ctx, err, w)
+		return
+	}
+
+	h.Logger.Debug("telegraf plugins retrieved", zap.String("plugins", fmt.Sprint(telPlugins)))
+
+	if err := encodeResponse(ctx, w, http.StatusOK, telPlugins); err != nil {
+		logEncodingError(h.Logger, r, err)
+		return
+	}
+}
+
 func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	filter, err := decodeTelegrafConfigFilter(ctx, r)
@@ -260,7 +286,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		w.Header().Set("Content-Type", "application/octet-stream")
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s.toml\"", strings.Replace(strings.TrimSpace(tc.Name), " ", "_", -1)))
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(tc.TOML()))
+		w.Write([]byte(tc.Config))
 	case "application/json":
 		labels, err := h.LabelService.FindResourceLabels(ctx, platform.LabelMappingFilter{ResourceID: tc.ID})
 		if err != nil {
@@ -275,7 +301,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 	case "application/toml":
 		w.Header().Set("Content-Type", "application/toml; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(tc.TOML()))
+		w.Write([]byte(tc.Config))
 	}
 }
 

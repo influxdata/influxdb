@@ -259,6 +259,7 @@ var apiLinks = map[string]interface{}{
 	"tasks":     "/api/v2/tasks",
 	"checks":    "/api/v2/checks",
 	"telegrafs": "/api/v2/telegrafs",
+	"plugins":   "/api/v2/telegraf/plugins",
 	"users":     "/api/v2/users",
 	"write":     "/api/v2/write",
 	"delete":    "/api/v2/delete",
@@ -364,7 +365,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/api/v2/telegrafs") {
+	if strings.HasPrefix(r.URL.Path, "/api/v2/telegraf") {
 		h.TelegrafHandler.ServeHTTP(w, r)
 		return
 	}
