@@ -7,11 +7,14 @@ import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 // Components
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 
+// Actions
+import {
+  resetPredicateState,
+  setBucketAndKeys,
+} from 'src/shared/actions/predicates'
+
 // Types
 import {Bucket, AppState, RemoteDataState} from 'src/types'
-
-// Actions
-import {resetPredicateState, setBucketAndKeys} from 'src/shared/actions/predicates'
 
 interface StateProps {
   buckets: Bucket[]
@@ -68,7 +71,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  resetPredicateState: resetPredicateState,
+  resetPredicateState,
   setBucketAndKeys,
 }
 
