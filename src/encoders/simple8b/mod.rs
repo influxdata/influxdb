@@ -205,3 +205,6 @@ pub fn decode(v: u64, dst: &mut [u64]) -> usize {
         _ => 0,
     }
 }
+
+#[cfg(test)]
+mod tests;
