@@ -138,26 +138,27 @@ func CreateTelegrafConfig(
 			args: args{
 				userID: MustIDBase16(threeID),
 				telegrafConfig: &platform.TelegrafConfig{
-					OrgID: MustIDBase16(twoID),
-					Name:  "name1",
-					Agent: platform.TelegrafAgentConfig{
-						Interval: 1000,
-					},
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config:  &inputs.CPUStats{},
-						},
-						{
-							Comment: "comment2",
-							Config: &outputs.InfluxDBV2{
-								URLs:         []string{"localhost/9999"},
-								Token:        "token1",
-								Organization: "org1",
-								Bucket:       "bucket1",
-							},
-						},
-					},
+					OrgID:  MustIDBase16(twoID),
+					Name:   "name1",
+					Config: "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+					// Agent: platform.TelegrafAgentConfig{
+					// 	Interval: 1000,
+					// },
+					// Plugins: []platform.TelegrafPlugin{
+					// 	{
+					// 		Comment: "comment1",
+					// 		Config:  &inputs.CPUStats{},
+					// 	},
+					// 	{
+					// 		Comment: "comment2",
+					// 		Config: &outputs.InfluxDBV2{
+					// 			URLs:         []string{"localhost/9999"},
+					// 			Token:        "token1",
+					// 			Organization: "org1",
+					// 			Bucket:       "bucket1",
+					// 		},
+					// 	},
+					// },
 				},
 			},
 			wants: wants{
@@ -171,27 +172,28 @@ func CreateTelegrafConfig(
 				},
 				telegrafs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "name1",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 1000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "comment2",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"localhost/9999"},
-									Token:        "token1",
-									Organization: "org1",
-									Bucket:       "bucket1",
-								},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "name1",
+						Config: "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+						// Agent: platform.TelegrafAgentConfig{
+						// 	Interval: 1000,
+						// },
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config:  &inputs.CPUStats{},
+						// 	},
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config: &outputs.InfluxDBV2{
+						// 			URLs:         []string{"localhost/9999"},
+						// 			Token:        "token1",
+						// 			Organization: "org1",
+						// 			Bucket:       "bucket1",
+						// 		},
+						// 	},
+						// },
 					},
 				},
 			},
@@ -202,18 +204,19 @@ func CreateTelegrafConfig(
 				IDGenerator: mock.NewIDGenerator(twoID, t),
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc1",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 4000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc1",
+						Config: "[[inputs.mem_stats]]\n",
+						// Agent: platform.TelegrafAgentConfig{
+						// 	Interval: 4000,
+						// },
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 				},
 				UserResourceMappings: []*platform.UserResourceMapping{
@@ -228,66 +231,69 @@ func CreateTelegrafConfig(
 			args: args{
 				userID: MustIDBase16(threeID),
 				telegrafConfig: &platform.TelegrafConfig{
-					OrgID: MustIDBase16(twoID),
-					Name:  "name2",
-					Agent: platform.TelegrafAgentConfig{
-						Interval: 1001,
-					},
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment2",
-							Config:  &inputs.CPUStats{},
-						},
-						{
-							Comment: "comment3",
-							Config: &outputs.InfluxDBV2{
-								URLs:         []string{"localhost/9999"},
-								Token:        "token3",
-								Organization: "org3",
-								Bucket:       "bucket3",
-							},
-						},
-					},
+					OrgID:  MustIDBase16(twoID),
+					Name:   "name2",
+					Config: "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+					// Agent: platform.TelegrafAgentConfig{
+					// 	Interval: 1001,
+					// },
+					// Plugins: []platform.TelegrafPlugin{
+					// 	{
+					// 		Comment: "comment2",
+					// 		Config:  &inputs.CPUStats{},
+					// 	},
+					// 	{
+					// 		Comment: "comment3",
+					// 		Config: &outputs.InfluxDBV2{
+					// 			URLs:         []string{"localhost/9999"},
+					// 			Token:        "token3",
+					// 			Organization: "org3",
+					// 			Bucket:       "bucket3",
+					// 		},
+					// 	},
+					// },
 				},
 			},
 			wants: wants{
 				telegrafs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc1",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 4000,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc1",
+						Config: "[[inputs.mem_stats]]\n",
+						// Agent: platform.TelegrafAgentConfig{
+						// 	Interval: 4000,
+						// },
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "name2",
-						Agent: platform.TelegrafAgentConfig{
-							Interval: 1001,
-						},
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment2",
-								Config:  &inputs.CPUStats{},
-							},
-							{
-								Comment: "comment3",
-								Config: &outputs.InfluxDBV2{
-									URLs:         []string{"localhost/9999"},
-									Token:        "token3",
-									Organization: "org3",
-									Bucket:       "bucket3",
-								},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "name2",
+						Config: "[[inputs.cpu]]\n[[outputs.influxdb_v2]]\n",
+						// Agent: platform.TelegrafAgentConfig{
+						// 	Interval: 1001,
+						// },
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config:  &inputs.CPUStats{},
+						// 	},
+						// 	{
+						// 		Comment: "comment3",
+						// 		Config: &outputs.InfluxDBV2{
+						// 			URLs:         []string{"localhost/9999"},
+						// 			Token:        "token3",
+						// 			Organization: "org3",
+						// 			Bucket:       "bucket3",
+						// 		},
+						// 	},
+						// },
 					},
 				},
 				userResourceMapping: []*platform.UserResourceMapping{
@@ -379,31 +385,33 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Config: &inputs.CPUStats{},
+						// 	},
+						// },
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config: &inputs.File{
+						// 			Files: []string{"f1", "f2"},
+						// 		},
+						// 	},
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 				},
 			},
@@ -419,31 +427,28 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+						// 	Plugins: []platform.TelegrafPlugin{
+						// 		{
+						// 			Comment: "comment1",
+						// 			Config: &inputs.File{
+						// 				Files: []string{"f1", "f2"},
+						// 			},
+						// 		},
+						// 		{
+						// 			Comment: "comment2",
+						// 			Config:  &inputs.MemStats{},
+						// 		},
+						// 	},
 					},
 				},
 			},
@@ -462,31 +467,28 @@ func FindTelegrafConfigByID(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config: &inputs.File{
+						// 			Files: []string{"f1", "f2"},
+						// 		},
+						// 	},
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 				},
 			},
@@ -495,21 +497,22 @@ func FindTelegrafConfigByID(
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:    MustIDBase16(twoID),
-					OrgID: MustIDBase16(threeID),
-					Name:  "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config:  &inputs.MemStats{},
-						},
-					},
+					ID:     MustIDBase16(twoID),
+					OrgID:  MustIDBase16(threeID),
+					Name:   "tc2",
+					Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+					// Plugins: []platform.TelegrafPlugin{
+					// 	{
+					// 		Comment: "comment1",
+					// 		Config: &inputs.File{
+					// 			Files: []string{"f1", "f2"},
+					// 		},
+					// 	},
+					// 	{
+					// 		Comment: "comment2",
+					// 		Config:  &inputs.MemStats{},
+					// 	},
+					// },
 				},
 			},
 		},
@@ -592,31 +595,28 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config: &inputs.File{
+						// 			Files: []string{"f1", "f2"},
+						// 		},
+						// 	},
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 				},
 			},
@@ -631,31 +631,28 @@ func FindTelegrafConfigs(
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config: &inputs.File{
+						// 			Files: []string{"f1", "f2"},
+						// 		},
+						// 	},
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 				},
 			},
@@ -679,31 +676,33 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Config: &inputs.CPUStats{},
+						// 	},
+						// },
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
+						// Plugins: []platform.TelegrafPlugin{
+						// 	{
+						// 		Comment: "comment1",
+						// 		Config: &inputs.File{
+						// 			Files: []string{"f1", "f2"},
+						// 		},
+						// 	},
+						// 	{
+						// 		Comment: "comment2",
+						// 		Config:  &inputs.MemStats{},
+						// 	},
+						// },
 					},
 				},
 			},
@@ -719,14 +718,10 @@ func FindTelegrafConfigs(
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 				},
 			},
@@ -756,41 +751,22 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 					{
-						ID:    MustIDBase16(fourID),
-						OrgID: MustIDBase16(oneID),
-						Name:  "tc3",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(fourID),
+						OrgID:  MustIDBase16(oneID),
+						Name:   "tc3",
+						Config: "[[inputs.cpu]]\n",
 					},
 				},
 			},
@@ -802,14 +778,10 @@ func FindTelegrafConfigs(
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(fourID),
-						OrgID: MustIDBase16(oneID),
-						Name:  "tc3",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(fourID),
+						OrgID:  MustIDBase16(oneID),
+						Name:   "tc3",
+						Config: "[[inputs.cpu]]\n",
 					},
 				},
 			},
@@ -839,41 +811,22 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 					{
-						ID:    MustIDBase16(fourID),
-						OrgID: MustIDBase16(oneID),
-						Name:  "tc3",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(fourID),
+						OrgID:  MustIDBase16(oneID),
+						Name:   "tc3",
+						Config: "[[inputs.cpu]]\n",
 					},
 				},
 			},
@@ -890,14 +843,10 @@ func FindTelegrafConfigs(
 			wants: wants{
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(fourID),
-						OrgID: MustIDBase16(oneID),
-						Name:  "tc3",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(fourID),
+						OrgID:  MustIDBase16(oneID),
+						Name:   "tc3",
+						Config: "[[inputs.cpu]]\n",
 					},
 				},
 			},
@@ -921,31 +870,16 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -977,31 +911,16 @@ func FindTelegrafConfigs(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1074,31 +993,16 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1106,19 +1010,8 @@ func UpdateTelegrafConfig(
 				userID: MustIDBase16(threeID),
 				id:     MustIDBase16(fourID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name: "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config:  &inputs.MemStats{},
-						},
-					},
+					Name:   "tc2",
+					Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 				},
 			},
 			wants: wants{
@@ -1133,31 +1026,16 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1165,35 +1043,17 @@ func UpdateTelegrafConfig(
 				userID: MustIDBase16(fourID),
 				id:     MustIDBase16(twoID),
 				telegrafConfig: &platform.TelegrafConfig{
-					OrgID: MustIDBase16(oneID), // notice this get ignored - ie., resulting TelegrafConfig will have OrgID equal to fourID
-					Name:  "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment3",
-							Config:  &inputs.CPUStats{},
-						},
-						{
-							Comment: "comment2",
-							Config:  &inputs.MemStats{},
-						},
-					},
+					OrgID:  MustIDBase16(oneID), // notice this get ignored - ie., resulting TelegrafConfig will have OrgID equal to fourID
+					Name:   "tc2",
+					Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 				},
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:    MustIDBase16(twoID),
-					OrgID: MustIDBase16(fourID),
-					Name:  "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment3",
-							Config:  &inputs.CPUStats{},
-						},
-						{
-							Comment: "comment2",
-							Config:  &inputs.MemStats{},
-						},
-					},
+					ID:     MustIDBase16(twoID),
+					OrgID:  MustIDBase16(fourID),
+					Name:   "tc2",
+					Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 				},
 			},
 		},
@@ -1202,38 +1062,16 @@ func UpdateTelegrafConfig(
 			fields: TelegrafConfigFields{
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(oneID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(oneID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(oneID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config: &inputs.Kubernetes{
-									URL: "http://1.2.3.4",
-								},
-							},
-							{
-								Config: &inputs.Kubernetes{
-									URL: "123",
-								},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(oneID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.kubernetes]]\n[[inputs.kubernetes]]\n",
 					},
 				},
 			},
@@ -1241,52 +1079,16 @@ func UpdateTelegrafConfig(
 				userID: MustIDBase16(fourID),
 				id:     MustIDBase16(twoID),
 				telegrafConfig: &platform.TelegrafConfig{
-					Name: "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2", "f3"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config: &inputs.Kubernetes{
-								URL: "http://1.2.3.5",
-							},
-						},
-						{
-							Config: &inputs.Kubernetes{
-								URL: "1234",
-							},
-						},
-					},
+					Name:   "tc2",
+					Config: "[[inputs.file]]\n[[inputs.kubernetes]]\n[[inputs.kubernetes]]\n",
 				},
 			},
 			wants: wants{
 				telegrafConfig: &platform.TelegrafConfig{
-					ID:    MustIDBase16(twoID),
-					OrgID: MustIDBase16(oneID),
-					Name:  "tc2",
-					Plugins: []platform.TelegrafPlugin{
-						{
-							Comment: "comment1",
-							Config: &inputs.File{
-								Files: []string{"f1", "f2", "f3"},
-							},
-						},
-						{
-							Comment: "comment2",
-							Config: &inputs.Kubernetes{
-								URL: "http://1.2.3.5",
-							},
-						},
-						{
-							Config: &inputs.Kubernetes{
-								URL: "1234",
-							},
-						},
-					},
+					ID:     MustIDBase16(twoID),
+					OrgID:  MustIDBase16(oneID),
+					Name:   "tc2",
+					Config: "[[inputs.file]]\n[[inputs.kubernetes]]\n[[inputs.kubernetes]]\n",
 				},
 			},
 		},
@@ -1354,31 +1156,16 @@ func DeleteTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1404,31 +1191,16 @@ func DeleteTelegrafConfig(
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(fourID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(fourID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1452,31 +1224,16 @@ func DeleteTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1502,31 +1259,16 @@ func DeleteTelegrafConfig(
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(threeID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(threeID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1550,31 +1292,16 @@ func DeleteTelegrafConfig(
 				},
 				TelegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 					{
-						ID:    MustIDBase16(twoID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc2",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Comment: "comment1",
-								Config: &inputs.File{
-									Files: []string{"f1", "f2"},
-								},
-							},
-							{
-								Comment: "comment2",
-								Config:  &inputs.MemStats{},
-							},
-						},
+						ID:     MustIDBase16(twoID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc2",
+						Config: "[[inputs.file]]\n[[inputs.mem]]\n",
 					},
 				},
 			},
@@ -1593,14 +1320,10 @@ func DeleteTelegrafConfig(
 				},
 				telegrafConfigs: []*platform.TelegrafConfig{
 					{
-						ID:    MustIDBase16(oneID),
-						OrgID: MustIDBase16(twoID),
-						Name:  "tc1",
-						Plugins: []platform.TelegrafPlugin{
-							{
-								Config: &inputs.CPUStats{},
-							},
-						},
+						ID:     MustIDBase16(oneID),
+						OrgID:  MustIDBase16(twoID),
+						Name:   "tc1",
+						Config: "[[inputs.cpu]]\n",
 					},
 				},
 			},
