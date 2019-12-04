@@ -116,8 +116,11 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			// TODO(glinton): log something here
-			continue
+			return "", &Error{
+				Code: EInvalid,
+				Op:   op,
+				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, pr.Type),
+			}
 		}
 
 		if !ok {
