@@ -2145,7 +2145,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dashboard"
+                oneOf:
+                  - $ref: "#/components/schemas/Dashboard"
+                  - $ref: "#/components/schemas/DashboardWithViewProperties"
         default:
           description: Unexpected error
           content:

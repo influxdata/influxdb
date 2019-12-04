@@ -846,40 +846,162 @@ func TestService_handlePostDashboard(t *testing.T) {
 				statusCode:  http.StatusCreated,
 				contentType: "application/json; charset=utf-8",
 				body: `
-{
-  "id": "020f755c3c082000",
-  "orgID": "0000000000000001",
-  "name": "hello",
-  "description": "howdy there",
-  "labels": [],
-  "meta": {
-    "createdAt": "2012-11-10T23:00:00Z",
-    "updatedAt": "2012-11-11T00:00:00Z"
-  },
-  "cells": [
-    {
-      "id": "da7aba5e5d81e550",
-      "x": 1,
-      "y": 2,
-      "w": 3,
-      "h": 4,
-      "links": {
-        "self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
-        "view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
-      }
-    }
-  ],
-  "links": {
-    "self": "/api/v2/dashboards/020f755c3c082000",
-    "org": "/api/v2/orgs/0000000000000001",
-    "members": "/api/v2/dashboards/020f755c3c082000/members",
-    "owners": "/api/v2/dashboards/020f755c3c082000/owners",
-    "logs": "/api/v2/dashboards/020f755c3c082000/logs",
-    "cells": "/api/v2/dashboards/020f755c3c082000/cells",
-    "labels": "/api/v2/dashboards/020f755c3c082000/labels"
-  }
-}
-`,
+						{
+						"id": "020f755c3c082000",
+						"orgID": "0000000000000001",
+						"name": "hello",
+						"description": "howdy there",
+						"labels": [],
+						"meta": {
+							"createdAt": "2012-11-10T23:00:00Z",
+							"updatedAt": "2012-11-11T00:00:00Z"
+						},
+						"cells": [
+							{
+								"id": "da7aba5e5d81e550",
+								"x": 1,
+								"y": 2,
+								"w": 3,
+								"h": 4,
+								"links": {
+									"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+									"view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+								}
+							}
+						],
+						"links": {
+							"self": "/api/v2/dashboards/020f755c3c082000",
+							"org": "/api/v2/orgs/0000000000000001",
+							"members": "/api/v2/dashboards/020f755c3c082000/members",
+							"owners": "/api/v2/dashboards/020f755c3c082000/owners",
+							"logs": "/api/v2/dashboards/020f755c3c082000/logs",
+							"cells": "/api/v2/dashboards/020f755c3c082000/cells",
+							"labels": "/api/v2/dashboards/020f755c3c082000/labels"
+						}
+						}`,
+			},
+		},
+		{
+			name: "create a new dashboard with cell view properties",
+			fields: fields{
+				&mock.DashboardService{
+					CreateDashboardF: func(ctx context.Context, c *platform.Dashboard) error {
+						c.ID = platformtesting.MustIDBase16("020f755c3c082000")
+						c.Meta = platform.DashboardMeta{
+							CreatedAt: time.Date(2012, time.November, 10, 23, 0, 0, 0, time.UTC),
+							UpdatedAt: time.Date(2012, time.November, 10, 24, 0, 0, 0, time.UTC),
+						}
+						c.Cells = []*platform.Cell{
+							{
+								ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
+								CellProperty: platform.CellProperty{
+									X: 1,
+									Y: 2,
+									W: 3,
+									H: 4,
+								},
+								View: &platform.View{
+									ViewContents: platform.ViewContents{
+										Name: "hello a view",
+									},
+									Properties: platform.XYViewProperties{
+										Type: platform.ViewPropertyTypeXY,
+										Note: "note",
+									},
+								},
+							},
+						}
+						return nil
+					},
+				},
+			},
+			args: args{
+				dashboard: &platform.Dashboard{
+					ID:             platformtesting.MustIDBase16("020f755c3c082000"),
+					OrganizationID: 1,
+					Name:           "hello",
+					Description:    "howdy there",
+					Cells: []*platform.Cell{
+						{
+							ID: platformtesting.MustIDBase16("da7aba5e5d81e550"),
+							CellProperty: platform.CellProperty{
+								X: 1,
+								Y: 2,
+								W: 3,
+								H: 4,
+							},
+							View: &platform.View{
+								ViewContents: platform.ViewContents{
+									Name: "hello a view",
+								},
+								Properties: struct {
+									platform.XYViewProperties
+									Shape string
+								}{
+									XYViewProperties: platform.XYViewProperties{
+										Note: "note",
+										Type: platform.ViewPropertyTypeXY,
+									},
+									Shape: "chronograf-v2",
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: wants{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json; charset=utf-8",
+				body: `
+				{
+					"id": "020f755c3c082000",
+					"orgID": "0000000000000001",
+					"name": "hello",
+					"description": "howdy there",
+					"labels": [],
+					"meta": {
+						"createdAt": "2012-11-10T23:00:00Z",
+						"updatedAt": "2012-11-11T00:00:00Z"
+					},
+					"cells": [
+						{
+							"id": "da7aba5e5d81e550",
+							"x": 1,
+							"y": 2,
+							"w": 3,
+							"h": 4,
+							"name": "hello a view",
+							"properties": {
+								"axes": null,
+								"colors": null,
+								"geom": "",
+								"legend": {},
+								"note": "note",
+								"position": "",
+								"queries": null,
+								"shadeBelow": false,
+								"showNoteWhenEmpty": false,
+								"type": "",
+								"xColumn": "",
+								"yColumn": "",
+								"type": "xy"
+							},
+							"links": {
+								"self": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550",
+								"view": "/api/v2/dashboards/020f755c3c082000/cells/da7aba5e5d81e550/view"
+							}
+						}
+					],
+					"links": {
+						"self": "/api/v2/dashboards/020f755c3c082000",
+						"org": "/api/v2/orgs/0000000000000001",
+						"members": "/api/v2/dashboards/020f755c3c082000/members",
+						"owners": "/api/v2/dashboards/020f755c3c082000/owners",
+						"logs": "/api/v2/dashboards/020f755c3c082000/logs",
+						"cells": "/api/v2/dashboards/020f755c3c082000/cells",
+						"labels": "/api/v2/dashboards/020f755c3c082000/labels"
+					}
+				}`,
 			},
 		},
 	}
