@@ -1,6 +1,7 @@
 ## v2.0.0-alpha.21 [unreleased]
 
 ### Features
+1. [15836](https://github.com/influxdata/influxdb/pull/16077): Add stacked line layer option to graphs
 
 ### Bug Fixes
 1. [16101](https://github.com/influxdata/influxdb/pull/16101): Gracefully handle invalid user-supplied JSON
