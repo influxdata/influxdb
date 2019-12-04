@@ -7,13 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bytes = "0.4.12"
 futures = "0.1"
+prost = "0.5.0"
+rand = "0.7.2"
 tokio = "0.1.22"
 tower-grpc = "0.1.1"
 tower-hyper = "0.1.1"
 tower-util = "0.1.0"
-prost = "0.5.0"
-bytes = "0.4.12"
 
 [build-dependencies]
 tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc" }

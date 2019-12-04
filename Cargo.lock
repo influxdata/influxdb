@@ -143,6 +143,7 @@ dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
  "tower-grpc 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tower-grpc-build 0.1.0 (git+https://github.com/tower-rs/tower-grpc)",
