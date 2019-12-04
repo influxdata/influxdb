@@ -12,7 +12,7 @@ import {
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
 // Utils
-import {convertDurationTimeRangeToCustom} from 'src/shared/utils/duration'
+import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
 
 // Constants
 import {
@@ -130,7 +130,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     const {isDatePickerOpen} = this.state
 
     if (isDatePickerOpen && timeRange.type === 'selectable-duration') {
-      return convertDurationTimeRangeToCustom(timeRange)
+      return convertTimeRangeToCustom(timeRange)
     }
 
     if (

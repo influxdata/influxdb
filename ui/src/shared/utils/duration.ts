@@ -113,14 +113,28 @@ export const timeRangeToDuration = (timeRange: TimeRange): string => {
   return timeRange.lower.replace(/\s/g, '').replace(/now\(\)-/, '')
 }
 
-export const convertDurationTimeRangeToCustom = (
-  timeRange: SelectableDurationTimeRange
+export const convertTimeRangeToCustom = (
+  timeRange: TimeRange
 ): CustomTimeRange => {
-  const upper = new Date().toISOString()
+  if (timeRange.type === 'custom') {
+    return timeRange
+  }
 
-  const lower = moment()
-    .subtract(timeRange.seconds, 's')
-    .toISOString()
+  const upper = new Date().toISOString()
+  let lower = ''
+
+  if (timeRange.type === 'selectable-duration') {
+    lower = moment()
+      .subtract(timeRange.seconds, 's')
+      .toISOString()
+  } else if (timeRange.type === 'duration') {
+    const millisecondDuration = durationToMilliseconds(
+      parseDuration(timeRangeToDuration(timeRange))
+    )
+    lower = moment()
+      .subtract(millisecondDuration, 'milliseconds')
+      .toISOString()
+  }
 
   const label = `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(
     upper

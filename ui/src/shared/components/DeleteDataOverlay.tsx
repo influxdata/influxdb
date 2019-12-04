@@ -1,5 +1,5 @@
 // Libraries
-import React, {FunctionComponent} from 'react'
+import React, {FunctionComponent, useEffect} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
@@ -11,14 +11,15 @@ import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 import {Bucket, AppState, RemoteDataState} from 'src/types'
 
 // Actions
-import {resetPredicateState} from 'src/shared/actions/predicates'
+import {resetPredicateState, setBucketAndKeys} from 'src/shared/actions/predicates'
 
 interface StateProps {
   buckets: Bucket[]
 }
 
 interface DispatchProps {
-  resetPredicateStateAction: () => void
+  resetPredicateState: typeof resetPredicateState
+  setBucketAndKeys: typeof setBucketAndKeys
 }
 
 type Props = WithRouterProps & DispatchProps & StateProps
@@ -27,13 +28,22 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   buckets,
   router,
   params: {orgID, bucketID},
-  resetPredicateStateAction,
+  resetPredicateState,
+  setBucketAndKeys,
 }) => {
+  const bucket = buckets.find(bucket => bucket.id === bucketID)
+
+  useEffect(() => {
+    if (bucket) {
+      setBucketAndKeys(bucket.name)
+    }
+  }, [])
+
   const handleDismiss = () => {
-    resetPredicateStateAction()
+    resetPredicateState()
     router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}`)
   }
-  const bucket = buckets.find(bucket => bucket.id === bucketID)
+
   return (
     <Overlay visible={true}>
       <Overlay.Container maxWidth={600}>
@@ -43,11 +53,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
             spinnerComponent={<TechnoSpinner />}
             loading={bucket ? RemoteDataState.Done : RemoteDataState.Loading}
           >
-            <DeleteDataForm
-              handleDismiss={handleDismiss}
-              initialBucketName={bucket && bucket.name}
-              orgID={orgID}
-            />
+            <DeleteDataForm handleDismiss={handleDismiss} />
           </SpinnerContainer>
         </Overlay.Body>
       </Overlay.Container>
@@ -62,7 +68,8 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  resetPredicateStateAction: resetPredicateState,
+  resetPredicateState: resetPredicateState,
+  setBucketAndKeys,
 }
 
 export default connect<StateProps, DispatchProps>(

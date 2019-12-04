@@ -13,11 +13,11 @@ import {
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
 // Types
-import {TimeRange} from 'src/types'
+import {CustomTimeRange} from 'src/types'
 
 interface Props {
-  timeRange: TimeRange
-  onSetTimeRange: (timeRange: TimeRange) => void
+  timeRange: CustomTimeRange
+  onSetTimeRange: (timeRange: CustomTimeRange) => void
 }
 
 const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
@@ -27,7 +27,7 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   const readableLower = moment(timeRange.lower).format('YYYY-MM-DD HH:mm:ss')
   const readableUpper = moment(timeRange.upper).format('YYYY-MM-DD HH:mm:ss')
 
-  const handleApplyTimeRange = (timeRange: TimeRange) => {
+  const handleApplyTimeRange = (timeRange: CustomTimeRange) => {
     onSetTimeRange(timeRange)
     setPickerActive(false)
   }

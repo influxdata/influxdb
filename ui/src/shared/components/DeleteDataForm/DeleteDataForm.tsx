@@ -25,7 +25,7 @@ import PreviewDataTable from 'src/shared/components/DeleteDataForm/PreviewDataTa
 import TimeRangeDropdown from 'src/shared/components/DeleteDataForm/TimeRangeDropdown'
 
 // Types
-import {Filter, RemoteDataState, TimeRange, AppState} from 'src/types'
+import {Filter, RemoteDataState, CustomTimeRange, AppState} from 'src/types'
 
 // Selectors
 import {setCanDelete} from 'src/shared/selectors/canDelete'
@@ -43,41 +43,36 @@ import {
 } from 'src/shared/actions/predicates'
 
 interface OwnProps {
-  orgID: string
   handleDismiss: () => void
-  initialBucketName: string
-  initialTimeRange?: TimeRange
-  keys: string[]
-  values: (string | number)[]
 }
 
 interface StateProps {
-  bucketName: string
   canDelete: boolean
   deletionStatus: RemoteDataState
   files: string[]
   filters: Filter[]
   isSerious: boolean
   keys: string[]
-  timeRange: TimeRange
+  timeRange: CustomTimeRange
   values: (string | number)[]
+  bucketName: string
+  orgID: string
 }
 
 interface DispatchProps {
-  deleteFilter: (index: number) => void
+  deleteFilter: typeof deleteFilter
   deleteWithPredicate: typeof deleteWithPredicate
-  resetFilters: () => void
   executePreviewQuery: typeof executePreviewQuery
+  resetFilters: typeof resetFilters
   setFilter: typeof setFilter
-  setIsSerious: (isSerious: boolean) => void
-  setBucketAndKeys: (orgID: string, bucketName: string) => void
-  setTimeRange: (timeRange: TimeRange) => void
+  setIsSerious: typeof setIsSerious
+  setBucketAndKeys: typeof setBucketAndKeys
+  setTimeRange: typeof setTimeRange
 }
 
 export type Props = StateProps & DispatchProps & OwnProps
 
 const DeleteDataForm: FC<Props> = ({
-  bucketName,
   canDelete,
   deleteFilter,
   deletionStatus,
@@ -86,11 +81,8 @@ const DeleteDataForm: FC<Props> = ({
   files,
   filters,
   handleDismiss,
-  initialBucketName,
-  initialTimeRange,
   isSerious,
   keys,
-  orgID,
   resetFilters,
   setFilter,
   setIsSerious,
@@ -98,13 +90,14 @@ const DeleteDataForm: FC<Props> = ({
   setTimeRange,
   timeRange,
   values,
+  bucketName,
+  orgID,
 }) => {
-  const name = bucketName || initialBucketName
   const [count, setCount] = useState('0')
   useEffect(() => {
     // trigger the setBucketAndKeys if the bucketName hasn't been set
-    if (bucketName === '' && name !== undefined) {
-      setBucketAndKeys(orgID, name)
+    if (bucketName) {
+      setBucketAndKeys(bucketName)
     }
   })
 
@@ -114,7 +107,7 @@ const DeleteDataForm: FC<Props> = ({
     }
   }, [filters])
 
-  const resolvedTimeRange = timeRange || initialTimeRange
+  const resolvedTimeRange = timeRange
 
   const formatPredicatesForPreview = predicates => {
     let result = ''
@@ -161,12 +154,12 @@ const DeleteDataForm: FC<Props> = ({
   }
 
   const handleBucketClick = (selectedBucketName: string) => {
-    setBucketAndKeys(orgID, selectedBucketName)
+    setBucketAndKeys(selectedBucketName)
     resetFilters()
   }
 
-  const formatNumber = num => {
-    if (num !== undefined) {
+  const formatNumber = (num: string) => {
+    if (num) {
       return num.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1,')
     }
     return 0
@@ -187,7 +180,7 @@ const DeleteDataForm: FC<Props> = ({
           <Grid.Column widthXS={Columns.Eight}>
             <Form.Element label="Time Range">
               <TimeRangeDropdown
-                timeRange={resolvedTimeRange}
+                timeRange={timeRange}
                 onSetTimeRange={setTimeRange}
               />
             </Form.Element>
@@ -199,9 +192,8 @@ const DeleteDataForm: FC<Props> = ({
               bucket={name}
               filters={filters}
               keys={keys}
-              onDeleteFilter={index => deleteFilter(index)}
-              onSetFilter={(filter, index) => setFilter(filter, index)}
-              orgID={orgID}
+              onDeleteFilter={deleteFilter}
+              onSetFilter={setFilter}
               shouldValidate={isSerious}
               values={values}
             />
@@ -270,7 +262,7 @@ const DeleteDataForm: FC<Props> = ({
   )
 }
 
-const mstp = ({predicates}: AppState): StateProps => {
+const mstp = ({predicates, orgs}: AppState): StateProps => {
   const {
     bucketName,
     deletionStatus,
@@ -282,6 +274,8 @@ const mstp = ({predicates}: AppState): StateProps => {
     values,
   } = predicates
 
+  const orgID = orgs.org.id
+
   return {
     bucketName,
     canDelete: setCanDelete(predicates),
@@ -292,6 +286,7 @@ const mstp = ({predicates}: AppState): StateProps => {
     keys,
     timeRange,
     values,
+    orgID,
   }
 }
 
