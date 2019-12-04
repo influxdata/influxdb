@@ -36,7 +36,7 @@ export const pastFifteenMinTimeRange: SelectableDurationTimeRange = {
   type: 'selectable-duration',
 }
 
-export const CUSTOM_TIME_RANGE: Partial<CustomTimeRange> = {
+export const CUSTOM_TIME_RANGE: {label: string; type: 'custom'} = {
   label: 'Custom Time Range' as 'Custom Time Range',
   type: 'custom',
 }

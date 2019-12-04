@@ -282,8 +282,11 @@ export const getStartTime = (timeRange: TimeRange) => {
 }
 
 export const getEndTime = (timeRange: TimeRange): number => {
-  if (timeRange && timeRange.upper) {
+  if (!timeRange) {
+    return null
+  }
+  if (timeRange.type === 'custom') {
     return moment(timeRange.upper).valueOf()
   }
-  return -Infinity
+  return moment().valueOf()
 }
