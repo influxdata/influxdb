@@ -1,12 +1,13 @@
 import {
   TimeRange,
-  CUSTOM_TIME_RANGE_LABEL,
   CustomTimeRange,
   SelectableDurationTimeRange,
   DurationTimeRange,
 } from 'src/types'
 
 export const TIME_RANGE_FORMAT = 'YYYY-MM-DD HH:mm'
+
+export const CUSTOM_TIME_RANGE_LABEL = 'Custom Time Range' as 'Custom Time Range'
 
 export const pastHourTimeRange: SelectableDurationTimeRange = {
   seconds: 3600,
@@ -35,10 +36,8 @@ export const pastFifteenMinTimeRange: SelectableDurationTimeRange = {
   type: 'selectable-duration',
 }
 
-export const CUSTOM_TIME_RANGE: CustomTimeRange = {
-  lower: '',
-  upper: null,
-  label: 'Custom Time Range' as CUSTOM_TIME_RANGE_LABEL,
+export const CUSTOM_TIME_RANGE: Partial<CustomTimeRange> = {
+  label: 'Custom Time Range' as 'Custom Time Range',
   type: 'custom',
 }
 
@@ -49,7 +48,7 @@ export const CHECK_TIME_RANGE: DurationTimeRange = {
   type: 'duration',
 }
 
-export const SELECTED_TIME_RANGES: SelectableDurationTimeRange[] = [
+export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [
   {
     seconds: 300,
     lower: 'now() - 5m',
@@ -101,11 +100,6 @@ export const SELECTED_TIME_RANGES: SelectableDurationTimeRange[] = [
     type: 'selectable-duration',
   },
   pastThirtyDaysTimeRange,
-]
-
-export const TIME_RANGES: TimeRange[] = [
-  CUSTOM_TIME_RANGE,
-  ...SELECTED_TIME_RANGES,
 ]
 
 export const DEFAULT_TIME_RANGE: TimeRange = pastHourTimeRange

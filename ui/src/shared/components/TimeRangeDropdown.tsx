@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, createRef} from 'react'
-import {get} from 'lodash'
 import moment from 'moment'
 
 // Components
@@ -15,8 +14,7 @@ import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePick
 
 // Constants
 import {
-  TIME_RANGES,
-  TIME_RANGE_LABEL,
+  SELECTABLE_TIME_RANGES,
   CUSTOM_TIME_RANGE_LABEL,
   TIME_RANGE_FORMAT,
 } from 'src/shared/constants/timeRanges'
@@ -31,12 +29,11 @@ export enum RangeType {
 
 interface Props {
   timeRange: TimeRange
-  onSetTimeRange: (timeRange: TimeRange, rangeType?: RangeType) => void
+  onSetTimeRange: (timeRange: TimeRange) => void
 }
 
 interface State {
   isDatePickerOpen: boolean
-  dropdownPosition: {position: string}
 }
 
 class TimeRangeDropdown extends PureComponent<Props, State> {
@@ -45,7 +42,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
   constructor(props: Props) {
     super(props)
 
-    this.state = {isDatePickerOpen: false, dropdownPosition: undefined}
+    this.state = {isDatePickerOpen: false}
   }
 
   public render() {
@@ -56,7 +53,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
           appearance={Appearance.Outline}
           position={PopoverPosition.ToTheLeft}
           triggerRef={this.dropdownRef}
-          visible={this.isDatePickerVisible}
+          visible={this.state.isDatePickerOpen}
           showEvent={PopoverInteraction.None}
           hideEvent={PopoverInteraction.None}
           distanceFromTrigger={8}
@@ -67,7 +64,9 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
               timeRange={timeRange}
               onSetTimeRange={this.handleApplyTimeRange}
               onClose={this.handleHideDatePicker}
-              position={this.state.dropdownPosition}
+              position={
+                this.state.isDatePickerOpen ? {position: 'relative'} : undefined
+              }
             />
           )}
         />
@@ -77,7 +76,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             testID="timerange-dropdown"
             button={(active, onClick) => (
               <Dropdown.Button active={active} onClick={onClick}>
-                {this.formattedCustomTimeRange}
+                {timeRange.label}
               </Dropdown.Button>
             )}
             menu={onCollapse => (
@@ -85,12 +84,22 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                 onCollapse={onCollapse}
                 style={{width: `${this.dropdownWidth + 50}px`}}
               >
-                {TIME_RANGES.map(({label}) => {
-                  if (label === TIME_RANGE_LABEL) {
-                    return (
-                      <Dropdown.Divider key={label} text={label} id={label} />
-                    )
-                  }
+                <Dropdown.Divider
+                  key="Time Range"
+                  text="Time Range"
+                  id="Time Range"
+                />
+                <Dropdown.Item
+                  key={CUSTOM_TIME_RANGE_LABEL}
+                  value={CUSTOM_TIME_RANGE_LABEL}
+                  id={CUSTOM_TIME_RANGE_LABEL}
+                  testID="dropdown-item-custom"
+                  selected={this.state.isDatePickerOpen}
+                  onClick={this.handleClickCustomTimeRange}
+                >
+                  {CUSTOM_TIME_RANGE_LABEL}
+                </Dropdown.Item>
+                {SELECTABLE_TIME_RANGES.map(({label}) => {
                   const testID = label.toLowerCase().replace(/\s/g, '')
                   return (
                     <Dropdown.Item
@@ -99,7 +108,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                       id={label}
                       testID={`dropdown-item-${testID}`}
                       selected={label === timeRange.label}
-                      onClick={this.handleChange}
+                      onClick={this.handleClickDropdownItem}
                     >
                       {label}
                     </Dropdown.Item>
@@ -114,106 +123,67 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
   }
 
   private get dropdownWidth(): number {
-    if (this.isCustomTimeRange) {
+    if (this.props.timeRange.type === 'custom') {
       return 250
     }
-
     return 100
-  }
-
-  private get isCustomTimeRange(): boolean {
-    const {timeRange} = this.props
-    return (
-      get(timeRange, 'label', '') === CUSTOM_TIME_RANGE_LABEL ||
-      !!timeRange.upper
-    )
-  }
-
-  private get formattedCustomTimeRange(): string {
-    const {timeRange} = this.props
-    if (!this.isCustomTimeRange) {
-      return TIME_RANGES.find(range => range.lower === timeRange.lower).label
-    }
-
-    return `${moment(timeRange.lower).format(TIME_RANGE_FORMAT)} - ${moment(
-      timeRange.upper
-    ).format(TIME_RANGE_FORMAT)}`
   }
 
   private get timeRange(): TimeRange {
     const {timeRange} = this.props
     const {isDatePickerOpen} = this.state
 
-    if (isDatePickerOpen) {
-      const date = new Date().toISOString()
+    if (isDatePickerOpen && timeRange.type === 'selectable-duration') {
+      //convert selected Time Range to custom
 
-      const upper =
-        timeRange.upper && this.isCustomTimeRange ? timeRange.upper : date
-      const lower =
-        timeRange.lower && this.isCustomTimeRange
-          ? timeRange.lower
-          : this.calculatedLower
+      const upper = new Date().toISOString()
+
+      const lower = moment()
+        .subtract(timeRange.seconds, 's')
+        .toISOString()
+
+      const label = `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(
+        upper
+      ).format(TIME_RANGE_FORMAT)}`
+
       return {
-        label: CUSTOM_TIME_RANGE_LABEL,
+        label,
         lower,
         upper,
+        type: 'custom',
       }
     }
 
-    if (this.isCustomTimeRange) {
-      return {
-        ...timeRange,
-        label: this.formattedCustomTimeRange,
-      }
+    if (
+      timeRange.type === 'custom' ||
+      timeRange.type === 'selectable-duration'
+    ) {
+      return timeRange
     }
 
-    const selectedTimeRange = TIME_RANGES.find(t => t.lower === timeRange.lower)
-
-    if (!selectedTimeRange) {
-      throw new Error('TimeRangeDropdown passed unknown TimeRange')
-    }
-
-    return selectedTimeRange
-  }
-
-  private get isDatePickerVisible() {
-    return this.state.isDatePickerOpen
-  }
-
-  private get calculatedLower() {
-    const {
-      timeRange: {seconds},
-    } = this.props
-
-    if (seconds) {
-      return moment()
-        .subtract(seconds, 's')
-        .toISOString()
-    }
-
-    return new Date().toISOString()
+    throw new Error(
+      `TimeRangeDropdown passed unknown TimeRange with type: ${
+        timeRange.type
+      }, lower: ${timeRange.lower}, and upper: ${timeRange.upper}`
+    )
   }
 
   private handleApplyTimeRange = (timeRange: TimeRange) => {
-    this.props.onSetTimeRange(timeRange, RangeType.Absolute)
+    this.props.onSetTimeRange(timeRange)
     this.handleHideDatePicker()
   }
 
   private handleHideDatePicker = () => {
-    this.setState({isDatePickerOpen: false, dropdownPosition: undefined})
+    this.setState({isDatePickerOpen: false})
   }
 
-  private handleChange = (label: string): void => {
-    const {onSetTimeRange} = this.props
-    const timeRange = TIME_RANGES.find(t => t.label === label)
+  private handleClickCustomTimeRange = (): void => {
+    this.setState({isDatePickerOpen: true})
+  }
 
-    if (label === CUSTOM_TIME_RANGE_LABEL) {
-      this.setState({
-        isDatePickerOpen: true,
-        dropdownPosition: {position: 'relative'},
-      })
-      return
-    }
+  private handleClickDropdownItem = (label: string): void => {
+    const {onSetTimeRange} = this.props
+    const timeRange = SELECTABLE_TIME_RANGES.find(t => t.label === label)
 
     onSetTimeRange(timeRange)
   }

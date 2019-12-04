@@ -1,6 +1,6 @@
-export {Query, Dialect} from 'src/client'
+import {CUSTOM_TIME_RANGE_LABEL} from 'src/shared/constants/timeRanges'
 
-export type CUSTOM_TIME_RANGE_LABEL = 'Custom Time Range'
+export {Query, Dialect} from 'src/client'
 
 export type SelectableTimeRangeLower =
   | 'now() - 5m'
@@ -38,6 +38,6 @@ export interface DurationTimeRange {
 export interface CustomTimeRange {
   lower: string
   upper: string
-  label: CUSTOM_TIME_RANGE_LABEL | string
+  label: typeof CUSTOM_TIME_RANGE_LABEL | string
   type: 'custom'
 }

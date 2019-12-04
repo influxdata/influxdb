@@ -1,7 +1,11 @@
 import {CustomTimeRange, TimeRange, DurationTimeRange} from 'src/types/queries'
 import {isNull} from 'lodash'
+import moment from 'moment'
 
-import {SELECTED_TIME_RANGES} from 'src/shared/constants/timeRanges'
+import {
+  SELECTABLE_TIME_RANGES,
+  TIME_RANGE_FORMAT,
+} from 'src/shared/constants/timeRanges'
 import {isDateParseable} from 'src/variables/utils/getTimeRangeVars'
 import {isDurationParseable} from 'src/shared/utils/duration'
 
@@ -42,14 +46,18 @@ export const validateAndTypeRange = (timeRange: {
 }): TimeRange => {
   const {lower, upper} = timeRange
   if (isDateParseable(lower) && isDateParseable(upper)) {
+    const label = `${moment(timeRange.lower).format(
+      TIME_RANGE_FORMAT
+    )} - ${moment(timeRange.upper).format(TIME_RANGE_FORMAT)}`
+
     return {
       ...timeRange,
       type: 'custom',
-      label: 'Custom Time Range',
+      label,
     } as CustomTimeRange
   }
   if (isDurationParseable(lower) && isNull(upper)) {
-    const selectedTimeRange = SELECTED_TIME_RANGES.find(r => {
+    const selectedTimeRange = SELECTABLE_TIME_RANGES.find(r => {
       r.lower === lower
     })
 

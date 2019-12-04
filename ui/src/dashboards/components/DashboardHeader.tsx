@@ -4,9 +4,7 @@ import _ from 'lodash'
 
 // Components
 import AutoRefreshDropdown from 'src/shared/components/dropdown_auto_refresh/AutoRefreshDropdown'
-import TimeRangeDropdown, {
-  RangeType,
-} from 'src/shared/components/TimeRangeDropdown'
+import TimeRangeDropdown from 'src/shared/components/TimeRangeDropdown'
 import GraphTips from 'src/shared/components/graph_tips/GraphTips'
 import RenamablePageTitle from 'src/pageLayout/components/RenamablePageTitle'
 import TimeZoneDropdown from 'src/shared/components/TimeZoneDropdown'
@@ -130,10 +128,7 @@ export default class DashboardHeader extends Component<Props> {
     this.props.handleClickPresentationButton()
   }
 
-  private handleChooseTimeRange = (
-    timeRange: TimeRange,
-    rangeType: RangeType = RangeType.Relative
-  ) => {
+  private handleChooseTimeRange = (timeRange: TimeRange) => {
     const {
       autoRefresh,
       onSetAutoRefreshStatus,
@@ -142,7 +137,7 @@ export default class DashboardHeader extends Component<Props> {
 
     handleChooseTimeRange(timeRange)
 
-    if (rangeType === RangeType.Absolute) {
+    if (timeRange.type === 'custom') {
       onSetAutoRefreshStatus(AutoRefreshStatus.Disabled)
       return
     }
