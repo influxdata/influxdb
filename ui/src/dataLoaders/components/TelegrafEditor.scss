@@ -1,0 +1,31 @@
+@import '~src/style/_influx-colors.scss';
+
+.telegraf-editor--plugins {
+  .display {
+    color: $g7-graphite;
+    margin-top: 8px;
+    padding: 0 12px;
+  }
+
+  .entry {
+    cursor: pointer;
+    padding: 0 12px;
+    padding-left: 24px;
+
+    label {
+      font-size: 12px;
+      color: $g9-mountain;
+      display: block;
+      margin-bottom: 4px;
+      cursor: pointer;
+    }
+  }
+
+  .input,
+  .output,
+  .processor,
+  .aggregator,
+  .bundle {
+    @extend .entry;
+  }
+}
