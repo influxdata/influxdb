@@ -332,7 +332,6 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
 	tc := new(platform.TelegrafConfig)
 	err := json.NewDecoder(r.Body).Decode(tc)
-	// fmt.Printf("GOT THING: %+v\n", tc)
 	return tc, err
 }
 
