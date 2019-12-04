@@ -14,6 +14,12 @@ func initSecretService(f platformtesting.SecretServiceFields, t *testing.T) (pla
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}
 	ctx := context.TODO()
+
+	for _, o := range f.Organizations {
+		if err := c.PutOrganization(ctx, o); err != nil {
+			t.Fatalf("failed to populate organizations")
+		}
+	}
 	for _, s := range f.Secrets {
 		for k, v := range s.Env {
 			if err := c.PutSecret(ctx, s.OrganizationID, k, v); err != nil {
