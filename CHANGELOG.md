@@ -4,7 +4,9 @@
 
 ### Bug Fixes
 1. [16101](https://github.com/influxdata/influxdb/pull/16101): Gracefully handle invalid user-supplied JSON
+1. [16057](https://github.com/influxdata/influxdb/pull/16057): Adds `properties` to each cell on GET /dashboards/{dashboardID}
 1. [16105](https://github.com/influxdata/influxdb/pull/16105): Fix crash when loading queries built using Query Builder
+1. [16112](https://github.com/influxdata/influxdb/pull/16112): Create cell view properties on dashboard creation
 
 ### UI Improvements
 
@@ -19,8 +21,6 @@
 1. [15674](https://github.com/influxdata/influxdb/pull/15674): Allow users to view just the output section of a telegraf config
 1. [15923](https://github.com/influxdata/influxdb/pull/15923): Allow the users to see string data in the single stat graph type
 1. [15314](https://github.com/influxdata/influxdb/issues/15314): Allow the users to see string data in the single stat graph type
-1. [16057] (https://github.com/influxdata/influxdb/pull/16057): Adds `properties` to each cell on GET /dashboards/{dashboardID}
-1. [16112] (https://github.com/influxdata/influxdb/pull/16112): Create cell view properties on dashboard creation
 
 ### Bug Fixes
 

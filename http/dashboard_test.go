@@ -977,6 +977,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 								"geom": "",
 								"legend": {},
 								"note": "note",
+								"position": "",
 								"queries": null,
 								"shadeBelow": false,
 								"showNoteWhenEmpty": false,
