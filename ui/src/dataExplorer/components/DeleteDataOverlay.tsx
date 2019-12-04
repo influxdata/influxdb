@@ -2,10 +2,10 @@
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {Overlay} from '@influxdata/clockface'
 import {get} from 'lodash'
 
 // Components
+import {Overlay} from '@influxdata/clockface'
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 import GetResources, {ResourceType} from 'src/shared/components/GetResources'
 
@@ -18,22 +18,9 @@ import {AppState, TimeRange} from 'src/types'
 // Actions
 import {resetPredicateState} from 'src/shared/actions/predicates'
 
-const resolveTimeRange = (timeRange: TimeRange): [number, number] | null => {
-  const [lower, upper] = [
-    Date.parse(timeRange.lower),
-    Date.parse(timeRange.upper),
-  ]
-
-  if (!isNaN(lower) && !isNaN(upper)) {
-    return [lower, upper]
-  }
-
-  return null
-}
-
 interface StateProps {
   selectedBucketName?: string
-  selectedTimeRange?: [number, number]
+  timeRange: TimeRange
 }
 
 interface DispatchProps {
@@ -46,7 +33,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   router,
   params: {orgID},
   selectedBucketName,
-  selectedTimeRange,
+  timeRange,
   resetPredicateState,
 }) => {
   const handleDismiss = () => {
@@ -63,7 +50,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
             <DeleteDataForm
               handleDismiss={handleDismiss}
               initialBucketName={selectedBucketName}
-              initialTimeRange={selectedTimeRange}
+              initialTimeRange={timeRange}
               orgID={orgID}
             />
           </GetResources>
@@ -78,11 +65,10 @@ const mstp = (state: AppState): StateProps => {
   const selectedBucketName = get(activeQuery, 'builderConfig.buckets.0')
 
   const {timeRange} = getActiveTimeMachine(state)
-  const selectedTimeRange = resolveTimeRange(timeRange)
 
   return {
     selectedBucketName,
-    selectedTimeRange,
+    timeRange,
   }
 }
 

@@ -1,6 +1,7 @@
 // Libraries
 import {Dispatch} from 'redux-thunk'
 import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
+import moment from 'moment'
 
 // Utils
 import {postDelete} from 'src/client'
@@ -23,7 +24,7 @@ import {
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Types
-import {GetState, Filter, RemoteDataState} from 'src/types'
+import {RemoteDataState, Filter, TimeRange, GetState} from 'src/types'
 
 export type Action =
   | DeleteFilter
@@ -144,10 +145,10 @@ export const setPreviewStatus = (
 
 interface SetTimeRange {
   type: 'SET_DELETE_TIME_RANGE'
-  payload: {timeRange: [number, number]}
+  payload: {timeRange: TimeRange}
 }
 
-export const setTimeRange = (timeRange: [number, number]): SetTimeRange => ({
+export const setTimeRange = (timeRange: TimeRange): SetTimeRange => ({
   type: 'SET_DELETE_TIME_RANGE',
   payload: {timeRange},
 })
@@ -162,11 +163,39 @@ const setValues = (values: string[]): SetValuesByKey => ({
   payload: {values},
 })
 
-export const deleteWithPredicate = params => async (
-  dispatch: Dispatch<Action>
+const formatFilters = (filters: Filter[]) =>
+  filters.map(f => `${f.key} ${f.equality} ${f.value}`).join(' AND ')
+
+export const deleteWithPredicate = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
+  dispatch(setDeletionStatus(RemoteDataState.Loading))
+
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+    predicates: {timeRange, bucketName, filters},
+  } = getState()
+
+  const data = {
+    start: moment(timeRange.lower).toISOString(),
+    stop: moment(timeRange.upper).toISOString(),
+  }
+
+  if (filters.length > 0) {
+    data['predicate'] = formatFilters(filters)
+  }
+
   try {
-    const resp = await postDelete(params)
+    const resp = await postDelete({
+      data,
+      query: {
+        orgID,
+        bucket: bucketName,
+      },
+    })
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)

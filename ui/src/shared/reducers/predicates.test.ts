@@ -18,6 +18,7 @@ import {
   setIsSerious,
   setTimeRange,
 } from 'src/shared/actions/predicates'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 
 describe('Predicates reducer test', () => {
   it('should set the isSerious property', () => {
@@ -34,9 +35,12 @@ describe('Predicates reducer test', () => {
     expect(result.bucketName).toEqual(bucketName)
   })
   it('should set the timeRange property', () => {
-    expect(initialState.timeRange).toEqual([recently - HOUR_MS, recently])
-    const result = predicatesReducer(initialState, setTimeRange([1000, 2000]))
-    expect(result.timeRange).toEqual([1000, 2000])
+    expect(initialState.timeRange).toBeNull()
+    const result = predicatesReducer(
+      initialState,
+      setTimeRange(pastHourTimeRange)
+    )
+    expect(result.timeRange).toEqual(pastHourTimeRange)
   })
   it('should set the filter property', () => {
     const filter: Filter = {key: 'mean', equality: '=', value: '100'}

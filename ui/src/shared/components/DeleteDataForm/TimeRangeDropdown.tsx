@@ -1,6 +1,8 @@
 // Libraries
 import React, {useRef, useState, FC} from 'react'
 import moment from 'moment'
+
+// Components
 import {
   Dropdown,
   Popover,
@@ -8,30 +10,32 @@ import {
   PopoverInteraction,
   Appearance,
 } from '@influxdata/clockface'
-
-// Components
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
+// Types
+import {TimeRange} from 'src/types'
+
 interface Props {
-  timeRange: [number, number]
-  onSetTimeRange: (timeRange: [number, number]) => any
+  timeRange: TimeRange
+  onSetTimeRange: (timeRange: TimeRange) => void
 }
 
 const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   const [pickerActive, setPickerActive] = useState(false)
   const buttonRef = useRef<HTMLDivElement>(null)
 
-  const lower = moment(timeRange[0]).format('YYYY-MM-DD HH:mm:ss')
-  const upper = moment(timeRange[1]).format('YYYY-MM-DD HH:mm:ss')
+  const readableLower = moment(timeRange.lower).format('YYYY-MM-DD HH:mm:ss')
+  const readableUpper = moment(timeRange.upper).format('YYYY-MM-DD HH:mm:ss')
 
-  const handleApplyTimeRange = (lower, upper) => {
-    onSetTimeRange([Date.parse(lower), Date.parse(upper)])
+  const handleApplyTimeRange = (timeRange: TimeRange) => {
+    onSetTimeRange(timeRange)
     setPickerActive(false)
   }
+
   return (
     <div ref={buttonRef}>
       <Dropdown.Button onClick={() => setPickerActive(!pickerActive)}>
-        {lower} - {upper}
+        {readableLower} - {readableUpper}
       </Dropdown.Button>
       <Popover
         appearance={Appearance.Outline}
@@ -45,10 +49,8 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
         enableDefaultStyles={false}
         contents={() => (
           <DateRangePicker
-            timeRange={{lower, upper}}
-            onSetTimeRange={({lower, upper}) =>
-              handleApplyTimeRange(lower, upper)
-            }
+            timeRange={timeRange}
+            onSetTimeRange={handleApplyTimeRange}
             onClose={() => setPickerActive(false)}
             position={{position: 'relative'}}
           />
