@@ -73,6 +73,7 @@ interface DispatchProps {
 export type Props = StateProps & DispatchProps & OwnProps
 
 const DeleteDataForm: FC<Props> = ({
+  bucketName,
   canDelete,
   deleteFilter,
   deletionStatus,
@@ -172,7 +173,7 @@ const DeleteDataForm: FC<Props> = ({
           <Grid.Column widthXS={Columns.Four}>
             <Form.Element label="Target Bucket">
               <BucketsDropdown
-                bucketName={name}
+                bucketName={bucketName}
                 onSetBucketName={handleBucketClick}
               />
             </Form.Element>
