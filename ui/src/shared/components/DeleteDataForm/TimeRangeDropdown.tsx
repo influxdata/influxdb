@@ -14,6 +14,11 @@ import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePick
 
 // Types
 import {CustomTimeRange} from 'src/types'
+import {
+  TIME_RANGE_FORMAT,
+  pastHourTimeRange,
+} from 'src/shared/constants/timeRanges'
+import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
 
 interface Props {
   timeRange: CustomTimeRange
@@ -24,8 +29,13 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   const [pickerActive, setPickerActive] = useState(false)
   const buttonRef = useRef<HTMLDivElement>(null)
 
-  const readableLower = moment(timeRange.lower).format('YYYY-MM-DD HH:mm:ss')
-  const readableUpper = moment(timeRange.upper).format('YYYY-MM-DD HH:mm:ss')
+  let dropdownLabel = 'Select a Time Range'
+
+  if (timeRange) {
+    dropdownLabel = `${moment(timeRange.lower).format(
+      TIME_RANGE_FORMAT
+    )} - ${moment(timeRange.upper).format(TIME_RANGE_FORMAT)}`
+  }
 
   const handleApplyTimeRange = (timeRange: CustomTimeRange) => {
     onSetTimeRange(timeRange)
@@ -35,7 +45,7 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   return (
     <div ref={buttonRef}>
       <Dropdown.Button onClick={() => setPickerActive(!pickerActive)}>
-        {readableLower} - {readableUpper}
+        {dropdownLabel}
       </Dropdown.Button>
       <Popover
         appearance={Appearance.Outline}
@@ -49,7 +59,7 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
         enableDefaultStyles={false}
         contents={() => (
           <DateRangePicker
-            timeRange={timeRange}
+            timeRange={timeRange || convertTimeRangeToCustom(pastHourTimeRange)}
             onSetTimeRange={handleApplyTimeRange}
             onClose={() => setPickerActive(false)}
             position={{position: 'relative'}}
