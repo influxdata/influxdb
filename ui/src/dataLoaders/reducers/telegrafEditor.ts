@@ -1,12 +1,17 @@
-import {
-  Bucket
-} from 'src/types'
+import {Bucket} from 'src/types'
 import {
   PluginAction,
   ActivePluginAction,
-  EditorAction
+  EditorAction,
 } from 'src/dataLoaders/actions/telegrafEditor'
-type TelegrafEditorPluginType = 'system' | 'bundle' | 'input' | 'output' | 'processor' | 'aggregator' | 'display'
+type TelegrafEditorPluginType =
+  | 'system'
+  | 'bundle'
+  | 'input'
+  | 'output'
+  | 'processor'
+  | 'aggregator'
+  | 'display'
 type TelegrafEditorPluginName = string
 
 interface TelegrafEditorBasicPlugin {
@@ -22,7 +27,9 @@ interface TelegrafEditorBundlePlugin {
   type: string
   include: Array<TelegrafEditorPluginName>
 }
-export type TelegrafEditorPluginState = Array<TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin>
+export type TelegrafEditorPluginState = Array<
+  TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
+>
 
 interface TelegrafEditorActivePlugin {
   name: string
@@ -40,11 +47,12 @@ interface TelegrafEditorState {
   filter: string
 }
 
-const INITIAL_PLUGINS:TelegrafEditorPluginState = [{
-  name: 'cpu',
-  type: 'input',
-  description: 'watch your cpu yo',
-  code: `[[inputs.cpu]]
+const INITIAL_PLUGINS: TelegrafEditorPluginState = [
+  {
+    name: 'cpu',
+    type: 'input',
+    description: 'watch your cpu yo',
+    code: `[[inputs.cpu]]
   ## Whether to report per-cpu stats or not
   percpu = true
   ## Whether to report total system cpu stats or not
@@ -53,61 +61,62 @@ const INITIAL_PLUGINS:TelegrafEditorPluginState = [{
   collect_cpu_time = false
   ## If true, compute and report the sum of all non-idle CPU states.
   report_active = false
-  `
-}, {
-  name: 'disk',
-  type: 'input',
-  description: 'watch your disks yo',
-  code: `[[inputs.disk]]
+  `,
+  },
+  {
+    name: 'disk',
+    type: 'input',
+    description: 'watch your disks yo',
+    code: `[[inputs.disk]]
 ## By default stats will be gathered for all mount points.
 ## Set mount_points will restrict the stats to only the specified mount points.
 # mount_points = ["/"]
 ## Ignore mount points by filesystem type.
 ignore_fs = ["tmpfs", "devtmpfs", "devfs", "overlay", "aufs", "squashfs"]
-`
-}, {
-  name: 'diskio',
-  type: 'input',
-  description: 'watch your diskio yo',
-  code: `[[inputs.diskio]]
-`
-}, {
-  name: 'memory',
-  type: 'input',
-  description: 'watch your memory yo',
-  code: `[[inputs.mem]]
-`
-}, {
-  name: 'network',
-  type: 'input',
-  description: 'watch your network yo',
-  code: `[[inputs.net]]
-`
-}, {
-  name: 'system',
-  type: 'bundle',
-  description: 'collect all the basic local metrics',
-  include: [
-    'cpu',
-    'disk',
-    'diskio',
-    'memory',
-    'network'
-  ],
-}, {
-  name: 'kubernetes',
-  type: 'input',
-  description: 'watch your cluster yo',
-  code: `[[inputs.kubernetes]]
+`,
+  },
+  {
+    name: 'diskio',
+    type: 'input',
+    description: 'watch your diskio yo',
+    code: `[[inputs.diskio]]
+`,
+  },
+  {
+    name: 'memory',
+    type: 'input',
+    description: 'watch your memory yo',
+    code: `[[inputs.mem]]
+`,
+  },
+  {
+    name: 'network',
+    type: 'input',
+    description: 'watch your network yo',
+    code: `[[inputs.net]]
+`,
+  },
+  {
+    name: 'system',
+    type: 'bundle',
+    description: 'collect all the basic local metrics',
+    include: ['cpu', 'disk', 'diskio', 'memory', 'network'],
+  },
+  {
+    name: 'kubernetes',
+    type: 'input',
+    description: 'watch your cluster yo',
+    code: `[[inputs.kubernetes]]
 ## URL for the kubelet
 ## exp: http://1.1.1.1:10255
 url = "http://url"
-`
-}, {
-  name: 'agent',
-  type: 'system',
-  description: 'describe the agent',
-  code: `# Configuration for telegraf agent
+`,
+  },
+  {
+    name: 'agent',
+    type: 'system',
+    description: 'describe the agent',
+    code: `# Configuration for telegraf agent
 [agent]
 ## Default data collection interval for all inputs
 interval = "10s"
@@ -161,12 +170,13 @@ logfile = ""
 hostname = ""
 ## If set to true, do no set the "host" tag in the telegraf agent.
 omit_hostname = false
-`
-}, {
-  name: 'influxdb_v2',
-  type: 'output',
-  description: 'output to the cloud',
-  code: `[[outputs.influxdb_v2]]
+`,
+  },
+  {
+    name: 'influxdb_v2',
+    type: 'output',
+    description: 'output to the cloud',
+    code: `[[outputs.influxdb_v2]]
 ## The URLs of the InfluxDB cluster nodes.
 ##
 ## Multiple URLs can be specified for a single cluster, only ONE of the
@@ -182,22 +192,21 @@ organization = "aboatwright@influxdata.com"
 
 ## Destination bucket to write into.
 bucket = "aboatwright's Bucket"
-`
-}, {
-  name: '__default__',
-  type: 'bundle',
-  description: 'default data for a blank telegraf',
-  include: [
-    'agent',
-    'influxdb_v2',
-  ]
-}]
+`,
+  },
+  {
+    name: '__default__',
+    type: 'bundle',
+    description: 'default data for a blank telegraf',
+    include: ['agent', 'influxdb_v2'],
+  },
+]
 
-const INITIAL_EDITOR:TelegrafEditorState = {
+const INITIAL_EDITOR: TelegrafEditorState = {
   mode: 'adding',
   bucket: null,
   text: '',
-  filter: ''
+  filter: '',
 }
 
 export function pluginsReducer(
@@ -230,15 +239,15 @@ export function editorReducer(
 ): TelegrafEditorState {
   switch (action.type) {
     case 'SET_TELEGRAF_EDITOR_MODE':
-      return { ...state, mode: action.payload }
+      return {...state, mode: action.payload}
     case 'SET_TELEGRAF_EDITOR_TEXT':
-      return { ...state, text: action.payload }
+      return {...state, text: action.payload}
     case 'SET_TELEGRAF_EDITOR_ACTIVE_BUCKET':
-      return { ...state, bucket: action.payload }
+      return {...state, bucket: action.payload}
     case 'SET_TELEGRAF_EDITOR_FILTER':
-      return { ...state, filter: action.payload }
+      return {...state, filter: action.payload}
     case 'RESET_TELEGRAF_EDITOR':
-      return { ...INITIAL_EDITOR }
+      return {...INITIAL_EDITOR}
     default:
       return state
   }

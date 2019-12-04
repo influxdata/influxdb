@@ -58,8 +58,8 @@ export interface AppState {
   rules: NotificationRulesState
   scrapers: ScrapersState
   tasks: TasksState
-  telegrafEditorPlugins: TelegrafEditorPluginState,
-  telegrafEditorActivePlugins: TelegrafEditorActivePluginState,
+  telegrafEditorPlugins: TelegrafEditorPluginState
+  telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   telegrafs: TelegrafsState
   templates: TemplatesState
   timeMachines: TimeMachinesState

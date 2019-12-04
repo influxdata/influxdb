@@ -1,25 +1,21 @@
-import {
-  Bucket
-} from 'src/types'
+import {Bucket} from 'src/types'
 import {
   TelegrafEditorPluginState,
-  TelegrafEditorActivePluginState
+  TelegrafEditorActivePluginState,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
-export type PluginAction =
-  | ReturnType<typeof setPlugins>
+export type PluginAction = ReturnType<typeof setPlugins>
 
 const setPlugins = (plugins: TelegrafEditorPluginState) => ({
   type: 'SET_TELEGRAF_EDITOR_PLUGINS' as 'SET_TELEGRAF_EDITOR_PLUGINS',
-  payload: plugins
+  payload: plugins,
 })
 
-export type ActivePluginAction =
-  | ReturnType<typeof setActivePlugins>
+export type ActivePluginAction = ReturnType<typeof setActivePlugins>
 
 const setActivePlugins = (plugins: TelegrafEditorActivePluginState) => ({
   type: 'SET_TELEGRAF_EDITOR_ACTIVE_PLUGINS' as 'SET_TELEGRAF_EDITOR_ACTIVE_PLUGINS',
-  payload: plugins
+  payload: plugins,
 })
 
 export type EditorAction =
@@ -31,24 +27,24 @@ export type EditorAction =
 
 export const setMode = (mode: 'adding' | 'indexing') => ({
   type: 'SET_TELEGRAF_EDITOR_MODE' as 'SET_TELEGRAF_EDITOR_MODE',
-  payload: mode
+  payload: mode,
 })
 
-export const setText = (text: string) =>  ({
+export const setText = (text: string) => ({
   type: 'SET_TELEGRAF_EDITOR_TEXT' as 'SET_TELEGRAF_EDITOR_TEXT',
-  payload: text
+  payload: text,
 })
 
 export const setBucket = (bucket: Bucket) => ({
   type: 'SET_TELEGRAF_EDITOR_ACTIVE_BUCKET' as 'SET_TELEGRAF_EDITOR_ACTIVE_BUCKET',
-  payload: bucket
+  payload: bucket,
 })
 
 export const setFilter = (filter: string) => ({
   type: 'SET_TELEGRAF_EDITOR_FILTER' as 'SET_TELEGRAF_EDITOR_FILTER',
-  payload: filter
+  payload: filter,
 })
 
 export const reset = () => ({
-  type: 'RESET_TELEGRAF_EDITOR' as 'RESET_TELEGRAF_EDITOR'
+  type: 'RESET_TELEGRAF_EDITOR' as 'RESET_TELEGRAF_EDITOR',
 })
