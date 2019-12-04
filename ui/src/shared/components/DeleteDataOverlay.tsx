@@ -41,7 +41,7 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
 
   const handleDismiss = () => {
     resetPredicateState()
-    router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}`)
+    router.push(`/orgs/${orgID}/load-data/buckets/`)
   }
 
   return (
