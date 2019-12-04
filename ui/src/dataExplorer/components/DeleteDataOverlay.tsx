@@ -46,9 +46,16 @@ const DeleteDataOverlay: FunctionComponent<Props> = ({
   setBucketAndKeys,
 }) => {
   useEffect(() => {
-    setTimeRange(convertTimeRangeToCustom(timeRangeFromDE))
-    setBucketAndKeys(bucketNameFromDE)
-  }, [])
+    if (bucketNameFromDE) {
+      setBucketAndKeys(bucketNameFromDE)
+    }
+  }, [bucketNameFromDE])
+
+  useEffect(() => {
+    if (timeRangeFromDE) {
+      setTimeRange(convertTimeRangeToCustom(timeRangeFromDE))
+    }
+  }, [timeRangeFromDE])
 
   const handleDismiss = () => {
     resetPredicateState()
