@@ -535,6 +535,9 @@ func (p *Pkg) graphTelegrafs() error {
 	p.mTelegrafs = make([]*telegraf, 0)
 	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
 		tele := new(telegraf)
+		tele.config.Name = r.Name()
+		tele.config.Description = r.stringShort(fieldDescription)
+
 		failures := p.parseNestedLabels(r, func(l *label) error {
 			tele.labels = append(tele.labels, l)
 			p.mLabels[l.Name()].setMapping(tele, false)
@@ -549,8 +552,6 @@ func (p *Pkg) graphTelegrafs() error {
 				Msg:   err.Error(),
 			})
 		}
-		tele.config.Name = r.Name()
-		tele.config.Description = r.stringShort(fieldDescription)
 
 		p.mTelegrafs = append(p.mTelegrafs, tele)
 
