@@ -21,7 +21,7 @@ import {
 } from 'src/shared/constants/timeRanges'
 
 // Types
-import {TimeRange} from 'src/types'
+import {TimeRange, CustomTimeRange, SelectableDurationTimeRange} from 'src/types'
 
 interface Props {
   timeRange: TimeRange
@@ -125,26 +125,19 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     return 100
   }
 
-  private get timeRange(): TimeRange {
+  private get timeRange(): CustomTimeRange| SelectableDurationTimeRange {
     const {timeRange} = this.props
     const {isDatePickerOpen} = this.state
 
-    if (isDatePickerOpen && timeRange.type === 'selectable-duration') {
+    if (isDatePickerOpen && timeRange.type !== 'custom') {
       return convertTimeRangeToCustom(timeRange)
     }
 
-    if (
-      timeRange.type === 'custom' ||
-      timeRange.type === 'selectable-duration'
-    ) {
-      return timeRange
+    if (timeRange.type === 'duration') {
+      return convertTimeRangeToCustom(timeRange)
     }
 
-    throw new Error(
-      `TimeRangeDropdown passed unknown TimeRange with type: ${
-        timeRange.type
-      }, lower: ${timeRange.lower}, and upper: ${timeRange.upper}`
-    )
+    return timeRange
   }
 
   private handleApplyTimeRange = (timeRange: TimeRange) => {
