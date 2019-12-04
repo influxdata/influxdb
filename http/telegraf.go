@@ -1,10 +1,14 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
+	"path"
 	"strings"
 
 	"github.com/golang/gddo/httputil"
@@ -218,7 +222,7 @@ func newTelegrafResponses(ctx context.Context, tcs []*platform.TelegrafConfig, l
 	return resp
 }
 
-func decodeGetTelegrafRequest(ctx context.Context, r *http.Request) (i platform.ID, err error) {
+func decodeGetTelegrafRequest(ctx context.Context) (i platform.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
@@ -257,7 +261,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 
 func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id, err := decodeGetTelegrafRequest(ctx, r)
+	id, err := decodeGetTelegrafRequest(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -320,10 +324,10 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 	return f, err
 }
 
-func decodePostTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
-	tc := new(platform.TelegrafConfig)
-	err := json.NewDecoder(r.Body).Decode(tc)
-	return tc, err
+func decodePostTelegrafRequest(r *http.Request) (*platform.TelegrafConfig, error) {
+	var tc platform.TelegrafConfig
+	err := json.NewDecoder(r.Body).Decode(&tc)
+	return &tc, err
 }
 
 func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {
@@ -350,7 +354,7 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.T
 // handlePostTelegraf is the HTTP handler for the POST /api/v2/telegrafs route.
 func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	tc, err := decodePostTelegrafRequest(ctx, r)
+	tc, err := decodePostTelegrafRequest(r)
 	if err != nil {
 		h.Logger.Debug("failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
@@ -410,7 +414,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 
 func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	i, err := decodeGetTelegrafRequest(ctx, r)
+	i, err := decodeGetTelegrafRequest(ctx)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -423,4 +427,153 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 	h.Logger.Debug("telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// TelegrafService is an http client that speaks to the telegraf service via HTTP.
+type TelegrafService struct {
+	client C
+	*UserResourceMappingService
+}
+
+// NewTelegrafService is a constructor for a telegraf service.
+func NewTelegrafService(addr, token string, insecureSkipVerify bool) *TelegrafService {
+	return &TelegrafService{
+		client: C{
+			Addr:               addr,
+			Token:              token,
+			InsecureSkipVerify: insecureSkipVerify,
+		},
+		UserResourceMappingService: &UserResourceMappingService{
+			Addr:               addr,
+			Token:              token,
+			InsecureSkipVerify: insecureSkipVerify,
+		},
+	}
+}
+
+var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
+
+// FindTelegrafConfigByID returns a single telegraf config by ID.
+func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
+	panic("not implemented")
+}
+
+// FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
+// Additional options provide pagination & sorting.
+func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+	panic("not implemented")
+}
+
+// CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
+func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(tc); err != nil {
+		return err
+	}
+	return s.client.post(telegrafsPath, &body).
+		RespFn(func(r *http.Response) error {
+			var teleResp platform.TelegrafConfig
+			if err := json.NewDecoder(r.Body).Decode(&teleResp); err != nil {
+				return err
+			}
+			// sad face >_<
+			*tc = teleResp
+			return nil
+		}).
+		Do(ctx)
+}
+
+// UpdateTelegrafConfig updates a single telegraf config.
+// Returns the new telegraf config after update.
+func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *platform.TelegrafConfig, userID platform.ID) (*platform.TelegrafConfig, error) {
+	panic("not implemented")
+}
+
+// DeleteTelegrafConfig removes a telegraf config by ID.
+func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
+	return s.client.delete(path.Join(telegrafsPath, id.String())).Do(ctx)
+}
+
+// C is a basic http client that can make cReqs with out having to juggle
+// the token and so forth. It provides sane defaults for checking response
+// statuses, sets auth token when provided, and sets the content type to
+// application/json for each request. The token, response checker, and
+// content type can be overidden on the cReq as well.
+type C struct {
+	Addr               string
+	Token              string
+	InsecureSkipVerify bool
+}
+
+func (c *C) delete(urlPath string) *cReq {
+	return c.newClientReq(http.MethodDelete, urlPath, nil)
+}
+
+func (c *C) post(urlPath string, body io.Reader) *cReq {
+	return c.newClientReq(http.MethodPost, urlPath, body)
+}
+
+func (c *C) newClientReq(method, urlPath string, body io.Reader) *cReq {
+	u, err := NewURL(c.Addr, urlPath)
+	if err != nil {
+		return &cReq{err: err}
+	}
+
+	req, err := http.NewRequest(method, u.String(), body)
+	if err != nil {
+		return &cReq{err: err}
+	}
+	if c.Token != "" {
+		SetToken(c.Token, req)
+	}
+
+	cr := &cReq{
+		insecureSkip: c.InsecureSkipVerify,
+		req:          req,
+		respFn:       CheckError,
+	}
+	return cr.ContentType("application/json")
+}
+
+type cReq struct {
+	req          *http.Request
+	insecureSkip bool
+	respFn       func(*http.Response) error
+
+	err error
+}
+
+func (r *cReq) Header(k, v string) *cReq {
+	if r.err != nil {
+		return r
+	}
+	r.req.Header.Add(k, v)
+	return r
+}
+
+func (r *cReq) ContentType(ct string) *cReq {
+	return r.Header("Content-Type", ct)
+}
+
+func (r *cReq) RespFn(fn func(*http.Response) error) *cReq {
+	r.respFn = fn
+	return r
+}
+
+func (r *cReq) Do(ctx context.Context) error {
+	if r.err != nil {
+		return r.err
+	}
+	r.req = r.req.WithContext(ctx)
+
+	resp, err := NewClient(r.req.URL.Scheme, r.insecureSkip).Do(r.req)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		io.Copy(ioutil.Discard, resp.Body) // drain body completely
+		resp.Body.Close()
+	}()
+
+	return r.respFn(resp)
 }

@@ -10,7 +10,7 @@ import (
 type contextKey string
 
 const (
-	authorizerCtxKey = contextKey("influx/authorizer/v1")
+	authorizerCtxKey contextKey = "influx/authorizer/v1"
 )
 
 // SetAuthorizer sets an authorizer on context.

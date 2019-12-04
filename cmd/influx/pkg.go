@@ -109,7 +109,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 
 		influxOrgID, err := influxdb.IDFromString(b.orgID)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 
 		svc, err := b.svcFn(flags.httpClientOpts())
@@ -496,6 +496,7 @@ func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 			Token:              cliReqOpts.token,
 			InsecureSkipVerify: cliReqOpts.skipVerify,
 		}),
+		pkger.WithTelegrafSVC(ihttp.NewTelegrafService(cliReqOpts.addr, cliReqOpts.token, cliReqOpts.skipVerify)),
 		pkger.WithVariableSVC(&ihttp.VariableService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
@@ -634,6 +635,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
+		headers := []string{"New", "Name", "Description"}
+		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
+			t := teles[i]
+			return []string{
+				boolDiff(true),
+				t.Name,
+				green(t.Description),
+			}
+		})
+	}
+
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
 		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
@@ -697,6 +710,18 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				v.Description,
 				args.Type,
 				printVarArgs(args),
+			}
+		})
+	}
+
+	if teles := sum.TelegrafConfigs; len(teles) > 0 {
+		headers := []string{"ID", "Name", "Description"}
+		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
+			t := teles[i]
+			return []string{
+				t.ID.String(),
+				t.Name,
+				t.Description,
 			}
 		})
 	}
