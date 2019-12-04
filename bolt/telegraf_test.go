@@ -9,7 +9,7 @@ import (
 )
 
 func initTelegrafConfigStore(f platformtesting.TelegrafConfigFields, t *testing.T) (platform.TelegrafConfigStore, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

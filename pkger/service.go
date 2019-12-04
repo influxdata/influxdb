@@ -25,8 +25,6 @@ type SVC interface {
 }
 
 type serviceOpt struct {
-	logger *zap.Logger
-
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
 	dashSVC   influxdb.DashboardService
@@ -36,13 +34,6 @@ type serviceOpt struct {
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
 type ServiceSetterFn func(opt *serviceOpt)
-
-// WithLogger sets the service logger.
-func WithLogger(logger *zap.Logger) ServiceSetterFn {
-	return func(opt *serviceOpt) {
-		opt.logger = logger
-	}
-}
 
 // WithBucketSVC sets the bucket service.
 func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
@@ -82,7 +73,7 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
-	logger *zap.Logger
+	log *zap.Logger
 
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
@@ -92,16 +83,14 @@ type Service struct {
 }
 
 // NewService is a constructor for a pkger Service.
-func NewService(opts ...ServiceSetterFn) *Service {
-	opt := &serviceOpt{
-		logger: zap.NewNop(),
-	}
+func NewService(log *zap.Logger, opts ...ServiceSetterFn) *Service {
+	opt := &serviceOpt{}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		logger:    opt.logger,
+		log:       log,
 		bucketSVC: opt.bucketSVC,
 		labelSVC:  opt.labelSVC,
 		dashSVC:   opt.dashSVC,
@@ -772,7 +761,7 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 	}
 
 	coordinator := new(rollbackCoordinator)
-	defer coordinator.rollback(s.logger, &e)
+	defer coordinator.rollback(s.log, &e)
 
 	runners := [][]applier{
 		// each grouping here runs for its entirety, then returns an error that

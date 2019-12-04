@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const maxTCPConnections = 128
@@ -215,10 +216,10 @@ func newLocalKVService() (*kv.Service, error) {
 		return nil, err
 	}
 
-	store := bolt.NewKVStore(boltFile)
+	store := bolt.NewKVStore(zap.NewNop(), boltFile)
 	if err := store.Open(context.Background()); err != nil {
 		return nil, err
 	}
 
-	return kv.NewService(store), nil
+	return kv.NewService(zap.NewNop(), store), nil
 }

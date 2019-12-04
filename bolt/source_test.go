@@ -10,7 +10,7 @@ import (
 )
 
 func initSourceService(f platformtesting.SourceFields, t *testing.T) (platform.SourceService, string, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

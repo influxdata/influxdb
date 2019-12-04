@@ -190,7 +190,7 @@ func (d *indirectIndex) ReadEntries(key []byte, entries []IndexEntry) ([]IndexEn
 func (d *indirectIndex) Entry(key []byte, timestamp int64) *IndexEntry {
 	entries, err := d.ReadEntries(key, nil)
 	if err != nil {
-		d.logger.Error("error reading tsm index key", zap.String("key", fmt.Sprintf("%q", key)))
+		d.logger.Error("Error reading tsm index key", zap.String("key", fmt.Sprintf("%q", key)))
 		return nil
 	}
 	for _, entry := range entries {
@@ -674,7 +674,7 @@ func (d *indirectIndex) MaybeContainsValue(key []byte, timestamp int64) bool {
 
 	entries, err := d.ReadEntries(key, nil)
 	if err != nil {
-		d.logger.Error("error reading tsm index key", zap.String("key", fmt.Sprintf("%q", key)))
+		d.logger.Error("Error reading tsm index key", zap.String("key", fmt.Sprintf("%q", key)))
 		return false
 	}
 

@@ -97,7 +97,7 @@ func NewChronografHandler(s *server.Service, he influxdb.HTTPErrorHandler) *Chro
 
 	allRoutes := &server.AllRoutes{
 		// TODO(desa): what to do here
-		//Logger:      opts.Logger,
+		//logger:      opts.logger,
 		//CustomLinks: opts.CustomLinks,
 		StatusFeed: "https://www.influxdata.com/feed/json",
 	}

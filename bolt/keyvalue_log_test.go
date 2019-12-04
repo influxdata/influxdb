@@ -9,7 +9,7 @@ import (
 )
 
 func initKeyValueLog(f platformtesting.KeyValueLogFields, t *testing.T) (platform.KeyValueLog, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

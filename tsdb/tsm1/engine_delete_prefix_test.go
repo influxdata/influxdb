@@ -21,7 +21,7 @@ func TestEngine_DeletePrefix(t *testing.T) {
 	p7 := MustParsePointString("mem,host=C value=1.3 1", "mm1")
 	p8 := MustParsePointString("disk,host=C value=1.3 1", "mm2")
 
-	e, err := NewEngine(tsm1.NewConfig())
+	e, err := NewEngine(tsm1.NewConfig(), t)
 	if err != nil {
 		t.Fatal(err)
 	}

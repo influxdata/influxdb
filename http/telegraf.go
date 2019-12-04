@@ -23,7 +23,7 @@ import (
 // the TelegrafHandler.
 type TelegrafBackend struct {
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TelegrafService            platform.TelegrafConfigStore
 	UserResourceMappingService platform.UserResourceMappingService
@@ -33,10 +33,10 @@ type TelegrafBackend struct {
 }
 
 // NewTelegrafBackend returns a new instance of TelegrafBackend.
-func NewTelegrafBackend(b *APIBackend) *TelegrafBackend {
+func NewTelegrafBackend(log *zap.Logger, b *APIBackend) *TelegrafBackend {
 	return &TelegrafBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "telegraf")),
+		log:              log,
 
 		TelegrafService:            b.TelegrafService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -50,7 +50,7 @@ func NewTelegrafBackend(b *APIBackend) *TelegrafBackend {
 type TelegrafHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TelegrafService            platform.TelegrafConfigStore
 	UserResourceMappingService platform.UserResourceMappingService
@@ -71,11 +71,11 @@ const (
 )
 
 // NewTelegrafHandler returns a new instance of TelegrafHandler.
-func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
+func NewTelegrafHandler(log *zap.Logger, b *TelegrafBackend) *TelegrafHandler {
 	h := &TelegrafHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		log:              log,
 
 		TelegrafService:            b.TelegrafService,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -91,7 +91,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               platform.TelegrafsResourceType,
 		UserType:                   platform.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -103,7 +103,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               platform.TelegrafsResourceType,
 		UserType:                   platform.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -115,7 +115,7 @@ func NewTelegrafHandler(b *TelegrafBackend) *TelegrafHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     platform.TelegrafsResourceType,
 	}
@@ -242,7 +242,7 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	filter, err := decodeTelegrafConfigFilter(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -251,10 +251,10 @@ func (h *TelegrafHandler) handleGetTelegrafs(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegrafs retrieved", zap.String("telegrafs", fmt.Sprint(tcs)))
+	h.log.Debug("Telegrafs retrieved", zap.String("telegrafs", fmt.Sprint(tcs)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponses(ctx, tcs, h.LabelService)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -271,7 +271,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf retrieved", zap.String("telegraf", fmt.Sprint(tc)))
 
 	offers := []string{"application/toml", "application/json", "application/octet-stream"}
 	defaultOffer := "application/toml"
@@ -290,7 +290,7 @@ func (h *TelegrafHandler) handleGetTelegraf(w http.ResponseWriter, r *http.Reque
 		}
 
 		if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
-			logEncodingError(h.Logger, r, err)
+			logEncodingError(h.log, r, err)
 			return
 		}
 	case "application/toml":
@@ -356,7 +356,7 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	tc, err := decodePostTelegrafRequest(r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -370,10 +370,10 @@ func (h *TelegrafHandler) handlePostTelegraf(w http.ResponseWriter, r *http.Requ
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf created", zap.String("telegraf", fmt.Sprint(tc)))
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTelegrafResponse(tc, []*platform.Label{})); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -383,7 +383,7 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	tc, err := decodePutTelegrafRequest(ctx, r)
 	if err != nil {
-		h.Logger.Debug("failed to decode request", zap.Error(err))
+		h.log.Debug("Failed to decode request", zap.Error(err))
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
@@ -404,10 +404,10 @@ func (h *TelegrafHandler) handlePutTelegraf(w http.ResponseWriter, r *http.Reque
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf updated", zap.String("telegraf", fmt.Sprint(tc)))
+	h.log.Debug("Telegraf updated", zap.String("telegraf", fmt.Sprint(tc)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newTelegrafResponse(tc, labels)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -424,7 +424,7 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
+	h.log.Debug("Telegraf deleted", zap.String("telegrafID", fmt.Sprint(i)))
 
 	w.WriteHeader(http.StatusNoContent)
 }

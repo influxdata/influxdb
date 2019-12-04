@@ -9,7 +9,7 @@ import (
 )
 
 func initPasswordsService(f platformtesting.PasswordFields, t *testing.T) (platform.PasswordsService, func()) {
-	c, closeFn, err := NewTestClient()
+	c, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new bolt client: %v", err)
 	}

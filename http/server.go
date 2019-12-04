@@ -27,22 +27,19 @@ type Server struct {
 
 	srv     *http.Server
 	signals map[os.Signal]struct{}
-	logger  *zap.Logger
+	log     *zap.Logger
 	wg      sync.WaitGroup
 }
 
 // NewServer returns a new server struct that can be used.
-func NewServer(handler http.Handler, logger *zap.Logger) *Server {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
+func NewServer(log *zap.Logger, handler http.Handler) *Server {
 	return &Server{
 		ShutdownTimeout: DefaultShutdownTimeout,
 		srv: &http.Server{
 			Handler:  handler,
-			ErrorLog: zap.NewStdLog(logger),
+			ErrorLog: zap.NewStdLog(log),
 		},
-		logger: logger,
+		log: log,
 	}
 }
 
@@ -79,7 +76,7 @@ func (s *Server) serve(listener net.Listener) <-chan error {
 }
 
 func (s *Server) shutdown(signalCh <-chan os.Signal) error {
-	s.logger.Info("Shutting down server", logger.DurationLiteral("timeout", s.ShutdownTimeout))
+	s.log.Info("Shutting down server", logger.DurationLiteral("timeout", s.ShutdownTimeout))
 
 	// The shutdown needs to succeed in 20 seconds or less.
 	ctx, cancel := context.WithTimeout(context.Background(), s.ShutdownTimeout)
@@ -94,7 +91,7 @@ func (s *Server) shutdown(signalCh <-chan os.Signal) error {
 		defer s.wg.Done()
 		select {
 		case <-signalCh:
-			s.logger.Info("Initializing hard shutdown")
+			s.log.Info("Initializing hard shutdown")
 			cancel()
 		case <-done:
 		}
@@ -135,13 +132,13 @@ func (s *Server) notifyOnSignals() (_ <-chan os.Signal, cancel func()) {
 // ListenAndServe is a convenience method for opening a listener using the address
 // and then serving the handler on that address. This method sets up the typical
 // signal handlers.
-func ListenAndServe(addr string, handler http.Handler, logger *zap.Logger) error {
+func ListenAndServe(log *zap.Logger, addr string, handler http.Handler) error {
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 
-	server := NewServer(handler, logger)
+	server := NewServer(log, handler)
 	server.ListenForSignals(os.Interrupt, syscall.SIGTERM)
 	return server.Serve(l)
 }

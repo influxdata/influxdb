@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.uber.org/zap"
 )
 
 // RandomHandler implements an HTTP endpoint that prints a random float,
@@ -66,7 +67,7 @@ func Example() {
 	}
 
 	// Use a local registry, not the global registry in the prometheus package.
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zap.NewNop())
 
 	// Build the mux out of handlers from above.
 	mux := http.NewServeMux()
