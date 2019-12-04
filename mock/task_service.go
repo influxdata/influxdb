@@ -72,7 +72,7 @@ func (s *TaskService) ForceRun(ctx context.Context, taskID influxdb.ID, schedule
 type TaskControlService struct {
 	CreateNextRunFn    func(ctx context.Context, taskID influxdb.ID, now int64) (backend.RunCreation, error)
 	NextDueRunFn       func(ctx context.Context, taskID influxdb.ID) (int64, error)
-	CreateRunFn        func(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error)
+	CreateRunFn        func(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error)
 	CurrentlyRunningFn func(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)
 	ManualRunsFn       func(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)
 	StartManualRunFn   func(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error)
@@ -87,8 +87,8 @@ func (tcs *TaskControlService) CreateNextRun(ctx context.Context, taskID influxd
 func (tcs *TaskControlService) NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error) {
 	return tcs.NextDueRunFn(ctx, taskID)
 }
-func (tcs *TaskControlService) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
-	return tcs.CreateRunFn(ctx, taskID, scheduledFor)
+func (tcs *TaskControlService) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
+	return tcs.CreateRunFn(ctx, taskID, scheduledFor, runAt)
 }
 func (tcs *TaskControlService) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
 	return tcs.CurrentlyRunningFn(ctx, taskID)

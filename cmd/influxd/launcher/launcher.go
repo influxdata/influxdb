@@ -647,11 +647,11 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			sch, sm, err := scheduler.NewScheduler(
 				executor,
 				taskbackend.NewSchedulableTaskService(m.kvService),
-				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
+				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledFor time.Time, err error) {
 					schLogger.Info(
 						"error in scheduler run",
 						zap.String("taskID", platform.ID(taskID).String()),
-						zap.Time("scheduledAt", scheduledAt),
+						zap.Time("scheduledFor", scheduledFor),
 						zap.Error(err))
 				}),
 			)

@@ -22,10 +22,10 @@ type TaskControlService interface {
 	NextDueRun(ctx context.Context, taskID influxdb.ID) (int64, error)
 
 	// CreateRun creates a run with a schedule for time.
-	// This differes from CreateNextRun in that it should not to use some scheduling system to determin when the run
+	// This differs from CreateNextRun in that it should not to use some scheduling system to determine when the run
 	// should happen.
 	// TODO(lh): remove comment once we no longer need create next run.
-	CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error)
+	CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error)
 
 	CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)
 	ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error)

@@ -11,7 +11,7 @@ import (
 
 type mockExecutor struct {
 	sync.Mutex
-	fn  func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time)
+	fn  func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time)
 	Err error
 }
 
@@ -36,12 +36,12 @@ func (s mockSchedulable) LastScheduled() time.Time {
 	return s.lastScheduled
 }
 
-func (e *mockExecutor) Execute(ctx context.Context, id ID, scheduledAt time.Time) error {
+func (e *mockExecutor) Execute(ctx context.Context, id ID, scheduledFor time.Time, runAt time.Time) error {
 	done := make(chan struct{}, 1)
 	select {
 	case <-ctx.Done():
 	default:
-		e.fn(&sync.Mutex{}, ctx, id, scheduledAt)
+		e.fn(&sync.Mutex{}, ctx, id, scheduledFor)
 		done <- struct{}{}
 	}
 	return nil
@@ -60,11 +60,11 @@ func TestSchedule_Next(t *testing.T) {
 	t.Run("fires properly with non-mocked time", func(t *testing.T) {
 		now := time.Now()
 		c := make(chan time.Time, 100)
-		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 			select {
 			case <-ctx.Done():
 				t.Log("ctx done")
-			case c <- scheduledAt:
+			case c <- scheduledFor:
 			default:
 				t.Errorf("called the executor too many times")
 			}
@@ -99,11 +99,11 @@ func TestSchedule_Next(t *testing.T) {
 		mockTime := clock.NewMock()
 		mockTime.Set(time.Now())
 		c := make(chan time.Time, 100)
-		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 			select {
 			case <-ctx.Done():
 				t.Log("ctx done")
-			case c <- scheduledAt:
+			case c <- scheduledFor:
 			default:
 				t.Errorf("called the executor too many times")
 			}
@@ -144,11 +144,11 @@ func TestSchedule_Next(t *testing.T) {
 
 	t.Run("fires the correct number of times for the interval with a single schedulable", func(t *testing.T) {
 		c := make(chan time.Time, 100)
-		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 			select {
 			case <-ctx.Done():
 				t.Log("ctx done")
-			case c <- scheduledAt:
+			case c <- scheduledFor:
 			}
 		}}
 		mockTime := clock.NewMock()
@@ -216,7 +216,7 @@ func TestSchedule_Next(t *testing.T) {
 			ts time.Time
 			id ID
 		}, 100)
-		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+		exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 			select {
 			case <-ctx.Done():
 				t.Log("ctx done")
@@ -224,7 +224,7 @@ func TestSchedule_Next(t *testing.T) {
 				ts time.Time
 				id ID
 			}{
-				ts: scheduledAt,
+				ts: scheduledFor,
 				id: id,
 			}:
 			}
@@ -303,7 +303,7 @@ func TestTreeScheduler_Stop(t *testing.T) {
 	now := time.Now().Add(-20 * time.Second)
 	mockTime := clock.NewMock()
 	mockTime.Set(now)
-	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {}}
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {}}
 	sch, _, err := NewScheduler(exe, &mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
 		return nil
 	}},
@@ -322,7 +322,7 @@ func TestSchedule_panic(t *testing.T) {
 		err error
 	}, 1)
 
-	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 		panic("yikes oh no!")
 	}}
 
@@ -370,7 +370,7 @@ func TestTreeScheduler_LongPanicTest(t *testing.T) {
 	mockTime := clock.NewMock()
 	mockTime.Set(now)
 
-	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 		select {
 		case <-ctx.Done():
 			t.Log("ctx done")
@@ -423,11 +423,11 @@ func TestTreeScheduler_LongPanicTest(t *testing.T) {
 
 func TestTreeScheduler_Release(t *testing.T) {
 	c := make(chan time.Time, 100)
-	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+	exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledFor time.Time) {
 		select {
 		case <-ctx.Done():
 			t.Log("ctx done")
-		case c <- scheduledAt:
+		case c <- scheduledFor:
 		}
 	}}
 	mockTime := clock.NewMock()
