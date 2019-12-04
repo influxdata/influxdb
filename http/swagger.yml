@@ -10261,7 +10261,7 @@ components:
           type: string
     HTTPNotificationRuleBase:
       type: object
-      required: [type, url]
+      required: [type]
       properties:
         type:
           type: string
