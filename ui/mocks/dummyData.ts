@@ -1,12 +1,5 @@
 import {ViewProperties} from 'src/client'
-import {
-  SourceLinks,
-  Cell,
-  Dashboard,
-  Task,
-  Links,
-  ConfigurationState,
-} from 'src/types'
+import {Cell, Dashboard, Task, Links, ConfigurationState} from 'src/types'
 import {OnboardingStepProps} from 'src/onboarding/containers/OnboardingWizard'
 import {WithRouterProps} from 'react-router'
 import {NumericColumnData} from '@influxdata/giraffe'
@@ -110,21 +103,6 @@ export const queryConfig = {
   ],
 }
 
-export const sourceLinks: SourceLinks = {
-  query: '/chronograf/v1/sources/16/query',
-  services: '/chronograf/v1/sources/16/services',
-  self: '/chronograf/v1/sources/16',
-  kapacitors: '/chronograf/v1/sources/16/kapacitors',
-  proxy: '/chronograf/v1/sources/16/proxy',
-  queries: '/chronograf/v1/sources/16/queries',
-  write: '/chronograf/v1/sources/16/write',
-  permissions: '/chronograf/v1/sources/16/permissions',
-  users: '/chronograf/v1/sources/16/users',
-  databases: '/chronograf/v1/sources/16/dbs',
-  annotations: '/chronograf/v1/sources/16/annotations',
-  health: '/chronograf/v1/sources/16/health',
-}
-
 export const source: Source = {
   id: '16',
   name: 'ssl',
@@ -133,7 +111,6 @@ export const source: Source = {
   url: 'https://localhost:9086',
   insecureSkipVerify: true,
   telegraf: 'telegraf',
-  links: sourceLinks,
 }
 
 export const timeRange = {
