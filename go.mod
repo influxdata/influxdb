@@ -54,6 +54,7 @@ require (
 	github.com/mattn/go-isatty v0.0.8
 	github.com/mattn/go-zglob v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1
+	github.com/mileusna/useragent v0.0.0-20190129205925-3e331f0949a5
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mna/pigeon v1.0.1-0.20180808201053-bb0192cfc2ae
 	github.com/mschoch/smat v0.0.0-20160514031455-90eadee771ae // indirect
