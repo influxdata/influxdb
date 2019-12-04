@@ -1,10 +1,6 @@
 import moment from 'moment'
 
-import {
-  TimeRange,
-  SelectableDurationTimeRange,
-  CustomTimeRange,
-} from 'src/types'
+import {TimeRange, CustomTimeRange} from 'src/types'
 import {Duration, DurationUnit} from 'src/types/ast'
 import {TIME_RANGE_FORMAT} from 'src/shared/constants/timeRanges'
 
