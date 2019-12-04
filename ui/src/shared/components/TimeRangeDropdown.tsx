@@ -1,6 +1,5 @@
 // Libraries
 import React, {PureComponent, createRef} from 'react'
-import moment from 'moment'
 
 // Components
 import {
@@ -12,20 +11,17 @@ import {
 } from '@influxdata/clockface'
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
+// Utils
+import {convertDurationTimeRangeToCustom} from 'src/shared/utils/duration'
+
 // Constants
 import {
   SELECTABLE_TIME_RANGES,
   CUSTOM_TIME_RANGE_LABEL,
-  TIME_RANGE_FORMAT,
 } from 'src/shared/constants/timeRanges'
 
 // Types
 import {TimeRange} from 'src/types'
-
-export enum RangeType {
-  Absolute = 'absolute',
-  Relative = 'relative',
-}
 
 interface Props {
   timeRange: TimeRange
@@ -134,24 +130,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     const {isDatePickerOpen} = this.state
 
     if (isDatePickerOpen && timeRange.type === 'selectable-duration') {
-      //convert selected Time Range to custom
-
-      const upper = new Date().toISOString()
-
-      const lower = moment()
-        .subtract(timeRange.seconds, 's')
-        .toISOString()
-
-      const label = `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(
-        upper
-      ).format(TIME_RANGE_FORMAT)}`
-
-      return {
-        label,
-        lower,
-        upper,
-        type: 'custom',
-      }
+      return convertDurationTimeRangeToCustom(timeRange)
     }
 
     if (

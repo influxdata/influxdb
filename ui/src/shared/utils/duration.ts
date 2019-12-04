@@ -1,5 +1,12 @@
-import {TimeRange} from 'src/types'
+import moment from 'moment'
+
+import {
+  TimeRange,
+  SelectableDurationTimeRange,
+  CustomTimeRange,
+} from 'src/types'
 import {Duration, DurationUnit} from 'src/types/ast'
+import {TIME_RANGE_FORMAT} from 'src/shared/constants/timeRanges'
 
 export const isDurationParseable = (lower: string): boolean => {
   if (!lower || !lower.includes('now()')) {
@@ -104,4 +111,25 @@ export const timeRangeToDuration = (timeRange: TimeRange): string => {
   }
   // remove spaces and remove "now()-"
   return timeRange.lower.replace(/\s/g, '').replace(/now\(\)-/, '')
+}
+
+export const convertDurationTimeRangeToCustom = (
+  timeRange: SelectableDurationTimeRange
+): CustomTimeRange => {
+  const upper = new Date().toISOString()
+
+  const lower = moment()
+    .subtract(timeRange.seconds, 's')
+    .toISOString()
+
+  const label = `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(
+    upper
+  ).format(TIME_RANGE_FORMAT)}`
+
+  return {
+    label,
+    lower,
+    upper,
+    type: 'custom',
+  }
 }
