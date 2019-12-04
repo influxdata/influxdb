@@ -457,6 +457,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 		"colors": null,
 		"geom": "",
 		"legend": {},
+		"position": "",
 		"note": "",
 		"queries": null,
 		"shadeBelow": false,
