@@ -90,6 +90,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		userAgent = "unknown"
 	}
 
+	span.LogKV("user_agent", userAgent, "referer", r.Referer(), "remote_addr", r.RemoteAddr)
+	for k, v := range r.Header {
+		if len(v) == 0 {
+			continue
+		}
+		// If header has multiple values, only the first value will be logged on the trace.
+		span.LogKV(k, v[0])
+	}
+
 	defer span.Finish()
 
 	// TODO: better way to do this?
