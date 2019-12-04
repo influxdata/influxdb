@@ -6,7 +6,6 @@ import "encoding/json"
 type Plugin struct {
 	Type        string `json:"type,omitempty"`        // Type of the plugin.
 	Name        string `json:"name,omitempty"`        // Name of the plugin.
-	Alias       string `json:"alias,omitempty"`       // Alias of the plugin.
 	Description string `json:"description,omitempty"` // Description of the plugin.
 	Config      string `json:"config,omitempty"`      // Config contains the toml config of the plugin.
 }
@@ -14,6 +13,7 @@ type Plugin struct {
 // TelegrafPlugins defines a Telegraf version's collection of plugins.
 type TelegrafPlugins struct {
 	Version string   `json:"version,omitempty"` // Version of telegraf plugins are for.
+	OS      string   `json:"os,omitempty"`      // OS the plugins apply to.
 	Plugins []Plugin `json:"plugins,omitempty"` // Plugins this version of telegraf supports.
 }
 
@@ -147,7 +147,8 @@ var AgentConfig = `# Configuration for telegraf agent
 `
 
 var availableInputs = `{
-  "version": "1.12.5",
+  "version": "1.13",
+  "os": "linux",
   "plugins": [
     {
       "type": "inputs",
@@ -1152,7 +1153,8 @@ var availableInputs = `{
 `
 
 var availableOutputs = `{
-  "version": "1.12.5",
+  "version": "1.13",
+  "os": "linux",
   "plugins": [
     {
       "type": "outputs",
@@ -1356,7 +1358,8 @@ var availableOutputs = `{
 `
 
 var availableProcessors = `{
-  "version": "1.12.5",
+  "version": "1.13",
+  "os": "linux",
   "plugins": [
     {
       "type": "processors",
@@ -1447,7 +1450,8 @@ var availableProcessors = `{
 `
 
 var availableAggregators = `{
-  "version": "1.12.5",
+  "version": "1.13",
+  "os": "linux",
   "plugins": [
     {
       "type": "aggregators",
