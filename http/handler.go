@@ -86,26 +86,16 @@ func NewHandlerFromRegistry(log *zap.Logger, name string, reg *prom.Registry) *H
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var span opentracing.Span
 	span, r = tracing.ExtractFromHTTPRequest(r, h.name)
-	ua := userAgent(r)
-	span.LogKV("user_agent", ua, "referer", r.Referer(), "remote_addr", r.RemoteAddr)
-	for k, v := range r.Header {
-		if len(v) == 0 {
-			continue
-		}
-		// If header has multiple values, only the first value will be logged on the trace.
-		span.LogKV(k, v[0])
-	}
 
-	defer span.Finish()
-
-	// TODO: better way to do this?
 	statusW := newStatusResponseWriter(w)
 	w = statusW
 
-	// TODO: This could be problematic eventually. But for now it should be fine.
+	// record prometheus metrics and finish traces
 	defer func(start time.Time) {
 		duration := time.Since(start)
 		statusClass := statusW.statusCodeClass()
+		ua := userAgent(r)
+
 		h.requests.With(prometheus.Labels{
 			"handler":    h.name,
 			"method":     r.Method,
@@ -120,6 +110,22 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			"status":     statusClass,
 			"user_agent": ua,
 		}).Observe(duration.Seconds())
+
+		span.LogKV("user_agent", ua)
+		for k, v := range r.Header {
+			if len(v) == 0 {
+				continue
+			}
+
+			// yeah, we don't need these
+			if k == "Authorization" || k == "User-Agent" {
+				continue
+			}
+
+			// If header has multiple values, only the first value will be logged on the trace.
+			span.LogKV(k, v[0])
+		}
+		span.Finish()
 	}(time.Now())
 
 	switch {
