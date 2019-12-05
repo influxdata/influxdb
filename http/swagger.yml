@@ -7239,6 +7239,17 @@ components:
                     type: string
                   labelID:
                     type: string
+            telegrafConfigs:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/TelegrafRequest"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
             variables:
               type: array
               items:
@@ -7329,6 +7340,10 @@ components:
                     type: string
                   labelName:
                     type: string
+            telegrafConfigs:
+              type: array
+              items:
+                $ref: "#/components/schemas/TelegrafRequest"
             variables:
               type: array
               items:

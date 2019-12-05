@@ -455,13 +455,58 @@ var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
-	panic("not implemented")
+	var cfg platform.TelegrafConfig
+	err := s.client.get(path.Join(telegrafsPath, id.String())).
+		Header("Accept", "application/json").
+		DecodeJSON(&cfg).
+		Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
 
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
-func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, filter platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-	panic("not implemented")
+func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
+	var queryPairs []queryPair
+	if f.OrgID != nil {
+		queryPairs = append(queryPairs, queryPair{
+			k: "orgID",
+			v: f.OrgID.String(),
+		})
+	}
+	if f.Organization != nil {
+		queryPairs = append(queryPairs, queryPair{
+			k: "organization",
+			v: *f.Organization,
+		})
+	}
+	if f.ResourceID != 0 {
+		queryPairs = append(queryPairs, queryPair{
+			k: "resourceID",
+			v: f.ResourceID.String(),
+		})
+	}
+	if f.UserID != 0 {
+		queryPairs = append(queryPairs, queryPair{
+			k: "userID",
+			v: f.UserID.String(),
+		})
+	}
+
+	var resp struct {
+		Configs []*platform.TelegrafConfig `json:"configurations"`
+	}
+	err := s.client.get(telegrafsPath).
+		Queries(queryPairs...).
+		DecodeJSON(&resp).
+		Do(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return resp.Configs, len(resp.Configs), nil
 }
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
@@ -470,17 +515,16 @@ func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform
 	if err := json.NewEncoder(&body).Encode(tc); err != nil {
 		return err
 	}
-	return s.client.post(telegrafsPath, &body).
-		RespFn(func(r *http.Response) error {
-			var teleResp platform.TelegrafConfig
-			if err := json.NewDecoder(r.Body).Decode(&teleResp); err != nil {
-				return err
-			}
-			// sad face >_<
-			*tc = teleResp
-			return nil
-		}).
+
+	var teleResp platform.TelegrafConfig
+	err := s.client.post(telegrafsPath, &body).
+		DecodeJSON(&teleResp).
 		Do(ctx)
+	if err != nil {
+		return err
+	}
+	*tc = teleResp
+	return nil
 }
 
 // UpdateTelegrafConfig updates a single telegraf config.
@@ -507,6 +551,10 @@ type C struct {
 
 func (c *C) delete(urlPath string) *cReq {
 	return c.newClientReq(http.MethodDelete, urlPath, nil)
+}
+
+func (c *C) get(urlPath string) *cReq {
+	return c.newClientReq(http.MethodGet, urlPath, nil)
 }
 
 func (c *C) post(urlPath string, body io.Reader) *cReq {
@@ -551,8 +599,30 @@ func (r *cReq) Header(k, v string) *cReq {
 	return r
 }
 
+type queryPair struct {
+	k, v string
+}
+
+func (r *cReq) Queries(pairs ...queryPair) *cReq {
+	if r.err != nil || len(pairs) == 0 {
+		return r
+	}
+	params := r.req.URL.Query()
+	for _, p := range pairs {
+		params.Add(p.k, p.v)
+	}
+	r.req.URL.RawQuery = params.Encode()
+	return r
+}
+
 func (r *cReq) ContentType(ct string) *cReq {
 	return r.Header("Content-Type", ct)
+}
+
+func (r *cReq) DecodeJSON(v interface{}) *cReq {
+	return r.RespFn(func(resp *http.Response) error {
+		return json.NewDecoder(resp.Body).Decode(v)
+	})
 }
 
 func (r *cReq) RespFn(fn func(*http.Response) error) *cReq {

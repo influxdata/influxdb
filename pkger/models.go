@@ -52,7 +52,7 @@ func (k Kind) String() string {
 
 // OK validates the kind is valid.
 func (k Kind) OK() error {
-	newKind := Kind(strings.ToLower(string(k)))
+	newKind := NewKind(string(k))
 	if newKind == KindUnknown {
 		return errors.New("invalid kind")
 	}
