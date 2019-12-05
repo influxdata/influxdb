@@ -131,8 +131,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 			}
 		}
 
-		var config plugins.Config
-		config = tpFn()
+		config := tpFn()
 		// if pr.Config if empty, make it a blank obj,
 		// so it will still go to the unmarshalling process to validate.
 		if len(string(pr.Config)) == 0 {
