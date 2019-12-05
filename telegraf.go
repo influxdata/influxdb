@@ -82,13 +82,11 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 		orgID = tcd.OrganizationID
 	}
 
-	*tc = TelegrafConfig{
-		ID:          tcd.ID,
-		OrgID:       orgID,
-		Name:        tcd.Name,
-		Description: tcd.Description,
-		Config:      tcd.Config,
-	}
+	tc.ID = tcd.ID
+	tc.OrgID = orgID
+	tc.Name = tcd.Name
+	tc.Description = tcd.Description
+	tc.Config = tcd.Config
 
 	// legacy, remove after some moons. or a migration.
 	if lp := len(tcd.Plugins); lp > 0 {
