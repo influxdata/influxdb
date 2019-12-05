@@ -74,7 +74,9 @@ describe('Dashboards', () => {
       cy.createDashboardTemplate(id)
     })
 
-    cy.getByTestID('add-resource-dropdown--button').click()
+    cy.getByTestID('empty-dashboards-list')
+      .getByTestID('add-resource-dropdown--button')
+      .click()
 
     cy.getByTestID('add-resource-dropdown--template').click()
 
