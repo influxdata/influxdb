@@ -178,6 +178,7 @@ func Test_Pkg(t *testing.T) {
 			bucketIDs    []influxdb.ID
 			dashIDs      []influxdb.ID
 			labelIDs     []influxdb.ID
+			telegrafIDs  []influxdb.ID
 			varIDs       []influxdb.ID
 			expectedMeta pkger.Metadata
 		}{
@@ -189,7 +190,6 @@ func Test_Pkg(t *testing.T) {
 					flags: []flagArg{
 						{name: "name", val: "new name"},
 						{name: "description", val: "new desc"},
-						{name: "version", val: "new version"},
 						{name: "version", val: "new version"},
 					},
 				},
@@ -209,7 +209,6 @@ func Test_Pkg(t *testing.T) {
 						{name: "name", val: "new name"},
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
-						{name: "version", val: "new version"},
 					},
 				},
 				dashIDs: []influxdb.ID{1, 2},
@@ -227,7 +226,6 @@ func Test_Pkg(t *testing.T) {
 					flags: []flagArg{
 						{name: "name", val: "new name"},
 						{name: "description", val: "new desc"},
-						{name: "version", val: "new version"},
 						{name: "version", val: "new version"},
 					},
 				},
@@ -247,10 +245,27 @@ func Test_Pkg(t *testing.T) {
 						{name: "name", val: "new name"},
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
-						{name: "version", val: "new version"},
 					},
 				},
 				varIDs: []influxdb.ID{1, 2},
+				expectedMeta: pkger.Metadata{
+					Name:        "new name",
+					Description: "new desc",
+					Version:     "new version",
+				},
+			},
+			{
+				pkgFileArgs: pkgFileArgs{
+					name:     "telegrafs",
+					encoding: pkger.EncodingYAML,
+					filename: "pkg_0.yml",
+					flags: []flagArg{
+						{name: "name", val: "new name"},
+						{name: "description", val: "new desc"},
+						{name: "version", val: "new version"},
+					},
+				},
+				telegrafIDs: []influxdb.ID{1, 2},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
 					Description: "new desc",
@@ -266,13 +281,13 @@ func Test_Pkg(t *testing.T) {
 						{name: "name", val: "new name"},
 						{name: "description", val: "new desc"},
 						{name: "version", val: "new version"},
-						{name: "version", val: "new version"},
 					},
 				},
-				bucketIDs: []influxdb.ID{1, 2},
-				dashIDs:   []influxdb.ID{3, 4},
-				labelIDs:  []influxdb.ID{5, 6},
-				varIDs:    []influxdb.ID{7, 8},
+				bucketIDs:   []influxdb.ID{1, 2},
+				dashIDs:     []influxdb.ID{3, 4},
+				labelIDs:    []influxdb.ID{5, 6},
+				varIDs:      []influxdb.ID{7, 8},
+				telegrafIDs: []influxdb.ID{9, 10},
 				expectedMeta: pkger.Metadata{
 					Name:        "new name",
 					Description: "new desc",

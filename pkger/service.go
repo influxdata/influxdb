@@ -236,6 +236,10 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 			cloneFn: s.cloneOrgLabels,
 		},
 		{
+			resType: influxdb.TelegrafsResourceType,
+			cloneFn: s.cloneTelegrafs,
+		},
+		{
 			resType: influxdb.VariablesResourceType,
 			cloneFn: s.cloneOrgVariables,
 		},
@@ -310,6 +314,21 @@ func (s *Service) cloneOrgLabels(ctx context.Context, orgID influxdb.ID) ([]Reso
 	return resources, nil
 }
 
+func (s *Service) cloneTelegrafs(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
+	teles, _, err := s.teleSVC.FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{OrgID: &orgID})
+	if err != nil {
+		return nil, err
+	}
+	resources := make([]ResourceToClone, 0, len(teles))
+	for _, t := range teles {
+		resources = append(resources, ResourceToClone{
+			Kind: KindTelegraf,
+			ID:   t.ID,
+		})
+	}
+	return resources, nil
+}
+
 func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]ResourceToClone, error) {
 	vars, err := s.varSVC.FindVariables(ctx, influxdb.VariableFilter{
 		OrganizationID: &orgID,
@@ -329,7 +348,12 @@ func (s *Service) cloneOrgVariables(ctx context.Context, orgID influxdb.ID) ([]R
 	return resources, nil
 }
 
-func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) ([]Resource, error) {
+func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone, cFn cloneAssociationsFn) (newResources []Resource, e error) {
+	defer func() {
+		if e != nil {
+			e = ierrors.Wrap(e, "cloning resource")
+		}
+	}()
 	var newResource Resource
 	switch {
 	case r.Kind.is(KindBucket):
@@ -358,6 +382,12 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 			return nil, err
 		}
 		newResource = labelToResource(*l, r.Name)
+	case r.Kind.is(KindTelegraf):
+		t, err := s.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
+		if err != nil {
+			return nil, err
+		}
+		newResource = telegrafToResource(*t, r.Name)
 	case r.Kind.is(KindVariable):
 		v, err := s.varSVC.FindVariableByID(ctx, r.ID)
 		if err != nil {

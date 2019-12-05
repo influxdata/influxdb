@@ -59,9 +59,7 @@ func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 		fieldKind: KindBucket.title(),
 		fieldName: name,
 	}
-	if bkt.Description != "" {
-		r[fieldDescription] = bkt.Description
-	}
+	assignNonZeroStrings(r, map[string]string{fieldDescription: bkt.Description})
 	if bkt.RetentionPeriod != 0 {
 		r[fieldBucketRetentionRules] = retentionRules{newRetentionRule(bkt.RetentionPeriod)}
 	}
@@ -194,17 +192,12 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartLegend] = ch.Legend
 	}
 
-	ignoreFalseBools := map[string]bool{
+	assignNonZeroBools(r, map[string]bool{
 		fieldChartNoteOnEmpty: ch.NoteOnEmpty,
 		fieldChartShade:       ch.Shade,
-	}
-	for k, v := range ignoreFalseBools {
-		if v {
-			r[k] = v
-		}
-	}
+	})
 
-	ignoreEmptyStrPairs := map[string]string{
+	assignNonZeroStrings(r, map[string]string{
 		fieldChartNote:     ch.Note,
 		fieldPrefix:        ch.Prefix,
 		fieldSuffix:        ch.Suffix,
@@ -212,24 +205,14 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartXCol:     ch.XCol,
 		fieldChartYCol:     ch.YCol,
 		fieldChartPosition: ch.Position,
-	}
-	for k, v := range ignoreEmptyStrPairs {
-		if v != "" {
-			r[k] = v
-		}
-	}
+	})
 
-	ignoreEmptyIntPairs := map[string]int{
+	assignNonZeroInts(r, map[string]int{
 		fieldChartXPos:     ch.XPos,
 		fieldChartYPos:     ch.YPos,
 		fieldChartBinCount: ch.BinCount,
 		fieldChartBinSize:  ch.BinSize,
-	}
-	for k, v := range ignoreEmptyIntPairs {
-		if v != 0 {
-			r[k] = v
-		}
-	}
+	})
 
 	return r
 }
@@ -311,12 +294,26 @@ func labelToResource(l influxdb.Label, name string) Resource {
 		fieldKind: KindLabel.title(),
 		fieldName: name,
 	}
-	if desc := l.Properties["description"]; desc != "" {
-		r[fieldDescription] = desc
+
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: l.Properties["description"],
+		fieldLabelColor:  l.Properties["color"],
+	})
+	return r
+}
+
+func telegrafToResource(t influxdb.TelegrafConfig, name string) Resource {
+	if name == "" {
+		name = t.Name
 	}
-	if color := l.Properties["color"]; color != "" {
-		r[fieldLabelColor] = color
+	r := Resource{
+		fieldKind:           KindTelegraf.title(),
+		fieldName:           name,
+		fieldTelegrafConfig: t.TOML(),
 	}
+	assignNonZeroStrings(r, map[string]string{
+		fieldDescription: t.Description,
+	})
 	return r
 }
 
@@ -329,9 +326,7 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 		fieldKind: KindVariable.title(),
 		fieldName: name,
 	}
-	if v.Description != "" {
-		r[fieldDescription] = v.Description
-	}
+	assignNonZeroStrings(r, map[string]string{fieldDescription: v.Description})
 
 	args := v.Arguments
 	if args == nil {
@@ -359,6 +354,30 @@ func variableToResource(v influxdb.Variable, name string) Resource {
 	}
 
 	return r
+}
+
+func assignNonZeroBools(r Resource, m map[string]bool) {
+	for k, v := range m {
+		if v {
+			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroInts(r Resource, m map[string]int) {
+	for k, v := range m {
+		if v != 0 {
+			r[k] = v
+		}
+	}
+}
+
+func assignNonZeroStrings(r Resource, m map[string]string) {
+	for k, v := range m {
+		if v != "" {
+			r[k] = v
+		}
+	}
 }
 
 func stringsToColors(clrs []string) colors {

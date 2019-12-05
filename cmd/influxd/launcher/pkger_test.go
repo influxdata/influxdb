@@ -252,6 +252,10 @@ func TestLauncher_Pkger(t *testing.T) {
 					Kind: pkger.KindLabel,
 					ID:   labels[0].ID,
 				},
+				{
+					Kind: pkger.KindTelegraf,
+					ID:   teles[0].ID,
+				},
 			}
 
 			resWithNewName := []pkger.ResourceToClone{
@@ -295,6 +299,10 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, "dash_1", dashs[0].Name)
 			assert.Equal(t, "desc1", dashs[0].Description)
 			hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+
+			require.Len(t, newSum.TelegrafConfigs, 1)
+			assert.Equal(t, teles[0].Name, newSum.TelegrafConfigs[0].Name)
+			assert.Equal(t, teles[0].Description, newSum.TelegrafConfigs[0].Description)
 
 			vars := newSum.Variables
 			require.Len(t, vars, 1)
