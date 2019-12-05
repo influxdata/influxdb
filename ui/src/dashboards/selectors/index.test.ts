@@ -37,8 +37,8 @@ describe('Dashboards.Selector', () => {
   })
 
   it('should return the the default range when no ranges are passed in', () => {
-    expect(untypedGetTimeRangeByDashboardID({ranges:{}}, dashboardIDs[0])).toEqual(
-      DEFAULT_TIME_RANGE
-    )
+    expect(
+      untypedGetTimeRangeByDashboardID({ranges: {}}, dashboardIDs[0])
+    ).toEqual(DEFAULT_TIME_RANGE)
   })
 })
