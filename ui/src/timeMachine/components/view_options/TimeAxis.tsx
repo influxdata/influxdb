@@ -17,7 +17,7 @@ const TimeAxis: SFC<Props> = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
     <Form.Element label="Time Axis">
       <SelectGroup shape={ButtonShape.StretchToFit}>
         <SelectGroup.Option
-          name="graphi-time-axis"
+          name="graph-time-axis"
           id="graph-time-axis--vertical"
           value={true}
           active={verticalTimeAxis}
@@ -27,7 +27,7 @@ const TimeAxis: SFC<Props> = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
           Vertical
         </SelectGroup.Option>
         <SelectGroup.Option
-          name="graphi-time-axis"
+          name="graph-time-axis"
           id="graph-time-axis--horizontal"
           value={false}
           active={!verticalTimeAxis}
