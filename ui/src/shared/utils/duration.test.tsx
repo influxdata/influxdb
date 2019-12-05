@@ -5,7 +5,7 @@ import {
   millisecondsToDuration,
   isDurationParseable,
 } from 'src/shared/utils/duration'
-import {SELECTED_TIME_RANGES} from 'src/shared/constants/timeRanges'
+import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
 
 const TEST_CASES = [
   ['1d', [{magnitude: 1, unit: 'd'}]],
@@ -77,7 +77,7 @@ describe('isDurationParseable', () => {
     expect(isDurationParseable('now()')).toBe(false)
   })
 
-  test.each(SELECTED_TIME_RANGES)(
+  test.each(SELECTABLE_TIME_RANGES)(
     'returns true when passed valid duration',
     ({lower}) => {
       expect(isDurationParseable(lower)).toEqual(true)

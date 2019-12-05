@@ -7,6 +7,7 @@ jest.mock('src/timeMachine/apis/queryBuilder')
 jest.mock('src/shared/apis/query')
 
 // Types
+import {predicateDeleteSucceeded} from 'src/shared/copy/notifications'
 
 // Actions
 import {
@@ -22,10 +23,9 @@ describe('Shared.Actions.Predicates', () => {
 
   it('deletes then dispatches success messages', async () => {
     const mockDispatch = jest.fn()
-    const params = {}
 
     mocked(postDelete).mockImplementation(() => ({status: 204}))
-    await deleteWithPredicate(params)(mockDispatch)
+    await deleteWithPredicate()(mockDispatch)
 
     expect(postDelete).toHaveBeenCalledTimes(1)
     const [
@@ -45,12 +45,7 @@ describe('Shared.Actions.Predicates', () => {
       {
         type: 'PUBLISH_NOTIFICATION',
         payload: {
-          notification: {
-            duration: 5000,
-            icon: 'checkmark',
-            message: 'Successfully deleted data with predicate!',
-            style: 'success',
-          },
+          notification: predicateDeleteSucceeded,
         },
       },
     ])
@@ -60,10 +55,9 @@ describe('Shared.Actions.Predicates', () => {
 
   it('sets the keys based on the bucket name', async () => {
     const mockDispatch = jest.fn()
-    const orgID = '1'
     const bucketName = 'Foxygen'
 
-    await setBucketAndKeys(orgID, bucketName)(mockDispatch)
+    await setBucketAndKeys(bucketName)(mockDispatch)
 
     const [setBucketNameDispatch, setKeysDispatch] = mockDispatch.mock.calls
 
@@ -83,11 +77,10 @@ describe('Shared.Actions.Predicates', () => {
 
   it('sets the values based on the bucket and key name', async () => {
     const mockDispatch = jest.fn()
-    const orgID = '1'
     const bucketName = 'Simon & Garfunkel'
     const keyName = 'America'
 
-    await setValuesByKey(orgID, bucketName, keyName)(mockDispatch)
+    await setValuesByKey(bucketName, keyName)(mockDispatch)
 
     const [setValuesDispatch] = mockDispatch.mock.calls
 

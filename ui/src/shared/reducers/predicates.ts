@@ -71,7 +71,7 @@ export const predicatesReducer = (
       return {...state, values: action.payload.values}
 
     case 'SET_PREDICATE_DEFAULT':
-      return initialState
+      return {...initialState}
 
     default:
       return state

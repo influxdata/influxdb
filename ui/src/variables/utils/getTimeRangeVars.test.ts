@@ -20,6 +20,7 @@ describe('getTimeRangeVars', () => {
     const timeRange = {
       ...CUSTOM_TIME_RANGE,
       lower: '2019-02-28T15:00:00Z',
+      upper: '2019-03-28T15:00:00Z',
     }
 
     const actual = getTimeRangeVars(timeRange)

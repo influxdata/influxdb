@@ -1,7 +1,7 @@
 import {
   getLocalStateRanges,
   setLocalStateRanges,
-} from 'src/normalizers/LocalStorage/dashboardTime'
+} from 'src/normalizers/localStorage/dashboardTime'
 
 const getFunction: (a: any) => {} = getLocalStateRanges // This is to be able to test that these functions correctly filter badly formed inputs
 const setFunction: (a: any) => {} = setLocalStateRanges
@@ -13,8 +13,8 @@ const objFormatRange = {
   [dashboardID]: {
     lower: lowerDuration,
     upper: null,
-    type: 'custom' as 'custom',
-    label: 'Custom Time Range' as 'Custom Time Range',
+    type: 'duration' as 'duration',
+    label: lowerDuration,
   },
 }
 
@@ -37,12 +37,6 @@ const badObjFormats = {
     // no upper
     lower: lowerDuration,
     type: 'custom' as 'custom',
-    label: 'Custom Time Range' as 'Custom Time Range',
-  },
-  ['4']: {
-    // no type
-    lower: lowerDuration,
-    upper: null,
     label: 'Custom Time Range' as 'Custom Time Range',
   },
   ['5']: {
