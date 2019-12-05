@@ -195,35 +195,7 @@ func decodeGetTelegrafPluginRequest(ctx context.Context, r *http.Request) (*plug
 		return plugins.AvailablePlugins()
 	}
 
-	var telPlugins *plugins.TelegrafPlugins
-	var err error
-
-	switch t[0] {
-	case "inputs":
-		telPlugins, err = plugins.AvailableInputs()
-		if err != nil {
-			return nil, err
-		}
-	case "outputs":
-		telPlugins, err = plugins.AvailableOutputs()
-		if err != nil {
-			return nil, err
-		}
-	case "processors":
-		telPlugins, err = plugins.AvailableProcessors()
-		if err != nil {
-			return nil, err
-		}
-	case "aggregators":
-		telPlugins, err = plugins.AvailableAggregators()
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unknown plugin type '%s'", t)
-	}
-
-	return telPlugins, nil
+	return plugins.ListAvailablePlugins(t[0])
 }
 
 func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *http.Request) {
