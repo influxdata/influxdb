@@ -21,7 +21,11 @@ import {
 } from 'src/shared/constants/timeRanges'
 
 // Types
-import {TimeRange, CustomTimeRange, SelectableDurationTimeRange} from 'src/types'
+import {
+  TimeRange,
+  CustomTimeRange,
+  SelectableDurationTimeRange,
+} from 'src/types'
 
 interface Props {
   timeRange: TimeRange
@@ -89,7 +93,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                   key={CUSTOM_TIME_RANGE_LABEL}
                   value={CUSTOM_TIME_RANGE_LABEL}
                   id={CUSTOM_TIME_RANGE_LABEL}
-                  testID="dropdown-item-custom"
+                  testID="dropdown-item-customtimerange"
                   selected={this.state.isDatePickerOpen}
                   onClick={this.handleClickCustomTimeRange}
                 >
@@ -125,7 +129,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
     return 100
   }
 
-  private get timeRange(): CustomTimeRange| SelectableDurationTimeRange {
+  private get timeRange(): CustomTimeRange | SelectableDurationTimeRange {
     const {timeRange} = this.props
     const {isDatePickerOpen} = this.state
 

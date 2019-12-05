@@ -1,6 +1,5 @@
 import {
   TimeRange,
-  CustomTimeRange,
   SelectableDurationTimeRange,
   DurationTimeRange,
 } from 'src/types'

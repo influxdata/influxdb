@@ -1,6 +1,5 @@
 // Libraries
 import React, {useRef, useState, FC} from 'react'
-import moment from 'moment'
 
 // Components
 import {
@@ -14,11 +13,11 @@ import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePick
 
 // Types
 import {CustomTimeRange} from 'src/types'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 import {
-  TIME_RANGE_FORMAT,
-  pastHourTimeRange,
-} from 'src/shared/constants/timeRanges'
-import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
+  convertTimeRangeToCustom,
+  createTimeRangeLabel,
+} from 'src/shared/utils/duration'
 
 interface Props {
   timeRange: CustomTimeRange
@@ -32,9 +31,10 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   let dropdownLabel = 'Select a Time Range'
 
   if (timeRange) {
-    dropdownLabel = `${moment(timeRange.lower).format(
-      TIME_RANGE_FORMAT
-    )} - ${moment(timeRange.upper).format(TIME_RANGE_FORMAT)}`
+    dropdownLabel = createTimeRangeLabel({
+      lower: timeRange.lower,
+      upper: timeRange.upper,
+    })
   }
 
   const handleApplyTimeRange = (timeRange: CustomTimeRange) => {

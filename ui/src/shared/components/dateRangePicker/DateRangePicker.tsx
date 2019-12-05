@@ -1,13 +1,12 @@
 // Libraries
 import React, {PureComponent, CSSProperties} from 'react'
-import moment from 'moment'
 
 // Components
 import DatePicker from 'src/shared/components/dateRangePicker/DatePicker'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
-// Constants
-import {TIME_RANGE_FORMAT} from 'src/shared/constants/timeRanges'
+// Utils
+import {createTimeRangeLabel} from 'src/shared/utils/duration'
 
 // Types
 import {TimeRange} from 'src/types'
@@ -102,12 +101,10 @@ class DateRangePicker extends PureComponent<Props, State> {
   }
 
   private handleSetTimeRange = (): void => {
-    const {onSetTimeRange, timeRange} = this.props
+    const {onSetTimeRange} = this.props
     const {upper, lower} = this.state
 
-    const label = `${moment(timeRange.lower).format(
-      TIME_RANGE_FORMAT
-    )} - ${moment(timeRange.upper).format(TIME_RANGE_FORMAT)}`
+    const label = createTimeRangeLabel({lower, upper})
 
     onSetTimeRange({lower, upper, type: 'custom', label})
   }

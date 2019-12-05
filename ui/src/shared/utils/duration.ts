@@ -132,9 +132,7 @@ export const convertTimeRangeToCustom = (
       .toISOString()
   }
 
-  const label = `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(
-    upper
-  ).format(TIME_RANGE_FORMAT)}`
+  const label = createTimeRangeLabel({lower, upper})
 
   return {
     label,
@@ -143,3 +141,14 @@ export const convertTimeRangeToCustom = (
     type: 'custom',
   }
 }
+
+export const createTimeRangeLabel = ({
+  lower,
+  upper,
+}: {
+  lower: string
+  upper: string
+}): string =>
+  `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(upper).format(
+    TIME_RANGE_FORMAT
+  )}`
