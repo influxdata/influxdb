@@ -171,6 +171,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 			h.HandleHTTPError(ctx, err, w)
 			return
 		}
+		_ = tracing.LogError(span, err)
 		log.Info("Error writing response to client",
 			zap.String("handler", "flux"),
 			zap.Error(err),
