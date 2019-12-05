@@ -3,6 +3,8 @@ package pkger
 import (
 	"errors"
 	"fmt"
+	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +18,7 @@ const (
 	KindDashboard Kind = "dashboard"
 	KindLabel     Kind = "label"
 	KindPackage   Kind = "package"
+	KindTelegraf  Kind = "telegraf"
 	KindVariable  Kind = "variable"
 )
 
@@ -24,13 +27,15 @@ var kinds = map[Kind]bool{
 	KindDashboard: true,
 	KindLabel:     true,
 	KindPackage:   true,
+	KindTelegraf:  true,
 	KindVariable:  true,
 }
 
 // Kind is a resource kind.
 type Kind string
 
-func newKind(s string) Kind {
+// NewKind returns the kind parsed from the provided string.
+func NewKind(s string) Kind {
 	return Kind(strings.TrimSpace(strings.ToLower(s)))
 }
 
@@ -47,7 +52,7 @@ func (k Kind) String() string {
 
 // OK validates the kind is valid.
 func (k Kind) OK() error {
-	newKind := Kind(strings.ToLower(string(k)))
+	newKind := NewKind(string(k))
 	if newKind == KindUnknown {
 		return errors.New("invalid kind")
 	}
@@ -97,17 +102,66 @@ type Diff struct {
 	Dashboards    []DiffDashboard    `json:"dashboards"`
 	Labels        []DiffLabel        `json:"labels"`
 	LabelMappings []DiffLabelMapping `json:"labelMappings"`
+	Telegrafs     []DiffTelegraf     `json:"telegrafConfigs"`
 	Variables     []DiffVariable     `json:"variables"`
+}
+
+// HasConflicts provides a binary t/f if there are any changes within package
+// after dry run is complete.
+func (d Diff) HasConflicts() bool {
+	for _, b := range d.Buckets {
+		if b.hasConflict() {
+			return true
+		}
+	}
+
+	for _, l := range d.Labels {
+		if l.hasConflict() {
+			return true
+		}
+	}
+
+	for _, v := range d.Variables {
+		if v.hasConflict() {
+			return true
+		}
+	}
+
+	return false
+}
+
+// DiffBucketValues are the varying values for a bucket.
+type DiffBucketValues struct {
+	Description    string         `json:"description"`
+	RetentionRules retentionRules `json:"retentionRules"`
 }
 
 // DiffBucket is a diff of an individual bucket.
 type DiffBucket struct {
-	ID           SafeID        `json:"id"`
-	Name         string        `json:"name"`
-	OldDesc      string        `json:"oldDescription"`
-	NewDesc      string        `json:"newDescription"`
-	OldRetention time.Duration `json:"oldRP"`
-	NewRetention time.Duration `json:"newRP"`
+	ID   SafeID
+	Name string
+	New  DiffBucketValues  `json:"new"`
+	Old  *DiffBucketValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+}
+
+func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
+	diff := DiffBucket{
+		Name: b.Name(),
+		New: DiffBucketValues{
+			Description:    b.Description,
+			RetentionRules: b.RetentionRules,
+		},
+	}
+	if i != nil {
+		diff.ID = SafeID(i.ID)
+		diff.Old = &DiffBucketValues{
+			Description: i.Description,
+		}
+		if i.RetentionPeriod > 0 {
+			diff.Old.RetentionRules = retentionRules{newRetentionRule(i.RetentionPeriod)}
+		}
+	}
+	return diff
 }
 
 // IsNew indicates whether a pkg bucket is going to be new to the platform.
@@ -115,15 +169,8 @@ func (d DiffBucket) IsNew() bool {
 	return d.ID == SafeID(0)
 }
 
-func newDiffBucket(b *bucket, i influxdb.Bucket) DiffBucket {
-	return DiffBucket{
-		ID:           SafeID(i.ID),
-		Name:         b.Name,
-		OldDesc:      i.Description,
-		NewDesc:      b.Description,
-		OldRetention: i.RetentionPeriod,
-		NewRetention: b.RetentionPeriod,
-	}
+func (d DiffBucket) hasConflict() bool {
+	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
 }
 
 // DiffDashboard is a diff of an individual dashboard.
@@ -135,7 +182,7 @@ type DiffDashboard struct {
 
 func newDiffDashboard(d *dashboard) DiffDashboard {
 	diff := DiffDashboard{
-		Name: d.Name,
+		Name: d.Name(),
 		Desc: d.Description,
 	}
 
@@ -154,14 +201,18 @@ func newDiffDashboard(d *dashboard) DiffDashboard {
 // the SummaryChart is reused here.
 type DiffChart SummaryChart
 
+// DiffLabelValues are the varying values for a label.
+type DiffLabelValues struct {
+	Color       string `json:"color"`
+	Description string `json:"description"`
+}
+
 // DiffLabel is a diff of an individual label.
 type DiffLabel struct {
-	ID       SafeID `json:"id"`
-	Name     string `json:"name"`
-	OldColor string `json:"oldColor"`
-	NewColor string `json:"newColor"`
-	OldDesc  string `json:"oldDescription"`
-	NewDesc  string `json:"newDescription"`
+	ID   SafeID           `json:"id"`
+	Name string           `json:"name"`
+	New  DiffLabelValues  `json:"new"`
+	Old  *DiffLabelValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
 }
 
 // IsNew indicates whether a pkg label is going to be new to the platform.
@@ -169,15 +220,26 @@ func (d DiffLabel) IsNew() bool {
 	return d.ID == SafeID(0)
 }
 
-func newDiffLabel(l *label, i influxdb.Label) DiffLabel {
-	return DiffLabel{
-		ID:       SafeID(i.ID),
-		Name:     l.Name,
-		OldColor: i.Properties["color"],
-		NewColor: l.Color,
-		OldDesc:  i.Properties["description"],
-		NewDesc:  l.Description,
+func (d DiffLabel) hasConflict() bool {
+	return d.IsNew() || d.Old != nil && *d.Old != d.New
+}
+
+func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
+	diff := DiffLabel{
+		Name: l.Name(),
+		New: DiffLabelValues{
+			Color:       l.Color,
+			Description: l.Description,
+		},
 	}
+	if i != nil {
+		diff.ID = SafeID(i.ID)
+		diff.Old = &DiffLabelValues{
+			Color:       i.Properties["color"],
+			Description: i.Properties["description"],
+		}
+	}
+	return diff
 }
 
 // DiffLabelMapping is a diff of an individual label mapping. A
@@ -194,26 +256,48 @@ type DiffLabelMapping struct {
 	LabelName string `json:"labelName"`
 }
 
-// DiffVariable is a diff of an individual variable.
-type DiffVariable struct {
-	ID      SafeID `json:"id"`
-	Name    string `json:"name"`
-	OldDesc string `json:"oldDescription"`
-	NewDesc string `json:"newDescription"`
-
-	OldArgs *influxdb.VariableArguments `json:"oldArgs"`
-	NewArgs *influxdb.VariableArguments `json:"newArgs"`
+// DiffTelegraf is a diff of an individual telegraf.
+type DiffTelegraf struct {
+	influxdb.TelegrafConfig
 }
 
-func newDiffVariable(v *variable, iv influxdb.Variable) DiffVariable {
-	return DiffVariable{
-		ID:      SafeID(iv.ID),
-		Name:    v.Name,
-		OldDesc: iv.Description,
-		NewDesc: v.Description,
-		OldArgs: iv.Arguments,
-		NewArgs: v.influxVarArgs(),
+func newDiffTelegraf(t *telegraf) DiffTelegraf {
+	return DiffTelegraf{
+		TelegrafConfig: t.config,
 	}
+}
+
+// DiffVariableValues are the varying values for a variable.
+type DiffVariableValues struct {
+	Description string                      `json:"description"`
+	Args        *influxdb.VariableArguments `json:"args"`
+}
+
+// DiffVariable is a diff of an individual variable.
+type DiffVariable struct {
+	ID   SafeID              `json:"id"`
+	Name string              `json:"name"`
+	New  DiffVariableValues  `json:"new"`
+	Old  *DiffVariableValues `json:"old,omitempty"` // using omitempty here to signal there was no prev state with a nil
+}
+
+func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
+	diff := DiffVariable{
+		Name: v.Name(),
+		New: DiffVariableValues{
+			Description: v.Description,
+			Args:        v.influxVarArgs(),
+		},
+	}
+	if iv != nil {
+		diff.ID = SafeID(iv.ID)
+		diff.Old = &DiffVariableValues{
+			Description: iv.Description,
+			Args:        iv.Arguments,
+		}
+	}
+
+	return diff
 }
 
 // IsNew indicates whether a pkg variable is going to be new to the platform.
@@ -221,14 +305,19 @@ func (d DiffVariable) IsNew() bool {
 	return d.ID == SafeID(0)
 }
 
+func (d DiffVariable) hasConflict() bool {
+	return !d.IsNew() && d.Old != nil && !reflect.DeepEqual(*d.Old, d.New)
+}
+
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets       []SummaryBucket       `json:"buckets"`
-	Dashboards    []SummaryDashboard    `json:"dashboards"`
-	Labels        []SummaryLabel        `json:"labels"`
-	LabelMappings []SummaryLabelMapping `json:"labelMappings"`
-	Variables     []SummaryVariable     `json:"variables"`
+	Buckets         []SummaryBucket       `json:"buckets"`
+	Dashboards      []SummaryDashboard    `json:"dashboards"`
+	Labels          []SummaryLabel        `json:"labels"`
+	LabelMappings   []SummaryLabelMapping `json:"labelMappings"`
+	TelegrafConfigs []SummaryTelegraf     `json:"telegrafConfigs"`
+	Variables       []SummaryVariable     `json:"variables"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
@@ -305,6 +394,12 @@ type SummaryLabelMapping struct {
 	influxdb.LabelMapping
 }
 
+// SummaryTelegraf provides a summary of a pkg telegraf config.
+type SummaryTelegraf struct {
+	influxdb.TelegrafConfig
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
+}
+
 // SummaryVariable provides a summary of a pkg variable.
 type SummaryVariable struct {
 	influxdb.Variable
@@ -315,6 +410,7 @@ const (
 	fieldAssociations = "associations"
 	fieldDescription  = "description"
 	fieldKind         = "kind"
+	fieldLanguage     = "language"
 	fieldName         = "name"
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
@@ -325,16 +421,16 @@ const (
 )
 
 const (
-	fieldBucketRetentionPeriod = "retention_period"
+	fieldBucketRetentionRules = "retentionRules"
 )
 
 type bucket struct {
-	id              influxdb.ID
-	OrgID           influxdb.ID
-	Description     string
-	Name            string
-	RetentionPeriod time.Duration
-	labels          []*label
+	id             influxdb.ID
+	OrgID          influxdb.ID
+	Description    string
+	name           string
+	RetentionRules retentionRules
+	labels         sortedLogos
 
 	// existing provides context for a resource that already
 	// exists in the platform. If a resource already exists
@@ -347,6 +443,10 @@ func (b *bucket) ID() influxdb.ID {
 		return b.existing.ID
 	}
 	return b.id
+}
+
+func (b *bucket) Name() string {
+	return b.name
 }
 
 func (b *bucket) ResourceType() influxdb.ResourceType {
@@ -362,19 +462,86 @@ func (b *bucket) summarize() SummaryBucket {
 		Bucket: influxdb.Bucket{
 			ID:              b.ID(),
 			OrgID:           b.OrgID,
-			Name:            b.Name,
+			Name:            b.Name(),
 			Description:     b.Description,
-			RetentionPeriod: b.RetentionPeriod,
+			RetentionPeriod: b.RetentionRules.RP(),
 		},
 		LabelAssociations: toInfluxLabels(b.labels...),
 	}
 }
 
+func (b *bucket) valid() []validationErr {
+	return b.RetentionRules.valid()
+}
+
 func (b *bucket) shouldApply() bool {
 	return b.existing == nil ||
 		b.Description != b.existing.Description ||
-		b.Name != b.existing.Name ||
-		b.RetentionPeriod != b.existing.RetentionPeriod
+		b.Name() != b.existing.Name ||
+		b.RetentionRules.RP() != b.existing.RetentionPeriod
+}
+
+const (
+	retentionRuleTypeExpire = "expire"
+)
+
+type retentionRule struct {
+	Type    string `json:"type" yaml:"type"`
+	Seconds int    `json:"everySeconds" yaml:"everySeconds"`
+}
+
+func newRetentionRule(d time.Duration) retentionRule {
+	return retentionRule{
+		Type:    retentionRuleTypeExpire,
+		Seconds: int(d.Round(time.Second) / time.Second),
+	}
+}
+
+func (r retentionRule) valid() []validationErr {
+	const hour = 3600
+	var ff []validationErr
+	if r.Seconds < hour {
+		ff = append(ff, validationErr{
+			Field: fieldRetentionRulesEverySeconds,
+			Msg:   "seconds must be a minimum of " + strconv.Itoa(hour),
+		})
+	}
+	if r.Type != retentionRuleTypeExpire {
+		ff = append(ff, validationErr{
+			Field: fieldType,
+			Msg:   `type must be "expire"`,
+		})
+	}
+	return ff
+}
+
+const (
+	fieldRetentionRulesEverySeconds = "everySeconds"
+)
+
+type retentionRules []retentionRule
+
+func (r retentionRules) RP() time.Duration {
+	// TODO: this feels very odd to me, will need to follow up with
+	//  team to better understand this
+	for _, rule := range r {
+		return time.Duration(rule.Seconds) * time.Second
+	}
+	return 0
+}
+
+func (r retentionRules) valid() []validationErr {
+	var failures []validationErr
+	for i, rule := range r {
+		if ff := rule.valid(); len(ff) > 0 {
+			failures = append(failures, validationErr{
+				Field:  fieldBucketRetentionRules,
+				Index:  intPtr(i),
+				Nested: ff,
+			})
+		}
+	}
+	return failures
 }
 
 type assocMapKey struct {
@@ -403,6 +570,14 @@ func (l assocMapVal) dashboard() (*dashboard, bool) {
 	return d, ok
 }
 
+func (l assocMapVal) telegraf() (*telegraf, bool) {
+	if l.v == nil {
+		return nil, false
+	}
+	t, ok := l.v.(*telegraf)
+	return t, ok
+}
+
 func (l assocMapVal) variable() (*variable, bool) {
 	if l.v == nil {
 		return nil, false
@@ -415,47 +590,25 @@ type associationMapping struct {
 	mappings map[assocMapKey]assocMapVal
 }
 
-func (l *associationMapping) setMapping(k assocMapKey, v assocMapVal) {
+func (l *associationMapping) setMapping(v interface {
+	ResourceType() influxdb.ResourceType
+	Name() string
+}, exists bool) {
 	if l == nil {
 		return
 	}
 	if l.mappings == nil {
 		l.mappings = make(map[assocMapKey]assocMapVal)
 	}
-	l.mappings[k] = v
-}
 
-func (l *associationMapping) setBucketMapping(b *bucket, exists bool) {
-	key := assocMapKey{
-		resType: b.ResourceType(),
-		name:    b.Name,
-	}
-	val := assocMapVal{
-		exists: exists,
-		v:      b,
-	}
-	l.setMapping(key, val)
-}
-
-func (l *associationMapping) setDashboardMapping(d *dashboard) {
-	key := assocMapKey{
-		resType: d.ResourceType(),
-		name:    d.Name,
-	}
-	val := assocMapVal{v: d}
-	l.setMapping(key, val)
-}
-
-func (l *associationMapping) setVariableMapping(v *variable, exists bool) {
-	key := assocMapKey{
+	k := assocMapKey{
 		resType: v.ResourceType(),
-		name:    v.Name,
+		name:    v.Name(),
 	}
-	val := assocMapVal{
+	l.mappings[k] = assocMapVal{
 		exists: exists,
 		v:      v,
 	}
-	l.setMapping(key, val)
 }
 
 const (
@@ -465,7 +618,7 @@ const (
 type label struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	Name        string
+	name        string
 	Color       string
 	Description string
 	associationMapping
@@ -476,11 +629,8 @@ type label struct {
 	existing *influxdb.Label
 }
 
-func (l *label) shouldApply() bool {
-	return l.existing == nil ||
-		l.Description != l.existing.Properties["description"] ||
-		l.Name != l.existing.Name ||
-		l.Color != l.existing.Properties["color"]
+func (l *label) Name() string {
+	return l.name
 }
 
 func (l *label) ID() influxdb.ID {
@@ -490,12 +640,19 @@ func (l *label) ID() influxdb.ID {
 	return l.id
 }
 
+func (l *label) shouldApply() bool {
+	return l.existing == nil ||
+		l.Description != l.existing.Properties["description"] ||
+		l.Name() != l.existing.Name ||
+		l.Color != l.existing.Properties["color"]
+}
+
 func (l *label) summarize() SummaryLabel {
 	return SummaryLabel{
 		Label: influxdb.Label{
 			ID:         l.ID(),
 			OrgID:      l.OrgID,
-			Name:       l.Name,
+			Name:       l.Name(),
 			Properties: l.properties(),
 		},
 	}
@@ -507,7 +664,7 @@ func (l *label) mappingSummary() []SummaryLabelMapping {
 		mappings = append(mappings, SummaryLabelMapping{
 			exists:       lm.exists,
 			ResourceName: res.name,
-			LabelName:    l.Name,
+			LabelName:    l.Name(),
 			LabelMapping: influxdb.LabelMapping{
 				LabelID:      l.ID(),
 				ResourceID:   l.getMappedResourceID(res),
@@ -531,6 +688,11 @@ func (l *label) getMappedResourceID(k assocMapKey) influxdb.ID {
 		if ok {
 			return d.ID()
 		}
+	case influxdb.TelegrafsResourceType:
+		t, ok := l.mappings[k].telegraf()
+		if ok {
+			return t.ID()
+		}
 	case influxdb.VariablesResourceType:
 		v, ok := l.mappings[k].variable()
 		if ok {
@@ -553,24 +715,70 @@ func toInfluxLabels(labels ...*label) []influxdb.Label {
 		iLabels = append(iLabels, influxdb.Label{
 			ID:         l.ID(),
 			OrgID:      l.OrgID,
-			Name:       l.Name,
+			Name:       l.Name(),
 			Properties: l.properties(),
 		})
 	}
 	return iLabels
 }
 
+type sortedLogos []*label
+
+func (s sortedLogos) Len() int {
+	return len(s)
+}
+
+func (s sortedLogos) Less(i, j int) bool {
+	return s[i].name < s[j].name
+}
+
+func (s sortedLogos) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+const (
+	fieldTelegrafConfig = "config"
+)
+
+type telegraf struct {
+	config influxdb.TelegrafConfig
+
+	labels sortedLogos
+}
+
+func (t *telegraf) ID() influxdb.ID {
+	return t.config.ID
+}
+
+func (t *telegraf) Name() string {
+	return t.config.Name
+}
+
+func (t *telegraf) ResourceType() influxdb.ResourceType {
+	return influxdb.TelegrafsResourceType
+}
+
+func (t *telegraf) Exists() bool {
+	return false
+}
+
+func (t *telegraf) summarize() SummaryTelegraf {
+	return SummaryTelegraf{
+		TelegrafConfig:    t.config,
+		LabelAssociations: toInfluxLabels(t.labels...),
+	}
+}
+
 const (
 	fieldArgTypeConstant = "constant"
 	fieldArgTypeMap      = "map"
 	fieldArgTypeQuery    = "query"
-	fieldVarLanguage     = "language"
 )
 
 type variable struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	Name        string
+	name        string
 	Description string
 	Type        string
 	Query       string
@@ -578,7 +786,7 @@ type variable struct {
 	ConstValues []string
 	MapValues   map[string]string
 
-	labels []*label
+	labels sortedLogos
 
 	existing *influxdb.Variable
 }
@@ -592,6 +800,10 @@ func (v *variable) ID() influxdb.ID {
 
 func (v *variable) Exists() bool {
 	return v.existing != nil
+}
+
+func (v *variable) Name() string {
+	return v.name
 }
 
 func (v *variable) ResourceType() influxdb.ResourceType {
@@ -610,7 +822,7 @@ func (v *variable) summarize() SummaryVariable {
 		Variable: influxdb.Variable{
 			ID:             v.ID(),
 			OrganizationID: v.OrgID,
-			Name:           v.Name,
+			Name:           v.Name(),
 			Description:    v.Description,
 			Arguments:      v.influxVarArgs(),
 		},
@@ -636,33 +848,33 @@ func (v *variable) influxVarArgs() *influxdb.VariableArguments {
 	return args
 }
 
-func (v *variable) valid() []ValidationErr {
-	var failures []ValidationErr
+func (v *variable) valid() []validationErr {
+	var failures []validationErr
 	switch v.Type {
 	case "map":
 		if len(v.MapValues) == 0 {
-			failures = append(failures, ValidationErr{
-				Field: "values",
+			failures = append(failures, validationErr{
+				Field: fieldValues,
 				Msg:   "map variable must have at least 1 key/val pair",
 			})
 		}
 	case "constant":
 		if len(v.ConstValues) == 0 {
-			failures = append(failures, ValidationErr{
-				Field: "values",
+			failures = append(failures, validationErr{
+				Field: fieldValues,
 				Msg:   "constant variable must have a least 1 value provided",
 			})
 		}
 	case "query":
 		if v.Query == "" {
-			failures = append(failures, ValidationErr{
-				Field: "query",
+			failures = append(failures, validationErr{
+				Field: fieldQuery,
 				Msg:   "query variable must provide a query string",
 			})
 		}
 		if v.Language != "influxql" && v.Language != "flux" {
-			failures = append(failures, ValidationErr{
-				Field: "language",
+			failures = append(failures, validationErr{
+				Field: fieldLanguage,
 				Msg:   fmt.Sprintf(`query variable language must be either "influxql" or "flux"; got %q`, v.Language),
 			})
 		}
@@ -677,15 +889,19 @@ const (
 type dashboard struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	Name        string
+	name        string
 	Description string
 	Charts      []chart
 
-	labels []*label
+	labels sortedLogos
 }
 
 func (d *dashboard) ID() influxdb.ID {
 	return d.id
+}
+
+func (d *dashboard) Name() string {
+	return d.name
 }
 
 func (d *dashboard) ResourceType() influxdb.ResourceType {
@@ -700,7 +916,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
 		ID:                SafeID(d.ID()),
 		OrgID:             SafeID(d.OrgID),
-		Name:              d.Name,
+		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toInfluxLabels(d.labels...),
 	}
@@ -865,6 +1081,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
+			Position:          c.Position,
 		}
 	case chartKindXY:
 		return influxdb.XYViewProperties{
@@ -879,21 +1096,22 @@ func (c chart) properties() influxdb.ViewProperties {
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
+			Position:          c.Position,
 		}
 	default:
 		return nil
 	}
 }
 
-func (c chart) validProperties() []ValidationErr {
+func (c chart) validProperties() []validationErr {
 	if c.Kind == chartKindMarkdown {
 		// at the time of writing, there's nothing to validate for markdown types
 		return nil
 	}
 
-	var fails []ValidationErr
+	var fails []validationErr
 
-	validatorFns := []func() []ValidationErr{
+	validatorFns := []func() []validationErr{
 		c.validBaseProps,
 		c.Queries.valid,
 		c.Colors.valid,
@@ -917,12 +1135,25 @@ func (c chart) validProperties() []ValidationErr {
 	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
 	case chartKindXY:
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
 	}
 
 	return fails
+}
+
+func validPosition(pos string) []validationErr {
+	pos = strings.ToLower(pos)
+	if pos != "" && pos != "overlaid" && pos != "stacked" {
+		return []validationErr{{
+			Field: fieldChartPosition,
+			Msg:   fmt.Sprintf("invalid position supplied %q; valid positions is one of [overlaid, stacked]", pos),
+		}}
+	}
+	return nil
 }
 
 var geometryTypes = map[string]bool{
@@ -932,14 +1163,14 @@ var geometryTypes = map[string]bool{
 	"bar":     true,
 }
 
-func validGeometry(geom string) []ValidationErr {
+func validGeometry(geom string) []validationErr {
 	if !geometryTypes[geom] {
 		msg := "type not found"
 		if geom != "" {
 			msg = "type provided is not supported"
 		}
-		return []ValidationErr{{
-			Field: "geom",
+		return []validationErr{{
+			Field: fieldChartGeom,
 			Msg:   fmt.Sprintf("%s: %q", msg, geom),
 		}}
 	}
@@ -947,18 +1178,18 @@ func validGeometry(geom string) []ValidationErr {
 	return nil
 }
 
-func (c chart) validBaseProps() []ValidationErr {
-	var fails []ValidationErr
+func (c chart) validBaseProps() []validationErr {
+	var fails []validationErr
 	if c.Width <= 0 {
-		fails = append(fails, ValidationErr{
-			Field: "width",
+		fails = append(fails, validationErr{
+			Field: fieldChartWidth,
 			Msg:   "must be greater than 0",
 		})
 	}
 
 	if c.Height <= 0 {
-		fails = append(fails, ValidationErr{
-			Field: "height",
+		fails = append(fails, validationErr{
+			Field: fieldChartHeight,
 			Msg:   "must be greater than 0",
 		})
 	}
@@ -1029,16 +1260,16 @@ func (c colors) strings() []string {
 // TODO: looks like much of these are actually getting defaults in
 //  the UI. looking at sytem charts, seeign lots of failures for missing
 //  color types or no colors at all.
-func (c colors) hasTypes(types ...string) []ValidationErr {
+func (c colors) hasTypes(types ...string) []validationErr {
 	tMap := make(map[string]bool)
 	for _, cc := range c {
 		tMap[cc.Type] = true
 	}
 
-	var failures []ValidationErr
+	var failures []validationErr
 	for _, t := range types {
 		if !tMap[t] {
-			failures = append(failures, ValidationErr{
+			failures = append(failures, validationErr{
 				Field: "colors",
 				Msg:   fmt.Sprintf("type not found: %q", t),
 			})
@@ -1048,16 +1279,16 @@ func (c colors) hasTypes(types ...string) []ValidationErr {
 	return failures
 }
 
-func (c colors) valid() []ValidationErr {
-	var fails []ValidationErr
+func (c colors) valid() []validationErr {
+	var fails []validationErr
 	for i, cc := range c {
-		cErr := ValidationErr{
-			Field: "colors",
+		cErr := validationErr{
+			Field: fieldChartColors,
 			Index: intPtr(i),
 		}
 		if cc.Hex == "" {
-			cErr.Nested = append(cErr.Nested, ValidationErr{
-				Field: "hex",
+			cErr.Nested = append(cErr.Nested, validationErr{
+				Field: fieldColorHex,
 				Msg:   "a color must have a hex value provided",
 			})
 		}
@@ -1089,23 +1320,23 @@ func (q queries) influxDashQueries() []influxdb.DashboardQuery {
 	return iQueries
 }
 
-func (q queries) valid() []ValidationErr {
-	var fails []ValidationErr
+func (q queries) valid() []validationErr {
+	var fails []validationErr
 	if len(q) == 0 {
-		fails = append(fails, ValidationErr{
-			Field: "queries",
+		fails = append(fails, validationErr{
+			Field: fieldChartQueries,
 			Msg:   "at least 1 query must be provided",
 		})
 	}
 
 	for i, qq := range q {
-		qErr := ValidationErr{
-			Field: "queries",
+		qErr := validationErr{
+			Field: fieldChartQueries,
 			Index: intPtr(i),
 		}
 		if qq.Query == "" {
-			qErr.Nested = append(fails, ValidationErr{
-				Field: "query",
+			qErr.Nested = append(fails, validationErr{
+				Field: fieldQuery,
 				Msg:   "a query must be provided",
 			})
 		}
@@ -1159,17 +1390,17 @@ func (a axes) influxAxes() map[string]influxdb.Axis {
 	return m
 }
 
-func (a axes) hasAxes(expectedAxes ...string) []ValidationErr {
+func (a axes) hasAxes(expectedAxes ...string) []validationErr {
 	mAxes := make(map[string]bool)
 	for _, ax := range a {
 		mAxes[ax.Name] = true
 	}
 
-	var failures []ValidationErr
+	var failures []validationErr
 	for _, expected := range expectedAxes {
 		if !mAxes[expected] {
-			failures = append(failures, ValidationErr{
-				Field: "axes",
+			failures = append(failures, validationErr{
+				Field: fieldChartAxes,
 				Msg:   fmt.Sprintf("axis not found: %q", expected),
 			})
 		}
@@ -1179,7 +1410,6 @@ func (a axes) hasAxes(expectedAxes ...string) []ValidationErr {
 }
 
 const (
-	fieldLegendLanguage    = "language"
 	fieldLegendOrientation = "orientation"
 )
 

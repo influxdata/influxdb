@@ -2,7 +2,6 @@ package backend_test
 
 import (
 	"context"
-	"errors"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -32,7 +31,7 @@ func TestAnalyticalStore(t *testing.T) {
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
-			svc := kv.NewService(inmem.NewKVStore())
+			svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 			if err := svc.Initialize(ctx); err != nil {
 				t.Fatalf("error initializing urm service: %v", err)
 			}
@@ -40,7 +39,7 @@ func TestAnalyticalStore(t *testing.T) {
 			var (
 				ab       = newAnalyticalBackend(t, svc, svc)
 				logger   = zaptest.NewLogger(t)
-				rr       = backend.NewStoragePointsWriterRecorder(ab.PointsWriter(), logger)
+				rr       = backend.NewStoragePointsWriterRecorder(logger, ab.PointsWriter())
 				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, svc, rr, ab.QueryService())
 			)
 
@@ -64,7 +63,7 @@ func TestAnalyticalStore(t *testing.T) {
 }
 
 func TestDeduplicateRuns(t *testing.T) {
-	svc := kv.NewService(inmem.NewKVStore())
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 	if err := svc.Initialize(context.Background()); err != nil {
 		t.Fatalf("error initializing kv service: %v", err)
 	}
@@ -107,129 +106,6 @@ func TestDeduplicateRuns(t *testing.T) {
 
 	if runs[0].Status != "success" {
 		t.Fatalf("expected the deduped run to be 'success', got: %s", runs[0].Status)
-	}
-}
-
-func Test_AnalyticalStorage_FinishRun(t *testing.T) {
-	run := &influxdb.Run{
-		ID: influxdb.ID(1),
-	}
-
-	for _, test := range []struct {
-		name string
-		// inputs
-		orgID  influxdb.ID
-		taskID influxdb.ID
-		run    *influxdb.Run
-		// expectations
-		call recordCall
-	}{
-		{
-			name:   "happy path legacy system bucket",
-			orgID:  influxdb.ID(10),
-			taskID: influxdb.ID(5),
-			run:    run,
-			call: recordCall{
-				orgID:    influxdb.ID(10),
-				org:      "influxdata",
-				bucketID: influxdb.TasksSystemBucketID,
-				bucket:   "_tasks",
-				run:      run,
-			},
-		},
-		{
-			name:   "happy path new system bucket",
-			orgID:  influxdb.ID(11),
-			taskID: influxdb.ID(5),
-			run:    run,
-			call: recordCall{
-				orgID:    influxdb.ID(11),
-				org:      "influxdata",
-				bucketID: influxdb.ID(7),
-				bucket:   "_tasks",
-				run:      run,
-			},
-		},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			var (
-				task = &influxdb.Task{
-					ID:             test.taskID,
-					OrganizationID: test.orgID,
-					Organization:   "influxdata",
-				}
-				recorder = &runRecorder{
-					isLegacyOrg: func(id influxdb.ID) bool {
-						return id == influxdb.ID(10)
-					},
-				}
-				ts = &mock.TaskService{
-					FindTaskByIDFn: func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
-						if id != test.taskID {
-							t.Fatalf("unexpected task ID %v", id)
-						}
-
-						return task, nil
-					},
-				}
-				bs = &mock.BucketService{
-					FindBucketByNameFn: func(_ context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
-						if name != influxdb.TasksSystemBucketName {
-							return nil, errors.New("bucket not found")
-						}
-
-						switch orgID {
-						case influxdb.ID(10):
-							return &influxdb.Bucket{
-								ID:              influxdb.TasksSystemBucketID,
-								Type:            influxdb.BucketTypeSystem,
-								Name:            "_tasks",
-								RetentionPeriod: time.Hour * 24 * 3,
-								Description:     "System bucket for task logs",
-							}, nil
-						case influxdb.ID(11):
-							return &influxdb.Bucket{
-								ID:              influxdb.ID(7),
-								OrgID:           influxdb.ID(11),
-								Type:            influxdb.BucketTypeSystem,
-								Name:            "_tasks",
-								RetentionPeriod: time.Hour * 24 * 3,
-								Description:     "System bucket for task logs",
-							}, nil
-						}
-
-						return nil, errors.New("bucket not found")
-					},
-				}
-				tcs = &mock.TaskControlService{
-					FinishRunFn: func(_ context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
-						if taskID != test.taskID {
-							t.Fatalf("unexpected task ID %v", taskID)
-						}
-
-						if runID != test.run.ID {
-							t.Fatalf("unexpected run ID %v", runID)
-						}
-
-						return test.run, nil
-					},
-				}
-				store = backend.NewAnalyticalRunStorage(zap.NewNop(), ts, bs, tcs, recorder, nil)
-			)
-
-			run, err := store.FinishRun(context.Background(), test.taskID, test.run.ID)
-			if err != nil {
-				t.Fatalf("unexpected error from finish run %q", err)
-			}
-
-			if run != test.run {
-				t.Errorf("expected run %v to be %v", run, test.run)
-			}
-
-			if recorder.call != test.call {
-				t.Errorf("expected run recorder to have call %v, instead has %v", test.call, recorder.call)
-			}
-		})
 	}
 }
 

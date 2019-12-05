@@ -11,19 +11,21 @@ import (
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kv"
 	_ "github.com/influxdata/influxdb/query/builtin"
+	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/servicetest"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestInmemTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestInmemStore()
+			store, close, err := NewTestInmemStore(t)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			service := kv.NewService(store)
+			service := kv.NewService(zaptest.NewLogger(t), store)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 
 			if err := service.Initialize(ctx); err != nil {
@@ -50,12 +52,12 @@ func TestBoltTaskService(t *testing.T) {
 	servicetest.TestTaskService(
 		t,
 		func(t *testing.T) (*servicetest.System, context.CancelFunc) {
-			store, close, err := NewTestBoltStore()
+			store, close, err := NewTestBoltStore(t)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			service := kv.NewService(store)
+			service := kv.NewService(zaptest.NewLogger(t), store)
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			if err := service.Initialize(ctx); err != nil {
 				t.Fatalf("error initializing urm service: %v", err)
@@ -78,13 +80,13 @@ func TestBoltTaskService(t *testing.T) {
 }
 
 func TestNextRunDue(t *testing.T) {
-	store, close, err := NewTestBoltStore()
+	store, close, err := NewTestBoltStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer close()
 
-	service := kv.NewService(store)
+	service := kv.NewService(zaptest.NewLogger(t), store)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	if err := service.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing urm service: %v", err)
@@ -178,13 +180,13 @@ func TestNextRunDue(t *testing.T) {
 }
 
 func TestRetrieveTaskWithBadAuth(t *testing.T) {
-	store, close, err := NewTestInmemStore()
+	store, close, err := NewTestInmemStore(t)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer close()
 
-	service := kv.NewService(store)
+	service := kv.NewService(zaptest.NewLogger(t), store)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	if err := service.Initialize(ctx); err != nil {
 		t.Fatalf("error initializing urm service: %v", err)
@@ -223,6 +225,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
 		OwnerID:        u.ID,
+		Status:         string(backend.TaskActive),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -271,5 +274,15 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 	if len(tasks) != 1 {
 		t.Fatal("failed to return task")
+	}
+
+	// test status filter
+	active := string(backend.TaskActive)
+	tasksWithActiveFilter, _, err := service.FindTasks(ctx, influxdb.TaskFilter{Status: &active})
+	if err != nil {
+		t.Fatal("could not find tasks")
+	}
+	if len(tasksWithActiveFilter) != 1 {
+		t.Fatal("failed to find active task with filter")
 	}
 }

@@ -60,7 +60,7 @@ type Controller struct {
 	metrics   *controllerMetrics
 	labelKeys []string
 
-	logger *zap.Logger
+	log *zap.Logger
 
 	dependencies []flux.Dependency
 }
@@ -177,7 +177,7 @@ func New(config Config) (*Controller, error) {
 		done:         make(chan struct{}),
 		abort:        make(chan struct{}),
 		memory:       mm,
-		logger:       logger,
+		log:          logger,
 		metrics:      newControllerMetrics(c.MetricLabelKeys),
 		labelKeys:    c.MetricLabelKeys,
 		dependencies: c.ExecutorDependencies,
@@ -320,7 +320,7 @@ func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) 
 			if !ok {
 				err = fmt.Errorf("panic: %v", e)
 			}
-			if entry := c.logger.Check(zapcore.InfoLevel, "panic during compile"); entry != nil {
+			if entry := c.log.Check(zapcore.InfoLevel, "panic during compile"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}
@@ -344,7 +344,7 @@ func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) 
 	}
 
 	if p, ok := prog.(lang.LoggingProgram); ok {
-		p.SetLogger(c.logger)
+		p.SetLogger(c.log)
 	}
 
 	q.program = prog
@@ -393,7 +393,7 @@ func (c *Controller) executeQuery(q *Query) {
 				err = fmt.Errorf("panic: %v", e)
 			}
 			q.setErr(err)
-			if entry := c.logger.Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
+			if entry := c.log.Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
 			}

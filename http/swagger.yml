@@ -2145,7 +2145,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dashboard"
+                oneOf:
+                  - $ref: "#/components/schemas/Dashboard"
+                  - $ref: "#/components/schemas/DashboardWithViewProperties"
         default:
           description: Unexpected error
           content:
@@ -2217,13 +2219,23 @@ paths:
               type: string
             required: true
             description: The ID of the dashboard to update.
+          - in: query
+            name: include
+            required: false
+            schema:
+              type: string
+              enum:
+                - properties
+            description: Includes the cell view properties in the response if set to `properties`
       responses:
           '200':
             description: Get a single dashboard
             content:
               application/json:
                 schema:
-                  $ref: "#/components/schemas/Dashboard"
+                  oneOf:
+                    - $ref: "#/components/schemas/Dashboard"
+                    - $ref: "#/components/schemas/DashboardWithViewProperties"
           '404':
             description: Dashboard not found
             content:
@@ -4341,6 +4353,14 @@ paths:
           schema:
             type: string
           description: Filter tasks to a specific organization ID.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - active
+              - inactive
+          description: Filter tasks by a status--"inactive" or "active".
         - in: query
           name: limit
           schema:
@@ -6928,6 +6948,7 @@ components:
           format: date-time
           readOnly: true
         retentionRules:
+          $ref: "#/components/schemas/RetentionRules"
           type: array
           description: Rules to expire or retain data.  No rules means data never expires.
           items:
@@ -6957,6 +6978,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Bucket"
+    RetentionRules:
+      type: array
+      description: Rules to expire or retain data.  No rules means data never expires.
+      items:
+        type: object
+        properties:
+          type:
+            type: string
+            default: expire
+            enum:
+              - expire
+          everySeconds:
+            type: integer
+            description: Duration in seconds for how long data will be kept in the database.
+            example: 86400
+            minimum: 1
+        required: [type, everySeconds]
     Link:
       type: string
       format: uri
@@ -7201,6 +7239,17 @@ components:
                     type: string
                   labelID:
                     type: string
+            telegrafConfigs:
+              type: array
+              items:
+                allOf:
+                  - $ref: "#/components/schemas/TelegrafRequest"
+                  - type: object
+                    properties:
+                      labelAssociations:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Label"
             variables:
               type: array
               items:
@@ -7224,14 +7273,20 @@ components:
                     type: string
                   name:
                     type: string
-                  oldDescription:
-                    type: string
-                  newDescription:
-                    type: string
-                  oldRP:
-                    type: string
-                  newRP:
-                    type: string
+                  new:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      retentionRules:
+                        $ref: "#/components/schemas/RetentionRules"
+                  old:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      retentionRules:
+                        $ref: "#/components/schemas/RetentionRules"
             dashboards:
               type: array
               items:
@@ -7254,14 +7309,20 @@ components:
                     type: string
                   name:
                     type: string
-                  oldDescription:
-                    type: string
-                  newDescription:
-                    type: string
-                  oldColor:
-                    type: string
-                  newColor:
-                    type: string
+                  new:
+                    type: object
+                    properties:
+                      color:
+                        type: string
+                      description:
+                        type: string
+                  old:
+                    type: object
+                    properties:
+                      color:
+                        type: string
+                      description:
+                        type: string
             labelMappings:
               type: array
               items:
@@ -7279,6 +7340,10 @@ components:
                     type: string
                   labelName:
                     type: string
+            telegrafConfigs:
+              type: array
+              items:
+                $ref: "#/components/schemas/TelegrafRequest"
             variables:
               type: array
               items:
@@ -7288,14 +7353,20 @@ components:
                     type: string
                   name:
                     type: string
-                  oldDescription:
-                    type: string
-                  newDescription:
-                    type: string
-                  oldArgs:
-                    $ref: "#/components/schemas/VariableProperties"
-                  newArgs:
-                    $ref: "#/components/schemas/VariableProperties"
+                  new:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      args:
+                        $ref: "#/components/schemas/VariableProperties"
+                  old:
+                    type: object
+                    properties:
+                      description:
+                        type: string
+                      args:
+                        $ref: "#/components/schemas/VariableProperties"
         errors:
           type: array
           items:
@@ -7325,12 +7396,11 @@ components:
         width:
           type: integer
         properties: # field name is properties
-          ref: "#/components/schemas/ViewProperties"
+          $ref: "#/components/schemas/ViewProperties"
     Runs:
       type: object
       properties:
         links:
-          readOnly: true
           $ref: "#/components/schemas/Links"
         runs:
           type: array
@@ -7826,6 +7896,11 @@ components:
           type: array
           items:
             type: string
+        aggregateFunctionType:
+          $ref: '#/components/schemas/BuilderAggregateFunctionType'
+    BuilderAggregateFunctionType:
+      type: string
+      enum: ['filter', 'group']
     BuilderFunctionsType:
       type: object
       properties:
@@ -7934,6 +8009,7 @@ components:
         - legend
         - note
         - showNoteWhenEmpty
+        - position
       properties:
         type:
           type: string
@@ -7965,6 +8041,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        position:
+          type: string
+          enum: [overlaid, stacked]
         geom:
           $ref: '#/components/schemas/XYGeom'
     XYGeom:
@@ -7984,6 +8063,7 @@ components:
         - prefix
         - suffix
         - decimalPlaces
+        - position
       properties:
         type:
           type: string
@@ -8015,6 +8095,9 @@ components:
           type: string
         shadeBelow:
           type: boolean
+        position:
+          type: string
+          enum: [overlaid, stacked]
         prefix:
           type: string
         suffix:
@@ -8666,6 +8749,16 @@ components:
                 type: integer
               message:
                 type: string
+    CellWithViewProperties:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/Cell"
+        - type: object
+          properties:
+            name:
+              type: string
+            properties:
+              $ref: "#/components/schemas/ViewProperties"
     Cell:
       type: object
       properties:
@@ -8693,6 +8786,10 @@ components:
         viewID:
           type: string
           description: The reference to a view from the views API.
+    CellsWithViewProperties:
+      type: array
+      items:
+        $ref: "#/components/schemas/CellWithViewProperties"
     Cells:
       type: array
       items:
@@ -8736,6 +8833,53 @@ components:
       required:
         - orgID
         - name
+    DashboardWithViewProperties:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/CreateDashboardRequest"
+        - type: object
+          properties:
+            links:
+              type: object
+              example:
+                self: "/api/v2/dashboards/1"
+                cells: "/api/v2/dashboards/1/cells"
+                owners: "/api/v2/dashboards/1/owners"
+                members: "/api/v2/dashboards/1/members"
+                logs: "/api/v2/dashboards/1/logs"
+                labels: "/api/v2/dashboards/1/labels"
+                org: "/api/v2/labels/1"
+              properties:
+                self:
+                  $ref: "#/components/schemas/Link"
+                cells:
+                  $ref: "#/components/schemas/Link"
+                members:
+                  $ref: "#/components/schemas/Link"
+                owners:
+                  $ref: "#/components/schemas/Link"
+                logs:
+                  $ref: "#/components/schemas/Link"
+                labels:
+                  $ref: "#/components/schemas/Link"
+                org:
+                  $ref: "#/components/schemas/Link"
+            id:
+              readOnly: true
+              type: string
+            meta:
+              type: object
+              properties:
+                createdAt:
+                  type: string
+                  format: date-time
+                updatedAt:
+                  type: string
+                  format: date-time
+            cells:
+              $ref: "#/components/schemas/CellsWithViewProperties"
+            labels:
+              $ref: "#/components/schemas/Labels"
     Dashboard:
       type: object
       allOf:
@@ -10132,7 +10276,7 @@ components:
           type: string
     HTTPNotificationRuleBase:
       type: object
-      required: [type, url]
+      required: [type]
       properties:
         type:
           type: string

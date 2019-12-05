@@ -4,8 +4,8 @@ import React, {FunctionComponent} from 'react'
 // Components
 import {Panel, InfluxColors} from '@influxdata/clockface'
 
-const TelegrafExplainer: FunctionComponent = () => (
-  <Panel backgroundColor={InfluxColors.Onyx} style={{marginTop: '32px'}}>
+const BucketExplainer: FunctionComponent = () => (
+  <Panel backgroundColor={InfluxColors.Smoke} style={{marginTop: '32px'}}>
     <Panel.Header>
       <h5>What is a Bucket?</h5>
     </Panel.Header>
@@ -29,4 +29,4 @@ const TelegrafExplainer: FunctionComponent = () => (
   </Panel>
 )
 
-export default TelegrafExplainer
+export default BucketExplainer

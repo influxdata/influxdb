@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/repl"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/jsonweb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxql"
 )
@@ -367,6 +368,8 @@ func decodeProxyQueryRequest(ctx context.Context, r *http.Request, auth influxdb
 	case *influxdb.Authorization:
 		token = a
 	case *influxdb.Session:
+		token = a.EphemeralAuth(req.Org.ID)
+	case *jsonweb.Token:
 		token = a.EphemeralAuth(req.Org.ID)
 	default:
 		return pr, n, influxdb.ErrAuthorizerNotSupported

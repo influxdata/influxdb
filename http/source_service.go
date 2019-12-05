@@ -12,10 +12,10 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/repl"
+	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/influxql"
-	"github.com/julienschmidt/httprouter"
 	"go.uber.org/zap"
 )
 
@@ -79,7 +79,7 @@ func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 // the SourceHandler.
 type SourceBackend struct {
 	platform.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	SourceService   platform.SourceService
 	LabelService    platform.LabelService
@@ -88,10 +88,10 @@ type SourceBackend struct {
 }
 
 // NewSourceBackend returns a new instance of SourceBackend.
-func NewSourceBackend(b *APIBackend) *SourceBackend {
+func NewSourceBackend(log *zap.Logger, b *APIBackend) *SourceBackend {
 	return &SourceBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "source")),
+		log:              log,
 
 		SourceService:   b.SourceService,
 		LabelService:    b.LabelService,
@@ -104,7 +104,7 @@ func NewSourceBackend(b *APIBackend) *SourceBackend {
 type SourceHandler struct {
 	*httprouter.Router
 	platform.HTTPErrorHandler
-	Logger        *zap.Logger
+	log           *zap.Logger
 	SourceService platform.SourceService
 	LabelService  platform.LabelService
 	BucketService platform.BucketService
@@ -115,11 +115,11 @@ type SourceHandler struct {
 }
 
 // NewSourceHandler returns a new instance of SourceHandler.
-func NewSourceHandler(b *SourceBackend) *SourceHandler {
+func NewSourceHandler(log *zap.Logger, b *SourceBackend) *SourceHandler {
 	h := &SourceHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger,
+		log:              log,
 
 		SourceService:   b.SourceService,
 		LabelService:    b.LabelService,
@@ -244,7 +244,7 @@ func (h *SourceHandler) handleGetSourcesBuckets(w http.ResponseWriter, r *http.R
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newBucketsResponse(ctx, req.opts, req.filter, bs, h.LabelService)); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -284,9 +284,9 @@ func (h *SourceHandler) handlePostSource(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourceResponse(req.Source)
-	h.Logger.Debug("source created", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("Source created", zap.String("source", fmt.Sprint(res)))
 	if err := encodeResponse(ctx, w, http.StatusCreated, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -322,10 +322,10 @@ func (h *SourceHandler) handleGetSource(w http.ResponseWriter, r *http.Request) 
 	}
 
 	res := newSourceResponse(s)
-	h.Logger.Debug("source retrieved", zap.String("source", fmt.Sprint(res)))
+	h.log.Debug("Source retrieved", zap.String("source", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -392,7 +392,7 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
+	h.log.Debug("Source deleted", zap.String("sourceID", fmt.Sprint(req.SourceID)))
 
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -438,10 +438,10 @@ func (h *SourceHandler) handleGetSources(w http.ResponseWriter, r *http.Request)
 	}
 
 	res := newSourcesResponse(srcs)
-	h.Logger.Debug("sources retrieved", zap.String("sources", fmt.Sprint(res)))
+	h.log.Debug("Sources retrieved", zap.String("sources", fmt.Sprint(res)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, res); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -469,10 +469,10 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.Logger.Debug("source updated", zap.String("source", fmt.Sprint(b)))
+	h.log.Debug("Source updated", zap.String("source", fmt.Sprint(b)))
 
 	if err := encodeResponse(ctx, w, http.StatusOK, b); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }

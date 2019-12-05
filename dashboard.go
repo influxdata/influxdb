@@ -124,6 +124,28 @@ func SortDashboards(opts FindOptions, ds []*Dashboard) {
 type Cell struct {
 	ID ID `json:"id,omitempty"`
 	CellProperty
+	View *View `json:"-"`
+}
+
+// Marshals the cell
+func (cell *Cell) MarshalJSON() ([]byte, error) {
+	type resp struct {
+		ID ID `json:"id,omitempty"`
+		CellProperty
+		ViewProperties ViewProperties `json:"properties,omitempty"`
+		Name           string         `json:"name,omitempty"`
+	}
+
+	response := resp{
+		ID:           cell.ID,
+		CellProperty: cell.CellProperty,
+	}
+
+	if cell.View != nil {
+		response.ViewProperties = cell.View.Properties
+		response.Name = cell.View.Name
+	}
+	return json.Marshal(response)
 }
 
 // CellProperty contains the properties of a cell.
@@ -550,8 +572,8 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 }
 
 // MarshalJSON encodes a view to JSON bytes.
-func (c View) MarshalJSON() ([]byte, error) {
-	vis, err := MarshalViewPropertiesJSON(c.Properties)
+func (v View) MarshalJSON() ([]byte, error) {
+	viewProperties, err := MarshalViewPropertiesJSON(v.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -560,8 +582,8 @@ func (c View) MarshalJSON() ([]byte, error) {
 		ViewContents
 		ViewProperties json.RawMessage `json:"properties"`
 	}{
-		ViewContents:   c.ViewContents,
-		ViewProperties: vis,
+		ViewContents:   v.ViewContents,
+		ViewProperties: viewProperties,
 	})
 }
 
@@ -624,6 +646,7 @@ type LinePlusSingleStatProperties struct {
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
+	Position          string           `json:"position"`
 }
 
 // XYViewProperties represents options for line, bar, step, or stacked view in Chronograf
@@ -639,6 +662,7 @@ type XYViewProperties struct {
 	XColumn           string           `json:"xColumn"`
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
+	Position          string           `json:"position"`
 }
 
 // CheckViewProperties represents options for a view representing a check

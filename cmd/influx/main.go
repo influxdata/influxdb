@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const maxTCPConnections = 128
@@ -23,6 +25,36 @@ func main() {
 	influxCmd := influxCmd()
 	if err := influxCmd.Execute(); err != nil {
 		os.Exit(1)
+	}
+}
+
+type httpClientOpts struct {
+	token, addr string
+	skipVerify  bool
+}
+
+type genericCLIOptfn func(*genericCLIOpts)
+
+type genericCLIOpts struct {
+	in io.Reader
+	w  io.Writer
+}
+
+func (o genericCLIOpts) newCmd(use string) *cobra.Command {
+	cmd := &cobra.Command{Use: use}
+	cmd.SetOutput(o.w)
+	return cmd
+}
+
+func in(r io.Reader) genericCLIOptfn {
+	return func(o *genericCLIOpts) {
+		o.in = r
+	}
+}
+
+func out(w io.Writer) genericCLIOptfn {
+	return func(o *genericCLIOpts) {
+		o.w = w
 	}
 }
 
@@ -43,8 +75,9 @@ func influxCmd() *cobra.Command {
 		deleteCmd,
 		organizationCmd,
 		pingCmd,
-		pkgCmd(newPkgerSVC),
+		cmdPkg(newPkgerSVC),
 		queryCmd,
+		transpileCmd,
 		replCmd,
 		setupCmd,
 		taskCmd,
@@ -183,10 +216,10 @@ func newLocalKVService() (*kv.Service, error) {
 		return nil, err
 	}
 
-	store := bolt.NewKVStore(boltFile)
+	store := bolt.NewKVStore(zap.NewNop(), boltFile)
 	if err := store.Open(context.Background()); err != nil {
 		return nil, err
 	}
 
-	return kv.NewService(store), nil
+	return kv.NewService(zap.NewNop(), store), nil
 }

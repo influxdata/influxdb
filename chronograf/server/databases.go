@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/chronograf"
-	"github.com/julienschmidt/httprouter"
 )
 
 const (

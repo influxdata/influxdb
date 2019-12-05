@@ -5,6 +5,9 @@ import {connect} from 'react-redux'
 // Components
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
+// Copy
+import {invalidJSON} from 'src/shared/copy/notifications'
+
 // Actions
 import {
   createTemplate as createTemplateAction,
@@ -49,9 +52,15 @@ class TemplateImportOverlay extends PureComponent<Props> {
   }
 
   private handleImportTemplate = (importString: string) => {
-    const {createTemplate, getTemplates} = this.props
+    const {createTemplate, getTemplates, notify} = this.props
 
-    const template = JSON.parse(importString)
+    let template
+    try {
+      template = JSON.parse(importString)
+    } catch (error) {
+      notify(invalidJSON(error.message))
+      return
+    }
     createTemplate(template)
 
     getTemplates()

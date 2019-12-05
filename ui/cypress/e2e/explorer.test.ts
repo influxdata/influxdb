@@ -615,6 +615,34 @@ describe('DataExplorer', () => {
         .click()
     })
 
+    it('should set the default bucket in the dropdown to the selected bucket', () => {
+      cy.get('.cf-overlay--dismiss').click()
+      cy.getByTestID('selector-list defbuck').click()
+      cy.getByTestID('delete-data-predicate')
+        .click()
+        .then(() => {
+          cy.getByTestID('dropdown--button').contains('defbuck')
+          cy.get('.cf-overlay--dismiss').click()
+        })
+        .then(() => {
+          cy.getByTestID('selector-list _monitoring').click()
+          cy.getByTestID('delete-data-predicate')
+            .click()
+            .then(() => {
+              cy.getByTestID('dropdown--button').contains('_monitoring')
+              cy.get('.cf-overlay--dismiss').click()
+            })
+        })
+        .then(() => {
+          cy.getByTestID('selector-list _tasks').click()
+          cy.getByTestID('delete-data-predicate')
+            .click()
+            .then(() => {
+              cy.getByTestID('dropdown--button').contains('_tasks')
+            })
+        })
+    })
+
     it('closes the overlay upon a successful delete with predicate submission', () => {
       cy.getByTestID('delete-checkbox').check({force: true})
       cy.getByTestID('confirm-delete-btn').click()

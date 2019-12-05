@@ -117,9 +117,9 @@ spec:
 
 				actual := buckets[0]
 				expectedBucket := bucket{
-					Name:            "rucket_11",
-					Description:     "bucket 1 description",
-					RetentionPeriod: time.Hour,
+					name:           "rucket_11",
+					Description:    "bucket 1 description",
+					RetentionRules: retentionRules{newRetentionRule(time.Hour)},
 				}
 				assert.Equal(t, expectedBucket, *actual)
 			})
@@ -216,14 +216,14 @@ spec:
 				require.Len(t, labels, 2)
 
 				expectedLabel1 := label{
-					Name:        "label_1",
+					name:        "label_1",
 					Description: "label 1 description",
 					Color:       "#FFFFFF",
 				}
 				assert.Equal(t, expectedLabel1, *labels[0])
 
 				expectedLabel2 := label{
-					Name:        "label_2",
+					name:        "label_2",
 					Description: "label 2 description",
 					Color:       "#000000",
 				}
@@ -686,7 +686,7 @@ spec:
 			})
 		})
 
-		t.Run("single dashboard heatmap chart", func(t *testing.T) {
+		t.Run("single heatmap chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_heatmap", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -934,7 +934,7 @@ spec:
 			})
 		})
 
-		t.Run("single dashboard histogram chart", func(t *testing.T) {
+		t.Run("single histogram chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_histogram", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -1176,7 +1176,7 @@ spec:
 			})
 		})
 
-		t.Run("single dashboard markdown chart", func(t *testing.T) {
+		t.Run("single markdown chart", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_markdown", func(t *testing.T, pkg *Pkg) {
 				sum := pkg.Summary()
 				require.Len(t, sum.Dashboards, 1)
@@ -2029,6 +2029,7 @@ spec:
 				assert.Equal(t, int32(1), props.DecimalPlaces.Digits)
 				assert.Equal(t, "days", props.Suffix)
 				assert.Equal(t, "sumtin", props.Prefix)
+				assert.Equal(t, "overlaid", props.Position)
 				assert.Equal(t, "leg_type", props.Legend.Type)
 				assert.Equal(t, "horizontal", props.Legend.Orientation)
 
@@ -2400,6 +2401,7 @@ spec:
 					assert.Equal(t, true, props.ShadeBelow)
 					assert.Equal(t, "xy chart note", props.Note)
 					assert.True(t, props.ShowNoteWhenEmpty)
+					assert.Equal(t, "stacked", props.Position)
 
 					require.Len(t, props.Queries, 1)
 					q := props.Queries[0]
@@ -2699,6 +2701,48 @@ spec:
 		})
 	})
 
+	t.Run("pkg with telegraf and label associations", func(t *testing.T) {
+		t.Run("with valid fields", func(t *testing.T) {
+			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
+				sum := pkg.Summary()
+				require.Len(t, sum.TelegrafConfigs, 1)
+
+				actual := sum.TelegrafConfigs[0]
+				assert.Equal(t, "first_tele_config", actual.Name)
+				assert.Equal(t, "desc", actual.Description)
+
+				require.Len(t, actual.LabelAssociations, 1)
+				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+			})
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []testPkgResourceError{
+				{
+					name:           "config missing",
+					validationErrs: 1,
+					valFields:      []string{"config"},
+					pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: Telegraf
+      name: tele_name
+      description: desc
+`,
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, KindTelegraf, tt)
+			}
+		})
+	})
+
 	t.Run("pkg with a variable", func(t *testing.T) {
 		t.Run("with valid fields should produce summary", func(t *testing.T) {
 			testfileRunner(t, "testdata/variables", func(t *testing.T, pkg *Pkg) {
@@ -2936,6 +2980,71 @@ spec:
 	})
 }
 
+func Test_PkgValidationErr(t *testing.T) {
+	iPtr := func(i int) *int {
+		return &i
+	}
+
+	compIntSlcs := func(t *testing.T, expected []int, actuals []*int) {
+		t.Helper()
+
+		if len(expected) >= len(actuals) {
+			require.FailNow(t, "expected array is larger than actuals")
+		}
+
+		for i, actual := range actuals {
+			if i == len(expected) {
+				assert.Nil(t, actual)
+				continue
+			}
+			assert.Equal(t, expected[i], *actual)
+		}
+	}
+
+	pErr := &parseErr{
+		Resources: []resourceErr{
+			{
+				Kind: KindDashboard.String(),
+				Idx:  intPtr(0),
+				ValidationErrs: []validationErr{
+					{
+						Field: "charts",
+						Index: iPtr(1),
+						Nested: []validationErr{
+							{
+								Field: "colors",
+								Index: iPtr(0),
+								Nested: []validationErr{
+									{
+										Field: "hex",
+										Msg:   "hex value required",
+									},
+								},
+							},
+							{
+								Field: "kind",
+								Msg:   "chart kind must be provided",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	errs := pErr.ValidationErrs()
+	require.Len(t, errs, 2)
+	assert.Equal(t, KindDashboard.String(), errs[0].Kind)
+	assert.Equal(t, []string{"spec.resources", "charts", "colors", "hex"}, errs[0].Fields)
+	compIntSlcs(t, []int{0, 1, 0}, errs[0].Indexes)
+	assert.Equal(t, "hex value required", errs[0].Reason)
+
+	assert.Equal(t, KindDashboard.String(), errs[1].Kind)
+	assert.Equal(t, []string{"spec.resources", "charts", "kind"}, errs[1].Fields)
+	compIntSlcs(t, []int{0, 1}, errs[1].Indexes)
+	assert.Equal(t, "chart kind must be provided", errs[1].Reason)
+}
+
 type testPkgResourceError struct {
 	name           string
 	encoding       Encoding
@@ -2969,7 +3078,7 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 
 		require.True(t, IsParseErr(err), err)
 
-		pErr := err.(*ParseErr)
+		pErr := err.(*parseErr)
 		require.Len(t, pErr.Resources, resErrs)
 
 		resErr := pErr.Resources[0]
@@ -2999,7 +3108,7 @@ func testPkgErrors(t *testing.T, k Kind, tt testPkgResourceError) {
 	t.Run(tt.name, fn)
 }
 
-func findErr(t *testing.T, expectedField string, vErr ValidationErr) ValidationErr {
+func findErr(t *testing.T, expectedField string, vErr validationErr) validationErr {
 	t.Helper()
 
 	fields := strings.Split(expectedField, ".")
@@ -3050,7 +3159,7 @@ func nextField(t *testing.T, field string) (string, int) {
 
 type baseAsserts struct {
 	version     string
-	kind        string
+	kind        Kind
 	description string
 	metaName    string
 	metaVersion string
@@ -3063,7 +3172,7 @@ func validParsedPkg(t *testing.T, path string, encoding Encoding, expected baseA
 	require.NoError(t, err)
 
 	require.Equal(t, expected.version, pkg.APIVersion)
-	require.Equal(t, expected.kind, pkg.Kind)
+	require.True(t, pkg.Kind.is(expected.kind))
 	require.Equal(t, expected.description, pkg.Metadata.Description)
 	require.Equal(t, expected.metaName, pkg.Metadata.Name)
 	require.Equal(t, expected.metaVersion, pkg.Metadata.Version)
@@ -3108,7 +3217,7 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 
 			pkg := validParsedPkg(t, path+tt.extension, tt.encoding, baseAsserts{
 				version:     "0.1.0",
-				kind:        "Package",
+				kind:        KindPackage,
 				description: "pack description",
 				metaName:    "pkg_name",
 				metaVersion: "1",

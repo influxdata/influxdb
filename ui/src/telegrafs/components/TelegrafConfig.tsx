@@ -1,12 +1,18 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, Suspense} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
-import {Controlled as ReactCodeMirror} from 'react-codemirror2'
+const Editor = React.lazy(() =>
+  import('react-codemirror2').then(module => ({default: module.Controlled}))
+)
+const MonacoEditor = React.lazy(() =>
+  import('src/shared/components/TomlMonacoEditor')
+)
 import {RemoteDataState} from '@influxdata/clockface'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 // Actions
 import {getTelegrafConfigToml} from 'src/telegrafs/actions'
@@ -24,6 +30,8 @@ interface StateProps {
 }
 
 type Props = StateProps & DispatchProps
+
+const spinner = <div className="time-machine-editor--loading" />
 
 @ErrorHandling
 export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
@@ -43,25 +51,29 @@ export class TelegrafConfig extends PureComponent<Props & WithRouterProps> {
   private onTouchStart = () => {}
 
   private get overlayBody(): JSX.Element {
-    const options = {
-      tabIndex: 1,
-      mode: 'toml',
-      readonly: true,
-      lineNumbers: true,
-      autoRefresh: true,
-      theme: 'time-machine',
-      completeSingle: false,
-    }
     const {telegrafConfig} = this.props
     return (
-      <ReactCodeMirror
-        autoFocus={true}
-        autoCursor={true}
-        value={telegrafConfig}
-        options={options}
-        onBeforeChange={this.onBeforeChange}
-        onTouchStart={this.onTouchStart}
-      />
+      <Suspense fallback={spinner}>
+        <FeatureFlag name="monacoEditor">
+          <MonacoEditor script={telegrafConfig} />
+        </FeatureFlag>
+        <FeatureFlag name="monacoEditor" equals={false}>
+          <Editor
+            autoFocus={true}
+            autoCursor={true}
+            value={telegrafConfig}
+            options={{
+              tabindex: 1,
+              mode: 'toml',
+              readOnly: true,
+              lineNumbers: true,
+              theme: 'time-machine',
+            }}
+            onBeforeChange={this.onBeforeChange}
+            onTouchStart={this.onTouchStart}
+          />
+        </FeatureFlag>
+      </Suspense>
     )
   }
 }

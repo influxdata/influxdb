@@ -139,65 +139,6 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 		wants  wants
 	}{
 		{
-			name: "authorized to see all notificationEndpoints",
-			fields: fields{
-				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointsF: func(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
-						return []influxdb.NotificationEndpoint{
-							&endpoint.Slack{
-								Base: endpoint.Base{
-									ID:    1,
-									OrgID: 10,
-								},
-							},
-							&endpoint.Slack{
-								Base: endpoint.Base{
-									ID:    2,
-									OrgID: 10,
-								},
-							},
-							&endpoint.HTTP{
-								Base: endpoint.Base{
-									ID:    3,
-									OrgID: 11,
-								},
-							},
-						}, 3, nil
-					},
-				},
-			},
-			args: args{
-				permission: influxdb.Permission{
-					Action: "read",
-					Resource: influxdb.Resource{
-						Type: influxdb.OrgsResourceType,
-					},
-				},
-			},
-			wants: wants{
-				notificationEndpoints: []influxdb.NotificationEndpoint{
-					&endpoint.Slack{
-						Base: endpoint.Base{
-							ID:    1,
-							OrgID: 10,
-						},
-					},
-					&endpoint.Slack{
-						Base: endpoint.Base{
-							ID:    2,
-							OrgID: 10,
-						},
-					},
-					&endpoint.HTTP{
-						Base: endpoint.Base{
-							ID:    3,
-							OrgID: 11,
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "authorized to access a single orgs notificationEndpoints",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
@@ -262,7 +203,8 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, &Authorizer{[]influxdb.Permission{tt.args.permission}})
 
-			edps, _, err := s.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{})
+			oid := influxdb.ID(10)
+			edps, _, err := s.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{OrgID: &oid})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
 			if diff := cmp.Diff(edps, tt.wants.notificationEndpoints, notificationEndpointCmpOptions...); diff != "" {

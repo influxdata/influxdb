@@ -17,7 +17,7 @@ import (
 
 var replCmd = &cobra.Command{
 	Use:   "repl",
-	Short: "Interactive REPL (read-eval-print-loop)",
+	Short: "Interactive Flux REPL (read-eval-print-loop)",
 	Args:  cobra.NoArgs,
 	RunE:  wrapCheckSetup(replF),
 }

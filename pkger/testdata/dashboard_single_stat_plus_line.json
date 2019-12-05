@@ -28,6 +28,7 @@
             "shade": true,
             "xColumn": "_time",
             "yColumn": "_value",
+            "position": "overlaid",
             "legend": {
               "type": "leg_type",
               "orientation": "horizontal"

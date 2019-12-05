@@ -20,11 +20,11 @@ import (
 
 // queryServiceExecutor is an implementation of backend.Executor that depends on a QueryService.
 type queryServiceExecutor struct {
-	qs     query.QueryService
-	as     influxdb.AuthorizationService
-	ts     influxdb.TaskService
-	logger *zap.Logger
-	wg     sync.WaitGroup
+	qs  query.QueryService
+	as  influxdb.AuthorizationService
+	ts  influxdb.TaskService
+	log *zap.Logger
+	wg  sync.WaitGroup
 }
 
 var _ backend.Executor = (*queryServiceExecutor)(nil)
@@ -32,8 +32,8 @@ var _ backend.Executor = (*queryServiceExecutor)(nil)
 // NewQueryServiceExecutor returns a new executor based on the given QueryService.
 // In general, you should prefer NewAsyncQueryServiceExecutor, as that code is smaller and simpler,
 // because asynchronous queries are more in line with the Executor interface.
-func NewQueryServiceExecutor(logger *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService) *queryServiceExecutor {
-	return &queryServiceExecutor{logger: logger, qs: qs, as: as, ts: ts}
+func NewQueryServiceExecutor(log *zap.Logger, qs query.QueryService, as influxdb.AuthorizationService, ts influxdb.TaskService) *queryServiceExecutor {
+	return &queryServiceExecutor{log: log, qs: qs, as: as, ts: ts}
 }
 
 // AddTaskService is a temporary solution to a chicken and egg problem. It takes a executor and sets the task service.
@@ -72,7 +72,7 @@ type syncRunPromise struct {
 	t      *influxdb.Task
 	ctx    context.Context
 	cancel context.CancelFunc
-	logger *zap.Logger
+	log    *zap.Logger
 	logEnd func() // Called to log the end of the run operation.
 
 	finishOnce sync.Once     // Ensure we set the values only once.
@@ -85,14 +85,14 @@ var _ backend.RunPromise = (*syncRunPromise)(nil)
 
 func newSyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr backend.QueuedRun, e *queryServiceExecutor, t *influxdb.Task) *syncRunPromise {
 	ctx, cancel := context.WithCancel(ctx)
-	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
+	opLogger := e.log.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
 	log, logEnd := logger.NewOperation(ctx, opLogger, "Executing task", "execute")
 	rp := &syncRunPromise{
 		qr:     qr,
 		auth:   auth,
 		qs:     e.qs,
 		t:      t,
-		logger: log,
+		log:    log,
 		logEnd: logEnd,
 		ctx:    ctx,
 		cancel: cancel,
@@ -137,11 +137,11 @@ func (p *syncRunPromise) finish(res *runResult, err error) {
 		close(p.ready)
 
 		if err != nil {
-			p.logger.Debug("Execution failed to get result", zap.Error(err))
+			p.log.Debug("Execution failed to get result", zap.Error(err))
 		} else if res.err != nil {
-			p.logger.Debug("Got result with error", zap.Error(res.err))
+			p.log.Debug("Got result with error", zap.Error(res.err))
 		} else {
-			p.logger.Debug("Completed successfully")
+			p.log.Debug("Completed successfully")
 		}
 	})
 }
@@ -176,7 +176,7 @@ func (p *syncRunPromise) doQuery(wg *sync.WaitGroup) {
 		// Consume the full iterator so that we don't leak outstanding iterators.
 		res := it.Next()
 		if err = exhaustResultIterators(res); err != nil {
-			p.logger.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", res.Name()))
+			p.log.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", res.Name()))
 		}
 	}
 
@@ -208,18 +208,18 @@ func (p *syncRunPromise) cancelOnContextDone(wg *sync.WaitGroup) {
 
 // asyncQueryServiceExecutor is an implementation of backend.Executor that depends on an AsyncQueryService.
 type asyncQueryServiceExecutor struct {
-	qs     query.AsyncQueryService
-	as     influxdb.AuthorizationService
-	ts     influxdb.TaskService
-	logger *zap.Logger
-	wg     sync.WaitGroup
+	qs  query.AsyncQueryService
+	as  influxdb.AuthorizationService
+	ts  influxdb.TaskService
+	log *zap.Logger
+	wg  sync.WaitGroup
 }
 
 var _ backend.Executor = (*asyncQueryServiceExecutor)(nil)
 
 // NewAsyncQueryServiceExecutor returns a new executor based on the given AsyncQueryService.
-func NewAsyncQueryServiceExecutor(logger *zap.Logger, qs query.AsyncQueryService, as influxdb.AuthorizationService, ts influxdb.TaskService) backend.Executor {
-	return &asyncQueryServiceExecutor{logger: logger, qs: qs, as: as, ts: ts}
+func NewAsyncQueryServiceExecutor(log *zap.Logger, qs query.AsyncQueryService, as influxdb.AuthorizationService, ts influxdb.TaskService) backend.Executor {
+	return &asyncQueryServiceExecutor{log: log, qs: qs, as: as, ts: ts}
 }
 
 func (e *asyncQueryServiceExecutor) Execute(ctx context.Context, run backend.QueuedRun) (backend.RunPromise, error) {
@@ -243,7 +243,7 @@ type asyncRunPromise struct {
 	t    *influxdb.Task
 	ctx  context.Context
 
-	logger *zap.Logger
+	log    *zap.Logger
 	logEnd func() // Called to log the end of the run operation.
 
 	finishOnce sync.Once     // Ensure we set the values only once.
@@ -258,7 +258,7 @@ func newAsyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr ba
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	opLogger := e.logger.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
+	opLogger := e.log.With(zap.Stringer("task_id", qr.TaskID), zap.Stringer("run_id", qr.RunID))
 	log, logEnd := logger.NewOperation(ctx, opLogger, "Executing task", "execute")
 
 	p := &asyncRunPromise{
@@ -266,7 +266,7 @@ func newAsyncRunPromise(ctx context.Context, auth *influxdb.Authorization, qr ba
 		auth:   auth,
 		qs:     e.qs,
 		t:      t,
-		logger: log,
+		log:    log,
 		logEnd: logEnd,
 		ctx:    ctx,
 		ready:  make(chan struct{}),
@@ -342,7 +342,7 @@ SelectLoop:
 			go func() {
 				defer rwg.Done()
 				if err := exhaustResultIterators(r); err != nil {
-					p.logger.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", r.Name()))
+					p.log.Info("Error exhausting result iterator", zap.Error(err), zap.String("name", r.Name()))
 				}
 			}()
 		}
@@ -371,11 +371,11 @@ func (p *asyncRunPromise) finish(res *runResult, err error) {
 		close(p.ready)
 
 		if err != nil {
-			p.logger.Info("Execution failed to get result", zap.Error(err))
+			p.log.Info("Execution failed to get result", zap.Error(err))
 		} else if res.err != nil {
-			p.logger.Info("Got result with error", zap.Error(res.err))
+			p.log.Info("Got result with error", zap.Error(res.err))
 		} else {
-			p.logger.Debug("Completed successfully")
+			p.log.Debug("Completed successfully")
 		}
 	})
 }

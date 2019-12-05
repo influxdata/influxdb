@@ -10,7 +10,7 @@ import (
 )
 
 func initUserService(f influxdbtesting.UserFields, t *testing.T) (influxdb.UserService, string, func()) {
-	svc, closeFn, err := NewTestClient()
+	svc, closeFn, err := NewTestClient(t)
 	if err != nil {
 		t.Fatalf("failed to create new kv store: %v", err)
 	}

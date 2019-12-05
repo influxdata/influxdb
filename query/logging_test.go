@@ -13,6 +13,7 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"
+	"go.uber.org/zap"
 )
 
 var orgID = MustIDBase16("ba55ba55ba55ba55")
@@ -58,13 +59,10 @@ func TestLoggingProxyQueryService(t *testing.T) {
 	}
 
 	wantTime := time.Now()
-	lpqs := query.LoggingProxyQueryService{
-		ProxyQueryService: pqs,
-		QueryLogger:       logger,
-		NowFunction: func() time.Time {
-			return wantTime
-		},
-	}
+	lpqs := query.NewLoggingProxyQueryService(zap.NewNop(), logger, pqs)
+	lpqs.SetNowFunctionForTesting(func() time.Time {
+		return wantTime
+	})
 
 	var buf bytes.Buffer
 	req := &query.ProxyRequest{

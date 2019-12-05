@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/kit/prom/promtest"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/task/backend"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
 	"go.uber.org/zap/zaptest"
 )
@@ -35,9 +36,9 @@ func taskExecutorSystem(t *testing.T) tes {
 		AsyncQueryService: aqs,
 	}
 
-	i := kv.NewService(inmem.NewKVStore())
+	i := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
 
-	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, i)
+	ex, metrics := NewExecutor(zaptest.NewLogger(t), qs, i, i, taskControlService{i})
 	return tes{
 		svc:     aqs,
 		ex:      ex,
@@ -300,7 +301,7 @@ func testMetrics(t *testing.T) {
 	t.Parallel()
 	tes := taskExecutorSystem(t)
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	mg := promtest.MustGather(t, reg)
@@ -432,7 +433,7 @@ func testErrorHandling(t *testing.T) {
 	tes := taskExecutorSystem(t)
 
 	metrics := tes.metrics
-	reg := prom.NewRegistry()
+	reg := prom.NewRegistry(zaptest.NewLogger(t))
 	reg.MustRegister(metrics.PrometheusCollectors()...)
 
 	script := fmt.Sprintf(fmtTestScript, t.Name())
@@ -472,4 +473,18 @@ func testErrorHandling(t *testing.T) {
 			t.Fatal("expected task to be deactivated after permanent error")
 		}
 	*/
+}
+
+type taskControlService struct {
+	backend.TaskControlService
+}
+
+func (t taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+	// ensure auth set on context
+	_, err := icontext.GetAuthorizer(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	return t.TaskControlService.FinishRun(ctx, taskID, runID)
 }

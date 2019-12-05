@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestLauncher_Pkger(t *testing.T) {
@@ -19,9 +20,11 @@ func TestLauncher_Pkger(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	svc := pkger.NewService(
+		zaptest.NewLogger(t),
 		pkger.WithBucketSVC(l.BucketService()),
 		pkger.WithDashboardSVC(l.DashboardService()),
 		pkger.WithLabelSVC(l.LabelService()),
+		pkger.WithTelegrafSVC(l.TelegrafService()),
 		pkger.WithVariableSVC(l.VariableService()),
 	)
 
@@ -42,12 +45,14 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
+			zaptest.NewLogger(t),
 			pkger.WithBucketSVC(l.BucketService()),
 			pkger.WithDashboardSVC(l.DashboardService()),
 			pkger.WithLabelSVC(&fakeLabelSVC{
 				LabelService: l.LabelService(),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
+			pkger.WithTelegrafSVC(l.TelegrafService()),
 			pkger.WithVariableSVC(l.VariableService()),
 		)
 
@@ -192,6 +197,14 @@ func TestLauncher_Pkger(t *testing.T) {
 			Language: "flux",
 		}, varArgs.Values)
 
+		teles := sum1.TelegrafConfigs
+		require.Len(t, teles, 1)
+		assert.NotZero(t, teles[0].ID)
+		assert.Equal(t, l.Org.ID, teles[0].OrgID)
+		assert.Equal(t, "first_tele_config", teles[0].Name)
+		assert.Equal(t, "desc", teles[0].Description)
+		assert.Len(t, teles[0].Plugins, 2)
+
 		newSumMapping := func(id influxdb.ID, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
 			return pkger.SummaryLabelMapping{
 				ResourceName: name,
@@ -205,10 +218,11 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 3)
+		require.Len(t, mappings, 4)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(influxdb.ID(dashs[0].ID), dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
+		hasMapping(t, mappings, newSumMapping(teles[0].ID, teles[0].Name, influxdb.TelegrafsResourceType))
 
 		t.Run("pkg with same bkt-var-label does nto create new resources for them", func(t *testing.T) {
 			// validate the new package doesn't create new resources for bkts/labels/vars
@@ -237,6 +251,10 @@ func TestLauncher_Pkger(t *testing.T) {
 				{
 					Kind: pkger.KindLabel,
 					ID:   labels[0].ID,
+				},
+				{
+					Kind: pkger.KindTelegraf,
+					ID:   teles[0].ID,
 				},
 			}
 
@@ -282,6 +300,10 @@ func TestLauncher_Pkger(t *testing.T) {
 			assert.Equal(t, "desc1", dashs[0].Description)
 			hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
 
+			require.Len(t, newSum.TelegrafConfigs, 1)
+			assert.Equal(t, teles[0].Name, newSum.TelegrafConfigs[0].Name)
+			assert.Equal(t, teles[0].Description, newSum.TelegrafConfigs[0].Description)
+
 			vars := newSum.Variables
 			require.Len(t, vars, 1)
 			assert.Zero(t, vars[0].ID)
@@ -301,12 +323,14 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NoError(t, err)
 
 			svc := pkger.NewService(
+				zaptest.NewLogger(t),
 				pkger.WithBucketSVC(&fakeBucketSVC{
 					BucketService: l.BucketService(),
 					killCount:     0, // kill on first update for bucket
 				}),
 				pkger.WithDashboardSVC(l.DashboardService()),
 				pkger.WithLabelSVC(l.LabelService()),
+				pkger.WithTelegrafSVC(l.TelegrafService()),
 				pkger.WithVariableSVC(l.VariableService()),
 			)
 
@@ -387,7 +411,28 @@ spec:
         buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
       associations:
         - kind: Label
-          name: label_1`
+          name: label_1
+    - kind: Telegraf
+      name: first_tele_config
+      description: desc
+      associations:
+        - kind: Label
+          name: label_1
+      config: |
+        [agent]
+          interval = "10s"
+          metric_batch_size = 1000
+          metric_buffer_limit = 10000
+          collection_jitter = "0s"
+          flush_interval = "10s"
+        [[outputs.influxdb_v2]]
+          urls = ["http://localhost:9999"]
+          token = "$INFLUX_TOKEN"
+          organization = "rg"
+          bucket = "rucket_3"
+        [[inputs.cpu]]
+          percpu = true
+`
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
 kind: Package
@@ -415,7 +460,8 @@ spec:
         buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: "_value"})  |> keep(columns: ["_value"])
       associations:
         - kind: Label
-          name: label_1`
+          name: label_1
+`
 
 type fakeBucketSVC struct {
 	influxdb.BucketService

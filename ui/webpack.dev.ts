@@ -18,6 +18,7 @@ module.exports = merge(common, {
     proxy: {
       '/api/v2': 'http://localhost:9999',
       '/debug/flush': 'http://localhost:9999',
+      '/oauth': 'http://localhost:9999',
     },
     disableHostCheck: true,
     host: '0.0.0.0',

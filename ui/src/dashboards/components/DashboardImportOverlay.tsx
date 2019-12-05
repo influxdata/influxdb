@@ -4,15 +4,22 @@ import {withRouter, WithRouterProps} from 'react-router'
 import _ from 'lodash'
 import {connect} from 'react-redux'
 
+// Copy
+import {invalidJSON} from 'src/shared/copy/notifications'
+
 // Actions
-import {getDashboardsAsync} from 'src/dashboards/actions'
-import {createDashboardFromTemplate as createDashboardFromTemplateAction} from 'src/dashboards/actions'
+import {
+  getDashboardsAsync,
+  createDashboardFromTemplate as createDashboardFromTemplateAction,
+} from 'src/dashboards/actions'
+import {notify as notifyAction} from 'src/shared/actions/notifications'
 
 // Types
 import ImportOverlay from 'src/shared/components/ImportOverlay'
 
 interface DispatchProps {
   createDashboardFromTemplate: typeof createDashboardFromTemplateAction
+  notify: typeof notifyAction
   populateDashboards: typeof getDashboardsAsync
 }
 
@@ -35,8 +42,15 @@ class DashboardImportOverlay extends PureComponent<Props> {
   }
 
   private handleImportDashboard = (uploadContent: string) => {
-    const {createDashboardFromTemplate, populateDashboards} = this.props
-    const template = JSON.parse(uploadContent)
+    const {createDashboardFromTemplate, notify, populateDashboards} = this.props
+
+    let template
+    try {
+      template = JSON.parse(uploadContent)
+    } catch (error) {
+      notify(invalidJSON(error.message))
+      return
+    }
 
     if (_.isEmpty(template)) {
       this.onDismiss()
@@ -55,6 +69,7 @@ class DashboardImportOverlay extends PureComponent<Props> {
 
 const mdtp: DispatchProps = {
   createDashboardFromTemplate: createDashboardFromTemplateAction,
+  notify: notifyAction,
   populateDashboards: getDashboardsAsync,
 }
 
