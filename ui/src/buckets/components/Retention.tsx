@@ -50,7 +50,10 @@ class Retention extends PureComponent<Props> {
 
     return (
       <>
-        <SelectGroup shape={ButtonShape.StretchToFit} className="retention--radio">
+        <SelectGroup
+          shape={ButtonShape.StretchToFit}
+          className="retention--radio"
+        >
           <SelectGroup.Option
             name="bucket-retention"
             id="never"

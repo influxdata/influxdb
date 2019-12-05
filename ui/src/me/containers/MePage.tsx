@@ -53,9 +53,7 @@ export class MePage extends PureComponent<StateProps> {
                 >
                   <Panel>
                     <Panel.Header>
-                      <h4>
-                        Getting started with InfluxDB 2.0
-                      </h4>
+                      <h4>Getting started with InfluxDB 2.0</h4>
                     </Panel.Header>
                     <Panel.Body>
                       <GettingStarted />

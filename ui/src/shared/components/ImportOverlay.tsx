@@ -3,7 +3,13 @@ import React, {PureComponent, ChangeEvent} from 'react'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Form, SelectGroup, Button, TextArea, Overlay} from '@influxdata/clockface'
+import {
+  Form,
+  SelectGroup,
+  Button,
+  TextArea,
+  Overlay,
+} from '@influxdata/clockface'
 import DragAndDrop from 'src/shared/components/DragAndDrop'
 
 // Types
