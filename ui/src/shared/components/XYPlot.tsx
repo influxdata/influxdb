@@ -161,8 +161,6 @@ const XYPlot: FunctionComponent<Props> = ({
     ],
   }
 
-  console.log('config: ', config)
-
   return (
     <>
       {loading === RemoteDataState.Loading && <GraphLoadingDots />}
