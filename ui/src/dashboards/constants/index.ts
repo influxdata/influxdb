@@ -33,8 +33,11 @@ export const DEFAULT_TABLE_OPTIONS = {
 
 export const FORMAT_OPTIONS: Array<{text: string}> = [
   {text: DEFAULT_TIME_FORMAT},
+  {text: 'DD/MM/YYYY HH:mm:ss.sss'},
   {text: 'MM/DD/YYYY HH:mm:ss.sss'},
   {text: 'YYYY/MM/DD HH:mm:ss'},
+  {text: 'HH:mm a'},
+  {text: 'HH:mm'},
   {text: 'HH:mm:ss'},
   {text: 'HH:mm:ss ZZ'},
   {text: 'HH:mm:ss.sss'},
