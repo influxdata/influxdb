@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ChangeEvent, KeyboardEvent} from 'react'
+import React, {PureComponent, ChangeEvent, KeyboardEvent, createRef, RefObject} from 'react'
 import _ from 'lodash'
 
 // Components
@@ -12,7 +12,14 @@ import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLa
 
 // Types
 import {Label} from 'src/types'
-import {IconFont} from '@influxdata/clockface'
+import {
+  IconFont,
+  Popover,
+  PopoverPosition,
+  PopoverInteraction,
+  PopoverType,
+  ButtonRef
+} from '@influxdata/clockface'
 
 // Decorators
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -35,7 +42,9 @@ interface Props {
 }
 
 @ErrorHandling
-export default class InlineLabelPopover extends Component<Props> {
+export default class InlineLabelPopover extends PureComponent<Props> {
+  private triggerRef: RefObject<HTMLSpanElement> = createRef()
+
   public render() {
     const {
       searchTerm,
@@ -48,34 +57,50 @@ export default class InlineLabelPopover extends Component<Props> {
       onInputChange,
       filteredLabels,
     } = this.props
+
     return (
-      <ClickOutside onClickOutside={onDismiss}>
-        <div
+      <>
+
+      {/* <ClickOutside onClickOutside={onDismiss}> */}
+        {/* <div
           className="inline-labels--popover"
           data-testid="inline-labels--popover"
         >
-          <h5 className="inline-labels--popover-heading">Add Labels</h5>
-          <Input
-            icon={IconFont.Search}
-            placeholder="Filter labels..."
-            value={searchTerm}
-            onKeyDown={this.handleKeyDown}
-            onChange={onInputChange}
-            autoFocus={true}
-            onBlur={this.handleRefocusInput}
-            testID="inline-labels--popover-field"
-          />
-          <InlineLabelsList
-            searchTerm={searchTerm}
-            allLabelsUsed={allLabelsUsed}
-            filteredLabels={filteredLabels}
-            selectedItemID={selectedItemID}
-            onItemClick={onAddLabel}
-            onUpdateSelectedItemID={onUpdateSelectedItemID}
-            onStartCreatingLabel={onStartCreatingLabel}
-          />
-        </div>
-      </ClickOutside>
+        </div> */}
+        <Popover
+          type={PopoverType.Outline}
+          position={PopoverPosition.Below}
+          triggerRef={this.triggerRef}
+          distanceFromTrigger={8}
+          showEvent={PopoverInteraction.Hover}
+          hideEvent={PopoverInteraction.Hover}
+          contents={() => (
+            <span>
+            <h5 className="inline-labels--popover-heading">Add Labels</h5>
+            <Input
+              icon={IconFont.Search}
+              placeholder="Filter labels..."
+              value={searchTerm}
+              onKeyDown={this.handleKeyDown}
+              onChange={onInputChange}
+              autoFocus={true}
+              onBlur={this.handleRefocusInput}
+              testID="inline-labels--popover-field"
+            />
+            <InlineLabelsList
+              searchTerm={searchTerm}
+              allLabelsUsed={allLabelsUsed}
+              filteredLabels={filteredLabels}
+              selectedItemID={selectedItemID}
+              onItemClick={onAddLabel}
+              onUpdateSelectedItemID={onUpdateSelectedItemID}
+              onStartCreatingLabel={onStartCreatingLabel}
+            />
+            </span>
+          )}
+        />
+      {/* </ClickOutside> */}
+      </>
     )
   }
 
