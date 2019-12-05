@@ -262,7 +262,6 @@ export const timeMachineReducer = (
 
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
-
       const view = convertView(state.view, state.queryResults.files, type)
 
       return {...state, view}
