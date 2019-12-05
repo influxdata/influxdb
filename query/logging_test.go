@@ -13,6 +13,8 @@ import (
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/mock"
+	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +35,15 @@ var opts = []cmp.Option{
 }
 
 func TestLoggingProxyQueryService(t *testing.T) {
+	// Set a Jaeger in-memory tracer to get span information in the query log.
+	oldTracer := opentracing.GlobalTracer()
+	defer opentracing.SetGlobalTracer(oldTracer)
+	sampler := jaeger.NewConstSampler(true)
+	reporter := jaeger.NewInMemoryReporter()
+	tracer, closer := jaeger.NewTracer(t.Name(), sampler, reporter)
+	defer closer.Close()
+	opentracing.SetGlobalTracer(tracer)
+
 	wantStats := flux.Statistics{
 		TotalDuration:   time.Second,
 		CompileDuration: time.Second,
@@ -80,9 +91,12 @@ func TestLoggingProxyQueryService(t *testing.T) {
 	if !cmp.Equal(wantStats, stats, opts...) {
 		t.Errorf("unexpected query stats: -want/+got\n%s", cmp.Diff(wantStats, stats, opts...))
 	}
+	traceID := reporter.GetSpans()[0].Context().(jaeger.SpanContext).TraceID().String()
 	wantLogs := []query.Log{{
 		Time:           wantTime,
 		OrganizationID: orgID,
+		TraceID:        traceID,
+		Sampled:        true,
 		Error:          nil,
 		ProxyRequest:   req,
 		ResponseSize:   int64(wantBytes),

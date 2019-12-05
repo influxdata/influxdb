@@ -87,6 +87,19 @@ func Shard(id uint64) zapcore.Field {
 	return zap.Uint64(DBShardIDKey, id)
 }
 
+// TraceInfo returns the traceID and if it was sampled from the Jaeger span
+// found in the given context. It returns if a span associated to the context has been found.
+func TraceInfo(ctx context.Context) (traceID string, sampled bool, found bool) {
+	if span := opentracing.SpanFromContext(ctx); span != nil {
+		if spanContext, ok := span.Context().(jaeger.SpanContext); ok {
+			traceID = spanContext.TraceID().String()
+			sampled = spanContext.IsSampled()
+			return traceID, sampled, true
+		}
+	}
+	return "", false, false
+}
+
 // TraceID returns a field "trace_id", value pulled from the (Jaeger) trace ID found in the given context.
 // Returns zap.Skip() if the context doesn't have a trace ID.
 func TraceID(ctx context.Context) zap.Field {
