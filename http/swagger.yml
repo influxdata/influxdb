@@ -8011,6 +8011,8 @@ components:
         - showNoteWhenEmpty
         - position
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [xy]
@@ -8126,6 +8128,8 @@ components:
         - xSuffix
         - ySuffix
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [scatter]
@@ -8201,6 +8205,8 @@ components:
         - ySuffix
         - binSize
       properties:
+        timeFormat:
+          type: string
         type:
           type: string
           enum: [heatmap]
