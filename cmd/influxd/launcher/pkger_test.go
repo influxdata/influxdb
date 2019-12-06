@@ -11,7 +11,6 @@ import (
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestLauncher_Pkger(t *testing.T) {
@@ -20,7 +19,6 @@ func TestLauncher_Pkger(t *testing.T) {
 	defer l.ShutdownOrFail(t, ctx)
 
 	svc := pkger.NewService(
-		zaptest.NewLogger(t),
 		pkger.WithBucketSVC(l.BucketService()),
 		pkger.WithDashboardSVC(l.DashboardService()),
 		pkger.WithLabelSVC(l.LabelService()),
@@ -45,7 +43,6 @@ func TestLauncher_Pkger(t *testing.T) {
 
 	t.Run("errors incurred during application of package rolls back to state before package", func(t *testing.T) {
 		svc := pkger.NewService(
-			zaptest.NewLogger(t),
 			pkger.WithBucketSVC(l.BucketService()),
 			pkger.WithDashboardSVC(l.DashboardService()),
 			pkger.WithLabelSVC(&fakeLabelSVC{
@@ -323,7 +320,6 @@ func TestLauncher_Pkger(t *testing.T) {
 			require.NoError(t, err)
 
 			svc := pkger.NewService(
-				zaptest.NewLogger(t),
 				pkger.WithBucketSVC(&fakeBucketSVC{
 					BucketService: l.BucketService(),
 					killCount:     0, // kill on first update for bucket

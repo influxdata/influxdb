@@ -62,13 +62,36 @@ func (k Kind) OK() error {
 	return nil
 }
 
+// ResourceType converts a kind to a known resource type (if applicable).
+func (k Kind) ResourceType() influxdb.ResourceType {
+	switch k {
+	case KindBucket:
+		return influxdb.BucketsResourceType
+	case KindDashboard:
+		return influxdb.DashboardsResourceType
+	case KindLabel:
+		return influxdb.LabelsResourceType
+	case KindTelegraf:
+		return influxdb.TelegrafsResourceType
+	case KindVariable:
+		return influxdb.VariablesResourceType
+	default:
+		return ""
+	}
+}
+
 func (k Kind) title() string {
 	return strings.Title(k.String())
 }
 
-func (k Kind) is(comp Kind) bool {
+func (k Kind) is(comps ...Kind) bool {
 	normed := Kind(strings.TrimSpace(strings.ToLower(string(k))))
-	return normed == comp
+	for _, c := range comps {
+		if c == normed {
+			return true
+		}
+	}
+	return false
 }
 
 // SafeID is an equivalent influxdb.ID that encodes safely with
@@ -430,7 +453,7 @@ type bucket struct {
 	Description    string
 	name           string
 	RetentionRules retentionRules
-	labels         sortedLogos
+	labels         sortedLabels
 
 	// existing provides context for a resource that already
 	// exists in the platform. If a resource already exists
@@ -450,7 +473,7 @@ func (b *bucket) Name() string {
 }
 
 func (b *bucket) ResourceType() influxdb.ResourceType {
-	return influxdb.BucketsResourceType
+	return KindBucket.ResourceType()
 }
 
 func (b *bucket) Exists() bool {
@@ -554,40 +577,15 @@ type assocMapVal struct {
 	v      interface{}
 }
 
-func (l assocMapVal) bucket() (*bucket, bool) {
-	if l.v == nil {
-		return nil, false
+func (l assocMapVal) ID() influxdb.ID {
+	if t, ok := l.v.(labelAssociater); ok {
+		return t.ID()
 	}
-	b, ok := l.v.(*bucket)
-	return b, ok
-}
-
-func (l assocMapVal) dashboard() (*dashboard, bool) {
-	if l.v == nil {
-		return nil, false
-	}
-	d, ok := l.v.(*dashboard)
-	return d, ok
-}
-
-func (l assocMapVal) telegraf() (*telegraf, bool) {
-	if l.v == nil {
-		return nil, false
-	}
-	t, ok := l.v.(*telegraf)
-	return t, ok
-}
-
-func (l assocMapVal) variable() (*variable, bool) {
-	if l.v == nil {
-		return nil, false
-	}
-	v, ok := l.v.(*variable)
-	return v, ok
+	return 0
 }
 
 type associationMapping struct {
-	mappings map[assocMapKey]assocMapVal
+	mappings map[assocMapKey][]assocMapVal
 }
 
 func (l *associationMapping) setMapping(v interface {
@@ -598,17 +596,28 @@ func (l *associationMapping) setMapping(v interface {
 		return
 	}
 	if l.mappings == nil {
-		l.mappings = make(map[assocMapKey]assocMapVal)
+		l.mappings = make(map[assocMapKey][]assocMapVal)
 	}
 
 	k := assocMapKey{
 		resType: v.ResourceType(),
 		name:    v.Name(),
 	}
-	l.mappings[k] = assocMapVal{
+	val := assocMapVal{
 		exists: exists,
 		v:      v,
 	}
+	if existing, ok := l.mappings[k]; ok {
+		for i, ex := range existing {
+			if ex.v == v {
+				existing[i].exists = exists
+				return
+			}
+		}
+		l.mappings[k] = append(l.mappings[k], val)
+		return
+	}
+	l.mappings[k] = []assocMapVal{val}
 }
 
 const (
@@ -660,46 +669,22 @@ func (l *label) summarize() SummaryLabel {
 
 func (l *label) mappingSummary() []SummaryLabelMapping {
 	var mappings []SummaryLabelMapping
-	for res, lm := range l.mappings {
-		mappings = append(mappings, SummaryLabelMapping{
-			exists:       lm.exists,
-			ResourceName: res.name,
-			LabelName:    l.Name(),
-			LabelMapping: influxdb.LabelMapping{
-				LabelID:      l.ID(),
-				ResourceID:   l.getMappedResourceID(res),
-				ResourceType: res.resType,
-			},
-		})
+	for resource, vals := range l.mappings {
+		for _, v := range vals {
+			mappings = append(mappings, SummaryLabelMapping{
+				exists:       v.exists,
+				ResourceName: resource.name,
+				LabelName:    l.Name(),
+				LabelMapping: influxdb.LabelMapping{
+					LabelID:      l.ID(),
+					ResourceID:   v.ID(),
+					ResourceType: resource.resType,
+				},
+			})
+		}
 	}
 
 	return mappings
-}
-
-func (l *label) getMappedResourceID(k assocMapKey) influxdb.ID {
-	switch k.resType {
-	case influxdb.BucketsResourceType:
-		b, ok := l.mappings[k].bucket()
-		if ok {
-			return b.ID()
-		}
-	case influxdb.DashboardsResourceType:
-		d, ok := l.mappings[k].dashboard()
-		if ok {
-			return d.ID()
-		}
-	case influxdb.TelegrafsResourceType:
-		t, ok := l.mappings[k].telegraf()
-		if ok {
-			return t.ID()
-		}
-	case influxdb.VariablesResourceType:
-		v, ok := l.mappings[k].variable()
-		if ok {
-			return v.ID()
-		}
-	}
-	return 0
 }
 
 func (l *label) properties() map[string]string {
@@ -722,17 +707,17 @@ func toInfluxLabels(labels ...*label) []influxdb.Label {
 	return iLabels
 }
 
-type sortedLogos []*label
+type sortedLabels []*label
 
-func (s sortedLogos) Len() int {
+func (s sortedLabels) Len() int {
 	return len(s)
 }
 
-func (s sortedLogos) Less(i, j int) bool {
+func (s sortedLabels) Less(i, j int) bool {
 	return s[i].name < s[j].name
 }
 
-func (s sortedLogos) Swap(i, j int) {
+func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
@@ -743,7 +728,7 @@ const (
 type telegraf struct {
 	config influxdb.TelegrafConfig
 
-	labels sortedLogos
+	labels sortedLabels
 }
 
 func (t *telegraf) ID() influxdb.ID {
@@ -755,7 +740,7 @@ func (t *telegraf) Name() string {
 }
 
 func (t *telegraf) ResourceType() influxdb.ResourceType {
-	return influxdb.TelegrafsResourceType
+	return KindTelegraf.ResourceType()
 }
 
 func (t *telegraf) Exists() bool {
@@ -786,7 +771,7 @@ type variable struct {
 	ConstValues []string
 	MapValues   map[string]string
 
-	labels sortedLogos
+	labels sortedLabels
 
 	existing *influxdb.Variable
 }
@@ -807,7 +792,7 @@ func (v *variable) Name() string {
 }
 
 func (v *variable) ResourceType() influxdb.ResourceType {
-	return influxdb.VariablesResourceType
+	return KindVariable.ResourceType()
 }
 
 func (v *variable) shouldApply() bool {
@@ -893,7 +878,7 @@ type dashboard struct {
 	Description string
 	Charts      []chart
 
-	labels sortedLogos
+	labels sortedLabels
 }
 
 func (d *dashboard) ID() influxdb.ID {
@@ -905,7 +890,7 @@ func (d *dashboard) Name() string {
 }
 
 func (d *dashboard) ResourceType() influxdb.ResourceType {
-	return influxdb.DashboardsResourceType
+	return KindDashboard.ResourceType()
 }
 
 func (d *dashboard) Exists() bool {

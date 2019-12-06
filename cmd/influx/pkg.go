@@ -24,7 +24,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
-	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -47,7 +46,7 @@ type cmdPkgBuilder struct {
 	quiet           bool
 
 	applyOpts struct {
-		forceOnConflict bool
+		force string
 	}
 	exportOpts struct {
 		resourceType string
@@ -91,8 +90,8 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
-	cmd.Flags().BoolVar(&b.applyOpts.forceOnConflict, "force-on-conflict", true, "TTY input, if package will have destructive changes, proceed if set true.")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "true", "TTY input, if package will have destructive changes, proceed if set true.")
 
 	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
@@ -133,7 +132,8 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			b.printPkgDiff(diff)
 		}
 
-		if !isTTY {
+		isForced, _ := strconv.ParseBool(b.applyOpts.force)
+		if !isTTY && !isForced && b.applyOpts.force != "conflict" {
 			ui := &input.UI{
 				Writer: os.Stdout,
 				Reader: os.Stdin,
@@ -146,7 +146,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			}
 		}
 
-		if !b.applyOpts.forceOnConflict && isTTY && diff.HasConflicts() {
+		if b.applyOpts.force != "conflict" && isTTY && diff.HasConflicts() {
 			return errors.New("package has conflicts with existing resources and cannot safely apply")
 		}
 
@@ -485,7 +485,6 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 
 func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 	return pkger.NewService(
-		zap.NewNop(),
 		pkger.WithBucketSVC(&ihttp.BucketService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,

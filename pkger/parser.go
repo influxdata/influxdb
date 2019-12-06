@@ -243,7 +243,7 @@ func (p *Pkg) buckets() []*bucket {
 }
 
 func (p *Pkg) labels() []*label {
-	labels := make(sortedLogos, 0, len(p.mLabels))
+	labels := make(sortedLabels, 0, len(p.mLabels))
 	for _, b := range p.mLabels {
 		labels = append(labels, b)
 	}
