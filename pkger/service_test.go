@@ -1086,6 +1086,7 @@ func TestService(t *testing.T) {
 						expectedCell := &influxdb.Cell{
 							ID:           5,
 							CellProperty: influxdb.CellProperty{X: 1, Y: 2, W: 3, H: 4},
+							View:         &tt.expectedView,
 						}
 						expected := &influxdb.Dashboard{
 							ID:          3,

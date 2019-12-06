@@ -66,18 +66,17 @@ func bucketToResource(bkt influxdb.Bucket, name string) Resource {
 	return r
 }
 
-type cellView struct {
-	c influxdb.Cell
-	v influxdb.View
-}
-
-func convertCellView(cv cellView) chart {
+func convertCellView(cell influxdb.Cell) chart {
+	var name string
+	if cell.View != nil {
+		name = cell.View.Name
+	}
 	ch := chart{
-		Name:   cv.v.Name,
-		Height: int(cv.c.H),
-		Width:  int(cv.c.W),
-		XPos:   int(cv.c.X),
-		YPos:   int(cv.c.Y),
+		Name:   name,
+		Height: int(cell.H),
+		Width:  int(cell.W),
+		XPos:   int(cell.X),
+		YPos:   int(cell.Y),
 	}
 
 	setCommon := func(k chartKind, iColors []influxdb.ViewColor, dec influxdb.DecimalPlaces, iQueries []influxdb.DashboardQuery) {
@@ -100,7 +99,7 @@ func convertCellView(cv cellView) chart {
 		ch.Legend.Type = l.Type
 	}
 
-	props := cv.v.Properties
+	props := cell.View.Properties
 	switch p := props.(type) {
 	case influxdb.GaugeViewProperties:
 		setCommon(chartKindGauge, p.ViewColors, p.DecimalPlaces, p.Queries)
@@ -253,25 +252,25 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	return out
 }
 
-func dashboardToResource(dash influxdb.Dashboard, cellViews []cellView, name string) Resource {
+func dashboardToResource(dash influxdb.Dashboard, name string) Resource {
 	if name == "" {
 		name = dash.Name
 	}
 
-	sort.Slice(cellViews, func(i, j int) bool {
-		ic, jc := cellViews[i].c, cellViews[j].c
+	sort.Slice(dash.Cells, func(i, j int) bool {
+		ic, jc := dash.Cells[i], dash.Cells[j]
 		if ic.X == jc.X {
 			return ic.Y < jc.Y
 		}
 		return ic.X < jc.X
 	})
 
-	charts := make([]Resource, 0, len(cellViews))
-	for _, cv := range cellViews {
-		if cv.c.ID == influxdb.ID(0) {
+	charts := make([]Resource, 0, len(dash.Cells))
+	for _, cell := range dash.Cells {
+		if cell.ID == influxdb.ID(0) {
 			continue
 		}
-		ch := convertCellView(cv)
+		ch := convertCellView(*cell)
 		if !ch.Kind.ok() {
 			continue
 		}
