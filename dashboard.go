@@ -663,6 +663,7 @@ type XYViewProperties struct {
 	YColumn           string           `json:"yColumn"`
 	ShadeBelow        bool             `json:"shadeBelow"`
 	Position          string           `json:"position"`
+	TimeFormat        string           `json:"timeFormat"`
 }
 
 // CheckViewProperties represents options for a view representing a check
@@ -718,6 +719,7 @@ type HeatmapViewProperties struct {
 	YSuffix           string           `json:"ySuffix"`
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+	TimeFormat        string           `json:"timeFormat"`
 }
 
 // ScatterViewProperties represents options for scatter view in Chronograf
@@ -739,6 +741,7 @@ type ScatterViewProperties struct {
 	YSuffix           string           `json:"ySuffix"`
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+	TimeFormat        string           `json:"timeFormat"`
 }
 
 // GaugeViewProperties represents options for gauge view in Chronograf

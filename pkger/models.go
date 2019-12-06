@@ -975,6 +975,7 @@ type chart struct {
 	BinSize         int
 	BinCount        int
 	Position        string
+	TimeFormat      string
 }
 
 func (c chart) properties() influxdb.ViewProperties {
@@ -1011,6 +1012,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindHistogram:
 		return influxdb.HistogramViewProperties{
@@ -1048,6 +1050,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
@@ -1097,6 +1100,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
 			Position:          c.Position,
+			TimeFormat:        c.TimeFormat,
 		}
 	default:
 		return nil

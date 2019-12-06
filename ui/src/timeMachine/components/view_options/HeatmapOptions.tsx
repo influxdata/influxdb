@@ -44,7 +44,7 @@ import {
 } from 'src/timeMachine/selectors'
 
 // Types
-import {AppState, NewView, TableViewProperties} from 'src/types'
+import {AppState, NewView, HeatmapViewProperties} from 'src/types'
 
 const HEATMAP_COLOR_SCHEMES = [
   {name: 'Magma', colors: MAGMA},
@@ -212,7 +212,9 @@ const mstp = (state: AppState) => {
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const numericColumns = getNumericColumns(state)
-  const view = getActiveTimeMachine(state).view as NewView<TableViewProperties>
+  const view = getActiveTimeMachine(state).view as NewView<
+    HeatmapViewProperties
+  >
   const {timeFormat} = view.properties
   return {xColumn, yColumn, numericColumns, timeFormat}
 }

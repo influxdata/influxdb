@@ -38,7 +38,7 @@ import {GIRAFFE_COLOR_SCHEMES} from 'src/shared/constants'
 
 // Types
 import {ComponentStatus} from '@influxdata/clockface'
-import {AppState, NewView, TableViewProperties} from 'src/types'
+import {AppState, NewView, ScatterViewProperties} from 'src/types'
 import HexColorSchemeDropdown from 'src/shared/components/HexColorSchemeDropdown'
 import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
@@ -228,7 +228,9 @@ const mstp = (state: AppState): StateProps => {
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const numericColumns = getNumericColumns(state)
-  const view = getActiveTimeMachine(state).view as NewView<TableViewProperties>
+  const view = getActiveTimeMachine(state).view as NewView<
+    ScatterViewProperties
+  >
   const {timeFormat} = view.properties
 
   return {

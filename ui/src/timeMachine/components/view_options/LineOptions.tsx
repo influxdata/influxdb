@@ -47,7 +47,7 @@ import {
   Axes,
   Color,
   NewView,
-  TableViewProperties,
+  XYViewProperties,
   ViewType,
 } from 'src/types'
 import {LinePosition} from '@influxdata/giraffe'
@@ -222,7 +222,7 @@ const mstp = (state: AppState) => {
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const numericColumns = getNumericColumns(state)
-  const view = getActiveTimeMachine(state).view as NewView<TableViewProperties>
+  const view = getActiveTimeMachine(state).view as NewView<XYViewProperties>
   const {timeFormat} = view.properties
   return {xColumn, yColumn, numericColumns, timeFormat}
 }
