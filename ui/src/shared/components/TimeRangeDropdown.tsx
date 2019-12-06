@@ -50,6 +50,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
 
   public render() {
     const timeRange = this.timeRange
+    const timeRangeLabel = getTimeRangeLabel(timeRange)
     return (
       <>
         <Popover
@@ -79,7 +80,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             testID="timerange-dropdown"
             button={(active, onClick) => (
               <Dropdown.Button active={active} onClick={onClick}>
-                {getTimeRangeLabel(timeRange)}
+                {timeRangeLabel}
               </Dropdown.Button>
             )}
             menu={onCollapse => (
@@ -102,15 +103,15 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                 >
                   {CUSTOM_TIME_RANGE_LABEL}
                 </Dropdown.Item>
-                {SELECTABLE_TIME_RANGES.map(({label, lower}) => {
+                {SELECTABLE_TIME_RANGES.map(({label}) => {
                   const testID = label.toLowerCase().replace(/\s/g, '')
                   return (
                     <Dropdown.Item
                       key={label}
-                      value={lower}
+                      value={label}
                       id={label}
                       testID={`dropdown-item-${testID}`}
-                      selected={lower === timeRange.lower}
+                      selected={label === timeRangeLabel}
                       onClick={this.handleClickDropdownItem}
                     >
                       {label}

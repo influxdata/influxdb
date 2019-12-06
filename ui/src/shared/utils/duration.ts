@@ -145,7 +145,7 @@ export const convertTimeRangeToCustom = (
 
 export const getTimeRangeLabel = (timeRange: TimeRange): string => {
   if (timeRange.type === 'selectable-duration') {
-    return timeRange.lower
+    return timeRange.label
   }
   if (timeRange.type === 'duration') {
     return timeRange.lower
