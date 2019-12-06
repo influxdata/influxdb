@@ -377,15 +377,8 @@ func (s *Service) resourceCloneToResource(ctx context.Context, r ResourceToClone
 		if err != nil {
 			return nil, err
 		}
-		var cellViews []cellView
-		for _, cell := range dash.Cells {
-			v, err := s.dashSVC.GetDashboardCellView(ctx, r.ID, cell.ID)
-			if err != nil {
-				return nil, err
-			}
-			cellViews = append(cellViews, cellView{c: *cell, v: *v})
-		}
-		newResource = dashboardToResource(*dash, cellViews, r.Name)
+
+		newResource = dashboardToResource(*dash, r.Name)
 	case r.Kind.is(KindLabel):
 		l, err := s.labelSVC.FindLabelByID(ctx, r.ID)
 		if err != nil {
@@ -963,7 +956,7 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 }
 
 func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Dashboard, error) {
-	cells, cellChartMap := convertChartsToCells(d.Charts)
+	cells := convertChartsToCells(d.Charts)
 	influxDashboard := influxdb.Dashboard{
 		OrganizationID: d.OrgID,
 		Description:    d.Description,
@@ -975,27 +968,12 @@ func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Da
 		return influxdb.Dashboard{}, err
 	}
 
-	for cell, i := range cellChartMap {
-		ch := d.Charts[i]
-
-		_, err := s.dashSVC.UpdateDashboardCellView(ctx, influxDashboard.ID, cell.ID, influxdb.ViewUpdate{
-			ViewContentsUpdate: influxdb.ViewContentsUpdate{
-				Name: &ch.Name,
-			},
-			Properties: ch.properties(),
-		})
-		if err != nil {
-			return influxdb.Dashboard{}, err
-		}
-	}
-
 	return influxDashboard, nil
 }
 
-func convertChartsToCells(ch []chart) ([]*influxdb.Cell, map[*influxdb.Cell]int) {
-	cellChartMap := make(map[*influxdb.Cell]int)
+func convertChartsToCells(ch []chart) []*influxdb.Cell {
 	icells := make([]*influxdb.Cell, 0, len(ch))
-	for i, c := range ch {
+	for _, c := range ch {
 		icell := &influxdb.Cell{
 			CellProperty: influxdb.CellProperty{
 				X: int32(c.XPos),
@@ -1003,11 +981,14 @@ func convertChartsToCells(ch []chart) ([]*influxdb.Cell, map[*influxdb.Cell]int)
 				H: int32(c.Height),
 				W: int32(c.Width),
 			},
+			View: &influxdb.View{
+				ViewContents: influxdb.ViewContents{Name: c.Name},
+				Properties:   c.properties(),
+			},
 		}
-		cellChartMap[icell] = i
 		icells = append(icells, icell)
 	}
-	return icells, cellChartMap
+	return icells
 }
 
 func (s *Service) applyLabels(labels []*label) applier {

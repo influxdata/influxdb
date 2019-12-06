@@ -128,24 +128,60 @@ type Cell struct {
 }
 
 // Marshals the cell
-func (cell *Cell) MarshalJSON() ([]byte, error) {
+func (c *Cell) MarshalJSON() ([]byte, error) {
 	type resp struct {
-		ID ID `json:"id,omitempty"`
+		ID             *ID             `json:"id,omitempty"`
+		Name           string          `json:"name,omitempty"`
+		ViewProperties json.RawMessage `json:"properties,omitempty"`
 		CellProperty
-		ViewProperties ViewProperties `json:"properties,omitempty"`
-		Name           string         `json:"name,omitempty"`
 	}
-
 	response := resp{
-		ID:           cell.ID,
-		CellProperty: cell.CellProperty,
+		CellProperty: c.CellProperty,
 	}
-
-	if cell.View != nil {
-		response.ViewProperties = cell.View.Properties
-		response.Name = cell.View.Name
+	if c.ID != 0 {
+		response.ID = &c.ID
+	}
+	if c.View != nil {
+		response.Name = c.View.Name
+		rawJSON, err := MarshalViewPropertiesJSON(c.View.Properties)
+		if err != nil {
+			return nil, err
+		}
+		response.ViewProperties = rawJSON
 	}
 	return json.Marshal(response)
+}
+
+func (c *Cell) UnmarshalJSON(b []byte) error {
+	var newCell struct {
+		ID             ID              `json:"id,omitempty"`
+		Name           string          `json:"name,omitempty"`
+		ViewProperties json.RawMessage `json:"properties,omitempty"`
+		CellProperty
+	}
+	if err := json.Unmarshal(b, &newCell); err != nil {
+		return err
+	}
+
+	c.ID = newCell.ID
+	c.CellProperty = newCell.CellProperty
+
+	if newCell.Name != "" {
+		if c.View == nil {
+			c.View = new(View)
+		}
+		c.View.Name = newCell.Name
+	}
+
+	props, err := UnmarshalViewPropertiesJSON(newCell.ViewProperties)
+	if err == nil {
+		if c.View == nil {
+			c.View = new(View)
+		}
+		c.View.Properties = props
+	}
+
+	return nil
 }
 
 // CellProperty contains the properties of a cell.
@@ -451,7 +487,7 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 		}
 		vis = ev
 	default:
-		return nil, fmt.Errorf("unknown type %v", t.Shape)
+		return nil, fmt.Errorf("unknown shape %v", t.Shape)
 	}
 
 	return vis, nil

@@ -414,6 +414,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 											W: 3,
 											H: 4,
 										},
+										View: &platform.View{ViewContents: platform.ViewContents{Name: "the cell name"}, Properties: platform.XYViewProperties{Type: platform.ViewPropertyTypeXY}},
 									},
 								},
 							}, nil
