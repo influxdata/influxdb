@@ -54,7 +54,9 @@ describe('Collectors', () => {
         cy.getByTestID('resource-card')
           .should('have.length', 1)
           .and('contain', newConfig)
-          .and('contain', bucket)
+          // NOTE(glinton): removing this because buckets likely can't be tied
+          // to telegraf configs anymore.
+          // .and('contain', bucket)
       })
     })
 
@@ -99,9 +101,11 @@ describe('Collectors', () => {
           cy.get('code').should($el => {
             const text = $el.text()
 
-            // NOTE: this index is off because there is a default
-            // defbuck bucket in there (alex)
-            expect(text.includes(`bucket = "${buckets[1]}"`)).to.be.true
+            // NOTE(glinton): removing this because buckets likely can't be tied
+            // to telegraf configs anymore.
+            // // NOTE: this index is off because there is a default
+            // // defbuck bucket in there (alex)
+            // expect(text.includes(`bucket = "${buckets[1]}"`)).to.be.true
           })
         })
     })
@@ -221,7 +225,9 @@ describe('Collectors', () => {
               .should('have.length', 3)
               .each((val, index) => {
                 const text = val.text()
-                expect(text).to.include(testBucket[index])
+                // NOTE(glinton): removing this because buckets likely can't be tied
+                // to telegraf configs anymore.
+                // expect(text).to.include(testBucket[index])
               })
           })
 
@@ -235,7 +241,9 @@ describe('Collectors', () => {
               .reverse()
             cy.getByTestID('bucket-name').each((val, index) => {
               const text = val.text()
-              expect(text).to.include(testBucket[index])
+              // NOTE(glinton): removing this because buckets likely can't be tied
+              // to telegraf configs anymore.
+              // expect(text).to.include(testBucket[index])
             })
           })
 

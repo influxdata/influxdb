@@ -212,7 +212,7 @@ func (h *TelegrafHandler) handleGetTelegrafPlugins(w http.ResponseWriter, r *htt
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, telPlugins); err != nil {
-		logEncodingError(h.Logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
