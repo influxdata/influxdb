@@ -43,7 +43,7 @@ interface Props {
 
 @ErrorHandling
 export default class InlineLabelPopover extends PureComponent<Props> {
-  private triggerRef: RefObject<HTMLSpanElement> = createRef()
+  private triggerRef= createRef<HTMLDivElement>()
 
   public render() {
     const {
@@ -60,13 +60,13 @@ export default class InlineLabelPopover extends PureComponent<Props> {
 
     return (
       <>
+     <div
+      className="flux-functions-toolbar--function"
+      ref={this.triggerRef}
+      // data-testid={testID}
+    >
+        {/* <span ref={this.triggerRef}>?</span> */}
 
-      {/* <ClickOutside onClickOutside={onDismiss}> */}
-        {/* <div
-          className="inline-labels--popover"
-          data-testid="inline-labels--popover"
-        >
-        </div> */}
         <Popover
           type={PopoverType.Outline}
           position={PopoverPosition.Below}
@@ -99,7 +99,7 @@ export default class InlineLabelPopover extends PureComponent<Props> {
             </span>
           )}
         />
-      {/* </ClickOutside> */}
+      </div>
       </>
     )
   }
