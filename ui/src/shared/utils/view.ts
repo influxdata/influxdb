@@ -292,6 +292,28 @@ const NEW_VIEW_CREATORS = {
       colors: NINETEEN_EIGHTY_FOUR,
     },
   }),
+  custom: (): NewView<TableViewProperties> => ({
+    ...defaultView(),
+    properties: {
+      type: 'table',
+      shape: 'chronograf-v2',
+      queries: [],
+      colors: DEFAULT_THRESHOLDS_LIST_COLORS as Color[],
+      tableOptions: {
+        verticalTimeAxis: true,
+        sortBy: null,
+        fixFirstColumn: false,
+      },
+      fieldOptions: [],
+      decimalPlaces: {
+        isEnforced: false,
+        digits: 2,
+      },
+      timeFormat: 'YYYY-MM-DD HH:mm:ss',
+      note: '',
+      showNoteWhenEmpty: false,
+    },
+  }),
 }
 
 type CreateViewType = ViewType | CheckType

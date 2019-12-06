@@ -29,11 +29,12 @@ import {DEFAULT_CHECK_NAME, CHECK_NAME_MAX_LENGTH} from 'src/alerting/constants'
 
 // Types
 import {
-  Check,
+  CheckType,
   TimeMachineTab,
   RemoteDataState,
   AppState,
   DashboardDraftQuery,
+  Threshold,
 } from 'src/types'
 
 interface OwnProps {
@@ -46,7 +47,8 @@ interface OwnProps {
 interface StateProps {
   activeTab: TimeMachineTab
   draftQueries: DashboardDraftQuery[]
-  check: Partial<Check>
+  checkType: CheckType
+  thresholds: Threshold[]
 }
 
 interface DispatchProps {
@@ -65,7 +67,8 @@ const CheckEOHeader: FC<Props> = ({
   setActiveTab,
   activeTab,
   draftQueries,
-  check,
+  checkType,
+  thresholds,
 }) => {
   const [saveStatus, setSaveStatus] = useState(RemoteDataState.NotStarted)
 
@@ -86,7 +89,7 @@ const CheckEOHeader: FC<Props> = ({
   }
 
   const saveButtonStatus = () => {
-    if (!isCheckSaveable(draftQueries, check)) {
+    if (!isCheckSaveable(draftQueries, checkType, thresholds)) {
       return ComponentStatus.Disabled
     }
 
@@ -98,10 +101,7 @@ const CheckEOHeader: FC<Props> = ({
   }
 
   const {singleField, singleAggregateFunc} = isDraftQueryAlertable(draftQueries)
-  const oneOrMoreThresholds =
-    check.type === 'threshold'
-      ? check.thresholds && !!check.thresholds.length
-      : false
+  const oneOrMoreThresholds = checkType === 'threshold' && !!thresholds.length
 
   return (
     <Page.Header fullWidth={true}>
@@ -115,11 +115,13 @@ const CheckEOHeader: FC<Props> = ({
         />
       </Page.HeaderLeft>
       <Page.HeaderCenter>
-        <CheckAlertingButton
-          activeTab={activeTab}
-          draftQueries={draftQueries}
-          setActiveTab={setActiveTab}
-        />
+        {activeTab !== 'customCheckQuery' ? (
+          <CheckAlertingButton
+            activeTab={activeTab}
+            draftQueries={draftQueries}
+            setActiveTab={setActiveTab}
+          />
+        ) : null}
       </Page.HeaderCenter>
       <Page.HeaderRight>
         <SquareButton
@@ -131,7 +133,7 @@ const CheckEOHeader: FC<Props> = ({
           status={saveButtonStatus()}
           onSave={handleSave}
           className={saveButtonClass}
-          checkType={check.type}
+          checkType={checkType}
           singleField={singleField}
           singleAggregateFunc={singleAggregateFunc}
           oneOrMoreThresholds={oneOrMoreThresholds}
@@ -142,13 +144,12 @@ const CheckEOHeader: FC<Props> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
+  const {activeTab, draftQueries} = getActiveTimeMachine(state)
   const {
-    activeTab,
-    draftQueries,
-    alerting: {check},
-  } = getActiveTimeMachine(state)
+    alertBuilder: {type, thresholds},
+  } = state
 
-  return {activeTab, draftQueries, check}
+  return {activeTab, draftQueries, checkType: type, thresholds}
 }
 
 const mdtp: DispatchProps = {

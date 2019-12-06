@@ -1,5 +1,5 @@
 // Libraries
-import {cloneDeep, isNumber, get, map, omit} from 'lodash'
+import {cloneDeep, isNumber, get, map} from 'lodash'
 import {produce} from 'immer'
 
 // Utils
@@ -13,20 +13,14 @@ import {
   THRESHOLD_TYPE_BG,
 } from 'src/shared/constants/thresholds'
 import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
-import {
-  DEFAULT_THRESHOLD_CHECK,
-  DEFAULT_DEADMAN_CHECK,
-} from 'src/alerting/constants'
+import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
 import {
   AutoRefresh,
-  Check,
-  DeadmanCheck,
   StatusRow,
   TableViewProperties,
   TimeRange,
-  ThresholdCheck,
   View,
 } from 'src/types'
 import {
@@ -69,14 +63,8 @@ interface QueryResultsState {
   statuses: StatusRow[][]
 }
 
-interface AlertingState {
-  check: Partial<Check>
-  checkStatus: RemoteDataState
-}
-
 export interface TimeMachineState {
   view: QueryView
-  alerting: AlertingState
   timeRange: TimeRange
   autoRefresh: AutoRefresh
   draftQueries: DashboardDraftQuery[]
@@ -101,10 +89,6 @@ export const initialStateHelper = (): TimeMachineState => ({
   timeRange: pastHourTimeRange,
   autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
-  alerting: {
-    check: DEFAULT_THRESHOLD_CHECK,
-    checkStatus: RemoteDataState.NotStarted,
-  },
   draftQueries: [{...defaultViewQuery(), hidden: false}],
   isViewingRawData: false,
   isViewingVisOptions: false,
@@ -191,7 +175,9 @@ export const timeMachinesReducer = (
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
     const queryResults = initialQueryResultsState()
     const timeRange =
-      activeTimeMachineID === 'alerting' ? null : activeTimeMachine.timeRange
+      activeTimeMachineID === 'alerting'
+        ? DEFAULT_TIME_RANGE
+        : activeTimeMachine.timeRange
 
     return {
       ...state,
@@ -862,17 +848,13 @@ export const timeMachineReducer = (
       })
     }
 
-    case 'SELECT_AGGREGATE_WINDOW': {
+    case 'SET_AGGREGATE_WINDOW': {
       return produce(state, draftState => {
         const {activeQueryIndex, draftQueries} = draftState
         const {period} = action.payload
 
         draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {period}
         buildActiveQuery(draftState)
-
-        if (state.alerting.check) {
-          state.alerting.check.every = period
-        }
       })
     }
 
@@ -953,94 +935,6 @@ export const timeMachineReducer = (
         )
       })
     }
-
-    case 'SET_TIME_MACHINE_CHECK_STATUS': {
-      const {checkStatus} = action.payload
-
-      return {...state, alerting: {...state.alerting, checkStatus}}
-    }
-
-    case 'SET_TIME_MACHINE_CHECK':
-      const alerting = {
-        check: action.payload.check,
-        checkStatus: action.payload.checkStatus,
-      }
-      return {...state, alerting}
-
-    case 'UPDATE_TIME_MACHINE_CHECK':
-      return produce(state, draftState => {
-        draftState.alerting.check = {
-          ...draftState.alerting.check,
-          ...action.payload.checkUpdate,
-        } as Check
-
-        const every = action.payload.checkUpdate.every
-
-        if (every) {
-          const {activeQueryIndex, draftQueries} = draftState
-
-          draftQueries[activeQueryIndex].builderConfig.aggregateWindow = {
-            period: every,
-          }
-
-          buildActiveQuery(draftState)
-        }
-      })
-
-    case 'CHANGE_TIME_MACHINE_CHECK_TYPE':
-      return produce(state, draftState => {
-        const exCheck = draftState.alerting.check
-
-        if (
-          exCheck.type === 'threshold' &&
-          action.payload.toType === 'deadman'
-        ) {
-          draftState.alerting.check = {
-            ...DEFAULT_DEADMAN_CHECK,
-            ...omit(exCheck, ['thresholds', 'type']),
-          } as DeadmanCheck
-        }
-        if (
-          exCheck.type === 'deadman' &&
-          action.payload.toType === 'threshold'
-        ) {
-          draftState.alerting.check = {
-            ...DEFAULT_THRESHOLD_CHECK,
-            ...omit(exCheck, ['timeSince', 'reportZero', 'level', 'type']),
-          } as ThresholdCheck
-        }
-      })
-    case 'UPDATE_CHECK_THRESHOLD':
-      return produce(state, draftState => {
-        const check = draftState.alerting.check
-        if (check.type === 'threshold') {
-          const thresholds = check.thresholds || []
-          const filteredThresholds = thresholds.filter(
-            t => t.level !== action.payload.threshold.level
-          )
-          const updatedThresholds = [
-            ...filteredThresholds,
-            action.payload.threshold,
-          ]
-          draftState.alerting.check = {
-            ...check,
-            thresholds: updatedThresholds,
-          }
-        }
-      })
-    case 'REMOVE_CHECK_THRESHOLD':
-      return produce(state, draftState => {
-        const check = draftState.alerting.check
-        if (check.type === 'threshold') {
-          const thresholds = check.thresholds
-          draftState.alerting.check = {
-            ...check,
-            thresholds: thresholds.filter(
-              t => t.level !== action.payload.level
-            ),
-          }
-        }
-      })
   }
 
   return state

@@ -10,12 +10,12 @@ import ThresholdValueInput from 'src/alerting/components/builder/ThresholdValueI
 import ThresholdRangeInput from 'src/alerting/components/builder/ThresholdRangeInput'
 
 // Actions
-import {
-  updateCheckThreshold,
-  removeCheckThreshold,
-} from 'src/timeMachine/actions'
 import {useCheckYDomain} from 'src/alerting/utils/vis'
 import {getVisTable} from 'src/timeMachine/selectors'
+import {
+  removeThreshold,
+  updateThreshold,
+} from 'src/alerting/actions/alertBuilder'
 
 // Types
 import {
@@ -36,8 +36,8 @@ interface StateProps {
 }
 
 interface DispatchProps {
-  onUpdateCheckThreshold: typeof updateCheckThreshold
-  onRemoveCheckThreshold: typeof removeCheckThreshold
+  onUpdateThreshold: typeof updateThreshold
+  onRemoveThreshold: typeof removeThreshold
 }
 
 interface OwnProps {
@@ -55,8 +55,8 @@ const ThresholdCondition: FC<Props> = ({
   level,
   table,
   threshold,
-  onUpdateCheckThreshold,
-  onRemoveCheckThreshold,
+  onUpdateThreshold,
+  onRemoveThreshold,
 }) => {
   const [inputs, changeInputs] = useState([
     get(threshold, 'value') || get(threshold, 'min', 0),
@@ -80,11 +80,11 @@ const ThresholdCondition: FC<Props> = ({
       value: (high - low) / 2 + low,
       level,
     }
-    onUpdateCheckThreshold(newThreshold)
+    onUpdateThreshold(newThreshold)
   }
 
   const removeLevel = () => {
-    onRemoveCheckThreshold(level)
+    onRemoveThreshold(level)
   }
 
   const changeValue = (value: number) => {
@@ -92,13 +92,13 @@ const ThresholdCondition: FC<Props> = ({
       | GreaterThreshold
       | LesserThreshold
 
-    onUpdateCheckThreshold(newThreshold)
+    onUpdateThreshold(newThreshold)
   }
 
   const changeRange = (min: number, max: number) => {
     const newThreshold = {...threshold, min, max} as RangeThreshold
 
-    onUpdateCheckThreshold(newThreshold)
+    onUpdateThreshold(newThreshold)
   }
 
   const changeThresholdType = (toType: ThresholdType, within?: boolean) => {
@@ -108,7 +108,7 @@ const ThresholdCondition: FC<Props> = ({
         level: threshold.level,
         value: inputs[0],
       } as GreaterThreshold | LesserThreshold
-      onUpdateCheckThreshold(valueThreshold)
+      onUpdateThreshold(valueThreshold)
     }
     if (toType === 'range') {
       const rangeThreshold = {
@@ -118,7 +118,7 @@ const ThresholdCondition: FC<Props> = ({
         max: inputs[1],
         within,
       } as RangeThreshold
-      onUpdateCheckThreshold(rangeThreshold)
+      onUpdateThreshold(rangeThreshold)
     }
   }
 
@@ -157,8 +157,8 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onUpdateCheckThreshold: updateCheckThreshold,
-  onRemoveCheckThreshold: removeCheckThreshold,
+  onUpdateThreshold: updateThreshold,
+  onRemoveThreshold: removeThreshold,
 }
 
 export {ThresholdCondition}

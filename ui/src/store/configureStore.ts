@@ -37,10 +37,12 @@ import rulesReducer from 'src/alerting/reducers/notifications/rules'
 import endpointsReducer from 'src/alerting/reducers/notifications/endpoints'
 import {
   pluginsReducer,
-  pluginsResourceReducer,
   activePluginsReducer,
   editorReducer,
+  pluginsResourceReducer,
 } from 'src/dataLoaders/reducers/telegrafEditor'
+import {predicatesReducer} from 'src/shared/reducers/predicates'
+import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
 
 // Types
 import {LocalStorage} from 'src/types/localStorage'
@@ -50,39 +52,41 @@ type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
 export const rootReducer = combineReducers<ReducerState>({
   ...sharedReducers,
-  ranges: rangesReducer,
   autoRefresh: autoRefreshReducer,
+  alertBuilder: alertBuilderReducer,
+  checks: checksReducer,
+  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
+  buckets: bucketsReducer,
   dashboards: dashboardsReducer,
-  timeMachines: timeMachinesReducer,
-  routing: routerReducer,
-  views: viewsReducer,
-  tasks: tasksReducer,
+  dataLoading: dataLoadingReducer,
+  endpoints: endpointsReducer,
+  labels: labelsReducer,
+  me: meReducer,
+  noteEditor: noteEditorReducer,
+  onboarding: onboardingReducer,
   orgs: orgsReducer,
   overlays: overlaysReducer,
-  me: meReducer,
-  onboarding: onboardingReducer,
-  noteEditor: noteEditorReducer,
-  dataLoading: dataLoadingReducer,
-  variables: variablesReducer,
-  variableEditor: variableEditorReducer,
-  labels: labelsReducer,
-  buckets: bucketsReducer,
-  telegrafEditorPlugins: pluginsReducer,
-  telegrafEditorActivePlugins: activePluginsReducer,
+  predicates: predicatesReducer,
+  ranges: rangesReducer,
+  routing: routerReducer,
+  rules: rulesReducer,
+  scrapers: scrapersReducer,
+  tasks: tasksReducer,
   telegrafEditor: editorReducer,
+  telegrafEditorActivePlugins: activePluginsReducer,
+  telegrafEditorPlugins: pluginsReducer,
   plugins: pluginsResourceReducer,
   telegrafs: telegrafsReducer,
-  tokens: authorizationsReducer,
-  scrapers: scrapersReducer,
   templates: templatesReducer,
+  tokens: authorizationsReducer,
+  timeMachines: timeMachinesReducer,
   userSettings: userSettingsReducer,
   resources: combineReducers({
     members: membersReducer,
   }),
-  cloud: combineReducers<{limits: LimitsState}>({limits: limitsReducer}),
-  checks: checksReducer,
-  rules: rulesReducer,
-  endpoints: endpointsReducer,
+  variables: variablesReducer,
+  variableEditor: variableEditorReducer,
+  views: viewsReducer,
   VERSION: () => '',
 })
 

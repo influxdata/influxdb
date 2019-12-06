@@ -18,13 +18,13 @@ import {loadBuckets, addTagSelector} from 'src/timeMachine/actions/queryBuilder'
 import {getActiveQuery, getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Types
-import {Check, AppState} from 'src/types'
+import {CheckType, AppState} from 'src/types'
 import {RemoteDataState} from 'src/types'
 
 interface StateProps {
   tagFiltersLength: number
   moreTags: boolean
-  check: Partial<Check>
+  checkType: CheckType
 }
 
 interface DispatchProps {
@@ -66,9 +66,9 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
   }
 
   private get functionSelector(): JSX.Element {
-    const {check} = this.props
+    const {checkType} = this.props
 
-    if (check.type === 'deadman') {
+    if (checkType === 'deadman') {
       return
     }
 
@@ -90,15 +90,18 @@ const mstp = (state: AppState): StateProps => {
   const tagFiltersLength = getActiveQuery(state).builderConfig.tags.length
   const {
     queryBuilder: {tags},
-    alerting: {check},
   } = getActiveTimeMachine(state)
+
+  const {
+    alertBuilder: {type: checkType},
+  } = state
 
   const {keys, keysStatus} = tags[tags.length - 1]
 
   return {
     tagFiltersLength,
     moreTags: !(keys.length === 0 && keysStatus === RemoteDataState.Done),
-    check,
+    checkType,
   }
 }
 
