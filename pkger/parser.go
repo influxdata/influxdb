@@ -133,11 +133,12 @@ type Pkg struct {
 		Resources []Resource `yaml:"resources" json:"resources"`
 	} `yaml:"spec" json:"spec"`
 
-	mLabels     map[string]*label
-	mBuckets    map[string]*bucket
-	mDashboards []*dashboard
-	mVariables  map[string]*variable
-	mTelegrafs  []*telegraf
+	mLabels                map[string]*label
+	mBuckets               map[string]*bucket
+	mDashboards            []*dashboard
+	mNotificationEndpoints map[string]*notificationEndpoint
+	mTelegrafs             []*telegraf
+	mVariables             map[string]*variable
 
 	isVerified bool // dry run has verified pkg resources with existing resources
 	isParsed   bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -167,6 +168,10 @@ func (p *Pkg) Summary() Summary {
 			LabelName:    m.LabelName,
 			LabelMapping: m.LabelMapping,
 		})
+	}
+
+	for _, n := range p.notificationEndpoints() {
+		sum.NotificationEndpoints = append(sum.NotificationEndpoints, n.summarize())
 	}
 
 	for _, t := range p.telegrafs() {
@@ -257,6 +262,21 @@ func (p *Pkg) dashboards() []*dashboard {
 	dashes := p.mDashboards[:]
 	sort.Slice(dashes, func(i, j int) bool { return dashes[i].name < dashes[j].name })
 	return dashes
+}
+
+func (p *Pkg) notificationEndpoints() []*notificationEndpoint {
+	endpoints := make([]*notificationEndpoint, 0, len(p.mNotificationEndpoints))
+	for _, e := range p.mNotificationEndpoints {
+		endpoints = append(endpoints, e)
+	}
+	sort.Slice(endpoints, func(i, j int) bool {
+		ei, ej := endpoints[i], endpoints[j]
+		if ei.kind == ej.kind {
+			return ei.Name() < ej.Name()
+		}
+		return ei.kind < ej.kind
+	})
+	return endpoints
 }
 
 func (p *Pkg) telegrafs() []*telegraf {
@@ -375,23 +395,20 @@ func (p *Pkg) validResources() error {
 }
 
 func (p *Pkg) graphResources() error {
-	graphFns := []func() error{
-		// labels are first to validate associations with other resources
+	graphFns := []func() *parseErr{
+		// labels are first, this is to validate associations with other resources
 		p.graphLabels,
 		p.graphVariables,
 		p.graphBuckets,
 		p.graphDashboards,
+		p.graphNotificationEndpoints,
 		p.graphTelegrafs,
 	}
 
 	var pErr parseErr
 	for _, fn := range graphFns {
 		if err := fn(); err != nil {
-			if IsParseErr(err) {
-				pErr.append(err.(*parseErr).Resources...)
-				continue
-			}
-			return err
+			pErr.append(err.Resources...)
 		}
 	}
 
@@ -406,7 +423,7 @@ func (p *Pkg) graphResources() error {
 	return nil
 }
 
-func (p *Pkg) graphBuckets() error {
+func (p *Pkg) graphBuckets() *parseErr {
 	p.mBuckets = make(map[string]*bucket)
 	return p.eachResource(KindBucket, 2, func(r Resource) []validationErr {
 		if _, ok := p.mBuckets[r.Name()]; ok {
@@ -444,7 +461,7 @@ func (p *Pkg) graphBuckets() error {
 	})
 }
 
-func (p *Pkg) graphLabels() error {
+func (p *Pkg) graphLabels() *parseErr {
 	p.mLabels = make(map[string]*label)
 	return p.eachResource(KindLabel, 2, func(r Resource) []validationErr {
 		if _, ok := p.mLabels[r.Name()]; ok {
@@ -463,7 +480,7 @@ func (p *Pkg) graphLabels() error {
 	})
 }
 
-func (p *Pkg) graphDashboards() error {
+func (p *Pkg) graphDashboards() *parseErr {
 	p.mDashboards = make([]*dashboard, 0)
 	return p.eachResource(KindDashboard, 2, func(r Resource) []validationErr {
 		dash := &dashboard{
@@ -497,7 +514,70 @@ func (p *Pkg) graphDashboards() error {
 	})
 }
 
-func (p *Pkg) graphVariables() error {
+func (p *Pkg) graphNotificationEndpoints() *parseErr {
+	p.mNotificationEndpoints = make(map[string]*notificationEndpoint)
+
+	notificationKinds := []struct {
+		kind             Kind
+		notificationKind notificationKind
+	}{
+		{
+			kind:             KindNotificationEndpointHTTP,
+			notificationKind: notificationKindHTTP,
+		},
+		{
+			kind:             KindNotificationEndpointPagerDuty,
+			notificationKind: notificationKindPagerDuty,
+		},
+		{
+			kind:             KindNotificationEndpointSlack,
+			notificationKind: notificationKindSlack,
+		},
+	}
+
+	var pErr parseErr
+	for _, nk := range notificationKinds {
+		err := p.eachResource(nk.kind, 1, func(r Resource) []validationErr {
+			if _, ok := p.mNotificationEndpoints[r.Name()]; ok {
+				return []validationErr{{
+					Field: "name",
+					Msg:   "duplicate name: " + r.Name(),
+				}}
+			}
+
+			endpoint := &notificationEndpoint{
+				kind:        nk.notificationKind,
+				name:        r.Name(),
+				description: r.stringShort(fieldDescription),
+				httpType:    strings.ToLower(r.stringShort(fieldType)),
+				password:    r.stringShort(fieldNotificationEndpointPassword),
+				routingKey:  r.stringShort(fieldNotificationEndpointRoutingKey),
+				status:      strings.ToLower(r.stringShort(fieldStatus)),
+				token:       r.stringShort(fieldNotificationEndpointToken),
+				url:         r.stringShort(fieldNotificationEndpointURL),
+				username:    r.stringShort(fieldNotificationEndpointUsername),
+			}
+			failures := p.parseNestedLabels(r, func(l *label) error {
+				endpoint.labels = append(endpoint.labels, l)
+				p.mLabels[l.Name()].setMapping(endpoint, false)
+				return nil
+			})
+			sort.Sort(endpoint.labels)
+
+			p.mNotificationEndpoints[endpoint.Name()] = endpoint
+			return append(failures, endpoint.valid()...)
+		})
+		if err != nil {
+			pErr.append(err.Resources...)
+		}
+	}
+	if len(pErr.Resources) > 0 {
+		return &pErr
+	}
+	return nil
+}
+
+func (p *Pkg) graphVariables() *parseErr {
 	p.mVariables = make(map[string]*variable)
 	return p.eachResource(KindVariable, 1, func(r Resource) []validationErr {
 		if _, ok := p.mVariables[r.Name()]; ok {
@@ -531,7 +611,7 @@ func (p *Pkg) graphVariables() error {
 	})
 }
 
-func (p *Pkg) graphTelegrafs() error {
+func (p *Pkg) graphTelegrafs() *parseErr {
 	p.mTelegrafs = make([]*telegraf, 0)
 	return p.eachResource(KindTelegraf, 0, func(r Resource) []validationErr {
 		tele := new(telegraf)
@@ -559,7 +639,7 @@ func (p *Pkg) graphTelegrafs() error {
 	})
 }
 
-func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(r Resource) []validationErr) error {
+func (p *Pkg) eachResource(resourceKind Kind, minNameLen int, fn func(r Resource) []validationErr) *parseErr {
 	var pErr parseErr
 	for i, r := range p.Spec.Resources {
 		k, err := r.kind()
