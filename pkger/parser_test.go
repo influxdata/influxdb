@@ -112,16 +112,18 @@ spec:
 	t.Run("pkg with a bucket", func(t *testing.T) {
 		t.Run("with valid bucket pkg should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/bucket", func(t *testing.T, pkg *Pkg) {
-				buckets := pkg.buckets()
+				buckets := pkg.Summary().Buckets
 				require.Len(t, buckets, 1)
 
 				actual := buckets[0]
-				expectedBucket := bucket{
-					name:           "rucket_11",
-					Description:    "bucket 1 description",
-					RetentionRules: retentionRules{newRetentionRule(time.Hour)},
+				expectedBucket := SummaryBucket{
+					Bucket: influxdb.Bucket{
+						Name:            "rucket_11",
+						Description:     "bucket 1 description",
+						RetentionPeriod: time.Hour,
+					},
 				}
-				assert.Equal(t, expectedBucket, *actual)
+				assert.Equal(t, expectedBucket, actual)
 			})
 		})
 
@@ -2713,6 +2715,16 @@ spec:
 
 				require.Len(t, actual.LabelAssociations, 1)
 				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+
+				require.Len(t, sum.LabelMappings, 1)
+				expectedMapping := SummaryLabelMapping{
+					ResourceName: "first_tele_config",
+					LabelName:    "label_1",
+					LabelMapping: influxdb.LabelMapping{
+						ResourceType: influxdb.TelegrafsResourceType,
+					},
+				}
+				assert.Equal(t, expectedMapping, sum.LabelMappings[0])
 			})
 		})
 
@@ -2939,7 +2951,7 @@ spec:
 	})
 
 	t.Run("pkg with variable and labels associated", func(t *testing.T) {
-		testfileRunner(t, "testdata/variables_associates_label.yml", func(t *testing.T, pkg *Pkg) {
+		testfileRunner(t, "testdata/variable_associates_label.yml", func(t *testing.T, pkg *Pkg) {
 			sum := pkg.Summary()
 			require.Len(t, sum.Labels, 1)
 

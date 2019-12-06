@@ -95,13 +95,13 @@ func TestPkg(t *testing.T) {
 				Description: "desc2",
 				Color:       "blurple",
 				associationMapping: associationMapping{
-					mappings: map[assocMapKey]assocMapVal{
+					mappings: map[assocMapKey][]assocMapVal{
 						assocMapKey{
 							resType: influxdb.BucketsResourceType,
 							name:    bucket1.Name(),
-						}: {
+						}: {{
 							v: bucket1,
-						},
+						}},
 					},
 				},
 			}

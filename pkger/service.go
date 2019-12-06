@@ -25,6 +25,7 @@ type SVC interface {
 }
 
 type serviceOpt struct {
+	logger    *zap.Logger
 	labelSVC  influxdb.LabelService
 	bucketSVC influxdb.BucketService
 	dashSVC   influxdb.DashboardService
@@ -34,6 +35,13 @@ type serviceOpt struct {
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
 type ServiceSetterFn func(opt *serviceOpt)
+
+// WithLogger sets the logger for the service.
+func WithLogger(log *zap.Logger) ServiceSetterFn {
+	return func(o *serviceOpt) {
+		o.logger = log
+	}
+}
 
 // WithBucketSVC sets the bucket service.
 func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
@@ -83,14 +91,16 @@ type Service struct {
 }
 
 // NewService is a constructor for a pkger Service.
-func NewService(log *zap.Logger, opts ...ServiceSetterFn) *Service {
-	opt := &serviceOpt{}
+func NewService(opts ...ServiceSetterFn) *Service {
+	opt := &serviceOpt{
+		logger: zap.NewNop(),
+	}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		log:       log,
+		log:       opt.logger,
 		bucketSVC: opt.bucketSVC,
 		labelSVC:  opt.labelSVC,
 		dashSVC:   opt.dashSVC,
@@ -224,23 +234,23 @@ func (s *Service) cloneOrgResources(ctx context.Context, orgID influxdb.ID) ([]R
 		cloneFn func(context.Context, influxdb.ID) ([]ResourceToClone, error)
 	}{
 		{
-			resType: influxdb.BucketsResourceType,
+			resType: KindBucket.ResourceType(),
 			cloneFn: s.cloneOrgBuckets,
 		},
 		{
-			resType: influxdb.DashboardsResourceType,
+			resType: KindDashboard.ResourceType(),
 			cloneFn: s.cloneOrgDashboards,
 		},
 		{
-			resType: influxdb.LabelsResourceType,
+			resType: KindLabel.ResourceType(),
 			cloneFn: s.cloneOrgLabels,
 		},
 		{
-			resType: influxdb.TelegrafsResourceType,
+			resType: KindTelegraf.ResourceType(),
 			cloneFn: s.cloneTelegrafs,
 		},
 		{
-			resType: influxdb.VariablesResourceType,
+			resType: KindVariable.ResourceType(),
 			cloneFn: s.cloneOrgVariables,
 		},
 	}
@@ -426,24 +436,16 @@ func (s *Service) resourceCloneAssociationsGen() cloneAssociationsFn {
 	// memoize the labels so we dont' create duplicates
 	m := make(map[key]bool)
 	return func(ctx context.Context, r ResourceToClone) (associations, error) {
-		var iResType influxdb.ResourceType
-		switch {
-		case r.Kind.is(KindBucket):
-			iResType = influxdb.BucketsResourceType
-		case r.Kind.is(KindDashboard):
-			iResType = influxdb.DashboardsResourceType
-		case r.Kind.is(KindVariable):
-			iResType = influxdb.VariablesResourceType
-		default:
+		if r.Kind.is(KindUnknown, KindLabel) {
 			return associations{}, nil
 		}
 
 		labels, err := s.labelSVC.FindResourceLabels(ctx, influxdb.LabelMappingFilter{
 			ResourceID:   r.ID,
-			ResourceType: iResType,
+			ResourceType: r.Kind.ResourceType(),
 		})
 		if err != nil {
-			return associations{}, err
+			return associations{}, ierrors.Wrap(err, "finding resource labels")
 		}
 
 		var ass associations
@@ -951,15 +953,13 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 		creater: createFn,
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackDashboards(rollbackDashboards) },
+			fn: func() error {
+				return s.deleteByIDs("dashboard", len(rollbackDashboards), s.dashSVC.DeleteDashboard, func(i int) influxdb.ID {
+					return rollbackDashboards[i].ID()
+				})
+			},
 		},
 	}
-}
-
-func (s *Service) rollbackDashboards(dashboards []*dashboard) error {
-	return s.deleteByIDs("dashboard", len(dashboards), s.dashSVC.DeleteDashboard, func(i int) influxdb.ID {
-		return dashboards[i].ID()
-	})
 }
 
 func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Dashboard, error) {
@@ -1128,15 +1128,13 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 		creater: createFn,
 		rollbacker: rollbacker{
 			resource: resource,
-			fn:       func() error { return s.rollbackTelegrafs(rollbackTelegrafs) },
+			fn: func() error {
+				return s.deleteByIDs("telegraf", len(rollbackTelegrafs), s.teleSVC.DeleteTelegrafConfig, func(i int) influxdb.ID {
+					return rollbackTelegrafs[i].ID()
+				})
+			},
 		},
 	}
-}
-
-func (s *Service) rollbackTelegrafs(teles []*telegraf) error {
-	return s.deleteByIDs("telegraf", len(teles), s.teleSVC.DeleteTelegrafConfig, func(i int) influxdb.ID {
-		return teles[i].ID()
-	})
 }
 
 func (s *Service) applyVariables(vars []*variable) applier {
