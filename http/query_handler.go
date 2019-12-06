@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/http/metric"
 	"github.com/influxdata/influxdb/kit/check"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/logger"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
@@ -32,7 +33,8 @@ import (
 )
 
 const (
-	fluxPath = "/api/v2/query"
+	fluxPath      = "/api/v2/query"
+	traceIDHeader = "Trace-Id"
 )
 
 // FluxBackend is all services and associated parameters required to construct
@@ -106,6 +108,9 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	log := h.log.With(influxlogger.TraceFields(ctx)...)
+	if id, _, found := logger.TraceInfo(ctx); found {
+		w.Header().Set(traceIDHeader, id)
+	}
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
