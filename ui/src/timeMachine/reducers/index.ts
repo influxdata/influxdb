@@ -139,6 +139,9 @@ export const initialState = (): TimeMachinesState => ({
 })
 
 const getTableProperties = (view, files) => {
+  if (!files || !files[0]) {
+    return {...view.properties, fieldOptions: []}
+  }
   const csv = files[0]
   let pointer = 0,
     ni
