@@ -36,7 +36,7 @@ import {HistogramPosition, LinePosition} from '@influxdata/giraffe'
 import {RemoteDataState} from '@influxdata/clockface'
 import {createView} from 'src/shared/utils/view'
 import {setValues} from 'src/variables/actions'
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 export type Action =
   | QueryBuilderAction
