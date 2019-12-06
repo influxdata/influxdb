@@ -17,6 +17,7 @@ import {
   DEFAULT_THRESHOLD_CHECK,
   DEFAULT_DEADMAN_CHECK,
 } from 'src/alerting/constants'
+import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
 // Types
 import {
@@ -191,7 +192,9 @@ export const timeMachinesReducer = (
     const queryBuilder = initialQueryBuilderState(draftQueries[0].builderConfig)
     const queryResults = initialQueryResultsState()
     const timeRange =
-      activeTimeMachineID === 'alerting' ? null : activeTimeMachine.timeRange
+      activeTimeMachineID === 'alerting'
+        ? DEFAULT_TIME_RANGE
+        : activeTimeMachine.timeRange
 
     return {
       ...state,
