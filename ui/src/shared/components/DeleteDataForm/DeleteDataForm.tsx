@@ -107,9 +107,7 @@ const DeleteDataForm: FC<Props> = ({
     }
   }, [filters])
 
-  const resolvedTimeRange = timeRange
-
-  const formatPredicatesForPreview = predicates => {
+  const formatPredicatesForPreview = (predicates: Filter[]) => {
     let result = ''
     predicates.forEach(predicate => {
       const {key, equality, value} = predicate
@@ -121,7 +119,7 @@ const DeleteDataForm: FC<Props> = ({
   }
 
   const handleDeleteDataPreview = async () => {
-    const {lower, upper} = resolvedTimeRange
+    const {lower, upper} = timeRange
 
     let query = `from(bucket: "${name}")
       |> range(start: ${moment(lower).toISOString()}, stop: ${moment(
