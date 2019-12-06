@@ -54,7 +54,7 @@ const TomlEditorMonaco: FC<Props> = props => {
     })
 
     if (props.willMount) {
-      props.willMount(editor);
+      props.willMount(editor)
     }
   }
   const {script, onChangeScript, readOnly} = props
@@ -62,7 +62,7 @@ const TomlEditorMonaco: FC<Props> = props => {
   const className = props.className || 'time-machine-editor--embedded'
 
   return (
-    <div className={ className } data-testid={ testID }>
+    <div className={className} data-testid={testID}>
       <MonacoEditor
         language="toml"
         theme={THEME_NAME}

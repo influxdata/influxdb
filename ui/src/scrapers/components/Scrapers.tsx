@@ -26,13 +26,13 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, Organization} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
 interface StateProps {
   scrapers: ScraperTargetResponse[]
   buckets: Bucket[]
-  org: string
+  org: Organization
 }
 
 interface DispatchProps {
@@ -146,7 +146,8 @@ class Scrapers extends PureComponent<Props, State> {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>
-            {`${org.name}`} does not own any <b>Scrapers</b>, why not create one?
+            {`${org.name}`} does not own any <b>Scrapers</b>, why not create
+            one?
           </EmptyState.Text>
           {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
@@ -171,10 +172,7 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleShowOverlay = () => {
-    const {
-      router,
-      org,
-    } = this.props
+    const {router, org} = this.props
 
     if (this.hasNoBuckets) {
       return
@@ -191,7 +189,7 @@ class Scrapers extends PureComponent<Props, State> {
 const mstp = ({scrapers, buckets, orgs}: AppState): StateProps => ({
   scrapers: scrapers.list,
   buckets: buckets.list,
-  org: orgs.org
+  org: orgs.org,
 })
 
 const mdtp: DispatchProps = {

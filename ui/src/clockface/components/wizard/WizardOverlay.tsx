@@ -8,6 +8,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
   children: any
+  footer?: any
   title: string
   maxWidth: number
   onDismiss: () => void
@@ -20,7 +21,7 @@ class WizardOverlay extends PureComponent<Props> {
   }
 
   public render() {
-    const {title, maxWidth, children, onDismiss} = this.props
+    const {title, maxWidth, children, footer, onDismiss} = this.props
 
     return (
       <Overlay visible={true}>
@@ -29,6 +30,7 @@ class WizardOverlay extends PureComponent<Props> {
           <Overlay.Body>
             <div className="data-loading--overlay">{children}</div>
           </Overlay.Body>
+          {footer && <Overlay.Footer>{footer}</Overlay.Footer>}
         </Overlay.Container>
       </Overlay>
     )
