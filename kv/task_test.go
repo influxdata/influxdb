@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	icontext "github.com/influxdata/influxdb/context"
 	"github.com/influxdata/influxdb/kv"
@@ -179,52 +181,84 @@ func TestNextRunDue(t *testing.T) {
 
 }
 
-func TestRetrieveTaskWithBadAuth(t *testing.T) {
-	store, close, err := NewTestInmemStore(t)
+type testService struct {
+	Store   kv.Store
+	Service *kv.Service
+	Org     influxdb.Organization
+	User    influxdb.User
+	Auth    influxdb.Authorization
+	Clock   clock.Clock
+
+	storeCloseFn func()
+}
+
+func (s *testService) Close() {
+	s.storeCloseFn()
+}
+
+func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
+	t.Helper()
+
+	if c == nil {
+		c = clock.New()
+	}
+
+	ts := &testService{}
+	var err error
+	ts.Store, ts.storeCloseFn, err = NewTestInmemStore(t)
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer close()
-
-	service := kv.NewService(zaptest.NewLogger(t), store)
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	if err := service.Initialize(ctx); err != nil {
-		t.Fatalf("error initializing urm service: %v", err)
-	}
-	defer cancelFunc()
-	u := &influxdb.User{Name: t.Name() + "-user"}
-	if err := service.CreateUser(ctx, u); err != nil {
-		t.Fatal(err)
-	}
-	o := &influxdb.Organization{Name: t.Name() + "-org"}
-	if err := service.CreateOrganization(ctx, o); err != nil {
-		t.Fatal(err)
+		t.Fatal("failed to create InmemStore", err)
 	}
 
-	if err := service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	ts.Service = kv.NewService(zaptest.NewLogger(t), ts.Store, kv.ServiceConfig{Clock: c})
+	err = ts.Service.Initialize(ctx)
+	if err != nil {
+		t.Fatal("Service.Initialize", err)
+	}
+
+	ts.User = influxdb.User{Name: t.Name() + "-user"}
+	if err := ts.Service.CreateUser(ctx, &ts.User); err != nil {
+		t.Fatal(err)
+	}
+	ts.Org = influxdb.Organization{Name: t.Name() + "-org"}
+	if err := ts.Service.CreateOrganization(ctx, &ts.Org); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ts.Service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   o.ID,
-		UserID:       u.ID,
+		ResourceID:   ts.Org.ID,
+		UserID:       ts.User.ID,
 		UserType:     influxdb.Owner,
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	authz := influxdb.Authorization{
-		OrgID:       o.ID,
-		UserID:      u.ID,
+	ts.Auth = influxdb.Authorization{
+		OrgID:       ts.Org.ID,
+		UserID:      ts.User.ID,
 		Permissions: influxdb.OperPermissions(),
 	}
-	if err := service.CreateAuthorization(context.Background(), &authz); err != nil {
+	if err := ts.Service.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
 		t.Fatal(err)
 	}
 
-	ctx = icontext.SetAuthorizer(ctx, &authz)
+	return ts
+}
 
-	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
+func TestRetrieveTaskWithBadAuth(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	ts := newService(t, ctx, nil)
+	defer ts.Close()
+
+	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
+
+	task, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
-		OrganizationID: o.ID,
-		OwnerID:        u.ID,
+		OrganizationID: ts.Org.ID,
+		OwnerID:        ts.User.ID,
 		Status:         string(backend.TaskActive),
 	})
 	if err != nil {
@@ -232,7 +266,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 
 	// convert task to old one with a bad auth
-	err = store.Update(ctx, func(tx kv.Tx) error {
+	err = ts.Store.Update(ctx, func(tx kv.Tx) error {
 		b, err := tx.Bucket([]byte("tasksv1"))
 		if err != nil {
 			return err
@@ -260,7 +294,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 
 	// lets see if we can list and find the task
-	newTask, err := service.FindTaskByID(ctx, task.ID)
+	newTask, err := ts.Service.FindTaskByID(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +302,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		t.Fatal("miss matching taskID's")
 	}
 
-	tasks, _, err := service.FindTasks(ctx, influxdb.TaskFilter{})
+	tasks, _, err := ts.Service.FindTasks(ctx, influxdb.TaskFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,11 +312,61 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 
 	// test status filter
 	active := string(backend.TaskActive)
-	tasksWithActiveFilter, _, err := service.FindTasks(ctx, influxdb.TaskFilter{Status: &active})
+	tasksWithActiveFilter, _, err := ts.Service.FindTasks(ctx, influxdb.TaskFilter{Status: &active})
 	if err != nil {
 		t.Fatal("could not find tasks")
 	}
 	if len(tasksWithActiveFilter) != 1 {
 		t.Fatal("failed to find active task with filter")
+	}
+}
+
+func TestService_UpdateTask_InactiveToActive(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	c := clock.NewMock()
+	c.Set(time.Unix(1000, 0))
+
+	ts := newService(t, ctx, c)
+	defer ts.Close()
+
+	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
+
+	originalTask, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: ts.Org.ID,
+		OwnerID:        ts.User.ID,
+		Status:         string(backend.TaskActive),
+	})
+	if err != nil {
+		t.Fatal("CreateTask", err)
+	}
+
+	v := influxdb.TaskStatusInactive
+	c.Add(1 * time.Second)
+	exp := c.Now()
+	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{Status: &v, LatestCompleted: &exp, LatestScheduled: &exp})
+	if err != nil {
+		t.Fatal("UpdateTask", err)
+	}
+
+	if got := updatedTask.LatestScheduled; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestCompleted; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+
+	c.Add(10 * time.Second)
+	exp = c.Now()
+	v = influxdb.TaskStatusActive
+	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{Status: &v})
+	if err != nil {
+		t.Fatal("UpdateTask", err)
+	}
+
+	if got := updatedTask.LatestScheduled; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
 	}
 }

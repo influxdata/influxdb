@@ -577,7 +577,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		tc.Status = string(backend.TaskActive)
 	}
 
-	createdAt := time.Now().Truncate(time.Second).UTC()
+	createdAt := s.clock.Now().Truncate(time.Second).UTC()
 	task := &influxdb.Task{
 		ID:              s.IDGenerator.ID(),
 		Type:            tc.Type,
@@ -593,6 +593,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		Cron:            opt.Cron,
 		CreatedAt:       createdAt,
 		LatestCompleted: createdAt,
+		LatestScheduled: createdAt,
 	}
 
 	if opt.Offset != nil {
@@ -696,7 +697,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		return nil, err
 	}
 
-	updatedAt := time.Now().UTC()
+	updatedAt := s.clock.Now().UTC()
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
@@ -727,13 +728,18 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 	if upd.Description != nil {
 		task.Description = *upd.Description
 		task.UpdatedAt = updatedAt
-
 	}
 
-	if upd.Status != nil {
+	if upd.Status != nil && task.Status != *upd.Status {
 		task.Status = *upd.Status
 		task.UpdatedAt = updatedAt
 
+		// task is transitioning from inactive to active, ensure scheduled and completed are updated
+		if task.Status == influxdb.TaskStatusActive {
+			updatedAtTrunc := updatedAt.Truncate(time.Second).UTC()
+			task.LatestCompleted = updatedAtTrunc
+			task.LatestScheduled = updatedAtTrunc
+		}
 	}
 
 	if upd.Metadata != nil {
