@@ -88,7 +88,9 @@ describe('The Query Builder', () => {
     })
   })
 
-  describe('from the Dashboard view', () => {
+  // This is flaky in prod
+  // https://circleci.com/gh/influxdata/influxdb/74628#artifacts/containers/0
+  describe.skip('from the Dashboard view', () => {
     beforeEach(() => {
       cy.get('@org').then((org: Organization) => {
         cy.createDashboard(org.id).then(({body}) => {
