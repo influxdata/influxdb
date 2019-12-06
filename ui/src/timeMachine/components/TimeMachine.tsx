@@ -39,6 +39,8 @@ const TimeMachine: FunctionComponent<StateProps> = ({
     bottomContents = <TimeMachineAlerting />
   } else if (activeTab === 'queries') {
     bottomContents = <TimeMachineQueries />
+  } else if (activeTab === 'customCheckQuery') {
+    bottomContents = <TimeMachineQueries />
   }
 
   return (

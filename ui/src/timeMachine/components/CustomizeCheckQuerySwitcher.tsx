@@ -1,18 +1,33 @@
 // Libraries
 import React, {FC} from 'react'
+import {connect} from 'react-redux'
 
 // Components
 import {Button} from '@influxdata/clockface'
 
-const CustomizeCheckQuerySwitcher: FC = () => {
+// Actions
+import {setActiveTab} from 'src/timeMachine/actions'
+
+interface DispatchProps {
+  onSetActiveTab: typeof setActiveTab
+}
+
+const CustomizeCheckQuerySwitcher: FC<DispatchProps> = ({onSetActiveTab}) => {
   return (
     <Button
       text="Customize Check Query"
       titleText="Switch to Script Editor"
-      onClick={() => console.log('will do something soon')}
+      onClick={() => onSetActiveTab('customCheckQuery')}
       testID="switch-to-custom-check"
     />
   )
 }
 
-export default CustomizeCheckQuerySwitcher
+const mdtp: DispatchProps = {
+  onSetActiveTab: setActiveTab,
+}
+
+export default connect<{}, DispatchProps>(
+  null,
+  mdtp
+)(CustomizeCheckQuerySwitcher)
