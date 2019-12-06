@@ -47,7 +47,10 @@ describe('DataExplorer', () => {
           cy.getByTestID('input-field')
             .click()
             .type('{backspace}{backspace}')
-          cy.getByTestID('auto-input--custom').should('have.class', 'active')
+          cy.getByTestID('auto-input--custom').should(
+            'have.class',
+            'cf-select-group--option__active'
+          )
           cy.getByTestID('input-field--error').should('have.length', 1)
           cy.getByTestID('input-field').type('adfuiopbvmc')
           cy.getByTestID('input-field--error').should('have.length', 1)
@@ -478,7 +481,7 @@ describe('DataExplorer', () => {
       })
 
       cy.getByTestID('save-query-as').click()
-      cy.get('#save-as-task').click()
+      cy.get('label[for="save-as-task"]').click()
       cy.getByTestID('task-form-name').type(taskName)
       cy.getByTestID('task-form-schedule-input').type('4h')
       cy.getByTestID('task-form-save').click()

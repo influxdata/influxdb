@@ -32,7 +32,7 @@ const TelegrafExplainer: FunctionComponent<Props> = ({
     )}
     {!hasNoTelegrafs && (
       <Panel.Header>
-        <Panel.Title>What is Telegraf?</Panel.Title>
+        <h5>What is Telegraf?</h5>
       </Panel.Header>
     )}
     <Panel.Body size={bodySize}>

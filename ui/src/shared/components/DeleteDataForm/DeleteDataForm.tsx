@@ -274,13 +274,13 @@ const DeleteDataForm: FC<Props> = ({
           <Grid.Column widthXS={Columns.Twelve}>
             <Panel className="delete-data-form--danger-zone">
               <Panel.Header>
-                <Panel.Title>
+                <h5>
                   Danger Zone! You're deleting{' '}
                   <span style={{color: InfluxColors.Dreamsicle}}>
                     {formatNumber(count)}
                   </span>{' '}
                   records
-                </Panel.Title>
+                </h5>
               </Panel.Header>
               <Panel.Body className="delete-data-form--confirm">
                 <Checkbox

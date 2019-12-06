@@ -7,7 +7,7 @@ import {Panel, InfluxColors} from '@influxdata/clockface'
 const BucketExplainer: FunctionComponent = () => (
   <Panel backgroundColor={InfluxColors.Smoke} style={{marginTop: '32px'}}>
     <Panel.Header>
-      <Panel.Title>What is a Bucket?</Panel.Title>
+      <h5>What is a Bucket?</h5>
     </Panel.Header>
     <Panel.Body>
       <p>

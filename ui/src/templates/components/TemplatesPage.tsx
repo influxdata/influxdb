@@ -20,7 +20,7 @@ import {
   Button,
   ComponentColor,
   IconFont,
-  Radio,
+  SelectGroup,
   FlexBox,
   FlexDirection,
   ComponentSize,
@@ -81,8 +81,9 @@ class TemplatesPage extends PureComponent<Props, State> {
         <SettingsTabbedPageHeader>
           <FlexBox direction={FlexDirection.Row} margin={ComponentSize.Small}>
             {this.filterComponent}
-            <Radio>
-              <Radio.Button
+            <SelectGroup>
+              <SelectGroup.Option
+                name="template-type"
                 id="static-templates"
                 active={activeTab === 'static-templates'}
                 value="static-templates"
@@ -90,8 +91,9 @@ class TemplatesPage extends PureComponent<Props, State> {
                 titleText="Static Templates"
               >
                 Static Templates
-              </Radio.Button>
-              <Radio.Button
+              </SelectGroup.Option>
+              <SelectGroup.Option
+                name="template-type"
                 id="user-templates"
                 active={activeTab === 'user-templates'}
                 value="user-templates"
@@ -99,8 +101,8 @@ class TemplatesPage extends PureComponent<Props, State> {
                 titleText="User Templates"
               >
                 User Templates
-              </Radio.Button>
-            </Radio>
+              </SelectGroup.Option>
+            </SelectGroup>
           </FlexBox>
           <Button
             text="Import Template"
