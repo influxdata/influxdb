@@ -128,7 +128,7 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		t.Fatal("expected task LatestScheduled to not be zero but it was")
 	}
 	if schedulableT.LastScheduled() != time.Now().UTC().Truncate(time.Second) {
-		t.Fatalf("expeted task LatestScheduled to be properly truncated but it was %s instead\n", schedulableT.LastScheduled())
+		t.Fatalf("expected task LatestScheduled to be properly truncated but it was %s instead\n", schedulableT.LastScheduled())
 	}
 	schedulableTaskTwo, err := NewSchedulableTask(taskTwo)
 	if err != nil {
@@ -138,7 +138,7 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		t.Fatal("expected task LatestScheduled to not be zero but it was")
 	}
 	if schedulableTaskTwo.LastScheduled() != time.Now().UTC().Truncate(time.Minute) {
-		t.Fatalf("expeted task LatestScheduled to be properly truncated but it was %s instead\n", schedulableT.LastScheduled())
+		t.Fatalf("expected task LatestScheduled to be properly truncated but it was %s instead\n", schedulableT.LastScheduled())
 	}
 
 	schedulableTaskThree, err := NewSchedulableTask(taskThreeNew)
@@ -149,7 +149,7 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		t.Fatal("expected task LatestScheduled to not be zero but it was")
 	}
 	if schedulableTaskThree.LastScheduled() != time.Now().UTC().Truncate(time.Second) {
-		t.Fatalf("expeted task LatestScheduled to be properly truncated but it was %s instead\n", schedulableT.LastScheduled())
+		t.Fatalf("expected task LatestScheduled to be properly truncated but it was %s instead\n", schedulableT.LastScheduled())
 	}
 
 	runOne = &influxdb.Run{
