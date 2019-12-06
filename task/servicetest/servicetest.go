@@ -262,6 +262,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		ID:              tsk.ID,
 		CreatedAt:       tsk.CreatedAt,
 		LatestCompleted: tsk.LatestCompleted,
+		LatestScheduled: tsk.LatestScheduled,
 		OrganizationID:  cr.OrgID,
 		Organization:    cr.Org,
 		AuthorizationID: tsk.AuthorizationID,
@@ -632,8 +633,8 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if !task.LatestScheduled.IsZero() {
-		t.Fatal("expected a zero LatestScheduled on created task")
+	if task.LatestScheduled.IsZero() {
+		t.Fatal("expected a non-zero LatestScheduled on created task")
 	}
 
 	st, err := sys.TaskService.FindTaskByID(sys.Ctx, task.ID)
