@@ -4,22 +4,26 @@ import {TimeRange, CustomTimeRange} from 'src/types'
 import {Duration, DurationUnit} from 'src/types/ast'
 import {TIME_RANGE_FORMAT} from 'src/shared/constants/timeRanges'
 
+export const removeSpacesAndNow = (input: string): string =>
+  input.replace(/\s/g, '').replace(/now\(\)-/, '')
+
+const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
+
 export const isDurationParseable = (lower: string): boolean => {
   if (!lower || !lower.includes('now()')) {
     return false
   }
-  // remove spaces and remove "now()-"
-  lower.replace(/\s/g, '').replace(/now\(\)-/, '')
 
-  const r = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
-  return !!r.exec(lower)
+  const removedLower = removeSpacesAndNow(lower)
+
+  return !!removedLower.match(durationRegExp)
 }
 
 export const parseDuration = (input: string): Duration[] => {
-  const r = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
   const result = []
+  const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
 
-  let match = r.exec(input)
+  let match = durationRegExp.exec(input)
 
   if (!match) {
     throw new Error(`could not parse "${input}" as duration`)
@@ -31,7 +35,7 @@ export const parseDuration = (input: string): Duration[] => {
       unit: match[2],
     })
 
-    match = r.exec(input)
+    match = durationRegExp.exec(input)
   }
 
   return result
@@ -105,8 +109,8 @@ export const timeRangeToDuration = (timeRange: TimeRange): string => {
   if (timeRange.upper || !timeRange.lower || !timeRange.lower.includes('now')) {
     throw new Error('cannot convert time range to duration')
   }
-  // remove spaces and remove "now()-"
-  return timeRange.lower.replace(/\s/g, '').replace(/now\(\)-/, '')
+
+  return removeSpacesAndNow(timeRange.lower)
 }
 
 export const convertTimeRangeToCustom = (
@@ -132,23 +136,23 @@ export const convertTimeRangeToCustom = (
       .toISOString()
   }
 
-  const label = createTimeRangeLabel({lower, upper})
-
   return {
-    label,
     lower,
     upper,
     type: 'custom',
   }
 }
 
-export const createTimeRangeLabel = ({
-  lower,
-  upper,
-}: {
-  lower: string
-  upper: string
-}): string =>
-  `${moment(lower).format(TIME_RANGE_FORMAT)} - ${moment(upper).format(
-    TIME_RANGE_FORMAT
-  )}`
+export const getTimeRangeLabel = (timeRange: TimeRange): string => {
+  if (timeRange.type === 'selectable-duration') {
+    return timeRange.lower
+  }
+  if (timeRange.type === 'duration') {
+    return timeRange.lower
+  }
+  if (timeRange.type === 'custom') {
+    return `${moment(timeRange.lower).format(TIME_RANGE_FORMAT)} - ${moment(
+      timeRange.upper
+    ).format(TIME_RANGE_FORMAT)}`
+  }
+}
