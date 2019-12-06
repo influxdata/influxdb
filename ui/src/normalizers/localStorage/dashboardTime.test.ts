@@ -14,7 +14,6 @@ const objFormatRange = {
     lower: lowerDuration,
     upper: null,
     type: 'duration' as 'duration',
-    label: lowerDuration,
   },
 }
 
@@ -31,20 +30,17 @@ const badObjFormats = {
     // no lower
     upper: null,
     type: 'custom' as 'custom',
-    label: 'Custom Time Range' as 'Custom Time Range',
   },
   ['3']: {
     // no upper
     lower: lowerDuration,
     type: 'custom' as 'custom',
-    label: 'Custom Time Range' as 'Custom Time Range',
   },
   ['5']: {
     // upper is not string or null
     upper: 5,
     lower: lowerDuration,
     type: 'custom' as 'custom',
-    label: 'Custom Time Range' as 'Custom Time Range',
   },
 }
 

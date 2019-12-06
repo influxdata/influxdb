@@ -1,5 +1,3 @@
-import {CUSTOM_TIME_RANGE_LABEL} from 'src/shared/constants/timeRanges'
-
 export {Query, Dialect} from 'src/client'
 
 export type SelectableTimeRangeLower =
@@ -31,13 +29,11 @@ export interface SelectableDurationTimeRange {
 export interface DurationTimeRange {
   lower: string
   upper: null
-  label: string
   type: 'duration'
 }
 
 export interface CustomTimeRange {
   lower: string
   upper: string
-  label: typeof CUSTOM_TIME_RANGE_LABEL | string
   type: 'custom'
 }

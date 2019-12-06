@@ -1,8 +1,4 @@
-import {
-  TimeRange,
-  SelectableDurationTimeRange,
-  DurationTimeRange,
-} from 'src/types'
+import {TimeRange, SelectableDurationTimeRange} from 'src/types'
 
 export const TIME_RANGE_FORMAT = 'YYYY-MM-DD HH:mm'
 
@@ -38,13 +34,6 @@ export const pastFifteenMinTimeRange: SelectableDurationTimeRange = {
 export const CUSTOM_TIME_RANGE: {label: string; type: 'custom'} = {
   label: 'Custom Time Range' as 'Custom Time Range',
   type: 'custom',
-}
-
-export const CHECK_TIME_RANGE: DurationTimeRange = {
-  lower: '', // format: `now() - ${durationMultiple}`
-  upper: null,
-  label: 'Custom Duration',
-  type: 'duration',
 }
 
 export const SELECTABLE_TIME_RANGES: SelectableDurationTimeRange[] = [

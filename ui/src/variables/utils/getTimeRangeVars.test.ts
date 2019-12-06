@@ -1,8 +1,7 @@
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {
-  pastHourTimeRange,
-  CUSTOM_TIME_RANGE,
-} from 'src/shared/constants/timeRanges'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
+
+const custom = 'custom' as 'custom'
 
 describe('getTimeRangeVars', () => {
   test('should handle relative lower dates', () => {
@@ -16,9 +15,9 @@ describe('getTimeRangeVars', () => {
     expect(init.argument.values).toEqual([{magnitude: 1, unit: 'h'}])
   })
 
-  test('should handle absolute lower dates', () => {
+  test('should handle custom lower dates', () => {
     const timeRange = {
-      ...CUSTOM_TIME_RANGE,
+      type: custom,
       lower: '2019-02-28T15:00:00Z',
       upper: '2019-03-28T15:00:00Z',
     }
@@ -31,7 +30,7 @@ describe('getTimeRangeVars', () => {
 
   test('should handle absolute upper dates', () => {
     const timeRange = {
-      ...CUSTOM_TIME_RANGE,
+      type: custom,
       lower: '2019-02-26T15:00:00Z',
       upper: '2019-02-27T15:00:00Z',
     }

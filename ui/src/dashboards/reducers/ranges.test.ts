@@ -5,10 +5,7 @@ import {
   deleteTimeRange,
 } from 'src/dashboards/actions/ranges'
 import {RangeState} from 'src/dashboards/reducers/ranges'
-import {
-  pastHourTimeRange,
-  CUSTOM_TIME_RANGE,
-} from 'src/shared/constants/timeRanges'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 
 const emptyState = {}
 const dashboardID = '1'
@@ -28,7 +25,7 @@ describe('Dashboards.Reducers.Ranges', () => {
       const state: RangeState = {[dashboardID]: pastHourTimeRange}
 
       const timeRange = {
-        ...CUSTOM_TIME_RANGE,
+        type: 'custom' as 'custom',
         upper: '2017-10-07 12:05',
         lower: '2017-10-05 12:04',
       }

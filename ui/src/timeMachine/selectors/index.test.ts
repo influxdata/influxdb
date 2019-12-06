@@ -6,8 +6,9 @@ import {
   pastThirtyDaysTimeRange,
   pastHourTimeRange,
   pastFifteenMinTimeRange,
-  CUSTOM_TIME_RANGE,
 } from 'src/shared/constants/timeRanges'
+
+const custom = 'custom' as 'custom'
 
 describe('TimeMachine.Selectors.Index', () => {
   const thirty = moment()
@@ -37,7 +38,7 @@ describe('TimeMachine.Selectors.Index', () => {
   const newYears = moment(date).valueOf()
   it(`getStartTime should return ${newYears} when lower is ${date}`, () => {
     const timeRange = {
-      ...CUSTOM_TIME_RANGE,
+      type: custom,
       lower: date,
       upper: date,
     }
@@ -46,7 +47,7 @@ describe('TimeMachine.Selectors.Index', () => {
 
   it(`getEndTime should return ${newYears} when lower is ${date}`, () => {
     const timeRange = {
-      ...CUSTOM_TIME_RANGE,
+      type: custom,
       lower: date,
       upper: date,
     }

@@ -1,15 +1,15 @@
 import {getCheckVisTimeRange} from 'src/alerting/utils/vis'
-import {CHECK_TIME_RANGE} from 'src/shared/constants/timeRanges'
 
+const duration = 'duration' as 'duration'
 const TESTS = [
-  ['5s', {...CHECK_TIME_RANGE, lower: 'now() - 1500s', label: 'now() - 1500s'}],
-  ['1m', {...CHECK_TIME_RANGE, lower: 'now() - 300m', label: 'now() - 300m'}],
+  ['5s', {type: duration, lower: 'now() - 1500s', upper: null}],
+  ['1m', {type: duration, lower: 'now() - 300m', upper: null}],
   [
     '1m5s',
     {
-      ...CHECK_TIME_RANGE,
+      type: duration,
       lower: 'now() - 300m1500s',
-      label: 'now() - 300m1500s',
+      upper: null,
     },
   ],
 ]

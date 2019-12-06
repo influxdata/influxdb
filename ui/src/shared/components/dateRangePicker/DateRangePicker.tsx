@@ -5,9 +5,6 @@ import React, {PureComponent, CSSProperties} from 'react'
 import DatePicker from 'src/shared/components/dateRangePicker/DatePicker'
 import {ClickOutside} from 'src/shared/components/ClickOutside'
 
-// Utils
-import {createTimeRangeLabel} from 'src/shared/utils/duration'
-
 // Types
 import {TimeRange} from 'src/types'
 import {Button, ComponentColor, ComponentSize} from '@influxdata/clockface'
@@ -104,9 +101,7 @@ class DateRangePicker extends PureComponent<Props, State> {
     const {onSetTimeRange} = this.props
     const {upper, lower} = this.state
 
-    const label = createTimeRangeLabel({lower, upper})
-
-    onSetTimeRange({lower, upper, type: 'custom', label})
+    onSetTimeRange({lower, upper, type: 'custom'})
   }
 
   private handleSelectLower = (lower: string): void => {

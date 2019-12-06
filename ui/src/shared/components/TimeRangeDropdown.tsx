@@ -12,7 +12,10 @@ import {
 import DateRangePicker from 'src/shared/components/dateRangePicker/DateRangePicker'
 
 // Utils
-import {convertTimeRangeToCustom} from 'src/shared/utils/duration'
+import {
+  convertTimeRangeToCustom,
+  getTimeRangeLabel,
+} from 'src/shared/utils/duration'
 
 // Constants
 import {
@@ -76,7 +79,7 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
             testID="timerange-dropdown"
             button={(active, onClick) => (
               <Dropdown.Button active={active} onClick={onClick}>
-                {timeRange.label}
+                {getTimeRangeLabel(timeRange)}
               </Dropdown.Button>
             )}
             menu={onCollapse => (
@@ -99,15 +102,15 @@ class TimeRangeDropdown extends PureComponent<Props, State> {
                 >
                   {CUSTOM_TIME_RANGE_LABEL}
                 </Dropdown.Item>
-                {SELECTABLE_TIME_RANGES.map(({label}) => {
+                {SELECTABLE_TIME_RANGES.map(({label, lower}) => {
                   const testID = label.toLowerCase().replace(/\s/g, '')
                   return (
                     <Dropdown.Item
                       key={label}
-                      value={label}
+                      value={lower}
                       id={label}
                       testID={`dropdown-item-${testID}`}
-                      selected={label === timeRange.label}
+                      selected={lower === timeRange.lower}
                       onClick={this.handleClickDropdownItem}
                     >
                       {label}

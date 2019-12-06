@@ -2,10 +2,7 @@ import {CustomTimeRange, TimeRange, DurationTimeRange} from 'src/types/queries'
 
 import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
 import {isDateParseable} from 'src/variables/utils/getTimeRangeVars'
-import {
-  isDurationParseable,
-  createTimeRangeLabel,
-} from 'src/shared/utils/duration'
+import {isDurationParseable} from 'src/shared/utils/duration'
 
 interface InputTimeRange {
   seconds?: number
@@ -44,12 +41,9 @@ export const validateAndTypeRange = (timeRange: {
 }): TimeRange => {
   const {lower, upper} = timeRange
   if (isDateParseable(lower) && isDateParseable(upper)) {
-    const label = createTimeRangeLabel({lower, upper})
-
     return {
       ...timeRange,
       type: 'custom',
-      label,
     } as CustomTimeRange
   }
 
@@ -66,7 +60,6 @@ export const validateAndTypeRange = (timeRange: {
       lower,
       upper: null,
       type: 'duration',
-      label: timeRange.lower,
     } as DurationTimeRange
   }
   return null

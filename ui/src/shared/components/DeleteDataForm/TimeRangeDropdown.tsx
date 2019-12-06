@@ -16,7 +16,7 @@ import {CustomTimeRange} from 'src/types'
 import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 import {
   convertTimeRangeToCustom,
-  createTimeRangeLabel,
+  getTimeRangeLabel,
 } from 'src/shared/utils/duration'
 
 interface Props {
@@ -31,10 +31,7 @@ const TimeRangeDropdown: FC<Props> = ({timeRange, onSetTimeRange}) => {
   let dropdownLabel = 'Select a Time Range'
 
   if (timeRange) {
-    dropdownLabel = createTimeRangeLabel({
-      lower: timeRange.lower,
-      upper: timeRange.upper,
-    })
+    dropdownLabel = getTimeRangeLabel(timeRange)
   }
 
   const handleApplyTimeRange = (timeRange: CustomTimeRange) => {

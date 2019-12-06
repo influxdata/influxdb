@@ -73,7 +73,6 @@ interface DispatchProps {
 export type Props = StateProps & DispatchProps & OwnProps
 
 const DeleteDataForm: FC<Props> = ({
-  bucketName,
   canDelete,
   deleteFilter,
   deletionStatus,
