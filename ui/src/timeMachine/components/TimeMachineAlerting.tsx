@@ -9,8 +9,10 @@ import {
   FlexDirection,
   JustifyContent,
 } from '@influxdata/clockface'
+import CustomizeCheckQuerySwitcher from 'src/timeMachine/components/CustomizeCheckQuerySwitcher'
 import HelpButton from 'src/alerting/components/builder/HelpButton'
 import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
+import {FeatureFlag} from 'src/shared/utils/featureFlag'
 
 const TimeMachineAlerting: FunctionComponent = () => {
   return (
@@ -23,6 +25,9 @@ const TimeMachineAlerting: FunctionComponent = () => {
             justifyContent={JustifyContent.FlexEnd}
             margin={ComponentSize.Small}
           >
+            <FeatureFlag name="customCheckQuery">
+              <CustomizeCheckQuerySwitcher />
+            </FeatureFlag>
             <RawDataToggle />
             <HelpButton />
           </FlexBox>
