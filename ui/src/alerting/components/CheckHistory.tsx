@@ -9,6 +9,7 @@ import {get} from 'lodash'
 import EventViewer from 'src/eventViewer/components/EventViewer'
 import EventTable from 'src/eventViewer/components/EventTable'
 import CheckHistoryControls from 'src/alerting/components/CheckHistoryControls'
+import CheckHistoryVisualization from 'src/alerting/components/CheckHistoryVisualization'
 import AlertHistoryQueryParams from 'src/alerting/components/AlertHistoryQueryParams'
 import CheckPlot from 'src/shared/components/CheckPlot'
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
@@ -26,6 +27,7 @@ import TimeSeries from 'src/shared/components/TimeSeries'
 import {createView} from 'src/shared/utils/view'
 import {checkResultsLength} from 'src/shared/utils/vis'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
+import { queries } from 'react-testing-library'
 
 interface ResourceIDs {
   checkIDs: {[x: string]: boolean}
@@ -65,8 +67,6 @@ const CheckHistory: FC<Props> = ({
   const loadRows = useMemo(() => options => loadStatuses(orgID, options), [
     orgID,
   ])
-  const [submitToken, setSubmitToken] = useState(0)
-  const [manualRefresh, setManualRefresh] = useState(0)
 
   const fields = STATUS_FIELDS
   return (
@@ -95,52 +95,9 @@ const CheckHistory: FC<Props> = ({
               scrollable={false}
               className="alert-history-page--contents"
             >
-              {/* {<CheckHistoryVisualization .../>} */}
-              <TimeSeries
-                submitToken={submitToken}
-                queries={[check.query]}
-                key={manualRefresh}
-                variables={getTimeRangeVars({lower: 'now() - 5m'})}
-                check={check}
-              >
-                {({
-                  giraffeResult,
-                  loading,
-                  errorMessage,
-                  isInitialFetch,
-                  statuses,
-                }) => {
-                  return (
-                    <EmptyQueryView
-                      errorFormat={ErrorFormat.Tooltip}
-                      errorMessage={errorMessage}
-                      hasResults={checkResultsLength(giraffeResult)}
-                      loading={loading}
-                      isInitialFetch={isInitialFetch}
-                      queries={[check.query]}
-                      fallbackNote={null}
-                    >
-                      <CheckPlot
-                        check={check}
-                        table={get(giraffeResult, 'table')}
-                        fluxGroupKeyUnion={get(
-                          giraffeResult,
-                          'fluxGroupKeyUnion'
-                        )}
-                        loading={loading}
-                        timeZone={timeZone}
-                        viewProperties={properties}
-                        statuses={statuses}
-                      >
-                        {config => <Plot config={config} />}
-                      </CheckPlot>
-                      {/* {<CheckHistoryStatuses .../>} */}
-                    </EmptyQueryView>
-                  )
-                }}
-              </TimeSeries>
+            <CheckHistoryVisualization check={check} timeZone={timeZone}} />
               <div className="alert-history">
-                <EventTable {...props} fields={fields} />
+                {/* <EventTable {...props} fields={fields} /> */}
               </div>
             </Page.Contents>
           </Page>
