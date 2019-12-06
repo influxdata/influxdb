@@ -7,8 +7,8 @@ import {Overlay} from '@influxdata/clockface'
 import {ErrorHandling} from 'src/shared/decorators/errors'
 
 interface Props {
-  children: any
-  footer?: any
+  children: string | React.ReactNode
+  footer?: string | React.ReactNode
   title: string
   maxWidth: number
   onDismiss: () => void

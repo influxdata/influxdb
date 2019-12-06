@@ -27,7 +27,7 @@ function groupPlugins(plugins, pluginFilter) {
     .map(k => {
       return {
         category: k,
-        items: (map[k] || []).filter(a => a.name.indexOf(pluginFilter) > -1),
+        items: (map[k] || []).filter(a => (a.name || '').indexOf(pluginFilter) > -1),
       }
     })
     .filter(k => k.items.length)
@@ -38,7 +38,7 @@ function groupPlugins(plugins, pluginFilter) {
       })
 
       const items = curr.items.slice(0).sort((a, b) => {
-        return a.name.localeCompare(b.name)
+        return (a.name || '').localeCompare(b.name || '')
       })
 
       prev.push(...items)

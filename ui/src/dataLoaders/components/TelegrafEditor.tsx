@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {PureComponent, createRef} from 'react'
 import {connect} from 'react-redux'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -8,22 +8,29 @@ import {Grid, Columns} from '@influxdata/clockface'
 import TelegrafEditorSidebar from 'src/dataLoaders/components/TelegrafEditorSidebar'
 import TelegrafEditorMonaco from 'src/dataLoaders/components/TelegrafEditorMonaco'
 
+import {
+  TelegrafEditorActivePlugin,
+  TelegrafEditorBasicPlugin,
+  TelegrafEditorBundlePlugin,
+} from 'src/dataLoaders/reducers/telegrafEditor'
+
 import './TelegrafEditor.scss'
 
 interface StateProps {
   [map: string]: any
 }
 
+type ListPlugin = TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
 interface OwnProps {
-  onJump: any
-  onAdd: any
+  onJump: (which: TelegrafEditorActivePlugin) => void
+  onAdd: (which: ListPlugin) => void
 }
 
 type Props = StateProps & OwnProps
 
 @ErrorHandling
 class TelegrafEditor extends PureComponent<Props> {
-  _editor = null
+  _editor = createRef()
 
   render() {
     return (
@@ -46,41 +53,38 @@ class TelegrafEditor extends PureComponent<Props> {
         </Grid.Row>
         <Grid.Row style={{height: 'calc(100% - 128px)'}}>
           <TelegrafEditorSidebar
-            onJump={this.handleJump.bind(this)}
-            onAdd={this.handleAdd.bind(this)}
+            onJump={this.handleJump}
+            onAdd={this.handleAdd}
           />
           <Grid.Column widthXS={Columns.Nine} style={{height: '100%'}}>
-            <TelegrafEditorMonaco ref={this.connect.bind(this)} />
+            <TelegrafEditorMonaco ref={this._editor} />
           </Grid.Column>
         </Grid.Row>
       </Grid>
     )
   }
 
-  private handleJump(which) {
+  private handleJump = (which) => {
     this._editor.getWrappedInstance().jump(which.line)
   }
 
-  private handleAdd(which) {
+  private handleAdd = (which) => {
     const editor = this._editor.getWrappedInstance()
     const line = editor.nextLine()
 
     if (which.type === 'bundle') {
-      which.include
-        .map(item => this.props.map[item].code)
+      (which.include || [])
+        .map(item => (this.props.map[item] || {}).code)
+        .filter(i => !!i)
         .reverse()
         .forEach(item => {
           editor.insert(item, line)
         })
     } else {
-      editor.insert(which.code, line)
+      editor.insert(which.code || '', line)
     }
 
     editor.jump(line)
-  }
-
-  private connect(elem) {
-    this._editor = elem
   }
 }
 
