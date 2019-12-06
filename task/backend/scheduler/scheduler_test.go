@@ -57,6 +57,116 @@ func (m *mockSchedulableService) UpdateLastScheduled(ctx context.Context, id ID,
 }
 
 func TestSchedule_Next(t *testing.T) {
+	t.Run("@every fires on appropriate boundaries", func(t *testing.T) {
+		t.Run("@every 1m", func(t *testing.T) {
+			mockTime := clock.NewMock()
+			mockTime.Set(time.Now())
+			c := make(chan time.Time, 100)
+			exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+				select {
+				case <-ctx.Done():
+					t.Log("ctx done")
+				case c <- scheduledAt:
+				}
+			}}
+			sch, _, err := NewScheduler(
+				exe,
+				&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
+					return nil
+				}},
+				WithTime(mockTime),
+				WithMaxConcurrentWorkers(20))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sch.Stop()
+			schedule, ts, err := NewSchedule("@every 1m", mockTime.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts})
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				sch.mu.Lock()
+				mockTime.Set(mockTime.Now().UTC().Add(17 * time.Minute))
+				sch.mu.Unlock()
+			}()
+
+			after := time.After(6 * time.Second)
+			oldCheckC := ts
+			for i := 0; i < 16; i++ {
+				select {
+				case checkC := <-c:
+					if checkC.Sub(oldCheckC) != time.Minute {
+						t.Fatalf("task didn't fire on correct interval fired on %s interval", checkC.Sub(oldCheckC))
+					}
+					if !checkC.Truncate(time.Minute).Equal(checkC) {
+						t.Fatalf("task didn't fire at the correct time boundary")
+					}
+					oldCheckC = checkC
+				case <-after:
+					t.Fatalf("test timed out, only fired %d times but should have fired 16 times", i)
+				}
+			}
+		})
+		t.Run("@every 1h", func(t *testing.T) {
+			c := make(chan time.Time, 100)
+			exe := &mockExecutor{fn: func(l *sync.Mutex, ctx context.Context, id ID, scheduledAt time.Time) {
+				select {
+				case <-ctx.Done():
+					t.Log("ctx done")
+				case c <- scheduledAt:
+				}
+			}}
+			mockTime := clock.NewMock()
+			mockTime.Set(time.Now())
+			sch, _, err := NewScheduler(
+				exe,
+				&mockSchedulableService{fn: func(ctx context.Context, id ID, t time.Time) error {
+					return nil
+				}},
+				WithTime(mockTime),
+				WithMaxConcurrentWorkers(20))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sch.Stop()
+			schedule, ts, err := NewSchedule("@every 1h", mockTime.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts})
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				sch.mu.Lock()
+				mockTime.Set(mockTime.Now().UTC().Add(17 * time.Hour))
+				sch.mu.Unlock()
+			}()
+
+			after := time.After(6 * time.Second)
+			oldCheckC := ts
+			for i := 0; i < 16; i++ {
+				select {
+				case checkC := <-c:
+					if checkC.Sub(oldCheckC) != time.Hour {
+						t.Fatalf("task didn't fire on correct interval fired on %s interval", checkC.Sub(oldCheckC))
+					}
+					if !checkC.Truncate(time.Hour).Equal(checkC) {
+						t.Fatalf("task didn't fire at the correct time boundary")
+					}
+					oldCheckC = checkC
+				case <-after:
+					t.Fatalf("test timed out, only fired %d times but should have fired 16 times", i)
+				}
+			}
+		})
+	})
 	t.Run("fires properly with non-mocked time", func(t *testing.T) {
 		now := time.Now()
 		c := make(chan time.Time, 100)
@@ -79,7 +189,7 @@ func TestSchedule_Next(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer sch.Stop()
-		schedule, err := NewSchedule("* * * * * * *")
+		schedule, _, err := NewSchedule("* * * * * * *", time.Time{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -119,7 +229,7 @@ func TestSchedule_Next(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer sch.Stop()
-		schedule, err := NewSchedule("* * * * * * *")
+		schedule, _, err := NewSchedule("* * * * * * *", time.Time{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -164,7 +274,7 @@ func TestSchedule_Next(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer sch.Stop()
-		schedule, err := NewSchedule("* * * * * * *")
+		schedule, _, err := NewSchedule("* * * * * * *", time.Time{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -242,7 +352,7 @@ func TestSchedule_Next(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer sch.Stop()
-		schedule, err := NewSchedule("* * * * * * *")
+		schedule, _, err := NewSchedule("* * * * * * *", time.Time{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -251,7 +361,8 @@ func TestSchedule_Next(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		schedule2, err := NewSchedule("*/2 * * * * * *")
+
+		schedule2, _, err := NewSchedule("*/2 * * * * * *", time.Time{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -345,7 +456,7 @@ func TestSchedule_panic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	schedule, err := NewSchedule("* * * * * * *")
+	schedule, _, err := NewSchedule("* * * * * * *", time.Time{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,23 +502,23 @@ func TestTreeScheduler_LongPanicTest(t *testing.T) {
 	defer sch.Stop()
 
 	// this tests for a race condition in the btree that isn't normally caught by the race detector
-	schedule, err := NewSchedule("* * * * * * *")
+	schedule, ts, err := NewSchedule("* * * * * * *", now.Add(-1*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
-	badSchedule, err := NewSchedule("0 0 1 12 *")
+	badSchedule, ts, err := NewSchedule("0 0 1 12 *", now.Add(-1*time.Second))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for i := ID(1); i <= 2000; i++ { // since a valid ID probably shouldn't be zero
 		if i%100 == 0 {
-			err = sch.Schedule(mockSchedulable{id: i, schedule: badSchedule, offset: 0, lastScheduled: now.Add(-1 * time.Second)})
+			err = sch.Schedule(mockSchedulable{id: i, schedule: badSchedule, offset: 0, lastScheduled: ts})
 			if err != nil {
 				t.Fatal(err)
 			}
 		} else {
-			err = sch.Schedule(mockSchedulable{id: i, schedule: schedule, offset: 0, lastScheduled: now.Add(-1 * time.Second)})
+			err = sch.Schedule(mockSchedulable{id: i, schedule: schedule, offset: 0, lastScheduled: ts})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -443,12 +554,12 @@ func TestTreeScheduler_Release(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sch.Stop()
-	schedule, err := NewSchedule("* * * * * * *")
+	schedule, ts, err := NewSchedule("* * * * * * *", mockTime.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: mockTime.Now().UTC()})
+	err = sch.Schedule(mockSchedulable{id: 1, schedule: schedule, offset: time.Second, lastScheduled: ts.UTC()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,7 +574,9 @@ func TestTreeScheduler_Release(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatalf("test timed out, it should have fired but didn't")
 	}
-	sch.Release(1)
+	if err := sch.Release(1); err != nil {
+		t.Error(err)
+	}
 
 	go func() {
 		sch.mu.Lock()
