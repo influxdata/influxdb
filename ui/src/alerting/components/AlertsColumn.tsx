@@ -56,7 +56,7 @@ const AlertsColumnHeader: FC<Props> = ({
       </div>
       <div className="alerting-index--column-body">
         <DapperScrollbars
-          autoSize={false}
+          autoSize={true}
           autoHide={true}
           style={{width: '100%', height: '100%'}}
         >
