@@ -840,6 +840,7 @@ func (m *Launcher) run(ctx context.Context) (err error) {
 			pkger.WithBucketSVC(authorizer.NewBucketService(b.BucketService)),
 			pkger.WithDashboardSVC(authorizer.NewDashboardService(b.DashboardService)),
 			pkger.WithLabelSVC(authorizer.NewLabelService(b.LabelService)),
+			pkger.WithTelegrafSVC(authorizer.NewTelegrafConfigService(b.TelegrafService, b.UserResourceMappingService)),
 			pkger.WithVariableSVC(authorizer.NewVariableService(b.VariableService)),
 		)
 	}
