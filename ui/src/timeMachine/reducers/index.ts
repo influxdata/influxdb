@@ -518,6 +518,7 @@ export const timeMachineReducer = (
 
       switch (state.view.properties.type) {
         case 'gauge':
+        case 'table':
         case 'single-stat':
         case 'scatter':
         case 'check':

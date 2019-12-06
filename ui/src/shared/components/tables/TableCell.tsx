@@ -137,6 +137,11 @@ class TableCell extends PureComponent<Props> {
     return this.isFirstRow && this.isFirstCol
   }
 
+  private get isTimestamp(): boolean {
+    const {data} = this.props
+    return new Date(data).getTime() > 0
+  }
+
   private get isNumerical(): boolean {
     return !isNaN(Number.parseFloat(this.props.data))
   }
@@ -165,13 +170,20 @@ class TableCell extends PureComponent<Props> {
     const {style, properties, data} = this.props
     const {colors} = properties
 
-    if (this.isFixed || this.isTimeData || this.isNumerical) {
+    if (
+      this.isFixed ||
+      this.isTimeData ||
+      this.isTimestamp
+      //  ||this.isNumerical
+    ) {
+      // TODO: figure out what the styling criteria should be
+      // should the background color be set?
+      // should the text for that row be set or just the value?
       return style
     }
 
     const thresholdData = {colors, lastValue: data, cellType: 'table'}
     const {bgColor, textColor} = generateThresholdsListHexs(thresholdData)
-
     return {
       ...style,
       backgroundColor: bgColor,
