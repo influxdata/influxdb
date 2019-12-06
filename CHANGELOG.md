@@ -3,6 +3,7 @@
 ### Features
 
 1. [15836](https://github.com/influxdata/influxdb/pull/16077): Add stacked line layer option to graphs
+1. [16094](https://github.com/influxdata/influxdb/pull/16094): Annotate log messages with trace ID, if available
 
 ### Bug Fixes
 
