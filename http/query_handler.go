@@ -105,7 +105,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 	defer span.Finish()
 
 	ctx := r.Context()
-	log := h.log.With(influxlogger.Trace(ctx)...)
+	log := h.log.With(influxlogger.TraceFields(ctx)...)
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403

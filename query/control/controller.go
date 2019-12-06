@@ -314,7 +314,7 @@ func (c *Controller) countQueryRequest(q *Query, result requestsLabel) {
 }
 
 func (c *Controller) compileQuery(q *Query, compiler flux.Compiler) (err error) {
-	log := c.log.With(influxlogger.Trace(q.parentCtx)...)
+	log := c.log.With(influxlogger.TraceFields(q.parentCtx)...)
 
 	defer func() {
 		if e := recover(); e != nil {
@@ -397,7 +397,7 @@ func (c *Controller) executeQuery(q *Query) {
 				err = fmt.Errorf("panic: %v", e)
 			}
 			q.setErr(err)
-			if entry := c.log.With(influxlogger.Trace(q.parentCtx)...).
+			if entry := c.log.With(influxlogger.TraceFields(q.parentCtx)...).
 				Check(zapcore.InfoLevel, "panic during program start"); entry != nil {
 				entry.Stack = string(debug.Stack())
 				entry.Write(zap.Error(err))
