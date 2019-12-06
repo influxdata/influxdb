@@ -40,6 +40,7 @@ type CoordinatorOption func(*TaskCoordinator)
 type SchedulableTask struct {
 	*influxdb.Task
 	sch scheduler.Schedule
+	lsc time.Time
 }
 
 func (t SchedulableTask) ID() scheduler.ID {
@@ -58,14 +59,7 @@ func (t SchedulableTask) Offset() time.Duration {
 
 // LastScheduled parses the task's LatestCompleted value as a Time object
 func (t SchedulableTask) LastScheduled() time.Time {
-	if !t.LatestScheduled.IsZero() {
-		return t.LatestScheduled
-	}
-	if !t.LatestCompleted.IsZero() {
-		return t.LatestCompleted
-	}
-
-	return t.CreatedAt
+	return t.lsc
 }
 
 func WithLimitOpt(i int) CoordinatorOption {
@@ -81,13 +75,20 @@ func NewSchedulableTask(task *influxdb.Task) (SchedulableTask, error) {
 		return SchedulableTask{}, errors.New("invalid cron or every")
 	}
 	effCron := task.EffectiveCron()
-	sch, err := scheduler.NewSchedule(effCron)
+	ts := task.CreatedAt
+	if !task.LatestScheduled.IsZero() {
+		ts = task.LatestScheduled
+	} else if !task.LatestCompleted.IsZero() {
+		ts = task.LatestCompleted
+	}
+	var sch scheduler.Schedule
+	var err error
+	sch, ts, err = scheduler.NewSchedule(effCron, ts)
 	if err != nil {
 		return SchedulableTask{}, err
 	}
 
-	t := SchedulableTask{Task: task, sch: sch}
-	return t, nil
+	return SchedulableTask{Task: task, sch: sch, lsc: ts}, nil
 }
 
 func NewCoordinator(log *zap.Logger, scheduler scheduler.Scheduler, executor Executor, opts ...CoordinatorOption) *TaskCoordinator {
