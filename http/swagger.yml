@@ -3208,6 +3208,11 @@ paths:
                     enum:
                     - gzip
                     - identity
+              Trace-Id:
+                description: The Trace-Id header reports the request's trace ID, if one was generated.
+                schema:
+                  type: string
+                  description: Specifies the request's trace ID.
             content:
               text/csv:
                 schema:
