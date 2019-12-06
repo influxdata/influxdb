@@ -1,5 +1,9 @@
 // Funcs
-import {isSystemBucket, getSortedBucketNames, SYSTEM} from './index'
+import {
+  isSystemBucket,
+  getSortedBucketNames,
+  SYSTEM,
+} from 'src/buckets/selectors/index'
 
 // Types
 import {Bucket} from 'src/types'

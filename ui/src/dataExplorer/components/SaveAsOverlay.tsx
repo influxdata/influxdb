@@ -5,7 +5,7 @@ import {withRouter, WithRouterProps} from 'react-router'
 import SaveAsCellForm from 'src/dataExplorer/components/SaveAsCellForm'
 import SaveAsTaskForm from 'src/dataExplorer/components/SaveAsTaskForm'
 import SaveAsVariable from 'src/dataExplorer/components/SaveAsVariable'
-import {Radio, Overlay} from '@influxdata/clockface'
+import {SelectGroup, Overlay} from '@influxdata/clockface'
 
 enum SaveAsOption {
   Dashboard = 'dashboard',
@@ -31,8 +31,9 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
           <Overlay.Header title="Save As" onDismiss={this.handleHideOverlay} />
           <Overlay.Body>
             <div className="save-as--options">
-              <Radio>
-                <Radio.Button
+              <SelectGroup>
+                <SelectGroup.Option
+                  name="save-as"
                   id="save-as-dashboard"
                   active={saveAsOption === SaveAsOption.Dashboard}
                   value={SaveAsOption.Dashboard}
@@ -41,8 +42,9 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   titleText="Save query as a dashboard cell"
                 >
                   Dashboard Cell
-                </Radio.Button>
-                <Radio.Button
+                </SelectGroup.Option>
+                <SelectGroup.Option
+                  name="save-as"
                   id="save-as-task"
                   active={saveAsOption === SaveAsOption.Task}
                   value={SaveAsOption.Task}
@@ -51,8 +53,9 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   titleText="Save query as a task"
                 >
                   Task
-                </Radio.Button>
-                <Radio.Button
+                </SelectGroup.Option>
+                <SelectGroup.Option
+                  name="save-as"
                   id="save-as-variable"
                   active={saveAsOption === SaveAsOption.Variable}
                   value={SaveAsOption.Variable}
@@ -61,8 +64,8 @@ class SaveAsOverlay extends PureComponent<WithRouterProps, State> {
                   titleText="Save query as a variable"
                 >
                   Variable
-                </Radio.Button>
-              </Radio>
+                </SelectGroup.Option>
+              </SelectGroup>
             </div>
             {this.saveAsForm}
           </Overlay.Body>

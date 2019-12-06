@@ -2,7 +2,7 @@
 import React, {SFC} from 'react'
 
 // Components
-import {Form, Radio, Grid} from '@influxdata/clockface'
+import {Form, SelectGroup, Grid} from '@influxdata/clockface'
 
 // Types
 import {ButtonShape} from '@influxdata/clockface'
@@ -15,8 +15,9 @@ interface Props {
 const TimeAxis: SFC<Props> = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
   <Grid.Column>
     <Form.Element label="Time Axis">
-      <Radio shape={ButtonShape.StretchToFit}>
-        <Radio.Button
+      <SelectGroup shape={ButtonShape.StretchToFit}>
+        <SelectGroup.Option
+          name="graph-time-axis"
           id="graph-time-axis--vertical"
           value={true}
           active={verticalTimeAxis}
@@ -24,8 +25,9 @@ const TimeAxis: SFC<Props> = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
           titleText="Position time on the vertical table axis"
         >
           Vertical
-        </Radio.Button>
-        <Radio.Button
+        </SelectGroup.Option>
+        <SelectGroup.Option
+          name="graph-time-axis"
           id="graph-time-axis--horizontal"
           value={false}
           active={!verticalTimeAxis}
@@ -33,8 +35,8 @@ const TimeAxis: SFC<Props> = ({verticalTimeAxis, onToggleVerticalTimeAxis}) => (
           titleText="Position time on the horizontal table axis"
         >
           Horizontal
-        </Radio.Button>
-      </Radio>
+        </SelectGroup.Option>
+      </SelectGroup>
     </Form.Element>
   </Grid.Column>
 )

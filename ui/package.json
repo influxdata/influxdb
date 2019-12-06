@@ -127,9 +127,9 @@
     "webpack-merge": "^4.2.1"
   },
   "dependencies": {
-    "@influxdata/clockface": "1.0.6",
+    "@influxdata/clockface": "1.1.0",
     "@influxdata/flux-parser": "^0.3.0",
-    "@influxdata/giraffe": "0.16.5",
+    "@influxdata/giraffe": "0.16.9",
     "@influxdata/influx": "0.5.5",
     "@influxdata/influxdb-templates": "0.9.0",
     "@influxdata/react-custom-scrollbars": "4.3.8",
@@ -147,6 +147,7 @@
     "history": "^3.2",
     "honeybadger-js": "^1.0.2",
     "immer": "^1.9.3",
+    "intersection-observer": "^0.7.0",
     "lodash": "^4.3.0",
     "memoize-one": "^4.0.2",
     "moment": "^2.13.0",

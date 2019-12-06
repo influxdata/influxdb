@@ -13,7 +13,7 @@ import {
   Popover,
   PopoverInteraction,
   PopoverPosition,
-  PopoverType,
+  Appearance,
 } from '@influxdata/clockface'
 
 interface Props {
@@ -47,7 +47,7 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
         showEvent={PopoverInteraction.None}
         hideEvent={PopoverInteraction.None}
         color={ComponentColor.Secondary}
-        type={PopoverType.Outline}
+        appearance={Appearance.Outline}
         contents={() => (
           <div className="query-checklist--popover">
             <p>{`To create a ${checkType} check, you must select:`}</p>

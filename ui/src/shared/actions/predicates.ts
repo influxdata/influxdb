@@ -2,9 +2,13 @@
 import {Dispatch} from 'redux-thunk'
 import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
 
-// API
+// Utils
 import {postDelete} from 'src/client'
 import {runQuery} from 'src/shared/apis/query'
+import {getWindowVars} from 'src/variables/utils/getWindowVars'
+import {buildVarsOption} from 'src/variables/utils/buildVarsOption'
+import {getVariableAssignments} from 'src/timeMachine/selectors'
+import {checkQueryResult} from 'src/shared/utils/checkQueryResult'
 
 // Actions
 import {notify} from 'src/shared/actions/notifications'
@@ -16,19 +20,22 @@ import {
   setFilterKeyFailed,
   setFilterValueFailed,
 } from 'src/shared/copy/notifications'
+import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Types
-import {RemoteDataState, Filter} from 'src/types'
+import {GetState, Filter, RemoteDataState} from 'src/types'
 
 export type Action =
   | DeleteFilter
   | ResetFilters
   | SetBucketName
   | SetDeletionStatus
+  | SetFiles
   | SetFilter
   | SetIsSerious
   | SetKeysByBucket
   | SetPredicateToDefault
+  | SetPreviewStatus
   | SetTimeRange
   | SetValuesByKey
 
@@ -80,6 +87,16 @@ export const setDeletionStatus = (
   payload: {deletionStatus: status},
 })
 
+interface SetFiles {
+  type: 'SET_FILES'
+  payload: {files: string[]}
+}
+
+export const setFiles = (files: string[]): SetFiles => ({
+  type: 'SET_FILES',
+  payload: {files},
+})
+
 interface SetFilter {
   type: 'SET_FILTER'
   payload: {
@@ -111,6 +128,18 @@ interface SetKeysByBucket {
 const setKeys = (keys: string[]): SetKeysByBucket => ({
   type: 'SET_KEYS_BY_BUCKET',
   payload: {keys},
+})
+
+interface SetPreviewStatus {
+  type: 'SET_PREVIEW_STATUS'
+  payload: {previewStatus: RemoteDataState}
+}
+
+export const setPreviewStatus = (
+  status: RemoteDataState
+): SetPreviewStatus => ({
+  type: 'SET_PREVIEW_STATUS',
+  payload: {previewStatus: status},
 })
 
 interface SetTimeRange {
@@ -153,6 +182,47 @@ export const deleteWithPredicate = params => async (
   }
 }
 
+export const executePreviewQuery = (query: string) => async (
+  dispatch,
+  getState: GetState
+) => {
+  dispatch(setPreviewStatus(RemoteDataState.Loading))
+  try {
+    const orgID = getState().orgs.org.id
+
+    const variableAssignments = getVariableAssignments(getState())
+    const windowVars = getWindowVars(query, variableAssignments)
+    const extern = buildVarsOption([...variableAssignments, ...windowVars])
+    const result = await runQuery(orgID, query, extern).promise
+
+    if (result.type === 'UNKNOWN_ERROR') {
+      throw new Error(result.message)
+    }
+
+    if (result.type === 'RATE_LIMIT_ERROR') {
+      dispatch(notify(rateLimitReached(result.retryAfter)))
+
+      throw new Error(result.message)
+    }
+
+    if (result.didTruncate) {
+      dispatch(notify(resultTooLarge(result.bytesRead)))
+    }
+
+    checkQueryResult(result.csv)
+
+    const files = [result.csv]
+    dispatch(setFiles(files))
+  } catch (e) {
+    if (e.name === 'CancellationError') {
+      return
+    }
+
+    console.error(e)
+    dispatch(setPreviewStatus(RemoteDataState.Error))
+  }
+}
+
 export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
   dispatch: Dispatch<Action>
 ) => {
@@ -161,6 +231,7 @@ export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
     v1.tagKeys(bucket: "${bucketName}")
     |> filter(fn: (r) => r._value != "_stop" and r._value != "_start")`
     const keys = await extractBoxedCol(runQuery(orgID, query), '_value').promise
+    keys.sort()
     dispatch(setBucketName(bucketName))
     dispatch(setKeys(keys))
   } catch {
@@ -178,6 +249,7 @@ export const setValuesByKey = (
     const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`
     const values = await extractBoxedCol(runQuery(orgID, query), '_value')
       .promise
+    values.sort()
     dispatch(setValues(values))
   } catch {
     dispatch(notify(setFilterValueFailed()))

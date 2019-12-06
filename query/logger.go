@@ -18,6 +18,11 @@ type Log struct {
 	Time time.Time
 	// OrganizationID is the ID of the organization that requested the query
 	OrganizationID platform.ID
+	// TraceID is the ID of the trace related to this query
+	TraceID string
+	// Sampled specifies whether the trace for TraceID was chosen for permanent storage
+	// by the sampling mechanism of the tracer
+	Sampled bool
 	// Error is any error encountered by the query
 	Error error
 

@@ -37,14 +37,9 @@ func TestReport(t *testing.T) {
 		return mfs, nil
 	})
 
-	pusher := NewPusher(gatherer)
-	pusher.URL = ts.URL
-
-	reporter := &Reporter{
-		Pusher:   pusher,
-		Logger:   logger,
-		Interval: 30 * time.Second,
-	}
+	reporter := NewReporter(logger, gatherer)
+	reporter.Pusher.URL = ts.URL
+	reporter.Interval = 30 * time.Second
 
 	var wg sync.WaitGroup
 	wg.Add(1)

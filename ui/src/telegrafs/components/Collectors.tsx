@@ -5,7 +5,17 @@ import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
-import {Button, EmptyState, Grid, Sort} from '@influxdata/clockface'
+import {
+  Button,
+  EmptyState,
+  Grid,
+  Sort,
+  Columns,
+  IconFont,
+  ComponentSize,
+  ComponentColor,
+  ComponentStatus,
+} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import SettingsTabbedPageHeader from 'src/settings/components/SettingsTabbedPageHeader'
 import CollectorList from 'src/telegrafs/components/CollectorList'
@@ -23,13 +33,6 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 
 // Types
 import {ITelegraf as Telegraf} from '@influxdata/influx'
-import {
-  Columns,
-  IconFont,
-  ComponentSize,
-  ComponentColor,
-  ComponentStatus,
-} from '@influxdata/clockface'
 import {OverlayState, AppState, Bucket} from 'src/types'
 import {
   setDataLoadersType,
@@ -86,10 +89,14 @@ class Collectors extends PureComponent<Props, State> {
     }
   }
 
+  public static defaultProps = {
+    collectors: [],
+  }
+
   public render() {
     const {collectors} = this.props
     const {searchTerm, sortKey, sortDirection, sortType} = this.state
-
+    const hasTelegrafs = collectors && collectors.length > 0
     return (
       <>
         <NoBucketsWarning
@@ -120,8 +127,8 @@ class Collectors extends PureComponent<Props, State> {
           <Grid.Row>
             <Grid.Column
               widthXS={Columns.Twelve}
-              widthSM={Columns.Eight}
-              widthMD={Columns.Ten}
+              widthSM={hasTelegrafs ? Columns.Eight : Columns.Twelve}
+              widthMD={hasTelegrafs ? Columns.Ten : Columns.Twelve}
             >
               <GetResources resources={[ResourceType.Labels]}>
                 <FilterList<Telegraf>
@@ -149,13 +156,15 @@ class Collectors extends PureComponent<Props, State> {
                 </FilterList>
               </GetResources>
             </Grid.Column>
-            <Grid.Column
-              widthXS={Columns.Twelve}
-              widthSM={Columns.Four}
-              widthMD={Columns.Two}
-            >
-              <TelegrafExplainer />
-            </Grid.Column>
+            {hasTelegrafs && (
+              <Grid.Column
+                widthXS={Columns.Twelve}
+                widthSM={Columns.Four}
+                widthMD={Columns.Two}
+              >
+                <TelegrafExplainer />
+              </Grid.Column>
+            )}
           </Grid.Row>
         </Grid>
       </>
@@ -239,6 +248,13 @@ class Collectors extends PureComponent<Props, State> {
             not create one?
           </EmptyState.Text>
           {this.createButton}
+          <br />
+          <br />
+          <TelegrafExplainer
+            hasNoTelegrafs={true}
+            textAlign="center"
+            bodySize={ComponentSize.Medium}
+          />
         </EmptyState>
       )
     }

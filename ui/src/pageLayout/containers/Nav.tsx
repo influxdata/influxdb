@@ -129,7 +129,11 @@ class SideNav extends PureComponent<Props, State> {
         />
         <NavMenu.Item
           titleLink={className => (
-            <Link className={className} to={dashboardsLink}>
+            <Link
+              className={className}
+              to={dashboardsLink}
+              data-testid="nav-menu_dashboard"
+            >
               Dashboards
             </Link>
           )}

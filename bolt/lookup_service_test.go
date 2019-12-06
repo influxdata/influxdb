@@ -232,7 +232,7 @@ func TestClient_Name(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, done, err := NewTestClient()
+			c, done, err := NewTestClient(t)
 			if err != nil {
 				t.Fatalf("unable to create bolt test client: %v", err)
 			}

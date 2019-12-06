@@ -14,16 +14,12 @@ import (
 )
 
 func TestRegistry_Logger(t *testing.T) {
-	reg := prom.NewRegistry()
+	core, logs := observer.New(zap.DebugLevel)
+	reg := prom.NewRegistry(zap.New(core))
 
 	// Normal use: HTTP handler is created immediately...
 	s := httptest.NewServer(reg.HTTPHandler())
 	defer s.Close()
-
-	// ... and then WithLogger is called.
-	core, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(core)
-	reg.WithLogger(logger)
 
 	// Force an error with a fake collector.
 	reg.MustRegister(errorCollector{})

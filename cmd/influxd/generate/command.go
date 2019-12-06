@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/pkg/data/gen"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var Command = &cobra.Command{
@@ -84,12 +85,12 @@ func assignOrgBucket(spec *gen.Spec) error {
 		return err
 	}
 
-	store := bolt.NewKVStore(boltFile)
+	store := bolt.NewKVStore(zap.NewNop(), boltFile)
 	if err = store.Open(context.Background()); err != nil {
 		return err
 	}
 
-	s := kv.NewService(store)
+	s := kv.NewService(zap.NewNop(), store)
 	if err = s.Initialize(context.Background()); err != nil {
 		return err
 	}

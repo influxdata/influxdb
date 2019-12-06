@@ -28,7 +28,7 @@ export default class SupportLinks extends PureComponent {
     return (
       <Panel>
         <Panel.Header>
-          <Panel.Title>Some Handy Guides and Tutorials</Panel.Title>
+          <h4>Some Handy Guides and Tutorials</h4>
         </Panel.Header>
         <Panel.Body>
           <ul className="link-list tutorials">

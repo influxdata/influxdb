@@ -52,7 +52,7 @@ type TemporaryEngine struct {
 
 	engine *storage.Engine
 
-	logger *zap.Logger
+	log *zap.Logger
 }
 
 // NewTemporaryEngine creates a new engine that places the storage engine files into
@@ -61,7 +61,7 @@ func NewTemporaryEngine(c storage.Config, options ...storage.Option) *TemporaryE
 	return &TemporaryEngine{
 		config:  c,
 		options: options,
-		logger:  zap.NewNop(),
+		log:     zap.NewNop(),
 	}
 }
 
@@ -81,7 +81,7 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 
 	t.path = path
 	t.engine = storage.NewEngine(path, t.config, t.options...)
-	t.engine.WithLogger(t.logger)
+	t.engine.WithLogger(t.log)
 
 	if err := t.engine.Open(ctx); err != nil {
 		_ = os.RemoveAll(path)
@@ -126,7 +126,7 @@ func (t *TemporaryEngine) DeleteBucket(ctx context.Context, orgID, bucketID infl
 
 // WithLogger sets the logger on the engine. It must be called before Open.
 func (t *TemporaryEngine) WithLogger(log *zap.Logger) {
-	t.logger = log.With(zap.String("service", "temporary_engine"))
+	t.log = log.With(zap.String("service", "temporary_engine"))
 }
 
 // PrometheusCollectors returns all the prometheus collectors associated with
@@ -158,10 +158,10 @@ func (t *TemporaryEngine) TagValues(ctx context.Context, orgID, bucketID influxd
 // Flush will remove the time-series files and re-open the engine.
 func (t *TemporaryEngine) Flush(ctx context.Context) {
 	if err := t.Close(); err != nil {
-		t.logger.Fatal("unable to close engine", zap.Error(err))
+		t.log.Fatal("unable to close engine", zap.Error(err))
 	}
 
 	if err := t.Open(ctx); err != nil {
-		t.logger.Fatal("unable to open engine", zap.Error(err))
+		t.log.Fatal("unable to open engine", zap.Error(err))
 	}
 }

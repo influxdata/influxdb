@@ -459,7 +459,7 @@ export const rateLimitReached = (secs?: number): Notification => {
 
 export const resourceLimitReached = (resourceName: string): Notification => ({
   ...defaultErrorNotification,
-  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to cloudbeta@influxdata.com.`,
+  message: `Oops. It looks like you have reached the maximum number of ${resourceName} allowed as part of your plan. If you would like to upgrade and remove this restriction, reach out to support@influxdata.com.`,
   duration: FIVE_SECONDS,
   type: 'resourceLimitReached',
 })
@@ -857,3 +857,12 @@ export const deleteEndpointFailed = (message: string): Notification => ({
   ...defaultErrorNotification,
   message: `Failed to delete endpoint: ${message}`,
 })
+
+export const invalidJSON = (message: string): Notification => {
+  return {
+    ...defaultErrorNotification,
+    message: message
+      ? `We couldn’t parse the JSON you entered because it failed with message:\n'${message}'`
+      : 'We couldn’t parse the JSON you entered because it isn’t valid. Please check the formatting and try again.',
+  }
+}

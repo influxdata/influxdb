@@ -139,6 +139,9 @@ export const initialState = (): TimeMachinesState => ({
 })
 
 const getTableProperties = (view, files) => {
+  if (!files || !files[0]) {
+    return {...view.properties, fieldOptions: []}
+  }
   const csv = files[0]
   let pointer = 0,
     ni
@@ -262,7 +265,6 @@ export const timeMachineReducer = (
 
     case 'SET_VIEW_TYPE': {
       const {type} = action.payload
-
       const view = convertView(state.view, state.queryResults.files, type)
 
       return {...state, view}
@@ -294,7 +296,11 @@ export const timeMachineReducer = (
         draftState.queryResults.errorMessage = errorMessage
 
         if (files) {
-          if (state.view.properties.type === 'table') {
+          if (
+            state.view &&
+            state.view.properties &&
+            state.view.properties.type === 'table'
+          ) {
             const properties = getTableProperties(state.view, files)
             draftState.view = {...state.view, properties}
           }
@@ -434,6 +440,12 @@ export const timeMachineReducer = (
     }
 
     case 'SET_HISTOGRAM_POSITION': {
+      const {position} = action.payload
+
+      return setViewProperties(state, {position})
+    }
+
+    case 'SET_LINE_POSITION': {
       const {position} = action.payload
 
       return setViewProperties(state, {position})
@@ -1093,7 +1105,10 @@ const initialQueryBuilderState = (
     bucketsStatus: RemoteDataState.NotStarted,
     functions: [],
     aggregateWindow: {period: 'auto'},
-    tags: initialStateHelper().queryBuilder.tags,
+    tags: builderConfig.tags.map(() => {
+      const [defaultTag] = initialStateHelper().queryBuilder.tags
+      return defaultTag
+    }),
   }
 }
 

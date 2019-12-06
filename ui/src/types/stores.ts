@@ -13,6 +13,10 @@ import {PredicatesState} from 'src/types'
 import {VariablesState, VariableEditorState} from 'src/variables/reducers'
 import {LabelsState} from 'src/labels/reducers'
 import {BucketsState} from 'src/buckets/reducers'
+import {
+  TelegrafEditorPluginState,
+  TelegrafEditorActivePluginState,
+} from 'src/dataLoaders/reducers/telegrafEditor'
 import {TelegrafsState} from 'src/telegrafs/reducers'
 import {TemplatesState} from 'src/templates/reducers'
 import {AuthorizationsState} from 'src/authorizations/reducers'
@@ -54,6 +58,8 @@ export interface AppState {
   rules: NotificationRulesState
   scrapers: ScrapersState
   tasks: TasksState
+  telegrafEditorPlugins: TelegrafEditorPluginState
+  telegrafEditorActivePlugins: TelegrafEditorActivePluginState
   telegrafs: TelegrafsState
   templates: TemplatesState
   timeMachines: TimeMachinesState

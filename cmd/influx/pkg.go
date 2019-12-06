@@ -46,13 +46,14 @@ type cmdPkgBuilder struct {
 	quiet           bool
 
 	applyOpts struct {
-		forceOnConflict bool
+		force string
 	}
 	exportOpts struct {
 		resourceType string
 		buckets      string
 		dashboards   string
 		labels       string
+		telegrafs    string
 		variables    string
 	}
 }
@@ -89,8 +90,8 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
-	cmd.Flags().BoolVar(&b.applyOpts.forceOnConflict, "force-on-conflict", true, "TTY input, if package will have destructive changes, proceed if set true.")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "true", "TTY input, if package will have destructive changes, proceed if set true.")
 
 	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
@@ -109,7 +110,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 
 		influxOrgID, err := influxdb.IDFromString(b.orgID)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 
 		svc, err := b.svcFn(flags.httpClientOpts())
@@ -131,7 +132,8 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			b.printPkgDiff(diff)
 		}
 
-		if !isTTY {
+		isForced, _ := strconv.ParseBool(b.applyOpts.force)
+		if !isTTY && !isForced && b.applyOpts.force != "conflict" {
 			ui := &input.UI{
 				Writer: os.Stdout,
 				Reader: os.Stdin,
@@ -144,7 +146,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			}
 		}
 
-		if !b.applyOpts.forceOnConflict && isTTY && diff.HasConflicts() {
+		if b.applyOpts.force != "conflict" && isTTY && diff.HasConflicts() {
 			return errors.New("package has conflicts with existing resources and cannot safely apply")
 		}
 
@@ -217,6 +219,7 @@ func (b *cmdPkgBuilder) cmdPkgExport() *cobra.Command {
 	cmd.Flags().StringVar(&b.exportOpts.buckets, "buckets", "", "List of bucket ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.dashboards, "dashboards", "", "List of dashboard ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.labels, "labels", "", "List of label ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.telegrafs, "telegraf-configs", "", "List of telegraf config ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.variables, "variables", "", "List of variable ids comma separated")
 
 	cmd.RunE = b.pkgExportRunEFn()
@@ -240,6 +243,7 @@ func (b *cmdPkgBuilder) pkgExportRunEFn() func(*cobra.Command, []string) error {
 			{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
 			{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
 			{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},
+			{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ",")},
 			{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
 		}
 		for _, rt := range resTypes {
@@ -496,6 +500,7 @@ func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
 			Token:              cliReqOpts.token,
 			InsecureSkipVerify: cliReqOpts.skipVerify,
 		}),
+		pkger.WithTelegrafSVC(ihttp.NewTelegrafService(cliReqOpts.addr, cliReqOpts.token, cliReqOpts.skipVerify)),
 		pkger.WithVariableSVC(&ihttp.VariableService{
 			Addr:               cliReqOpts.addr,
 			Token:              cliReqOpts.token,
@@ -634,6 +639,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
+		headers := []string{"New", "Name", "Description"}
+		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
+			t := teles[i]
+			return []string{
+				boolDiff(true),
+				t.Name,
+				green(t.Description),
+			}
+		})
+	}
+
 	if len(diff.LabelMappings) > 0 {
 		headers := []string{"New", "Resource Type", "Resource Name", "Resource ID", "Label Name", "Label ID"}
 		tablePrintFn("LABEL MAPPINGS", headers, len(diff.LabelMappings), func(i int) []string {
@@ -697,6 +714,18 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				v.Description,
 				args.Type,
 				printVarArgs(args),
+			}
+		})
+	}
+
+	if teles := sum.TelegrafConfigs; len(teles) > 0 {
+		headers := []string{"ID", "Name", "Description"}
+		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
+			t := teles[i]
+			return []string{
+				t.ID.String(),
+				t.Name,
+				t.Description,
 			}
 		})
 	}

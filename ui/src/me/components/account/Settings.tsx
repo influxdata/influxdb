@@ -34,7 +34,7 @@ export class Settings extends PureComponent<StateProps, State> {
           <Grid.Column widthXS={Columns.Six}>
             <Panel>
               <Panel.Header>
-                <Panel.Title>About Me</Panel.Title>
+                <h4>About Me</h4>
                 <Button text="Edit About Me" />
               </Panel.Header>
               <Panel.Body>

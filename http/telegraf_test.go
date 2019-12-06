@@ -10,16 +10,15 @@ import (
 	"strings"
 	"testing"
 
-	"go.uber.org/zap"
-
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/mock"
+	"go.uber.org/zap/zaptest"
 )
 
 // NewMockTelegrafBackend returns a TelegrafBackend with mock services.
-func NewMockTelegrafBackend() *TelegrafBackend {
+func NewMockTelegrafBackend(t *testing.T) *TelegrafBackend {
 	return &TelegrafBackend{
-		Logger: zap.NewNop().With(zap.String("handler", "telegraf")),
+		log: zaptest.NewLogger(t),
 
 		TelegrafService:            &mock.TelegrafConfigStore{},
 		UserResourceMappingService: mock.NewUserResourceMappingService(),
@@ -126,9 +125,9 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			telegrafBackend := NewMockTelegrafBackend()
+			telegrafBackend := NewMockTelegrafBackend(t)
 			telegrafBackend.TelegrafService = tt.svc
-			h := NewTelegrafHandler(telegrafBackend)
+			h := NewTelegrafHandler(zaptest.NewLogger(t), telegrafBackend)
 			h.ServeHTTP(w, tt.r)
 
 			res := w.Result()
@@ -769,9 +768,9 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.r.Header.Set("Accept", tt.acceptHeader)
 			w := httptest.NewRecorder()
-			telegrafBackend := NewMockTelegrafBackend()
+			telegrafBackend := NewMockTelegrafBackend(t)
 			telegrafBackend.TelegrafService = tt.svc
-			h := NewTelegrafHandler(telegrafBackend)
+			h := NewTelegrafHandler(zaptest.NewLogger(t), telegrafBackend)
 
 			h.ServeHTTP(w, tt.r)
 

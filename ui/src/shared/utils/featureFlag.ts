@@ -67,9 +67,31 @@ export const FeatureFlag: FunctionComponent<{
 const list = () => {
   console.log('Currently Available Feature Flags')
   if (CLOUD) {
-    console.table(CLOUD_FLAGS)
+    console.table(
+      Object.keys(CLOUD_FLAGS)
+        .map(k => [k, isFlagEnabled(k)])
+        .reduce((prev, curr) => {
+          if (typeof curr[0] === 'boolean') {
+            return prev
+          }
+
+          prev[curr[0]] = curr[1]
+          return prev
+        }, {})
+    )
   } else {
-    console.table(OSS_FLAGS)
+    console.table(
+      Object.keys(OSS_FLAGS)
+        .map(k => [k, isFlagEnabled(k)])
+        .reduce((prev, curr) => {
+          if (typeof curr[0] === 'boolean') {
+            return prev
+          }
+
+          prev[curr[0]] = curr[1]
+          return prev
+        }, {})
+    )
   }
 }
 /* eslint-enable no-console */
@@ -87,10 +109,10 @@ const reset = () => {
     })
   } else {
     Object.keys(featureFlags).forEach(k => {
-      if (!CLOUD_FLAGS.hasOwnProperty(k)) {
+      if (!OSS_FLAGS.hasOwnProperty(k)) {
         delete featureFlags[k]
       } else {
-        featureFlags[k] = CLOUD_FLAGS[k]
+        featureFlags[k] = OSS_FLAGS[k]
       }
     })
   }
@@ -121,4 +143,4 @@ export const toggleLocalStorageFlag = (flagName: string) => {
 // Expose utility in dev tools console for convenience
 const w: any = window
 
-w.influx = {toggleFeature: toggleLocalStorageFlag, list, reset}
+w.influx = {toggleFeature: toggleLocalStorageFlag, list, reset, set}

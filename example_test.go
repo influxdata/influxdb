@@ -7,10 +7,11 @@ import (
 
 	platform "github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/bolt"
+	"go.uber.org/zap"
 )
 
 func ExampleKeyValueLog() {
-	c := bolt.NewClient()
+	c := bolt.NewClient(zap.NewNop())
 	c.Path = "example.bolt"
 	ctx := context.Background()
 	if err := c.Open(ctx); err != nil {

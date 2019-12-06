@@ -27,9 +27,9 @@ type Executor interface {
 
 // TaskCoordinator (temporary name) is the intermediary between the scheduling/executing system and the rest of the task system
 type TaskCoordinator struct {
-	logger *zap.Logger
-	sch    scheduler.Scheduler
-	ex     Executor
+	log *zap.Logger
+	sch scheduler.Scheduler
+	ex  Executor
 
 	limit int
 }
@@ -90,12 +90,12 @@ func NewSchedulableTask(task *influxdb.Task) (SchedulableTask, error) {
 	return t, nil
 }
 
-func NewCoordinator(logger *zap.Logger, scheduler scheduler.Scheduler, executor Executor, opts ...CoordinatorOption) *TaskCoordinator {
+func NewCoordinator(log *zap.Logger, scheduler scheduler.Scheduler, executor Executor, opts ...CoordinatorOption) *TaskCoordinator {
 	c := &TaskCoordinator{
-		logger: logger,
-		sch:    scheduler,
-		ex:     executor,
-		limit:  DefaultLimit,
+		log:   log,
+		sch:   scheduler,
+		ex:    executor,
+		limit: DefaultLimit,
 	}
 
 	for _, opt := range opts {

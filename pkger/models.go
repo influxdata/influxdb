@@ -3,30 +3,40 @@ package pkger
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification/endpoint"
 )
 
 // Package kinds.
 const (
-	KindUnknown   Kind = ""
-	KindBucket    Kind = "bucket"
-	KindDashboard Kind = "dashboard"
-	KindLabel     Kind = "label"
-	KindPackage   Kind = "package"
-	KindVariable  Kind = "variable"
+	KindUnknown                       Kind = ""
+	KindBucket                        Kind = "bucket"
+	KindDashboard                     Kind = "dashboard"
+	KindLabel                         Kind = "label"
+	KindNotificationEndpointPagerDuty Kind = "notificationendpointpagerduty"
+	KindNotificationEndpointHTTP      Kind = "notificationendpointhttp"
+	KindNotificationEndpointSlack     Kind = "notificationendpointslack"
+	KindPackage                       Kind = "package"
+	KindTelegraf                      Kind = "telegraf"
+	KindVariable                      Kind = "variable"
 )
 
 var kinds = map[Kind]bool{
-	KindBucket:    true,
-	KindDashboard: true,
-	KindLabel:     true,
-	KindPackage:   true,
-	KindVariable:  true,
+	KindBucket:                        true,
+	KindDashboard:                     true,
+	KindLabel:                         true,
+	KindNotificationEndpointHTTP:      true,
+	KindNotificationEndpointPagerDuty: true,
+	KindNotificationEndpointSlack:     true,
+	KindPackage:                       true,
+	KindTelegraf:                      true,
+	KindVariable:                      true,
 }
 
 // Kind is a resource kind.
@@ -50,7 +60,7 @@ func (k Kind) String() string {
 
 // OK validates the kind is valid.
 func (k Kind) OK() error {
-	newKind := Kind(strings.ToLower(string(k)))
+	newKind := NewKind(string(k))
 	if newKind == KindUnknown {
 		return errors.New("invalid kind")
 	}
@@ -60,13 +70,40 @@ func (k Kind) OK() error {
 	return nil
 }
 
+// ResourceType converts a kind to a known resource type (if applicable).
+func (k Kind) ResourceType() influxdb.ResourceType {
+	switch k {
+	case KindBucket:
+		return influxdb.BucketsResourceType
+	case KindDashboard:
+		return influxdb.DashboardsResourceType
+	case KindLabel:
+		return influxdb.LabelsResourceType
+	case KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		return influxdb.NotificationEndpointResourceType
+	case KindTelegraf:
+		return influxdb.TelegrafsResourceType
+	case KindVariable:
+		return influxdb.VariablesResourceType
+	default:
+		return ""
+	}
+}
+
 func (k Kind) title() string {
 	return strings.Title(k.String())
 }
 
-func (k Kind) is(comp Kind) bool {
+func (k Kind) is(comps ...Kind) bool {
 	normed := Kind(strings.TrimSpace(strings.ToLower(string(k))))
-	return normed == comp
+	for _, c := range comps {
+		if c == normed {
+			return true
+		}
+	}
+	return false
 }
 
 // SafeID is an equivalent influxdb.ID that encodes safely with
@@ -100,6 +137,7 @@ type Diff struct {
 	Dashboards    []DiffDashboard    `json:"dashboards"`
 	Labels        []DiffLabel        `json:"labels"`
 	LabelMappings []DiffLabelMapping `json:"labelMappings"`
+	Telegrafs     []DiffTelegraf     `json:"telegrafConfigs"`
 	Variables     []DiffVariable     `json:"variables"`
 }
 
@@ -143,7 +181,7 @@ type DiffBucket struct {
 
 func newDiffBucket(b *bucket, i *influxdb.Bucket) DiffBucket {
 	diff := DiffBucket{
-		Name: b.Name,
+		Name: b.Name(),
 		New: DiffBucketValues{
 			Description:    b.Description,
 			RetentionRules: b.RetentionRules,
@@ -179,7 +217,7 @@ type DiffDashboard struct {
 
 func newDiffDashboard(d *dashboard) DiffDashboard {
 	diff := DiffDashboard{
-		Name: d.Name,
+		Name: d.Name(),
 		Desc: d.Description,
 	}
 
@@ -223,7 +261,7 @@ func (d DiffLabel) hasConflict() bool {
 
 func newDiffLabel(l *label, i *influxdb.Label) DiffLabel {
 	diff := DiffLabel{
-		Name: l.Name,
+		Name: l.Name(),
 		New: DiffLabelValues{
 			Color:       l.Color,
 			Description: l.Description,
@@ -253,6 +291,17 @@ type DiffLabelMapping struct {
 	LabelName string `json:"labelName"`
 }
 
+// DiffTelegraf is a diff of an individual telegraf.
+type DiffTelegraf struct {
+	influxdb.TelegrafConfig
+}
+
+func newDiffTelegraf(t *telegraf) DiffTelegraf {
+	return DiffTelegraf{
+		TelegrafConfig: t.config,
+	}
+}
+
 // DiffVariableValues are the varying values for a variable.
 type DiffVariableValues struct {
 	Description string                      `json:"description"`
@@ -269,7 +318,7 @@ type DiffVariable struct {
 
 func newDiffVariable(v *variable, iv *influxdb.Variable) DiffVariable {
 	diff := DiffVariable{
-		Name: v.Name,
+		Name: v.Name(),
 		New: DiffVariableValues{
 			Description: v.Description,
 			Args:        v.influxVarArgs(),
@@ -298,11 +347,13 @@ func (d DiffVariable) hasConflict() bool {
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets       []SummaryBucket       `json:"buckets"`
-	Dashboards    []SummaryDashboard    `json:"dashboards"`
-	Labels        []SummaryLabel        `json:"labels"`
-	LabelMappings []SummaryLabelMapping `json:"labelMappings"`
-	Variables     []SummaryVariable     `json:"variables"`
+	Buckets               []SummaryBucket               `json:"buckets"`
+	Dashboards            []SummaryDashboard            `json:"dashboards"`
+	NotificationEndpoints []SummaryNotificationEndpoint `json:"notificationEndpoints"`
+	Labels                []SummaryLabel                `json:"labels"`
+	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
+	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
+	Variables             []SummaryVariable             `json:"variables"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
@@ -366,6 +417,12 @@ type SummaryChart struct {
 	Width     int `json:"width"`
 }
 
+// SummaryNotificationEndpoint provides a summary of a pkg endpoint rule.
+type SummaryNotificationEndpoint struct {
+	influxdb.NotificationEndpoint
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
+}
+
 // SummaryLabel provides a summary of a pkg label.
 type SummaryLabel struct {
 	influxdb.Label
@@ -377,6 +434,12 @@ type SummaryLabelMapping struct {
 	ResourceName string `json:"resourceName"`
 	LabelName    string `json:"labelName"`
 	influxdb.LabelMapping
+}
+
+// SummaryTelegraf provides a summary of a pkg telegraf config.
+type SummaryTelegraf struct {
+	influxdb.TelegrafConfig
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
 }
 
 // SummaryVariable provides a summary of a pkg variable.
@@ -394,6 +457,7 @@ const (
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
 	fieldSuffix       = "suffix"
+	fieldStatus       = "status"
 	fieldType         = "type"
 	fieldValue        = "value"
 	fieldValues       = "values"
@@ -407,9 +471,9 @@ type bucket struct {
 	id             influxdb.ID
 	OrgID          influxdb.ID
 	Description    string
-	Name           string
+	name           string
 	RetentionRules retentionRules
-	labels         []*label
+	labels         sortedLabels
 
 	// existing provides context for a resource that already
 	// exists in the platform. If a resource already exists
@@ -424,8 +488,12 @@ func (b *bucket) ID() influxdb.ID {
 	return b.id
 }
 
+func (b *bucket) Name() string {
+	return b.name
+}
+
 func (b *bucket) ResourceType() influxdb.ResourceType {
-	return influxdb.BucketsResourceType
+	return KindBucket.ResourceType()
 }
 
 func (b *bucket) Exists() bool {
@@ -437,7 +505,7 @@ func (b *bucket) summarize() SummaryBucket {
 		Bucket: influxdb.Bucket{
 			ID:              b.ID(),
 			OrgID:           b.OrgID,
-			Name:            b.Name,
+			Name:            b.Name(),
 			Description:     b.Description,
 			RetentionPeriod: b.RetentionRules.RP(),
 		},
@@ -452,7 +520,7 @@ func (b *bucket) valid() []validationErr {
 func (b *bucket) shouldApply() bool {
 	return b.existing == nil ||
 		b.Description != b.existing.Description ||
-		b.Name != b.existing.Name ||
+		b.Name() != b.existing.Name ||
 		b.RetentionRules.RP() != b.existing.RetentionPeriod
 }
 
@@ -529,75 +597,47 @@ type assocMapVal struct {
 	v      interface{}
 }
 
-func (l assocMapVal) bucket() (*bucket, bool) {
-	if l.v == nil {
-		return nil, false
+func (l assocMapVal) ID() influxdb.ID {
+	if t, ok := l.v.(labelAssociater); ok {
+		return t.ID()
 	}
-	b, ok := l.v.(*bucket)
-	return b, ok
-}
-
-func (l assocMapVal) dashboard() (*dashboard, bool) {
-	if l.v == nil {
-		return nil, false
-	}
-	d, ok := l.v.(*dashboard)
-	return d, ok
-}
-
-func (l assocMapVal) variable() (*variable, bool) {
-	if l.v == nil {
-		return nil, false
-	}
-	v, ok := l.v.(*variable)
-	return v, ok
+	return 0
 }
 
 type associationMapping struct {
-	mappings map[assocMapKey]assocMapVal
+	mappings map[assocMapKey][]assocMapVal
 }
 
-func (l *associationMapping) setMapping(k assocMapKey, v assocMapVal) {
+func (l *associationMapping) setMapping(v interface {
+	ResourceType() influxdb.ResourceType
+	Name() string
+}, exists bool) {
 	if l == nil {
 		return
 	}
 	if l.mappings == nil {
-		l.mappings = make(map[assocMapKey]assocMapVal)
+		l.mappings = make(map[assocMapKey][]assocMapVal)
 	}
-	l.mappings[k] = v
-}
 
-func (l *associationMapping) setBucketMapping(b *bucket, exists bool) {
-	key := assocMapKey{
-		resType: b.ResourceType(),
-		name:    b.Name,
-	}
-	val := assocMapVal{
-		exists: exists,
-		v:      b,
-	}
-	l.setMapping(key, val)
-}
-
-func (l *associationMapping) setDashboardMapping(d *dashboard) {
-	key := assocMapKey{
-		resType: d.ResourceType(),
-		name:    d.Name,
-	}
-	val := assocMapVal{v: d}
-	l.setMapping(key, val)
-}
-
-func (l *associationMapping) setVariableMapping(v *variable, exists bool) {
-	key := assocMapKey{
+	k := assocMapKey{
 		resType: v.ResourceType(),
-		name:    v.Name,
+		name:    v.Name(),
 	}
 	val := assocMapVal{
 		exists: exists,
 		v:      v,
 	}
-	l.setMapping(key, val)
+	if existing, ok := l.mappings[k]; ok {
+		for i, ex := range existing {
+			if ex.v == v {
+				existing[i].exists = exists
+				return
+			}
+		}
+		l.mappings[k] = append(l.mappings[k], val)
+		return
+	}
+	l.mappings[k] = []assocMapVal{val}
 }
 
 const (
@@ -607,7 +647,7 @@ const (
 type label struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	Name        string
+	name        string
 	Color       string
 	Description string
 	associationMapping
@@ -618,11 +658,8 @@ type label struct {
 	existing *influxdb.Label
 }
 
-func (l *label) shouldApply() bool {
-	return l.existing == nil ||
-		l.Description != l.existing.Properties["description"] ||
-		l.Name != l.existing.Name ||
-		l.Color != l.existing.Properties["color"]
+func (l *label) Name() string {
+	return l.name
 }
 
 func (l *label) ID() influxdb.ID {
@@ -632,12 +669,19 @@ func (l *label) ID() influxdb.ID {
 	return l.id
 }
 
+func (l *label) shouldApply() bool {
+	return l.existing == nil ||
+		l.Description != l.existing.Properties["description"] ||
+		l.Name() != l.existing.Name ||
+		l.Color != l.existing.Properties["color"]
+}
+
 func (l *label) summarize() SummaryLabel {
 	return SummaryLabel{
 		Label: influxdb.Label{
 			ID:         l.ID(),
 			OrgID:      l.OrgID,
-			Name:       l.Name,
+			Name:       l.Name(),
 			Properties: l.properties(),
 		},
 	}
@@ -645,41 +689,22 @@ func (l *label) summarize() SummaryLabel {
 
 func (l *label) mappingSummary() []SummaryLabelMapping {
 	var mappings []SummaryLabelMapping
-	for res, lm := range l.mappings {
-		mappings = append(mappings, SummaryLabelMapping{
-			exists:       lm.exists,
-			ResourceName: res.name,
-			LabelName:    l.Name,
-			LabelMapping: influxdb.LabelMapping{
-				LabelID:      l.ID(),
-				ResourceID:   l.getMappedResourceID(res),
-				ResourceType: res.resType,
-			},
-		})
+	for resource, vals := range l.mappings {
+		for _, v := range vals {
+			mappings = append(mappings, SummaryLabelMapping{
+				exists:       v.exists,
+				ResourceName: resource.name,
+				LabelName:    l.Name(),
+				LabelMapping: influxdb.LabelMapping{
+					LabelID:      l.ID(),
+					ResourceID:   v.ID(),
+					ResourceType: resource.resType,
+				},
+			})
+		}
 	}
 
 	return mappings
-}
-
-func (l *label) getMappedResourceID(k assocMapKey) influxdb.ID {
-	switch k.resType {
-	case influxdb.BucketsResourceType:
-		b, ok := l.mappings[k].bucket()
-		if ok {
-			return b.ID()
-		}
-	case influxdb.DashboardsResourceType:
-		d, ok := l.mappings[k].dashboard()
-		if ok {
-			return d.ID()
-		}
-	case influxdb.VariablesResourceType:
-		v, ok := l.mappings[k].variable()
-		if ok {
-			return v.ID()
-		}
-	}
-	return 0
 }
 
 func (l *label) properties() map[string]string {
@@ -695,11 +720,208 @@ func toInfluxLabels(labels ...*label) []influxdb.Label {
 		iLabels = append(iLabels, influxdb.Label{
 			ID:         l.ID(),
 			OrgID:      l.OrgID,
-			Name:       l.Name,
+			Name:       l.Name(),
 			Properties: l.properties(),
 		})
 	}
 	return iLabels
+}
+
+type sortedLabels []*label
+
+func (s sortedLabels) Len() int {
+	return len(s)
+}
+
+func (s sortedLabels) Less(i, j int) bool {
+	return s[i].name < s[j].name
+}
+
+func (s sortedLabels) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+type notificationKind int
+
+const (
+	notificationKindHTTP notificationKind = iota + 1
+	notificationKindPagerDuty
+	notificationKindSlack
+)
+
+const (
+	notificationHTTPAuthTypeBasic  = "basic"
+	notificationHTTPAuthTypeBearer = "bearer"
+	notificationHTTPAuthTypeNone   = "none"
+)
+
+const (
+	fieldNotificationEndpointPassword   = "password"
+	fieldNotificationEndpointRoutingKey = "routingKey"
+	fieldNotificationEndpointToken      = "token"
+	fieldNotificationEndpointURL        = "url"
+	fieldNotificationEndpointUsername   = "username"
+)
+
+type notificationEndpoint struct {
+	kind        notificationKind
+	name        string
+	description string
+	password    string
+	routingKey  string
+	status      string
+	token       string
+	httpType    string
+	url         string
+	username    string
+
+	labels sortedLabels
+}
+
+func (n *notificationEndpoint) Name() string {
+	return n.name
+}
+
+func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
+	return KindNotificationEndpointSlack.ResourceType()
+}
+
+func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
+	base := endpoint.Base{
+		Name:        n.Name(),
+		Description: n.description,
+		Status:      influxdb.TaskStatusActive,
+	}
+	if n.status != "" {
+		base.Status = influxdb.Status(n.status)
+	}
+	sum := SummaryNotificationEndpoint{
+		LabelAssociations: toInfluxLabels(n.labels...),
+	}
+	switch n.kind {
+	case notificationKindHTTP:
+		e := &endpoint.HTTP{
+			Base:   base,
+			URL:    n.url,
+			Method: "POST",
+		}
+		switch {
+		case n.password == "" && n.username == "" && n.token == "":
+			e.AuthMethod = notificationHTTPAuthTypeNone
+		case n.token != "":
+			e.AuthMethod = notificationHTTPAuthTypeBearer
+		default:
+			e.AuthMethod = notificationHTTPAuthTypeBasic
+		}
+		sum.NotificationEndpoint = e
+	case notificationKindPagerDuty:
+		sum.NotificationEndpoint = &endpoint.PagerDuty{
+			Base:      base,
+			ClientURL: n.url,
+		}
+	case notificationKindSlack:
+		sum.NotificationEndpoint = &endpoint.Slack{
+			Base: base,
+			URL:  n.url,
+		}
+	}
+	return sum
+}
+
+func (n *notificationEndpoint) valid() []validationErr {
+	var failures []validationErr
+	if _, err := url.Parse(n.url); err != nil || n.url == "" {
+		failures = append(failures, validationErr{
+			Field: fieldNotificationEndpointURL,
+			Msg:   "must be valid url",
+		})
+	}
+
+	if n.status != "" && influxdb.TaskStatusInactive != n.status && influxdb.TaskStatusActive != n.status {
+		failures = append(failures, validationErr{
+			Field: fieldStatus,
+			Msg:   "not a valid status; valid statues are one of [active, inactive]",
+		})
+	}
+
+	switch n.kind {
+	case notificationKindPagerDuty:
+		if n.routingKey == "" {
+			failures = append(failures, validationErr{
+				Field: fieldNotificationEndpointRoutingKey,
+				Msg:   "must provide non empty string",
+			})
+		}
+	case notificationKindHTTP:
+		switch n.httpType {
+		case notificationHTTPAuthTypeBasic:
+			if n.password == "" {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointPassword,
+					Msg:   "must provide non empty string",
+				})
+			}
+			if n.username == "" {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointUsername,
+					Msg:   "must provide non empty string",
+				})
+			}
+		case notificationHTTPAuthTypeBearer:
+			if n.token == "" {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointToken,
+					Msg:   "must provide non empty string",
+				})
+			}
+		case notificationHTTPAuthTypeNone:
+		default:
+			failures = append(failures, validationErr{
+				Field: fieldType,
+				Msg: fmt.Sprintf(
+					"invalid type provided %q; valid type is 1 in [%s, %s, %s]",
+					n.httpType,
+					notificationHTTPAuthTypeBasic,
+					notificationHTTPAuthTypeBearer,
+					notificationHTTPAuthTypeNone,
+				),
+			})
+		}
+	}
+	return failures
+}
+
+const (
+	fieldTelegrafConfig = "config"
+)
+
+type telegraf struct {
+	config influxdb.TelegrafConfig
+
+	labels sortedLabels
+}
+
+func (t *telegraf) ID() influxdb.ID {
+	return t.config.ID
+}
+
+func (t *telegraf) Name() string {
+	return t.config.Name
+}
+
+func (t *telegraf) ResourceType() influxdb.ResourceType {
+	return KindTelegraf.ResourceType()
+}
+
+func (t *telegraf) Exists() bool {
+	return false
+}
+
+func (t *telegraf) summarize() SummaryTelegraf {
+	return SummaryTelegraf{
+		TelegrafConfig:    t.config,
+		LabelAssociations: toInfluxLabels(t.labels...),
+	}
 }
 
 const (
@@ -711,7 +933,7 @@ const (
 type variable struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	Name        string
+	name        string
 	Description string
 	Type        string
 	Query       string
@@ -719,7 +941,7 @@ type variable struct {
 	ConstValues []string
 	MapValues   map[string]string
 
-	labels []*label
+	labels sortedLabels
 
 	existing *influxdb.Variable
 }
@@ -735,8 +957,12 @@ func (v *variable) Exists() bool {
 	return v.existing != nil
 }
 
+func (v *variable) Name() string {
+	return v.name
+}
+
 func (v *variable) ResourceType() influxdb.ResourceType {
-	return influxdb.VariablesResourceType
+	return KindVariable.ResourceType()
 }
 
 func (v *variable) shouldApply() bool {
@@ -751,7 +977,7 @@ func (v *variable) summarize() SummaryVariable {
 		Variable: influxdb.Variable{
 			ID:             v.ID(),
 			OrganizationID: v.OrgID,
-			Name:           v.Name,
+			Name:           v.Name(),
 			Description:    v.Description,
 			Arguments:      v.influxVarArgs(),
 		},
@@ -818,19 +1044,23 @@ const (
 type dashboard struct {
 	id          influxdb.ID
 	OrgID       influxdb.ID
-	Name        string
+	name        string
 	Description string
 	Charts      []chart
 
-	labels []*label
+	labels sortedLabels
 }
 
 func (d *dashboard) ID() influxdb.ID {
 	return d.id
 }
 
+func (d *dashboard) Name() string {
+	return d.name
+}
+
 func (d *dashboard) ResourceType() influxdb.ResourceType {
-	return influxdb.DashboardsResourceType
+	return KindDashboard.ResourceType()
 }
 
 func (d *dashboard) Exists() bool {
@@ -841,7 +1071,7 @@ func (d *dashboard) summarize() SummaryDashboard {
 	iDash := SummaryDashboard{
 		ID:                SafeID(d.ID()),
 		OrgID:             SafeID(d.OrgID),
-		Name:              d.Name,
+		Name:              d.Name(),
 		Description:       d.Description,
 		LabelAssociations: toInfluxLabels(d.labels...),
 	}
@@ -900,6 +1130,7 @@ type chart struct {
 	BinSize         int
 	BinCount        int
 	Position        string
+	TimeFormat      string
 }
 
 func (c chart) properties() influxdb.ViewProperties {
@@ -936,6 +1167,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindHistogram:
 		return influxdb.HistogramViewProperties{
@@ -973,6 +1205,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
@@ -1006,6 +1239,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Queries:           c.Queries.influxDashQueries(),
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
+			Position:          c.Position,
 		}
 	case chartKindXY:
 		return influxdb.XYViewProperties{
@@ -1020,6 +1254,8 @@ func (c chart) properties() influxdb.ViewProperties {
 			ViewColors:        c.Colors.influxViewColors(),
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
+			Position:          c.Position,
+			TimeFormat:        c.TimeFormat,
 		}
 	default:
 		return nil
@@ -1058,12 +1294,25 @@ func (c chart) validProperties() []validationErr {
 	case chartKindSingleStatPlusLine:
 		fails = append(fails, c.Colors.hasTypes(colorTypeText)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
 	case chartKindXY:
 		fails = append(fails, validGeometry(c.Geom)...)
 		fails = append(fails, c.Axes.hasAxes("x", "y")...)
+		fails = append(fails, validPosition(c.Position)...)
 	}
 
 	return fails
+}
+
+func validPosition(pos string) []validationErr {
+	pos = strings.ToLower(pos)
+	if pos != "" && pos != "overlaid" && pos != "stacked" {
+		return []validationErr{{
+			Field: fieldChartPosition,
+			Msg:   fmt.Sprintf("invalid position supplied %q; valid positions is one of [overlaid, stacked]", pos),
+		}}
+	}
+	return nil
 }
 
 var geometryTypes = map[string]bool{

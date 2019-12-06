@@ -110,7 +110,7 @@ describe('Buckets', () => {
   })
 
   // skipping until feature flag feature is removed for deleteWithPredicate
-  describe.skip('should alphabetize buckets in dropdown', () => {
+  describe.skip('should default the bucket to the selected bucket', () => {
     beforeEach(() => {
       cy.get<Organization>('@org').then(({id, name}) => {
         cy.createBucket(id, name, 'Funky Town').then(() => {
@@ -119,6 +119,24 @@ describe('Buckets', () => {
           })
         })
       })
+    })
+
+    it('should set the default bucket in the dropdown to the selected bucket', () => {
+      cy.getByTestID('bucket-delete-task')
+        .first()
+        .click()
+        .then(() => {
+          cy.getByTestID('dropdown--button').contains('ABC')
+          cy.get('.cf-overlay--dismiss').click()
+        })
+        .then(() => {
+          cy.getByTestID('bucket-delete-task')
+            .last()
+            .click()
+            .then(() => {
+              cy.getByTestID('dropdown--button').contains('Jimmy Mack')
+            })
+        })
     })
 
     it('alphabetizes buckets', () => {

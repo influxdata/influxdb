@@ -337,6 +337,10 @@ func (tl *TestLauncher) LabelService() *http.LabelService {
 	return &http.LabelService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
+func (tl *TestLauncher) TelegrafService() *http.TelegrafService {
+	return http.NewTelegrafService(tl.URL(), tl.Auth.Token, false)
+}
+
 func (tl *TestLauncher) VariableService() *http.VariableService {
 	return &http.VariableService{Addr: tl.URL(), Token: tl.Auth.Token}
 }

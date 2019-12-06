@@ -45,6 +45,14 @@ func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.C
 
 // FindNotificationEndpoints retrieves all notification endpoints that match the provided filter and then filters the list down to only the resources that are authorized.
 func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+	// TODO: This is a temporary fix as to not fetch the entire collection when no filter is provided.
+	if !filter.UserID.Valid() && filter.OrgID == nil {
+		return nil, 0, &influxdb.Error{
+			Code: influxdb.EUnauthorized,
+			Msg:  "cannot process a request without a org or user filter",
+		}
+	}
+
 	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
 	// will likely be expensive.
 	edps, _, err := s.s.FindNotificationEndpoints(ctx, filter, opt...)

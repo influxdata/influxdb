@@ -321,7 +321,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(collection *SeriesCollecti
 			duration, err := compactor.Compact(p)
 			if err != nil {
 				p.tracker.IncCompactionErr()
-				log.Error("series partition compaction failed", zap.Error(err))
+				log.Error("Series partition compaction failed", zap.Error(err))
 			} else {
 				p.tracker.IncCompactionOK(duration)
 			}

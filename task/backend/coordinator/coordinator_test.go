@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/task/backend/scheduler"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 var (
@@ -184,7 +184,7 @@ func Test_Coordinator(t *testing.T) {
 					updateErr:  test.updateErr,
 					releaseErr: test.releaseErr,
 				}
-				coord = New(zap.NewNop(), scheduler)
+				coord = New(zaptest.NewLogger(t), scheduler)
 			)
 
 			test.call(t, coord)

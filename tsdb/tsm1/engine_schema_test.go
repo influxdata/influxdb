@@ -15,7 +15,7 @@ import (
 )
 
 func TestEngine_CancelContext(t *testing.T) {
-	e, err := NewEngine(tsm1.NewConfig())
+	e, err := NewEngine(tsm1.NewConfig(), t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ memB,host=EB,os=macOS value=1.3 201`)
 }
 
 func TestEngine_TagValues(t *testing.T) {
-	e, err := NewEngine(tsm1.NewConfig())
+	e, err := NewEngine(tsm1.NewConfig(), t)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +390,7 @@ memB,host=EB,os=macOS value=1.3 201`)
 }
 
 func TestEngine_TagKeys(t *testing.T) {
-	e, err := NewEngine(tsm1.NewConfig())
+	e, err := NewEngine(tsm1.NewConfig(), t)
 	if err != nil {
 		t.Fatal(err)
 	}

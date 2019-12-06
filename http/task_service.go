@@ -26,7 +26,7 @@ import (
 // the TaskHandler.
 type TaskBackend struct {
 	influxdb.HTTPErrorHandler
-	Logger *zap.Logger
+	log *zap.Logger
 
 	TaskService                influxdb.TaskService
 	AuthorizationService       influxdb.AuthorizationService
@@ -38,10 +38,10 @@ type TaskBackend struct {
 }
 
 // NewTaskBackend returns a new instance of TaskBackend.
-func NewTaskBackend(b *APIBackend) *TaskBackend {
+func NewTaskBackend(log *zap.Logger, b *APIBackend) *TaskBackend {
 	return &TaskBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "task")),
+		log:                        log,
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
 		OrganizationService:        b.OrganizationService,
@@ -56,7 +56,7 @@ func NewTaskBackend(b *APIBackend) *TaskBackend {
 type TaskHandler struct {
 	*httprouter.Router
 	influxdb.HTTPErrorHandler
-	logger *zap.Logger
+	log *zap.Logger
 
 	TaskService                influxdb.TaskService
 	AuthorizationService       influxdb.AuthorizationService
@@ -84,11 +84,11 @@ const (
 )
 
 // NewTaskHandler returns a new instance of TaskHandler.
-func NewTaskHandler(b *TaskBackend) *TaskHandler {
+func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 	h := &TaskHandler{
 		Router:           NewRouter(b.HTTPErrorHandler),
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		logger:           b.Logger,
+		log:              log,
 
 		TaskService:                b.TaskService,
 		AuthorizationService:       b.AuthorizationService,
@@ -111,7 +111,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.TasksResourceType,
 		UserType:                   influxdb.Member,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -123,7 +123,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 
 	ownerBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
-		Logger:                     b.Logger.With(zap.String("handler", "member")),
+		log:                        b.log.With(zap.String("handler", "member")),
 		ResourceType:               influxdb.TasksResourceType,
 		UserType:                   influxdb.Owner,
 		UserResourceMappingService: b.UserResourceMappingService,
@@ -141,7 +141,7 @@ func NewTaskHandler(b *TaskBackend) *TaskHandler {
 
 	labelBackend := &LabelBackend{
 		HTTPErrorHandler: b.HTTPErrorHandler,
-		Logger:           b.Logger.With(zap.String("handler", "label")),
+		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
 		ResourceType:     influxdb.TasksResourceType,
 	}
@@ -440,9 +440,9 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
+	h.log.Debug("Tasks retrived", zap.String("tasks", fmt.Sprint(tasks)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTasksResponse(ctx, tasks, req.filter, h.LabelService)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -511,6 +511,12 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 		req.filter.Limit = influxdb.TaskDefaultPageSize
 	}
 
+	if status := qp.Get("status"); status == "active" {
+		req.filter.Status = &status
+	} else if status := qp.Get("status"); status == "inactive" {
+		req.filter.Status = &status
+	}
+
 	// the task api can only create or lookup system tasks.
 	req.filter.Type = &influxdb.TaskSystemType
 
@@ -560,7 +566,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	task, err := h.TaskService.CreateTask(ctx, req.TaskCreate)
 	if err != nil {
 		if e, ok := err.(AuthzError); ok {
-			h.logger.Error("failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
+			h.log.Error("Failed authentication", zap.Errors("error messages", []error{err, e.AuthzError()}))
 		}
 
 		// if the error is not already a influxdb.error then make it into one
@@ -577,7 +583,7 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusCreated, newTaskResponse(*task, []*influxdb.Label{})); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -644,9 +650,9 @@ func (h *TaskHandler) handleGetTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("task retrived", zap.String("tasks", fmt.Sprint(task)))
+	h.log.Debug("Task retrieved", zap.String("tasks", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -711,9 +717,9 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("tasks updated", zap.String("task", fmt.Sprint(task)))
+	h.log.Debug("Tasks updated", zap.String("task", fmt.Sprint(task)))
 	if err := encodeResponse(ctx, w, http.StatusOK, newTaskResponse(*task, labels)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -777,7 +783,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.logger.Debug("tasks deleted", zap.String("taskID", fmt.Sprint(req.TaskID)))
+	h.log.Debug("Tasks deleted", zap.String("taskID", fmt.Sprint(req.TaskID)))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -856,7 +862,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, &getLogsResponse{Events: logs}); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -948,7 +954,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunsResponse(runs, req.filter.Task)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -1051,7 +1057,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusCreated, newRunResponse(*run)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -1151,7 +1157,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -1307,7 +1313,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := encodeResponse(ctx, w, http.StatusOK, newRunResponse(*run)); err != nil {
-		logEncodingError(h.logger, r, err)
+		logEncodingError(h.log, r, err)
 		return
 	}
 }
@@ -1472,6 +1478,10 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 	}
 	if filter.Limit != 0 {
 		val.Add("limit", strconv.Itoa(filter.Limit))
+	}
+
+	if filter.Status != nil {
+		val.Add("status", *filter.Status)
 	}
 
 	if filter.Type != nil {

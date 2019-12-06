@@ -2,46 +2,53 @@
 import React, {FunctionComponent} from 'react'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import {Overlay} from '@influxdata/clockface'
-import {get} from 'lodash'
+import {Overlay, SpinnerContainer, TechnoSpinner} from '@influxdata/clockface'
 
 // Components
 import DeleteDataForm from 'src/shared/components/DeleteDataForm/DeleteDataForm'
 
 // Types
-import {Bucket, AppState} from 'src/types'
+import {Bucket, AppState, RemoteDataState} from 'src/types'
 
-// Utils
-import {getActiveQuery} from 'src/timeMachine/selectors'
+// Actions
+import {resetPredicateState} from 'src/shared/actions/predicates'
 
 interface StateProps {
   buckets: Bucket[]
-  selectedBucketName?: string
 }
 
-const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
+interface DispatchProps {
+  resetPredicateStateAction: () => void
+}
+
+type Props = WithRouterProps & DispatchProps & StateProps
+
+const DeleteDataOverlay: FunctionComponent<Props> = ({
   buckets,
   router,
   params: {orgID, bucketID},
-  selectedBucketName,
+  resetPredicateStateAction,
 }) => {
-  const handleDismiss = () =>
+  const handleDismiss = () => {
+    resetPredicateStateAction()
     router.push(`/orgs/${orgID}/load-data/buckets/${bucketID}`)
-  // separated find logic and name logic since directly routing the a delete-data
-  // endpoint was crashing the app because the bucket is undefined until the component mounts
+  }
   const bucket = buckets.find(bucket => bucket.id === bucketID)
-  const bucketName = bucket && bucket.name ? bucket.name : ''
-  const initialBucketName = selectedBucketName || bucketName
   return (
     <Overlay visible={true}>
       <Overlay.Container maxWidth={600}>
         <Overlay.Header title="Delete Data" onDismiss={handleDismiss} />
         <Overlay.Body>
-          <DeleteDataForm
-            handleDismiss={handleDismiss}
-            initialBucketName={initialBucketName}
-            orgID={orgID}
-          />
+          <SpinnerContainer
+            spinnerComponent={<TechnoSpinner />}
+            loading={bucket ? RemoteDataState.Done : RemoteDataState.Loading}
+          >
+            <DeleteDataForm
+              handleDismiss={handleDismiss}
+              initialBucketName={bucket && bucket.name}
+              orgID={orgID}
+            />
+          </SpinnerContainer>
         </Overlay.Body>
       </Overlay.Container>
     </Overlay>
@@ -49,14 +56,16 @@ const DeleteDataOverlay: FunctionComponent<StateProps & WithRouterProps> = ({
 }
 
 const mstp = (state: AppState): StateProps => {
-  const activeQuery = getActiveQuery(state)
-  const selectedBucketName = get(activeQuery, 'builderConfig.buckets.0')
   return {
     buckets: state.buckets.list,
-    selectedBucketName,
   }
 }
 
-export default connect<StateProps>(mstp)(
-  withRouter<StateProps>(DeleteDataOverlay)
-)
+const mdtp: DispatchProps = {
+  resetPredicateStateAction: resetPredicateState,
+}
+
+export default connect<StateProps, DispatchProps>(
+  mstp,
+  mdtp
+)(withRouter<Props>(DeleteDataOverlay))

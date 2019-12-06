@@ -45,8 +45,8 @@ type Handler struct {
 	requests   *prometheus.CounterVec
 	requestDur *prometheus.HistogramVec
 
-	// Logger if set will log all HTTP requests as they are served
-	Logger *zap.Logger
+	// log logs all HTTP requests as they are served
+	log *zap.Logger
 }
 
 // NewHandler creates a new handler with the given name.
@@ -68,13 +68,14 @@ func NewHandler(name string) *Handler {
 // NewHandlerFromRegistry creates a new handler with the given name,
 // and sets the /metrics endpoint to use the metrics from the given registry,
 // after self-registering h's metrics.
-func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
+func NewHandlerFromRegistry(log *zap.Logger, name string, reg *prom.Registry) *Handler {
 	h := &Handler{
 		name:           name,
 		MetricsHandler: reg.HTTPHandler(),
 		ReadyHandler:   http.HandlerFunc(ReadyHandler),
 		HealthHandler:  http.HandlerFunc(HealthHandler),
 		DebugHandler:   http.DefaultServeMux,
+		log:            log,
 	}
 	h.initMetrics()
 	reg.MustRegister(h.PrometheusCollectors()...)
@@ -85,35 +86,46 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var span opentracing.Span
 	span, r = tracing.ExtractFromHTTPRequest(r, h.name)
-	userAgent := r.Header.Get("User-Agent")
-	if userAgent == "" {
-		userAgent = "unknown"
-	}
 
-	defer span.Finish()
-
-	// TODO: better way to do this?
 	statusW := newStatusResponseWriter(w)
 	w = statusW
 
-	// TODO: This could be problematic eventually. But for now it should be fine.
+	// record prometheus metrics and finish traces
 	defer func(start time.Time) {
 		duration := time.Since(start)
 		statusClass := statusW.statusCodeClass()
+		ua := userAgent(r)
+
 		h.requests.With(prometheus.Labels{
 			"handler":    h.name,
 			"method":     r.Method,
 			"path":       r.URL.Path,
 			"status":     statusClass,
-			"user_agent": userAgent,
+			"user_agent": ua,
 		}).Inc()
 		h.requestDur.With(prometheus.Labels{
 			"handler":    h.name,
 			"method":     r.Method,
 			"path":       r.URL.Path,
 			"status":     statusClass,
-			"user_agent": userAgent,
+			"user_agent": ua,
 		}).Observe(duration.Seconds())
+
+		span.LogKV("user_agent", ua)
+		for k, v := range r.Header {
+			if len(v) == 0 {
+				continue
+			}
+
+			// yeah, we don't need these
+			if k == "Authorization" || k == "User-Agent" {
+				continue
+			}
+
+			// If header has multiple values, only the first value will be logged on the trace.
+			span.LogKV(k, v[0])
+		}
+		span.Finish()
 	}(time.Now())
 
 	switch {
@@ -164,11 +176,11 @@ func (h *Handler) initMetrics() {
 	}, []string{"handler", "method", "path", "status", "user_agent"})
 }
 
-func logEncodingError(logger *zap.Logger, r *http.Request, err error) {
+func logEncodingError(log *zap.Logger, r *http.Request, err error) {
 	// If we encounter an error while encoding the response to an http request
 	// the best thing we can do is log that error, as we may have already written
 	// the headers for the http request in question.
-	logger.Info("error encoding response",
+	log.Info("Error encoding response",
 		zap.String("path", r.URL.Path),
 		zap.String("method", r.Method),
 		zap.Error(err))

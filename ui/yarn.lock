@@ -1004,20 +1004,20 @@
     debug "^3.1.0"
     lodash.once "^4.1.1"
 
-"@influxdata/clockface@1.0.6":
-  version "1.0.6"
-  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-1.0.6.tgz#cecb1dae9f92ca2b8e5843346de05ce492777f00"
-  integrity sha512-uSwRELaSEL/NjJnwKm1f1O5tmga1gSX3zgGqqXQpF3w2gkp5cM3rLOAJCad78DI5EzOCIXEaWwOTSs/Kgm9rGQ==
+"@influxdata/clockface@1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-1.1.0.tgz#beadb0ebdb9c29af1020137943a359474eca463e"
+  integrity sha512-nXvGGZ/n3r8vxd+xNyQk2BEM294N1v/KNEH6tivNGdFWFkuHKDn7/a/2y8fISK+qzIEPN/LF6Xi9eOKb7G8EFg==
 
 "@influxdata/flux-parser@^0.3.0":
   version "0.3.0"
   resolved "https://registry.yarnpkg.com/@influxdata/flux-parser/-/flux-parser-0.3.0.tgz#b63123ac814ad32c65e46a4097ba3d8b959416a5"
   integrity sha512-nsm801l60kXFulcSWA2YH2YRz9oSsMlTK9Evn6Og9BoQnQMcwUsSUEug8mQRIUljnkNYV58JSs0W0mP8h7Y/ZQ==
 
-"@influxdata/giraffe@0.16.5":
-  version "0.16.5"
-  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.5.tgz#31cb7732656420d69e4998332763b2234ddbcdac"
-  integrity sha512-LoPGngLpv2WAuc6y9hTBVrm7nxd+c6NiSlmuhCUtXRAlGrW1t3zdEF5CxX6OVEhnZqnpD55hLcFDjDw3Iw/b5w==
+"@influxdata/giraffe@0.16.9":
+  version "0.16.9"
+  resolved "https://registry.yarnpkg.com/@influxdata/giraffe/-/giraffe-0.16.9.tgz#4b42d39c98cd4ab06316be79d0c9df4fdac39d5b"
+  integrity sha512-XTAqG/663wi+KNNfYjH7YgKzf6rxSjy6k6OIUyTRhGhTgdBK20uI6qzDWBzc/Q+ACOh3Yeh4O5jrsyDup1Z4XA==
 
 "@influxdata/influx@0.5.5":
   version "0.5.5"
@@ -6070,6 +6070,11 @@ interpret@1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/interpret/-/interpret-1.2.0.tgz#d5061a6224be58e8083985f5014d844359576296"
   integrity sha512-mT34yGKMNceBQUoVn7iCDKDntA7SC6gycMAWzGx1z/CMCTV7b2AAtXlo3nRyHZ1FelRkQbQjprHSYGwzLtkVbw==
+
+intersection-observer@^0.7.0:
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/intersection-observer/-/intersection-observer-0.7.0.tgz#ee16bee978db53516ead2f0a8154b09b400bbdc9"
+  integrity sha512-Id0Fij0HsB/vKWGeBe9PxeY45ttRiBmhFyyt/geBdDHBYNctMRTE3dC1U3ujzz3lap+hVXlEcVaB56kZP/eEUg==
 
 invariant@^2.0.0, invariant@^2.1.0, invariant@^2.2.1, invariant@^2.2.2, invariant@^2.2.4:
   version "2.2.4"
