@@ -65,11 +65,11 @@ class TelegrafEditor extends PureComponent<Props> {
   }
 
   private handleJump = (which) => {
-    this._editor.getWrappedInstance().jump(which.line)
+    this._editor.current.getWrappedInstance().jump(which.line)
   }
 
   private handleAdd = (which) => {
-    const editor = this._editor.getWrappedInstance()
+    const editor = this._editor.current.getWrappedInstance()
     const line = editor.nextLine()
 
     if (which.type === 'bundle') {
