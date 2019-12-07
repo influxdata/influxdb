@@ -36,6 +36,47 @@ func ListAvailablePlugins(t string) (*TelegrafPlugins, error) {
 	}
 }
 
+// GetPlugin returns the plugin's sample config, if available.
+func GetPlugin(t, name string) (*Plugin, bool) {
+	var p *TelegrafPlugins
+	var err error
+
+	switch t {
+	case "input":
+		p, err = AvailableInputs()
+
+	case "output":
+		p, err = AvailableOutputs()
+
+	case "processor":
+		p, err = AvailableProcessors()
+
+	case "aggregator":
+		p, err = AvailableAggregators()
+
+	default:
+		return nil, false
+	}
+
+	if err != nil {
+		return nil, false
+	}
+
+	return p.findPluginByName(name)
+}
+
+// findPluginByName returns a plugin named "name". This should only be run on
+// TelegrafPlugins containing the same type of plugin.
+func (t *TelegrafPlugins) findPluginByName(name string) (*Plugin, bool) {
+	for i := range t.Plugins {
+		if t.Plugins[i].Name == name {
+			return &t.Plugins[i], true
+		}
+	}
+
+	return nil, false
+}
+
 // AvailablePlugins returns the base list of available plugins.
 func AvailablePlugins() (*TelegrafPlugins, error) {
 	all := &TelegrafPlugins{}

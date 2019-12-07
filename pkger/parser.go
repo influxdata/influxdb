@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb"
 	"gopkg.in/yaml.v3"
 )
@@ -625,11 +624,11 @@ func (p *Pkg) graphTelegrafs() *parseErr {
 		})
 		sort.Sort(tele.labels)
 
-		cfgBytes := []byte(r.stringShort(fieldTelegrafConfig))
-		if err := toml.Unmarshal(cfgBytes, &tele.config); err != nil {
+		tele.config.Config = r.stringShort(fieldTelegrafConfig)
+		if tele.config.Config == "" {
 			failures = append(failures, validationErr{
 				Field: fieldTelegrafConfig,
-				Msg:   err.Error(),
+				Msg:   "no config provided",
 			})
 		}
 

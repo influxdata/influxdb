@@ -304,9 +304,8 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*platform
 }
 
 func decodePostTelegrafRequest(r *http.Request) (*platform.TelegrafConfig, error) {
-	var tc platform.TelegrafConfig
-	err := json.NewDecoder(r.Body).Decode(&tc)
-	return &tc, err
+	tc := &platform.TelegrafConfig{}
+	return tc, json.NewDecoder(r.Body).Decode(tc)
 }
 
 func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*platform.TelegrafConfig, error) {

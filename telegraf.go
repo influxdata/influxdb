@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/influxdata/influxdb/telegraf/plugins"
@@ -86,15 +87,26 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	tc.OrgID = orgID
 	tc.Name = tcd.Name
 	tc.Description = tcd.Description
+
+	// Prefer new structure; use full toml config.
 	tc.Config = tcd.Config
 
 	// legacy, remove after some moons. or a migration.
-	if lp := len(tcd.Plugins); lp > 0 {
-		conf, err := decodePluginRaw(tcd)
-		if err != nil {
-			return err
+	if tcd.Plugins != nil {
+		if len(*tcd.Plugins) > 0 {
+			conf, err := decodePluginRaw(tcd)
+			if err != nil {
+				return err
+			}
+			tc.Config = plugins.AgentConfig + conf
+		} else if c, ok := plugins.GetPlugin("output", "influxdb_v2"); ok {
+			// Handles legacy adding of default plugins (agent and output).
+			tc.Config = plugins.AgentConfig + c.Config
 		}
-		tc.Config = plugins.AgentConfig + conf
+	}
+
+	if tc.Config == "" {
+		return errors.New("no config provided")
 	}
 
 	return nil
@@ -104,7 +116,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 	op := "unmarshal telegraf config raw plugin"
 	ps := ""
 
-	for _, pr := range tcd.Plugins {
+	for _, pr := range *tcd.Plugins {
 		var tpFn func() plugins.Config
 		var ok bool
 
@@ -152,13 +164,13 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
 type telegrafConfigDecode struct {
-	ID             ID                     `json:"id,omitempty"`
-	OrganizationID ID                     `json:"organizationID,omitempty"`
-	OrgID          ID                     `json:"orgID,omitempty"`
-	Name           string                 `json:"name,omitempty"`
-	Description    string                 `json:"description,omitempty"`
-	Config         string                 `json:"config,omitempty"`
-	Plugins        []telegrafPluginDecode `json:"plugins,omitempty"`
+	ID             ID                      `json:"id,omitempty"`
+	OrganizationID ID                      `json:"organizationID,omitempty"`
+	OrgID          ID                      `json:"orgID,omitempty"`
+	Name           string                  `json:"name,omitempty"`
+	Description    string                  `json:"description,omitempty"`
+	Config         string                  `json:"config,omitempty"`
+	Plugins        *[]telegrafPluginDecode `json:"plugins,omitempty"`
 }
 
 // telegrafPluginDecode is the helper struct for json decoding. legacy.

@@ -3,6 +3,7 @@ package launcher_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -158,7 +159,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}, varArgs.Values)
 	})
 
-	t.Run("apply a package of all new resources", func(t *testing.T) {
+	t.Run("apply a package of all new resource s", func(t *testing.T) {
 		// this initial test is also setup for the sub tests
 		sum1, err := svc.Apply(timedCtx(5*time.Second), l.Org.ID, newPkg(t))
 		require.NoError(t, err)
@@ -200,7 +201,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, l.Org.ID, teles[0].OrgID)
 		assert.Equal(t, "first_tele_config", teles[0].Name)
 		assert.Equal(t, "desc", teles[0].Description)
-		assert.Len(t, teles[0].Plugins, 2)
+		assert.Equal(t, telConf, teles[0].Config)
 
 		newSumMapping := func(id influxdb.ID, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
 			return pkger.SummaryLabelMapping{
@@ -363,7 +364,22 @@ func newPkg(t *testing.T) *pkger.Pkg {
 	return pkg
 }
 
-const pkgYMLStr = `apiVersion: 0.1.0
+const telConf = `[agent]
+  interval = "10s"
+  metric_batch_size = 1000
+  metric_buffer_limit = 10000
+  collection_jitter = "0s"
+  flush_interval = "10s"
+[[outputs.influxdb_v2]]
+  urls = ["http://localhost:9999"]
+  token = "$INFLUX_TOKEN"
+  organization = "rg"
+  bucket = "rucket_3"
+[[inputs.cpu]]
+  percpu = true
+`
+
+var pkgYMLStr = fmt.Sprintf(`apiVersion: 0.1.0
 kind: Package
 meta:
   pkgName:      pkg_name
@@ -414,21 +430,8 @@ spec:
       associations:
         - kind: Label
           name: label_1
-      config: |
-        [agent]
-          interval = "10s"
-          metric_batch_size = 1000
-          metric_buffer_limit = 10000
-          collection_jitter = "0s"
-          flush_interval = "10s"
-        [[outputs.influxdb_v2]]
-          urls = ["http://localhost:9999"]
-          token = "$INFLUX_TOKEN"
-          organization = "rg"
-          bucket = "rucket_3"
-        [[inputs.cpu]]
-          percpu = true
-`
+      config: %+q
+`, telConf)
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
 kind: Package
