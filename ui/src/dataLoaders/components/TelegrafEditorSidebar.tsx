@@ -88,13 +88,13 @@ type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
 
 class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
   render() {
-    const {bucket, buckets, filter, mode} = this.props
+    const {bucket, buckets, filter, mode, onAdd, onJump, onSetMode, onSetBucket} = this.props
     return (
       <Grid.Column widthXS={Columns.Three} style={{height: '100%'}}>
         <BucketDropdown
           buckets={buckets}
           selectedBucketID={bucket.id}
-          onSelectBucket={this.handleSelectBucket}
+          onSelectBucket={onSetBucket}
         />
         <Input
           className="wizard-step--filter"
@@ -115,7 +115,7 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
               text="Plugin Lookup"
               active={mode === 'indexing'}
               onClick={() => {
-                this.handleSetMode('indexing')
+                onSetMode('indexing')
               }}
             />
             <Tabs.Tab
@@ -123,35 +123,19 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
               text="Add Plugins"
               active={mode === 'adding'}
               onClick={() => {
-                this.handleSetMode('adding')
+                onSetMode('adding')
               }}
             />
           </Tabs>
           <Tabs.TabContents padding={ComponentSize.Small}>
             {mode === 'indexing' && (
-              <ActivePluginList onClick={this.handleJump} />
+              <ActivePluginList onClick={onJump} />
             )}
-            {mode === 'adding' && <AllPluginList onClick={this.handleAdd} />}
+            {mode === 'adding' && <AllPluginList onClick={onAdd} />}
           </Tabs.TabContents>
         </Tabs.Container>
       </Grid.Column>
     )
-  }
-
-  private handleJump = which => {
-    this.props.onJump(which)
-  }
-
-  private handleAdd = which => {
-    this.props.onAdd(which)
-  }
-
-  private handleSetMode = state => {
-    this.props.onSetMode(state)
-  }
-
-  private handleSelectBucket = evt => {
-    this.props.onSetBucket(evt)
   }
 
   private handleFilterBlur = evt => {

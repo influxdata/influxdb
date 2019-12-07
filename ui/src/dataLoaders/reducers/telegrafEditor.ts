@@ -24,7 +24,7 @@ export interface TelegrafEditorBasicPlugin {
 export interface TelegrafEditorBundlePlugin {
   name: TelegrafEditorPluginName
   description: string
-  type: string
+  type: 'bundle'
   include: Array<TelegrafEditorPluginName>
 }
 export type TelegrafEditorPluginState = Array<
@@ -229,7 +229,7 @@ export function pluginsReducer(
 }
 
 export function activePluginsReducer(
-  state = [],
+  state: TelegrafEditorActivePluginState = [],
   action: ActivePluginAction
 ): TelegrafEditorActivePluginState {
   switch (action.type) {

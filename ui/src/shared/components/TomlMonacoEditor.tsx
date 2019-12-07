@@ -6,6 +6,8 @@ import MonacoEditor from 'react-monaco-editor'
 import addTomlTheme, {THEME_NAME} from 'src/external/monaco.tomlTheme'
 import {addSyntax} from 'src/external/monaco.tomlSyntax'
 import {OnChangeScript} from 'src/types/flux'
+import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
+
 import './FluxMonacoEditor.scss'
 
 interface Position {
@@ -16,7 +18,7 @@ interface Position {
 interface Props {
   script: string
   className?: string
-  willMount?: (monaco) => void
+  willMount?: (monaco: monacoEditor.editor.IStandaloneCodeEditor) => void
   readOnly?: boolean
   testID?: string
   onChangeScript?: OnChangeScript
@@ -25,12 +27,12 @@ interface Props {
 }
 
 const TomlEditorMonaco: FC<Props> = props => {
-  const editorWillMount = monaco => {
+  const editorWillMount = (monaco: typeof monacoEditor) => {
     addTomlTheme(monaco)
     addSyntax(monaco)
   }
-  const editorDidMount = editor => {
-    editor.onDidChangeCursorPosition(evt => {
+  const editorDidMount = (editor: monacoEditor.editor.IStandaloneCodeEditor) => {
+    editor.onDidChangeCursorPosition((evt: monacoEditor.editor.ICursorPositionChangedEvent) => {
       const {position} = evt
       const {onCursorChange} = props
       const pos = {
@@ -43,7 +45,7 @@ const TomlEditorMonaco: FC<Props> = props => {
       }
     })
 
-    editor.onKeyUp(evt => {
+    editor.onKeyUp((evt: monacoEditor.IKeyboardEvent) => {
       const {ctrlKey, code} = evt
       const {onSubmitScript} = props
       if (ctrlKey && code === 'Enter') {

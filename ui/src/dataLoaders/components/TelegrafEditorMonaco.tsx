@@ -2,6 +2,7 @@ import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 import {AppState} from 'src/types'
 import Editor from 'src/shared/components/TomlMonacoEditor'
+import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 import {setText, setActivePlugins} from 'src/dataLoaders/actions/telegrafEditor'
 
 const PLUGIN_REGEX = /\[\[\s*(inputs|outputs|processors|aggregators)\.(.+)\s*\]\]/
@@ -17,8 +18,14 @@ interface StateProps {
 
 type Props = StateProps & DispatchProps
 
+interface InterumMatchFormat {
+  type: string
+  name: string
+  line: number
+}
+
 class TelegrafEditorMonaco extends PureComponent<Props> {
-  _editor = null
+  _editor: monacoEditor.editor.IStandaloneCodeEditor = null
 
   render() {
     const {script} = this.props
@@ -37,11 +44,11 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
       return
     }
 
-    const matches = this._editor
+    const matches: Array<monacoEditor.editor.FindMatch> = this._editor
       .getModel()
-      .findMatches(PLUGIN_REGEX, false, true, false, null, true)
+      .findMatches(PLUGIN_REGEX as any, false, true, false, null, true)
 
-    const plugins = matches.map(m => {
+      const plugins = matches.map((m: monacoEditor.editor.FindMatch): InterumMatchFormat => {
       return {
         type: m.matches[1].slice(0, -1),
         name: m.matches[2],
@@ -52,21 +59,21 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
     this.props.onSetActivePlugins(plugins)
   }
 
-  private connect = editor => {
+  private connect = (editor: monacoEditor.editor.IStandaloneCodeEditor) => {
     this._editor = editor
     this.extractPluginList()
   }
 
-  private handleChange = evt => {
+  private handleChange = (evt: string) => {
     this.extractPluginList()
     this.props.onSetText(evt)
   }
 
-  public jump(line) {
+  public jump(line: number) {
     this._editor.revealLineInCenter(line)
   }
 
-  public nextLine() {
+  public nextLine(): number {
     const position = this._editor.getPosition()
     const matches = this._editor
       .getModel()
@@ -87,7 +94,7 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
     return lineNumber
   }
 
-  public insert(text, line) {
+  public insert(text: string, line: number) {
     this._editor.setPosition({column: 1, lineNumber: line})
     this._editor.executeEdits('', [
       {
@@ -104,6 +111,8 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
   }
 }
 
+export {TelegrafEditorMonaco}
+
 const mstp = (state: AppState): StateProps => {
   const map = state.telegrafEditorPlugins.reduce((prev, curr) => {
     prev[curr.name] = curr
@@ -113,7 +122,7 @@ const mstp = (state: AppState): StateProps => {
   const script =
     state.telegrafEditor.text ||
     map['__default__'].include
-      .map(i => {
+      .map((i: string) => {
         return map[i].code
       })
       .join('\n')

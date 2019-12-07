@@ -8,8 +8,18 @@ import {
   TelegrafEditorBundlePlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
-function groupPlugins(plugins, pluginFilter) {
-  const map = plugins.reduce((prev, curr) => {
+type ListPlugin =
+  | TelegrafEditorBasicPlugin
+  | TelegrafEditorBundlePlugin
+  | TelegrafEditorActivePlugin
+
+interface InterumListFormat {
+  category: string
+  items: Array<ListPlugin>
+}
+
+function groupPlugins(plugins: Array<ListPlugin>, pluginFilter: string) {
+  const map = plugins.reduce((prev: {[k: string]: Array<ListPlugin>}, curr: ListPlugin) => {
     if (curr.name === '__default__') {
       return prev
     }
@@ -24,20 +34,20 @@ function groupPlugins(plugins, pluginFilter) {
   }, {})
 
   return ['bundle', 'input', 'output', 'processor', 'aggregator']
-    .map(k => {
+    .map((k: string): InterumListFormat => {
       return {
         category: k,
-        items: (map[k] || []).filter(a => (a.name || '').indexOf(pluginFilter) > -1),
+        items: (map[k] || []).filter((a: ListPlugin) => (a.name || '').indexOf(pluginFilter) > -1),
       }
     })
-    .filter(k => k.items.length)
+    .filter((k: InterumListFormat) => k.items.length)
     .reduce((prev, curr) => {
       prev.push({
         type: 'display',
         name: '-- ' + curr.category + ' --',
       })
 
-      const items = curr.items.slice(0).sort((a, b) => {
+      const items = curr.items.slice(0).sort((a: ListPlugin, b: ListPlugin) => {
         return (a.name || '').localeCompare(b.name || '')
       })
 
@@ -47,10 +57,6 @@ function groupPlugins(plugins, pluginFilter) {
     }, [])
 }
 
-type ListPlugin =
-  | TelegrafEditorBasicPlugin
-  | TelegrafEditorBundlePlugin
-  | TelegrafEditorActivePlugin
 interface PluginProps {
   plugins: TelegrafEditorPluginState | TelegrafEditorActivePluginState
   filter: string
@@ -60,7 +66,7 @@ interface PluginProps {
 class PluginList extends PureComponent<PluginProps> {
   render() {
     const {plugins, filter, onClick} = this.props
-    const list = groupPlugins(plugins, filter).map(k => {
+    const list = groupPlugins(plugins, filter).map((k: ListPlugin) => {
       if (k.type === 'display') {
         return (
           <div className={k.type} key={`_plugin_${k.type}.${k.name}`}>

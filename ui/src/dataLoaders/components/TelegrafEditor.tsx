@@ -1,5 +1,5 @@
 // Libraries
-import React, {PureComponent, createRef} from 'react'
+import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
 import {ErrorHandling} from 'src/shared/decorators/errors'
@@ -16,21 +16,18 @@ import {
 
 import './TelegrafEditor.scss'
 
-interface StateProps {
-  [map: string]: any
-}
-
 type ListPlugin = TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
-interface OwnProps {
-  onJump: (which: TelegrafEditorActivePlugin) => void
-  onAdd: (which: ListPlugin) => void
+type AllPlugin = ListPlugin | TelegrafEditorActivePlugin
+
+interface StateProps {
+  map: {[k:string]: AllPlugin}
 }
 
-type Props = StateProps & OwnProps
+type Props = StateProps
 
 @ErrorHandling
 class TelegrafEditor extends PureComponent<Props> {
-  _editor = createRef()
+  _editor: any = null
 
   render() {
     return (
@@ -57,27 +54,32 @@ class TelegrafEditor extends PureComponent<Props> {
             onAdd={this.handleAdd}
           />
           <Grid.Column widthXS={Columns.Nine} style={{height: '100%'}}>
-            <TelegrafEditorMonaco ref={this._editor} />
+            <TelegrafEditorMonaco ref={this.connect} />
           </Grid.Column>
         </Grid.Row>
       </Grid>
     )
   }
 
-  private handleJump = (which) => {
-    this._editor.current.getWrappedInstance().jump(which.line)
+  private connect = (elem: any) => {
+    this._editor = elem;
   }
 
-  private handleAdd = (which) => {
-    const editor = this._editor.current.getWrappedInstance()
+  private handleJump = (which: TelegrafEditorActivePlugin) => {
+    this._editor.getWrappedInstance().jump(which.line)
+  }
+
+  private handleAdd = (which: ListPlugin) => {
+    const editor = this._editor.getWrappedInstance()
     const line = editor.nextLine()
 
     if (which.type === 'bundle') {
       (which.include || [])
-        .map(item => (this.props.map[item] || {}).code)
-        .filter(i => !!i)
+        .filter((item: string) => this.props.map[item] && this.props.map[item].type !== 'bundle')
+        .map((item: string) => (this.props.map[item] as TelegrafEditorBasicPlugin || {}).code)
+        .filter((i: string) => !!i)
         .reverse()
-        .forEach(item => {
+        .forEach((item: string) => {
           editor.insert(item, line)
         })
     } else {
