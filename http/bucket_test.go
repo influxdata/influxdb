@@ -1203,7 +1203,7 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 	handler := NewBucketHandler(zaptest.NewLogger(t), bucketBackend)
 	server := httptest.NewServer(handler)
 	client := BucketService{
-		Addr:     server.URL,
+		Client:   mustNewHTTPClient(t, server.URL, ""),
 		OpPrefix: inmem.OpPrefix,
 	}
 	done := server.Close
@@ -1213,4 +1213,14 @@ func initBucketService(f platformtesting.BucketFields, t *testing.T) (platform.B
 
 func TestBucketService(t *testing.T) {
 	platformtesting.BucketService(initBucketService, t)
+}
+
+func mustNewHTTPClient(t *testing.T, addr, token string) *HTTPClient {
+	t.Helper()
+
+	httpClient, err := NewHTTPClient(addr, token, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return httpClient
 }
