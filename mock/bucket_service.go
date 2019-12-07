@@ -15,13 +15,20 @@ type BucketService struct {
 	CloseFn func() error
 
 	// Methods for an platform.BucketService
-	FindBucketByIDFn   func(context.Context, platform.ID) (*platform.Bucket, error)
-	FindBucketByNameFn func(context.Context, platform.ID, string) (*platform.Bucket, error)
-	FindBucketFn       func(context.Context, platform.BucketFilter) (*platform.Bucket, error)
-	FindBucketsFn      func(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error)
-	CreateBucketFn     func(context.Context, *platform.Bucket) error
-	UpdateBucketFn     func(context.Context, platform.ID, platform.BucketUpdate) (*platform.Bucket, error)
-	DeleteBucketFn     func(context.Context, platform.ID) error
+	FindBucketByIDFn      func(context.Context, platform.ID) (*platform.Bucket, error)
+	FindBucketByIDCalls   SafeCount
+	FindBucketByNameFn    func(context.Context, platform.ID, string) (*platform.Bucket, error)
+	FindBucketByNameCalls SafeCount
+	FindBucketFn          func(context.Context, platform.BucketFilter) (*platform.Bucket, error)
+	FindBucketCalls       SafeCount
+	FindBucketsFn         func(context.Context, platform.BucketFilter, ...platform.FindOptions) ([]*platform.Bucket, int, error)
+	FindBucketsCalls      SafeCount
+	CreateBucketFn        func(context.Context, *platform.Bucket) error
+	CreateBucketCalls     SafeCount
+	UpdateBucketFn        func(context.Context, platform.ID, platform.BucketUpdate) (*platform.Bucket, error)
+	UpdateBucketCalls     SafeCount
+	DeleteBucketFn        func(context.Context, platform.ID) error
+	DeleteBucketCalls     SafeCount
 }
 
 // NewBucketService returns a mock BucketService where its methods will return
@@ -58,35 +65,42 @@ func (s *BucketService) Close() error { return s.CloseFn() }
 
 // FindBucketByID returns a single bucket by ID.
 func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+	defer s.FindBucketByIDCalls.IncrFn()()
 	return s.FindBucketByIDFn(ctx, id)
 }
 
 // FindBucketByName returns a single bucket by name.
 func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*platform.Bucket, error) {
+	defer s.FindBucketByNameCalls.IncrFn()()
 	return s.FindBucketByNameFn(ctx, orgID, name)
 }
 
 // FindBucket returns the first bucket that matches filter.
 func (s *BucketService) FindBucket(ctx context.Context, filter platform.BucketFilter) (*platform.Bucket, error) {
+	defer s.FindBucketCalls.IncrFn()()
 	return s.FindBucketFn(ctx, filter)
 }
 
 // FindBuckets returns a list of buckets that match filter and the total count of matching buckets.
 func (s *BucketService) FindBuckets(ctx context.Context, filter platform.BucketFilter, opts ...platform.FindOptions) ([]*platform.Bucket, int, error) {
+	defer s.FindBucketsCalls.IncrFn()()
 	return s.FindBucketsFn(ctx, filter, opts...)
 }
 
 // CreateBucket creates a new bucket and sets b.ID with the new identifier.
 func (s *BucketService) CreateBucket(ctx context.Context, bucket *platform.Bucket) error {
+	defer s.CreateBucketCalls.IncrFn()()
 	return s.CreateBucketFn(ctx, bucket)
 }
 
 // UpdateBucket updates a single bucket with changeset.
 func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+	defer s.UpdateBucketCalls.IncrFn()()
 	return s.UpdateBucketFn(ctx, id, upd)
 }
 
 // DeleteBucket removes a bucket by ID.
 func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
+	defer s.DeleteBucketCalls.IncrFn()()
 	return s.DeleteBucketFn(ctx, id)
 }

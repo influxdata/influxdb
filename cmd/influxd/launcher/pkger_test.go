@@ -9,6 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd/influxd/launcher"
+	"github.com/influxdata/influxdb/mock"
 	"github.com/influxdata/influxdb/pkger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -462,19 +463,15 @@ spec:
 
 type fakeBucketSVC struct {
 	influxdb.BucketService
-	countMu   sync.Mutex
-	callCount int
-	killCount int
+	updateCallCount mock.SafeCount
+	killCount       int
 }
 
 func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-	f.countMu.Lock()
-	if f.callCount == f.killCount {
-		f.countMu.Unlock()
+	if f.updateCallCount.Count() == f.killCount {
 		return nil, errors.New("reached kill count")
 	}
-	f.callCount++
-	f.countMu.Unlock()
+	defer f.updateCallCount.IncrFn()()
 	return f.BucketService.UpdateBucket(ctx, id, upd)
 }
 

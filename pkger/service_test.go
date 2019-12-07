@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math/rand"
 	"strconv"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -276,14 +275,7 @@ func TestService(t *testing.T) {
 					}
 
 					fakeBktSVC := mock.NewBucketService()
-					var createCallCount int
-					fakeBktSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
-						createCallCount++
-						return nil
-					}
-					var updateCallCount int
 					fakeBktSVC.UpdateBucketFn = func(_ context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
-						updateCallCount++
 						return &influxdb.Bucket{ID: id}, nil
 					}
 
@@ -299,8 +291,8 @@ func TestService(t *testing.T) {
 					assert.Equal(t, "rucket_11", buck1.Name)
 					assert.Equal(t, time.Hour, buck1.RetentionPeriod)
 					assert.Equal(t, "bucket 1 description", buck1.Description)
-					assert.Zero(t, createCallCount)
-					assert.Zero(t, updateCallCount)
+					assert.Zero(t, fakeBktSVC.CreateBucketCalls.Count())
+					assert.Zero(t, fakeBktSVC.UpdateBucketCalls.Count())
 				})
 			})
 
@@ -311,17 +303,10 @@ func TestService(t *testing.T) {
 						// forces the bucket to be created a new
 						return nil, errors.New("an error")
 					}
-					var c int64
 					fakeBktSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
-						if atomic.LoadInt64(&c) == 2 {
+						if fakeBktSVC.CreateBucketCalls.Count() == 1 {
 							return errors.New("blowed up ")
 						}
-						atomic.AddInt64(&c, 1)
-						return nil
-					}
-					var count int
-					fakeBktSVC.DeleteBucketFn = func(_ context.Context, id influxdb.ID) error {
-						count++
 						return nil
 					}
 
@@ -335,7 +320,7 @@ func TestService(t *testing.T) {
 					_, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.Error(t, err)
 
-					assert.Equal(t, 2, count)
+					assert.GreaterOrEqual(t, fakeBktSVC.DeleteBucketCalls.Count(), 1)
 				})
 			})
 		})
@@ -380,18 +365,11 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created labels on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
-					var c int64
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-						// 4th label will return the error here, and 3 before should be rolled back
-						if atomic.LoadInt64(&c) == 3 {
+						// 3rd/4th label will return the error here, and 2 before should be rolled back
+						if fakeLabelSVC.CreateLabelCalls.Count() == 2 {
 							return errors.New("blowed up ")
 						}
-						atomic.AddInt64(&c, 1)
-						return nil
-					}
-					var count int
-					fakeLabelSVC.DeleteLabelFn = func(_ context.Context, id influxdb.ID) error {
-						count++
 						return nil
 					}
 
@@ -405,7 +383,7 @@ func TestService(t *testing.T) {
 					_, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.Error(t, err)
 
-					assert.Equal(t, 3, count)
+					assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelCalls.Count(), 1)
 				})
 			})
 
@@ -427,9 +405,7 @@ func TestService(t *testing.T) {
 					}
 
 					fakeLabelSVC := mock.NewLabelService()
-					var createCallCount int
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-						createCallCount++
 						if l.Name == "label_2" {
 							l.ID = influxdb.ID(2)
 							return nil
@@ -463,7 +439,7 @@ func TestService(t *testing.T) {
 					assert.Equal(t, "#000000", label2.Properties["color"])
 					assert.Equal(t, "label 2 description", label2.Properties["description"])
 
-					assert.Equal(t, 1, createCallCount) // only called for second label
+					assert.Equal(t, 1, fakeLabelSVC.CreateLabelCalls.Count()) // only called for second label
 				})
 			})
 		})
@@ -472,15 +448,11 @@ func TestService(t *testing.T) {
 			t.Run("successfully creates a dashboard", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard.yml", func(t *testing.T, pkg *Pkg) {
 					fakeDashSVC := mock.NewDashboardService()
-					id := 1
 					fakeDashSVC.CreateDashboardF = func(_ context.Context, d *influxdb.Dashboard) error {
-						d.ID = influxdb.ID(id)
-						id++
+						d.ID = influxdb.ID(1)
 						return nil
 					}
-					viewCalls := 0
 					fakeDashSVC.UpdateDashboardCellViewF = func(ctx context.Context, dID influxdb.ID, cID influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
-						viewCalls++
 						return &influxdb.View{}, nil
 					}
 
@@ -503,14 +475,12 @@ func TestService(t *testing.T) {
 			t.Run("rolls back created dashboard on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/dashboard.yml", func(t *testing.T, pkg *Pkg) {
 					fakeDashSVC := mock.NewDashboardService()
-					var c int
 					fakeDashSVC.CreateDashboardF = func(_ context.Context, d *influxdb.Dashboard) error {
 						// error out on second dashboard attempted
-						if c == 1 {
+						if fakeDashSVC.CreateDashboardCalls.Count() == 1 {
 							return errors.New("blowed up ")
 						}
-						c++
-						d.ID = influxdb.ID(c)
+						d.ID = influxdb.ID(1)
 						return nil
 					}
 					deletedDashs := make(map[influxdb.ID]bool)
@@ -528,22 +498,20 @@ func TestService(t *testing.T) {
 					_, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.Error(t, err)
 
-					assert.True(t, deletedDashs[influxdb.ID(c)])
+					assert.True(t, deletedDashs[1])
 				})
 			})
 		})
 
 		t.Run("label mapping", func(t *testing.T) {
-			testLabelMappingFn := func(filename string, numExpected int, settersFn func() []ServiceSetterFn) func(t *testing.T) {
-				return func(t *testing.T) {
-					t.Helper()
+			testLabelMappingFn := func(t *testing.T, filename string, numExpected int, settersFn func() []ServiceSetterFn) {
+				t.Run("applies successfully", func(t *testing.T) {
 					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
 						fakeLabelSVC := mock.NewLabelService()
 						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 							l.ID = influxdb.ID(rand.Int())
 							return nil
 						}
-						var numLabelMappings int64
 						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
 							if mapping.ResourceID == 0 {
 								return errors.New("did not get a resource ID")
@@ -551,7 +519,6 @@ func TestService(t *testing.T) {
 							if mapping.ResourceType == "" {
 								return errors.New("did not get a resource type")
 							}
-							atomic.AddInt64(&numLabelMappings, 1)
 							return nil
 						}
 						svc := newTestService(append(settersFn(),
@@ -564,13 +531,56 @@ func TestService(t *testing.T) {
 						_, err := svc.Apply(context.TODO(), orgID, pkg)
 						require.NoError(t, err)
 
-						assert.Equal(t, numExpected, int(numLabelMappings))
+						assert.Equal(t, numExpected, fakeLabelSVC.CreateLabelMappingCalls.Count())
 					})
-				}
+				})
+
+				t.Run("deletes new label mappings on error", func(t *testing.T) {
+					testfileRunner(t, filename, func(t *testing.T, pkg *Pkg) {
+						for _, l := range pkg.mLabels {
+							for resource, vals := range l.mappings {
+								// create extra label mappings, enough for delete to ahve head room
+								l.mappings[resource] = append(l.mappings[resource], vals...)
+								l.mappings[resource] = append(l.mappings[resource], vals...)
+								l.mappings[resource] = append(l.mappings[resource], vals...)
+							}
+						}
+
+						fakeLabelSVC := mock.NewLabelService()
+						fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
+							l.ID = influxdb.ID(fakeLabelSVC.CreateLabelCalls.Count())
+							return nil
+						}
+						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
+							if mapping.ResourceID == 0 {
+								return errors.New("did not get a resource ID")
+							}
+							if mapping.ResourceType == "" {
+								return errors.New("did not get a resource type")
+							}
+							if fakeLabelSVC.CreateLabelMappingCalls.Count() > numExpected {
+								return errors.New("hit last label")
+							}
+							return nil
+						}
+						svc := newTestService(append(settersFn(),
+							WithLabelSVC(fakeLabelSVC),
+							WithLogger(zaptest.NewLogger(t)),
+						)...)
+
+						orgID := influxdb.ID(9000)
+
+						_, err := svc.Apply(context.TODO(), orgID, pkg)
+						require.Error(t, err)
+
+						assert.GreaterOrEqual(t, fakeLabelSVC.DeleteLabelMappingCalls.Count(), numExpected)
+					})
+				})
 			}
 
-			t.Run("successfully creates buckets with labels",
+			t.Run("maps buckets with labels", func(t *testing.T) {
 				testLabelMappingFn(
+					t,
 					"testdata/bucket_associates_label.yml",
 					4,
 					func() []ServiceSetterFn {
@@ -585,11 +595,12 @@ func TestService(t *testing.T) {
 						}
 						return []ServiceSetterFn{WithBucketSVC(fakeBktSVC)}
 					},
-				),
-			)
+				)
+			})
 
-			t.Run("successfully creates dashboards with labels",
+			t.Run("maps dashboards with labels", func(t *testing.T) {
 				testLabelMappingFn(
+					t,
 					"testdata/dashboard_associates_label.yml",
 					1,
 					func() []ServiceSetterFn {
@@ -600,11 +611,12 @@ func TestService(t *testing.T) {
 						}
 						return []ServiceSetterFn{WithDashboardSVC(fakeDashSVC)}
 					},
-				),
-			)
+				)
+			})
 
-			t.Run("successfully creates telegrafs with labels",
+			t.Run("maps telegrafs with labels", func(t *testing.T) {
 				testLabelMappingFn(
+					t,
 					"testdata/telegraf.yml",
 					1,
 					func() []ServiceSetterFn {
@@ -615,11 +627,12 @@ func TestService(t *testing.T) {
 						}
 						return []ServiceSetterFn{WithTelegrafSVC(fakeTeleSVC)}
 					},
-				),
-			)
+				)
+			})
 
-			t.Run("successfully creates variables with labels",
+			t.Run("maps variables with labels", func(t *testing.T) {
 				testLabelMappingFn(
+					t,
 					"testdata/variable_associates_label.yml",
 					1,
 					func() []ServiceSetterFn {
@@ -630,8 +643,9 @@ func TestService(t *testing.T) {
 						}
 						return []ServiceSetterFn{WithVariableSVC(fakeVarSVC)}
 					},
-				),
-			)
+				)
+			})
+
 		})
 
 		t.Run("telegrafs", func(t *testing.T) {
@@ -659,18 +673,14 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created telegrafs on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/telegraf.yml", func(t *testing.T, pkg *Pkg) {
 					fakeTeleSVC := mock.NewTelegrafConfigStore()
-					var c int
 					fakeTeleSVC.CreateTelegrafConfigF = func(_ context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
-						if c == 1 {
+						if fakeTeleSVC.CreateTelegrafConfigCalls.Count() == 1 {
 							return errors.New("limit hit")
 						}
-						c++
-						tc.ID = influxdb.ID(c)
+						tc.ID = influxdb.ID(1)
 						return nil
 					}
-					var deleteCalls int
 					fakeTeleSVC.DeleteTelegrafConfigF = func(_ context.Context, id influxdb.ID) error {
-						deleteCalls++
 						if id != 1 {
 							return errors.New("wrong id here")
 						}
@@ -686,7 +696,7 @@ func TestService(t *testing.T) {
 					_, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.Error(t, err)
 
-					assert.Equal(t, 1, deleteCalls)
+					assert.Equal(t, 1, fakeTeleSVC.DeleteTelegrafConfigCalls.Count())
 				})
 			})
 		})
@@ -729,18 +739,11 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created variables on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/variables.yml", func(t *testing.T, pkg *Pkg) {
 					fakeVarSVC := mock.NewVariableService()
-					var c int
 					fakeVarSVC.CreateVariableF = func(_ context.Context, l *influxdb.Variable) error {
 						// 4th variable will return the error here, and 3 before should be rolled back
-						if c == 3 {
+						if fakeVarSVC.CreateVariableCalls.Count() == 2 {
 							return errors.New("blowed up ")
 						}
-						c++
-						return nil
-					}
-					var count int
-					fakeVarSVC.DeleteVariableF = func(_ context.Context, id influxdb.ID) error {
-						count++
 						return nil
 					}
 
@@ -751,7 +754,7 @@ func TestService(t *testing.T) {
 					_, err := svc.Apply(context.TODO(), orgID, pkg)
 					require.Error(t, err)
 
-					assert.Equal(t, 3, count)
+					assert.GreaterOrEqual(t, fakeVarSVC.DeleteVariableCalls.Count(), 1)
 				})
 			})
 
@@ -773,9 +776,7 @@ func TestService(t *testing.T) {
 					}
 
 					fakeVarSVC := mock.NewVariableService()
-					var createCallCount int
 					fakeVarSVC.CreateVariableF = func(_ context.Context, l *influxdb.Variable) error {
-						createCallCount++
 						if l.Name == "var_const" {
 							return errors.New("shouldn't get here")
 						}
@@ -798,7 +799,7 @@ func TestService(t *testing.T) {
 					assert.Equal(t, influxdb.ID(1), expected.ID)
 					assert.Equal(t, "var_const_3", expected.Name)
 
-					assert.Equal(t, 3, createCallCount) // only called for last 3 labels
+					assert.Equal(t, 3, fakeVarSVC.CreateVariableCalls.Count()) // only called for last 3 labels
 				})
 			})
 		})
