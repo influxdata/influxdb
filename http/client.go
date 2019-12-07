@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/url"
 	"path"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
 )
 
@@ -19,16 +21,22 @@ type Service struct {
 	InsecureSkipVerify bool
 
 	*AuthorizationService
+	*BucketService
+	*DashboardService
 	*OrganizationService
 	*UserService
-	*BucketService
 	*VariableService
-	*DashboardService
+	*WriteService
 }
 
 // NewService returns a service that is an HTTP
 // client to a remote
-func NewService(addr, token string) *Service {
+func NewService(addr, token string) (*Service, error) {
+	httpClient, err := NewHTTPClient(addr, token, false)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Service{
 		Addr:  addr,
 		Token: token,
@@ -36,6 +44,8 @@ func NewService(addr, token string) *Service {
 			Addr:  addr,
 			Token: token,
 		},
+		BucketService:    &BucketService{Client: httpClient},
+		DashboardService: &DashboardService{Client: httpClient},
 		OrganizationService: &OrganizationService{
 			Addr:  addr,
 			Token: token,
@@ -44,19 +54,12 @@ func NewService(addr, token string) *Service {
 			Addr:  addr,
 			Token: token,
 		},
-		BucketService: &BucketService{
+		VariableService: &VariableService{Client: httpClient},
+		WriteService: &WriteService{
 			Addr:  addr,
 			Token: token,
 		},
-		DashboardService: &DashboardService{
-			Addr:  addr,
-			Token: token,
-		},
-		VariableService: &VariableService{
-			Addr:  addr,
-			Token: token,
-		},
-	}
+	}, nil
 }
 
 // NewURL concats addr and path.
@@ -122,18 +125,51 @@ func NewHTTPClient(addr, token string, insecureSkipVerify bool) (*HTTPClient, er
 }
 
 func (c *HTTPClient) delete(urlPath string) *cReq {
-	return c.newClientReq(http.MethodDelete, urlPath, nil)
+	return c.newClientReq(http.MethodDelete, urlPath, bodyEmpty())
 }
 
 func (c *HTTPClient) get(urlPath string) *cReq {
-	return c.newClientReq(http.MethodGet, urlPath, nil)
+	return c.newClientReq(http.MethodGet, urlPath, bodyEmpty())
 }
 
-func (c *HTTPClient) post(urlPath string, body io.Reader) *cReq {
-	return c.newClientReq(http.MethodPost, urlPath, body)
+func (c *HTTPClient) patch(urlPath string, bFn bodyFn) *cReq {
+	return c.newClientReq(http.MethodPatch, urlPath, bFn)
 }
 
-func (c *HTTPClient) newClientReq(method, urlPath string, body io.Reader) *cReq {
+func (c *HTTPClient) post(urlPath string, bFn bodyFn) *cReq {
+	return c.newClientReq(http.MethodPost, urlPath, bFn)
+}
+
+func (c *HTTPClient) put(urlPath string, bFn bodyFn) *cReq {
+	return c.newClientReq(http.MethodPut, urlPath, bFn)
+}
+
+type bodyFn func() (io.Reader, error)
+
+func bodyEmpty() bodyFn {
+	return func() (io.Reader, error) {
+		return nil, nil
+	}
+}
+
+// TODO(@jsteenb2): discussion add a inspection for an OK() or Valid() method, then enforce
+//  that across all consumers?
+func bodyJSON(v interface{}) bodyFn {
+	return func() (io.Reader, error) {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(v); err != nil {
+			return nil, err
+		}
+		return &buf, nil
+	}
+}
+
+func (c *HTTPClient) newClientReq(method, urlPath string, bFn bodyFn) *cReq {
+	body, err := bFn()
+	if err != nil {
+		return &cReq{err: err}
+	}
+
 	u := c.addr
 	u.Path = path.Join(u.Path, urlPath)
 	req, err := http.NewRequest(method, u.String(), body)
@@ -145,9 +181,9 @@ func (c *HTTPClient) newClientReq(method, urlPath string, body io.Reader) *cReq 
 	}
 
 	cr := &cReq{
-		client: c.client,
-		req:    req,
-		respFn: CheckError,
+		client:   c.client,
+		req:      req,
+		statusFn: CheckError,
 	}
 	return cr.ContentType("application/json")
 }
@@ -156,8 +192,10 @@ type cReq struct {
 	client interface {
 		Do(*http.Request) (*http.Response, error)
 	}
-	req    *http.Request
-	respFn func(*http.Response) error
+	req      *http.Request
+	decodeFn func(*http.Response) error
+	respFn   func(*http.Response) error
+	statusFn func(*http.Response) error
 
 	err error
 }
@@ -191,13 +229,25 @@ func (r *cReq) ContentType(ct string) *cReq {
 }
 
 func (r *cReq) DecodeJSON(v interface{}) *cReq {
-	return r.RespFn(func(resp *http.Response) error {
-		return json.NewDecoder(resp.Body).Decode(v)
-	})
+	r.decodeFn = func(resp *http.Response) error {
+		if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+			return &influxdb.Error{
+				Code: influxdb.EInvalid,
+				Err:  err,
+			}
+		}
+		return nil
+	}
+	return r
 }
 
 func (r *cReq) RespFn(fn func(*http.Response) error) *cReq {
 	r.respFn = fn
+	return r
+}
+
+func (r *cReq) StatusFn(fn func(*http.Response) error) *cReq {
+	r.statusFn = fn
 	return r
 }
 
@@ -216,5 +266,17 @@ func (r *cReq) Do(ctx context.Context) error {
 		resp.Body.Close()
 	}()
 
-	return r.respFn(resp)
+	responseFns := []func(*http.Response) error{
+		r.statusFn,
+		r.decodeFn,
+		r.respFn,
+	}
+	for _, fn := range responseFns {
+		if fn != nil {
+			if err := fn(resp); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

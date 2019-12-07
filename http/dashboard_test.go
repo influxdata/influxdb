@@ -1770,10 +1770,8 @@ func initDashboardService(f platformtesting.DashboardFields, t *testing.T) (plat
 	dashboardBackend.DashboardService = svc
 	h := NewDashboardHandler(zaptest.NewLogger(t), dashboardBackend)
 	server := httptest.NewServer(h)
-	client := DashboardService{
-		Addr:     server.URL,
-		OpPrefix: inmem.OpPrefix,
-	}
+
+	client := DashboardService{Client: mustNewHTTPClient(t, server.URL, "")}
 	done := server.Close
 
 	return &client, inmem.OpPrefix, done

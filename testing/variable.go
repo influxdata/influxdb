@@ -359,7 +359,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (platform.VariableServ
 					Name:           "existing-variable",
 					Selected:       []string{"a"},
 					Arguments: &platform.VariableArguments{
-						Type:   "query",
+						Type:   "constant",
 						Values: platform.VariableConstantValues{"a"},
 					},
 					CRUDLog: platform.CRUDLog{

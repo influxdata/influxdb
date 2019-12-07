@@ -486,34 +486,18 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 }
 
 func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, error) {
-	teleSVC, err := ihttp.NewTelegrafService(cliReqOpts.addr, cliReqOpts.token, cliReqOpts.skipVerify)
+	httpClient, err := newHTTPClient()
 	if err != nil {
 		return nil, err
 	}
 
 	return pkger.NewService(
 		append(opts,
-			pkger.WithBucketSVC(&ihttp.BucketService{
-				Addr:               cliReqOpts.addr,
-				Token:              cliReqOpts.token,
-				InsecureSkipVerify: cliReqOpts.skipVerify,
-			}),
-			pkger.WithDashboardSVC(&ihttp.DashboardService{
-				Addr:               cliReqOpts.addr,
-				Token:              cliReqOpts.token,
-				InsecureSkipVerify: cliReqOpts.skipVerify,
-			}),
-			pkger.WithLabelSVC(&ihttp.LabelService{
-				Addr:               cliReqOpts.addr,
-				Token:              cliReqOpts.token,
-				InsecureSkipVerify: cliReqOpts.skipVerify,
-			}),
-			pkger.WithTelegrafSVC(teleSVC),
-			pkger.WithVariableSVC(&ihttp.VariableService{
-				Addr:               cliReqOpts.addr,
-				Token:              cliReqOpts.token,
-				InsecureSkipVerify: cliReqOpts.skipVerify,
-			}),
+			pkger.WithBucketSVC(&ihttp.BucketService{Client: httpClient}),
+			pkger.WithDashboardSVC(&ihttp.DashboardService{Client: httpClient}),
+			pkger.WithLabelSVC(&ihttp.LabelService{Client: httpClient}),
+			pkger.WithTelegrafSVC(ihttp.NewTelegrafService(httpClient)),
+			pkger.WithVariableSVC(&ihttp.VariableService{Client: httpClient}),
 		)...,
 	), nil
 }

@@ -28,11 +28,11 @@ func TestLauncher_Task(t *testing.T) {
 	org := be.Org
 
 	bIn := &influxdb.Bucket{OrgID: org.ID, Name: "my_bucket_in"}
-	if err := be.BucketService().CreateBucket(context.Background(), bIn); err != nil {
+	if err := be.BucketService(t).CreateBucket(context.Background(), bIn); err != nil {
 		t.Fatal(err)
 	}
 	bOut := &influxdb.Bucket{OrgID: org.ID, Name: "my_bucket_out"}
-	if err := be.BucketService().CreateBucket(context.Background(), bOut); err != nil {
+	if err := be.BucketService(t).CreateBucket(context.Background(), bOut); err != nil {
 		t.Fatal(err)
 	}
 	u := be.User

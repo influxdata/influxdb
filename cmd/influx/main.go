@@ -28,6 +28,24 @@ func main() {
 	}
 }
 
+var (
+	httpClient *http.HTTPClient
+)
+
+func newHTTPClient() (*http.HTTPClient, error) {
+	if httpClient != nil {
+		return httpClient, nil
+	}
+
+	c, err := http.NewHTTPClient(flags.host, flags.token, flags.skipVerify)
+	if err != nil {
+		return nil, err
+	}
+
+	httpClient = c
+	return httpClient, nil
+}
+
 type httpClientOpts struct {
 	token, addr string
 	skipVerify  bool

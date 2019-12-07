@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -290,15 +289,6 @@ func decodePatchLabelRequest(ctx context.Context, r *http.Request) (*patchLabelR
 	}, nil
 }
 
-// LabelService connects to Influx via HTTP using tokens to manage labels
-type LabelService struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
-	BasePath           string
-	OpPrefix           string
-}
-
 type labelResponse struct {
 	Links map[string]string `json:"links"`
 	Label influxdb.Label    `json:"label"`
@@ -530,32 +520,19 @@ func labelIDPath(id influxdb.ID) string {
 	return path.Join(labelsPath, id.String())
 }
 
+// LabelService connects to Influx via HTTP using tokens to manage labels
+type LabelService struct {
+	Client   *HTTPClient
+	OpPrefix string
+}
+
 // FindLabelByID returns a single label by ID.
 func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
-	u, err := NewURL(s.Addr, labelIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var lr labelResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+	err := s.Client.get(labelIDPath(id)).
+		DecodeJSON(&lr).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
 	return &lr.Label, nil
@@ -563,42 +540,22 @@ func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*infl
 
 // FindLabels is a client for the find labels response from the server.
 func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilter, opt ...influxdb.FindOptions) ([]*influxdb.Label, error) {
-	u, err := NewURL(s.Addr, labelsPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	q := req.URL.Query()
+	var queryPairs []queryPair
 	if filter.OrgID != nil {
-		q.Add("orgID", filter.OrgID.String())
+		queryPairs = append(queryPairs, queryPair{k: "orgID", v: filter.OrgID.String()})
 	}
 	if filter.Name != "" {
-		q.Add("name", filter.Name)
-	}
-	req.URL.RawQuery = q.Encode()
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
+		queryPairs = append(queryPairs, queryPair{k: "name", v: filter.Name})
 	}
 
 	var lr labelsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+	err := s.Client.get(labelsPath).
+		Queries(queryPairs...).
+		DecodeJSON(&lr).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
-
 	return lr.Labels, nil
 }
 
@@ -607,73 +564,24 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 	if err := filter.Valid(); err != nil {
 		return nil, err
 	}
-	url, err := NewURL(s.Addr, resourceIDPath(filter.ResourceType, filter.ResourceID, "labels"))
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", url.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
 
 	var r labelsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
+	err := s.Client.get(resourceIDPath(filter.ResourceType, filter.ResourceID, "labels")).
+		DecodeJSON(&r).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
-
 	return r.Labels, nil
 }
 
 // CreateLabel creates a new label.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
-	u, err := NewURL(s.Addr, labelsPath)
-	if err != nil {
-		return err
-	}
-
-	octets, err := json.Marshal(l)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// TODO(jsternberg): Should this check for a 201 explicitly?
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
 	var lr labelResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+	err := s.Client.post(labelsPath, bodyJSON(l)).
+		DecodeJSON(&lr).
+		Do(ctx)
+	if err != nil {
 		return err
 	}
 
@@ -682,83 +590,13 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 	return nil
 }
 
-// CreateLabelMapping will create a labbel mapping
-func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	if err := m.Validate(); err != nil {
-		return err
-	}
-
-	url, err := NewURL(s.Addr, resourceIDPath(m.ResourceType, m.ResourceID, "labels"))
-	if err != nil {
-		return err
-	}
-
-	octets, err := json.Marshal(m)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("POST", url.String(), bytes.NewReader(octets))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return err
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(m); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // UpdateLabel updates a label and returns the updated label.
 func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
-	u, err := NewURL(s.Addr, labelIDPath(id))
-	if err != nil {
-		return nil, err
-	}
-
-	octets, err := json.Marshal(upd)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", u.String(), bytes.NewReader(octets))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if err := CheckError(resp); err != nil {
-		return nil, err
-	}
-
 	var lr labelResponse
-	if err := json.NewDecoder(resp.Body).Decode(&lr); err != nil {
+	err := s.Client.patch(labelIDPath(id), bodyJSON(upd)).
+		DecodeJSON(&lr).
+		Do(ctx)
+	if err != nil {
 		return nil, err
 	}
 	return &lr.Label, nil
@@ -766,49 +604,25 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd infl
 
 // DeleteLabel removes a label by ID.
 func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
-	u, err := NewURL(s.Addr, labelIDPath(id))
-	if err != nil {
+	return s.Client.delete(labelIDPath(id)).Do(ctx)
+}
+
+// CreateLabelMapping will create a labbel mapping
+func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
+	if err := m.Validate(); err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("DELETE", u.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckError(resp)
+	urlPath := resourceIDPath(m.ResourceType, m.ResourceID, "labels")
+	return s.Client.post(urlPath, bodyJSON(m)).
+		DecodeJSON(m).
+		Do(ctx)
 }
 
 func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	url, err := NewURL(s.Addr, labelNamePath(s.BasePath, m.ResourceID, m.LabelID))
-	if err != nil {
+	if err := m.Validate(); err != nil {
 		return err
 	}
 
-	req, err := http.NewRequest("DELETE", url.String(), nil)
-	if err != nil {
-		return err
-	}
-	SetToken(s.Token, req)
-
-	hc := NewClient(url.Scheme, s.InsecureSkipVerify)
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckError(resp)
-}
-
-func labelNamePath(basePath string, resourceID influxdb.ID, labelID influxdb.ID) string {
-	return path.Join(basePath, resourceID.String(), "labels", labelID.String())
+	return s.Client.delete(resourceIDPath(m.ResourceType, m.ResourceID, "labels")).Do(ctx)
 }
