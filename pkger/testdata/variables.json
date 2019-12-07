@@ -26,15 +26,15 @@
       },
       {
         "kind": "Variable",
-        "name": "var_const",
-        "description": "var_const desc",
+        "name": "var_const_3",
+        "description": "var_const_3 desc",
         "type": "constant",
         "values": ["first val"]
       },
       {
         "kind": "Variable",
-        "name": "var_map",
-        "description": "var_map desc",
+        "name": "var_map_4",
+        "description": "var_map_4 desc",
         "type": "map",
         "values": {
           "k1": "v1"

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/rand"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -95,7 +96,6 @@ func TestService(t *testing.T) {
 						},
 					}
 					assert.Equal(t, expected, diff.Buckets[0])
-					t.Log(diff.Buckets[0].Old)
 				})
 			})
 		})
@@ -181,7 +181,7 @@ func TestService(t *testing.T) {
 					return []*influxdb.Variable{
 						{
 							ID:          influxdb.ID(1),
-							Name:        "var_const",
+							Name:        "var_const_3",
 							Description: "old desc",
 						},
 					}, nil
@@ -196,12 +196,12 @@ func TestService(t *testing.T) {
 
 				expected := DiffVariable{
 					ID:   SafeID(1),
-					Name: "var_const",
+					Name: "var_const_3",
 					Old: &DiffVariableValues{
 						Description: "old desc",
 					},
 					New: DiffVariableValues{
-						Description: "var_const desc",
+						Description: "var_const_3 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "constant",
 							Values: influxdb.VariableConstantValues{"first val"},
@@ -212,9 +212,9 @@ func TestService(t *testing.T) {
 
 				expected = DiffVariable{
 					// no ID here since this one would be new
-					Name: "var_map",
+					Name: "var_map_4",
 					New: DiffVariableValues{
-						Description: "var_map desc",
+						Description: "var_map_4 desc",
 						Args: &influxdb.VariableArguments{
 							Type:   "map",
 							Values: influxdb.VariableMapValues{"k1": "v1"},
@@ -311,12 +311,12 @@ func TestService(t *testing.T) {
 						// forces the bucket to be created a new
 						return nil, errors.New("an error")
 					}
-					var c int
+					var c int64
 					fakeBktSVC.CreateBucketFn = func(_ context.Context, b *influxdb.Bucket) error {
-						if c == 2 {
+						if atomic.LoadInt64(&c) == 2 {
 							return errors.New("blowed up ")
 						}
-						c++
+						atomic.AddInt64(&c, 1)
 						return nil
 					}
 					var count int
@@ -344,10 +344,12 @@ func TestService(t *testing.T) {
 			t.Run("successfully creates pkg of labels", func(t *testing.T) {
 				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
-					id := 1
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
-						l.ID = influxdb.ID(id)
-						id++
+						i, err := strconv.Atoi(l.Name[len(l.Name)-1:])
+						if err != nil {
+							return err
+						}
+						l.ID = influxdb.ID(i)
 						return nil
 					}
 
@@ -378,13 +380,13 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created labels on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/label", func(t *testing.T, pkg *Pkg) {
 					fakeLabelSVC := mock.NewLabelService()
-					var c int
+					var c int64
 					fakeLabelSVC.CreateLabelFn = func(_ context.Context, l *influxdb.Label) error {
 						// 4th label will return the error here, and 3 before should be rolled back
-						if c == 3 {
+						if atomic.LoadInt64(&c) == 3 {
 							return errors.New("blowed up ")
 						}
-						c++
+						atomic.AddInt64(&c, 1)
 						return nil
 					}
 					var count int
@@ -541,7 +543,7 @@ func TestService(t *testing.T) {
 							l.ID = influxdb.ID(rand.Int())
 							return nil
 						}
-						numLabelMappings := 0
+						var numLabelMappings int64
 						fakeLabelSVC.CreateLabelMappingFn = func(_ context.Context, mapping *influxdb.LabelMapping) error {
 							if mapping.ResourceID == 0 {
 								return errors.New("did not get a resource ID")
@@ -549,7 +551,7 @@ func TestService(t *testing.T) {
 							if mapping.ResourceType == "" {
 								return errors.New("did not get a resource type")
 							}
-							numLabelMappings++
+							atomic.AddInt64(&numLabelMappings, 1)
 							return nil
 						}
 						svc := newTestService(append(settersFn(),
@@ -562,7 +564,7 @@ func TestService(t *testing.T) {
 						_, err := svc.Apply(context.TODO(), orgID, pkg)
 						require.NoError(t, err)
 
-						assert.Equal(t, numExpected, numLabelMappings)
+						assert.Equal(t, numExpected, int(numLabelMappings))
 					})
 				}
 			}
@@ -693,10 +695,12 @@ func TestService(t *testing.T) {
 			t.Run("successfully creates pkg of variables", func(t *testing.T) {
 				testfileRunner(t, "testdata/variables.yml", func(t *testing.T, pkg *Pkg) {
 					fakeVarSVC := mock.NewVariableService()
-					id := 1
 					fakeVarSVC.CreateVariableF = func(_ context.Context, v *influxdb.Variable) error {
+						id, err := strconv.Atoi(v.Name[len(v.Name)-1:])
+						if err != nil {
+							return err
+						}
 						v.ID = influxdb.ID(id)
-						id++
 						return nil
 					}
 
@@ -709,16 +713,15 @@ func TestService(t *testing.T) {
 
 					require.Len(t, sum.Variables, 4)
 					expected := sum.Variables[0]
-					assert.Equal(t, influxdb.ID(1), expected.ID)
+					assert.Equal(t, influxdb.ID(3), expected.ID)
 					assert.Equal(t, orgID, expected.OrganizationID)
-					assert.Equal(t, "var_const", expected.Name)
-					assert.Equal(t, "var_const desc", expected.Description)
+					assert.Equal(t, "var_const_3", expected.Name)
+					assert.Equal(t, "var_const_3 desc", expected.Description)
 					require.NotNil(t, expected.Arguments)
 					assert.Equal(t, influxdb.VariableConstantValues{"first val"}, expected.Arguments.Values)
 
-					for i := 1; i < 3; i++ {
-						expected = sum.Variables[i]
-						assert.Equal(t, influxdb.ID(i+1), expected.ID)
+					for _, actual := range sum.Variables {
+						assert.Contains(t, []influxdb.ID{1, 2, 3, 4}, actual.ID)
 					}
 				})
 			})
@@ -757,7 +760,7 @@ func TestService(t *testing.T) {
 					orgID := influxdb.ID(9000)
 
 					pkg.isVerified = true
-					pkgLabel := pkg.mVariables["var_const"]
+					pkgLabel := pkg.mVariables["var_const_3"]
 					pkgLabel.existing = &influxdb.Variable{
 						// makes all pkg changes same as they are on the existing
 						ID:             influxdb.ID(1),
@@ -793,7 +796,7 @@ func TestService(t *testing.T) {
 					require.Len(t, sum.Variables, 4)
 					expected := sum.Variables[0]
 					assert.Equal(t, influxdb.ID(1), expected.ID)
-					assert.Equal(t, "var_const", expected.Name)
+					assert.Equal(t, "var_const_3", expected.Name)
 
 					assert.Equal(t, 3, createCallCount) // only called for last 3 labels
 				})
