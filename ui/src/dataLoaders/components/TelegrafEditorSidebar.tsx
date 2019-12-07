@@ -6,9 +6,8 @@ import {AppState, Bucket} from 'src/types'
 import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
+  TelegrafEditorPlugin,
   TelegrafEditorActivePlugin,
-  TelegrafEditorBasicPlugin,
-  TelegrafEditorBundlePlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {
   setFilter,
@@ -78,10 +77,9 @@ interface DispatchProps {
   onSetMode: typeof setMode
 }
 
-type ListPlugin = TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
 interface OwnProps {
   onJump: (which: TelegrafEditorActivePlugin) => void
-  onAdd: (which: ListPlugin) => void
+  onAdd: (which: TelegrafEditorPlugin) => void
 }
 
 type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
@@ -115,7 +113,7 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
             onSetFilter((evt.target as any).value)
           }}
           onChange={(evt: ChangeEvent<any>) => {
-            onSetFilter((evt.target).value)
+            onSetFilter(evt.target.value)
           }}
           placeholder="Filter Plugins..."
         />

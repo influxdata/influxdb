@@ -4,14 +4,10 @@ import {
   TelegrafEditorPluginState,
   TelegrafEditorActivePluginState,
   TelegrafEditorActivePlugin,
-  TelegrafEditorBasicPlugin,
-  TelegrafEditorBundlePlugin,
+  TelegrafEditorPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
-type ListPlugin =
-  | TelegrafEditorBasicPlugin
-  | TelegrafEditorBundlePlugin
-  | TelegrafEditorActivePlugin
+type ListPlugin = TelegrafEditorPlugin | TelegrafEditorActivePlugin
 
 interface InterumListFormat {
   category: string
@@ -41,8 +37,8 @@ function groupPlugins(plugins: Array<ListPlugin>, pluginFilter: string) {
       (k: string): InterumListFormat => {
         return {
           category: k,
-          items: (map[k] || []).filter(
-            (a: ListPlugin) => (a.name || '').includes(pluginFilter)
+          items: (map[k] || []).filter((a: ListPlugin) =>
+            (a.name || '').includes(pluginFilter)
           ),
         }
       }

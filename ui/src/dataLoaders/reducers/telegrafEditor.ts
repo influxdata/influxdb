@@ -26,9 +26,11 @@ export interface TelegrafEditorBundlePlugin {
   type: 'bundle'
   include: Array<TelegrafEditorPluginName>
 }
-export type TelegrafEditorPluginState = Array<
-  TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
->
+
+export type TelegrafEditorPlugin =
+  | TelegrafEditorBasicPlugin
+  | TelegrafEditorBundlePlugin
+export type TelegrafEditorPluginState = Array<TelegrafEditorPlugin>
 
 export interface TelegrafEditorActivePlugin {
   name: string
@@ -39,6 +41,7 @@ export interface TelegrafEditorActivePlugin {
 export type TelegrafEditorActivePluginState = Array<TelegrafEditorActivePlugin>
 
 type TelegrafEditorMode = 'adding' | 'indexing'
+
 export interface TelegrafEditorState {
   mode: TelegrafEditorMode
   bucket: Bucket | null

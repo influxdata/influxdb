@@ -10,17 +10,15 @@ import TelegrafEditorMonaco from 'src/dataLoaders/components/TelegrafEditorMonac
 
 import {
   TelegrafEditorActivePlugin,
-  TelegrafEditorBasicPlugin,
-  TelegrafEditorBundlePlugin,
+  TelegrafEditorPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
 import './TelegrafEditor.scss'
 
-type ListPlugin = TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
-type AllPlugin = ListPlugin | TelegrafEditorActivePlugin
+type AllPlugin = TelegrafEditorPlugin | TelegrafEditorActivePlugin
 
 interface StateProps {
-  map: {[k: string]: AllPlugin}
+  pluginHashMap: {[k: string]: AllPlugin}
 }
 
 type Props = StateProps
@@ -69,18 +67,23 @@ class TelegrafEditor extends PureComponent<Props> {
     this._editor.getWrappedInstance().jump(which.line)
   }
 
-  private handleAdd = (which: ListPlugin) => {
+  private handleAdd = (which: TelegrafEditorPlugin) => {
     const editor = this._editor.getWrappedInstance()
     const line = editor.nextLine()
 
     if (which.type === 'bundle') {
       (which.include || [])
         .filter(
-          item => this.props.map[item] && this.props.map[item].type !== 'bundle'
+          item =>
+            this.props.pluginHashMap[item] &&
+            this.props.pluginHashMap[item].type !== 'bundle'
         )
         .map(
           item =>
-            ((this.props.map[item] as TelegrafEditorBasicPlugin) || {}).code
+            (
+              (this.props.pluginHashMap[item] as TelegrafEditorBasicPlugin) ||
+              {}
+            ).code
         )
         .filter(i => !!i)
         .reverse()
@@ -96,13 +99,13 @@ class TelegrafEditor extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const map = state.telegrafEditorPlugins.reduce((prev, curr) => {
+  const pluginHashMap = state.telegrafEditorPlugins.reduce((prev, curr) => {
     prev[curr.name] = curr
     return prev
   }, {})
 
   return {
-    map,
+    pluginHashMap,
   }
 }
 
