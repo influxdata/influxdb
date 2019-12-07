@@ -6,25 +6,30 @@ import {connect} from 'react-redux'
 import {Button} from '@influxdata/clockface'
 
 // Actions
-import {setActiveTab} from 'src/timeMachine/actions'
+import {loadCustomQueryState} from 'src/timeMachine/actions'
 
 interface DispatchProps {
-  onSetActiveTab: typeof setActiveTab
+  onLoadCustomQueryState: typeof loadCustomQueryState
 }
 
-const CustomizeCheckQuerySwitcher: FC<DispatchProps> = ({onSetActiveTab}) => {
+const CustomizeCheckQuerySwitcher: FC<DispatchProps> = ({
+  onLoadCustomQueryState,
+}) => {
+  const switchToEditor = () => {
+    onLoadCustomQueryState()
+  }
   return (
     <Button
       text="Customize Check Query"
       titleText="Switch to Script Editor"
-      onClick={() => onSetActiveTab('customCheckQuery')}
+      onClick={switchToEditor}
       testID="switch-to-custom-check"
     />
   )
 }
 
 const mdtp: DispatchProps = {
-  onSetActiveTab: setActiveTab,
+  onLoadCustomQueryState: loadCustomQueryState,
 }
 
 export default connect<{}, DispatchProps>(
