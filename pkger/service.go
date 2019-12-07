@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -31,6 +32,8 @@ type serviceOpt struct {
 	dashSVC   influxdb.DashboardService
 	teleSVC   influxdb.TelegrafConfigStore
 	varSVC    influxdb.VariableService
+
+	applyReqLimit int
 }
 
 // ServiceSetterFn is a means of setting dependencies on the Service type.
@@ -78,6 +81,15 @@ func WithVariableSVC(varSVC influxdb.VariableService) ServiceSetterFn {
 	}
 }
 
+// WithApplyReqLimit sets the concurrency request limit.
+func WithApplyReqLimit(limit int) ServiceSetterFn {
+	return func(o *serviceOpt) {
+		if limit > 0 {
+			o.applyReqLimit = limit
+		}
+	}
+}
+
 // Service provides the pkger business logic including all the dependencies to make
 // this resource sausage.
 type Service struct {
@@ -88,24 +100,28 @@ type Service struct {
 	dashSVC   influxdb.DashboardService
 	teleSVC   influxdb.TelegrafConfigStore
 	varSVC    influxdb.VariableService
+
+	applyReqLimit int
 }
 
 // NewService is a constructor for a pkger Service.
 func NewService(opts ...ServiceSetterFn) *Service {
 	opt := &serviceOpt{
-		logger: zap.NewNop(),
+		logger:        zap.NewNop(),
+		applyReqLimit: 5,
 	}
 	for _, o := range opts {
 		o(opt)
 	}
 
 	return &Service{
-		log:       opt.logger,
-		bucketSVC: opt.bucketSVC,
-		labelSVC:  opt.labelSVC,
-		dashSVC:   opt.dashSVC,
-		teleSVC:   opt.teleSVC,
-		varSVC:    opt.varSVC,
+		log:           opt.logger,
+		bucketSVC:     opt.bucketSVC,
+		labelSVC:      opt.labelSVC,
+		dashSVC:       opt.dashSVC,
+		teleSVC:       opt.teleSVC,
+		varSVC:        opt.varSVC,
+		applyReqLimit: opt.applyReqLimit,
 	}
 }
 
@@ -785,37 +801,37 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 		}
 	}
 
-	coordinator := new(rollbackCoordinator)
+	coordinator := &rollbackCoordinator{sem: make(chan struct{}, s.applyReqLimit)}
 	defer coordinator.rollback(s.log, &e)
 
-	runners := [][]applier{
-		// each grouping here runs for its entirety, then returns an error that
-		// is indicative of running all appliers provided. For instance, the labels
-		// may have 1 label fail and one of the buckets fails. The errors aggregate so
-		// the caller will be informed of both the failed label and the failed bucket.
-		// the groupings here allow for steps to occur before exiting. The first step is
-		// adding the primary resources. Here we get all the errors associated with them.
-		// If those are all good, then we run the secondary(dependent) resources which
-		// rely on the primary resources having been created.
-		{
-			// primary resources
-			s.applyLabels(pkg.labels()),
-			s.applyVariables(pkg.variables()),
-			s.applyBuckets(pkg.buckets()),
-			s.applyDashboards(pkg.dashboards()),
-			s.applyTelegrafs(pkg.telegrafs()),
-		},
-		{
-			// secondary (dependent) resources
-			s.applyLabelMappings(pkg),
-		},
+	// each grouping here runs for its entirety, then returns an error that
+	// is indicative of running all appliers provided. For instance, the labels
+	// may have 1 label fail and one of the buckets fails. The errors aggregate so
+	// the caller will be informed of both the failed label and the failed bucket.
+	// the groupings here allow for steps to occur before exiting. The first step is
+	// adding the primary resources. Here we get all the errors associated with them.
+	// If those are all good, then we run the secondary(dependent) resources which
+	// rely on the primary resources having been created.
+	primary := []applier{
+		// primary resources
+		s.applyLabels(pkg.labels()),
+		s.applyVariables(pkg.variables()),
+		s.applyBuckets(pkg.buckets()),
+		s.applyDashboards(pkg.dashboards()),
+		s.applyTelegrafs(pkg.telegrafs()),
+	}
+	if err := coordinator.runTilEnd(ctx, orgID, primary...); err != nil {
+		return Summary{}, err
 	}
 
-	for _, appliers := range runners {
-		err := coordinator.runTilEnd(ctx, orgID, appliers...)
-		if err != nil {
-			return Summary{}, err
-		}
+	// secondary grouping relies on state being available from the primary run.
+	// the first example here is label mappings which relies on ids provided
+	// from the newly created resources in primary.
+	secondary := []applier{
+		s.applyLabelMappings(pkg.labelMappings()),
+	}
+	if err := coordinator.runTilEnd(ctx, orgID, secondary...); err != nil {
+		return Summary{}, err
 	}
 
 	return pkg.Summary(), nil
@@ -824,34 +840,40 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 func (s *Service) applyBuckets(buckets []*bucket) applier {
 	const resource = "bucket"
 
+	mutex := new(doMutex)
 	rollbackBuckets := make([]*bucket, 0, len(buckets))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i, b := range buckets {
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var b bucket
+		mutex.Do(func() {
 			buckets[i].OrgID = orgID
-			if !b.shouldApply() {
-				continue
-			}
-			influxBucket, err := s.applyBucket(ctx, b)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: b.Name(),
-					msg:  err.Error(),
-				})
-				continue
-			}
-			buckets[i].id = influxBucket.ID
-			rollbackBuckets = append(rollbackBuckets, buckets[i])
+			b = *buckets[i]
+		})
+		if !b.shouldApply() {
+			return nil
 		}
 
-		return errs.toError(resource, "failed to create bucket")
+		influxBucket, err := s.applyBucket(ctx, b)
+		if err != nil {
+			return &applyErrBody{
+				name: b.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			buckets[i].id = influxBucket.ID
+			rollbackBuckets = append(rollbackBuckets, buckets[i])
+		})
+
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(buckets),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn:       func() error { return s.rollbackBuckets(rollbackBuckets) },
@@ -888,7 +910,7 @@ func (s *Service) rollbackBuckets(buckets []*bucket) error {
 	return nil
 }
 
-func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, error) {
+func (s *Service) applyBucket(ctx context.Context, b bucket) (influxdb.Bucket, error) {
 	rp := b.RetentionRules.RP()
 	if b.existing != nil {
 		influxBucket, err := s.bucketSVC.UpdateBucket(ctx, b.ID(), influxdb.BucketUpdate{
@@ -918,32 +940,36 @@ func (s *Service) applyBucket(ctx context.Context, b *bucket) (influxdb.Bucket, 
 func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 	const resource = "dashboard"
 
+	mutex := new(doMutex)
 	rollbackDashboards := make([]*dashboard, 0, len(dashboards))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i := range dashboards {
-			d := dashboards[i]
-			d.OrgID = orgID
-			influxBucket, err := s.applyDashboard(ctx, d)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: d.Name(),
-					msg:  err.Error(),
-				})
-				continue
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var d dashboard
+		mutex.Do(func() {
+			dashboards[i].OrgID = orgID
+			d = *dashboards[i]
+		})
+
+		influxBucket, err := s.applyDashboard(ctx, d)
+		if err != nil {
+			return &applyErrBody{
+				name: d.Name(),
+				msg:  err.Error(),
 			}
-			d.id = influxBucket.ID
-			rollbackDashboards = append(rollbackDashboards, d)
 		}
 
-		return errs.toError(resource, "failed to create")
+		mutex.Do(func() {
+			dashboards[i].id = influxBucket.ID
+			rollbackDashboards = append(rollbackDashboards, dashboards[i])
+		})
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(dashboards),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func() error {
@@ -955,7 +981,7 @@ func (s *Service) applyDashboards(dashboards []*dashboard) applier {
 	}
 }
 
-func (s *Service) applyDashboard(ctx context.Context, d *dashboard) (influxdb.Dashboard, error) {
+func (s *Service) applyDashboard(ctx context.Context, d dashboard) (influxdb.Dashboard, error) {
 	cells := convertChartsToCells(d.Charts)
 	influxDashboard := influxdb.Dashboard{
 		OrganizationID: d.OrgID,
@@ -994,34 +1020,40 @@ func convertChartsToCells(ch []chart) []*influxdb.Cell {
 func (s *Service) applyLabels(labels []*label) applier {
 	const resource = "label"
 
+	mutex := new(doMutex)
 	rollBackLabels := make([]*label, 0, len(labels))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i, l := range labels {
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var l label
+		mutex.Do(func() {
 			labels[i].OrgID = orgID
-			if !l.shouldApply() {
-				continue
-			}
-			influxLabel, err := s.applyLabel(ctx, l)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: l.Name(),
-					msg:  err.Error(),
-				})
-				continue
-			}
-			labels[i].id = influxLabel.ID
-			rollBackLabels = append(rollBackLabels, labels[i])
+			l = *labels[i]
+		})
+		if !l.shouldApply() {
+			return nil
 		}
 
-		return errs.toError(resource, "failed to create label")
+		influxLabel, err := s.applyLabel(ctx, l)
+		if err != nil {
+			return &applyErrBody{
+				name: l.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			labels[i].id = influxLabel.ID
+			rollBackLabels = append(rollBackLabels, labels[i])
+		})
+
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(labels),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn:       func() error { return s.rollbackLabels(rollBackLabels) },
@@ -1055,7 +1087,7 @@ func (s *Service) rollbackLabels(labels []*label) error {
 	return nil
 }
 
-func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, error) {
+func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, error) {
 	if l.existing != nil {
 		updatedlabel, err := s.labelSVC.UpdateLabel(ctx, l.ID(), influxdb.LabelUpdate{
 			Properties: l.properties(),
@@ -1082,31 +1114,37 @@ func (s *Service) applyLabel(ctx context.Context, l *label) (influxdb.Label, err
 func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 	const resource = "telegrafs"
 
+	mutex := new(doMutex)
 	rollbackTelegrafs := make([]*telegraf, 0, len(teles))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i := range teles {
-			t := teles[i]
-			t.config.OrgID = orgID
-			err := s.teleSVC.CreateTelegrafConfig(ctx, &t.config, 0)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: t.Name(),
-					msg:  err.Error(),
-				})
-				continue
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var cfg influxdb.TelegrafConfig
+		mutex.Do(func() {
+			teles[i].config.OrgID = orgID
+			cfg = teles[i].config
+		})
+
+		err := s.teleSVC.CreateTelegrafConfig(ctx, &cfg, 0)
+		if err != nil {
+			return &applyErrBody{
+				name: cfg.Name,
+				msg:  err.Error(),
 			}
-			rollbackTelegrafs = append(rollbackTelegrafs, t)
 		}
 
-		return errs.toError(resource, "failed to create")
+		mutex.Do(func() {
+			teles[i].config = cfg
+			rollbackTelegrafs = append(rollbackTelegrafs, teles[i])
+		})
+
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(teles),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn: func() error {
@@ -1121,34 +1159,38 @@ func (s *Service) applyTelegrafs(teles []*telegraf) applier {
 func (s *Service) applyVariables(vars []*variable) applier {
 	const resource = "variable"
 
+	mutex := new(doMutex)
 	rollBackVars := make([]*variable, 0, len(vars))
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
 
-		var errs applyErrs
-		for i, v := range vars {
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var v variable
+		mutex.Do(func() {
 			vars[i].OrgID = orgID
-			if !v.shouldApply() {
-				continue
+			v = *vars[i]
+		})
+		if !v.shouldApply() {
+			return nil
+		}
+		influxVar, err := s.applyVariable(ctx, v)
+		if err != nil {
+			return &applyErrBody{
+				name: v.Name(),
+				msg:  err.Error(),
 			}
-			influxVar, err := s.applyVariable(ctx, v)
-			if err != nil {
-				errs = append(errs, applyErrBody{
-					name: v.Name(),
-					msg:  err.Error(),
-				})
-				continue
-			}
-			vars[i].id = influxVar.ID
-			rollBackVars = append(rollBackVars, vars[i])
 		}
 
-		return errs.toError(resource, "failed to create variable")
+		mutex.Do(func() {
+			vars[i].id = influxVar.ID
+			rollBackVars = append(rollBackVars, vars[i])
+		})
+		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(vars),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
 			resource: resource,
 			fn:       func() error { return s.rollbackVariables(rollBackVars) },
@@ -1183,7 +1225,7 @@ func (s *Service) rollbackVariables(variables []*variable) error {
 	return nil
 }
 
-func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Variable, error) {
+func (s *Service) applyVariable(ctx context.Context, v variable) (influxdb.Variable, error) {
 	if v.existing != nil {
 		updatedVar, err := s.varSVC.UpdateVariable(ctx, v.ID(), &influxdb.VariableUpdate{
 			Description: v.Description,
@@ -1209,39 +1251,51 @@ func (s *Service) applyVariable(ctx context.Context, v *variable) (influxdb.Vari
 	return influxVar, nil
 }
 
-func (s *Service) applyLabelMappings(pkg *Pkg) applier {
-	var mappings []influxdb.LabelMapping
-	createFn := func(ctx context.Context, orgID influxdb.ID) error {
-		ctx, cancel := context.WithTimeout(ctx, time.Minute)
-		defer cancel()
+func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applier {
+	const resource = "label_mapping"
 
-		labelMappings := pkg.labelMappings()
-		for i := range labelMappings {
-			mapping := labelMappings[i]
-			if mapping.exists {
-				// this block here does 2 things, it does not write a
-				// mapping when one exists. it also avoids having to worry
-				// about deleting an existing mapping since it will not be
-				// passed to the delete function below b/c it is never added
-				// to the list of mappings that is referenced in the delete
-				// call.
-				continue
-			}
-			err := s.labelSVC.CreateLabelMapping(ctx, &mapping.LabelMapping)
-			if err != nil {
-				return err
-			}
-			mappings = append(mappings, mapping.LabelMapping)
+	mutex := new(doMutex)
+	rollbackMappings := make([]influxdb.LabelMapping, 0, len(labelMappings))
+
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var mapping SummaryLabelMapping
+		mutex.Do(func() {
+			mapping = labelMappings[i]
+		})
+		if mapping.exists {
+			// this block here does 2 things, it does not write a
+			// mapping when one exists. it also avoids having to worry
+			// about deleting an existing mapping since it will not be
+			// passed to the delete function below b/c it is never added
+			// to the list of mappings that is referenced in the delete
+			// call.
+			return nil
 		}
+
+		err := s.labelSVC.CreateLabelMapping(ctx, &mapping.LabelMapping)
+		if err != nil {
+			return &applyErrBody{
+				name: fmt.Sprintf("%s:%s", mapping.ResourceID, mapping.LabelID),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			labelMappings[i].LabelMapping = mapping.LabelMapping
+			rollbackMappings = append(rollbackMappings, mapping.LabelMapping)
+		})
 
 		return nil
 	}
 
 	return applier{
-		creater: createFn,
+		creater: creater{
+			entries: len(labelMappings),
+			fn:      createFn,
+		},
 		rollbacker: rollbacker{
-			resource: "label_mapping",
-			fn:       func() error { return s.rollbackLabelMappings(mappings) },
+			resource: resource,
+			fn:       func() error { return s.rollbackLabelMappings(rollbackMappings) },
 		},
 	}
 }
@@ -1280,6 +1334,16 @@ func (s *Service) deleteByIDs(resource string, numIDs int, deleteFn func(context
 	return nil
 }
 
+type doMutex struct {
+	sync.Mutex
+}
+
+func (m *doMutex) Do(fn func()) {
+	m.Lock()
+	defer m.Unlock()
+	fn()
+}
+
 type (
 	applier struct {
 		creater    creater
@@ -1291,27 +1355,49 @@ type (
 		fn       func() error
 	}
 
-	creater func(ctx context.Context, orgID influxdb.ID) error
+	creater struct {
+		entries int
+		fn      func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody
+	}
 )
 
 type rollbackCoordinator struct {
 	rollbacks []rollbacker
+
+	sem chan struct{}
 }
 
 func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID influxdb.ID, appliers ...applier) error {
-	var errs []string
-	for _, app := range appliers {
+	errStr := newErrStream(ctx)
+
+	wg := new(sync.WaitGroup)
+	for i := range appliers {
+		// cannot reuse the shared variable from for loop since we're using concurrency b/c
+		// that temp var gets recycled between iterations
+		app := appliers[i]
 		r.rollbacks = append(r.rollbacks, app.rollbacker)
-		if err := app.creater(ctx, orgID); err != nil {
-			errs = append(errs, fmt.Sprintf("failed %s create: %s", app.rollbacker.resource, err.Error()))
+		for idx := range make([]struct{}, app.creater.entries) {
+			r.sem <- struct{}{}
+			wg.Add(1)
+
+			go func(i int, resource string) {
+				defer func() {
+					wg.Done()
+					<-r.sem
+				}()
+
+				ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+				defer cancel()
+
+				if err := app.creater.fn(ctx, i, orgID); err != nil {
+					errStr.add(errMsg{resource: resource, err: *err})
+				}
+			}(idx, app.rollbacker.resource)
 		}
 	}
+	wg.Wait()
 
-	if len(errs) > 0 {
-		// TODO: fix error up to be more actionable
-		return errors.New(strings.Join(errs, "\n"))
-	}
-	return nil
+	return errStr.close()
 }
 
 func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error) {
@@ -1326,13 +1412,82 @@ func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error) {
 	}
 }
 
+func (r *rollbackCoordinator) close() {
+	if r.sem != nil {
+		close(r.sem)
+	}
+}
+
+type errMsg struct {
+	resource string
+	err      applyErrBody
+}
+
+type errStream struct {
+	msgStream chan errMsg
+	err       chan error
+	done      <-chan struct{}
+}
+
+func newErrStream(ctx context.Context) *errStream {
+	e := &errStream{
+		msgStream: make(chan errMsg),
+		err:       make(chan error),
+		done:      ctx.Done(),
+	}
+	e.do()
+	return e
+}
+
+func (e *errStream) do() {
+	go func() {
+		mErrs := func() map[string]applyErrs {
+			mErrs := make(map[string]applyErrs)
+			for {
+				select {
+				case <-e.done:
+					return nil
+				case msg, ok := <-e.msgStream:
+					if !ok {
+						return mErrs
+					}
+					mErrs[msg.resource] = append(mErrs[msg.resource], &msg.err)
+				}
+			}
+		}()
+
+		if len(mErrs) == 0 {
+			e.err <- nil
+			return
+		}
+
+		var errs []string
+		for resource, err := range mErrs {
+			errs = append(errs, err.toError(resource, "failed to create").Error())
+		}
+		e.err <- errors.New(strings.Join(errs, "\n"))
+	}()
+}
+
+func (e *errStream) close() error {
+	close(e.msgStream)
+	return <-e.err
+}
+
+func (e *errStream) add(msg errMsg) {
+	select {
+	case <-e.done:
+	case e.msgStream <- msg:
+	}
+}
+
 // TODO: clean up apply errors to inform the user in an actionable way
 type applyErrBody struct {
 	name string
 	msg  string
 }
 
-type applyErrs []applyErrBody
+type applyErrs []*applyErrBody
 
 func (a applyErrs) toError(resType, msg string) error {
 	if len(a) == 0 {

@@ -3142,14 +3142,14 @@ spec:
 
 				// validates we support all known variable types
 				varEquals(t,
-					"var_const",
+					"var_const_3",
 					"constant",
 					influxdb.VariableConstantValues([]string{"first val"}),
 					sum.Variables[0],
 				)
 
 				varEquals(t,
-					"var_map",
+					"var_map_4",
 					"map",
 					influxdb.VariableMapValues{"k1": "v1"},
 					sum.Variables[1],

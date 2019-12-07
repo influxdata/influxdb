@@ -27,7 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type pkgSVCFn func(cliReq httpClientOpts) (pkger.SVC, error)
+type pkgSVCFn func(cliReq httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, error)
 
 func cmdPkg(svcFn pkgSVCFn, opts ...genericCLIOptfn) *cobra.Command {
 	return newCmdPkgBuilder(svcFn, opts...).cmdPkg()
@@ -38,6 +38,7 @@ type cmdPkgBuilder struct {
 
 	svcFn pkgSVCFn
 
+	applyReqLimit   int
 	file            string
 	hasColor        bool
 	hasTableBorders bool
@@ -91,7 +92,8 @@ func (b *cmdPkgBuilder) cmdPkgApply() *cobra.Command {
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Path to package file")
 	cmd.MarkFlagFilename("file", "yaml", "yml", "json")
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "disable output printing")
-	cmd.Flags().StringVar(&b.applyOpts.force, "force", "true", "TTY input, if package will have destructive changes, proceed if set true.")
+	cmd.Flags().IntVarP(&b.applyReqLimit, "req-limit", "r", 0, "TTY input, if package will have destructive changes, proceed if set true.")
+	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if package will have destructive changes, proceed if set "true".`)
 
 	cmd.Flags().StringVarP(&b.orgID, "org-id", "o", "", "The ID of the organization that owns the bucket")
 	cmd.MarkFlagRequired("org-id")
@@ -113,7 +115,7 @@ func (b *cmdPkgBuilder) pkgApplyRunEFn() func(*cobra.Command, []string) error {
 			return fmt.Errorf("invalid org ID provided: %s", err.Error())
 		}
 
-		svc, err := b.svcFn(flags.httpClientOpts())
+		svc, err := b.svcFn(flags.httpClientOpts(), pkger.WithApplyReqLimit(b.applyReqLimit))
 		if err != nil {
 			return err
 		}
@@ -483,29 +485,36 @@ func createPkgBuf(pkg *pkger.Pkg, outPath string) (*bytes.Buffer, error) {
 	return &buf, nil
 }
 
-func newPkgerSVC(cliReqOpts httpClientOpts) (pkger.SVC, error) {
+func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkger.SVC, error) {
+	teleSVC, err := ihttp.NewTelegrafService(cliReqOpts.addr, cliReqOpts.token, cliReqOpts.skipVerify)
+	if err != nil {
+		return nil, err
+	}
+
 	return pkger.NewService(
-		pkger.WithBucketSVC(&ihttp.BucketService{
-			Addr:               cliReqOpts.addr,
-			Token:              cliReqOpts.token,
-			InsecureSkipVerify: cliReqOpts.skipVerify,
-		}),
-		pkger.WithDashboardSVC(&ihttp.DashboardService{
-			Addr:               cliReqOpts.addr,
-			Token:              cliReqOpts.token,
-			InsecureSkipVerify: cliReqOpts.skipVerify,
-		}),
-		pkger.WithLabelSVC(&ihttp.LabelService{
-			Addr:               cliReqOpts.addr,
-			Token:              cliReqOpts.token,
-			InsecureSkipVerify: cliReqOpts.skipVerify,
-		}),
-		pkger.WithTelegrafSVC(ihttp.NewTelegrafService(cliReqOpts.addr, cliReqOpts.token, cliReqOpts.skipVerify)),
-		pkger.WithVariableSVC(&ihttp.VariableService{
-			Addr:               cliReqOpts.addr,
-			Token:              cliReqOpts.token,
-			InsecureSkipVerify: cliReqOpts.skipVerify,
-		}),
+		append(opts,
+			pkger.WithBucketSVC(&ihttp.BucketService{
+				Addr:               cliReqOpts.addr,
+				Token:              cliReqOpts.token,
+				InsecureSkipVerify: cliReqOpts.skipVerify,
+			}),
+			pkger.WithDashboardSVC(&ihttp.DashboardService{
+				Addr:               cliReqOpts.addr,
+				Token:              cliReqOpts.token,
+				InsecureSkipVerify: cliReqOpts.skipVerify,
+			}),
+			pkger.WithLabelSVC(&ihttp.LabelService{
+				Addr:               cliReqOpts.addr,
+				Token:              cliReqOpts.token,
+				InsecureSkipVerify: cliReqOpts.skipVerify,
+			}),
+			pkger.WithTelegrafSVC(teleSVC),
+			pkger.WithVariableSVC(&ihttp.VariableService{
+				Addr:               cliReqOpts.addr,
+				Token:              cliReqOpts.token,
+				InsecureSkipVerify: cliReqOpts.skipVerify,
+			}),
+		)...,
 	), nil
 }
 
