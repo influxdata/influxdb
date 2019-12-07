@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"go.uber.org/zap"
-
+	"github.com/benbjohnson/clock"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/rand"
 	"github.com/influxdata/influxdb/snowflake"
+	"go.uber.org/zap"
 )
 
 var (
@@ -22,6 +22,7 @@ const OpPrefix = "kv/"
 type Service struct {
 	kv     Store
 	log    *zap.Logger
+	clock  clock.Clock
 	Config ServiceConfig
 
 	IDGenerator influxdb.IDGenerator
@@ -56,12 +57,18 @@ func NewService(log *zap.Logger, kv Store, configs ...ServiceConfig) *Service {
 		s.Config.SessionLength = influxdb.DefaultSessionLength
 	}
 
+	s.clock = s.Config.Clock
+	if s.clock == nil {
+		s.clock = clock.New()
+	}
+
 	return s
 }
 
 // ServiceConfig allows us to configure Services
 type ServiceConfig struct {
 	SessionLength time.Duration
+	Clock         clock.Clock
 }
 
 // Initialize creates Buckets needed.

@@ -3,6 +3,7 @@ package launcher_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		pkger.WithBucketSVC(l.BucketService()),
 		pkger.WithDashboardSVC(l.DashboardService()),
 		pkger.WithLabelSVC(l.LabelService()),
-		pkger.WithTelegrafSVC(l.TelegrafService()),
+		pkger.WithTelegrafSVC(l.TelegrafService(t)),
 		pkger.WithVariableSVC(l.VariableService()),
 	)
 
@@ -49,7 +50,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				LabelService: l.LabelService(),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
-			pkger.WithTelegrafSVC(l.TelegrafService()),
+			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService()),
 		)
 
@@ -326,7 +327,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				}),
 				pkger.WithDashboardSVC(l.DashboardService()),
 				pkger.WithLabelSVC(l.LabelService()),
-				pkger.WithTelegrafSVC(l.TelegrafService()),
+				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService()),
 			)
 
@@ -461,28 +462,36 @@ spec:
 
 type fakeBucketSVC struct {
 	influxdb.BucketService
+	countMu   sync.Mutex
 	callCount int
 	killCount int
 }
 
 func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+	f.countMu.Lock()
 	if f.callCount == f.killCount {
+		f.countMu.Unlock()
 		return nil, errors.New("reached kill count")
 	}
 	f.callCount++
+	f.countMu.Unlock()
 	return f.BucketService.UpdateBucket(ctx, id, upd)
 }
 
 type fakeLabelSVC struct {
 	influxdb.LabelService
+	countMu   sync.Mutex
 	callCount int
 	killCount int
 }
 
 func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
+	f.countMu.Lock()
 	if f.callCount == f.killCount {
+		f.countMu.Unlock()
 		return errors.New("reached kill count")
 	}
 	f.callCount++
+	f.countMu.Unlock()
 	return f.LabelService.CreateLabelMapping(ctx, m)
 }

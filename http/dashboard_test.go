@@ -462,6 +462,7 @@ func TestService_handleGetDashboard(t *testing.T) {
 		"queries": null,
 		"shadeBelow": false,
 		"showNoteWhenEmpty": false,
+		"timeFormat": "",
 		"type": "xy",
 		"xColumn": "",
 		"yColumn": ""
@@ -981,6 +982,7 @@ func TestService_handlePostDashboard(t *testing.T) {
 								"queries": null,
 								"shadeBelow": false,
 								"showNoteWhenEmpty": false,
+								"timeFormat": "",
 								"type": "",
 								"xColumn": "",
 								"yColumn": "",

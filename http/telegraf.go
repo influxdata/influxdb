@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"path"
 	"strings"
@@ -431,24 +429,24 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 
 // TelegrafService is an http client that speaks to the telegraf service via HTTP.
 type TelegrafService struct {
-	client C
+	client *HTTPClient
 	*UserResourceMappingService
 }
 
 // NewTelegrafService is a constructor for a telegraf service.
-func NewTelegrafService(addr, token string, insecureSkipVerify bool) *TelegrafService {
+func NewTelegrafService(addr, token string, insecureSkipVerify bool) (*TelegrafService, error) {
+	client, err := NewHTTPClient(addr, token, insecureSkipVerify)
+	if err != nil {
+		return nil, err
+	}
 	return &TelegrafService{
-		client: C{
-			Addr:               addr,
-			Token:              token,
-			InsecureSkipVerify: insecureSkipVerify,
-		},
+		client: client,
 		UserResourceMappingService: &UserResourceMappingService{
 			Addr:               addr,
 			Token:              token,
 			InsecureSkipVerify: insecureSkipVerify,
 		},
-	}
+	}, nil
 }
 
 var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
@@ -536,114 +534,4 @@ func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
 	return s.client.delete(path.Join(telegrafsPath, id.String())).Do(ctx)
-}
-
-// C is a basic http client that can make cReqs with out having to juggle
-// the token and so forth. It provides sane defaults for checking response
-// statuses, sets auth token when provided, and sets the content type to
-// application/json for each request. The token, response checker, and
-// content type can be overidden on the cReq as well.
-type C struct {
-	Addr               string
-	Token              string
-	InsecureSkipVerify bool
-}
-
-func (c *C) delete(urlPath string) *cReq {
-	return c.newClientReq(http.MethodDelete, urlPath, nil)
-}
-
-func (c *C) get(urlPath string) *cReq {
-	return c.newClientReq(http.MethodGet, urlPath, nil)
-}
-
-func (c *C) post(urlPath string, body io.Reader) *cReq {
-	return c.newClientReq(http.MethodPost, urlPath, body)
-}
-
-func (c *C) newClientReq(method, urlPath string, body io.Reader) *cReq {
-	u, err := NewURL(c.Addr, urlPath)
-	if err != nil {
-		return &cReq{err: err}
-	}
-
-	req, err := http.NewRequest(method, u.String(), body)
-	if err != nil {
-		return &cReq{err: err}
-	}
-	if c.Token != "" {
-		SetToken(c.Token, req)
-	}
-
-	cr := &cReq{
-		insecureSkip: c.InsecureSkipVerify,
-		req:          req,
-		respFn:       CheckError,
-	}
-	return cr.ContentType("application/json")
-}
-
-type cReq struct {
-	req          *http.Request
-	insecureSkip bool
-	respFn       func(*http.Response) error
-
-	err error
-}
-
-func (r *cReq) Header(k, v string) *cReq {
-	if r.err != nil {
-		return r
-	}
-	r.req.Header.Add(k, v)
-	return r
-}
-
-type queryPair struct {
-	k, v string
-}
-
-func (r *cReq) Queries(pairs ...queryPair) *cReq {
-	if r.err != nil || len(pairs) == 0 {
-		return r
-	}
-	params := r.req.URL.Query()
-	for _, p := range pairs {
-		params.Add(p.k, p.v)
-	}
-	r.req.URL.RawQuery = params.Encode()
-	return r
-}
-
-func (r *cReq) ContentType(ct string) *cReq {
-	return r.Header("Content-Type", ct)
-}
-
-func (r *cReq) DecodeJSON(v interface{}) *cReq {
-	return r.RespFn(func(resp *http.Response) error {
-		return json.NewDecoder(resp.Body).Decode(v)
-	})
-}
-
-func (r *cReq) RespFn(fn func(*http.Response) error) *cReq {
-	r.respFn = fn
-	return r
-}
-
-func (r *cReq) Do(ctx context.Context) error {
-	if r.err != nil {
-		return r.err
-	}
-	r.req = r.req.WithContext(ctx)
-
-	resp, err := NewClient(r.req.URL.Scheme, r.insecureSkip).Do(r.req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		io.Copy(ioutil.Discard, resp.Body) // drain body completely
-		resp.Body.Close()
-	}()
-
-	return r.respFn(resp)
 }

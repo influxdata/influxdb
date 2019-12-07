@@ -10,10 +10,11 @@ import {
   FromFluxResult,
 } from '@influxdata/giraffe'
 
-import {VIS_SIG_DIGITS} from 'src/shared/constants'
+import {VIS_SIG_DIGITS, DEFAULT_TIME_FORMAT} from 'src/shared/constants'
 
 // Types
 import {XYGeom, Axis, Base, TimeZone} from 'src/types'
+import {resolveTimeFormat} from 'src/dashboards/utils/tableGraph'
 
 /*
   A geom may be stored as "line", "step", "monotoneX", "bar", or "stacked", but
@@ -46,11 +47,19 @@ interface GetFormatterOptions {
   base?: Base
   timeZone?: TimeZone
   trimZeros?: boolean
+  timeFormat?: string
 }
 
 export const getFormatter = (
   columnType: ColumnType,
-  {prefix, suffix, base, timeZone, trimZeros = true}: GetFormatterOptions = {}
+  {
+    prefix,
+    suffix,
+    base,
+    timeZone,
+    trimZeros = true,
+    timeFormat = DEFAULT_TIME_FORMAT,
+  }: GetFormatterOptions = {}
 ): null | ((x: any) => string) => {
   if (columnType === 'number' && base === '2') {
     return binaryPrefixFormatter({
@@ -72,6 +81,7 @@ export const getFormatter = (
   if (columnType === 'time') {
     return timeFormatter({
       timeZone: timeZone === 'Local' ? undefined : timeZone,
+      format: resolveTimeFormat(timeFormat),
     })
   }
 

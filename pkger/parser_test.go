@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification/endpoint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -132,7 +133,7 @@ spec:
 				{
 					name:           "missing name",
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldName},
 					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -147,7 +148,7 @@ spec:
 				{
 					name:           "mixed valid and missing name",
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldName},
 					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -166,7 +167,7 @@ spec:
 					name:           "mixed valid and multiple bad names",
 					resourceErrs:   2,
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldName},
 					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -187,7 +188,7 @@ spec:
 					name:           "duplicate bucket names",
 					resourceErrs:   1,
 					validationErrs: 1,
-					valFields:      []string{"name"},
+					valFields:      []string{fieldName},
 					pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -2703,6 +2704,373 @@ spec:
 		})
 	})
 
+	t.Run("pkg with notification endpoints and labels associated", func(t *testing.T) {
+		testfileRunner(t, "testdata/notification_endpoint", func(t *testing.T, pkg *Pkg) {
+			expectedEndpoints := []SummaryNotificationEndpoint{
+				{
+					NotificationEndpoint: &endpoint.HTTP{
+						Base: endpoint.Base{
+							Name:        "http_basic_auth_notification_endpoint",
+							Description: "http basic auth desc",
+							Status:      influxdb.TaskStatusInactive,
+						},
+						URL:        "https://www.example.com/endpoint/basicauth",
+						AuthMethod: "basic",
+						Method:     "POST",
+					},
+				},
+				{
+					NotificationEndpoint: &endpoint.HTTP{
+						Base: endpoint.Base{
+							Name:        "http_bearer_auth_notification_endpoint",
+							Description: "http bearer auth desc",
+							Status:      influxdb.TaskStatusActive,
+						},
+						URL:        "https://www.example.com/endpoint/bearerauth",
+						AuthMethod: "bearer",
+						Method:     "POST",
+					},
+				},
+				{
+					NotificationEndpoint: &endpoint.HTTP{
+						Base: endpoint.Base{
+							Name:        "http_none_auth_notification_endpoint",
+							Description: "http none auth desc",
+							Status:      influxdb.TaskStatusActive,
+						},
+						URL:        "https://www.example.com/endpoint/noneauth",
+						AuthMethod: "none",
+						Method:     "POST",
+					},
+				},
+				{
+					NotificationEndpoint: &endpoint.PagerDuty{
+						Base: endpoint.Base{
+							Name:        "pager_duty_notification_endpoint",
+							Description: "pager duty desc",
+							Status:      influxdb.TaskStatusActive,
+						},
+						ClientURL: "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+					},
+				},
+				{
+					NotificationEndpoint: &endpoint.Slack{
+						Base: endpoint.Base{
+							Name:        "slack_notification_endpoint",
+							Description: "slack desc",
+							Status:      influxdb.TaskStatusActive,
+						},
+						URL: "https://hooks.slack.com/services/bip/piddy/boppidy",
+					},
+				},
+			}
+
+			sum := pkg.Summary()
+			endpoints := sum.NotificationEndpoints
+			require.Len(t, endpoints, len(expectedEndpoints))
+
+			for i := range expectedEndpoints {
+				expected, actual := expectedEndpoints[i], endpoints[i]
+				assert.Equalf(t, expected.NotificationEndpoint, actual.NotificationEndpoint, "index=%d", i)
+				require.Len(t, actual.LabelAssociations, 1)
+				assert.Equal(t, "label_1", actual.LabelAssociations[0].Name)
+
+				require.Len(t, sum.LabelMappings, len(expectedEndpoints))
+				expectedMapping := SummaryLabelMapping{
+					ResourceName: expected.GetName(),
+					LabelName:    "label_1",
+					LabelMapping: influxdb.LabelMapping{
+						ResourceType: influxdb.NotificationEndpointResourceType,
+					},
+				}
+				assert.Contains(t, sum.LabelMappings, expectedMapping)
+			}
+		})
+
+		t.Run("handles bad config", func(t *testing.T) {
+			tests := []struct {
+				kind   Kind
+				resErr testPkgResourceError
+			}{
+				{
+					kind: KindNotificationEndpointSlack,
+					resErr: testPkgResourceError{
+						name:           "missing slack url",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointURL},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointSlack
+      name: name1
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointPagerDuty,
+					resErr: testPkgResourceError{
+						name:           "missing pager duty url",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointURL},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointPagerDuty
+      name: name1
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "missing http url",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointURL},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "bad url",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointURL},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: none
+      url: d_____-_8**(*https://www.examples.coms
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "bad url",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointURL},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: none
+      url: d_____-_8**(*https://www.examples.coms
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "missing basic username",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointUsername},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: basic
+      url: example.com
+      password: password
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "missing basic password",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointPassword},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: basic
+      url: example.com
+      username: user
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "missing basic password and username",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointPassword, fieldNotificationEndpointUsername},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: basic
+      url: example.com
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "missing bearer token",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointToken},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: bearer
+      url: example.com
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "invalid http type",
+						validationErrs: 1,
+						valFields:      []string{fieldType},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: threeve
+      url: example.com
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "invalid http type",
+						validationErrs: 1,
+						valFields:      []string{fieldType},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: threeve
+      url: example.com
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointSlack,
+					resErr: testPkgResourceError{
+						name:           "duplicate ",
+						validationErrs: 1,
+						valFields:      []string{fieldName},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointSlack
+      name: dupe
+      url: example.com
+    - kind: NotificationEndpointSlack
+      name: dupe
+      url: example.com
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointSlack,
+					resErr: testPkgResourceError{
+						name:           "invalid status",
+						validationErrs: 1,
+						valFields:      []string{fieldStatus},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointSlack
+      name: dupe
+      url: example.com
+      status: rando bad status
+`,
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				testPkgErrors(t, tt.kind, tt.resErr)
+			}
+		})
+	})
+
 	t.Run("pkg with telegraf and label associations", func(t *testing.T) {
 		t.Run("with valid fields", func(t *testing.T) {
 			testfileRunner(t, "testdata/telegraf", func(t *testing.T, pkg *Pkg) {
@@ -2774,14 +3142,14 @@ spec:
 
 				// validates we support all known variable types
 				varEquals(t,
-					"var_const",
+					"var_const_3",
 					"constant",
 					influxdb.VariableConstantValues([]string{"first val"}),
 					sum.Variables[0],
 				)
 
 				varEquals(t,
-					"var_map",
+					"var_map_4",
 					"map",
 					influxdb.VariableMapValues{"k1": "v1"},
 					sum.Variables[1],

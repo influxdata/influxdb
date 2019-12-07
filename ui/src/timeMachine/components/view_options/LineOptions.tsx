@@ -13,6 +13,7 @@ import AutoDomainInput from 'src/shared/components/AutoDomainInput'
 import YAxisBase from 'src/timeMachine/components/view_options/YAxisBase'
 import ColumnSelector from 'src/shared/components/ColumnSelector'
 import Checkbox from 'src/shared/components/Checkbox'
+import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 
 // Actions
 import {
@@ -27,6 +28,7 @@ import {
   setYColumn,
   setShadeBelow,
   setLinePosition,
+  setTimeFormat,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -35,11 +37,19 @@ import {
   getXColumnSelection,
   getYColumnSelection,
   getNumericColumns,
+  getActiveTimeMachine,
 } from 'src/timeMachine/selectors'
 
 // Types
-import {ViewType} from 'src/types'
-import {AppState, XYGeom, Axes, Color} from 'src/types'
+import {
+  AppState,
+  XYGeom,
+  Axes,
+  Color,
+  NewView,
+  XYViewProperties,
+  ViewType,
+} from 'src/types'
 import {LinePosition} from '@influxdata/giraffe'
 
 interface OwnProps {
@@ -55,6 +65,7 @@ interface StateProps {
   xColumn: string
   yColumn: string
   numericColumns: string[]
+  timeFormat: string
 }
 
 interface DispatchProps {
@@ -69,6 +80,7 @@ interface DispatchProps {
   onSetYColumn: typeof setYColumn
   onSetGeom: typeof setGeom
   onSetPosition: typeof setLinePosition
+  onSetTimeFormat: typeof setTimeFormat
 }
 
 type Props = OwnProps & DispatchProps & StateProps
@@ -96,6 +108,8 @@ class LineOptions extends PureComponent<Props> {
       onSetXColumn,
       xColumn,
       numericColumns,
+      onSetTimeFormat,
+      timeFormat,
     } = this.props
 
     return (
@@ -115,6 +129,12 @@ class LineOptions extends PureComponent<Props> {
             availableColumns={numericColumns}
             axisName="y"
           />
+          <Form.Element label="Time Format">
+            <TimeFormat
+              timeFormat={timeFormat}
+              onTimeFormatChange={onSetTimeFormat}
+            />
+          </Form.Element>
           <h5 className="view-options--header">Options</h5>
         </Grid.Column>
         {geom && <Geom geom={geom} onSetGeom={onSetGeom} />}
@@ -202,8 +222,9 @@ const mstp = (state: AppState) => {
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const numericColumns = getNumericColumns(state)
-
-  return {xColumn, yColumn, numericColumns}
+  const view = getActiveTimeMachine(state).view as NewView<XYViewProperties>
+  const {timeFormat} = view.properties
+  return {xColumn, yColumn, numericColumns, timeFormat}
 }
 
 const mdtp: DispatchProps = {
@@ -218,6 +239,7 @@ const mdtp: DispatchProps = {
   onUpdateColors: setColors,
   onSetGeom: setGeom,
   onSetPosition: setLinePosition,
+  onSetTimeFormat: setTimeFormat,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(

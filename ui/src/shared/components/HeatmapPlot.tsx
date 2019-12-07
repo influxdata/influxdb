@@ -47,6 +47,7 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     ySuffix,
     colors: storedColors,
     binSize,
+    timeFormat,
   },
   children,
 }) => {
@@ -83,12 +84,14 @@ const HeatmapPlot: FunctionComponent<Props> = ({
     prefix: xPrefix,
     suffix: xSuffix,
     timeZone,
+    timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
     prefix: yPrefix,
     suffix: ySuffix,
     timeZone,
+    timeFormat,
   })
 
   const config: Config = {

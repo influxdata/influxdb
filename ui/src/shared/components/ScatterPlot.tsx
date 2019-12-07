@@ -54,6 +54,7 @@ const ScatterPlot: FunctionComponent<Props> = ({
     yDomain: storedYDomain,
     xColumn: storedXColumn,
     yColumn: storedYColumn,
+    timeFormat,
   },
 }) => {
   const fillColumns = storedFill || []
@@ -95,12 +96,14 @@ const ScatterPlot: FunctionComponent<Props> = ({
     prefix: xPrefix,
     suffix: xSuffix,
     timeZone,
+    timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
     prefix: yPrefix,
     suffix: ySuffix,
     timeZone,
+    timeFormat,
   })
 
   const config: Config = {

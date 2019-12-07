@@ -67,6 +67,7 @@ const XYPlot: FunctionComponent<Props> = ({
       },
     },
     position,
+    timeFormat,
   },
 }) => {
   const storedXDomain = useMemo(() => parseBounds(xBounds), [xBounds])
@@ -118,6 +119,7 @@ const XYPlot: FunctionComponent<Props> = ({
     suffix: xTickSuffix,
     base: xTickBase,
     timeZone,
+    timeFormat,
   })
 
   const yFormatter = getFormatter(table.getColumnType(yColumn), {
@@ -125,6 +127,7 @@ const XYPlot: FunctionComponent<Props> = ({
     suffix: yTickSuffix,
     base: yTickBase,
     timeZone,
+    timeFormat,
   })
 
   const config: Config = {

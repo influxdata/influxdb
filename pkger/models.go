@@ -3,32 +3,40 @@ package pkger
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/notification/endpoint"
 )
 
 // Package kinds.
 const (
-	KindUnknown   Kind = ""
-	KindBucket    Kind = "bucket"
-	KindDashboard Kind = "dashboard"
-	KindLabel     Kind = "label"
-	KindPackage   Kind = "package"
-	KindTelegraf  Kind = "telegraf"
-	KindVariable  Kind = "variable"
+	KindUnknown                       Kind = ""
+	KindBucket                        Kind = "bucket"
+	KindDashboard                     Kind = "dashboard"
+	KindLabel                         Kind = "label"
+	KindNotificationEndpointPagerDuty Kind = "notificationendpointpagerduty"
+	KindNotificationEndpointHTTP      Kind = "notificationendpointhttp"
+	KindNotificationEndpointSlack     Kind = "notificationendpointslack"
+	KindPackage                       Kind = "package"
+	KindTelegraf                      Kind = "telegraf"
+	KindVariable                      Kind = "variable"
 )
 
 var kinds = map[Kind]bool{
-	KindBucket:    true,
-	KindDashboard: true,
-	KindLabel:     true,
-	KindPackage:   true,
-	KindTelegraf:  true,
-	KindVariable:  true,
+	KindBucket:                        true,
+	KindDashboard:                     true,
+	KindLabel:                         true,
+	KindNotificationEndpointHTTP:      true,
+	KindNotificationEndpointPagerDuty: true,
+	KindNotificationEndpointSlack:     true,
+	KindPackage:                       true,
+	KindTelegraf:                      true,
+	KindVariable:                      true,
 }
 
 // Kind is a resource kind.
@@ -71,6 +79,10 @@ func (k Kind) ResourceType() influxdb.ResourceType {
 		return influxdb.DashboardsResourceType
 	case KindLabel:
 		return influxdb.LabelsResourceType
+	case KindNotificationEndpointHTTP,
+		KindNotificationEndpointPagerDuty,
+		KindNotificationEndpointSlack:
+		return influxdb.NotificationEndpointResourceType
 	case KindTelegraf:
 		return influxdb.TelegrafsResourceType
 	case KindVariable:
@@ -335,12 +347,13 @@ func (d DiffVariable) hasConflict() bool {
 // Summary is a definition of all the resources that have or
 // will be created from a pkg.
 type Summary struct {
-	Buckets         []SummaryBucket       `json:"buckets"`
-	Dashboards      []SummaryDashboard    `json:"dashboards"`
-	Labels          []SummaryLabel        `json:"labels"`
-	LabelMappings   []SummaryLabelMapping `json:"labelMappings"`
-	TelegrafConfigs []SummaryTelegraf     `json:"telegrafConfigs"`
-	Variables       []SummaryVariable     `json:"variables"`
+	Buckets               []SummaryBucket               `json:"buckets"`
+	Dashboards            []SummaryDashboard            `json:"dashboards"`
+	NotificationEndpoints []SummaryNotificationEndpoint `json:"notificationEndpoints"`
+	Labels                []SummaryLabel                `json:"labels"`
+	LabelMappings         []SummaryLabelMapping         `json:"labelMappings"`
+	TelegrafConfigs       []SummaryTelegraf             `json:"telegrafConfigs"`
+	Variables             []SummaryVariable             `json:"variables"`
 }
 
 // SummaryBucket provides a summary of a pkg bucket.
@@ -404,6 +417,12 @@ type SummaryChart struct {
 	Width     int `json:"width"`
 }
 
+// SummaryNotificationEndpoint provides a summary of a pkg endpoint rule.
+type SummaryNotificationEndpoint struct {
+	influxdb.NotificationEndpoint
+	LabelAssociations []influxdb.Label `json:"labelAssociations"`
+}
+
 // SummaryLabel provides a summary of a pkg label.
 type SummaryLabel struct {
 	influxdb.Label
@@ -438,6 +457,7 @@ const (
 	fieldPrefix       = "prefix"
 	fieldQuery        = "query"
 	fieldSuffix       = "suffix"
+	fieldStatus       = "status"
 	fieldType         = "type"
 	fieldValue        = "value"
 	fieldValues       = "values"
@@ -721,6 +741,156 @@ func (s sortedLabels) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
 
+type notificationKind int
+
+const (
+	notificationKindHTTP notificationKind = iota + 1
+	notificationKindPagerDuty
+	notificationKindSlack
+)
+
+const (
+	notificationHTTPAuthTypeBasic  = "basic"
+	notificationHTTPAuthTypeBearer = "bearer"
+	notificationHTTPAuthTypeNone   = "none"
+)
+
+const (
+	fieldNotificationEndpointPassword   = "password"
+	fieldNotificationEndpointRoutingKey = "routingKey"
+	fieldNotificationEndpointToken      = "token"
+	fieldNotificationEndpointURL        = "url"
+	fieldNotificationEndpointUsername   = "username"
+)
+
+type notificationEndpoint struct {
+	kind        notificationKind
+	name        string
+	description string
+	password    string
+	routingKey  string
+	status      string
+	token       string
+	httpType    string
+	url         string
+	username    string
+
+	labels sortedLabels
+}
+
+func (n *notificationEndpoint) Name() string {
+	return n.name
+}
+
+func (n *notificationEndpoint) ResourceType() influxdb.ResourceType {
+	return KindNotificationEndpointSlack.ResourceType()
+}
+
+func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
+	base := endpoint.Base{
+		Name:        n.Name(),
+		Description: n.description,
+		Status:      influxdb.TaskStatusActive,
+	}
+	if n.status != "" {
+		base.Status = influxdb.Status(n.status)
+	}
+	sum := SummaryNotificationEndpoint{
+		LabelAssociations: toInfluxLabels(n.labels...),
+	}
+	switch n.kind {
+	case notificationKindHTTP:
+		e := &endpoint.HTTP{
+			Base:   base,
+			URL:    n.url,
+			Method: "POST",
+		}
+		switch {
+		case n.password == "" && n.username == "" && n.token == "":
+			e.AuthMethod = notificationHTTPAuthTypeNone
+		case n.token != "":
+			e.AuthMethod = notificationHTTPAuthTypeBearer
+		default:
+			e.AuthMethod = notificationHTTPAuthTypeBasic
+		}
+		sum.NotificationEndpoint = e
+	case notificationKindPagerDuty:
+		sum.NotificationEndpoint = &endpoint.PagerDuty{
+			Base:      base,
+			ClientURL: n.url,
+		}
+	case notificationKindSlack:
+		sum.NotificationEndpoint = &endpoint.Slack{
+			Base: base,
+			URL:  n.url,
+		}
+	}
+	return sum
+}
+
+func (n *notificationEndpoint) valid() []validationErr {
+	var failures []validationErr
+	if _, err := url.Parse(n.url); err != nil || n.url == "" {
+		failures = append(failures, validationErr{
+			Field: fieldNotificationEndpointURL,
+			Msg:   "must be valid url",
+		})
+	}
+
+	if n.status != "" && influxdb.TaskStatusInactive != n.status && influxdb.TaskStatusActive != n.status {
+		failures = append(failures, validationErr{
+			Field: fieldStatus,
+			Msg:   "not a valid status; valid statues are one of [active, inactive]",
+		})
+	}
+
+	switch n.kind {
+	case notificationKindPagerDuty:
+		if n.routingKey == "" {
+			failures = append(failures, validationErr{
+				Field: fieldNotificationEndpointRoutingKey,
+				Msg:   "must provide non empty string",
+			})
+		}
+	case notificationKindHTTP:
+		switch n.httpType {
+		case notificationHTTPAuthTypeBasic:
+			if n.password == "" {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointPassword,
+					Msg:   "must provide non empty string",
+				})
+			}
+			if n.username == "" {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointUsername,
+					Msg:   "must provide non empty string",
+				})
+			}
+		case notificationHTTPAuthTypeBearer:
+			if n.token == "" {
+				failures = append(failures, validationErr{
+					Field: fieldNotificationEndpointToken,
+					Msg:   "must provide non empty string",
+				})
+			}
+		case notificationHTTPAuthTypeNone:
+		default:
+			failures = append(failures, validationErr{
+				Field: fieldType,
+				Msg: fmt.Sprintf(
+					"invalid type provided %q; valid type is 1 in [%s, %s, %s]",
+					n.httpType,
+					notificationHTTPAuthTypeBasic,
+					notificationHTTPAuthTypeBearer,
+					notificationHTTPAuthTypeNone,
+				),
+			})
+		}
+	}
+	return failures
+}
+
 const (
 	fieldTelegrafConfig = "config"
 )
@@ -960,6 +1130,7 @@ type chart struct {
 	BinSize         int
 	BinCount        int
 	Position        string
+	TimeFormat      string
 }
 
 func (c chart) properties() influxdb.ViewProperties {
@@ -996,6 +1167,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindHistogram:
 		return influxdb.HistogramViewProperties{
@@ -1033,6 +1205,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			YAxisLabel:        c.Axes.get("y").Label,
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			TimeFormat:        c.TimeFormat,
 		}
 	case chartKindSingleStat:
 		return influxdb.SingleStatViewProperties{
@@ -1082,6 +1255,7 @@ func (c chart) properties() influxdb.ViewProperties {
 			Axes:              c.Axes.influxAxes(),
 			Geom:              c.Geom,
 			Position:          c.Position,
+			TimeFormat:        c.TimeFormat,
 		}
 	default:
 		return nil

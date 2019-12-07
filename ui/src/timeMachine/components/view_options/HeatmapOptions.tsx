@@ -10,6 +10,7 @@ import {
   InputType,
   ComponentStatus,
 } from '@influxdata/clockface'
+import TimeFormat from 'src/timeMachine/components/view_options/TimeFormat'
 
 // Utils
 import {convertUserInputToNumOrNaN} from 'src/shared/utils/convertUserInput'
@@ -31,6 +32,7 @@ import {
   setYAxisLabel,
   setAxisPrefix,
   setAxisSuffix,
+  setTimeFormat,
 } from 'src/timeMachine/actions'
 
 // Utils
@@ -38,10 +40,11 @@ import {
   getXColumnSelection,
   getYColumnSelection,
   getNumericColumns,
+  getActiveTimeMachine,
 } from 'src/timeMachine/selectors'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, NewView, HeatmapViewProperties} from 'src/types'
 
 const HEATMAP_COLOR_SCHEMES = [
   {name: 'Magma', colors: MAGMA},
@@ -54,6 +57,7 @@ interface StateProps {
   xColumn: string
   yColumn: string
   numericColumns: string[]
+  timeFormat: string
 }
 
 interface DispatchProps {
@@ -67,6 +71,7 @@ interface DispatchProps {
   onSetYAxisLabel: typeof setYAxisLabel
   onSetPrefix: typeof setAxisPrefix
   onSetSuffix: typeof setAxisSuffix
+  onSetTimeFormat: typeof setTimeFormat
 }
 
 interface OwnProps {
@@ -117,7 +122,12 @@ const HeatmapOptions: FunctionComponent<Props> = props => {
         availableColumns={props.numericColumns}
         axisName="y"
       />
-
+      <Form.Element label="Time Format">
+        <TimeFormat
+          timeFormat={props.timeFormat}
+          onTimeFormatChange={props.onSetTimeFormat}
+        />
+      </Form.Element>
       <h5 className="view-options--header">Options</h5>
       <Form.Element label="Color Scheme">
         <HexColorSchemeDropdown
@@ -202,8 +212,11 @@ const mstp = (state: AppState) => {
   const xColumn = getXColumnSelection(state)
   const yColumn = getYColumnSelection(state)
   const numericColumns = getNumericColumns(state)
-
-  return {xColumn, yColumn, numericColumns}
+  const view = getActiveTimeMachine(state).view as NewView<
+    HeatmapViewProperties
+  >
+  const {timeFormat} = view.properties
+  return {xColumn, yColumn, numericColumns, timeFormat}
 }
 
 const mdtp = {
@@ -217,6 +230,7 @@ const mdtp = {
   onSetYAxisLabel: setYAxisLabel,
   onSetPrefix: setAxisPrefix,
   onSetSuffix: setAxisSuffix,
+  onSetTimeFormat: setTimeFormat,
 }
 
 export default connect<StateProps, DispatchProps, OwnProps>(
