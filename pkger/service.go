@@ -1412,12 +1412,6 @@ func (r *rollbackCoordinator) rollback(l *zap.Logger, err *error) {
 	}
 }
 
-func (r *rollbackCoordinator) close() {
-	if r.sem != nil {
-		close(r.sem)
-	}
-}
-
 type errMsg struct {
 	resource string
 	err      applyErrBody
