@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -434,19 +433,13 @@ type TelegrafService struct {
 }
 
 // NewTelegrafService is a constructor for a telegraf service.
-func NewTelegrafService(addr, token string, insecureSkipVerify bool) (*TelegrafService, error) {
-	client, err := NewHTTPClient(addr, token, insecureSkipVerify)
-	if err != nil {
-		return nil, err
-	}
+func NewTelegrafService(httpClient *HTTPClient) *TelegrafService {
 	return &TelegrafService{
-		client: client,
+		client: httpClient,
 		UserResourceMappingService: &UserResourceMappingService{
-			Addr:               addr,
-			Token:              token,
-			InsecureSkipVerify: insecureSkipVerify,
+			Client: httpClient,
 		},
-	}, nil
+	}
 }
 
 var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
@@ -467,30 +460,18 @@ func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platfor
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-	var queryPairs []queryPair
+	var queryPairs [][2]string
 	if f.OrgID != nil {
-		queryPairs = append(queryPairs, queryPair{
-			k: "orgID",
-			v: f.OrgID.String(),
-		})
+		queryPairs = append(queryPairs, [2]string{"orgID", f.OrgID.String()})
 	}
 	if f.Organization != nil {
-		queryPairs = append(queryPairs, queryPair{
-			k: "organization",
-			v: *f.Organization,
-		})
+		queryPairs = append(queryPairs, [2]string{"organization", *f.Organization})
 	}
 	if f.ResourceID != 0 {
-		queryPairs = append(queryPairs, queryPair{
-			k: "resourceID",
-			v: f.ResourceID.String(),
-		})
+		queryPairs = append(queryPairs, [2]string{"resourceID", f.ResourceID.String()})
 	}
 	if f.UserID != 0 {
-		queryPairs = append(queryPairs, queryPair{
-			k: "userID",
-			v: f.UserID.String(),
-		})
+		queryPairs = append(queryPairs, [2]string{"userID", f.UserID.String()})
 	}
 
 	var resp struct {
@@ -509,13 +490,8 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
-	var body bytes.Buffer
-	if err := json.NewEncoder(&body).Encode(tc); err != nil {
-		return err
-	}
-
 	var teleResp platform.TelegrafConfig
-	err := s.client.post(telegrafsPath, &body).
+	err := s.client.post(telegrafsPath, bodyJSON(tc)).
 		DecodeJSON(&teleResp).
 		Do(ctx)
 	if err != nil {

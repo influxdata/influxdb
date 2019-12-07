@@ -51,10 +51,14 @@ func newBucketService(f Flags) (platform.BucketService, error) {
 	if f.local {
 		return newLocalKVService()
 	}
+
+	client, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.BucketService{
-		Addr:               f.host,
-		Token:              f.token,
-		InsecureSkipVerify: f.skipVerify,
+		Client: client,
 	}, nil
 }
 

@@ -13,6 +13,8 @@ import (
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
@@ -23,9 +25,10 @@ var faketime = time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)
 // NewMockVariableBackend returns a VariableBackend with mock services.
 func NewMockVariableBackend(t *testing.T) *VariableBackend {
 	return &VariableBackend{
-		log:             zaptest.NewLogger(t),
-		VariableService: mock.NewVariableService(),
-		LabelService:    mock.NewLabelService(),
+		HTTPErrorHandler: ErrorHandler(0),
+		log:              zaptest.NewLogger(t),
+		VariableService:  mock.NewVariableService(),
+		LabelService:     mock.NewLabelService(),
 	}
 }
 
@@ -884,4 +887,37 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 			}
 		})
 	}
+}
+
+func initVariableService(f platformtesting.VariableFields, t *testing.T) (platform.VariableService, string, func()) {
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	svc.IDGenerator = f.IDGenerator
+	svc.TimeGenerator = f.TimeGenerator
+
+	ctx := context.Background()
+	if err := svc.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, v := range f.Variables {
+		if err := svc.ReplaceVariable(ctx, v); err != nil {
+			t.Fatalf("failed to replace variable: %v", err)
+		}
+	}
+
+	fakeBackend := NewMockVariableBackend(t)
+	fakeBackend.VariableService = svc
+
+	handler := NewVariableHandler(zaptest.NewLogger(t), fakeBackend)
+	server := httptest.NewServer(handler)
+	client := VariableService{
+		Client: mustNewHTTPClient(t, server.URL, ""),
+	}
+	done := server.Close
+
+	return &client, inmem.OpPrefix, done
+}
+
+func TestVariableService(t *testing.T) {
+	platformtesting.VariableService(initVariableService, t)
 }

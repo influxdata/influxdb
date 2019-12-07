@@ -12,6 +12,8 @@ import (
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/inmem"
+	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap/zaptest"
@@ -587,6 +589,75 @@ func TestService_handlePatchLabel(t *testing.T) {
 					t.Errorf("%q. handlePatchLabel() = ***%s***", tt.name, diff)
 				}
 			}
+		})
+	}
+}
+
+func initLabelService(f platformtesting.LabelFields, t *testing.T) (platform.LabelService, string, func()) {
+	svc := kv.NewService(zaptest.NewLogger(t), inmem.NewKVStore())
+	svc.IDGenerator = f.IDGenerator
+
+	ctx := context.Background()
+	if err := svc.Initialize(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, l := range f.Labels {
+		if err := svc.PutLabel(ctx, l); err != nil {
+			t.Fatalf("failed to populate labels: %v", err)
+		}
+	}
+
+	for _, m := range f.Mappings {
+		if err := svc.PutLabelMapping(ctx, m); err != nil {
+			t.Fatalf("failed to populate label mappings: %v", err)
+		}
+	}
+
+	handler := NewLabelHandler(zaptest.NewLogger(t), svc, ErrorHandler(0))
+	server := httptest.NewServer(handler)
+	client := LabelService{
+		Client:   mustNewHTTPClient(t, server.URL, ""),
+		OpPrefix: inmem.OpPrefix,
+	}
+	done := server.Close
+
+	return &client, inmem.OpPrefix, done
+}
+
+func TestLabelService(t *testing.T) {
+	tests := []struct {
+		name   string
+		testFn func(
+			init func(platformtesting.LabelFields, *testing.T) (platform.LabelService, string, func()),
+			t *testing.T,
+		)
+	}{
+		{
+			name:   "create label",
+			testFn: platformtesting.CreateLabel,
+		},
+		{
+			name:   "delete label",
+			testFn: platformtesting.DeleteLabel,
+		},
+		{
+			name:   "update label",
+			testFn: platformtesting.UpdateLabel,
+		},
+		{
+			name:   "find labels",
+			testFn: platformtesting.FindLabels,
+		},
+		{
+			name:   "find label by ID",
+			testFn: platformtesting.FindLabelByID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.testFn(initLabelService, t)
 		})
 	}
 }

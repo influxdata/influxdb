@@ -63,10 +63,14 @@ func newUserResourceMappingService() (platform.UserResourceMappingService, error
 	if flags.local {
 		return newLocalKVService()
 	}
+
+	c, err := newHTTPClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &http.UserResourceMappingService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: c,
 	}, nil
 }
 
@@ -172,10 +176,13 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return errors.New("an invalid org ID provided: " + orgIDStr)
 	}
 
+	c, err := newHTTPClient()
+	if err != nil {
+		return err
+	}
+
 	userResMapSVC := &http.UserResourceMappingService{
-		Addr:               flags.host,
-		Token:              flags.token,
-		InsecureSkipVerify: flags.skipVerify,
+		Client: c,
 	}
 
 	err = userResMapSVC.CreateUserResourceMapping(context.Background(), &platform.UserResourceMapping{
