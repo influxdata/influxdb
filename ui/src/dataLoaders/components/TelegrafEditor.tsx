@@ -11,6 +11,7 @@ import TelegrafEditorMonaco from 'src/dataLoaders/components/TelegrafEditorMonac
 import {
   TelegrafEditorActivePlugin,
   TelegrafEditorPlugin,
+  TelegrafEditorBasicPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
 
 import './TelegrafEditor.scss'
