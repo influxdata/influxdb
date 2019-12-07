@@ -76,12 +76,13 @@ interface State {
 }
 
 type Props = StateProps & DispatchProps
+type AllProps = Props & WithRouterProps
 
 const spinner = <div />
 
 @ErrorHandling
-class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
-  constructor(props) {
+class CollectorsWizard extends PureComponent<AllProps, State> {
+  constructor(props: AllProps) {
     super(props)
     this.state = {
       buckets: [],

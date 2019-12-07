@@ -31,19 +31,23 @@ const TomlEditorMonaco: FC<Props> = props => {
     addTomlTheme(monaco)
     addSyntax(monaco)
   }
-  const editorDidMount = (editor: monacoEditor.editor.IStandaloneCodeEditor) => {
-    editor.onDidChangeCursorPosition((evt: monacoEditor.editor.ICursorPositionChangedEvent) => {
-      const {position} = evt
-      const {onCursorChange} = props
-      const pos = {
-        line: position.lineNumber,
-        ch: position.column,
-      }
+  const editorDidMount = (
+    editor: monacoEditor.editor.IStandaloneCodeEditor
+  ) => {
+    editor.onDidChangeCursorPosition(
+      (evt: monacoEditor.editor.ICursorPositionChangedEvent) => {
+        const {position} = evt
+        const {onCursorChange} = props
+        const pos = {
+          line: position.lineNumber,
+          ch: position.column,
+        }
 
-      if (onCursorChange) {
-        onCursorChange(pos)
+        if (onCursorChange) {
+          onCursorChange(pos)
+        }
       }
-    })
+    )
 
     editor.onKeyUp((evt: monacoEditor.IKeyboardEvent) => {
       const {ctrlKey, code} = evt

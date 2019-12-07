@@ -20,7 +20,7 @@ type ListPlugin = TelegrafEditorBasicPlugin | TelegrafEditorBundlePlugin
 type AllPlugin = ListPlugin | TelegrafEditorActivePlugin
 
 interface StateProps {
-  map: {[k:string]: AllPlugin}
+  map: {[k: string]: AllPlugin}
 }
 
 type Props = StateProps
@@ -62,7 +62,7 @@ class TelegrafEditor extends PureComponent<Props> {
   }
 
   private connect = (elem: any) => {
-    this._editor = elem;
+    this._editor = elem
   }
 
   private handleJump = (which: TelegrafEditorActivePlugin) => {
@@ -75,11 +75,16 @@ class TelegrafEditor extends PureComponent<Props> {
 
     if (which.type === 'bundle') {
       (which.include || [])
-        .filter((item: string) => this.props.map[item] && this.props.map[item].type !== 'bundle')
-        .map((item: string) => (this.props.map[item] as TelegrafEditorBasicPlugin || {}).code)
-        .filter((i: string) => !!i)
+        .filter(
+          item => this.props.map[item] && this.props.map[item].type !== 'bundle'
+        )
+        .map(
+          item =>
+            ((this.props.map[item] as TelegrafEditorBasicPlugin) || {}).code
+        )
+        .filter(i => !!i)
         .reverse()
-        .forEach((item: string) => {
+        .forEach(item => {
           editor.insert(item, line)
         })
     } else {

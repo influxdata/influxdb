@@ -1,4 +1,4 @@
-import React, {PureComponent} from 'react'
+import React, {PureComponent, SyntheticEvent, ChangeEvent} from 'react'
 import {connect} from 'react-redux'
 import PluginList from 'src/dataLoaders/components/TelegrafEditorPluginList'
 import BucketDropdown from 'src/dataLoaders/components/BucketsDropdown'
@@ -88,7 +88,17 @@ type TelegrafEditorSidebarProps = StateProps & DispatchProps & OwnProps
 
 class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
   render() {
-    const {bucket, buckets, filter, mode, onAdd, onJump, onSetMode, onSetBucket} = this.props
+    const {
+      bucket,
+      buckets,
+      filter,
+      mode,
+      onAdd,
+      onJump,
+      onSetMode,
+      onSetBucket,
+      onSetFilter,
+    } = this.props
     return (
       <Grid.Column widthXS={Columns.Three} style={{height: '100%'}}>
         <BucketDropdown
@@ -101,8 +111,12 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
           size={ComponentSize.Small}
           icon={IconFont.Search}
           value={filter}
-          onBlur={this.handleFilterBlur}
-          onChange={this.handleFilterChange}
+          onBlur={(evt: SyntheticEvent<any>) => {
+            onSetFilter((evt.target as any).value)
+          }}
+          onChange={(evt: ChangeEvent<any>) => {
+            onSetFilter((evt.target).value)
+          }}
           placeholder="Filter Plugins..."
         />
         <Tabs.Container
@@ -128,22 +142,12 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
             />
           </Tabs>
           <Tabs.TabContents padding={ComponentSize.Small}>
-            {mode === 'indexing' && (
-              <ActivePluginList onClick={onJump} />
-            )}
+            {mode === 'indexing' && <ActivePluginList onClick={onJump} />}
             {mode === 'adding' && <AllPluginList onClick={onAdd} />}
           </Tabs.TabContents>
         </Tabs.Container>
       </Grid.Column>
     )
-  }
-
-  private handleFilterBlur = evt => {
-    this.props.onSetFilter(evt.target.value)
-  }
-
-  private handleFilterChange = evt => {
-    this.props.onSetFilter(evt.target.value)
   }
 }
 

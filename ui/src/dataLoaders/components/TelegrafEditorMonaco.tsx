@@ -4,6 +4,7 @@ import {AppState} from 'src/types'
 import Editor from 'src/shared/components/TomlMonacoEditor'
 import * as monacoEditor from 'monaco-editor/esm/vs/editor/editor.api'
 import {setText, setActivePlugins} from 'src/dataLoaders/actions/telegrafEditor'
+import {TelegrafEditorPluginType} from 'src/dataLoaders/reducers/telegrafEditor'
 
 const PLUGIN_REGEX = /\[\[\s*(inputs|outputs|processors|aggregators)\.(.+)\s*\]\]/
 
@@ -19,8 +20,8 @@ interface StateProps {
 type Props = StateProps & DispatchProps
 
 interface InterumMatchFormat {
-  type: string
   name: string
+  type: TelegrafEditorPluginType
   line: number
 }
 
@@ -44,17 +45,21 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
       return
     }
 
-    const matches: Array<monacoEditor.editor.FindMatch> = this._editor
+    const matches: Array<
+      monacoEditor.editor.FindMatch
+    > = this._editor
       .getModel()
       .findMatches(PLUGIN_REGEX as any, false, true, false, null, true)
 
-      const plugins = matches.map((m: monacoEditor.editor.FindMatch): InterumMatchFormat => {
-      return {
-        type: m.matches[1].slice(0, -1),
-        name: m.matches[2],
-        line: m.range.startLineNumber,
+    const plugins = matches.map(
+      (m: monacoEditor.editor.FindMatch): InterumMatchFormat => {
+        return {
+          type: m.matches[1].slice(0, -1) as TelegrafEditorPluginType,
+          name: m.matches[2],
+          line: m.range.startLineNumber,
+        }
       }
-    })
+    )
 
     this.props.onSetActivePlugins(plugins)
   }
@@ -77,7 +82,7 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
     const position = this._editor.getPosition()
     const matches = this._editor
       .getModel()
-      .findNextMatch(PLUGIN_REGEX, position, true, false, null, true)
+      .findNextMatch(PLUGIN_REGEX as any, position, true, false, null, true)
     let lineNumber
 
     if (
@@ -103,7 +108,7 @@ class TelegrafEditorMonaco extends PureComponent<Props> {
           startColumn: 1,
           endLineNumber: line,
           endColumn: 1,
-        },
+        } as monacoEditor.Range,
         text: text,
         forceMoveMarkers: true,
       },

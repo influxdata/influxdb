@@ -4,9 +4,8 @@ import {
   ActivePluginAction,
   EditorAction,
 } from 'src/dataLoaders/actions/telegrafEditor'
-type TelegrafEditorPluginType =
+export type TelegrafEditorPluginType =
   | 'system'
-  | 'bundle'
   | 'input'
   | 'output'
   | 'processor'

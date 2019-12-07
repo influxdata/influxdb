@@ -19,27 +19,34 @@ interface InterumListFormat {
 }
 
 function groupPlugins(plugins: Array<ListPlugin>, pluginFilter: string) {
-  const map = plugins.reduce((prev: {[k: string]: Array<ListPlugin>}, curr: ListPlugin) => {
-    if (curr.name === '__default__') {
+  const map = plugins.reduce(
+    (prev: {[k: string]: Array<ListPlugin>}, curr: ListPlugin) => {
+      if (curr.name === '__default__') {
+        return prev
+      }
+
+      if (!prev.hasOwnProperty(curr.type)) {
+        prev[curr.type] = []
+      }
+
+      prev[curr.type].push(curr)
+
       return prev
-    }
-
-    if (!prev.hasOwnProperty(curr.type)) {
-      prev[curr.type] = []
-    }
-
-    prev[curr.type].push(curr)
-
-    return prev
-  }, {})
+    },
+    {}
+  )
 
   return ['bundle', 'input', 'output', 'processor', 'aggregator']
-    .map((k: string): InterumListFormat => {
-      return {
-        category: k,
-        items: (map[k] || []).filter((a: ListPlugin) => (a.name || '').indexOf(pluginFilter) > -1),
+    .map(
+      (k: string): InterumListFormat => {
+        return {
+          category: k,
+          items: (map[k] || []).filter(
+            (a: ListPlugin) => (a.name || '').includes(pluginFilter)
+          ),
+        }
       }
-    })
+    )
     .filter((k: InterumListFormat) => k.items.length)
     .reduce((prev, curr) => {
       prev.push({
@@ -75,6 +82,13 @@ class PluginList extends PureComponent<PluginProps> {
         )
       }
 
+      let description
+
+      // NOTE: written this way to bypass typescript: alex
+      if (k['description']) {
+        description = <label>{k['description']}</label>
+      }
+
       return (
         <div
           className={k.type}
@@ -82,7 +96,7 @@ class PluginList extends PureComponent<PluginProps> {
           onClick={() => onClick(k)}
         >
           {k.name}
-          <label>{k.description}</label>
+          {description}
         </div>
       )
     })
