@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path"
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"go.uber.org/zap"
 )
 
@@ -438,13 +438,14 @@ func (h *VariableHandler) handleDeleteVariable(w http.ResponseWriter, r *http.Re
 
 // VariableService is a variable service over HTTP to the influxdb server
 type VariableService struct {
-	Client *HTTPClient
+	Client *httpc.Client
 }
 
 // FindVariableByID finds a single variable from the store by its ID
 func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) (*platform.Variable, error) {
 	var mr variableResponse
-	err := s.Client.get(variableIDPath(id)).
+	err := s.Client.
+		Get(variablePath, id.String()).
 		DecodeJSON(&mr).
 		Do(ctx)
 	if err != nil {
@@ -469,8 +470,9 @@ func (s *VariableService) FindVariables(ctx context.Context, filter platform.Var
 	}
 
 	var ms getVariablesResponse
-	err := s.Client.get(variablePath).
-		Queries(queryPairs...).
+	err := s.Client.
+		Get(variablePath).
+		QueryParams(queryPairs...).
 		DecodeJSON(&ms).
 		Do(ctx)
 	if err != nil {
@@ -489,7 +491,8 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 		}
 	}
 
-	return s.Client.post(variablePath, bodyJSON(m)).
+	return s.Client.
+		Post(httpc.BodyJSON(m), variablePath).
 		DecodeJSON(m).
 		Do(ctx)
 }
@@ -497,7 +500,8 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 // UpdateVariable updates a single variable with a changeset
 func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, update *platform.VariableUpdate) (*platform.Variable, error) {
 	var m platform.Variable
-	err := s.Client.patch(variableIDPath(id), bodyJSON(update)).
+	err := s.Client.
+		Patch(httpc.BodyJSON(update), variablePath, id.String()).
 		DecodeJSON(&m).
 		Do(ctx)
 	if err != nil {
@@ -509,16 +513,15 @@ func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, up
 
 // ReplaceVariable replaces a single variable
 func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platform.Variable) error {
-	return s.Client.put(variableIDPath(variable.ID), bodyJSON(variable)).
+	return s.Client.
+		Put(httpc.BodyJSON(variable), variablePath, variable.ID.String()).
 		DecodeJSON(variable).
 		Do(ctx)
 }
 
 // DeleteVariable removes a variable from the store
 func (s *VariableService) DeleteVariable(ctx context.Context, id platform.ID) error {
-	return s.Client.delete(variableIDPath(id)).Do(ctx)
-}
-
-func variableIDPath(id platform.ID) string {
-	return path.Join(variablePath, id.String())
+	return s.Client.
+		Delete(variablePath, id.String()).
+		Do(ctx)
 }

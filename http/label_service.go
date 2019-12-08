@@ -8,10 +8,10 @@ import (
 	"net/url"
 	"path"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
 
 // LabelHandler represents an HTTP API handler for labels
@@ -522,14 +522,15 @@ func labelIDPath(id influxdb.ID) string {
 
 // LabelService connects to Influx via HTTP using tokens to manage labels
 type LabelService struct {
-	Client   *HTTPClient
+	Client   *httpc.Client
 	OpPrefix string
 }
 
 // FindLabelByID returns a single label by ID.
 func (s *LabelService) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
 	var lr labelResponse
-	err := s.Client.get(labelIDPath(id)).
+	err := s.Client.
+		Get(labelIDPath(id)).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {
@@ -549,8 +550,9 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 	}
 
 	var lr labelsResponse
-	err := s.Client.get(labelsPath).
-		Queries(queryPairs...).
+	err := s.Client.
+		Get(labelsPath).
+		QueryParams(queryPairs...).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {
@@ -566,7 +568,8 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 	}
 
 	var r labelsResponse
-	err := s.Client.get(resourceIDPath(filter.ResourceType, filter.ResourceID, "labels")).
+	err := s.Client.
+		Get(resourceIDPath(filter.ResourceType, filter.ResourceID, "labels")).
 		DecodeJSON(&r).
 		Do(ctx)
 	if err != nil {
@@ -578,7 +581,8 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 // CreateLabel creates a new label.
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	var lr labelResponse
-	err := s.Client.post(labelsPath, bodyJSON(l)).
+	err := s.Client.
+		Post(httpc.BodyJSON(l), labelsPath).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {
@@ -593,7 +597,8 @@ func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error
 // UpdateLabel updates a label and returns the updated label.
 func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var lr labelResponse
-	err := s.Client.patch(labelIDPath(id), bodyJSON(upd)).
+	err := s.Client.
+		Patch(httpc.BodyJSON(upd), labelIDPath(id)).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {
@@ -604,7 +609,9 @@ func (s *LabelService) UpdateLabel(ctx context.Context, id influxdb.ID, upd infl
 
 // DeleteLabel removes a label by ID.
 func (s *LabelService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
-	return s.Client.delete(labelIDPath(id)).Do(ctx)
+	return s.Client.
+		Delete(labelIDPath(id)).
+		Do(ctx)
 }
 
 // CreateLabelMapping will create a labbel mapping
@@ -614,7 +621,8 @@ func (s *LabelService) CreateLabelMapping(ctx context.Context, m *influxdb.Label
 	}
 
 	urlPath := resourceIDPath(m.ResourceType, m.ResourceID, "labels")
-	return s.Client.post(urlPath, bodyJSON(m)).
+	return s.Client.
+		Post(httpc.BodyJSON(m), urlPath).
 		DecodeJSON(m).
 		Do(ctx)
 }
@@ -624,5 +632,7 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.Label
 		return err
 	}
 
-	return s.Client.delete(resourceIDPath(m.ResourceType, m.ResourceID, "labels")).Do(ctx)
+	return s.Client.
+		Delete(resourceIDPath(m.ResourceType, m.ResourceID, "labels")).
+		Do(ctx)
 }

@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/influxdata/httprouter"
-	"go.uber.org/zap"
-
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
 
 // BucketBackend is all services and associated parameters required to construct
@@ -721,7 +721,7 @@ func decodePatchBucketRequest(ctx context.Context, r *http.Request) (*patchBucke
 
 // BucketService connects to Influx via HTTP using tokens to manage buckets
 type BucketService struct {
-	Client *HTTPClient
+	Client *httpc.Client
 	// OpPrefix is an additional property for error
 	// find bucket service, when finds nothing.
 	OpPrefix string
@@ -765,7 +765,8 @@ func (s *BucketService) FindBucketByID(ctx context.Context, id influxdb.ID) (*in
 	defer span.Finish()
 
 	var br bucketResponse
-	err := s.Client.get(bucketIDPath(id)).
+	err := s.Client.
+		Get(bucketIDPath(id)).
 		DecodeJSON(&br).
 		Do(ctx)
 	if err != nil {
@@ -830,8 +831,9 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 	}
 
 	var bs bucketsResponse
-	err := s.Client.get(bucketsPath).
-		Queries(queryPairs...).
+	err := s.Client.
+		Get(bucketsPath).
+		QueryParams(queryPairs...).
 		DecodeJSON(&bs).
 		Do(ctx)
 	if err != nil {
@@ -857,7 +859,8 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 	defer span.Finish()
 
 	var br bucketResponse
-	err := s.Client.post(bucketsPath, bodyJSON(newBucket(b))).
+	err := s.Client.
+		Post(httpc.BodyJSON(newBucket(b)), bucketsPath).
 		DecodeJSON(&br).
 		Do(ctx)
 	if err != nil {
@@ -876,7 +879,8 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 // Returns the new bucket state after update.
 func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	var br bucketResponse
-	err := s.Client.patch(bucketIDPath(id), bodyJSON(newBucketUpdate(&upd))).
+	err := s.Client.
+		Patch(httpc.BodyJSON(newBucketUpdate(&upd)), bucketIDPath(id)).
 		DecodeJSON(&br).
 		Do(ctx)
 	if err != nil {
@@ -887,7 +891,9 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 
 // DeleteBucket removes a bucket by ID.
 func (s *BucketService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
-	return s.Client.delete(bucketIDPath(id)).Do(ctx)
+	return s.Client.
+		Delete(bucketIDPath(id)).
+		Do(ctx)
 }
 
 // validBucketName reports any errors with bucket names

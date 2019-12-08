@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/inmem"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	platformtesting "github.com/influxdata/influxdb/testing"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -1215,7 +1216,7 @@ func TestBucketService(t *testing.T) {
 	platformtesting.BucketService(initBucketService, t)
 }
 
-func mustNewHTTPClient(t *testing.T, addr, token string) *HTTPClient {
+func mustNewHTTPClient(t *testing.T, addr, token string) *httpc.Client {
 	t.Helper()
 
 	httpClient, err := NewHTTPClient(addr, token, false)

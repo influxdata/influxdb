@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"path"
 
-	"go.uber.org/zap"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/pkg/httpc"
+	"go.uber.org/zap"
 )
 
 type resourceUserResponse struct {
@@ -264,13 +264,14 @@ func decodeDeleteMemberRequest(ctx context.Context, r *http.Request) (*deleteMem
 
 // UserResourceMappingService is the struct of urm service
 type UserResourceMappingService struct {
-	Client *HTTPClient
+	Client *httpc.Client
 }
 
 // FindUserResourceMappings returns the user resource mappings
-func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Context, filter influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
+func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Context, f influxdb.UserResourceMappingFilter, opt ...influxdb.FindOptions) ([]*influxdb.UserResourceMapping, int, error) {
 	var results resourceUsersResponse
-	err := s.Client.get(resourceIDPath(filter.ResourceType, filter.ResourceID, string(filter.UserType)+"s")).
+	err := s.Client.
+		Get(resourceIDPath(f.ResourceType, f.ResourceID, string(f.UserType)+"s")).
 		DecodeJSON(&results).
 		Do(ctx)
 	if err != nil {
@@ -280,8 +281,8 @@ func (s *UserResourceMappingService) FindUserResourceMappings(ctx context.Contex
 	urs := make([]*influxdb.UserResourceMapping, len(results.Users))
 	for k, item := range results.Users {
 		urs[k] = &influxdb.UserResourceMapping{
-			ResourceID:   filter.ResourceID,
-			ResourceType: filter.ResourceType,
+			ResourceID:   f.ResourceID,
+			ResourceType: f.ResourceType,
 			UserID:       item.User.ID,
 			UserType:     item.Role,
 		}
@@ -296,7 +297,8 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 	}
 
 	urlPath := resourceIDPath(m.ResourceType, m.ResourceID, string(m.UserType)+"s")
-	return s.Client.post(urlPath, bodyJSON(influxdb.User{ID: m.UserID})).
+	return s.Client.
+		Post(httpc.BodyJSON(influxdb.User{ID: m.UserID}), urlPath).
 		DecodeJSON(m).
 		Do(ctx)
 }
@@ -304,7 +306,9 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 // DeleteUserResourceMapping will delete user resource mapping based in criteria.
 func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
 	urlPath := resourceIDUserPath(influxdb.OrgsResourceType, resourceID, influxdb.Member, userID)
-	return s.Client.delete(urlPath).Do(ctx)
+	return s.Client.
+		Delete(urlPath).
+		Do(ctx)
 }
 
 func resourceIDPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string) string {
