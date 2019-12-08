@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/kv"
 	"github.com/influxdata/influxdb/mock"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/query"
 )
 
@@ -37,7 +38,7 @@ type TestLauncher struct {
 	Bucket *platform.Bucket
 	Auth   *platform.Authorization
 
-	httpClient *http.HTTPClient
+	httpClient *httpc.Client
 
 	// Standard in/out/err buffers.
 	Stdin  bytes.Buffer
@@ -361,11 +362,15 @@ func (tl *TestLauncher) TaskService() *http.TaskService {
 	return &http.TaskService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
-func (tl *TestLauncher) HTTPClient(tb testing.TB) *http.HTTPClient {
+func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
 	tb.Helper()
 
 	if tl.httpClient == nil {
-		client, err := http.NewHTTPClient(tl.URL(), tl.Auth.Token, false)
+		token := ""
+		if tl.Auth != nil {
+			token = tl.Auth.Token
+		}
+		client, err := http.NewHTTPClient(tl.URL(), token, false)
 		if err != nil {
 			tb.Fatal(err)
 		}

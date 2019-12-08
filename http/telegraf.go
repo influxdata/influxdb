@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"path"
 	"strings"
 
 	"github.com/golang/gddo/httputil"
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	pctx "github.com/influxdata/influxdb/context"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/influxdata/influxdb/telegraf/plugins"
 	"go.uber.org/zap"
 )
@@ -428,12 +428,12 @@ func (h *TelegrafHandler) handleDeleteTelegraf(w http.ResponseWriter, r *http.Re
 
 // TelegrafService is an http client that speaks to the telegraf service via HTTP.
 type TelegrafService struct {
-	client *HTTPClient
+	client *httpc.Client
 	*UserResourceMappingService
 }
 
 // NewTelegrafService is a constructor for a telegraf service.
-func NewTelegrafService(httpClient *HTTPClient) *TelegrafService {
+func NewTelegrafService(httpClient *httpc.Client) *TelegrafService {
 	return &TelegrafService{
 		client: httpClient,
 		UserResourceMappingService: &UserResourceMappingService{
@@ -447,7 +447,8 @@ var _ platform.TelegrafConfigStore = (*TelegrafService)(nil)
 // FindTelegrafConfigByID returns a single telegraf config by ID.
 func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*platform.TelegrafConfig, error) {
 	var cfg platform.TelegrafConfig
-	err := s.client.get(path.Join(telegrafsPath, id.String())).
+	err := s.client.
+		Get(telegrafsPath, id.String()).
 		Header("Accept", "application/json").
 		DecodeJSON(&cfg).
 		Do(ctx)
@@ -477,8 +478,9 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 	var resp struct {
 		Configs []*platform.TelegrafConfig `json:"configurations"`
 	}
-	err := s.client.get(telegrafsPath).
-		Queries(queryPairs...).
+	err := s.client.
+		Get(telegrafsPath).
+		QueryParams(queryPairs...).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -491,7 +493,8 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
 func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *platform.TelegrafConfig, userID platform.ID) error {
 	var teleResp platform.TelegrafConfig
-	err := s.client.post(telegrafsPath, bodyJSON(tc)).
+	err := s.client.
+		Post(httpc.BodyJSON(tc), telegrafsPath).
 		DecodeJSON(&teleResp).
 		Do(ctx)
 	if err != nil {
@@ -509,5 +512,7 @@ func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
 func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
-	return s.client.delete(path.Join(telegrafsPath, id.String())).Do(ctx)
+	return s.client.
+		Delete(telegrafsPath, id.String()).
+		Do(ctx)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/http"
 	"github.com/influxdata/influxdb/internal/fs"
 	"github.com/influxdata/influxdb/kv"
+	"github.com/influxdata/influxdb/pkg/httpc"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -29,10 +30,10 @@ func main() {
 }
 
 var (
-	httpClient *http.HTTPClient
+	httpClient *httpc.Client
 )
 
-func newHTTPClient() (*http.HTTPClient, error) {
+func newHTTPClient() (*httpc.Client, error) {
 	if httpClient != nil {
 		return httpClient, nil
 	}

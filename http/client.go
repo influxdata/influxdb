@@ -1,18 +1,37 @@
 package http
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"io"
-	"io/ioutil"
+	"crypto/tls"
+	"net"
 	"net/http"
 	"net/url"
-	"path"
+	"time"
 
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/tracing"
+	"github.com/influxdata/influxdb/pkg/httpc"
 )
+
+// NewHTTPClient creates a new httpc.Client type. This call sets all
+// the options that are important to the http pkg on the httpc client.
+// The default status fn and so forth will all be set for the caller.
+func NewHTTPClient(addr, token string, insecureSkipVerify bool) (*httpc.Client, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []httpc.ClientOptFn{
+		httpc.WithAddr(addr),
+		httpc.WithContentType("application/json"),
+		httpc.WithHTTPClient(NewClient(u.Scheme, insecureSkipVerify)),
+		httpc.WithInsecureSkipVerify(insecureSkipVerify),
+		httpc.WithStatusFn(CheckError),
+	}
+	if token != "" {
+		opts = append(opts, httpc.WithAuthToken(token))
+	}
+	return httpc.New(opts...)
+}
 
 // Service connects to an InfluxDB via HTTP.
 type Service struct {
@@ -73,206 +92,44 @@ func NewURL(addr, path string) (*url.URL, error) {
 }
 
 // NewClient returns an http.Client that pools connections and injects a span.
-func NewClient(scheme string, insecure bool) *traceClient {
-	hc := &traceClient{
-		Client: http.Client{
-			Transport: defaultTransport,
-		},
-	}
-	if scheme == "https" && insecure {
-		hc.Transport = skipVerifyTransport
-	}
-
-	return hc
+func NewClient(scheme string, insecure bool) *http.Client {
+	return httpClient(scheme, insecure)
 }
 
-// traceClient always injects any opentracing trace into the client requests.
-type traceClient struct {
-	http.Client
+// SpanTransport injects the http.RoundTripper.RoundTrip() request
+// with a span.
+type SpanTransport struct {
+	base http.RoundTripper
 }
 
-// Do injects the trace and then performs the request.
-func (c *traceClient) Do(r *http.Request) (*http.Response, error) {
+// RoundTrip implements the http.RoundTripper, intercepting the base
+// round trippers call and injecting a span.
+func (s *SpanTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	span, _ := tracing.StartSpanFromContext(r.Context())
 	defer span.Finish()
 	tracing.InjectToHTTPRequest(span, r)
-	return c.Client.Do(r)
+	return s.base.RoundTrip(r)
 }
 
-// HTTPClient is a basic http client that can make cReqs with out having to juggle
-// the token and so forth. It provides sane defaults for checking response
-// statuses, sets auth token when provided, and sets the content type to
-// application/json for each request. The token, response checker, and
-// content type can be overidden on the cReq as well.
-type HTTPClient struct {
-	addr   url.URL
-	token  string
-	client *traceClient
-}
-
-// NewHTTPClient creates a new HTTPClient(client).
-func NewHTTPClient(addr, token string, insecureSkipVerify bool) (*HTTPClient, error) {
-	u, err := url.Parse(addr)
-	if err != nil {
-		return nil, err
+func httpClient(scheme string, insecure bool) *http.Client {
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
 	}
-
-	return &HTTPClient{
-		addr:   *u,
-		token:  token,
-		client: NewClient(u.Scheme, insecureSkipVerify),
-	}, nil
-}
-
-func (c *HTTPClient) delete(urlPath string) *cReq {
-	return c.newClientReq(http.MethodDelete, urlPath, bodyEmpty())
-}
-
-func (c *HTTPClient) get(urlPath string) *cReq {
-	return c.newClientReq(http.MethodGet, urlPath, bodyEmpty())
-}
-
-func (c *HTTPClient) patch(urlPath string, bFn bodyFn) *cReq {
-	return c.newClientReq(http.MethodPatch, urlPath, bFn)
-}
-
-func (c *HTTPClient) post(urlPath string, bFn bodyFn) *cReq {
-	return c.newClientReq(http.MethodPost, urlPath, bFn)
-}
-
-func (c *HTTPClient) put(urlPath string, bFn bodyFn) *cReq {
-	return c.newClientReq(http.MethodPut, urlPath, bFn)
-}
-
-type bodyFn func() (io.Reader, error)
-
-func bodyEmpty() bodyFn {
-	return func() (io.Reader, error) {
-		return nil, nil
+	if scheme == "https" && insecure {
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-}
-
-// TODO(@jsteenb2): discussion add a inspection for an OK() or Valid() method, then enforce
-//  that across all consumers?
-func bodyJSON(v interface{}) bodyFn {
-	return func() (io.Reader, error) {
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(v); err != nil {
-			return nil, err
-		}
-		return &buf, nil
+	return &http.Client{
+		Transport: &SpanTransport{
+			base: tr,
+		},
 	}
-}
-
-func (c *HTTPClient) newClientReq(method, urlPath string, bFn bodyFn) *cReq {
-	body, err := bFn()
-	if err != nil {
-		return &cReq{err: err}
-	}
-
-	u := c.addr
-	u.Path = path.Join(u.Path, urlPath)
-	req, err := http.NewRequest(method, u.String(), body)
-	if err != nil {
-		return &cReq{err: err}
-	}
-	if c.token != "" {
-		SetToken(c.token, req)
-	}
-
-	cr := &cReq{
-		client:   c.client,
-		req:      req,
-		statusFn: CheckError,
-	}
-	return cr.ContentType("application/json")
-}
-
-type cReq struct {
-	client interface {
-		Do(*http.Request) (*http.Response, error)
-	}
-	req      *http.Request
-	decodeFn func(*http.Response) error
-	respFn   func(*http.Response) error
-	statusFn func(*http.Response) error
-
-	err error
-}
-
-func (r *cReq) Header(k, v string) *cReq {
-	if r.err != nil {
-		return r
-	}
-	r.req.Header.Add(k, v)
-	return r
-}
-
-func (r *cReq) Queries(pairs ...[2]string) *cReq {
-	if r.err != nil || len(pairs) == 0 {
-		return r
-	}
-	params := r.req.URL.Query()
-	for _, p := range pairs {
-		params.Add(p[0], p[1])
-	}
-	r.req.URL.RawQuery = params.Encode()
-	return r
-}
-
-func (r *cReq) ContentType(ct string) *cReq {
-	return r.Header("Content-Type", ct)
-}
-
-func (r *cReq) DecodeJSON(v interface{}) *cReq {
-	r.decodeFn = func(resp *http.Response) error {
-		if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
-				Err:  err,
-			}
-		}
-		return nil
-	}
-	return r
-}
-
-func (r *cReq) RespFn(fn func(*http.Response) error) *cReq {
-	r.respFn = fn
-	return r
-}
-
-func (r *cReq) StatusFn(fn func(*http.Response) error) *cReq {
-	r.statusFn = fn
-	return r
-}
-
-func (r *cReq) Do(ctx context.Context) error {
-	if r.err != nil {
-		return r.err
-	}
-	r.req = r.req.WithContext(ctx)
-
-	resp, err := r.client.Do(r.req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		io.Copy(ioutil.Discard, resp.Body) // drain body completely
-		resp.Body.Close()
-	}()
-
-	responseFns := []func(*http.Response) error{
-		r.statusFn,
-		r.decodeFn,
-		r.respFn,
-	}
-	for _, fn := range responseFns {
-		if fn != nil {
-			if err := fn(resp); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
