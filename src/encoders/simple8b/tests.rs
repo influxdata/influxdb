@@ -5,23 +5,25 @@ use rand::{Rng, SeedableRng};
 #[test]
 fn test_encode_no_values() {
     let src = vec![];
-    let mut dst = vec![];
+    let mut dst = vec![0u64; 1000];
 
     // check for error
-    let v = encode_all(&src, &mut dst).expect("failed to encode src");
+    encode_all(&src, &mut dst).expect("failed to encode src");
 
     // verify encoded no values.
-    assert_eq!(v.to_vec(), src)
+    assert_eq!(dst, src)
 }
 
 #[test]
 fn test_encode_mixed_sizes() {
     let src = vec![7, 6, 256, 4, 3, 2, 1];
 
-    let mut encoded = vec![0; src.len() as usize];
-    let encoded = encode_all(&src, &mut encoded).expect("failed to encode");
-    let mut decoded = vec![0; src.len() as usize];
-    let decoded = decode_all(&encoded, &mut decoded).expect("failed to decode");
+    let mut encoded = vec![];
+    let mut decoded = vec![];
+    encode_all(&src, &mut encoded).expect("failed to encode");
+    assert_eq!(encoded.len(), 2); // verify vector is truncated.
+                                  //
+    decode_all(&encoded, &mut decoded).expect("failed to decode");
     assert_eq!(decoded.to_vec(), src, "{}", "mixed sizes");
 }
 
@@ -29,7 +31,7 @@ fn test_encode_mixed_sizes() {
 fn test_encode_too_big() {
     let src = vec![7, 6, 2 << 61 - 1, 4, 3, 2, 1];
 
-    let mut encoded = vec![0; src.len() as usize];
+    let mut encoded = vec![];
     let e = encode_all(&src, &mut encoded).expect_err("encoding did not fail");
     assert_eq!(e, "value out of bounds");
 }
@@ -107,10 +109,10 @@ fn test_encode_all() {
     ];
 
     for test in tests {
-        let mut encoded = vec![0; test.input.len() as usize];
-        let encoded = encode_all(&test.input, &mut encoded).expect("failed to encode");
-        let mut decoded = vec![0; test.input.len() as usize];
-        let decoded = decode_all(&encoded, &mut decoded).expect("failed to decode");
+        let mut encoded = vec![];
+        encode_all(&test.input, &mut encoded).expect("failed to encode");
+        let mut decoded = vec![];
+        decode_all(&encoded, &mut decoded).expect("failed to decode");
         assert_eq!(decoded.to_vec(), test.input, "{}", test.name);
     }
 
@@ -120,28 +122,28 @@ fn test_encode_all() {
     let mut input = ones(240)();
     input[120] = 5;
 
-    let mut encoded = vec![0; input.len() as usize];
-    let encoded = encode_all(&input, &mut encoded).expect("failed to encode");
-    let mut decoded = vec![0; input.len() as usize];
-    let decoded = decode_all(&encoded, &mut decoded).expect("failed to decode");
+    let mut encoded = vec![];
+    encode_all(&input, &mut encoded).expect("failed to encode");
+    let mut decoded = vec![];
+    decode_all(&encoded, &mut decoded).expect("failed to decode");
     assert_eq!(decoded.to_vec(), input, "{}", "120 ones");
 
     input = ones(240)();
     input[119] = 5;
 
-    let mut encoded = vec![0; input.len() as usize];
-    let encoded = encode_all(&input, &mut encoded).expect("failed to encode");
-    let mut decoded = vec![0; input.len() as usize];
-    let decoded = decode_all(&encoded, &mut decoded).expect("failed to decode");
+    let mut encoded = vec![];
+    encode_all(&input, &mut encoded).expect("failed to encode");
+    let mut decoded = vec![];
+    decode_all(&encoded, &mut decoded).expect("failed to decode");
     assert_eq!(decoded.to_vec(), input, "{}", "119 ones");
 
     input = ones(241)();
     input[239] = 5;
 
-    let mut encoded = vec![0; input.len() as usize];
-    let encoded = encode_all(&input, &mut encoded).expect("failed to encode");
-    let mut decoded = vec![0; input.len() as usize];
-    let decoded = decode_all(&encoded, &mut decoded).expect("failed to decode");
+    let mut encoded = vec![];
+    encode_all(&input, &mut encoded).expect("failed to encode");
+    let mut decoded = vec![];
+    decode_all(&encoded, &mut decoded).expect("failed to decode");
     assert_eq!(decoded.to_vec(), input, "{}", "239 ones");
 }
 

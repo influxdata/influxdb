@@ -21,7 +21,7 @@ const NUM_BITS: [[u8; 2]; 14] = [
     [1, 60],
 ];
 
-pub fn encode_all<'a>(src: &[u64], dst: &'a mut [u64]) -> Result<&'a [u64], &'static str> {
+pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u64>) -> Result<(), &'static str> {
     let mut j = 0;
     let mut i = 0;
     'next_value: while i < src.len() {
@@ -38,12 +38,12 @@ pub fn encode_all<'a>(src: &[u64], dst: &'a mut [u64]) -> Result<&'a [u64], &'st
             let k = a.iter().take_while(|x| **x == 1).count();
             if k == 240 {
                 i += 240;
-                dst[j] = 0;
+                dst.push(0);
                 j += 1;
                 continue;
             } else if k >= 120 {
                 i += 120;
-                dst[j] = 1 << 60;
+                dst.push(1 << 60);
                 j += 1;
                 continue;
             }
@@ -67,24 +67,27 @@ pub fn encode_all<'a>(src: &[u64], dst: &'a mut [u64]) -> Result<&'a [u64], &'st
                     break;
                 }
             }
-            dst[j] = val;
+            dst.push(val);
             j += 1;
             i += int_n;
             continue 'next_value;
         }
         return Err("value out of bounds");
     }
-
-    Ok(&dst[0..j])
+    dst.truncate(j);
+    Ok(())
 }
 
-pub fn decode_all<'a>(src: &[u64], dst: &'a mut [u64]) -> Result<&'a [u64], &'static str> {
+pub fn decode_all<'a>(src: &[u64], dst: &'a mut Vec<u64>) -> Result<(), &'static str> {
     let mut j = 0;
     for (_, v) in src.iter().enumerate() {
+        if dst.len() < j + 240 {
+            dst.resize(j + 240, 0); // may need 240 capacity
+        }
         j += decode(*v, &mut dst[j..])
     }
-
-    Ok(&dst[0..j])
+    dst.truncate(j);
+    Ok(())
 }
 
 pub fn decode(v: u64, dst: &mut [u64]) -> usize {
@@ -178,10 +181,6 @@ pub fn decode(v: u64, dst: &mut [u64]) -> usize {
             dst[1] = (v >> 15) & 0x7fff;
             dst[2] = (v >> 30) & 0x7fff;
             dst[3] = (v >> 45) & 0x7fff;
-            //            for i in &mut dst[0..4] {
-            //                *i = v & 0x7fff;
-            //                v >>= 15
-            //            }
             4
         }
         13 => {
