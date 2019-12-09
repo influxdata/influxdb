@@ -73,7 +73,8 @@ class TelegrafEditor extends PureComponent<Props> {
     const line = editor.nextLine()
 
     if (which.type === 'bundle') {
-      ;(which.include || [])
+      const include = which.include || []
+      include
         .filter(
           item =>
             this.props.pluginHashMap[item] &&
