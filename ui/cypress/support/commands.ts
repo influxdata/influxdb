@@ -448,6 +448,7 @@ Cypress.Commands.add('createDashboardTemplate', createDashboardTemplate)
 Cypress.Commands.add('createCell', createCell)
 Cypress.Commands.add('createDashWithCell', createDashWithCell)
 Cypress.Commands.add('createDashWithViewAndVar', createDashWithViewAndVar)
+Cypress.Commands.add('createView', createView)
 
 // orgs
 Cypress.Commands.add('createOrg', createOrg)
