@@ -12,6 +12,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const prefixDocuments = "/api/v2/documents"
+
 // DocumentBackend is all services and associated parameters required to construct
 // the DocumentHandler.
 type DocumentBackend struct {

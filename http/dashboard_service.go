@@ -55,7 +55,7 @@ type DashboardHandler struct {
 }
 
 const (
-	dashboardsPath              = "/api/v2/dashboards"
+	prefixDashboards            = "/api/v2/dashboards"
 	dashboardsIDPath            = "/api/v2/dashboards/:id"
 	dashboardsIDCellsPath       = "/api/v2/dashboards/:id/cells"
 	dashboardsIDCellsIDPath     = "/api/v2/dashboards/:id/cells/:cellID"
@@ -83,8 +83,8 @@ func NewDashboardHandler(log *zap.Logger, b *DashboardBackend) *DashboardHandler
 		UserService:                  b.UserService,
 	}
 
-	h.HandlerFunc("POST", dashboardsPath, h.handlePostDashboard)
-	h.HandlerFunc("GET", dashboardsPath, h.handleGetDashboards)
+	h.HandlerFunc("POST", prefixDashboards, h.handlePostDashboard)
+	h.HandlerFunc("GET", prefixDashboards, h.handleGetDashboards)
 	h.HandlerFunc("GET", dashboardsIDPath, h.handleGetDashboard)
 	h.HandlerFunc("GET", dashboardsIDLogPath, h.handleGetDashboardLog)
 	h.HandlerFunc("DELETE", dashboardsIDPath, h.handleDeleteDashboard)
@@ -442,7 +442,7 @@ func (d getDashboardsResponse) toPlatform() []*platform.Dashboard {
 
 func newGetDashboardsResponse(ctx context.Context, dashboards []*platform.Dashboard, filter platform.DashboardFilter, opts platform.FindOptions, labelService platform.LabelService) getDashboardsResponse {
 	res := getDashboardsResponse{
-		Links:      newPagingLinks(dashboardsPath, opts, filter, len(dashboards)),
+		Links:      newPagingLinks(prefixDashboards, opts, filter, len(dashboards)),
 		Dashboards: make([]dashboardResponse, 0, len(dashboards)),
 	}
 
@@ -1088,7 +1088,7 @@ type DashboardService struct {
 func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID) (*platform.Dashboard, error) {
 	var dr dashboardResponse
 	err := s.Client.
-		Get(dashboardsPath, id.String()).
+		Get(prefixDashboards, id.String()).
 		QueryParams([2]string{"include", "properties"}).
 		DecodeJSON(&dr).
 		Do(ctx)
@@ -1114,7 +1114,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 
 	var dr getDashboardsResponse
 	err := s.Client.
-		Get(dashboardsPath).
+		Get(prefixDashboards).
 		QueryParams(queryPairs...).
 		DecodeJSON(&dr).
 		Do(ctx)
@@ -1129,7 +1129,7 @@ func (s *DashboardService) FindDashboards(ctx context.Context, filter platform.D
 // CreateDashboard creates a new dashboard and sets b.ID with the new identifier.
 func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dashboard) error {
 	return s.Client.
-		Post(httpc.BodyJSON(d), dashboardsPath).
+		Post(httpc.BodyJSON(d), prefixDashboards).
 		DecodeJSON(d).
 		Do(ctx)
 }
@@ -1139,7 +1139,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *platform.Dash
 func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, upd platform.DashboardUpdate) (*platform.Dashboard, error) {
 	var d platform.Dashboard
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), dashboardsPath, id.String()).
+		Patch(httpc.BodyJSON(upd), prefixDashboards, id.String()).
 		DecodeJSON(&d).
 		Do(ctx)
 	if err != nil {
@@ -1234,7 +1234,7 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platfor
 }
 
 func dashboardIDPath(id platform.ID) string {
-	return path.Join(dashboardsPath, id.String())
+	return path.Join(prefixDashboards, id.String())
 }
 
 func cellPath(id platform.ID) string {

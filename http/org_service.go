@@ -58,7 +58,7 @@ type OrgHandler struct {
 }
 
 const (
-	organizationsPath            = "/api/v2/orgs"
+	prefixOrganizations          = "/api/v2/orgs"
 	organizationsIDPath          = "/api/v2/orgs/:id"
 	organizationsIDLogPath       = "/api/v2/orgs/:id/logs"
 	organizationsIDMembersPath   = "/api/v2/orgs/:id/members"
@@ -109,8 +109,8 @@ func NewOrgHandler(log *zap.Logger, b *OrgBackend) *OrgHandler {
 		UserService:                     b.UserService,
 	}
 
-	h.HandlerFunc("POST", organizationsPath, h.handlePostOrg)
-	h.HandlerFunc("GET", organizationsPath, h.handleGetOrgs)
+	h.HandlerFunc("POST", prefixOrganizations, h.handlePostOrg)
+	h.HandlerFunc("GET", prefixOrganizations, h.handleGetOrgs)
 	h.HandlerFunc("GET", organizationsIDPath, h.handleGetOrg)
 	h.HandlerFunc("GET", organizationsIDLogPath, h.handleGetOrgLog)
 	h.HandlerFunc("PATCH", organizationsIDPath, h.handlePatchOrg)

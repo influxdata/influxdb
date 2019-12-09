@@ -60,8 +60,13 @@ type WriteHandler struct {
 	EventRecorder metric.EventRecorder
 }
 
+// Prefix provides the route prefix.
+func (*WriteHandler) Prefix() string {
+	return prefixWrite
+}
+
 const (
-	writePath            = "/api/v2/write"
+	prefixWrite          = "/api/v2/write"
 	errInvalidGzipHeader = "gzipped HTTP body contains an invalid header"
 	errInvalidPrecision  = "invalid precision; valid precision units are ns, us, ms, and s"
 )
@@ -79,7 +84,7 @@ func NewWriteHandler(log *zap.Logger, b *WriteBackend) *WriteHandler {
 		EventRecorder:       b.WriteEventRecorder,
 	}
 
-	h.HandlerFunc("POST", writePath, h.handleWrite)
+	h.HandlerFunc("POST", prefixWrite, h.handleWrite)
 	return h
 }
 
@@ -305,7 +310,7 @@ func (s *WriteService) Write(ctx context.Context, orgID, bucketID influxdb.ID, r
 		}
 	}
 
-	u, err := NewURL(s.Addr, writePath)
+	u, err := NewURL(s.Addr, prefixWrite)
 	if err != nil {
 		return err
 	}

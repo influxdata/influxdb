@@ -14,12 +14,17 @@ type PlatformHandler struct {
 	APIHandler   http.Handler
 }
 
-func setCORSResponseHeaders(w http.ResponseWriter, r *http.Request) {
-	if origin := r.Header.Get("Origin"); origin != "" {
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+func setCORSResponseHeaders(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+		}
+		next.ServeHTTP(w, r)
 	}
+
+	return http.HandlerFunc(fn)
 }
 
 // NewPlatformHandler returns a platform handler that serves the API and associated assets.
@@ -41,20 +46,18 @@ func NewPlatformHandler(b *APIBackend, opts ...APIHandlerOptFn) *PlatformHandler
 	assetHandler := NewAssetHandler()
 	assetHandler.Path = b.AssetsPath
 
+	wrappedHandler := setCORSResponseHeaders(h)
+	wrappedHandler = skipOptionsMW(wrappedHandler)
+
 	return &PlatformHandler{
 		AssetHandler: assetHandler,
 		DocsHandler:  Redoc("/api/v2/swagger.json"),
-		APIHandler:   h,
+		APIHandler:   wrappedHandler,
 	}
 }
 
 // ServeHTTP delegates a request to the appropriate subhandler.
 func (h *PlatformHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	setCORSResponseHeaders(w, r)
-	if r.Method == "OPTIONS" {
-		return
-	}
-
 	if strings.HasPrefix(r.URL.Path, "/docs") {
 		h.DocsHandler.ServeHTTP(w, r)
 		return

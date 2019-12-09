@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb"
 	influxlogger "github.com/influxdata/influxdb/logger"
@@ -31,6 +32,9 @@ func newBaseChiRouter(errorHandler platform.HTTPErrorHandler) chi.Router {
 	bh := baseHandler{HTTPErrorHandler: errorHandler}
 	router.NotFound(bh.notFound)
 	router.MethodNotAllowed(bh.methodNotAllowed)
+	router.Use(skipOptionsMW)
+	router.Use(middleware.StripSlashes)
+	router.Use(setCORSResponseHeaders)
 	return router
 }
 

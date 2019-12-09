@@ -6,6 +6,8 @@ import (
 	"github.com/influxdata/influxdb/chronograf/server"
 )
 
+const prefixChronograf = "/chronograf"
+
 // ChronografHandler is an http handler for serving chronograf chronografs.
 type ChronografHandler struct {
 	*httprouter.Router

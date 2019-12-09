@@ -60,7 +60,7 @@ type BucketHandler struct {
 }
 
 const (
-	bucketsPath            = "/api/v2/buckets"
+	prefixBuckets          = "/api/v2/buckets"
 	bucketsIDPath          = "/api/v2/buckets/:id"
 	bucketsIDLogPath       = "/api/v2/buckets/:id/logs"
 	bucketsIDMembersPath   = "/api/v2/buckets/:id/members"
@@ -86,8 +86,8 @@ func NewBucketHandler(log *zap.Logger, b *BucketBackend) *BucketHandler {
 		OrganizationService:        b.OrganizationService,
 	}
 
-	h.HandlerFunc("POST", bucketsPath, h.handlePostBucket)
-	h.HandlerFunc("GET", bucketsPath, h.handleGetBuckets)
+	h.HandlerFunc("POST", prefixBuckets, h.handlePostBucket)
+	h.HandlerFunc("GET", prefixBuckets, h.handleGetBuckets)
 	h.HandlerFunc("GET", bucketsIDPath, h.handleGetBucket)
 	h.HandlerFunc("GET", bucketsIDLogPath, h.handleGetBucketLog)
 	h.HandlerFunc("PATCH", bucketsIDPath, h.handlePatchBucket)
@@ -307,7 +307,7 @@ func newBucketsResponse(ctx context.Context, opts influxdb.FindOptions, f influx
 		rs = append(rs, newBucketResponse(b, labels))
 	}
 	return &bucketsResponse{
-		Links:   newPagingLinks(bucketsPath, opts, f, len(bs)),
+		Links:   newPagingLinks(prefixBuckets, opts, f, len(bs)),
 		Buckets: rs,
 	}
 }
@@ -433,7 +433,7 @@ type getBucketRequest struct {
 }
 
 func bucketIDPath(id influxdb.ID) string {
-	return path.Join(bucketsPath, id.String())
+	return path.Join(prefixBuckets, id.String())
 }
 
 // hanldeGetBucketLog retrieves a bucket log by the buckets ID.
@@ -824,7 +824,7 @@ func (s *BucketService) FindBuckets(ctx context.Context, filter influxdb.BucketF
 
 	var bs bucketsResponse
 	err := s.Client.
-		Get(bucketsPath).
+		Get(prefixBuckets).
 		QueryParams(params...).
 		DecodeJSON(&bs).
 		Do(ctx)
@@ -852,7 +852,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) er
 
 	var br bucketResponse
 	err := s.Client.
-		Post(httpc.BodyJSON(newBucket(b)), bucketsPath).
+		Post(httpc.BodyJSON(newBucket(b)), prefixBuckets).
 		DecodeJSON(&br).
 		Do(ctx)
 	if err != nil {
