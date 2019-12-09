@@ -179,6 +179,10 @@ describe('labels', () => {
           color: oldLabelColor,
         })
       })
+
+      cy.get<Organization>('@org').then(({id}) => {
+        cy.visit(`orgs/${id}/settings/labels`)
+      })
     })
 
     for (let i = 0; i < 50; i++) {
