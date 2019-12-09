@@ -24,7 +24,7 @@ type LabelHandler struct {
 }
 
 const (
-	labelsPath   = "/api/v2/labels"
+	prefixLabels = "/api/v2/labels"
 	labelsIDPath = "/api/v2/labels/:id"
 )
 
@@ -37,8 +37,8 @@ func NewLabelHandler(log *zap.Logger, s influxdb.LabelService, he influxdb.HTTPE
 		LabelService:     s,
 	}
 
-	h.HandlerFunc("POST", labelsPath, h.handlePostLabel)
-	h.HandlerFunc("GET", labelsPath, h.handleGetLabels)
+	h.HandlerFunc("POST", prefixLabels, h.handlePostLabel)
+	h.HandlerFunc("GET", prefixLabels, h.handleGetLabels)
 
 	h.HandlerFunc("GET", labelsIDPath, h.handleGetLabel)
 	h.HandlerFunc("PATCH", labelsIDPath, h.handlePatchLabel)
@@ -517,7 +517,7 @@ func decodeDeleteLabelMappingRequest(ctx context.Context, r *http.Request) (*del
 }
 
 func labelIDPath(id influxdb.ID) string {
-	return path.Join(labelsPath, id.String())
+	return path.Join(prefixLabels, id.String())
 }
 
 // LabelService connects to Influx via HTTP using tokens to manage labels
@@ -551,7 +551,7 @@ func (s *LabelService) FindLabels(ctx context.Context, filter influxdb.LabelFilt
 
 	var lr labelsResponse
 	err := s.Client.
-		Get(labelsPath).
+		Get(prefixLabels).
 		QueryParams(params...).
 		DecodeJSON(&lr).
 		Do(ctx)
@@ -582,7 +582,7 @@ func (s *LabelService) FindResourceLabels(ctx context.Context, filter influxdb.L
 func (s *LabelService) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	var lr labelResponse
 	err := s.Client.
-		Post(httpc.BodyJSON(l), labelsPath).
+		Post(httpc.BodyJSON(l), prefixLabels).
 		DecodeJSON(&lr).
 		Do(ctx)
 	if err != nil {

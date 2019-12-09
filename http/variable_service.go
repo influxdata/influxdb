@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	variablePath = "/api/v2/variables"
+	prefixVariables = "/api/v2/variables"
 )
 
 // VariableBackend is all services and associated parameters required to construct
@@ -57,12 +57,12 @@ func NewVariableHandler(log *zap.Logger, b *VariableBackend) *VariableHandler {
 		LabelService:    b.LabelService,
 	}
 
-	entityPath := fmt.Sprintf("%s/:id", variablePath)
+	entityPath := fmt.Sprintf("%s/:id", prefixVariables)
 	entityLabelsPath := fmt.Sprintf("%s/labels", entityPath)
 	entityLabelsIDPath := fmt.Sprintf("%s/:lid", entityLabelsPath)
 
-	h.HandlerFunc("GET", variablePath, h.handleGetVariables)
-	h.HandlerFunc("POST", variablePath, h.handlePostVariable)
+	h.HandlerFunc("GET", prefixVariables, h.handleGetVariables)
+	h.HandlerFunc("POST", prefixVariables, h.handlePostVariable)
 	h.HandlerFunc("GET", entityPath, h.handleGetVariable)
 	h.HandlerFunc("PATCH", entityPath, h.handlePatchVariable)
 	h.HandlerFunc("PUT", entityPath, h.handlePutVariable)
@@ -98,7 +98,7 @@ func newGetVariablesResponse(ctx context.Context, variables []*platform.Variable
 	num := len(variables)
 	resp := getVariablesResponse{
 		Variables: make([]variableResponse, 0, num),
-		Links:     newPagingLinks(variablePath, opts, f, num),
+		Links:     newPagingLinks(prefixVariables, opts, f, num),
 	}
 
 	for _, variable := range variables {
@@ -444,7 +444,7 @@ type VariableService struct {
 func (s *VariableService) FindVariableByID(ctx context.Context, id platform.ID) (*platform.Variable, error) {
 	var mr variableResponse
 	err := s.Client.
-		Get(variablePath, id.String()).
+		Get(prefixVariables, id.String()).
 		DecodeJSON(&mr).
 		Do(ctx)
 	if err != nil {
@@ -470,7 +470,7 @@ func (s *VariableService) FindVariables(ctx context.Context, filter platform.Var
 
 	var ms getVariablesResponse
 	err := s.Client.
-		Get(variablePath).
+		Get(prefixVariables).
 		QueryParams(params...).
 		DecodeJSON(&ms).
 		Do(ctx)
@@ -491,7 +491,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 	}
 
 	return s.Client.
-		Post(httpc.BodyJSON(m), variablePath).
+		Post(httpc.BodyJSON(m), prefixVariables).
 		DecodeJSON(m).
 		Do(ctx)
 }
@@ -500,7 +500,7 @@ func (s *VariableService) CreateVariable(ctx context.Context, m *platform.Variab
 func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, update *platform.VariableUpdate) (*platform.Variable, error) {
 	var m platform.Variable
 	err := s.Client.
-		Patch(httpc.BodyJSON(update), variablePath, id.String()).
+		Patch(httpc.BodyJSON(update), prefixVariables, id.String()).
 		DecodeJSON(&m).
 		Do(ctx)
 	if err != nil {
@@ -513,7 +513,7 @@ func (s *VariableService) UpdateVariable(ctx context.Context, id platform.ID, up
 // ReplaceVariable replaces a single variable
 func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platform.Variable) error {
 	return s.Client.
-		Put(httpc.BodyJSON(variable), variablePath, variable.ID.String()).
+		Put(httpc.BodyJSON(variable), prefixVariables, variable.ID.String()).
 		DecodeJSON(variable).
 		Do(ctx)
 }
@@ -521,6 +521,6 @@ func (s *VariableService) ReplaceVariable(ctx context.Context, variable *platfor
 // DeleteVariable removes a variable from the store
 func (s *VariableService) DeleteVariable(ctx context.Context, id platform.ID) error {
 	return s.Client.
-		Delete(variablePath, id.String()).
+		Delete(prefixVariables, id.String()).
 		Do(ctx)
 }

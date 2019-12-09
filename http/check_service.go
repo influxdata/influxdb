@@ -58,7 +58,7 @@ type CheckHandler struct {
 }
 
 const (
-	checksPath            = "/api/v2/checks"
+	prefixChecks          = "/api/v2/checks"
 	checksIDPath          = "/api/v2/checks/:id"
 	checksIDQueryPath     = "/api/v2/checks/:id/query"
 	checksIDMembersPath   = "/api/v2/checks/:id/members"
@@ -83,8 +83,8 @@ func NewCheckHandler(log *zap.Logger, b *CheckBackend) *CheckHandler {
 		TaskService:                b.TaskService,
 		OrganizationService:        b.OrganizationService,
 	}
-	h.HandlerFunc("POST", checksPath, h.handlePostCheck)
-	h.HandlerFunc("GET", checksPath, h.handleGetChecks)
+	h.HandlerFunc("POST", prefixChecks, h.handlePostCheck)
+	h.HandlerFunc("GET", prefixChecks, h.handleGetChecks)
 	h.HandlerFunc("GET", checksIDPath, h.handleGetCheck)
 	h.HandlerFunc("GET", checksIDQueryPath, h.handleGetCheckQuery)
 	h.HandlerFunc("DELETE", checksIDPath, h.handleDeleteCheck)
@@ -213,7 +213,7 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 func (h *CheckHandler) newChecksResponse(ctx context.Context, chks []influxdb.Check, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *checksResponse {
 	resp := &checksResponse{
 		Checks: []*checkResponse{},
-		Links:  newPagingLinks(checksPath, opts, f, len(chks)),
+		Links:  newPagingLinks(prefixChecks, opts, f, len(chks)),
 	}
 	for _, chk := range chks {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: chk.GetID()})

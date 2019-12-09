@@ -65,7 +65,7 @@ type NotificationRuleHandler struct {
 }
 
 const (
-	notificationRulesPath            = "/api/v2/notificationRules"
+	prefixNotificationRules          = "/api/v2/notificationRules"
 	notificationRulesIDPath          = "/api/v2/notificationRules/:id"
 	notificationRulesIDQueryPath     = "/api/v2/notificationRules/:id/query"
 	notificationRulesIDMembersPath   = "/api/v2/notificationRules/:id/members"
@@ -91,8 +91,8 @@ func NewNotificationRuleHandler(log *zap.Logger, b *NotificationRuleBackend) *No
 		OrganizationService:         b.OrganizationService,
 		TaskService:                 b.TaskService,
 	}
-	h.HandlerFunc("POST", notificationRulesPath, h.handlePostNotificationRule)
-	h.HandlerFunc("GET", notificationRulesPath, h.handleGetNotificationRules)
+	h.HandlerFunc("POST", prefixNotificationRules, h.handlePostNotificationRule)
+	h.HandlerFunc("GET", prefixNotificationRules, h.handleGetNotificationRules)
 	h.HandlerFunc("GET", notificationRulesIDPath, h.handleGetNotificationRule)
 	h.HandlerFunc("GET", notificationRulesIDQueryPath, h.handleGetNotificationRuleQuery)
 	h.HandlerFunc("DELETE", notificationRulesIDPath, h.handleDeleteNotificationRule)
@@ -209,7 +209,7 @@ func (h *NotificationRuleHandler) newNotificationRuleResponse(ctx context.Contex
 func (h *NotificationRuleHandler) newNotificationRulesResponse(ctx context.Context, nrs []influxdb.NotificationRule, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) (*notificationRulesResponse, error) {
 	resp := &notificationRulesResponse{
 		NotificationRules: []*notificationRuleResponse{},
-		Links:             newPagingLinks(notificationRulesPath, opts, f, len(nrs)),
+		Links:             newPagingLinks(prefixNotificationRules, opts, f, len(nrs)),
 	}
 	for _, nr := range nrs {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: nr.GetID()})

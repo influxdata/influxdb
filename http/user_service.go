@@ -46,8 +46,8 @@ type UserHandler struct {
 }
 
 const (
-	usersPath         = "/api/v2/users"
-	mePath            = "/api/v2/me"
+	prefixUsers       = "/api/v2/users"
+	prefixMe          = "/api/v2/me"
 	mePasswordPath    = "/api/v2/me/password"
 	usersIDPath       = "/api/v2/users/:id"
 	usersPasswordPath = "/api/v2/users/:id/password"
@@ -66,8 +66,8 @@ func NewUserHandler(log *zap.Logger, b *UserBackend) *UserHandler {
 		PasswordsService:        b.PasswordsService,
 	}
 
-	h.HandlerFunc("POST", usersPath, h.handlePostUser)
-	h.HandlerFunc("GET", usersPath, h.handleGetUsers)
+	h.HandlerFunc("POST", prefixUsers, h.handlePostUser)
+	h.HandlerFunc("GET", prefixUsers, h.handleGetUsers)
 	h.HandlerFunc("GET", usersIDPath, h.handleGetUser)
 	h.HandlerFunc("GET", usersLogPath, h.handleGetUserLog)
 	h.HandlerFunc("PATCH", usersIDPath, h.handlePatchUser)
@@ -78,7 +78,7 @@ func NewUserHandler(log *zap.Logger, b *UserBackend) *UserHandler {
 	h.HandlerFunc("POST", usersPasswordPath, h.handlePostUserPassword)
 	h.HandlerFunc("PUT", usersPasswordPath, h.handlePutUserPassword)
 
-	h.HandlerFunc("GET", mePath, h.handleGetMe)
+	h.HandlerFunc("GET", prefixMe, h.handleGetMe)
 	h.HandlerFunc("PUT", mePasswordPath, h.handlePutUserPassword)
 
 	return h
@@ -493,7 +493,7 @@ type UserService struct {
 
 // FindMe returns user information about the owner of the token
 func (s *UserService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
-	url, err := NewURL(s.Addr, mePath)
+	url, err := NewURL(s.Addr, prefixMe)
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +584,7 @@ func (s *UserService) FindUser(ctx context.Context, filter influxdb.UserFilter) 
 // FindUsers returns a list of users that match filter and the total count of matching users.
 // Additional options provide pagination & sorting.
 func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter, opt ...influxdb.FindOptions) ([]*influxdb.User, int, error) {
-	url, err := NewURL(s.Addr, usersPath)
+	url, err := NewURL(s.Addr, prefixUsers)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -627,7 +627,7 @@ func (s *UserService) FindUsers(ctx context.Context, filter influxdb.UserFilter,
 
 // CreateUser creates a new user and sets u.ID with the new identifier.
 func (s *UserService) CreateUser(ctx context.Context, u *influxdb.User) error {
-	url, err := NewURL(s.Addr, usersPath)
+	url, err := NewURL(s.Addr, prefixUsers)
 	if err != nil {
 		return err
 	}
@@ -730,7 +730,7 @@ func (s *UserService) DeleteUser(ctx context.Context, id influxdb.ID) error {
 }
 
 func userIDPath(id influxdb.ID) string {
-	return path.Join(usersPath, id.String())
+	return path.Join(prefixUsers, id.String())
 }
 
 // hanldeGetUserLog retrieves a user log by the users ID.

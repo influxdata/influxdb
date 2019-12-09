@@ -9,6 +9,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	prefixSignIn  = "/api/v2/signin"
+	prefixSignOut = "/api/v2/signout"
+)
+
 // SessionBackend is all services and associated parameters required to construct
 // the SessionHandler.
 type SessionBackend struct {
@@ -55,8 +60,8 @@ func NewSessionHandler(log *zap.Logger, b *SessionBackend) *SessionHandler {
 		UserService:      b.UserService,
 	}
 
-	h.HandlerFunc("POST", "/api/v2/signin", h.handleSignin)
-	h.HandlerFunc("POST", "/api/v2/signout", h.handleSignout)
+	h.HandlerFunc("POST", prefixSignIn, h.handleSignin)
+	h.HandlerFunc("POST", prefixSignOut, h.handleSignout)
 	return h
 }
 
