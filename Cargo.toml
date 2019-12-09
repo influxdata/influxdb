@@ -15,6 +15,7 @@ tokio = "0.1.22"
 tower-grpc = "0.1.1"
 tower-hyper = "0.1.1"
 tower-util = "0.1.0"
+integer-encoding = "1.0.7"
 
 [build-dependencies]
 tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc" }
