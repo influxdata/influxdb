@@ -1,4 +1,4 @@
-import {Organization, Dashboard} from '../../src/types'
+import {Organization} from '../../src/types'
 interface ResourceIDs {
   orgID: string
   dbID: string
@@ -103,45 +103,47 @@ describe('The Query Builder', () => {
       })
     })
 
-    it("creates a query, edits the query, edits the cell's default name, edits it again, submits with the keyboard, then chills", () => {
-      cy.get<ResourceIDs>('@resourceIDs').then(({orgID, dbID, cellID}) => {
-        cy.visit(`orgs/${orgID}/dashboards/${dbID}/cells/${cellID}/edit`)
+    for (let i = 0; i <= 50; i++) {
+      it("creates a query, edits the query, edits the cell's default name, edits it again, submits with the keyboard, then chills", () => {
+        cy.get<ResourceIDs>('@resourceIDs').then(({orgID, dbID, cellID}) => {
+          cy.visit(`orgs/${orgID}/dashboards/${dbID}/cells/${cellID}/edit`)
+        })
+
+        // build query
+        cy.contains('mem').click('topLeft') // users sometimes click in random spots
+        cy.contains('cached').click('bottomLeft')
+        cy.contains('thrillbo-swaggins').click('left')
+        cy.contains('sum').click()
+
+        cy.getByTestID('empty-graph--no-queries').should('exist')
+        cy.contains('Submit').click()
+        cy.getByTestID('giraffe-layer-line').should('exist')
+        cy.getByTestID('overlay')
+          .contains('Name this Cell')
+          .click()
+        cy.get('[placeholder="Name this Cell"]').type('A better name!')
+        cy.get('.veo-contents').click() // click out of inline editor
+        cy.getByTestID('save-cell--button').click()
+
+        // A race condition exists between saving the cell's updated name and re-opening the cell.
+        // Will replace this with a cy.wait(@updateCell) when Cypress supports
+        // waiting on window.fetch responses: https://github.com/cypress-io/cypress/issues/95
+        // resolves: https://github.com/influxdata/influxdb/issues/16141
+
+        cy.get<ResourceIDs>('@resourceIDs').then(({orgID, dbID, cellID}) => {
+          cy.visit(`orgs/${orgID}/dashboards/${dbID}/cells/${cellID}/edit`)
+        })
+
+        cy.getByTestID('giraffe-layer-line').should('exist')
+        cy.getByTestID('overlay')
+          .contains('A better name!')
+          .click()
+
+        cy.get('[placeholder="Name this Cell"]').type(
+          "Uncle Moe's Family Feedbag{enter}"
+        )
+        cy.getByTestID('save-cell--button').click()
       })
-
-      // build query
-      cy.contains('mem').click('topLeft') // users sometimes click in random spots
-      cy.contains('cached').click('bottomLeft')
-      cy.contains('thrillbo-swaggins').click('left')
-      cy.contains('sum').click()
-
-      cy.getByTestID('empty-graph--no-queries').should('exist')
-      cy.contains('Submit').click()
-      cy.getByTestID('giraffe-layer-line').should('exist')
-      cy.getByTestID('overlay')
-        .contains('Name this Cell')
-        .click()
-      cy.get('[placeholder="Name this Cell"]').type('A better name!')
-      cy.get('.veo-contents').click() // click out of inline editor
-      cy.getByTestID('save-cell--button').click()
-
-      // A race condition exists between saving the cell's updated name and re-opening the cell.
-      // Will replace this with a cy.wait(@updateCell) when Cypress supports
-      // waiting on window.fetch responses: https://github.com/cypress-io/cypress/issues/95
-      // resolves: https://github.com/influxdata/influxdb/issues/16141
-
-      cy.get<ResourceIDs>('@resourceIDs').then(({orgID, dbID, cellID}) => {
-        cy.visit(`orgs/${orgID}/dashboards/${dbID}/cells/${cellID}/edit`)
-      })
-
-      cy.getByTestID('giraffe-layer-line').should('exist')
-      cy.getByTestID('overlay')
-        .contains('A better name!')
-        .click()
-
-      cy.get('[placeholder="Name this Cell"]').type(
-        "Uncle Moe's Family Feedbag{enter}"
-      )
-      cy.getByTestID('save-cell--button').click()
-    })
+    }
   })
 })
