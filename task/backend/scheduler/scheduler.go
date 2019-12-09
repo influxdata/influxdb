@@ -68,14 +68,14 @@ func NewSchedule(unparsed string, lastScheduledAt time.Time) (Schedule, time.Tim
 		err := every.Parse(everyString)
 		if err != nil {
 			// We cannot align a invalid time
-			return Schedule{c}, lastScheduledAt, err
+			return Schedule{c}, lastScheduledAt, nil
 		}
 
 		// drop nanoseconds
-		lastScheduledAt = time.Unix(lastScheduledAt.UTC().Unix(), 0)
+		lastScheduledAt = time.Unix(lastScheduledAt.UTC().Unix(), 0).UTC()
 		everyDur, err := every.DurationFrom(lastScheduledAt)
 		if err != nil {
-			return Schedule{c}, lastScheduledAt, err
+			return Schedule{c}, lastScheduledAt, nil
 		}
 
 		// and align
