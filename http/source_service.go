@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	sourceHTTPPath = "/api/v2/sources"
+	prefixSources = "/api/v2/sources"
 )
 
 type sourceResponse struct {
@@ -36,10 +36,10 @@ func newSourceResponse(s *platform.Source) *sourceResponse {
 		return &sourceResponse{
 			Source: s,
 			Links: map[string]interface{}{
-				"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
-				"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
-				"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
-				"health":  fmt.Sprintf("%s/%s/health", sourceHTTPPath, s.ID.String()),
+				"self":    fmt.Sprintf("%s/%s", prefixSources, s.ID.String()),
+				"query":   fmt.Sprintf("%s/%s/query", prefixSources, s.ID.String()),
+				"buckets": fmt.Sprintf("%s/%s/buckets", prefixSources, s.ID.String()),
+				"health":  fmt.Sprintf("%s/%s/health", prefixSources, s.ID.String()),
 			},
 		}
 	}
@@ -47,10 +47,10 @@ func newSourceResponse(s *platform.Source) *sourceResponse {
 	return &sourceResponse{
 		Source: s,
 		Links: map[string]interface{}{
-			"self":    fmt.Sprintf("%s/%s", sourceHTTPPath, s.ID.String()),
-			"query":   fmt.Sprintf("%s/%s/query", sourceHTTPPath, s.ID.String()),
-			"buckets": fmt.Sprintf("%s/%s/buckets", sourceHTTPPath, s.ID.String()),
-			"health":  fmt.Sprintf("%s/%s/health", sourceHTTPPath, s.ID.String()),
+			"self":    fmt.Sprintf("%s/%s", prefixSources, s.ID.String()),
+			"query":   fmt.Sprintf("%s/%s/query", prefixSources, s.ID.String()),
+			"buckets": fmt.Sprintf("%s/%s/buckets", prefixSources, s.ID.String()),
+			"health":  fmt.Sprintf("%s/%s/health", prefixSources, s.ID.String()),
 		},
 	}
 }
@@ -63,7 +63,7 @@ type sourcesResponse struct {
 func newSourcesResponse(srcs []*platform.Source) *sourcesResponse {
 	res := &sourcesResponse{
 		Links: map[string]interface{}{
-			"self": sourceHTTPPath,
+			"self": prefixSources,
 		},
 	}
 
@@ -127,7 +127,7 @@ func NewSourceHandler(log *zap.Logger, b *SourceBackend) *SourceHandler {
 		NewQueryService: b.NewQueryService,
 	}
 
-	h.HandlerFunc("POST", "/api/v2/sources", h.handlePostSource)
+	h.HandlerFunc("POST", prefixSources, h.handlePostSource)
 	h.HandlerFunc("GET", "/api/v2/sources", h.handleGetSources)
 	h.HandlerFunc("GET", "/api/v2/sources/:id", h.handleGetSource)
 	h.HandlerFunc("PATCH", "/api/v2/sources/:id", h.handlePatchSource)

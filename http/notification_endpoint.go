@@ -63,7 +63,7 @@ type NotificationEndpointHandler struct {
 }
 
 const (
-	notificationEndpointsPath            = "/api/v2/notificationEndpoints"
+	prefixNotificationEndpoints          = "/api/v2/notificationEndpoints"
 	notificationEndpointsIDPath          = "/api/v2/notificationEndpoints/:id"
 	notificationEndpointsIDMembersPath   = "/api/v2/notificationEndpoints/:id/members"
 	notificationEndpointsIDMembersIDPath = "/api/v2/notificationEndpoints/:id/members/:userID"
@@ -87,8 +87,8 @@ func NewNotificationEndpointHandler(log *zap.Logger, b *NotificationEndpointBack
 		OrganizationService:         b.OrganizationService,
 		SecretService:               b.SecretService,
 	}
-	h.HandlerFunc("POST", notificationEndpointsPath, h.handlePostNotificationEndpoint)
-	h.HandlerFunc("GET", notificationEndpointsPath, h.handleGetNotificationEndpoints)
+	h.HandlerFunc("POST", prefixNotificationEndpoints, h.handlePostNotificationEndpoint)
+	h.HandlerFunc("GET", prefixNotificationEndpoints, h.handleGetNotificationEndpoints)
 	h.HandlerFunc("GET", notificationEndpointsIDPath, h.handleGetNotificationEndpoint)
 	h.HandlerFunc("DELETE", notificationEndpointsIDPath, h.handleDeleteNotificationEndpoint)
 	h.HandlerFunc("PUT", notificationEndpointsIDPath, h.handlePutNotificationEndpoint)
@@ -196,7 +196,7 @@ func newNotificationEndpointResponse(edp influxdb.NotificationEndpoint, labels [
 func newNotificationEndpointsResponse(ctx context.Context, edps []influxdb.NotificationEndpoint, labelService influxdb.LabelService, f influxdb.PagingFilter, opts influxdb.FindOptions) *notificationEndpointsResponse {
 	resp := &notificationEndpointsResponse{
 		NotificationEndpoints: make([]notificationEndpointResponse, len(edps)),
-		Links:                 newPagingLinks(notificationEndpointsPath, opts, f, len(edps)),
+		Links:                 newPagingLinks(prefixNotificationEndpoints, opts, f, len(edps)),
 	}
 	for i, edp := range edps {
 		labels, _ := labelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: edp.GetID()})
@@ -611,7 +611,7 @@ var _ influxdb.NotificationEndpointService = (*NotificationEndpointService)(nil)
 func (s *NotificationEndpointService) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
 	var resp notificationEndpointResponse
 	err := s.Client.
-		Get(notificationEndpointsPath, id.String()).
+		Get(prefixNotificationEndpoints, id.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -636,7 +636,7 @@ func (s *NotificationEndpointService) FindNotificationEndpoints(ctx context.Cont
 
 	var resp notificationEndpointsResponse
 	err := s.Client.
-		Get(notificationEndpointsPath).
+		Get(prefixNotificationEndpoints).
 		QueryParams(params...).
 		DecodeJSON(&resp).
 		Do(ctx)
@@ -660,7 +660,7 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 	// the token/auth. its a nothing burger here
 	var resp notificationEndpointResponse
 	err := s.Client.
-		Post(httpc.BodyJSON(ne), notificationEndpointsPath).
+		Post(httpc.BodyJSON(ne), prefixNotificationEndpoints).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -677,7 +677,7 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
 	var resp notificationEndpointResponse
 	err := s.Client.
-		Put(httpc.BodyJSON(nr), notificationEndpointsPath, id.String()).
+		Put(httpc.BodyJSON(nr), prefixNotificationEndpoints, id.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -695,7 +695,7 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 
 	var resp notificationEndpointResponse
 	err := s.Client.
-		Patch(httpc.BodyJSON(upd), notificationEndpointsPath, id.String()).
+		Patch(httpc.BodyJSON(upd), prefixNotificationEndpoints, id.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {

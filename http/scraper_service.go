@@ -57,13 +57,13 @@ type ScraperHandler struct {
 }
 
 const (
-	targetsPath            = "/api/v2/scrapers"
-	targetsIDMembersPath   = targetsPath + "/:id/members"
-	targetsIDMembersIDPath = targetsPath + "/:id/members/:userID"
-	targetsIDOwnersPath    = targetsPath + "/:id/owners"
-	targetsIDOwnersIDPath  = targetsPath + "/:id/owners/:userID"
-	targetsIDLabelsPath    = targetsPath + "/:id/labels"
-	targetsIDLabelsIDPath  = targetsPath + "/:id/labels/:lid"
+	prefixTargets          = "/api/v2/scrapers"
+	targetsIDMembersPath   = prefixTargets + "/:id/members"
+	targetsIDMembersIDPath = prefixTargets + "/:id/members/:userID"
+	targetsIDOwnersPath    = prefixTargets + "/:id/owners"
+	targetsIDOwnersIDPath  = prefixTargets + "/:id/owners/:userID"
+	targetsIDLabelsPath    = prefixTargets + "/:id/labels"
+	targetsIDLabelsIDPath  = prefixTargets + "/:id/labels/:lid"
 )
 
 // NewScraperHandler returns a new instance of ScraperHandler.
@@ -79,11 +79,11 @@ func NewScraperHandler(log *zap.Logger, b *ScraperBackend) *ScraperHandler {
 		BucketService:              b.BucketService,
 		OrganizationService:        b.OrganizationService,
 	}
-	h.HandlerFunc("POST", targetsPath, h.handlePostScraperTarget)
-	h.HandlerFunc("GET", targetsPath, h.handleGetScraperTargets)
-	h.HandlerFunc("GET", targetsPath+"/:id", h.handleGetScraperTarget)
-	h.HandlerFunc("PATCH", targetsPath+"/:id", h.handlePatchScraperTarget)
-	h.HandlerFunc("DELETE", targetsPath+"/:id", h.handleDeleteScraperTarget)
+	h.HandlerFunc("POST", prefixTargets, h.handlePostScraperTarget)
+	h.HandlerFunc("GET", prefixTargets, h.handleGetScraperTargets)
+	h.HandlerFunc("GET", prefixTargets+"/:id", h.handleGetScraperTarget)
+	h.HandlerFunc("PATCH", prefixTargets+"/:id", h.handlePatchScraperTarget)
+	h.HandlerFunc("DELETE", prefixTargets+"/:id", h.handleDeleteScraperTarget)
 
 	memberBackend := MemberBackend{
 		HTTPErrorHandler:           b.HTTPErrorHandler,
@@ -344,7 +344,7 @@ type ScraperService struct {
 
 // ListTargets returns a list of all scraper targets.
 func (s *ScraperService) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
-	url, err := NewURL(s.Addr, targetsPath)
+	url, err := NewURL(s.Addr, prefixTargets)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +443,7 @@ func (s *ScraperService) UpdateTarget(ctx context.Context, update *influxdb.Scra
 
 // AddTarget creates a new scraper target and sets target.ID with the new identifier.
 func (s *ScraperService) AddTarget(ctx context.Context, target *influxdb.ScraperTarget, userID influxdb.ID) error {
-	url, err := NewURL(s.Addr, targetsPath)
+	url, err := NewURL(s.Addr, prefixTargets)
 	if err != nil {
 		return err
 	}
@@ -553,7 +553,7 @@ func (s *ScraperService) GetTargetByID(ctx context.Context, id influxdb.ID) (*in
 }
 
 func targetIDPath(id influxdb.ID) string {
-	return path.Join(targetsPath, id.String())
+	return path.Join(prefixTargets, id.String())
 }
 
 type getTargetsLinks struct {
@@ -583,7 +583,7 @@ type targetResponse struct {
 func (h *ScraperHandler) newListTargetsResponse(ctx context.Context, targets []influxdb.ScraperTarget) (getTargetsResponse, error) {
 	res := getTargetsResponse{
 		Links: getTargetsLinks{
-			Self: targetsPath,
+			Self: prefixTargets,
 		},
 		Targets: make([]targetResponse, 0, len(targets)),
 	}

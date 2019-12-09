@@ -68,7 +68,7 @@ type TaskHandler struct {
 }
 
 const (
-	tasksPath              = "/api/v2/tasks"
+	prefixTasks            = "/api/v2/tasks"
 	tasksIDPath            = "/api/v2/tasks/:id"
 	tasksIDLogsPath        = "/api/v2/tasks/:id/logs"
 	tasksIDMembersPath     = "/api/v2/tasks/:id/members"
@@ -99,8 +99,8 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 		BucketService:              b.BucketService,
 	}
 
-	h.HandlerFunc("GET", tasksPath, h.handleGetTasks)
-	h.HandlerFunc("POST", tasksPath, h.handlePostTask)
+	h.HandlerFunc("GET", prefixTasks, h.handleGetTasks)
+	h.HandlerFunc("POST", prefixTasks, h.handlePostTask)
 
 	h.HandlerFunc("GET", tasksIDPath, h.handleGetTask)
 	h.HandlerFunc("PATCH", tasksIDPath, h.handleUpdateTask)
@@ -314,7 +314,7 @@ type tasksResponse struct {
 
 func newTasksResponse(ctx context.Context, ts []*influxdb.Task, f influxdb.TaskFilter, labelService influxdb.LabelService) tasksResponse {
 	rs := tasksResponse{
-		Links: newTasksPagingLinks(tasksPath, ts, f),
+		Links: newTasksPagingLinks(prefixTasks, ts, f),
 		Tasks: make([]taskResponse, len(ts)),
 	}
 
@@ -1458,7 +1458,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, tasksPath)
+	u, err := NewURL(t.Addr, prefixTasks)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1524,7 +1524,7 @@ func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*T
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	u, err := NewURL(t.Addr, tasksPath)
+	u, err := NewURL(t.Addr, prefixTasks)
 	if err != nil {
 		return nil, err
 	}
@@ -1913,13 +1913,13 @@ func (t TaskService) CancelRun(ctx context.Context, taskID, runID influxdb.ID) e
 }
 
 func taskIDPath(id influxdb.ID) string {
-	return path.Join(tasksPath, id.String())
+	return path.Join(prefixTasks, id.String())
 }
 
 func taskIDRunsPath(id influxdb.ID) string {
-	return path.Join(tasksPath, id.String(), "runs")
+	return path.Join(prefixTasks, id.String(), "runs")
 }
 
 func taskIDRunIDPath(taskID, runID influxdb.ID) string {
-	return path.Join(tasksPath, taskID.String(), "runs", runID.String())
+	return path.Join(prefixTasks, taskID.String(), "runs", runID.String())
 }

@@ -39,7 +39,7 @@ type SetupHandler struct {
 }
 
 const (
-	setupPath = "/api/v2/setup"
+	prefixSetup = "/api/v2/setup"
 )
 
 // NewSetupHandler returns a new instance of SetupHandler.
@@ -50,8 +50,8 @@ func NewSetupHandler(log *zap.Logger, b *SetupBackend) *SetupHandler {
 		log:               log,
 		OnboardingService: b.OnboardingService,
 	}
-	h.HandlerFunc("POST", setupPath, h.handlePostSetup)
-	h.HandlerFunc("GET", setupPath, h.isOnboarding)
+	h.HandlerFunc("POST", prefixSetup, h.handlePostSetup)
+	h.HandlerFunc("GET", prefixSetup, h.isOnboarding)
 	return h
 }
 
@@ -141,7 +141,7 @@ type SetupService struct {
 
 // IsOnboarding determine if onboarding request is allowed.
 func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
-	u, err := NewURL(s.Addr, setupPath)
+	u, err := NewURL(s.Addr, prefixSetup)
 	if err != nil {
 		return false, err
 	}
@@ -168,7 +168,7 @@ func (s *SetupService) IsOnboarding(ctx context.Context) (bool, error) {
 
 // Generate OnboardingResults.
 func (s *SetupService) Generate(ctx context.Context, or *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
-	u, err := NewURL(s.Addr, setupPath)
+	u, err := NewURL(s.Addr, prefixSetup)
 	if err != nil {
 		return nil, err
 	}
