@@ -88,7 +88,7 @@ describe('The Query Builder', () => {
     })
   })
 
-  describe.only('from the Dashboard view', () => {
+  describe('from the Dashboard view', () => {
     beforeEach(() => {
       cy.get('@org').then((org: Organization) => {
         cy.createDashboard(org.id).then(({body}) => {
