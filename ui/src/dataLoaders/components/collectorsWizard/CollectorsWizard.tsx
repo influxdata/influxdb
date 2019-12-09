@@ -1,17 +1,27 @@
 // Libraries
-import React, {PureComponent, Suspense} from 'react'
+import React, {PureComponent} from 'react'
+import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
-const TelegrafEditor = React.lazy(() =>
-  import('src/dataLoaders/components/TelegrafEditor')
-)
-const CollectorsStepSwitcher = React.lazy(() =>
-  import('src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher')
-)
+
+const spinner = <div />
+const TelegrafEditor = Loadable({
+  loader: () => import('src/dataLoaders/components/TelegrafEditor'),
+  loading() {
+    return spinner
+  },
+})
+const CollectorsStepSwitcher = Loadable({
+  loader: () =>
+    import('src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'),
+  loading() {
+    return spinner
+  },
+})
 import {isFlagEnabled, FeatureFlag} from 'src/shared/utils/featureFlag'
 import {ComponentColor, Button} from '@influxdata/clockface'
 
@@ -78,8 +88,6 @@ interface State {
 type Props = StateProps & DispatchProps
 type AllProps = Props & WithRouterProps
 
-const spinner = <div />
-
 @ErrorHandling
 class CollectorsWizard extends PureComponent<AllProps, State> {
   constructor(props: AllProps) {
@@ -115,17 +123,15 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
           </>
         }
       >
-        <Suspense fallback={spinner}>
-          <FeatureFlag name="telegrafEditor">
-            <TelegrafEditor />
-          </FeatureFlag>
-          <FeatureFlag name="telegrafEditor" equals={false}>
-            <CollectorsStepSwitcher
-              stepProps={this.stepProps}
-              buckets={buckets}
-            />
-          </FeatureFlag>
-        </Suspense>
+        <FeatureFlag name="telegrafEditor">
+          <TelegrafEditor />
+        </FeatureFlag>
+        <FeatureFlag name="telegrafEditor" equals={false}>
+          <CollectorsStepSwitcher
+            stepProps={this.stepProps}
+            buckets={buckets}
+          />
+        </FeatureFlag>
       </WizardOverlay>
     )
   }

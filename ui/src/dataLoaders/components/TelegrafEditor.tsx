@@ -2,19 +2,24 @@
 import React, {PureComponent} from 'react'
 import {connect} from 'react-redux'
 
-import {ErrorHandling} from 'src/shared/decorators/errors'
-import {AppState} from 'src/types'
+// Components
 import {Grid, Columns} from '@influxdata/clockface'
 import TelegrafEditorSidebar from 'src/dataLoaders/components/TelegrafEditorSidebar'
 import TelegrafEditorMonaco from 'src/dataLoaders/components/TelegrafEditorMonaco'
 
+// Styles
+import './TelegrafEditor.scss'
+
+// Utils
+import {ErrorHandling} from 'src/shared/decorators/errors'
+
+// Types
+import {AppState} from 'src/types'
 import {
   TelegrafEditorActivePlugin,
   TelegrafEditorPlugin,
   TelegrafEditorBasicPlugin,
 } from 'src/dataLoaders/reducers/telegrafEditor'
-
-import './TelegrafEditor.scss'
 
 type AllPlugin = TelegrafEditorPlugin | TelegrafEditorActivePlugin
 
@@ -73,8 +78,7 @@ class TelegrafEditor extends PureComponent<Props> {
     const line = editor.nextLine()
 
     if (which.type === 'bundle') {
-      const include = which.include || []
-      include
+      which.include
         .filter(
           item =>
             this.props.pluginHashMap[item] &&
@@ -101,10 +105,14 @@ class TelegrafEditor extends PureComponent<Props> {
 }
 
 const mstp = (state: AppState): StateProps => {
-  const pluginHashMap = state.telegrafEditorPlugins.reduce((prev, curr) => {
-    prev[curr.name] = curr
-    return prev
-  }, {})
+  const pluginHashMap = state.telegrafEditorPlugins
+    .filter(
+      (a: TelegrafEditorPlugin) => a.type !== 'bundle' || !!a.include.length
+    )
+    .reduce((prev, curr) => {
+      prev[curr.name] = curr
+      return prev
+    }, {})
 
   return {
     pluginHashMap,

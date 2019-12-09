@@ -9,7 +9,7 @@ import {
 
 type ListPlugin = TelegrafEditorPlugin | TelegrafEditorActivePlugin
 
-interface InterumListFormat {
+interface InterimListFormat {
   category: string
   items: Array<ListPlugin>
 }
@@ -34,7 +34,7 @@ function groupPlugins(plugins: Array<ListPlugin>, pluginFilter: string) {
 
   return ['bundle', 'input', 'output', 'processor', 'aggregator']
     .map(
-      (k: string): InterumListFormat => {
+      (k: string): InterimListFormat => {
         return {
           category: k,
           items: (map[k] || []).filter((a: ListPlugin) =>
@@ -43,7 +43,7 @@ function groupPlugins(plugins: Array<ListPlugin>, pluginFilter: string) {
         }
       }
     )
-    .filter((k: InterumListFormat) => k.items.length)
+    .filter((k: InterimListFormat) => k.items.length)
     .reduce((prev, curr) => {
       prev.push({
         type: 'display',
