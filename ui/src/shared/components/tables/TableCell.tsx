@@ -92,7 +92,7 @@ class TableCell extends PureComponent<Props> {
       'table-graph-cell__fixed-corner': this.isFixedCorner,
       'table-graph-cell__highlight-row': this.isHighlightedRow,
       'table-graph-cell__highlight-column': this.isHighlightedColumn,
-      'table-graph-cell__numerical': this.isNumerical,
+      'table-graph-cell__numerical': !this.isNaN,
       'table-graph-cell__field-name': this.isFieldName,
       'table-graph-cell__sort-asc':
         this.isFieldName && this.isSorted && this.isAscending,
@@ -138,12 +138,11 @@ class TableCell extends PureComponent<Props> {
   }
 
   private get isTimestamp(): boolean {
-    const {data} = this.props
-    return new Date(data).getTime() > 0
+    return this.props.dataType === 'dateTime:RFC3339'
   }
 
-  private get isNumerical(): boolean {
-    return !isNaN(Number.parseFloat(this.props.data))
+  private get isNaN(): boolean {
+    return isNaN(Number(this.props.data))
   }
 
   private get isFixed(): boolean {
@@ -170,15 +169,7 @@ class TableCell extends PureComponent<Props> {
     const {style, properties, data} = this.props
     const {colors} = properties
 
-    if (
-      this.isFixed ||
-      this.isTimeData ||
-      this.isTimestamp
-      //  ||this.isNumerical
-    ) {
-      // TODO: figure out what the styling criteria should be
-      // should the background color be set?
-      // should the text for that row be set or just the value?
+    if (this.isFixed || this.isTimeData || this.isTimestamp || this.isNaN) {
       return style
     }
 
