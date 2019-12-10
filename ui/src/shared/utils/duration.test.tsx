@@ -3,7 +3,9 @@ import {
   durationToMilliseconds,
   areDurationsEqual,
   millisecondsToDuration,
+  isDurationParseable,
 } from 'src/shared/utils/duration'
+import {SELECTABLE_TIME_RANGES} from 'src/shared/constants/timeRanges'
 
 const TEST_CASES = [
   ['1d', [{magnitude: 1, unit: 'd'}]],
@@ -65,4 +67,20 @@ describe('millisecondsToDuration', () => {
     expect(millisecondsToDuration(9_000_000)).toEqual('2h30m')
     expect(millisecondsToDuration(2 / 1_000_000)).toEqual('2ns')
   })
+})
+
+describe('isDurationParseable', () => {
+  test('returns false when passed invalid durations', () => {
+    expect(isDurationParseable('1h')).toBe(false)
+    expect(isDurationParseable('moo')).toBe(false)
+    expect(isDurationParseable('123')).toBe(false)
+    expect(isDurationParseable('now()')).toBe(false)
+  })
+
+  test.each(SELECTABLE_TIME_RANGES)(
+    'returns true when passed valid duration',
+    ({lower}) => {
+      expect(isDurationParseable(lower)).toEqual(true)
+    }
+  )
 })

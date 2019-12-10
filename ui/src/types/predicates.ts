@@ -1,4 +1,4 @@
-import {Filter, RemoteDataState} from 'src/types'
+import {Filter, RemoteDataState, CustomTimeRange} from 'src/types'
 
 export interface PredicatesState {
   bucketName: string
@@ -8,6 +8,6 @@ export interface PredicatesState {
   isSerious: boolean
   keys: string[]
   previewStatus: RemoteDataState
-  timeRange: [number, number]
+  timeRange: CustomTimeRange
   values: string[]
 }

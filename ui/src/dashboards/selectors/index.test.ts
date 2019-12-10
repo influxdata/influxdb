@@ -2,39 +2,43 @@
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 // Types
-import {Range} from 'src/dashboards/reducers/ranges'
+import {RangeState} from 'src/dashboards/reducers/ranges'
+import {TimeRange} from 'src/types'
 
 // Constants
-import {DEFAULT_TIME_RANGE} from 'src/shared/constants/timeRanges'
+import {
+  DEFAULT_TIME_RANGE,
+  pastFifteenMinTimeRange,
+  pastHourTimeRange,
+} from 'src/shared/constants/timeRanges'
+
+const untypedGetTimeRangeByDashboardID = getTimeRangeByDashboardID as (
+  a: {ranges: RangeState},
+  dashID: string
+) => TimeRange
 
 describe('Dashboards.Selector', () => {
-  const ranges: Range[] = [
-    {
-      dashboardID: '04c6f3976f4b8001',
-      lower: 'now() - 5m',
-      upper: null,
-    },
-    {
-      dashboardID: '04c6f3976f4b8000',
-      lower: '2019-11-07T10:46:51.000Z',
-      upper: '2019-11-28T22:46:51.000Z',
-    },
-  ]
-  const dashboardID: string = '04c6f3976f4b8000'
-  it('should return the default timerange when a no data is passed', () => {
-    expect(getTimeRangeByDashboardID()).toEqual(DEFAULT_TIME_RANGE)
-  })
+  const dashboardIDs = ['04c6f3976f4b8001', '04c6f3976f4b8000']
+  const ranges: RangeState = {
+    [dashboardIDs[0]]: pastFifteenMinTimeRange,
+    [dashboardIDs[1]]: pastHourTimeRange,
+  }
+
   it('should return the the correct range when a matching dashboard ID is found', () => {
-    expect(getTimeRangeByDashboardID(ranges, dashboardID)).toEqual(ranges[1])
+    expect(untypedGetTimeRangeByDashboardID({ranges}, dashboardIDs[0])).toEqual(
+      pastFifteenMinTimeRange
+    )
   })
+
   it('should return the the default range when no matching dashboard ID is found', () => {
-    expect(getTimeRangeByDashboardID(ranges, 'Oogum Boogum')).toEqual(
+    expect(untypedGetTimeRangeByDashboardID({ranges}, 'Oogum Boogum')).toEqual(
       DEFAULT_TIME_RANGE
     )
   })
+
   it('should return the the default range when no ranges are passed in', () => {
-    expect(getTimeRangeByDashboardID([], dashboardID)).toEqual(
-      DEFAULT_TIME_RANGE
-    )
+    expect(
+      untypedGetTimeRangeByDashboardID({ranges: {}}, dashboardIDs[0])
+    ).toEqual(DEFAULT_TIME_RANGE)
   })
 })

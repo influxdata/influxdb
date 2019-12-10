@@ -14,7 +14,6 @@ interface Props {
   keys: string[]
   onDeleteFilter: (index: number) => any
   onSetFilter: (filter: Filter, index: number) => any
-  orgID: string
   shouldValidate: boolean
   values: (string | number)[]
 }
@@ -25,7 +24,6 @@ const FilterEditor: FunctionComponent<Props> = ({
   keys,
   onDeleteFilter,
   onSetFilter,
-  orgID,
   shouldValidate,
   values,
 }) => {
@@ -51,7 +49,6 @@ const FilterEditor: FunctionComponent<Props> = ({
               filter={filter}
               onChange={filter => onSetFilter(filter, i)}
               onDelete={() => onDeleteFilter(i)}
-              orgID={orgID}
               shouldValidate={shouldValidate}
               values={values}
             />

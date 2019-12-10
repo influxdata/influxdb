@@ -5,7 +5,6 @@ import {
   Dashboard,
   FieldOption,
   DecimalPlaces,
-  TimeRange,
   TableOptions,
 } from 'src/types'
 
@@ -122,11 +121,6 @@ export const fullTimeRange = {
   upper: null,
   menuOption: 'Past 5 minutes',
   format: 'influxql',
-}
-
-export const timeRange: TimeRange = {
-  lower: 'now() - 5m',
-  upper: null,
 }
 
 export const thresholdsListColors: Color[] = [

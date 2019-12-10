@@ -12,6 +12,7 @@ import {
   THRESHOLD_TYPE_TEXT,
   THRESHOLD_TYPE_BG,
 } from 'src/shared/constants/thresholds'
+import {pastHourTimeRange} from 'src/shared/constants/timeRanges'
 import {
   DEFAULT_THRESHOLD_CHECK,
   DEFAULT_DEADMAN_CHECK,
@@ -97,7 +98,7 @@ export interface TimeMachinesState {
 }
 
 export const initialStateHelper = (): TimeMachineState => ({
-  timeRange: {lower: 'now() - 1h'},
+  timeRange: pastHourTimeRange,
   autoRefresh: AUTOREFRESH_DEFAULT,
   view: createView(),
   alerting: {

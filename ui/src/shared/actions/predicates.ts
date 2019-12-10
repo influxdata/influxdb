@@ -1,6 +1,7 @@
 // Libraries
 import {Dispatch} from 'redux-thunk'
 import {extractBoxedCol} from 'src/timeMachine/apis/queryBuilder'
+import moment from 'moment'
 
 // Utils
 import {postDelete} from 'src/client'
@@ -23,7 +24,7 @@ import {
 import {rateLimitReached, resultTooLarge} from 'src/shared/copy/notifications'
 
 // Types
-import {GetState, Filter, RemoteDataState} from 'src/types'
+import {RemoteDataState, Filter, CustomTimeRange, GetState} from 'src/types'
 
 export type Action =
   | DeleteFilter
@@ -144,10 +145,10 @@ export const setPreviewStatus = (
 
 interface SetTimeRange {
   type: 'SET_DELETE_TIME_RANGE'
-  payload: {timeRange: [number, number]}
+  payload: {timeRange: CustomTimeRange}
 }
 
-export const setTimeRange = (timeRange: [number, number]): SetTimeRange => ({
+export const setTimeRange = (timeRange: CustomTimeRange): SetTimeRange => ({
   type: 'SET_DELETE_TIME_RANGE',
   payload: {timeRange},
 })
@@ -162,11 +163,39 @@ const setValues = (values: string[]): SetValuesByKey => ({
   payload: {values},
 })
 
-export const deleteWithPredicate = params => async (
-  dispatch: Dispatch<Action>
+const formatFilters = (filters: Filter[]) =>
+  filters.map(f => `${f.key} ${f.equality} ${f.value}`).join(' AND ')
+
+export const deleteWithPredicate = () => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
+  dispatch(setDeletionStatus(RemoteDataState.Loading))
+
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+    predicates: {timeRange, bucketName, filters},
+  } = getState()
+
+  const data = {
+    start: moment(timeRange.lower).toISOString(),
+    stop: moment(timeRange.upper).toISOString(),
+  }
+
+  if (filters.length > 0) {
+    data['predicate'] = formatFilters(filters)
+  }
+
   try {
-    const resp = await postDelete(params)
+    const resp = await postDelete({
+      data,
+      query: {
+        orgID,
+        bucket: bucketName,
+      },
+    })
 
     if (resp.status !== 204) {
       throw new Error(resp.data.message)
@@ -223,9 +252,16 @@ export const executePreviewQuery = (query: string) => async (
   }
 }
 
-export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
-  dispatch: Dispatch<Action>
+export const setBucketAndKeys = (bucketName: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ) => {
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+  } = getState()
+
   try {
     const query = `import "influxdata/influxdb/v1"
     v1.tagKeys(bucket: "${bucketName}")
@@ -240,11 +276,16 @@ export const setBucketAndKeys = (orgID: string, bucketName: string) => async (
   }
 }
 
-export const setValuesByKey = (
-  orgID: string,
-  bucketName: string,
-  keyName: string
-) => async (dispatch: Dispatch<Action>) => {
+export const setValuesByKey = (bucketName: string, keyName: string) => async (
+  dispatch: Dispatch<Action>,
+  getState: GetState
+) => {
+  const {
+    orgs: {
+      org: {id: orgID},
+    },
+  } = getState()
+
   try {
     const query = `import "influxdata/influxdb/v1" v1.tagValues(bucket: "${bucketName}", tag: "${keyName}")`
     const values = await extractBoxedCol(runQuery(orgID, query), '_value')

@@ -23,6 +23,7 @@ import {
   setAutoRefreshInterval,
   setAutoRefreshStatus,
 } from 'src/shared/actions/autoRefresh'
+import {toggleShowVariablesControls} from 'src/userSettings/actions'
 
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
@@ -35,6 +36,9 @@ import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 // Constants
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
+// Selectors
+import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+
 // Types
 import {
   Links,
@@ -46,25 +50,20 @@ import {
   AutoRefresh,
   AutoRefreshStatus,
   Organization,
+  RemoteDataState,
 } from 'src/types'
-import {RemoteDataState} from 'src/types'
 import {WithRouterProps} from 'react-router'
 import {ManualRefreshProps} from 'src/shared/components/ManualRefresh'
 import {Location} from 'history'
 import * as AppActions from 'src/types/actions/app'
 import * as ColorsModels from 'src/types/colors'
-import {toggleShowVariablesControls} from 'src/userSettings/actions'
 import {LimitStatus} from 'src/cloud/actions/limits'
-
-// Selector
-import {getTimeRangeByDashboardID} from 'src/dashboards/selectors/index'
 
 interface StateProps {
   limitedResources: string[]
   limitStatus: LimitStatus
   org: Organization
   links: Links
-  zoomedTimeRange: TimeRange
   timeRange: TimeRange
   dashboard: Dashboard
   autoRefresh: AutoRefresh
@@ -79,8 +78,7 @@ interface DispatchProps {
   updateDashboard: typeof dashboardActions.updateDashboardAsync
   updateCells: typeof dashboardActions.updateCellsAsync
   updateQueryParams: typeof rangesActions.updateQueryParams
-  setDashTimeV1: typeof rangesActions.setDashTimeV1
-  setZoomedTimeRange: typeof rangesActions.setZoomedTimeRange
+  setDashboardTimeRange: typeof rangesActions.setDashboardTimeRange
   handleChooseAutoRefresh: typeof setAutoRefreshInterval
   onSetAutoRefreshStatus: typeof setAutoRefreshStatus
   handleClickPresentationButton: AppActions.DelayEnablePresentationModeDispatcher
@@ -143,7 +141,6 @@ class DashboardPage extends Component<Props> {
     const {
       org,
       timeRange,
-      zoomedTimeRange,
       dashboard,
       autoRefresh,
       limitStatus,
@@ -168,7 +165,6 @@ class DashboardPage extends Component<Props> {
               onAddCell={this.handleAddCell}
               onAddNote={this.showNoteOverlay}
               onManualRefresh={onManualRefresh}
-              zoomedTimeRange={zoomedTimeRange}
               onRenameDashboard={this.handleRenameDashboard}
               activeDashboard={dashboard ? dashboard.name : ''}
               handleChooseAutoRefresh={this.handleChooseAutoRefresh}
@@ -213,8 +209,8 @@ class DashboardPage extends Component<Props> {
   }
 
   private handleChooseTimeRange = (timeRange: TimeRange): void => {
-    const {dashboard, setDashTimeV1, updateQueryParams} = this.props
-    setDashTimeV1(dashboard.id, {...timeRange})
+    const {dashboard, setDashboardTimeRange, updateQueryParams} = this.props
+    setDashboardTimeRange(dashboard.id, timeRange)
     updateQueryParams({
       lower: timeRange.lower,
       upper: timeRange.upper,
@@ -302,7 +298,6 @@ class DashboardPage extends Component<Props> {
 const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
   const {
     links,
-    ranges,
     dashboards,
     views: {views},
     userSettings: {showVariablesControls},
@@ -310,7 +305,7 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     cloud: {limits},
   } = state
 
-  const timeRange = getTimeRangeByDashboardID(ranges, dashboardID)
+  const timeRange = getTimeRangeByDashboardID(state, dashboardID)
 
   const autoRefresh = state.autoRefresh[dashboardID] || AUTOREFRESH_DEFAULT
 
@@ -323,7 +318,6 @@ const mstp = (state: AppState, {params: {dashboardID}}): StateProps => {
     org,
     links,
     views,
-    zoomedTimeRange: {lower: null, upper: null},
     timeRange,
     dashboard,
     autoRefresh,
@@ -342,9 +336,8 @@ const mdtp: DispatchProps = {
   handleChooseAutoRefresh: setAutoRefreshInterval,
   onSetAutoRefreshStatus: setAutoRefreshStatus,
   handleClickPresentationButton: appActions.delayEnablePresentationMode,
-  setDashTimeV1: rangesActions.setDashTimeV1,
+  setDashboardTimeRange: rangesActions.setDashboardTimeRange,
   updateQueryParams: rangesActions.updateQueryParams,
-  setZoomedTimeRange: rangesActions.setZoomedTimeRange,
   onCreateCellWithView: dashboardActions.createCellWithView,
   onUpdateView: dashboardActions.updateView,
   onToggleShowVariablesControls: toggleShowVariablesControls,
