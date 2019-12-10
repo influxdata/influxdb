@@ -17,6 +17,7 @@
 1. [16105](https://github.com/influxdata/influxdb/pull/16105): Fix crash when loading queries built using Query Builder
 1. [16112](https://github.com/influxdata/influxdb/pull/16112): Create cell view properties on dashboard creation
 1. [16172](https://github.com/influxdata/influxdb/pull/16172): Fixed table ui threshold colorization issue where setting thresholds would not change table UI
+1. [16175](https://github.com/influxdata/influxdb/pull/16175): Added delete functionality to note cells so that they can be deleted
 
 ### UI Improvements
 
