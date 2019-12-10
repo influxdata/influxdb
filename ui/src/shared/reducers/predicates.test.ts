@@ -60,10 +60,7 @@ describe('Predicates reducer', () => {
 
   it('Can reset the state after a filter DWP has been successfully submitted', () => {
     const state = initialState
-    const intermediateState = predicatesReducer(
-      state,
-      setFilter(filter, 0)
-    )
+    const intermediateState = predicatesReducer(state, setFilter(filter, 0))
     const result = predicatesReducer(intermediateState, resetPredicateState())
     expect(result).toEqual(state)
   })
