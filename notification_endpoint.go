@@ -120,7 +120,7 @@ type NotificationEndpointService interface {
 	// CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
 	CreateNotificationEndpoint(ctx context.Context, ne NotificationEndpoint, userID ID) error
 
-	// UpdateNotificationEndpointUpdateNotificationEndpoint updates a single notification endpoint.
+	// UpdateNotificationEndpoint updates a single notification endpoint.
 	// Returns the new notification endpoint after update.
 	UpdateNotificationEndpoint(ctx context.Context, id ID, nr NotificationEndpoint, userID ID) (NotificationEndpoint, error)
 

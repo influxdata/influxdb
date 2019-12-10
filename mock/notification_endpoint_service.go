@@ -10,14 +10,39 @@ var _ influxdb.NotificationEndpointService = &NotificationEndpointService{}
 
 // NotificationEndpointService represents a service for managing notification rule data.
 type NotificationEndpointService struct {
-	OrganizationService
-	UserResourceMappingService
+	*OrganizationService
+	*UserResourceMappingService
 	FindNotificationEndpointByIDF func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error)
 	FindNotificationEndpointsF    func(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error)
 	CreateNotificationEndpointF   func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error
 	UpdateNotificationEndpointF   func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error)
 	PatchNotificationEndpointF    func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error)
 	DeleteNotificationEndpointF   func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error)
+}
+
+func NewNotificationEndpointService() *NotificationEndpointService {
+	return &NotificationEndpointService{
+		OrganizationService:        NewOrganizationService(),
+		UserResourceMappingService: NewUserResourceMappingService(),
+		FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+			return nil, nil
+		},
+		FindNotificationEndpointsF: func(ctx context.Context, filter influxdb.NotificationEndpointFilter, opt ...influxdb.FindOptions) ([]influxdb.NotificationEndpoint, int, error) {
+			return nil, 0, nil
+		},
+		CreateNotificationEndpointF: func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+			return nil
+		},
+		UpdateNotificationEndpointF: func(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+			return nil, nil
+		},
+		PatchNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+			return nil, nil
+		},
+		DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+			return nil, 0, nil
+		},
+	}
 }
 
 // FindNotificationEndpointByID returns a single telegraf config by ID.
