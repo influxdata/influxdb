@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/telegraf/plugins"
 	"github.com/influxdata/influxdb/telegraf/plugins/inputs"
 	"github.com/influxdata/influxdb/telegraf/plugins/outputs"
@@ -62,11 +63,12 @@ type TelegrafConfigFilter struct {
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID          ID     `json:"id,omitempty"`          // ID of this config object.
-	OrgID       ID     `json:"orgID,omitempty"`       // OrgID is the id of the owning organization.
-	Name        string `json:"name,omitempty"`        // Name of this config object.
-	Description string `json:"description,omitempty"` // Decription of this config object.
-	Config      string `json:"config,omitempty"`      // ConfigTOML contains the raw toml config.
+	ID          ID                     `json:"id,omitempty"`          // ID of this config object.
+	OrgID       ID                     `json:"orgID,omitempty"`       // OrgID is the id of the owning organization.
+	Name        string                 `json:"name,omitempty"`        // Name of this config object.
+	Description string                 `json:"description,omitempty"` // Decription of this config object.
+	Config      string                 `json:"config,omitempty"`      // ConfigTOML contains the raw toml config.
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`    // Metadata for the config.
 }
 
 // UnmarshalJSON implement the json.Unmarshaler interface.
@@ -74,6 +76,7 @@ type TelegrafConfig struct {
 // May not remove for a while. Primarily will get hit when user views/downloads config.
 func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	tcd := new(telegrafConfigDecode)
+
 	if err := json.Unmarshal(b, tcd); err != nil {
 		return err
 	}
@@ -90,19 +93,32 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 
 	// Prefer new structure; use full toml config.
 	tc.Config = tcd.Config
+	tc.Metadata = tcd.Metadata
 
-	// legacy, remove after some moons. or a migration.
 	if tcd.Plugins != nil {
+		// legacy, remove after some moons. or a migration.
 		if len(*tcd.Plugins) > 0 {
-			conf, err := decodePluginRaw(tcd)
+			bkt, conf, err := decodePluginRaw(tcd)
 			if err != nil {
 				return err
 			}
 			tc.Config = plugins.AgentConfig + conf
+			tc.Metadata = map[string]interface{}{"bucket": []string{bkt}}
 		} else if c, ok := plugins.GetPlugin("output", "influxdb_v2"); ok {
 			// Handles legacy adding of default plugins (agent and output).
 			tc.Config = plugins.AgentConfig + c.Config
+			tc.Metadata = map[string]interface{}{
+				"buckets": []string{},
+			}
 		}
+	} else if tcd.Metadata == nil {
+		// Get buckets from the config.
+		m, err := parseMetadata(tc.Config)
+		if err != nil {
+			return err
+		}
+
+		tc.Metadata = m
 	}
 
 	if tc.Config == "" {
@@ -112,9 +128,67 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
+type buckets []string
+
+func (t *buckets) UnmarshalTOML(data interface{}) error {
+	dataOk, ok := data.(map[string]interface{})
+	if !ok {
+		return errors.New("no config to get buckets")
+	}
+	bkts := []string{}
+	for tp, ps := range dataOk {
+		if tp != "outputs" {
+			continue
+		}
+		plugins, ok := ps.(map[string]interface{})
+		if !ok {
+			return &Error{
+				Msg: "no plugins in config to get buckets",
+			}
+		}
+		for name, configDataArray := range plugins {
+			if name != "influxdb_v2" {
+				continue
+			}
+			config, ok := configDataArray.([]map[string]interface{})
+			if !ok {
+				return &Error{
+					Msg: fmt.Sprintf("%T - cant thing, %+v", configDataArray, configDataArray),
+				}
+			}
+			for i := range config {
+				if b, ok := config[i]["bucket"]; ok {
+					bkts = append(bkts, b.(string))
+				}
+			}
+		}
+	}
+
+	*t = buckets(bkts)
+	return nil
+}
+
+func parseMetadata(cfg string) (map[string]interface{}, error) {
+	bs := []string{}
+
+	this := &buckets{}
+	_, err := toml.Decode(cfg, this)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range *this {
+		bs = append(bs, i)
+	}
+
+	return map[string]interface{}{"buckets": bs}, nil
+}
+
+// return bucket, config, error
+func decodePluginRaw(tcd *telegrafConfigDecode) (string, string, error) {
 	op := "unmarshal telegraf config raw plugin"
 	ps := ""
+	bucket := ""
 
 	for _, pr := range *tcd.Plugins {
 		var tpFn func() plugins.Config
@@ -126,7 +200,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			return "", &Error{
+			return "", "", &Error{
 				Code: EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, pr.Type),
@@ -134,7 +208,7 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 		}
 
 		if !ok {
-			return "", &Error{
+			return "", "", &Error{
 				Code: EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
@@ -149,17 +223,21 @@ func decodePluginRaw(tcd *telegrafConfigDecode) (string, error) {
 		}
 
 		if err := json.Unmarshal(pr.Config, config); err != nil {
-			return "", &Error{
+			return "", "", &Error{
 				Code: EInvalid,
 				Err:  err,
 				Op:   op,
 			}
 		}
 
+		if pr.Name == "influxdb_v2" {
+			bucket = config.(*outputs.InfluxDBV2).Bucket
+		}
+
 		ps += config.TOML()
 	}
 
-	return ps, nil
+	return bucket, ps, nil
 }
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
@@ -171,6 +249,7 @@ type telegrafConfigDecode struct {
 	Description    string                  `json:"description,omitempty"`
 	Config         string                  `json:"config,omitempty"`
 	Plugins        *[]telegrafPluginDecode `json:"plugins,omitempty"`
+	Metadata       map[string]interface{}  `json:"metadata,omitempty"`
 }
 
 // telegrafPluginDecode is the helper struct for json decoding. legacy.
