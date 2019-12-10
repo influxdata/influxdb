@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	platform "github.com/influxdata/influxdb"
@@ -113,6 +114,7 @@ var userCreateFlags struct {
 	name     string
 	password string
 	orgID    string
+	org      string
 }
 
 func userCreateCmd() *cobra.Command {
@@ -125,12 +127,19 @@ func userCreateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&userCreateFlags.name, "name", "n", "", "The user name (required)")
 	cmd.MarkFlagRequired("name")
 	cmd.Flags().StringVarP(&userCreateFlags.password, "password", "p", "", "The user password")
-	cmd.Flags().StringVarP(&userCreateFlags.orgID, "org-id", "o", "", "The organization id the user belongs too. Is required if password provided.")
+	cmd.Flags().StringVarP(&userCreateFlags.orgID, "org-id", "", "", "The organization id the user belongs to. Is required if password provided.")
+	cmd.Flags().StringVarP(&userCreateFlags.org, "org", "o", "", "The organization name the user belongs to. Is required if password provided.")
 
 	return cmd
 }
 
 func userCreateF(cmd *cobra.Command, args []string) error {
+	if userCreateFlags.orgID == "" && userCreateFlags.org == "" {
+		return errors.New("must specify org-id, or org name")
+	} else if userCreateFlags.orgID != "" && userCreateFlags.org != "" {
+		return errors.New("must specify org-id, or org name not both")
+	}
+
 	s, err := newUserService()
 	if err != nil {
 		return err
@@ -161,7 +170,24 @@ func userCreateF(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	orgIDStr := userCreateFlags.orgID
+	var orgIDStr string
+
+	if userCreateFlags.orgID != "" {
+		orgIDStr = userCreateFlags.orgID
+	} else if userCreateFlags.org != "" {
+		orgSvc, err := newOrganizationService()
+		if err != nil {
+			return fmt.Errorf("failed to initialize organization service client: %v", err)
+		}
+
+		filter := platform.OrganizationFilter{Name: &bucketCreateFlags.org}
+		org, err := orgSvc.FindOrganization(context.Background(), filter)
+		if err != nil {
+			return fmt.Errorf("%v", err)
+		}
+
+		orgIDStr = org.ID.GoString()
+	}
 	pass := userCreateFlags.password
 	if orgIDStr == "" && pass == "" {
 		return writeOutput([]string{"ID", "Name"}, user.ID.String(), user.Name)
