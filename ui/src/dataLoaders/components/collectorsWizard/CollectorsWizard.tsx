@@ -1,13 +1,29 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import Loadable from 'react-loadable'
 import {connect} from 'react-redux'
 import {withRouter, WithRouterProps} from 'react-router'
-import _ from 'lodash'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import WizardOverlay from 'src/clockface/components/wizard/WizardOverlay'
-import CollectorsStepSwitcher from 'src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'
+
+const spinner = <div />
+const TelegrafEditor = Loadable({
+  loader: () => import('src/dataLoaders/components/TelegrafEditor'),
+  loading() {
+    return spinner
+  },
+})
+const CollectorsStepSwitcher = Loadable({
+  loader: () =>
+    import('src/dataLoaders/components/collectorsWizard/CollectorsStepSwitcher'),
+  loading() {
+    return spinner
+  },
+})
+import {isFlagEnabled, FeatureFlag} from 'src/shared/utils/featureFlag'
+import {ComponentColor, Button} from '@influxdata/clockface'
 
 // Actions
 import {notify as notifyAction} from 'src/shared/actions/notifications'
@@ -24,11 +40,13 @@ import {
   setActiveTelegrafPlugin,
   setPluginConfiguration,
 } from 'src/dataLoaders/actions/dataLoaders'
+import {reset} from 'src/dataLoaders/actions/telegrafEditor'
 
 // Types
 import {Links} from 'src/types/links'
 import {Substep, TelegrafPlugin} from 'src/types/dataLoaders'
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, Organization} from 'src/types'
+import {downloadTextFile} from 'src/shared/utils/download'
 
 export interface CollectorsStepProps {
   currentStepIndex: number
@@ -46,6 +64,7 @@ interface DispatchProps {
   onSetCurrentStepIndex: typeof setCurrentStepIndex
   onClearDataLoaders: typeof clearDataLoaders
   onClearSteps: typeof clearSteps
+  onClearTelegrafEditor: typeof reset
   onSetActiveTelegrafPlugin: typeof setActiveTelegrafPlugin
   onSetPluginConfiguration: typeof setPluginConfiguration
 }
@@ -58,6 +77,8 @@ interface StateProps {
   substep: Substep
   username: string
   bucket: string
+  text: string
+  org: Organization
 }
 
 interface State {
@@ -65,10 +86,11 @@ interface State {
 }
 
 type Props = StateProps & DispatchProps
+type AllProps = Props & WithRouterProps
 
 @ErrorHandling
-class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
-  constructor(props) {
+class CollectorsWizard extends PureComponent<AllProps, State> {
+  constructor(props: AllProps) {
     super(props)
     this.state = {
       buckets: [],
@@ -86,8 +108,30 @@ class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
       <WizardOverlay
         title="Create a Telegraf Config"
         onDismiss={this.handleDismiss}
+        footer={
+          <FeatureFlag name="telegrafEditor">
+            <Button
+              color={ComponentColor.Secondary}
+              text="Download Config"
+              onClick={this.handleDownloadConfig}
+            />
+            <Button
+              color={ComponentColor.Primary}
+              text="Save Config"
+              onClick={this.handleSaveConfig}
+            />
+          </FeatureFlag>
+        }
       >
-        <CollectorsStepSwitcher stepProps={this.stepProps} buckets={buckets} />
+        <FeatureFlag name="telegrafEditor">
+          <TelegrafEditor />
+        </FeatureFlag>
+        <FeatureFlag name="telegrafEditor" equals={false}>
+          <CollectorsStepSwitcher
+            stepProps={this.stepProps}
+            buckets={buckets}
+          />
+        </FeatureFlag>
       </WizardOverlay>
     )
   }
@@ -101,12 +145,26 @@ class CollectorsWizard extends PureComponent<Props & WithRouterProps, State> {
     }
   }
 
-  private handleDismiss = () => {
-    const {router, onClearDataLoaders, onClearSteps} = this.props
+  private handleDownloadConfig = () => {
+    downloadTextFile(this.props.text, 'telegraf', '.conf')
+  }
 
-    onClearDataLoaders()
-    onClearSteps()
-    router.goBack()
+  private handleSaveConfig = () => {
+    this.handleDismiss()
+  }
+
+  private handleDismiss = () => {
+    const {router, org} = this.props
+
+    if (isFlagEnabled('telegrafEditor')) {
+      const {onClearTelegrafEditor} = this.props
+      onClearTelegrafEditor()
+    } else {
+      const {onClearDataLoaders, onClearSteps} = this.props
+      onClearDataLoaders()
+      onClearSteps()
+    }
+    router.push(`/orgs/${org.id}/load-data/telegrafs`)
   }
 
   private get stepProps(): CollectorsStepProps {
@@ -135,14 +193,18 @@ const mstp = ({
     steps: {currentStep, substep, bucket},
   },
   me: {name},
+  orgs: {org},
+  telegrafEditor,
 }: AppState): StateProps => ({
   links,
   telegrafPlugins,
+  text: telegrafEditor.text,
   currentStepIndex: currentStep,
   substep,
   username: name,
   bucket,
   buckets: buckets.list,
+  org: org,
 })
 
 const mdtp: DispatchProps = {
@@ -153,6 +215,7 @@ const mdtp: DispatchProps = {
   onSetCurrentStepIndex: setCurrentStepIndex,
   onClearDataLoaders: clearDataLoaders,
   onClearSteps: clearSteps,
+  onClearTelegrafEditor: reset,
   onSetActiveTelegrafPlugin: setActiveTelegrafPlugin,
   onSetPluginConfiguration: setPluginConfiguration,
 }

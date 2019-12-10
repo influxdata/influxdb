@@ -26,12 +26,13 @@ import {
   ComponentColor,
   ComponentStatus,
 } from '@influxdata/clockface'
-import {AppState, Bucket} from 'src/types'
+import {AppState, Bucket, Organization} from 'src/types'
 import FilterList from 'src/shared/components/Filter'
 
 interface StateProps {
   scrapers: ScraperTargetResponse[]
   buckets: Bucket[]
+  org: Organization
 }
 
 interface DispatchProps {
@@ -39,11 +40,7 @@ interface DispatchProps {
   onDeleteScraper: typeof deleteScraper
 }
 
-interface OwnProps {
-  orgName: string
-}
-
-type Props = OwnProps & StateProps & DispatchProps & WithRouterProps
+type Props = StateProps & DispatchProps & WithRouterProps
 
 interface State {
   searchTerm: string
@@ -142,14 +139,15 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private get emptyState(): JSX.Element {
-    const {orgName} = this.props
+    const {org} = this.props
     const {searchTerm} = this.state
 
     if (_.isEmpty(searchTerm)) {
       return (
         <EmptyState size={ComponentSize.Large}>
           <EmptyState.Text>
-            {`${orgName}`} does not own any <b>Scrapers</b>, why not create one?
+            {`${org.name}`} does not own any <b>Scrapers</b>, why not create
+            one?
           </EmptyState.Text>
           {this.createScraperButton('create-scraper-button-empty')}
         </EmptyState>
@@ -174,16 +172,13 @@ class Scrapers extends PureComponent<Props, State> {
   }
 
   private handleShowOverlay = () => {
-    const {
-      router,
-      params: {orgID},
-    } = this.props
+    const {router, org} = this.props
 
     if (this.hasNoBuckets) {
       return
     }
 
-    router.push(`/orgs/${orgID}/load-data/scrapers/new`)
+    router.push(`/orgs/${org.id}/load-data/scrapers/new`)
   }
 
   private handleFilterChange = (searchTerm: string) => {
@@ -191,9 +186,10 @@ class Scrapers extends PureComponent<Props, State> {
   }
 }
 
-const mstp = ({scrapers, buckets}: AppState): StateProps => ({
+const mstp = ({scrapers, buckets, orgs}: AppState): StateProps => ({
   scrapers: scrapers.list,
   buckets: buckets.list,
+  org: orgs.org,
 })
 
 const mdtp: DispatchProps = {
@@ -201,7 +197,7 @@ const mdtp: DispatchProps = {
   onUpdateScraper: updateScraper,
 }
 
-export default connect<StateProps, DispatchProps, OwnProps>(
+export default connect<StateProps, DispatchProps>(
   mstp,
   mdtp
-)(withRouter<OwnProps>(Scrapers))
+)(withRouter(Scrapers))
