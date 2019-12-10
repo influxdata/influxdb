@@ -29,10 +29,7 @@ func NewKVStore() *KVStore {
 func (s *KVStore) View(ctx context.Context, fn func(kv.Tx) error) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.buckets == nil {
-		s.buckets = map[string]*Bucket{}
-		s.ro = map[string]*bucket{}
-	}
+
 	return fn(&Tx{
 		kv:       s,
 		writable: false,
@@ -44,10 +41,6 @@ func (s *KVStore) View(ctx context.Context, fn func(kv.Tx) error) error {
 func (s *KVStore) Update(ctx context.Context, fn func(kv.Tx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.buckets == nil {
-		s.buckets = map[string]*Bucket{}
-		s.ro = map[string]*bucket{}
-	}
 
 	return fn(&Tx{
 		kv:       s,
