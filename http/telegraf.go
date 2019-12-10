@@ -461,18 +461,18 @@ func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platfor
 // FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 // Additional options provide pagination & sorting.
 func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.TelegrafConfigFilter, opt ...platform.FindOptions) ([]*platform.TelegrafConfig, int, error) {
-	var queryPairs [][2]string
+	params := findOptionParams(opt...)
 	if f.OrgID != nil {
-		queryPairs = append(queryPairs, [2]string{"orgID", f.OrgID.String()})
+		params = append(params, [2]string{"orgID", f.OrgID.String()})
 	}
 	if f.Organization != nil {
-		queryPairs = append(queryPairs, [2]string{"organization", *f.Organization})
+		params = append(params, [2]string{"organization", *f.Organization})
 	}
 	if f.ResourceID != 0 {
-		queryPairs = append(queryPairs, [2]string{"resourceID", f.ResourceID.String()})
+		params = append(params, [2]string{"resourceID", f.ResourceID.String()})
 	}
 	if f.UserID != 0 {
-		queryPairs = append(queryPairs, [2]string{"userID", f.UserID.String()})
+		params = append(params, [2]string{"userID", f.UserID.String()})
 	}
 
 	var resp struct {
@@ -480,7 +480,7 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f platform.Te
 	}
 	err := s.client.
 		Get(telegrafsPath).
-		QueryParams(queryPairs...).
+		QueryParams(params...).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
