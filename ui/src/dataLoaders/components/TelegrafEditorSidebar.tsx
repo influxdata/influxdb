@@ -17,6 +17,7 @@ import {
 import {
   Input,
   IconFont,
+  FormElement,
   Grid,
   Columns,
   Tabs,
@@ -99,11 +100,13 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
     } = this.props
     return (
       <Grid.Column widthXS={Columns.Three} style={{height: '100%'}}>
-        <BucketDropdown
-          buckets={buckets}
-          selectedBucketID={bucket.id}
-          onSelectBucket={onSetBucket}
-        />
+        <FormElement label="Bucket">
+          <BucketDropdown
+            buckets={buckets}
+            selectedBucketID={bucket.id}
+            onSelectBucket={onSetBucket}
+          />
+        </FormElement>
         <Input
           className="wizard-step--filter"
           size={ComponentSize.Small}
@@ -119,7 +122,7 @@ class TelegrafEditorSideBar extends PureComponent<TelegrafEditorSidebarProps> {
         />
         <Tabs.Container
           orientation={Orientation.Horizontal}
-          style={{height: 'calc(100% - 96px)', marginTop: '18px'}}
+          style={{height: 'calc(100% - 114px)', marginTop: '18px'}}
         >
           <Tabs>
             <Tabs.Tab
