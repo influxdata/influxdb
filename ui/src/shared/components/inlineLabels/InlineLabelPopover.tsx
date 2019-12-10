@@ -1,11 +1,15 @@
 // Libraries
-import React, {PureComponent, ChangeEvent, KeyboardEvent, createRef, RefObject} from 'react'
+import React, {
+  PureComponent,
+  ChangeEvent,
+  KeyboardEvent,
+  RefObject,
+} from 'react'
 import _ from 'lodash'
 
 // Components
 import {Input} from '@influxdata/clockface'
 import InlineLabelsList from 'src/shared/components/inlineLabels/InlineLabelsList'
-import {ClickOutside} from 'src/shared/components/ClickOutside'
 
 // Constants
 import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLabelsEditor'
@@ -13,12 +17,11 @@ import {ADD_NEW_LABEL_ITEM_ID} from 'src/shared/components/inlineLabels/InlineLa
 // Types
 import {Label} from 'src/types'
 import {
+  Appearance,
   IconFont,
   Popover,
   PopoverPosition,
   PopoverInteraction,
-  PopoverType,
-  ButtonRef
 } from '@influxdata/clockface'
 
 // Decorators
@@ -31,6 +34,7 @@ enum ArrowDirection {
 
 interface Props {
   searchTerm: string
+  triggerRef: RefObject<HTMLButtonElement>
   selectedItemID: string
   onUpdateSelectedItemID: (highlightedID: string) => void
   allLabelsUsed: boolean
@@ -43,15 +47,13 @@ interface Props {
 
 @ErrorHandling
 export default class InlineLabelPopover extends PureComponent<Props> {
-  private triggerRef= createRef<HTMLDivElement>()
-
   public render() {
     const {
       searchTerm,
       allLabelsUsed,
       selectedItemID,
       onAddLabel,
-      onDismiss,
+      triggerRef,
       onStartCreatingLabel,
       onUpdateSelectedItemID,
       onInputChange,
@@ -59,23 +61,15 @@ export default class InlineLabelPopover extends PureComponent<Props> {
     } = this.props
 
     return (
-      <>
-     <div
-      className="flux-functions-toolbar--function"
-      ref={this.triggerRef}
-      // data-testid={testID}
-    >
-        {/* <span ref={this.triggerRef}>?</span> */}
-
-        <Popover
-          type={PopoverType.Outline}
-          position={PopoverPosition.Below}
-          triggerRef={this.triggerRef}
-          distanceFromTrigger={8}
-          showEvent={PopoverInteraction.Hover}
-          hideEvent={PopoverInteraction.Hover}
-          contents={() => (
-            <span>
+      <Popover
+        appearance={Appearance.Solid}
+        position={PopoverPosition.Below}
+        triggerRef={triggerRef}
+        distanceFromTrigger={8}
+        showEvent={PopoverInteraction.Hover}
+        hideEvent={PopoverInteraction.Hover}
+        contents={() => (
+          <span>
             <h5 className="inline-labels--popover-heading">Add Labels</h5>
             <Input
               icon={IconFont.Search}
@@ -96,11 +90,9 @@ export default class InlineLabelPopover extends PureComponent<Props> {
               onUpdateSelectedItemID={onUpdateSelectedItemID}
               onStartCreatingLabel={onStartCreatingLabel}
             />
-            </span>
-          )}
-        />
-      </div>
-      </>
+          </span>
+        )}
+      />
     )
   }
 

@@ -1,5 +1,5 @@
 // Libraries
-import React, {Component, ChangeEvent} from 'react'
+import React, {Component, ChangeEvent, createRef} from 'react'
 import _ from 'lodash'
 
 // Components
@@ -43,6 +43,8 @@ interface State {
 
 @ErrorHandling
 class InlineLabelsEditor extends Component<Props, State> {
+  private popoverTrigger = createRef<HTMLButtonElement>()
+
   constructor(props: Props) {
     super(props)
 
@@ -64,9 +66,9 @@ class InlineLabelsEditor extends Component<Props, State> {
             <SquareButton
               color={ComponentColor.Secondary}
               titleText="Add labels"
-              onClick={this.handleShowPopover}
               icon={IconFont.Plus}
               testID="inline-labels--add"
+              ref={this.popoverTrigger}
             />
           </div>
           {this.popover}
@@ -85,26 +87,25 @@ class InlineLabelsEditor extends Component<Props, State> {
 
   private get popover(): JSX.Element {
     const {labels, selectedLabels} = this.props
-    const {searchTerm, isPopoverVisible, selectedItemID} = this.state
+    const {searchTerm, selectedItemID} = this.state
 
     const labelsUsed =
       labels.length > 0 && labels.length === selectedLabels.length
 
-    if (isPopoverVisible) {
-      return (
-        <InlineLabelPopover
-          searchTerm={searchTerm}
-          selectedItemID={selectedItemID}
-          onUpdateSelectedItemID={this.handleUpdateSelectedItemID}
-          allLabelsUsed={labelsUsed}
-          onDismiss={this.handleDismissPopover}
-          onStartCreatingLabel={this.handleStartCreatingLabel}
-          onInputChange={this.handleInputChange}
-          filteredLabels={this.filterLabels(searchTerm)}
-          onAddLabel={this.handleAddLabel}
-        />
-      )
-    }
+    return (
+      <InlineLabelPopover
+        searchTerm={searchTerm}
+        triggerRef={this.popoverTrigger}
+        selectedItemID={selectedItemID}
+        onUpdateSelectedItemID={this.handleUpdateSelectedItemID}
+        allLabelsUsed={labelsUsed}
+        onDismiss={this.handleDismissPopover}
+        onStartCreatingLabel={this.handleStartCreatingLabel}
+        onInputChange={this.handleInputChange}
+        filteredLabels={this.filterLabels(searchTerm)}
+        onAddLabel={this.handleAddLabel}
+      />
+    )
   }
 
   private get noLabelsIndicator(): JSX.Element {
