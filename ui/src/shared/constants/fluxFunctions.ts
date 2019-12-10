@@ -1460,6 +1460,34 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/http/get/',
   },
   {
+    name: 'http.post',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to POST to.',
+        type: 'String',
+      },
+      {
+        name: 'headers',
+        desc: 'Headers to include with the POST request.',
+        type: 'Object',
+      },
+      {
+        name: 'data',
+        desc: 'The data body to include with the POST request.',
+        type: 'Bytes',
+      },
+    ],
+    package: 'http',
+    desc:
+      'Submits an HTTP POST request to the specified URL with headers and data and returns the HTTP status code.',
+    example:
+      'http.post(url: "http://localhost:9999/", headers: {x:"a", y:"b"}, data: bytes(v: "body"))',
+    category: 'Transformations',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/http/post/',
+  },
+  {
     name: 'increase',
     args: [
       {
