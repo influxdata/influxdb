@@ -12,7 +12,7 @@ interface DispatchProps {
   onLoadCustomQueryState: typeof loadCustomQueryState
 }
 
-const CustomizeCheckQuerySwitcher: FC<DispatchProps> = ({
+const CustomizeCheckQueryButton: FC<DispatchProps> = ({
   onLoadCustomQueryState,
 }) => {
   const switchToEditor = () => {
@@ -35,4 +35,4 @@ const mdtp: DispatchProps = {
 export default connect<{}, DispatchProps>(
   null,
   mdtp
-)(CustomizeCheckQuerySwitcher)
+)(CustomizeCheckQueryButton)

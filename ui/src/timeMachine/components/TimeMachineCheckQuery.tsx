@@ -11,7 +11,7 @@ import TimeRangeDropdown, {
 import SubmitQueryButton from 'src/timeMachine/components/SubmitQueryButton'
 import RawDataToggle from 'src/timeMachine/components/RawDataToggle'
 import QueryTabs from 'src/timeMachine/components/QueryTabs'
-import EditorShortcutsToolTip from 'src/timeMachine/components/EditorShortcutsTooltip'
+import SwitchToAlertBuilderButton from './SwitchToAlertBuilderButton'
 import {
   ComponentSize,
   FlexBox,
@@ -67,7 +67,7 @@ class TimeMachineQueries extends PureComponent<Props> {
               justifyContent={JustifyContent.FlexEnd}
               margin={ComponentSize.Small}
             >
-              <EditorShortcutsToolTip />
+              <SwitchToAlertBuilderButton />
               <RawDataToggle />
               <TimeMachineRefreshDropdown />
               <TimeRangeDropdown

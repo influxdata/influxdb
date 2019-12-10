@@ -115,11 +115,13 @@ const CheckEOHeader: FC<Props> = ({
         />
       </Page.HeaderLeft>
       <Page.HeaderCenter>
-        <CheckAlertingButton
-          activeTab={activeTab}
-          draftQueries={draftQueries}
-          setActiveTab={setActiveTab}
-        />
+        {activeTab !== 'customCheckQuery' ? (
+          <CheckAlertingButton
+            activeTab={activeTab}
+            draftQueries={draftQueries}
+            setActiveTab={setActiveTab}
+          />
+        ) : null}
       </Page.HeaderCenter>
       <Page.HeaderRight>
         <SquareButton
