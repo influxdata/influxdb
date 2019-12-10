@@ -26,12 +26,13 @@ type SVC interface {
 }
 
 type serviceOpt struct {
-	logger    *zap.Logger
-	labelSVC  influxdb.LabelService
-	bucketSVC influxdb.BucketService
-	dashSVC   influxdb.DashboardService
-	teleSVC   influxdb.TelegrafConfigStore
-	varSVC    influxdb.VariableService
+	logger      *zap.Logger
+	labelSVC    influxdb.LabelService
+	bucketSVC   influxdb.BucketService
+	dashSVC     influxdb.DashboardService
+	endpointSVC influxdb.NotificationEndpointService
+	teleSVC     influxdb.TelegrafConfigStore
+	varSVC      influxdb.VariableService
 
 	applyReqLimit int
 }
@@ -57,6 +58,13 @@ func WithBucketSVC(bktSVC influxdb.BucketService) ServiceSetterFn {
 func WithDashboardSVC(dashSVC influxdb.DashboardService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.dashSVC = dashSVC
+	}
+}
+
+// WithNoticationEndpointSVC sets the endpoint notification service.
+func WithNoticationEndpointSVC(endpointSVC influxdb.NotificationEndpointService) ServiceSetterFn {
+	return func(opt *serviceOpt) {
+		opt.endpointSVC = endpointSVC
 	}
 }
 
@@ -95,11 +103,12 @@ func WithApplyReqLimit(limit int) ServiceSetterFn {
 type Service struct {
 	log *zap.Logger
 
-	labelSVC  influxdb.LabelService
-	bucketSVC influxdb.BucketService
-	dashSVC   influxdb.DashboardService
-	teleSVC   influxdb.TelegrafConfigStore
-	varSVC    influxdb.VariableService
+	labelSVC    influxdb.LabelService
+	bucketSVC   influxdb.BucketService
+	dashSVC     influxdb.DashboardService
+	endpointSVC influxdb.NotificationEndpointService
+	teleSVC     influxdb.TelegrafConfigStore
+	varSVC      influxdb.VariableService
 
 	applyReqLimit int
 }
@@ -119,6 +128,7 @@ func NewService(opts ...ServiceSetterFn) *Service {
 		bucketSVC:     opt.bucketSVC,
 		labelSVC:      opt.labelSVC,
 		dashSVC:       opt.dashSVC,
+		endpointSVC:   opt.endpointSVC,
 		teleSVC:       opt.teleSVC,
 		varSVC:        opt.varSVC,
 		applyReqLimit: opt.applyReqLimit,
@@ -501,6 +511,11 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 		return Summary{}, Diff{}, err
 	}
 
+	diffEndpoints, err := s.dryRunNotificationEndpoints(ctx, orgID, pkg)
+	if err != nil {
+		return Summary{}, Diff{}, err
+	}
+
 	diffVars, err := s.dryRunVariables(ctx, orgID, pkg)
 	if err != nil {
 		return Summary{}, Diff{}, err
@@ -517,12 +532,13 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 	pkg.isVerified = true
 
 	diff := Diff{
-		Buckets:       diffBuckets,
-		Dashboards:    s.dryRunDashboards(ctx, orgID, pkg),
-		Labels:        diffLabels,
-		LabelMappings: diffLabelMappings,
-		Telegrafs:     s.dryRunTelegraf(ctx, orgID, pkg),
-		Variables:     diffVars,
+		Buckets:               diffBuckets,
+		Dashboards:            s.dryRunDashboards(ctx, orgID, pkg),
+		Labels:                diffLabels,
+		LabelMappings:         diffLabelMappings,
+		NotificationEndpoints: diffEndpoints,
+		Telegrafs:             s.dryRunTelegraf(ctx, orgID, pkg),
+		Variables:             diffVars,
 	}
 	return pkg.Summary(), diff, parseErr
 }
@@ -555,7 +571,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	return diffs, nil
 }
 
-func (s *Service) dryRunDashboards(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffDashboard {
+func (s *Service) dryRunDashboards(_ context.Context, _ influxdb.ID, pkg *Pkg) []DiffDashboard {
 	var diffs []DiffDashboard
 	for _, d := range pkg.dashboards() {
 		diffs = append(diffs, newDiffDashboard(d))
@@ -595,7 +611,45 @@ func (s *Service) dryRunLabels(ctx context.Context, orgID influxdb.ID, pkg *Pkg)
 	return diffs, nil
 }
 
-func (s *Service) dryRunTelegraf(ctx context.Context, orgID influxdb.ID, pkg *Pkg) []DiffTelegraf {
+func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxdb.ID, pkg *Pkg) ([]DiffNotificationEndpoint, error) {
+	existingEndpoints, _, err := s.endpointSVC.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+		OrgID: &orgID,
+	}) // grab em all
+	if err != nil {
+		return nil, err
+	}
+
+	mExisting := make(map[string]influxdb.NotificationEndpoint)
+	for i := range existingEndpoints {
+		e := existingEndpoints[i]
+		mExisting[e.GetName()] = e
+	}
+
+	mExistingToNew := make(map[string]DiffNotificationEndpoint)
+	endpoints := pkg.notificationEndpoints()
+	for i := range endpoints {
+		newEndpoint := endpoints[i]
+
+		var existing influxdb.NotificationEndpoint
+		if iExisting, ok := mExisting[newEndpoint.Name()]; ok {
+			newEndpoint.existing = iExisting
+			existing = iExisting
+		}
+		mExistingToNew[newEndpoint.Name()] = newDiffNotificationEndpoint(newEndpoint, existing)
+	}
+
+	var diffs []DiffNotificationEndpoint
+	for _, diff := range mExistingToNew {
+		diffs = append(diffs, diff)
+	}
+	sort.Slice(diffs, func(i, j int) bool {
+		return diffs[i].Name < diffs[j].Name
+	})
+
+	return diffs, nil
+}
+
+func (s *Service) dryRunTelegraf(_ context.Context, _ influxdb.ID, pkg *Pkg) []DiffTelegraf {
 	var diffs []DiffTelegraf
 	for _, t := range pkg.telegrafs() {
 		diffs = append(diffs, newDiffTelegraf(t))
@@ -649,82 +703,47 @@ VarLoop:
 type (
 	labelMappingDiffFn func(labelID influxdb.ID, labelName string, isNew bool)
 
+	labelMappers interface {
+		Association(i int) labelAssociater
+		Len() int
+	}
+
 	labelAssociater interface {
 		ID() influxdb.ID
+		Name() string
+		Labels() []*label
 		ResourceType() influxdb.ResourceType
 		Exists() bool
 	}
 )
 
 func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabelMapping, error) {
+	mappers := []labelMappers{
+		mapperBuckets(pkg.buckets()),
+		mapperDashboards(pkg.mDashboards),
+		mapperNotificationEndpoints(pkg.notificationEndpoints()),
+		mapperTelegrafs(pkg.mTelegrafs),
+		mapperVariables(pkg.variables()),
+	}
+
 	var diffs []DiffLabelMapping
-	for _, b := range pkg.buckets() {
-		err := s.dryRunResourceLabelMapping(ctx, b, b.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			if l, ok := pkg.mLabels[labelName]; ok {
-				l.setMapping(b, !isNew)
+	for _, mapper := range mappers {
+		for i := 0; i < mapper.Len(); i++ {
+			la := mapper.Association(i)
+			err := s.dryRunResourceLabelMapping(ctx, la, func(labelID influxdb.ID, labelName string, isNew bool) {
+				pkg.mLabels[labelName].setMapping(la, !isNew)
+				diffs = append(diffs, DiffLabelMapping{
+					IsNew:     isNew,
+					ResType:   la.ResourceType(),
+					ResID:     SafeID(la.ID()),
+					ResName:   la.Name(),
+					LabelID:   SafeID(labelID),
+					LabelName: labelName,
+				})
+			})
+			if err != nil {
+				return nil, err
 			}
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   b.ResourceType(),
-				ResID:     SafeID(b.ID()),
-				ResName:   b.Name(),
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for _, d := range pkg.dashboards() {
-		err := s.dryRunResourceLabelMapping(ctx, d, d.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setMapping(d, false)
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   d.ResourceType(),
-				ResID:     SafeID(d.ID()),
-				ResName:   d.Name(),
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for _, t := range pkg.telegrafs() {
-		err := s.dryRunResourceLabelMapping(ctx, t, t.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setMapping(t, false)
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   t.ResourceType(),
-				ResID:     SafeID(t.ID()),
-				ResName:   t.Name(),
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	for _, v := range pkg.variables() {
-		err := s.dryRunResourceLabelMapping(ctx, v, v.labels, func(labelID influxdb.ID, labelName string, isNew bool) {
-			pkg.mLabels[labelName].setMapping(v, !isNew)
-			diffs = append(diffs, DiffLabelMapping{
-				IsNew:     isNew,
-				ResType:   v.ResourceType(),
-				ResID:     SafeID(v.ID()),
-				ResName:   v.Name(),
-				LabelID:   SafeID(labelID),
-				LabelName: labelName,
-			})
-		})
-		if err != nil {
-			return nil, err
 		}
 	}
 
@@ -749,9 +768,9 @@ func (s *Service) dryRunLabelMappings(ctx context.Context, pkg *Pkg) ([]DiffLabe
 	return diffs, nil
 }
 
-func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, labels []*label, mappingFn labelMappingDiffFn) error {
+func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssociater, mappingFn labelMappingDiffFn) error {
 	if !la.Exists() {
-		for _, l := range labels {
+		for _, l := range la.Labels() {
 			mappingFn(l.ID(), l.Name(), true)
 		}
 		return nil
@@ -770,7 +789,7 @@ func (s *Service) dryRunResourceLabelMapping(ctx context.Context, la labelAssoci
 		return err
 	}
 
-	pkgLabels := labelSlcToMap(labels)
+	pkgLabels := labelSlcToMap(la.Labels())
 	for _, l := range existingLabels {
 		// should ignore any labels that are not specified in pkg
 		mappingFn(l.ID, l.Name, false)
@@ -1275,7 +1294,7 @@ func (s *Service) applyLabelMappings(labelMappings []SummaryLabelMapping) applie
 		err := s.labelSVC.CreateLabelMapping(ctx, &mapping.LabelMapping)
 		if err != nil {
 			return &applyErrBody{
-				name: fmt.Sprintf("%s:%s", mapping.ResourceID, mapping.LabelID),
+				name: fmt.Sprintf("%s:%s:%s", mapping.ResourceType, mapping.ResourceID, mapping.LabelID),
 				msg:  err.Error(),
 			}
 		}
