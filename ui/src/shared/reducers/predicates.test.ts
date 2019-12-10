@@ -23,7 +23,7 @@ describe('Predicates reducer', () => {
     expect(initialState.isSerious).toEqual(false)
     let result = predicatesReducer(initialState, setIsSerious(true))
     expect(result.isSerious).toEqual(true)
-    result = predicatesReducer(initialState, setIsSerious(false))
+    result = predicatesReducer(result, setIsSerious(false))
     expect(result.isSerious).toEqual(false)
   })
 
@@ -59,11 +59,12 @@ describe('Predicates reducer', () => {
   })
 
   it('Can reset the state after a filter DWP has been successfully submitted', () => {
+    const state = initialState
     const intermediateState = predicatesReducer(
-      initialState,
+      state,
       setFilter(filter, 0)
     )
     const result = predicatesReducer(intermediateState, resetPredicateState())
-    expect(result).toEqual(initialState)
+    expect(result).toEqual(state)
   })
 })
