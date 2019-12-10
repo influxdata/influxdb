@@ -1432,6 +1432,34 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/hourselection/',
   },
   {
+    name: 'http.get',
+    args: [
+      {
+        name: 'url',
+        desc: 'The URL to send the GET request to.',
+        type: 'String',
+      },
+      {
+        name: 'headers',
+        desc: 'Headers to include with the GET request.',
+        type: 'Object',
+      },
+      {
+        name: 'timeout',
+        desc: 'Timeout for the GET request. Default is `30s`.',
+        type: 'Duration',
+      }
+    ],
+    package: 'experimental/http',
+    desc:
+      'Submits an HTTP GET request to the specified URL and returns the HTTP status code, response body, and response headers.',
+    example:
+      'http.get(url: "https://v2.docs.influxdata.com/v2.0/", headers: {foo: "bar"})',
+    category: 'Miscellaneous',
+    link:
+      'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/experimental/http/get/',
+  },
+  {
     name: 'increase',
     args: [
       {
@@ -3545,6 +3573,12 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
         name: 'table',
         desc: 'The destination table.',
         type: 'String',
+      },
+      {
+        name: 'batchSize',
+        desc:
+          'The number of parameters or columns that can be queued within each call to `Exec`. Defaults to `10000`.',
+        type: 'Integer',
       },
     ],
     package: 'sql',
