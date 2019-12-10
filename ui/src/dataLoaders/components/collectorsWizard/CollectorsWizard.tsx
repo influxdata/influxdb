@@ -109,7 +109,7 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
         title="Create a Telegraf Config"
         onDismiss={this.handleDismiss}
         footer={
-          <>
+          <FeatureFlag name="telegrafEditor">
             <Button
               color={ComponentColor.Secondary}
               text="Download Config"
@@ -120,7 +120,7 @@ class CollectorsWizard extends PureComponent<AllProps, State> {
               text="Save Config"
               onClick={this.handleSaveConfig}
             />
-          </>
+          </FeatureFlag>
         }
       >
         <FeatureFlag name="telegrafEditor">
