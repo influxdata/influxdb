@@ -88,7 +88,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		}
 		b.OrgID = *id
 	} else if bucketCreateFlags.org != "" {
-		orgSvc, err := newOrganizationService(flags)
+		orgSvc, err := newOrganizationService()
 		if err != nil {
 			return fmt.Errorf("failed to initialize organization service client: %v", err)
 		}
@@ -96,7 +96,7 @@ func bucketCreateF(cmd *cobra.Command, args []string) error {
 		filter := platform.OrganizationFilter{Name: &bucketCreateFlags.org}
 		org, err := orgSvc.FindOrganization(context.Background(), filter)
 		if err != nil {
-			return fmt.Errorf("%v", err)
+			return err
 		}
 
 		b.OrgID = org.ID

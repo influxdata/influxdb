@@ -63,6 +63,7 @@ in the following ways:
 	inspectReportTSMCommand.Flags().BoolVarP(&inspectReportTSMFlags.detailed, "detailed", "", false, "emit series cardinality segmented by measurements, tag keys and fields. Warning, may take a while.")
 
 	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.orgID, "org-id", "", "", "process only data belonging to organization ID.")
+	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.orgID, "org", "o", "", "process only data belonging to organization ID.")
 	inspectReportTSMCommand.Flags().StringVarP(&inspectReportTSMFlags.bucketID, "bucket-id", "", "", "process only data belonging to bucket ID. Requires org flag to be set.")
 
 	dir, err := fs.InfluxDir()
