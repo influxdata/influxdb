@@ -18,16 +18,6 @@ import (
 	"github.com/influxdata/influxdb/pkg/escape"
 )
 
-// FIXME(edd): this temporarily enables uint64 support. It should be enabled by
-// default in 2.0. Therefore we need to pay down all the technical debt of cleaning
-// up all the conditionals within this package.
-//
-// This issue tracks the cleanup work:
-// https://github.com/influxdata/influxdb/issues/15711
-func init() {
-	EnableUintSupport()
-}
-
 // Values used to store the field key and measurement name as special internal tags.
 const (
 	FieldKeyTagKey    = "\xff"
@@ -75,16 +65,6 @@ const (
 	// MaxKeyLength is the largest allowed size of the combined measurement and tag keys.
 	MaxKeyLength = 65535
 )
-
-// enableUint64Support will enable uint64 support if set to true.
-var enableUint64Support = false
-
-// EnableUintSupport manually enables uint support for the point parser.
-// This function will be removed in the future and only exists for unit tests during the
-// transition.
-func EnableUintSupport() {
-	enableUint64Support = true
-}
 
 // Point defines the values that will be written to the database.
 type Point interface {
@@ -1075,10 +1055,6 @@ func scanNumber(buf []byte, i int) (int, error) {
 			}
 		}
 	} else if isUnsigned {
-		// Return an error if uint64 support has not been enabled.
-		if !enableUint64Support {
-			return i, ErrInvalidNumber
-		}
 		// Make sure the last char is a 'u' for unsigned
 		if buf[i-1] != 'u' {
 			return i, ErrInvalidNumber
