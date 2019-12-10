@@ -20,10 +20,10 @@ interface RowsProps {
 const Rows: SFC<RowsProps> = ({tags, onDeleteTag, onChange}) => {
   return (
     <div className="input-tag-list">
-      {tags.map((item, index) => {
+      {tags.map(item => {
         return (
           <Row
-            index={index}
+            index={tags.indexOf(item)}
             key={uuid.v4()}
             item={item}
             onDelete={onDeleteTag}
