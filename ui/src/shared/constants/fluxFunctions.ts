@@ -5009,8 +5009,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     package: '',
     desc:
       'Groups records based on a time value. New columns are added to uniquely identify each window. Those columns are added to the group key of the output tables. A single input record will be placed into zero or more output tables, depending on the specific windowing function.',
-    example:
-      'window(every: v.windowPeriod)',
+    example: 'window(every: v.windowPeriod)',
     category: 'Transformations',
     link:
       'https://v2.docs.influxdata.com/v2.0/reference/flux/stdlib/built-in/transformations/window/',
