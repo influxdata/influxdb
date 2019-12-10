@@ -61,7 +61,7 @@ func TestKVStore_Buckets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &inmem.KVStore{}
+			s := inmem.NewKVStore()
 			err := s.Update(context.Background(), func(tx kv.Tx) error {
 				for _, b := range tt.buckets {
 					if _, err := tx.Bucket([]byte(b)); err != nil {
