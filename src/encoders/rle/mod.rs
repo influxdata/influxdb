@@ -1,11 +1,11 @@
 use integer_encoding::*;
 
-/// encode encodes the value v, delta and count into dst.
+/// encode_all encodes the value v, delta and count into dst.
 ///
 /// v should be the first element of a sequence, delta the difference that each
 /// value in the sequence differs by, and count the total number of values in the
 /// sequence.
-fn encode(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
+pub fn encode_all(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     let max_var_int_size = 10; // max number of bytes needed to store var int
 
     // Keep a byte back for the scaler.
@@ -46,8 +46,8 @@ fn encode(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     dst.truncate(n);
 }
 
-/// decode decodes an RLE encoded slice into the destination vector.
-fn decode(src: &[u8], dst: &mut Vec<u64>) -> Result<(), &'static str> {
+/// decode_all decodes an RLE encoded slice into the destination vector.
+pub fn decode_all(src: &[u8], dst: &mut Vec<u64>) -> Result<(), &'static str> {
     if src.len() < 9 {
         return Err("not enough data to decode using RLE");
     }
@@ -92,10 +92,10 @@ mod tests {
     fn test_encode_rle() {
         let exp = vec![100, 2100, 4100, 6100, 8100, 10100, 12100, 14100];
         let mut dst = Vec::with_capacity(100);
-        encode(100, 2000, 8, &mut dst);
+        encode_all(100, 2000, 8, &mut dst);
 
         let mut got = Vec::with_capacity(0);
-        decode(&dst, &mut got).expect("failed to RLE decode");
+        decode_all(&dst, &mut got).expect("failed to RLE decode");
         assert_eq!(got, exp);
     }
 
@@ -103,10 +103,10 @@ mod tests {
     fn test_encode_rle_no_cap() {
         let exp = vec![100, 2100, 4100, 6100, 8100, 10100, 12100, 14100];
         let mut dst = vec![];
-        encode(100, 2000, 8, &mut dst);
+        encode_all(100, 2000, 8, &mut dst);
 
         let mut got = Vec::with_capacity(0);
-        decode(&dst, &mut got).expect("failed to RLE decode");
+        decode_all(&dst, &mut got).expect("failed to RLE decode");
         assert_eq!(got, exp);
     }
 
@@ -114,10 +114,10 @@ mod tests {
     fn test_encode_rle_small() {
         let exp = vec![22222222, 22222222];
         let mut dst = vec![];
-        encode(22222222, 0, 2, &mut dst);
+        encode_all(22222222, 0, 2, &mut dst);
 
         let mut got = Vec::with_capacity(0);
-        decode(&dst, &mut got).expect("failed to RLE decode");
+        decode_all(&dst, &mut got).expect("failed to RLE decode");
         assert_eq!(got, exp);
     }
 }

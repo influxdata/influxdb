@@ -1,8 +1,12 @@
+use std::error::Error;
+
 //
-// Original Author: Stuart Carnie
-// https://github.com/stuartcarnie/rust-encoding
+// Adapted from https://github.com/stuartcarnie/rust-encoding
 //
 const S8B_BIT_SIZE: usize = 60;
+
+// maximum value that can be encoded.
+pub const MAX_VALUE: u64 = (1 << 60) - 1;
 
 const NUM_BITS: [[u8; 2]; 14] = [
     [60, 1],
@@ -21,8 +25,9 @@ const NUM_BITS: [[u8; 2]; 14] = [
     [1, 60],
 ];
 
-pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u64>) -> Result<(), &'static str> {
-    let mut j = 0;
+/// encode_all packs and binary encodes the provides slice of u64 values using
+/// simple8b into the provided vector.
+pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u8>) -> Result<(), Box<Error>> {
     let mut i = 0;
     'next_value: while i < src.len() {
         // try to pack a run of 240 or 120 1s
@@ -38,13 +43,11 @@ pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u64>) -> Result<(), &'static
             let k = a.iter().take_while(|x| **x == 1).count();
             if k == 240 {
                 i += 240;
-                dst.push(0);
-                j += 1;
+                dst.resize(dst.len() + 8, 0);
                 continue;
             } else if k >= 120 {
                 i += 120;
-                dst.push(1 << 60);
-                j += 1;
+                dst.extend_from_slice(&(1u64 << 60).to_be_bytes());
                 continue;
             }
         }
@@ -67,27 +70,30 @@ pub fn encode_all<'a>(src: &[u64], dst: &'a mut Vec<u64>) -> Result<(), &'static
                     break;
                 }
             }
-            dst.push(val);
-            j += 1;
+            dst.extend_from_slice(&val.to_be_bytes());
             i += int_n;
             continue 'next_value;
         }
-        return Err("value out of bounds");
+        return Err(From::from("value out of bounds"));
     }
-    dst.truncate(j);
     Ok(())
 }
 
-pub fn decode_all<'a>(src: &[u64], dst: &'a mut Vec<u64>) -> Result<(), &'static str> {
+/// decode_all decodes and unpacks the binary-encoded values stored in src into
+/// dst.
+pub fn decode_all<'a>(src: &[u8], dst: &'a mut Vec<u64>) {
+    let mut i = 0;
     let mut j = 0;
-    for (_, v) in src.iter().enumerate() {
+    let mut buf: [u8; 8] = [0; 8];
+    while i < src.len() {
         if dst.len() < j + 240 {
             dst.resize(j + 240, 0); // may need 240 capacity
         }
-        j += decode(*v, &mut dst[j..])
+        buf.copy_from_slice(&src[i..i + 8]);
+        j += decode(u64::from_be_bytes(buf), &mut dst[j..]);
+        i += 8;
     }
     dst.truncate(j);
-    Ok(())
 }
 
 pub fn decode(v: u64, dst: &mut [u64]) -> usize {
