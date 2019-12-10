@@ -13,9 +13,11 @@ import {setValues} from 'src/variables/actions'
 
 // Selectors
 import {getTimeRangeByDashboardID} from 'src/dashboards/selectors'
+import {getActiveTimeMachine, getActiveQuery} from 'src/timeMachine/selectors'
 
 // Utils
 import {createView} from 'src/shared/utils/view'
+import {createCheckQueryFromParams} from 'src/TimeMachine/utils/queryBuilder'
 
 // Types
 import {TimeMachineState} from 'src/timeMachine/reducers'
@@ -699,11 +701,18 @@ export const loadNewVEO = (dashboardID: string) => (
 }
 
 export const loadCustomQueryState = () => (
-  dispatch: Dispatch<Action>
+  dispatch: Dispatch<Action>,
+  getState: GetState
 ): void => {
-  // Convert alerting properties to script
+  const state = getState()
 
-  dispatch(setActiveQueryText('this is where text goes !!!!!'))
+  const {
+    alerting: {check},
+  } = getActiveTimeMachine(state)
+
+  const {builderConfig} = getActiveQuery(state)
+
+  dispatch(setActiveQueryText(createCheckQueryFromParams(builderConfig, check)))
 
   dispatch(setActiveTab('customCheckQuery'))
 }
