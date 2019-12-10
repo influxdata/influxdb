@@ -7,13 +7,12 @@ import {TIME_RANGE_FORMAT} from 'src/shared/constants/timeRanges'
 export const removeSpacesAndNow = (input: string): string =>
   input.replace(/\s/g, '').replace(/now\(\)-/, '')
 
-const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
-
 export const isDurationParseable = (lower: string): boolean => {
+  const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
   if (!lower || !lower.includes('now()')) {
     return false
   }
-
+  // warning! Using string.match(regex) here instead of regex.test(string) because regex.test() modifies the regex object, and can lead to unexpected behavior
   const removedLower = removeSpacesAndNow(lower)
 
   return !!removedLower.match(durationRegExp)
@@ -23,6 +22,7 @@ export const parseDuration = (input: string): Duration[] => {
   const result = []
   const durationRegExp = /([0-9]+)(y|mo|w|d|h|ms|s|m|us|µs|ns)/g
 
+  // warning! regex.exec(string) modifies the regex it is operating on so that subsequent calls on the same string behave differently
   let match = durationRegExp.exec(input)
 
   if (!match) {
