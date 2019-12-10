@@ -230,7 +230,7 @@ func TestService(t *testing.T) {
 								Status:      influxdb.TaskStatusActive,
 							},
 							AuthMethod: "none",
-							Method:     "POST",
+							Method:     "GET",
 							URL:        "https://www.example.com/endpoint/noneauth",
 						},
 					},
@@ -711,6 +711,77 @@ func TestService(t *testing.T) {
 				)
 			})
 
+		})
+
+		t.Run("notification endpoints", func(t *testing.T) {
+			t.Run("successfully creates pkg of endpoints", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
+						return nil
+					}
+
+					svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+
+					orgID := influxdb.ID(9000)
+
+					sum, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.NoError(t, err)
+
+					require.Len(t, sum.NotificationEndpoints, 5)
+
+					containsWithID := func(t *testing.T, name string) {
+						for _, actual := range sum.NotificationEndpoints {
+							if actual.GetID() == 0 {
+								assert.NotZero(t, actual.GetID())
+							}
+							if actual.GetName() == name {
+								return
+							}
+						}
+						assert.Fail(t, "did not find notification by name: "+name)
+					}
+
+					expectedNames := []string{
+						"http_basic_auth_notification_endpoint",
+						"http_bearer_auth_notification_endpoint",
+						"http_none_auth_notification_endpoint",
+						"pager_duty_notification_endpoint",
+						"slack_notification_endpoint",
+					}
+					for _, expectedName := range expectedNames {
+						containsWithID(t, expectedName)
+					}
+				})
+			})
+
+			t.Run("rolls back all created notifications on an error", func(t *testing.T) {
+				testfileRunner(t, "testdata/notification_endpoint.yml", func(t *testing.T, pkg *Pkg) {
+					fakeEndpointSVC := mock.NewNotificationEndpointService()
+					fakeEndpointSVC.CreateNotificationEndpointF = func(ctx context.Context, nr influxdb.NotificationEndpoint, userID influxdb.ID) error {
+						nr.SetID(influxdb.ID(fakeEndpointSVC.CreateNotificationEndpointCalls.Count() + 1))
+						if fakeEndpointSVC.CreateNotificationEndpointCalls.Count() == 5 {
+							return errors.New("hit that kill count")
+						}
+						return nil
+					}
+
+					// create some dupes
+					for name, endpoint := range pkg.mNotificationEndpoints {
+						pkg.mNotificationEndpoints["copy"+name] = endpoint
+					}
+
+					svc := newTestService(WithNoticationEndpointSVC(fakeEndpointSVC))
+
+					orgID := influxdb.ID(9000)
+
+					_, err := svc.Apply(context.TODO(), orgID, pkg)
+					require.Error(t, err)
+
+					assert.GreaterOrEqual(t, fakeEndpointSVC.DeleteNotificationEndpointCalls.Count(), 5)
+				})
+			})
 		})
 
 		t.Run("telegrafs", func(t *testing.T) {

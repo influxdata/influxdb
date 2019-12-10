@@ -661,7 +661,7 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 	// the token/auth. its a nothing burger here
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		Post(httpc.BodyJSON(ne), prefixNotificationEndpoints).
+		Post(httpc.BodyJSON(&notificationEndpointEncoder{ne: ne}), prefixNotificationEndpoints).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -675,10 +675,11 @@ func (s *NotificationEndpointService) CreateNotificationEndpoint(ctx context.Con
 
 // UpdateNotificationEndpoint updates a single notification endpoint.
 // Returns the new notification endpoint after update.
-func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, nr influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *NotificationEndpointService) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, ne influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+	// userID is ignored since userID is grabbed off the http auth set on the client
 	var resp notificationEndpointDecoder
 	err := s.Client.
-		Put(httpc.BodyJSON(nr), prefixNotificationEndpoints, id.String()).
+		Put(httpc.BodyJSON(&notificationEndpointEncoder{ne: ne}), prefixNotificationEndpoints, id.String()).
 		DecodeJSON(&resp).
 		Do(ctx)
 	if err != nil {
@@ -706,8 +707,48 @@ func (s *NotificationEndpointService) PatchNotificationEndpoint(ctx context.Cont
 }
 
 // DeleteNotificationEndpoint removes a notification endpoint by ID, returns secret fields, orgID for further deletion.
-func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
-	panic("not implemented")
+// TODO: axe this delete design, makes little sense in how its currently being done. Right now, as an http client,
+//  I am forced to know how the store handles this and then figure out what the server does in between me and that store,
+//  then see what falls out :flushed... for now returning nothing for secrets, orgID, and only returning an error. This makes
+//  the code/design smell super obvious imo
+func (s *NotificationEndpointService) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+	err := s.Client.
+		Delete(prefixNotificationEndpoints, id.String()).
+		Do(ctx)
+	return nil, 0, err
+}
+
+type notificationEndpointEncoder struct {
+	ne influxdb.NotificationEndpoint
+}
+
+func (n *notificationEndpointEncoder) MarshalJSON() ([]byte, error) {
+	b, err := json.Marshal(n.ne)
+	if err != nil {
+		return nil, err
+	}
+
+	ughhh := make(map[string]interface{})
+	if err := json.Unmarshal(b, &ughhh); err != nil {
+		return nil, err
+	}
+	n.ne.BackfillSecretKeys()
+
+	// this makes me queezy and altogether sad
+	fieldMap := map[string]string{
+		"-password":    "password",
+		"-routing-key": "routingKey",
+		"-token":       "token",
+		"-username":    "username",
+	}
+	for _, sec := range n.ne.SecretFields() {
+		var v string
+		if sec.Value != nil {
+			v = *sec.Value
+		}
+		ughhh[fieldMap[sec.Key]] = v
+	}
+	return json.Marshal(ughhh)
 }
 
 type notificationEndpointDecoder struct {
