@@ -518,6 +518,7 @@ func newPkgerSVC(cliReqOpts httpClientOpts, opts ...pkger.ServiceSetterFn) (pkge
 			pkger.WithBucketSVC(&ihttp.BucketService{Client: httpClient}),
 			pkger.WithDashboardSVC(&ihttp.DashboardService{Client: httpClient}),
 			pkger.WithLabelSVC(&ihttp.LabelService{Client: httpClient}),
+			pkger.WithNoticationEndpointSVC(ihttp.NewNotificationEndpointService(httpClient)),
 			pkger.WithTelegrafSVC(ihttp.NewTelegrafService(httpClient)),
 			pkger.WithVariableSVC(&ihttp.VariableService{Client: httpClient}),
 		)...,
@@ -654,6 +655,18 @@ func (b *cmdPkgBuilder) printPkgDiff(diff pkger.Diff) {
 		})
 	}
 
+	if endpoints := diff.NotificationEndpoints; len(endpoints) > 0 {
+		headers := []string{"New", "ID", "Name"}
+		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
+			v := endpoints[i]
+			return []string{
+				boolDiff(v.IsNew()),
+				v.ID.String(),
+				v.Name,
+			}
+		})
+	}
+
 	if teles := diff.Telegrafs; len(diff.Telegrafs) > 0 {
 		headers := []string{"New", "Name", "Description"}
 		tablePrintFn("TELEGRAF CONFIGS", headers, len(teles), func(i int) []string {
@@ -729,6 +742,19 @@ func (b *cmdPkgBuilder) printPkgSummary(sum pkger.Summary) {
 				v.Description,
 				args.Type,
 				printVarArgs(args),
+			}
+		})
+	}
+
+	if endpoints := sum.NotificationEndpoints; len(endpoints) > 0 {
+		headers := []string{"ID", "Name", "Description", "Status"}
+		tablePrintFn("NOTIFICATION ENDPOINTS", headers, len(endpoints), func(i int) []string {
+			v := endpoints[i]
+			return []string{
+				v.GetID().String(),
+				v.GetName(),
+				v.GetDescription(),
+				string(v.GetStatus()),
 			}
 		})
 	}

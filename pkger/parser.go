@@ -549,10 +549,11 @@ func (p *Pkg) graphNotificationEndpoints() *parseErr {
 				kind:        nk.notificationKind,
 				name:        r.Name(),
 				description: r.stringShort(fieldDescription),
-				httpType:    strings.ToLower(r.stringShort(fieldType)),
+				method:      strings.TrimSpace(strings.ToUpper(r.stringShort(fieldNotificationEndpointHTTPMethod))),
+				httpType:    normStr(r.stringShort(fieldType)),
 				password:    r.stringShort(fieldNotificationEndpointPassword),
 				routingKey:  r.stringShort(fieldNotificationEndpointRoutingKey),
-				status:      strings.ToLower(r.stringShort(fieldStatus)),
+				status:      normStr(r.stringShort(fieldStatus)),
 				token:       r.stringShort(fieldNotificationEndpointToken),
 				url:         r.stringShort(fieldNotificationEndpointURL),
 				username:    r.stringShort(fieldNotificationEndpointUsername),
@@ -590,9 +591,9 @@ func (p *Pkg) graphVariables() *parseErr {
 		newVar := &variable{
 			name:        r.Name(),
 			Description: r.stringShort(fieldDescription),
-			Type:        strings.ToLower(r.stringShort(fieldType)),
+			Type:        normStr(r.stringShort(fieldType)),
 			Query:       strings.TrimSpace(r.stringShort(fieldQuery)),
-			Language:    strings.ToLower(strings.TrimSpace(r.stringShort(fieldLanguage))),
+			Language:    normStr(r.stringShort(fieldLanguage)),
 			ConstValues: r.slcStr(fieldValues),
 			MapValues:   r.mapStrStr(fieldValues),
 		}
@@ -1225,4 +1226,8 @@ func (e *parseErr) append(errs ...resourceErr) {
 func IsParseErr(err error) bool {
 	_, ok := err.(*parseErr)
 	return ok
+}
+
+func normStr(s string) string {
+	return strings.TrimSpace(strings.ToLower(s))
 }

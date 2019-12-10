@@ -210,6 +210,22 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "desc1", dashs[0].Description)
 		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
 
+		endpoints := sum1.NotificationEndpoints
+		require.Len(t, endpoints, 1)
+		assert.NotZero(t, endpoints[0].GetID())
+		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].GetName())
+		assert.Equal(t, "http none auth desc", endpoints[0].GetDescription())
+		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].GetStatus()))
+		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		teles := sum1.TelegrafConfigs
+		require.Len(t, teles, 1)
+		assert.NotZero(t, teles[0].ID)
+		assert.Equal(t, l.Org.ID, teles[0].OrgID)
+		assert.Equal(t, "first_tele_config", teles[0].Name)
+		assert.Equal(t, "desc", teles[0].Description)
+		assert.Len(t, teles[0].Plugins, 2)
+
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
 		assert.NotZero(t, vars[0].ID)
@@ -222,14 +238,6 @@ func TestLauncher_Pkger(t *testing.T) {
 			Query:    "buckets()  |> filter(fn: (r) => r.name !~ /^_/)  |> rename(columns: {name: \"_value\"})  |> keep(columns: [\"_value\"])",
 			Language: "flux",
 		}, varArgs.Values)
-
-		teles := sum1.TelegrafConfigs
-		require.Len(t, teles, 1)
-		assert.NotZero(t, teles[0].ID)
-		assert.Equal(t, l.Org.ID, teles[0].OrgID)
-		assert.Equal(t, "first_tele_config", teles[0].Name)
-		assert.Equal(t, "desc", teles[0].Description)
-		assert.Len(t, teles[0].Plugins, 2)
 
 		newSumMapping := func(id influxdb.ID, name string, rt influxdb.ResourceType) pkger.SummaryLabelMapping {
 			return pkger.SummaryLabelMapping{
@@ -244,7 +252,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		}
 
 		mappings := sum1.LabelMappings
-		require.Len(t, mappings, 4)
+		require.Len(t, mappings, 5)
 		hasMapping(t, mappings, newSumMapping(bkts[0].ID, bkts[0].Name, influxdb.BucketsResourceType))
 		hasMapping(t, mappings, newSumMapping(influxdb.ID(dashs[0].ID), dashs[0].Name, influxdb.DashboardsResourceType))
 		hasMapping(t, mappings, newSumMapping(vars[0].ID, vars[0].Name, influxdb.VariablesResourceType))
@@ -258,6 +266,7 @@ func TestLauncher_Pkger(t *testing.T) {
 
 			require.Equal(t, sum1.Buckets, sum2.Buckets)
 			require.Equal(t, sum1.Labels, sum2.Labels)
+			require.Equal(t, sum1.NotificationEndpoints, sum2.NotificationEndpoints)
 			require.Equal(t, sum1.Variables, sum2.Variables)
 
 			// dashboards should be new
@@ -462,6 +471,7 @@ spec:
       name: http_none_auth_notification_endpoint
       type: none
       description: http none auth desc
+      method: GET
       url:  https://www.example.com/endpoint/noneauth
       status: inactive
       associations:

@@ -30,6 +30,7 @@
         "kind": "NotificationEndpointHTTP",
         "name": "http_none_auth_notification_endpoint",
         "description": "http none auth desc",
+        "method": "GET",
         "type": "none",
         "url": "https://www.example.com/endpoint/noneauth",
         "status": "active",
@@ -44,6 +45,7 @@
         "kind": "NotificationEndpointHTTP",
         "name": "http_basic_auth_notification_endpoint",
         "description": "http basic auth desc",
+        "method": "POST",
         "type": "basic",
         "url": "https://www.example.com/endpoint/basicauth",
         "username": "secret username",
@@ -61,6 +63,7 @@
         "name": "http_bearer_auth_notification_endpoint",
         "description": "http bearer auth desc",
         "type": "bearer",
+        "method": "PUT",
         "url": "https://www.example.com/endpoint/bearerauth",
         "token": "secret token",
         "associations": [

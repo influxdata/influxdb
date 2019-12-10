@@ -533,11 +533,11 @@ func (s *Service) DryRun(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (Summ
 
 	diff := Diff{
 		Buckets:               diffBuckets,
-		Dashboards:            s.dryRunDashboards(ctx, orgID, pkg),
+		Dashboards:            s.dryRunDashboards(pkg),
 		Labels:                diffLabels,
 		LabelMappings:         diffLabelMappings,
 		NotificationEndpoints: diffEndpoints,
-		Telegrafs:             s.dryRunTelegraf(ctx, orgID, pkg),
+		Telegrafs:             s.dryRunTelegraf(pkg),
 		Variables:             diffVars,
 	}
 	return pkg.Summary(), diff, parseErr
@@ -571,7 +571,7 @@ func (s *Service) dryRunBuckets(ctx context.Context, orgID influxdb.ID, pkg *Pkg
 	return diffs, nil
 }
 
-func (s *Service) dryRunDashboards(_ context.Context, _ influxdb.ID, pkg *Pkg) []DiffDashboard {
+func (s *Service) dryRunDashboards(pkg *Pkg) []DiffDashboard {
 	var diffs []DiffDashboard
 	for _, d := range pkg.dashboards() {
 		diffs = append(diffs, newDiffDashboard(d))
@@ -649,7 +649,7 @@ func (s *Service) dryRunNotificationEndpoints(ctx context.Context, orgID influxd
 	return diffs, nil
 }
 
-func (s *Service) dryRunTelegraf(_ context.Context, _ influxdb.ID, pkg *Pkg) []DiffTelegraf {
+func (s *Service) dryRunTelegraf(pkg *Pkg) []DiffTelegraf {
 	var diffs []DiffTelegraf
 	for _, t := range pkg.telegrafs() {
 		diffs = append(diffs, newDiffTelegraf(t))
@@ -825,30 +825,39 @@ func (s *Service) Apply(ctx context.Context, orgID influxdb.ID, pkg *Pkg) (sum S
 
 	// each grouping here runs for its entirety, then returns an error that
 	// is indicative of running all appliers provided. For instance, the labels
-	// may have 1 label fail and one of the buckets fails. The errors aggregate so
-	// the caller will be informed of both the failed label and the failed bucket.
+	// may have 1 variable fail and one of the buckets fails. The errors aggregate so
+	// the caller will be informed of both the failed label variable the failed bucket.
 	// the groupings here allow for steps to occur before exiting. The first step is
-	// adding the primary resources. Here we get all the errors associated with them.
+	// adding the dependencies, resources that are associated by other resources. Then the
+	// primary resources. Here we get all the errors associated with them.
 	// If those are all good, then we run the secondary(dependent) resources which
 	// rely on the primary resources having been created.
-	primary := []applier{
-		// primary resources
-		s.applyLabels(pkg.labels()),
-		s.applyVariables(pkg.variables()),
-		s.applyBuckets(pkg.buckets()),
-		s.applyDashboards(pkg.dashboards()),
-		s.applyTelegrafs(pkg.telegrafs()),
-	}
-	if err := coordinator.runTilEnd(ctx, orgID, primary...); err != nil {
-		return Summary{}, err
+	appliers := [][]applier{
+		// want to make all dependencies for belwo donezo before moving on to resources
+		// that have dependencies on lables
+		{
+			// deps for primary resources
+			s.applyLabels(pkg.labels()),
+		},
+		{
+			// primary resources
+			s.applyVariables(pkg.variables()),
+			s.applyBuckets(pkg.buckets()),
+			s.applyDashboards(pkg.dashboards()),
+			s.applyNotificationEndpoints(pkg.notificationEndpoints()),
+			s.applyTelegrafs(pkg.telegrafs()),
+		},
 	}
 
-	// secondary grouping relies on state being available from the primary run.
-	// the first example here is label mappings which relies on ids provided
-	// from the newly created resources in primary.
-	secondary := []applier{
-		s.applyLabelMappings(pkg.labelMappings()),
+	for _, group := range appliers {
+		if err := coordinator.runTilEnd(ctx, orgID, group...); err != nil {
+			return Summary{}, err
+		}
 	}
+
+	// secondary resources
+	// this last grouping relies on the above 2 steps having completely successfully
+	secondary := []applier{s.applyLabelMappings(pkg.labelMappings())}
 	if err := coordinator.runTilEnd(ctx, orgID, secondary...); err != nil {
 		return Summary{}, err
 	}
@@ -1117,17 +1126,101 @@ func (s *Service) applyLabel(ctx context.Context, l label) (influxdb.Label, erro
 		return *updatedlabel, nil
 	}
 
-	influxLabel := influxdb.Label{
-		OrgID:      l.OrgID,
-		Name:       l.Name(),
-		Properties: l.properties(),
-	}
+	influxLabel := l.toInfluxLabel()
 	err := s.labelSVC.CreateLabel(ctx, &influxLabel)
 	if err != nil {
 		return influxdb.Label{}, err
 	}
 
 	return influxLabel, nil
+}
+
+func (s *Service) applyNotificationEndpoints(endpoints []*notificationEndpoint) applier {
+	const resource = "notification_endpoints"
+
+	mutex := new(doMutex)
+	rollbackEndpoints := make([]*notificationEndpoint, 0, len(endpoints))
+
+	createFn := func(ctx context.Context, i int, orgID influxdb.ID) *applyErrBody {
+		var endpoint notificationEndpoint
+		mutex.Do(func() {
+			endpoints[i].OrgID = orgID
+			endpoint = *endpoints[i]
+		})
+
+		influxEndpoint, err := s.applyNotificationEndpoint(ctx, endpoint)
+		if err != nil {
+			return &applyErrBody{
+				name: endpoint.Name(),
+				msg:  err.Error(),
+			}
+		}
+
+		mutex.Do(func() {
+			endpoints[i].id = influxEndpoint.GetID()
+			rollbackEndpoints = append(rollbackEndpoints, endpoints[i])
+		})
+
+		return nil
+	}
+
+	return applier{
+		creater: creater{
+			entries: len(endpoints),
+			fn:      createFn,
+		},
+		rollbacker: rollbacker{
+			resource: resource,
+			fn: func() error {
+				return s.rollbackNotificationEndpoints(rollbackEndpoints)
+			},
+		},
+	}
+}
+
+func (s *Service) applyNotificationEndpoint(ctx context.Context, e notificationEndpoint) (influxdb.NotificationEndpoint, error) {
+	if e.existing != nil {
+		// stub out userID since we're always using hte http client which will fill it in for us with the token
+		// feels a bit broken that is required.
+		// TODO: look into this userID requirement
+		updatedEndpoint, err := s.endpointSVC.UpdateNotificationEndpoint(ctx, e.ID(), e.existing, 0)
+		if err != nil {
+			return nil, err
+		}
+		return updatedEndpoint, nil
+	}
+
+	actual := e.summarize().NotificationEndpoint
+	err := s.endpointSVC.CreateNotificationEndpoint(ctx, actual, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	return actual, nil
+}
+
+func (s *Service) rollbackNotificationEndpoints(endpoints []*notificationEndpoint) error {
+	var errs []string
+	for _, e := range endpoints {
+		if e.existing == nil {
+			_, _, err := s.endpointSVC.DeleteNotificationEndpoint(context.Background(), e.ID())
+			if err != nil {
+				errs = append(errs, e.ID().String())
+			}
+			continue
+		}
+
+		_, err := s.endpointSVC.UpdateNotificationEndpoint(context.Background(), e.ID(), e.existing, 0)
+		if err != nil {
+			errs = append(errs, e.ID().String())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf(`notication_endpoint_ids=[%s] err="unable to delete"`, strings.Join(errs, ", "))
+	}
+
+	return nil
 }
 
 func (s *Service) applyTelegrafs(teles []*telegraf) applier {

@@ -2717,6 +2717,8 @@ spec:
 						URL:        "https://www.example.com/endpoint/basicauth",
 						AuthMethod: "basic",
 						Method:     "POST",
+						Username:   influxdb.SecretField{Key: "-username", Value: strPtr("secret username")},
+						Password:   influxdb.SecretField{Key: "-password", Value: strPtr("secret password")},
 					},
 				},
 				{
@@ -2728,7 +2730,8 @@ spec:
 						},
 						URL:        "https://www.example.com/endpoint/bearerauth",
 						AuthMethod: "bearer",
-						Method:     "POST",
+						Method:     "PUT",
+						Token:      influxdb.SecretField{Key: "-token", Value: strPtr("secret token")},
 					},
 				},
 				{
@@ -2740,7 +2743,7 @@ spec:
 						},
 						URL:        "https://www.example.com/endpoint/noneauth",
 						AuthMethod: "none",
-						Method:     "POST",
+						Method:     "GET",
 					},
 				},
 				{
@@ -2750,7 +2753,8 @@ spec:
 							Description: "pager duty desc",
 							Status:      influxdb.TaskStatusActive,
 						},
-						ClientURL: "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+						ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
+						RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("secret routing-key")},
 					},
 				},
 				{
@@ -2760,7 +2764,8 @@ spec:
 							Description: "slack desc",
 							Status:      influxdb.TaskStatusActive,
 						},
-						URL: "https://hooks.slack.com/services/bip/piddy/boppidy",
+						URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
+						Token: influxdb.SecretField{Key: "-token", Value: strPtr("tokenval")},
 					},
 				},
 			}
@@ -2846,6 +2851,7 @@ spec:
   resources:
     - kind: NotificationEndpointHTTP
       name: name1
+      method: GET
 `,
 					},
 				},
@@ -2866,6 +2872,7 @@ spec:
     - kind: NotificationEndpointHTTP
       name: name1
       type: none
+      method: POST
       url: d_____-_8**(*https://www.examples.coms
 `,
 					},
@@ -2873,9 +2880,9 @@ spec:
 				{
 					kind: KindNotificationEndpointHTTP,
 					resErr: testPkgResourceError{
-						name:           "bad url",
+						name:           "missing http method",
 						validationErrs: 1,
-						valFields:      []string{fieldNotificationEndpointURL},
+						valFields:      []string{fieldNotificationEndpointHTTPMethod},
 						pkgStr: `apiVersion: 0.1.0
 kind: Package
 meta:
@@ -2887,7 +2894,29 @@ spec:
     - kind: NotificationEndpointHTTP
       name: name1
       type: none
-      url: d_____-_8**(*https://www.examples.coms
+      url: http://example.com
+`,
+					},
+				},
+				{
+					kind: KindNotificationEndpointHTTP,
+					resErr: testPkgResourceError{
+						name:           "invalid http method",
+						validationErrs: 1,
+						valFields:      []string{fieldNotificationEndpointHTTPMethod},
+						pkgStr: `apiVersion: 0.1.0
+kind: Package
+meta:
+  pkgName:      pkg_name
+  pkgVersion:   1
+  description:  pack description
+spec:
+  resources:
+    - kind: NotificationEndpointHTTP
+      name: name1
+      type: none
+      method: GUT
+      url: http://example.com
 `,
 					},
 				},
@@ -2909,6 +2938,7 @@ spec:
       name: name1
       type: basic
       url: example.com
+      method: POST
       password: password
 `,
 					},
@@ -2930,6 +2960,7 @@ spec:
     - kind: NotificationEndpointHTTP
       name: name1
       type: basic
+      method: POST
       url: example.com
       username: user
 `,
@@ -2952,6 +2983,7 @@ spec:
     - kind: NotificationEndpointHTTP
       name: name1
       type: basic
+      method: POST
       url: example.com
 `,
 					},
@@ -2973,6 +3005,7 @@ spec:
     - kind: NotificationEndpointHTTP
       name: name1
       type: bearer
+      method: GET
       url: example.com
 `,
 					},
@@ -2994,27 +3027,7 @@ spec:
     - kind: NotificationEndpointHTTP
       name: name1
       type: threeve
-      url: example.com
-`,
-					},
-				},
-				{
-					kind: KindNotificationEndpointHTTP,
-					resErr: testPkgResourceError{
-						name:           "invalid http type",
-						validationErrs: 1,
-						valFields:      []string{fieldType},
-						pkgStr: `apiVersion: 0.1.0
-kind: Package
-meta:
-  pkgName:      pkg_name
-  pkgVersion:   1
-  description:  pack description
-spec:
-  resources:
-    - kind: NotificationEndpointHTTP
-      name: name1
-      type: threeve
+      method: GET
       url: example.com
 `,
 					},
@@ -3608,4 +3621,8 @@ func testfileRunner(t *testing.T, path string, testFn func(t *testing.T, pkg *Pk
 		}
 		t.Run(tt.name, fn)
 	}
+}
+
+func strPtr(s string) *string {
+	return &s
 }
