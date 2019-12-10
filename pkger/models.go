@@ -45,7 +45,7 @@ type Kind string
 
 // NewKind returns the kind parsed from the provided string.
 func NewKind(s string) Kind {
-	return Kind(strings.TrimSpace(strings.ToLower(s)))
+	return Kind(normStr(s))
 }
 
 // String provides the kind in human readable form.
@@ -321,6 +321,12 @@ func newDiffNotificationEndpoint(ne *notificationEndpoint, i influxdb.Notificati
 		}
 	}
 	return diff
+}
+
+// IsNew indicates if the resource will be new to the platform or if it edits
+// an existing resource.
+func (d DiffNotificationEndpoint) IsNew() bool {
+	return d.Old == nil
 }
 
 // DiffTelegraf is a diff of an individual telegraf.
@@ -760,15 +766,19 @@ func (l *label) properties() map[string]string {
 	}
 }
 
+func (l *label) toInfluxLabel() influxdb.Label {
+	return influxdb.Label{
+		ID:         l.ID(),
+		OrgID:      l.OrgID,
+		Name:       l.Name(),
+		Properties: l.properties(),
+	}
+}
+
 func toInfluxLabels(labels ...*label) []influxdb.Label {
 	var iLabels []influxdb.Label
 	for _, l := range labels {
-		iLabels = append(iLabels, influxdb.Label{
-			ID:         l.ID(),
-			OrgID:      l.OrgID,
-			Name:       l.Name(),
-			Properties: l.properties(),
-		})
+		iLabels = append(iLabels, l.toInfluxLabel())
 	}
 	return iLabels
 }
@@ -802,6 +812,7 @@ const (
 )
 
 const (
+	fieldNotificationEndpointHTTPMethod = "method"
 	fieldNotificationEndpointPassword   = "password"
 	fieldNotificationEndpointRoutingKey = "routingKey"
 	fieldNotificationEndpointToken      = "token"
@@ -815,6 +826,7 @@ type notificationEndpoint struct {
 	OrgID       influxdb.ID
 	name        string
 	description string
+	method      string
 	password    string
 	routingKey  string
 	status      string
@@ -869,34 +881,54 @@ func (n *notificationEndpoint) summarize() SummaryNotificationEndpoint {
 	sum := SummaryNotificationEndpoint{
 		LabelAssociations: toInfluxLabels(n.labels...),
 	}
+
 	switch n.kind {
 	case notificationKindHTTP:
 		e := &endpoint.HTTP{
 			Base:   base,
 			URL:    n.url,
-			Method: "POST",
+			Method: n.method,
 		}
-		switch {
-		case n.password == "" && n.username == "" && n.token == "":
+		switch n.httpType {
+		case notificationHTTPAuthTypeNone:
 			e.AuthMethod = notificationHTTPAuthTypeNone
-		case n.token != "":
+		case notificationHTTPAuthTypeBearer:
 			e.AuthMethod = notificationHTTPAuthTypeBearer
+			e.Token = influxdb.SecretField{Value: &n.token}
 		default:
 			e.AuthMethod = notificationHTTPAuthTypeBasic
+			e.Password = influxdb.SecretField{Value: &n.password}
+			e.Username = influxdb.SecretField{Value: &n.username}
 		}
 		sum.NotificationEndpoint = e
 	case notificationKindPagerDuty:
 		sum.NotificationEndpoint = &endpoint.PagerDuty{
-			Base:      base,
-			ClientURL: n.url,
+			Base:       base,
+			ClientURL:  n.url,
+			RoutingKey: influxdb.SecretField{Value: &n.routingKey},
 		}
 	case notificationKindSlack:
-		sum.NotificationEndpoint = &endpoint.Slack{
+		e := &endpoint.Slack{
 			Base: base,
 			URL:  n.url,
 		}
+		if n.token != "" {
+			e.Token = influxdb.SecretField{Value: &n.token}
+		}
+		sum.NotificationEndpoint = e
 	}
+	sum.NotificationEndpoint.BackfillSecretKeys()
 	return sum
+}
+
+var validHTTPMethods = map[string]bool{
+	"DELETE":  true,
+	"GET":     true,
+	"HEAD":    true,
+	"OPTIONS": true,
+	"PATCH":   true,
+	"POST":    true,
+	"PUT":     true,
 }
 
 func (n *notificationEndpoint) valid() []validationErr {
@@ -924,6 +956,13 @@ func (n *notificationEndpoint) valid() []validationErr {
 			})
 		}
 	case notificationKindHTTP:
+		if !validHTTPMethods[n.method] {
+			failures = append(failures, validationErr{
+				Field: fieldNotificationEndpointHTTPMethod,
+				Msg:   "http method must be a valid HTTP verb",
+			})
+		}
+
 		switch n.httpType {
 		case notificationHTTPAuthTypeBasic:
 			if n.password == "" {

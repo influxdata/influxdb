@@ -121,10 +121,9 @@ func (s HTTP) Valid() error {
 	return nil
 }
 
-type httpAlias HTTP
-
 // MarshalJSON implement json.Marshaler interface.
 func (s HTTP) MarshalJSON() ([]byte, error) {
+	type httpAlias HTTP
 	return json.Marshal(
 		struct {
 			httpAlias
