@@ -3,7 +3,6 @@ package launcher_test
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +23,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		pkger.WithBucketSVC(l.BucketService(t)),
 		pkger.WithDashboardSVC(l.DashboardService(t)),
 		pkger.WithLabelSVC(l.LabelService(t)),
+		pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
 		pkger.WithTelegrafSVC(l.TelegrafService(t)),
 		pkger.WithVariableSVC(l.VariableService(t)),
 	)
@@ -51,6 +51,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				LabelService: l.LabelService(t),
 				killCount:    2, // hits error on 3rd attempt at creating a mapping
 			}),
+			pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
 			pkger.WithTelegrafSVC(l.TelegrafService(t)),
 			pkger.WithVariableSVC(l.VariableService(t)),
 		)
@@ -77,6 +78,18 @@ func TestLauncher_Pkger(t *testing.T) {
 		}, influxdb.DefaultDashboardFindOptions)
 		require.NoError(t, err)
 		assert.Empty(t, dashs)
+
+		endpoints, _, err := l.NotificationEndpointService(t).FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{
+			OrgID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, endpoints)
+
+		teles, _, err := l.TelegrafService(t).FindTelegrafConfigs(ctx, influxdb.TelegrafConfigFilter{
+			OrgID: &l.Org.ID,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, teles)
 
 		vars, err := l.VariableService(t).FindVariables(ctx, influxdb.VariableFilter{OrganizationID: &l.Org.ID})
 		require.NoError(t, err)
@@ -131,6 +144,8 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.True(t, diffVars[0].IsNew())
 
 		require.Len(t, diff.Dashboards, 1)
+		require.Len(t, diff.NotificationEndpoints, 1)
+		require.Len(t, diff.Telegrafs, 1)
 
 		labels := sum.Labels
 		require.Len(t, labels, 1)
@@ -146,6 +161,18 @@ func TestLauncher_Pkger(t *testing.T) {
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
 		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
+
+		endpoints := sum.NotificationEndpoints
+		require.Len(t, endpoints, 1)
+		assert.Equal(t, "http_none_auth_notification_endpoint", endpoints[0].GetName())
+		assert.Equal(t, "http none auth desc", endpoints[0].GetDescription())
+		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label_1")
+
+		teles := sum.TelegrafConfigs
+		require.Len(t, teles, 1)
+		assert.Equal(t, "first_tele_config", teles[0].Name)
+		assert.Equal(t, "desc", teles[0].Description)
+		hasLabelAssociations(t, teles[0].LabelAssociations, 1, "label_1")
 
 		vars := sum.Variables
 		require.Len(t, vars, 1)
@@ -167,25 +194,25 @@ func TestLauncher_Pkger(t *testing.T) {
 
 		labels := sum1.Labels
 		require.Len(t, labels, 1)
-		assert.NotEqual(t, influxdb.ID(0), labels[0].ID)
+		assert.NotZero(t, labels[0].ID)
 		assert.Equal(t, "label_1", labels[0].Name)
 
 		bkts := sum1.Buckets
 		require.Len(t, bkts, 1)
-		assert.NotEqual(t, influxdb.ID(0), bkts[0].ID)
+		assert.NotZero(t, bkts[0].ID)
 		assert.Equal(t, "rucket_1", bkts[0].Name)
 		hasLabelAssociations(t, bkts[0].LabelAssociations, 1, "label_1")
 
 		dashs := sum1.Dashboards
 		require.Len(t, dashs, 1)
-		assert.NotEqual(t, influxdb.ID(0), dashs[0].ID)
+		assert.NotZero(t, dashs[0].ID)
 		assert.Equal(t, "dash_1", dashs[0].Name)
 		assert.Equal(t, "desc1", dashs[0].Description)
 		hasLabelAssociations(t, dashs[0].LabelAssociations, 1, "label_1")
 
 		vars := sum1.Variables
 		require.Len(t, vars, 1)
-		assert.NotEqual(t, influxdb.ID(0), vars[0].ID)
+		assert.NotZero(t, vars[0].ID)
 		assert.Equal(t, "var_query_1", vars[0].Name)
 		hasLabelAssociations(t, vars[0].LabelAssociations, 1, "label_1")
 		varArgs := vars[0].Arguments
@@ -328,6 +355,7 @@ func TestLauncher_Pkger(t *testing.T) {
 				}),
 				pkger.WithDashboardSVC(l.DashboardService(t)),
 				pkger.WithLabelSVC(l.LabelService(t)),
+				pkger.WithNoticationEndpointSVC(l.NotificationEndpointService(t)),
 				pkger.WithTelegrafSVC(l.TelegrafService(t)),
 				pkger.WithVariableSVC(l.VariableService(t)),
 			)
@@ -430,6 +458,15 @@ spec:
           bucket = "rucket_3"
         [[inputs.cpu]]
           percpu = true
+    - kind: NotificationEndpointHTTP
+      name: http_none_auth_notification_endpoint
+      type: none
+      description: http none auth desc
+      url:  https://www.example.com/endpoint/noneauth
+      status: inactive
+      associations:
+        - kind: Label
+          name: label_1
 `
 
 const updatePkgYMLStr = `apiVersion: 0.1.0
@@ -477,18 +514,14 @@ func (f *fakeBucketSVC) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 
 type fakeLabelSVC struct {
 	influxdb.LabelService
-	countMu   sync.Mutex
-	callCount int
+	callCount mock.SafeCount
 	killCount int
 }
 
 func (f *fakeLabelSVC) CreateLabelMapping(ctx context.Context, m *influxdb.LabelMapping) error {
-	f.countMu.Lock()
-	if f.callCount == f.killCount {
-		f.countMu.Unlock()
+	defer f.callCount.IncrFn()()
+	if f.callCount.Count() == f.killCount {
 		return errors.New("reached kill count")
 	}
-	f.callCount++
-	f.countMu.Unlock()
 	return f.LabelService.CreateLabelMapping(ctx, m)
 }

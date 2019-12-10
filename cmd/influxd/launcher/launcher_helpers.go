@@ -344,6 +344,11 @@ func (tl *TestLauncher) LabelService(tb testing.TB) *http.LabelService {
 	return &http.LabelService{Client: tl.HTTPClient(tb)}
 }
 
+func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.NotificationEndpointService {
+	tb.Helper()
+	return http.NewNotificationEndpointService(tl.HTTPClient(tb))
+}
+
 func (tl *TestLauncher) TelegrafService(tb testing.TB) *http.TelegrafService {
 	tb.Helper()
 	return http.NewTelegrafService(tl.HTTPClient(tb))
