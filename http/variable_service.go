@@ -72,7 +72,7 @@ func NewVariableHandler(log *zap.Logger, b *VariableBackend) *VariableHandler {
 		HTTPErrorHandler: b.HTTPErrorHandler,
 		log:              b.log.With(zap.String("handler", "label")),
 		LabelService:     b.LabelService,
-		ResourceType:     platform.DashboardsResourceType,
+		ResourceType:     platform.VariablesResourceType,
 	}
 	h.HandlerFunc("GET", entityLabelsPath, newGetLabelsHandler(labelBackend))
 	h.HandlerFunc("POST", entityLabelsPath, newPostLabelHandler(labelBackend))
