@@ -17,6 +17,7 @@
 1. [16101](https://github.com/influxdata/influxdb/pull/16101): Gracefully handle invalid user-supplied JSON
 1. [16105](https://github.com/influxdata/influxdb/pull/16105): Fix crash when loading queries built using Query Builder
 1. [16112](https://github.com/influxdata/influxdb/pull/16112): Create cell view properties on dashboard creation
+1. [16144](https://github.com/influxdata/influxdb/pull/16144): Scrollbars are dapper and proper
 1. [16172](https://github.com/influxdata/influxdb/pull/16172): Fixed table ui threshold colorization issue where setting thresholds would not change table UI
 
 ### UI Improvements
