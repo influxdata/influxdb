@@ -64,7 +64,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	}
 
 	if queryFlags.Org != "" {
-		orgSvc, err := newOrganizationService(flags)
+		orgSvc, err := newOrganizationService()
 		if err != nil {
 			return fmt.Errorf("failed to initialized organization service client: %v", err)
 		}

@@ -615,7 +615,7 @@ VarLoop:
 			// TODO: would be ideal to extend find variables to allow for a name matcher
 			//  since names are unique for vars within an org, meanwhile, make large limit
 			// 	returned vars, should be more than enough for the time being.
-		}, influxdb.FindOptions{Limit: 10000})
+		}, influxdb.FindOptions{Limit: 100})
 		switch {
 		case err == nil && len(existingLabels) > 0:
 			for i := range existingLabels {

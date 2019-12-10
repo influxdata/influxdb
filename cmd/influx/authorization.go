@@ -115,7 +115,7 @@ func authCreateCmd() *cobra.Command {
 
 func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	var permissions []platform.Permission
-	orgSvc, err := newOrganizationService(flags)
+	orgSvc, err := newOrganizationService()
 	if err != nil {
 		return err
 	}
