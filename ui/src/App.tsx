@@ -10,6 +10,7 @@ import TooltipPortal from 'src/portals/TooltipPortal'
 import NotesPortal from 'src/portals/NotesPortal'
 import Notifications from 'src/shared/components/notifications/Notifications'
 import OverlayController from 'src/overlays/components/OverlayController'
+import CloudNav from 'src/pageLayout/components/CloudNav'
 
 // Types
 import {AppState} from 'src/types'
@@ -24,15 +25,18 @@ interface OwnProps {
 type Props = OwnProps & StateProps
 
 const App: SFC<Props> = ({children, inPresentationMode}) => (
-  <AppWrapper presentationMode={inPresentationMode}>
-    <Notifications />
-    <RightClickLayer />
-    <TooltipPortal />
-    <NotesPortal />
-    <OverlayController />
-    <Nav />
-    {children}
-  </AppWrapper>
+  <>
+    <CloudNav />
+    <AppWrapper presentationMode={inPresentationMode}>
+      <Notifications />
+      <RightClickLayer />
+      <TooltipPortal />
+      <NotesPortal />
+      <OverlayController />
+      <Nav />
+      {children}
+    </AppWrapper>
+  </>
 )
 
 const mstp = (state: AppState): StateProps => {
