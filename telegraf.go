@@ -103,7 +103,7 @@ func (tc *TelegrafConfig) UnmarshalJSON(b []byte) error {
 				return err
 			}
 			tc.Config = plugins.AgentConfig + conf
-			tc.Metadata = map[string]interface{}{"bucket": []string{bkt}}
+			tc.Metadata = map[string]interface{}{"buckets": []string{bkt}}
 		} else if c, ok := plugins.GetPlugin("output", "influxdb_v2"); ok {
 			// Handles legacy adding of default plugins (agent and output).
 			tc.Config = plugins.AgentConfig + c.Config
@@ -157,7 +157,7 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 				}
 			}
 			for i := range config {
-				if b, ok := config[i]["bucket"]; ok {
+				if b, ok := config[i]["buckets"]; ok {
 					bkts = append(bkts, b.(string))
 				}
 			}

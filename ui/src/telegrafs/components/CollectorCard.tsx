@@ -28,7 +28,6 @@ import {ILabel, ITelegraf as Telegraf} from '@influxdata/influx'
 
 interface OwnProps {
   collector: Telegraf
-  bucket: string
   onDelete: (telegraf: Telegraf) => void
   onUpdate: (telegraf: Telegraf) => void
   onFilterChange: (searchTerm: string) => void
@@ -49,7 +48,7 @@ type Props = OwnProps & StateProps & DispatchProps
 
 class CollectorRow extends PureComponent<Props & WithRouterProps> {
   public render() {
-    const {collector, bucket, org} = this.props
+    const {collector, org} = this.props
 
     return (
       <ResourceCard
@@ -77,7 +76,7 @@ class CollectorRow extends PureComponent<Props & WithRouterProps> {
         metaData={[
           <span key={`bucket-key--${collector.id}`} data-testid="bucket-name">
             {/* todo(glinton): verify what sets this. It seems like it is using the 'config' section of 'influxdb_v2' output?? */}
-            Bucket: {bucket}
+            Bucket: {collector.metadata.buckets.join(", ")}
           </span>,
           <>
             <Link

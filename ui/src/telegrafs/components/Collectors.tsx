@@ -134,7 +134,7 @@ class Collectors extends PureComponent<Props, State> {
                 <FilterList<Telegraf>
                   searchTerm={searchTerm}
                   searchKeys={[
-                    'plugins.0.config.bucket',
+                    'metadata.buckets[]',
                     'name',
                     'labels[].name',
                   ]}
@@ -142,10 +142,7 @@ class Collectors extends PureComponent<Props, State> {
                 >
                   {cs => (
                     <CollectorList
-                      collectors={cs}
                       emptyState={this.emptyState}
-                      onDelete={this.handleDeleteTelegraf}
-                      onUpdate={this.handleUpdateTelegraf}
                       onFilterChange={this.handleFilterUpdate}
                       sortKey={sortKey}
                       sortDirection={sortDirection}
