@@ -12,7 +12,10 @@ import TimeMachine from 'src/timeMachine/components/TimeMachine'
 import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 // Actions
-import {updateCheck, getCheckForTimeMachine} from 'src/alerting/actions/checks'
+import {
+  saveCheckFromTimeMachine,
+  getCheckForTimeMachine,
+} from 'src/alerting/actions/checks'
 import {
   setActiveTimeMachine,
   setTimeMachineCheck,
@@ -33,7 +36,7 @@ import {
 } from 'src/types'
 
 interface DispatchProps {
-  onUpdateCheck: typeof updateCheck
+  onSaveCheckFromTimeMachine: typeof saveCheckFromTimeMachine
   onGetCheckForTimeMachine: typeof getCheckForTimeMachine
   onUpdateTimeMachineCheck: typeof updateTimeMachineCheck
   onSetActiveTimeMachine: typeof setActiveTimeMachine
@@ -53,7 +56,7 @@ interface StateProps {
 type Props = WithRouterProps & DispatchProps & StateProps
 
 const EditCheckEditorOverlay: FunctionComponent<Props> = ({
-  onUpdateCheck,
+  onSaveCheckFromTimeMachine,
   onExecuteQueries,
   onGetCheckForTimeMachine,
   onUpdateTimeMachineCheck,
@@ -63,7 +66,6 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   checkStatus,
   router,
   params: {checkID, orgID},
-  query,
   check,
   view,
 }) => {
@@ -85,9 +87,8 @@ const EditCheckEditorOverlay: FunctionComponent<Props> = ({
   }
 
   const handleSave = () => {
-    // todo: update view when check has own view
     try {
-      onUpdateCheck({...check, query})
+      onSaveCheckFromTimeMachine()
       handleClose()
     } catch (e) {
       console.error(e)
@@ -147,7 +148,7 @@ const mstp = (state: AppState): StateProps => {
 }
 
 const mdtp: DispatchProps = {
-  onUpdateCheck: updateCheck,
+  onSaveCheckFromTimeMachine: saveCheckFromTimeMachine,
   onSetTimeMachineCheck: setTimeMachineCheck,
   onUpdateTimeMachineCheck: updateTimeMachineCheck,
   onSetActiveTimeMachine: setActiveTimeMachine,
