@@ -5,6 +5,7 @@ import {WithRouterProps} from 'react-router'
 
 // Types
 import {AppState, Organization} from 'src/types'
+import organizations from '@influxdata/influx/dist/wrappers/organizations'
 
 // Decorators
 
@@ -18,6 +19,11 @@ type Props = StateProps & WithRouterProps
 class RouteToOrg extends PureComponent<Props> {
   public componentDidMount() {
     const {orgs, router, org} = this.props
+
+    if (!orgs || !orgs.length) {
+      router.push(`/no-orgs`)
+      return
+    }
 
     // org from local storage
     if (org && org.id) {
