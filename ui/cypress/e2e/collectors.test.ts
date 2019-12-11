@@ -394,7 +394,7 @@ describe('Collectors', () => {
         cy.reload()
       })
       it('Can add label', () => {
-        cy.getByTestID('inline-labels--add').click()
+        cy.getByTestID('inline-labels--add').trigger('mouseover')
         cy.getByTestID('inline-labels--popover-field').type('zoe')
         cy.getByTestID('inline-labels--create-new').click()
         cy.getByTestID('overlay--container').should('exist')

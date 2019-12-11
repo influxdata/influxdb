@@ -24,6 +24,7 @@ const filteredLabels = [
 const setup = (override = {}) => {
   const props = {
     searchTerm: '',
+    triggerRef: {current:null},
     selectedItemID: labels[0].id,
     onUpdateSelectedItemID: jest.fn(),
     allLabelsUsed: false,
@@ -42,8 +43,11 @@ describe('Shared.Components.InlineLabelPopover', () => {
   describe('rendering', () => {
     it('renders with text field in focus', () => {
       const {getByTestId} = setup()
+      const button = getByTestId('inline-labels--add')
+      fireEvent.mouseOver(button)
 
-      const input = getByTestId('inline-labels--popover-field')
+
+      const input = getByTestId('inline-labels--popover')
 
       expect(document.activeElement).toEqual(input)
     })
