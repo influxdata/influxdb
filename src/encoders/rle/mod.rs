@@ -1,4 +1,5 @@
 use integer_encoding::*;
+use std::error::Error;
 
 /// encode_all encodes the value v, delta and count into dst.
 ///
@@ -15,8 +16,7 @@ pub fn encode_all(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
     dst.extend_from_slice(&v.to_be_bytes());
     n += 8;
 
-    // check the first delta's divisor. All deltas are the same, so we only
-    // need to check the first one.
+    // check delta's divisor
     let mut div: u64 = 1_000_000_000_000;
     while div > 1 && delta % div != 0 {
         div /= 10;
@@ -32,6 +32,7 @@ pub fn encode_all(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
         // e.g., 100_000 would be stored as 5.
         let scaler = ((div as f64).log10()) as u8;
         assert!(scaler <= 15);
+
         dst[0] |= scaler; // Set the scaler on low 4 bits of first byte.
         n += (delta / div).encode_var(&mut dst[n..]);
     } else {
@@ -47,39 +48,39 @@ pub fn encode_all(v: u64, delta: u64, count: u64, dst: &mut Vec<u8>) {
 }
 
 /// decode_all decodes an RLE encoded slice into the destination vector.
-pub fn decode_all(src: &[u8], dst: &mut Vec<u64>) -> Result<(), &'static str> {
+pub fn decode_all(src: &[u8], dst: &mut Vec<u64>) -> Result<(), Box<Error>> {
     if src.len() < 9 {
-        return Err("not enough data to decode using RLE");
+        return Err(From::from("not enough data to decode using RLE"));
     }
 
     // calculate the scaler from the lower 4 bits of the first byte.
-    let scaler = 10_u64.pow((src[0] & 0xF) as u32);
+    let scaler = 10_u64.pow((src[0] & 0b00001111) as u32);
     let mut i = 1;
 
     // TODO(edd): this should be possible to do in-place without copy.
     let mut a: [u8; 8] = [0; 8];
     a.copy_from_slice(&src[i..i + 8]);
-    let mut first = u64::from_be_bytes(a);
     i += 8;
     let (mut delta, n) = u64::decode_var(&src[i..]);
     if n <= 0 {
-        return Err("unable to decode delta");
+        return Err(From::from("unable to decode delta"));
     }
     i += n;
     delta *= scaler;
 
     let (count, n) = usize::decode_var(&src[i..]);
     if n <= 0 {
-        return Err("unable to decode count");
+        return Err(From::from("unable to decode count"));
     }
 
     if dst.capacity() < count {
         dst.reserve_exact(count - dst.capacity());
     }
 
+    let mut first = u64::from_be_bytes(a);
     for _ in 0..count {
         dst.push(first);
-        first += delta;
+        first = first.wrapping_add(delta);
     }
     Ok(())
 }
@@ -93,6 +94,17 @@ mod tests {
         let exp = vec![100, 2100, 4100, 6100, 8100, 10100, 12100, 14100];
         let mut dst = Vec::with_capacity(100);
         encode_all(100, 2000, 8, &mut dst);
+
+        let mut got = Vec::with_capacity(0);
+        decode_all(&dst, &mut got).expect("failed to RLE decode");
+        assert_eq!(got, exp);
+    }
+
+    #[test]
+    fn test_encode_rle_no_delta() {
+        let exp = vec![100, 100, 100];
+        let mut dst = Vec::with_capacity(0);
+        encode_all(100, 0, 3, &mut dst);
 
         let mut got = Vec::with_capacity(0);
         decode_all(&dst, &mut got).expect("failed to RLE decode");
