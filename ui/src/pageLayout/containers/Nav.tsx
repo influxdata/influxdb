@@ -91,7 +91,7 @@ class SideNav extends PureComponent<Props, State> {
           <NavMenu.Item
             titleLink={className => (
               <Link className={className} to={orgPrefix}>
-                <CloudOnly>{me.name}</CloudOnly>
+                <CloudOnly>Getting Started</CloudOnly>
                 <CloudExclude>{`${me.name} (${orgName})`}</CloudExclude>
               </Link>
             )}
