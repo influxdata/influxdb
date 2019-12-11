@@ -386,7 +386,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 			case scheduledForField:
 				scheduled, err := time.Parse(time.RFC3339, cr.Strings(j).ValueString(i))
 				if err != nil {
-					re.log.Info("Failed to parse scheduledAt time", zap.Error(err))
+					re.log.Info("Failed to parse scheduledFor time", zap.Error(err))
 					continue
 				}
 				r.ScheduledFor = scheduled.UTC()

@@ -1360,10 +1360,10 @@ func (s *Service) createNextRun(ctx context.Context, tx Tx, taskID influxdb.ID, 
 }
 
 // CreateRun creates a run with a scheduledFor time as now.
-func (s *Service) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
+func (s *Service) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
 	var r *influxdb.Run
 	err := s.kv.Update(ctx, func(tx Tx) error {
-		run, err := s.createRun(ctx, tx, taskID, scheduledFor)
+		run, err := s.createRun(ctx, tx, taskID, scheduledFor, runAt)
 		if err != nil {
 			return err
 		}
@@ -1372,13 +1372,14 @@ func (s *Service) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFo
 	})
 	return r, err
 }
-func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, scheduledFor time.Time) (*influxdb.Run, error) {
+func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
 	id := s.IDGenerator.ID()
 
 	run := influxdb.Run{
 		ID:           id,
 		TaskID:       taskID,
 		ScheduledFor: scheduledFor,
+		RunAt:        runAt,
 		Status:       backend.RunScheduled.String(),
 		Log:          []influxdb.Log{},
 	}
