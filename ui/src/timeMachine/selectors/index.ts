@@ -24,6 +24,7 @@ import {
 
 // Types
 import {
+  DashboardQuery,
   FluxTable,
   QueryView,
   AppState,
@@ -291,7 +292,10 @@ export const getEndTime = (timeRange: TimeRange): number => {
   return moment().valueOf()
 }
 
-export const getActiveTimeRange = (timeRange: TimeRange, queries: array) => {
+export const getActiveTimeRange = (
+  timeRange: TimeRange,
+  queries: Array<DashboardQuery>
+) => {
   if (!queries) {
     return timeRange
   }

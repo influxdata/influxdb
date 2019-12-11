@@ -144,10 +144,10 @@ class CellComponent extends Component<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const view = getView(state, ownProps.cell.id)
-  const timeRange = getActiveTimeRange(
-    ownProps.timeRange,
-    view.properties.queries
-  )
+  let timeRange = null
+  if (view.properties.type !== 'markdown') {
+    timeRange = getActiveTimeRange(ownProps.timeRange, view.properties.queries)
+  }
   const status = getViewStatus(state, ownProps.cell.id)
 
   const check = getCheckForView(state, view)
