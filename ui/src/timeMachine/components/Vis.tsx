@@ -130,10 +130,7 @@ const TimeMachineVis: SFC<Props> = ({
 const mstp = (state: AppState): StateProps => {
   const {
     isViewingRawData,
-    view: {
-      properties: viewProperties,
-      properties: {queries},
-    },
+    view: {properties: viewProperties},
     queryResults: {
       status: loading,
       errorMessage,
@@ -167,7 +164,7 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
-    timeRange: getActiveTimeRange(timeRange, queries),
+    timeRange: getActiveTimeRange(timeRange, viewProperties.queries),
     statuses,
   }
 }

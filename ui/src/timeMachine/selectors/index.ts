@@ -294,7 +294,7 @@ export const getEndTime = (timeRange: TimeRange): number => {
 
 export const getActiveTimeRange = (
   timeRange: TimeRange,
-  queries: Array<DashboardQuery>
+  queries: DashboardQuery[]
 ) => {
   if (!queries) {
     return timeRange

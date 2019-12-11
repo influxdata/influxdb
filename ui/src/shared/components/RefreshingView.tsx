@@ -10,9 +10,12 @@ import ViewSwitcher from 'src/shared/components/ViewSwitcher'
 // Utils
 import {GlobalAutoRefresher} from 'src/utils/AutoRefresher'
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
-import {getVariableAssignments} from 'src/variables/selectors'
-import {getDashboardValuesStatus} from 'src/variables/selectors'
+import {
+  getVariableAssignments,
+  getDashboardValuesStatus,
+} from 'src/variables/selectors'
 import {checkResultsLength} from 'src/shared/utils/vis'
+import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
 
 // Types
 import {
@@ -27,7 +30,7 @@ import {
 } from 'src/types'
 
 interface OwnProps {
-  timeRange: TimeRange | null
+  timeRange: TimeRange
   manualRefresh: number
   properties: QueryViewProperties
   dashboardID: string
@@ -35,6 +38,7 @@ interface OwnProps {
 }
 
 interface StateProps {
+  ranges: TimeRange | null
   timeZone: TimeZone
   variableAssignments: VariableAssignment[]
   variablesStatus: RemoteDataState
@@ -67,7 +71,7 @@ class RefreshingView extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {check, timeRange, properties, manualRefresh, timeZone} = this.props
+    const {check, ranges, properties, manualRefresh, timeZone} = this.props
     const {submitToken} = this.state
 
     return (
@@ -102,7 +106,7 @@ class RefreshingView extends PureComponent<Props, State> {
                 giraffeResult={giraffeResult}
                 loading={loading}
                 properties={properties}
-                timeRange={timeRange}
+                timeRange={ranges}
                 statuses={statuses}
                 timeZone={timeZone}
               />
@@ -159,10 +163,12 @@ const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
     ownProps.dashboardID
   )
   const valuesStatus = getDashboardValuesStatus(state, ownProps.dashboardID)
-
+  const {properties} = ownProps
+  const timeRange = getActiveTimeRange(ownProps.timeRange, properties.queries)
   const timeZone = state.app.persisted.timeZone
 
   return {
+    ranges: timeRange,
     timeZone,
     variableAssignments,
     variablesStatus: valuesStatus,

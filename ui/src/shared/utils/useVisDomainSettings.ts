@@ -19,7 +19,7 @@ import {TimeRange} from 'src/types'
 */
 export const getValidRange = (
   data: NumericColumnData = [],
-  timeRange: TimeRange | null = null
+  timeRange: TimeRange | null
 ) => {
   const range = extent((data as number[]) || [])
   if (!timeRange) {
