@@ -14,6 +14,9 @@ import EmptyGraphMessage from 'src/shared/components/EmptyGraphMessage'
 // Utils
 import {getView, getCheckForView, getViewStatus} from 'src/dashboards/selectors'
 
+// Selectors
+import {getActiveTimeRange} from 'src/timeMachine/selectors/index'
+
 // Types
 import {
   AppState,
@@ -28,6 +31,7 @@ interface StateProps {
   viewsStatus: RemoteDataState
   view: View
   check: Partial<Check>
+  ranges: TimeRange | null
 }
 
 interface OwnProps {
@@ -109,7 +113,7 @@ class CellComponent extends Component<Props, State> {
 
   private get view(): JSX.Element {
     const {
-      timeRange,
+      ranges,
       manualRefresh,
       check,
       view,
@@ -125,7 +129,7 @@ class CellComponent extends Component<Props, State> {
         <ViewComponent
           view={view}
           check={check}
-          timeRange={timeRange}
+          timeRange={ranges}
           manualRefresh={manualRefresh}
           onEditCell={onEditCell}
         />
@@ -140,12 +144,15 @@ class CellComponent extends Component<Props, State> {
 
 const mstp = (state: AppState, ownProps: OwnProps): StateProps => {
   const view = getView(state, ownProps.cell.id)
-
+  const timeRange = getActiveTimeRange(
+    ownProps.timeRange,
+    view.properties.queries
+  )
   const status = getViewStatus(state, ownProps.cell.id)
 
   const check = getCheckForView(state, view)
 
-  return {view, viewsStatus: status, check}
+  return {view, viewsStatus: status, check, ranges: timeRange}
 }
 
 export default connect<StateProps, {}, OwnProps>(

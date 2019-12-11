@@ -15,7 +15,7 @@ import {ErrorHandling} from 'src/shared/decorators/errors'
 interface OwnProps {
   view: View
   check: Partial<Check>
-  timeRange: TimeRange
+  timeRange: TimeRange | null
   manualRefresh: number
   onEditCell: () => void
 }

@@ -291,10 +291,7 @@ export const getEndTime = (timeRange: TimeRange): number => {
   return moment().valueOf()
 }
 
-export const getActiveTimeRange = (
-  timeRange: TimeRange,
-  queries: any = null
-) => {
+export const getActiveTimeRange = (timeRange: TimeRange, queries: array) => {
   if (!queries) {
     return timeRange
   }
