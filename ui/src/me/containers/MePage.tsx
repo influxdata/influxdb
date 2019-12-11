@@ -50,6 +50,7 @@ export class MePage extends PureComponent<StateProps> {
                   margin={ComponentSize.Small}
                   alignItems={AlignItems.Stretch}
                   stretchToFitWidth={true}
+                  testID="getting-started"
                 >
                   <Panel>
                     <Panel.Header>
