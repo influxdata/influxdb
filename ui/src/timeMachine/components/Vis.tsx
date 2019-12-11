@@ -3,6 +3,7 @@ import React, {SFC} from 'react'
 import {connect} from 'react-redux'
 import {FromFluxResult} from '@influxdata/giraffe'
 import {AutoSizer} from 'react-virtualized'
+import {get} from 'lodash'
 
 // Components
 import EmptyQueryView, {ErrorFormat} from 'src/shared/components/EmptyQueryView'
@@ -151,6 +152,7 @@ const mstp = (state: AppState): StateProps => {
   const symbolColumns = getSymbolColumnsSelection(state)
 
   const timeZone = state.app.persisted.timeZone
+  const text = get(viewProperties, 'queries[0].text', '')
 
   return {
     loading,
@@ -166,8 +168,10 @@ const mstp = (state: AppState): StateProps => {
     fillColumns,
     symbolColumns,
     timeZone,
-    startTime: getStartTime(timeRange),
-    endTime: getEndTime(timeRange),
+    startTime: text.includes('v.timeRangeStart')
+      ? getStartTime(timeRange)
+      : Infinity,
+    endTime: text.includes('v.timeRangeStop') ? getEndTime(timeRange) : null,
     statuses,
   }
 }
