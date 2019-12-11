@@ -27,6 +27,18 @@ fn test_encode_mixed_sizes() {
 }
 
 #[test]
+fn test_encode_mixed_sizes_alt() {
+    let src = vec![1, 11, 3124, 123543256, 2398567984273478];
+
+    let mut encoded = vec![];
+    let mut decoded = vec![];
+    encode_all(&src, &mut encoded).expect("failed to encode");
+    assert_eq!(encoded.len(), 24); // verify vector is truncated.
+    decode_all(&encoded, &mut decoded);
+    assert_eq!(decoded.to_vec(), src, "{}", "mixed sizes");
+}
+
+#[test]
 fn test_encode_too_big() {
     let src = vec![7, 6, 2 << 61 - 1, 4, 3, 2, 1];
 
