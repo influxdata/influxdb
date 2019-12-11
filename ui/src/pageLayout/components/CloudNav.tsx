@@ -34,7 +34,7 @@ const CloudNav: FunctionComponent<StateProps> = ({orgName, orgID}) => {
     console.log('boop')
   }
   return (
-    // <CloudOnly>
+    <CloudOnly>
       <AppHeader className="cloud-nav">
       <AppHeader.Logo>
         <Link to={`/orgs/${orgID}`} className="cloud-nav--logo-link"><img className="cloud-nav--logo" alt="InfluxData Logo" src={Logo} /></Link></AppHeader.Logo>
@@ -62,7 +62,7 @@ const CloudNav: FunctionComponent<StateProps> = ({orgName, orgID}) => {
           </PopNav>
         </FlexBox>
       </AppHeader>
-    // </CloudOnly>
+    </CloudOnly>
   )
 }
 
